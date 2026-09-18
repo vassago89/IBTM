@@ -8,20 +8,35 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public sealed partial class MotionMonitorAxis(
-    MotionGroup group,
-    MotionAxis axis,
-    int number,
-    MachineController machine,
-    MachineState state,
-    UnitSettings units) : ObservableObject
+public sealed partial class MotionMonitorAxis : ObservableObject
 {
-    private bool _lastEnabled = units.IsMotionEnabled(group);
+    private readonly MachineController _machine;
+    private readonly MachineState _state;
+    private readonly UnitSettings _units;
+    private bool _lastEnabled;
 
-    public MotionGroup Group { get; } = group;
-    public MotionAxis Axis { get; } = axis;
-    public int Number { get; } = number;
-    public MotionDiagnostics Diagnostics { get; } = state.GetMotionStatus(group).MonitorAxes[axis];
+    public MotionMonitorAxis(
+        MotionGroup group,
+        MotionAxis axis,
+        int number,
+        MachineController machine,
+        MachineState state,
+        UnitSettings units)
+    {
+        _machine = machine;
+        _state = state;
+        _units = units;
+        _lastEnabled = _units.IsMotionEnabled(group);
+        Group = group;
+        Axis = axis;
+        Number = number;
+        Diagnostics = _state.GetMotionStatus(group).MonitorAxes[axis];
+    }
+
+    public MotionGroup Group { get; }
+    public MotionAxis Axis { get; }
+    public int Number { get; }
+    public MotionDiagnostics Diagnostics { get; }
 
     public string Address
     {
@@ -35,33 +50,33 @@ public sealed partial class MotionMonitorAxis(
     {
         get
         {
-            return units.IsMotionEnabled(Group);
+            return _units.IsMotionEnabled(Group);
         }
     }
 
     [RelayCommand(CanExecute = nameof(CanToggleServo))]
     private void ToggleServo()
     {
-        machine.ToggleServo(Group, Axis);
+        _machine.ToggleServo(Group, Axis);
     }
 
     private bool CanToggleServo()
     {
         return Diagnostics.Snapshot.State is not null
-            && machine.CanSetServo(Group, live: false);
+            && _machine.CanSetServo(Group, live: false);
     }
 
     [RelayCommand(CanExecute = nameof(CanHome), IncludeCancelCommand = true)]
     private Task HomeAsync(CancellationToken cancellationToken)
     {
-        return Task.Run(() => machine.HomeAxisAsync(Group, Axis, cancellationToken));
+        return Task.Run(() => _machine.HomeAxisAsync(Group, Axis, cancellationToken));
     }
 
     private bool CanHome()
     {
         return Enabled
-            && state.Display.Available
-            && state.Display.HomeableAxes.Contains((Group, Axis));
+            && _state.Display.Available
+            && _state.Display.HomeableAxes.Contains((Group, Axis));
     }
 
     internal bool Refresh()

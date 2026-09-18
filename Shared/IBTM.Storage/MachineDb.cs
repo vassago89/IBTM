@@ -7,16 +7,16 @@ namespace IBTM.Storage;
 
 internal sealed class MachineDb : DbContext
 {
+    public MachineDb(DbContextOptions<MachineDb> options) : base(options)
+    {
+    }
+
     internal static string DefaultFile
     {
         get
         {
             return Path.Combine(AppContext.BaseDirectory, "Data", "Machine.db");
         }
-    }
-
-    public MachineDb(DbContextOptions<MachineDb> options) : base(options)
-    {
     }
 
     internal DbSet<SettingRow> Settings

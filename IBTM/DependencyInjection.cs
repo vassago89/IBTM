@@ -155,7 +155,7 @@ public static class DependencyInjection
             {
                 var units = provider.GetRequiredService<UnitSettings>();
                 return new PcbPlacementWork(
-                    ConveyorStation.PcbPlacement(provider.GetRequiredService<IIoService>()),
+                    ConveyorStation.CreatePcbPlacement(provider.GetRequiredService<IIoService>()),
                     () => units.PcbPlacement);
             });
         services.AddSingleton(
@@ -163,7 +163,7 @@ public static class DependencyInjection
             {
                 var units = provider.GetRequiredService<UnitSettings>();
                 return new BoltFasteningWork(
-                    ConveyorStation.BoltFastening(provider.GetRequiredService<IIoService>()),
+                    ConveyorStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()),
                     () => units.BoltFastening);
             });
         services.AddSingleton(
@@ -324,7 +324,6 @@ public static class DependencyInjection
                 return new InspectionStation(
                     provider.GetRequiredService<InspectionWork>(),
                     provider.GetRequiredService<BoltInspector>(),
-                    provider.GetRequiredService<NgCarrierTransfer>(),
                     provider.GetRequiredService<NgCarrierMove>(),
                     provider.GetRequiredService<NgShuttle>(),
                     () => units.NgCarrierTransfer,
@@ -354,14 +353,14 @@ public static class DependencyInjection
                     new VirtualMachine(
                         provider.GetRequiredService<VirtualIoService>(),
                         [
-                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                    MotionGroup.PcbSupply),
-                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                    MotionGroup.PcbPlacementHandler),
-                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                    MotionGroup.BoltFastening),
-                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                    MotionGroup.InspectionGantry),
+                            (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
+                                MotionGroup.PcbSupply),
+                            (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
+                                MotionGroup.PcbPlacementHandler),
+                            (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
+                                MotionGroup.BoltFastening),
+                            (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
+                                MotionGroup.InspectionGantry),
             ],
                         () => provider.GetRequiredService<MachineState>().RepeatEnabled));
             services.AddSingleton<IIoService>(

@@ -4,14 +4,6 @@ namespace IBTM.BoltFastening;
 
 public sealed class BoltFasteningStationHardwareSettings : InputHardwareSettings
 {
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.BoltFasteningStation;
-        }
-    }
-
     public BoltFasteningStationHardwareSettings()
     {
         Inputs = new()
@@ -19,5 +11,13 @@ public sealed class BoltFasteningStationHardwareSettings : InputHardwareSettings
             [InputIo.BoltFasteningHeatSink1Present] = 62,
             [InputIo.BoltFasteningHeatSink2Present] = 63,
         };
+    }
+
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.BoltFasteningStation;
+        }
     }
 }

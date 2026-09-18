@@ -40,7 +40,7 @@ public sealed partial class MachineLifecycleTests
         // Start with an occupied, raised S3; the main sequence must lower it for inspection.
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
-        work.Assembly(HeatSinkSlot.HeatSink1).RecordBarcode("PCB-1");
+        work.GetAssembly(HeatSinkSlot.HeatSink1).RecordBarcode("PCB-1");
 
         var inspected = false;
         var returned = false;
@@ -75,11 +75,11 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(work.IsTransferAtWaitingPosition());
                 Interlocked.Increment(ref raises);
             }
-            if (output == OutputIo.NgCarrierPickupDown && on && work.CarrierPresent)
+            if (output == OutputIo.NgCarrierPickupDown && on && work.Station.CarrierPresent)
             {
                 Assert.True(ng);
                 Assert.True(work.Completed);
-                Assert.True(work.CarrierSeated);
+                Assert.True(work.Station.CarrierSeated);
             }
             if (output != OutputIo.MainConveyorRun || !on)
                 return;
@@ -95,7 +95,7 @@ public sealed partial class MachineLifecycleTests
             else
             {
                 Assert.Equal(MainConveyorState.MovingPcbPlacementToBoltFastening, conveyor.State);
-                Assert.Equal(StationCylinderState.Up, work.BackupPlate);
+                Assert.Equal(StationCylinderState.Up, work.Station.BackupPlate);
             }
             beltStarted.TrySetResult();
         };
@@ -126,7 +126,7 @@ public sealed partial class MachineLifecycleTests
                     io.SetInput(InputIo.MainConveyorReadyFromRear, true);
                     Assert.True(await VirtualTest.WaitUntilAsync(
                         () => discharged.Task.IsCompleted, TimeSpan.FromSeconds(5)),
-                        $"State={conveyor.State}; completed={work.Completed}; seated={work.CarrierSeated}; "
+                        $"State={conveyor.State}; completed={work.Completed}; seated={work.Station.CarrierSeated}; "
                             + $"parked={work.IsTransferAtWaitingPosition()}; ready={conveyor.DownstreamReady}; "
                             + $"alarm={machineState.AlarmMessage}; "
                             + string.Join(" | ", conveyorSteps));
@@ -163,7 +163,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
         await fastening.Station.SeatAsync(CancellationToken.None);
         var arrivingJob = fastening.CurrentJob;
-        fastening.Assembly(HeatSinkSlot.HeatSink2).RecordBarcode("S2-CARRIER");
+        fastening.GetAssembly(HeatSinkSlot.HeatSink2).RecordBarcode("S2-CARRIER");
         if (carrierWaitingAtS1)
         {
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
@@ -197,10 +197,10 @@ public sealed partial class MachineLifecycleTests
             Assert.True(work.InspectionRequested);
             Assert.True(work.AtInspectionPosition);
             Assert.False(conveyor.RunCommandOn);
-            Assert.True(fastening.CarrierSeated);
-            Assert.Equal(carrierWaitingAtS1, placement.CarrierSeated);
+            Assert.True(fastening.Station.CarrierSeated);
+            Assert.Equal(carrierWaitingAtS1, placement.Station.CarrierSeated);
             Assert.Equal(arrivingJob.Id, work.CurrentJob.Id);
-            Assert.Equal("S2-CARRIER", work.Assembly(HeatSinkSlot.HeatSink2).PcbBarcode);
+            Assert.Equal("S2-CARRIER", work.GetAssembly(HeatSinkSlot.HeatSink2).PcbBarcode);
             Assert.Equal(new[] { true, false }, plateMovesBeforeInspection);
             Assert.Equal(expectedMoves, moves);
             inspected = true;
@@ -221,7 +221,7 @@ public sealed partial class MachineLifecycleTests
             moves.Enqueue(state);
             if (state == MainConveyorState.MovingBoltFasteningToInspection)
                 return;
-            Assert.True(work.CarrierSeated);
+            Assert.True(work.Station.CarrierSeated);
             Assert.False(work.InspectionRequested);
             Assert.False(work.Completed);
         };
@@ -274,9 +274,9 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => work.IsTransferAtWaitingPosition(), TimeSpan.FromSeconds(2)));
-            Assert.Equal(InspectionStationState.Waiting, station.State(bolts));
+            Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
-            var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
+            var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
             assembly.RecordBarcode("PCB-1");
             await work.Station.PrepareToReceiveAsync(CancellationToken.None);
             await interrupted.Task.WaitAsync(TimeSpan.FromSeconds(3));

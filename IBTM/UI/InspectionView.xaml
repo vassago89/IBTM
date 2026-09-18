@@ -49,7 +49,7 @@
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Units.Inspection}" Value="True"/>
-                                        <Condition Binding="{Binding InspectionWork.CarrierPresent}" Value="True"/>
+                                        <Condition Binding="{Binding InspectionWork.Station.CarrierPresent}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </MultiDataTrigger>

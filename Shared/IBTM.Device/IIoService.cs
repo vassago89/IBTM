@@ -152,7 +152,11 @@ public interface IIoService
     }
 }
 
-public sealed class IoTimeoutException(InputIo input, bool inputValue, int timeoutMilliseconds) : TimeoutException(
-    $"{input.GetDescription()}={(inputValue ? "ON" : "OFF")} " + $"timeout ({timeoutMilliseconds} ms)")
+public sealed class IoTimeoutException : TimeoutException
 {
+    public IoTimeoutException(InputIo input, bool inputValue, int timeoutMilliseconds)
+        : base(
+            $"{input.GetDescription()}={(inputValue ? "ON" : "OFF")} " + $"timeout ({timeoutMilliseconds} ms)")
+    {
+    }
 }

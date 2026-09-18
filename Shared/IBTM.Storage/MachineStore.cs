@@ -11,12 +11,19 @@ namespace IBTM.Storage;
 
 public sealed record RecipeImage(int Number, byte[] Image);
 
-public sealed class SavedSettings(IReadOnlyDictionary<string, string> values)
+public sealed class SavedSettings
 {
+    private readonly IReadOnlyDictionary<string, string> _values;
+
+    public SavedSettings(IReadOnlyDictionary<string, string> values)
+    {
+        _values = values;
+    }
+
     public T Get<T>()
         where T : Setting, new()
     {
-        return values.TryGetValue(typeof(T).Name, out var json)
+        return _values.TryGetValue(typeof(T).Name, out var json)
             ? JsonSerializer.Deserialize<T>(json) ?? throw new InvalidDataException(
                 $"{typeof(T).Name} is empty.")
             : new T();
@@ -26,7 +33,6 @@ public sealed class SavedSettings(IReadOnlyDictionary<string, string> values)
 public sealed class MachineStore
 {
     private readonly DbContextOptions<MachineDb> _options;
-    public string DatabaseFile { get; }
 
     public MachineStore(string? databaseFile = null)
     {
@@ -37,6 +43,8 @@ public sealed class MachineStore
         // Settings and recipes evolve inside JSON, not as database columns.
         db.Database.EnsureCreated();
     }
+
+    public string DatabaseFile { get; }
 
     public bool HasData
     {
@@ -163,5 +171,4 @@ public sealed class MachineStore
             .Select(row => row.Image)
             .Single();
     }
-
 }

@@ -12,8 +12,7 @@ public sealed class InputWindowViewModel
         Signals = signals;
         Filter = new(
             signals.Inputs.Values.Select(signal => new InputControlRow(signal, VirtualIo)).ToArray(),
-            row => row.Io,
-            nameof(InputControlRow.Io));
+            row => row.Io);
     }
 
     public VirtualIoService? VirtualIo { get; }

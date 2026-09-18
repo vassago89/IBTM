@@ -219,14 +219,13 @@ public sealed class BufferStage
 
     private bool IsInsidePlacement((double X, double Y, double Z) position)
     {
-        return Between(position.X, _settings.PlacementBoundary1.X, _settings.PlacementBoundary2.X)
-            && Between(position.Y, _settings.PlacementBoundary1.Y, _settings.PlacementBoundary2.Y);
+        return IsBetween(position.X, _settings.PlacementBoundary1.X, _settings.PlacementBoundary2.X)
+            && IsBetween(position.Y, _settings.PlacementBoundary1.Y, _settings.PlacementBoundary2.Y);
     }
 
-    private static bool Between(double value, double boundary1, double boundary2)
+    private static bool IsBetween(double value, double boundary1, double boundary2)
     {
         return value >= Math.Min(boundary1, boundary2)
             && value <= Math.Max(boundary1, boundary2);
     }
-
 }

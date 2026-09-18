@@ -12,15 +12,6 @@ public sealed partial class PcbPlacer
     // Current-run ownership only; discarded when RunAsync exits.
     private RepeatPcbTrip? _repeatTrip;
 
-    private enum RepeatPcbPhase { Picking, ToHandoff, Placing, Releasing }
-
-    private sealed class RepeatPcbTrip(StationWork.Job job, HeatSinkSlot heatSink)
-    {
-        public StationWork.Job Job { get; } = job;
-        public HeatSinkSlot HeatSink { get; } = heatSink;
-        public RepeatPcbPhase Phase { get; set; }
-    }
-
     private async Task ExecuteRepeatAsync(
         PcbPlacementRecipe recipe,
         HeatSinkSlot? heatSink,
@@ -29,7 +20,7 @@ public sealed partial class PcbPlacer
         if (_repeatTrip is null)
         {
             // The entry carrier already has its PCBs. Start by picking them on the first pass too.
-            if (_work.CarrierSeated && !_work.Completed && heatSink is not null)
+            if (_work.Station.CarrierSeated && !_work.Completed && heatSink is not null)
                 _repeatTrip = new(_work.CurrentJob, heatSink.Value);
         }
 
@@ -40,7 +31,7 @@ public sealed partial class PcbPlacer
         }
 
         _work.RequireCurrentJob(trip.Job);
-        if (!_work.CarrierSeated)
+        if (!_work.Station.CarrierSeated)
             throw new InvalidOperationException("The repeat PCB carrier is no longer seated.");
 
         if (trip.Phase == RepeatPcbPhase.Picking && _handler.Pcb == PlacementPcbState.Secured)
@@ -62,7 +53,7 @@ public sealed partial class PcbPlacer
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckRepeatFeedback()
         {
-            if (!_work.CarrierSeated
+            if (!_work.Station.CarrierSeated
                 || !ReferenceEquals(trip.Job, _work.CurrentJob)
                 || trip.Phase is RepeatPcbPhase.ToHandoff or RepeatPcbPhase.Placing
                     && _handler.Pcb != PlacementPcbState.Secured)
@@ -89,7 +80,7 @@ public sealed partial class PcbPlacer
         }
     }
 
-    private PcbPlacementState RepeatPickupState(PcbPlacementRecipe recipe, RepeatPcbTrip trip, bool live)
+    private PcbPlacementState GetRepeatPickupState(PcbPlacementRecipe recipe, RepeatPcbTrip trip, bool live)
     {
         if (trip.Phase == RepeatPcbPhase.ToHandoff)
         {
@@ -104,7 +95,7 @@ public sealed partial class PcbPlacer
             return PcbPlacementState.MovingAboveBuffer;
         }
 
-        var position = HeatSinkPosition(recipe, trip.HeatSink);
+        var position = GetHeatSinkPosition(recipe, trip.HeatSink);
         if (!_handler.IsAtXY(position, live)
             || _handler.Rotation != PlacementRotationState.Rotated
             || !_handler.IsAtZ(position, live))
@@ -139,5 +130,20 @@ public sealed partial class PcbPlacer
         if (!_handler.VacuumDetected)
             return PcbPlacementState.ApplyingVacuum;
         return PcbPlacementState.ClosingGripper;
+    }
+
+    private enum RepeatPcbPhase { Picking, ToHandoff, Placing, Releasing }
+
+    private sealed class RepeatPcbTrip
+    {
+        public RepeatPcbTrip(StationWork.Job job, HeatSinkSlot heatSink)
+        {
+            Job = job;
+            HeatSink = heatSink;
+        }
+
+        public StationWork.Job Job { get; }
+        public HeatSinkSlot HeatSink { get; }
+        public RepeatPcbPhase Phase { get; set; }
     }
 }

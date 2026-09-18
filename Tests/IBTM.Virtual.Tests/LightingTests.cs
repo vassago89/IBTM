@@ -201,10 +201,84 @@ public sealed class LightingTests
         Assert.False(inspector.IsLiveView);
     }
 
+    [Fact]
+    public void VirtualDevelopmentAlsoForcesLightingToVirtual()
+    {
+        var settings = new MachineSettings();
+        settings.Drivers.Light = LightDriver.Movs;
+        DevelopmentProfile.UseVirtualHardware(settings);
+        Assert.Equal(LightDriver.Virtual, settings.Drivers.Light);
+    }
+
+    [Theory]
+    [InlineData(ControlDriver.Physical, LightDriver.Virtual)]
+    [InlineData(ControlDriver.Virtual, LightDriver.Movs)]
+    public void LightSelectionIsIndependentAndMissingComDoesNotBreakConstruction(
+        ControlDriver motion,
+        LightDriver light)
+    {
+        var settings = new MachineSettings();
+        settings.Drivers.Control = motion;
+        settings.Drivers.Light = light;
+        using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
+        var controller = services.GetRequiredService<ILightController>();
+        if (light == LightDriver.Virtual)
+            Assert.IsType<VirtualLightController>(controller);
+        else
+        {
+            Assert.IsType<MovsLightController>(controller);
+            // Empty COM is rejected before any OS port is opened.
+            var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
+            Assert.Contains("COM port is empty", error.Message);
+            Assert.Contains("Settings > Devices & Safety > Lighting", error.Message);
+            Assert.Throws<InvalidOperationException>(() => controller.SetLevel(2, 80));
+        }
+    }
+
+    [Fact]
+    public void ConnectionEditsRequireANewDriverAndDisconnectedOffIsNotReportedAsSuccess()
+    {
+        var settings = new LightingSettings();
+        using var controller = new MovsLightController(settings);
+        settings.Connection = "COM9";
+        Assert.Contains(
+            "COM port is empty",
+            Assert.Throws<InvalidOperationException>(controller.Initialize).Message);
+        Assert.Throws<InvalidOperationException>(controller.TurnOffAll);
+    }
+
+    [Fact]
+    public void MovsRejectsValuesThatDoNotFitTheCommandBeforeWriting()
+    {
+        using var controller = new MovsLightController(new LightingSettings());
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(2, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(2, 256));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOn(10));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOff(-1));
+        Assert.Throws<InvalidOperationException>(() => controller.TurnOff(0));
+    }
+
+    [Theory]
+    [InlineData(0, 1000)]
+    [InlineData(19200, 0)]
+    public void InvalidSerialSettingsReportLightingErrorAndCanBeRetried(int baudRate, int timeout)
+    {
+        using var controller = new MovsLightController(
+            new LightingSettings { Connection = "COM9", BaudRate = baudRate, WriteTimeoutMilliseconds = timeout, });
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            // Invalid constructor/setter values fail before SerialPort.Open.
+            var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
+            Assert.Contains("MOVS light connection failed (COM9)", error.Message);
+            Assert.IsAssignableFrom<ArgumentException>(error.InnerException);
+        }
+    }
+
     private sealed class TestCamera : ICamera
     {
         public event Action<ImageFrame>? FrameReady;
         public event Action<Exception>? LiveViewFailed;
+
         public bool IsLiveView { get; private set; }
         public (int Width, int Height) FrameSize { get; } = (1, 1);
         public bool FailInitialize { get; set; }
@@ -285,79 +359,6 @@ public sealed class LightingTests
             if (!Connected || FailOff)
                 throw OffFailure;
             IsOn = false;
-        }
-    }
-
-    [Fact]
-    public void VirtualDevelopmentAlsoForcesLightingToVirtual()
-    {
-        var settings = new MachineSettings();
-        settings.Drivers.Light = LightDriver.Movs;
-        DevelopmentProfile.UseVirtualHardware(settings);
-        Assert.Equal(LightDriver.Virtual, settings.Drivers.Light);
-    }
-
-    [Theory]
-    [InlineData(ControlDriver.Physical, LightDriver.Virtual)]
-    [InlineData(ControlDriver.Virtual, LightDriver.Movs)]
-    public void LightSelectionIsIndependentAndMissingComDoesNotBreakConstruction(
-        ControlDriver motion,
-        LightDriver light)
-    {
-        var settings = new MachineSettings();
-        settings.Drivers.Control = motion;
-        settings.Drivers.Light = light;
-        using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
-        var controller = services.GetRequiredService<ILightController>();
-        if (light == LightDriver.Virtual)
-            Assert.IsType<VirtualLightController>(controller);
-        else
-        {
-            Assert.IsType<MovsLightController>(controller);
-            // Empty COM is rejected before any OS port is opened.
-            var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
-            Assert.Contains("COM port is empty", error.Message);
-            Assert.Contains("Settings > Devices & Safety > Lighting", error.Message);
-            Assert.Throws<InvalidOperationException>(() => controller.SetLevel(2, 80));
-        }
-    }
-
-    [Fact]
-    public void ConnectionEditsRequireANewDriverAndDisconnectedOffIsNotReportedAsSuccess()
-    {
-        var settings = new LightingSettings();
-        using var controller = new MovsLightController(settings);
-        settings.Connection = "COM9";
-        Assert.Contains(
-            "COM port is empty",
-            Assert.Throws<InvalidOperationException>(controller.Initialize).Message);
-        Assert.Throws<InvalidOperationException>(controller.TurnOffAll);
-    }
-
-    [Fact]
-    public void MovsRejectsValuesThatDoNotFitTheCommandBeforeWriting()
-    {
-        using var controller = new MovsLightController(new LightingSettings());
-        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(2, -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(2, 256));
-        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOn(10));
-        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOff(-1));
-        Assert.Throws<InvalidOperationException>(() => controller.TurnOff(0));
-    }
-
-    [Theory]
-    [InlineData(0, 1000)]
-    [InlineData(19200, 0)]
-    public void InvalidSerialSettingsReportLightingErrorAndCanBeRetried(int baudRate, int timeout)
-    {
-        using var controller = new MovsLightController(
-            new LightingSettings { Connection = "COM9", BaudRate = baudRate, WriteTimeoutMilliseconds = timeout, });
-        for (var attempt = 0; attempt < 2; attempt++)
-        {
-            // Invalid constructor/setter values fail before SerialPort.Open.
-            var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
-            Assert.Contains("MOVS light connection failed (COM9)", error.Message);
-            Assert.IsAssignableFrom<ArgumentException>(error.InnerException);
         }
     }
 }

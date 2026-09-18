@@ -131,7 +131,10 @@
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Style.Triggers>
-            <Trigger Property="Text" Value="ON">
+            <Trigger Property="Tag">
+                <Trigger.Value>
+                    <sys:Boolean>True</sys:Boolean>
+                </Trigger.Value>
                 <Setter Property="Foreground" Value="#0D1B26"/>
                 <Setter Property="Background" Value="{StaticResource IoInputOnBrush}"/>
             </Trigger>
@@ -140,7 +143,10 @@
 
     <Style x:Key="IoOutputStateStyle" TargetType="TextBlock" BasedOn="{StaticResource IoInputStateStyle}">
         <Style.Triggers>
-            <Trigger Property="Text" Value="ON">
+            <Trigger Property="Tag">
+                <Trigger.Value>
+                    <sys:Boolean>True</sys:Boolean>
+                </Trigger.Value>
                 <Setter Property="Background" Value="{StaticResource IoOutputOnBrush}"/>
             </Trigger>
         </Style.Triggers>
@@ -154,7 +160,10 @@
         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="Background" Value="#222C32"/>
         <Style.Triggers>
-            <Trigger Property="Content" Value="ON">
+            <Trigger Property="Tag">
+                <Trigger.Value>
+                    <sys:Boolean>True</sys:Boolean>
+                </Trigger.Value>
                 <Setter Property="Foreground" Value="#0D1B26"/>
                 <Setter Property="Background" Value="{StaticResource IoOutputOnBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource IoOutputOnBrush}"/>
@@ -175,6 +184,7 @@
                 TextWrapping="Wrap" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"
                 FontSize="12"/>
             <TextBlock Grid.Column="2"
+                Tag="{Binding IsOn}"
                 Text="{Binding IsOn, Converter={StaticResource SignalTextConverter}}"
                 Style="{StaticResource IoInputStateStyle}" FontSize="11"/>
         </Grid>
@@ -200,10 +210,12 @@
                             Margin="0,0,0,4"/>
                         <Grid>
                             <TextBlock x:Name="ReadOnlyOutput" Visibility="Collapsed"
+                                Tag="{Binding Io.IsOn}"
                                 Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
                                 Style="{StaticResource IoOutputStateStyle}"/>
                             <Button x:Name="ToggleOutput"
                                 Command="{Binding ToggleOutputCommand}"
+                                Tag="{Binding Io.IsOn}"
                                 Content="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource IoOutputStateButtonStyle}">
@@ -312,7 +324,10 @@
     </Style>
     <Style x:Key="MapIoOutputStyle" TargetType="TextBlock" BasedOn="{StaticResource MapIoInputStyle}">
         <Style.Triggers>
-            <Trigger Property="Text" Value="ON">
+            <Trigger Property="Tag">
+                <Trigger.Value>
+                    <sys:Boolean>True</sys:Boolean>
+                </Trigger.Value>
                 <Setter Property="Background" Value="{StaticResource IoOutputOnBrush}"/>
             </Trigger>
         </Style.Triggers>

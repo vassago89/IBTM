@@ -42,11 +42,6 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         }
     }
 
-    public bool IsAtRotationZ(bool live = true)
-    {
-        return live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.RotationZ);
-    }
-
     public bool UpstreamCarrierAvailable
     {
         get
@@ -78,7 +73,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
     {
         get
         {
-            return CylinderState(InputIo.PcbSupplyGripperClosed, InputIo.PcbSupplyGripperOpen);
+            return GetCylinderState(InputIo.PcbSupplyGripperClosed, InputIo.PcbSupplyGripperOpen);
         }
     }
 
@@ -134,6 +129,11 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
             return Gripper == PcbSupplyCylinderState.Backward
                 && !IpmFixed;
         }
+    }
+
+    public bool IsAtRotationZ(bool live = true)
+    {
+        return live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.RotationZ);
     }
 
     public void InitializeMotion()
@@ -362,7 +362,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         }
     }
 
-    private PcbSupplyCylinderState CylinderState(InputIo forwardInput, InputIo backwardInput)
+    private PcbSupplyCylinderState GetCylinderState(InputIo forwardInput, InputIo backwardInput)
     {
         return (_io.GetInput(backwardInput), _io.GetInput(forwardInput)) switch
         {

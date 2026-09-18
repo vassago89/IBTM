@@ -3,6 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MotionWindowViewModel, IsDesignTimeCreatable=False}"
@@ -23,14 +24,20 @@
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
             <Style.Triggers>
-                <Trigger Property="Text" Value="ON">
+                <Trigger Property="Tag">
+                    <Trigger.Value>
+                        <sys:Boolean>True</sys:Boolean>
+                    </Trigger.Value>
                     <Setter Property="Background" Value="{StaticResource IoInputOnBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="MotionFaultBit" TargetType="TextBlock" BasedOn="{StaticResource MotionBit}">
             <Style.Triggers>
-                <Trigger Property="Text" Value="ON">
+                <Trigger Property="Tag">
+                    <Trigger.Value>
+                        <sys:Boolean>True</sys:Boolean>
+                    </Trigger.Value>
                     <Setter Property="Foreground" Value="White"/>
                     <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
                 </Trigger>
@@ -146,21 +153,27 @@
                             </Run>
                         </TextBlock>
                         <TextBlock Grid.Column="4"
+                            Tag="{Binding Diagnostics.Snapshot.State.ServoOn}"
                             Text="{Binding Diagnostics.Snapshot.State.ServoOn, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionBit}"/>
                         <TextBlock Grid.Column="5"
+                            Tag="{Binding Diagnostics.Snapshot.State.Homed}"
                             Text="{Binding Diagnostics.Snapshot.State.Homed, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionBit}"/>
                         <TextBlock Grid.Column="6"
+                            Tag="{Binding Diagnostics.Snapshot.State.HomeSensor}"
                             Text="{Binding Diagnostics.Snapshot.State.HomeSensor, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionBit}"/>
                         <TextBlock Grid.Column="7"
+                            Tag="{Binding Diagnostics.Snapshot.State.NegativeLimit}"
                             Text="{Binding Diagnostics.Snapshot.State.NegativeLimit, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionFaultBit}"/>
                         <TextBlock Grid.Column="8"
+                            Tag="{Binding Diagnostics.Snapshot.State.PositiveLimit}"
                             Text="{Binding Diagnostics.Snapshot.State.PositiveLimit, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionFaultBit}"/>
                         <TextBlock Grid.Column="9"
+                            Tag="{Binding Diagnostics.Snapshot.Faulted}"
                             Text="{Binding Diagnostics.Snapshot.Faulted, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionFaultBit}" ToolTip="Axis alarm or emergency."/>
                         <StackPanel Grid.Column="10" Orientation="Horizontal" HorizontalAlignment="Right">

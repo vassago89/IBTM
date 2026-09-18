@@ -407,7 +407,7 @@ public sealed class OutputWindowThreadingTests
         foreach (var (path, signal) in new[]
         {
             ("Conveyor.EntryCarrierDetected", InputIo.MainConveyorEntryCarrierDetected),
-            ("PcbPlacementWork.CarrierPresent", InputIo.PcbPlacementHeatSink1Present),
+            ("PcbPlacementWork.Station.CarrierPresent", InputIo.PcbPlacementHeatSink1Present),
             ("NgTransfer.CarrierDetected", InputIo.NgCarrierDetected),
             ("NgShuttle.Feedback.CarrierDetected", InputIo.NgShuttleCarrierDetected),
         })
@@ -425,15 +425,14 @@ public sealed class OutputWindowThreadingTests
         }
 
         var running = new CheckBox();
-        foreach (var signal in new[] { operation.MainConveyorRun, operation.NgConveyorRun })
+        foreach (var signal in new[] { OutputIo.MainConveyorRun, OutputIo.NgConveyorRun })
         {
-            Assert.Same(services.GetRequiredService<IoSignals>().Outputs[signal.Signal], signal);
             running.SetBinding(
                 System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
-                new Binding(nameof(IoOutputStatus.IsOn)) { Source = signal, Mode = BindingMode.OneWay });
+                new Binding($"Signals.Outputs[{signal}].IsOn") { Source = operation, Mode = BindingMode.OneWay });
             foreach (var on in new[] { true, false })
             {
-                await Task.Run(() => io.SetOutput(signal.Signal, on));
+                await Task.Run(() => io.SetOutput(signal, on));
                 Assert.True(await VirtualTest.WaitUntilAsync(
                     () => running.IsChecked == on,
                     TimeSpan.FromSeconds(2)));
@@ -975,38 +974,6 @@ public sealed class OutputWindowThreadingTests
         }
     }
 
-    private sealed class TestLight : ILightController
-    {
-        public Action? BeforeOn { get; set; }
-        public Action? BeforeOff { get; set; }
-        public int OnCalls { get; private set; }
-        public bool IsOn { get; private set; }
-        public bool FailOff { get; set; }
-        public IOException OffFailure { get; } = new("Simulated live light OFF failure.");
-
-        public void Initialize() { }
-        public void SetLevel(int channel, int level) { }
-        public void TurnOn(int channel)
-        {
-            OnCalls++;
-            IsOn = true;
-            BeforeOn?.Invoke();
-        }
-        public void TurnOffAll()
-        {
-            IsOn = false;
-        }
-
-        public void TurnOff(int channel)
-        {
-            BeforeOff?.Invoke();
-            if (FailOff)
-                throw OffFailure;
-            IsOn = false;
-        }
-    }
-
-
     private static async Task VerifyAdcControllerFeedbackAsync(MachineController machine, MachineState state)
     {
         foreach (var confirmsStop in new[] { true, false })
@@ -1256,4 +1223,37 @@ public sealed class OutputWindowThreadingTests
         Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
     }
 
+    private sealed class TestLight : ILightController
+    {
+        public Action? BeforeOn { get; set; }
+        public Action? BeforeOff { get; set; }
+        public int OnCalls { get; private set; }
+        public bool IsOn { get; private set; }
+        public bool FailOff { get; set; }
+        public IOException OffFailure { get; } = new("Simulated live light OFF failure.");
+
+        public void Initialize() { }
+
+        public void SetLevel(int channel, int level) { }
+
+        public void TurnOn(int channel)
+        {
+            OnCalls++;
+            IsOn = true;
+            BeforeOn?.Invoke();
+        }
+
+        public void TurnOffAll()
+        {
+            IsOn = false;
+        }
+
+        public void TurnOff(int channel)
+        {
+            BeforeOff?.Invoke();
+            if (FailOff)
+                throw OffFailure;
+            IsOn = false;
+        }
+    }
 }

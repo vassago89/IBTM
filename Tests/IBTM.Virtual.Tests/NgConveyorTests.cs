@@ -102,7 +102,7 @@ public sealed class NgConveyorTests
     public async Task NgActuatorOutputsOnLowerPickupCloseGripperAndLowerShuttle()
     {
         var system = CreateSystem();
-        var pickup = new NgCarrierTransfer(system.Io);
+        var pickup = system.Pickup;
 
         await pickup.SetLiftUpAsync(false);
         Assert.True(system.Io.GetOutput(OutputIo.NgCarrierPickupDown));
@@ -377,9 +377,10 @@ public sealed class NgConveyorTests
             io,
             new NgConveyorSettings { AlarmCarrierCount = alarmCarrierCount, },
             shuttleFeedback);
-        var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, new NgCarrierTransfer(io));
+        var pickup = new NgCarrierTransfer(io);
+        var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, pickup);
         io.Initialize();
-        return new TestSystem(io, conveyor, shuttle);
+        return new TestSystem(io, conveyor, shuttle, pickup);
     }
 
     private static async Task LoadShuttleAsync(TestSystem system, bool lower = true)
@@ -391,7 +392,11 @@ public sealed class NgConveyorTests
             await system.Signals.WaitForInputAsync(InputIo.NgShuttleDown, true);
     }
 
-    private sealed record TestSystem(VirtualIoService Io, NgCarrierConveyor Conveyor, NgShuttle Shuttle)
+    private sealed record TestSystem(
+            VirtualIoService Io,
+            NgCarrierConveyor Conveyor,
+            NgShuttle Shuttle,
+            NgCarrierTransfer Pickup)
     {
         public IIoService Signals
         {

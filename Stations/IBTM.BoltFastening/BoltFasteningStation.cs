@@ -9,23 +9,52 @@ using IBTM.Device;
 
 namespace IBTM.BoltFastening;
 
-public sealed class BoltFasteningStation(
-    BoltFasteningGantry gantry,
-    BoltFasteningWork work,
-    PickupBoltFeeder pickupFeeder,
-    ShootingBoltFeeder shootingFeeder,
-    Func<PcbLayout> getPcb,
-    Func<FasteningHead, bool>? isFeederEnabled = null) : AutoUnit
+public sealed class BoltFasteningStation : AutoUnit
 {
+    private readonly BoltFasteningGantry _gantry;
+    private readonly BoltFasteningWork _work;
+    private readonly PickupBoltFeeder _pickupFeeder;
+    private readonly ShootingBoltFeeder _shootingFeeder;
+    private readonly Func<PcbLayout> _getPcb;
+    private readonly Func<FasteningHead, bool>? _isFeederEnabled;
     private HeatSinkSlot[]? _runTargets;
     // The result belongs to this bolt/pass until collection or removal of its carrier.
     private PendingFastening? _pendingFastening;
     // Command history when pickup confirmation is disabled, not a loaded-bolt state.
     private PickupAttempt? _pickupAttempt;
 
-    private sealed record PendingFastening(
-        BoltTarget Bolt, StationWork.Job Job, HeatSinkAssembly Assembly, FasteningPass Pass);
-    private sealed record PickupAttempt(StationWork.Job Job, BoltTarget Bolt);
+    public BoltFasteningStation(
+        BoltFasteningGantry gantry,
+        BoltFasteningWork work,
+        PickupBoltFeeder pickupFeeder,
+        ShootingBoltFeeder shootingFeeder,
+        Func<PcbLayout> getPcb,
+        Func<FasteningHead, bool>? isFeederEnabled = null)
+    {
+        _gantry = gantry;
+        _work = work;
+        _pickupFeeder = pickupFeeder;
+        _shootingFeeder = shootingFeeder;
+        _getPcb = getPcb;
+        _isFeederEnabled = isFeederEnabled;
+    }
+
+    public override event Action? Changed
+    {
+        add
+        {
+            _work.Changed += value;
+            _pickupFeeder.Changed += value;
+            _shootingFeeder.Changed += value;
+        }
+
+        remove
+        {
+            _work.Changed -= value;
+            _pickupFeeder.Changed -= value;
+            _shootingFeeder.Changed -= value;
+        }
+    }
 
     public bool HasPendingResult
     {
@@ -41,40 +70,33 @@ public sealed class BoltFasteningStation(
         {
             var pending = _pendingFastening;
             return pending is not null
-                && work.CarrierPresent
-                && ReferenceEquals(work.CurrentJob, pending.Job)
-                && work.Assemblies.Contains(pending.Assembly)
+                && _work.Station.CarrierPresent
+                && ReferenceEquals(_work.CurrentJob, pending.Job)
+                && _work.Assemblies.Contains(pending.Assembly)
                 ? pending
                 : null;
         }
     }
 
-    public override event Action? Changed
+    private IEnumerable<HeatSinkSlot> Targets
     {
-        add
+        get
         {
-            work.Changed += value;
-            pickupFeeder.Changed += value;
-            shootingFeeder.Changed += value;
-        }
-
-        remove
-        {
-            work.Changed -= value;
-            pickupFeeder.Changed -= value;
-            shootingFeeder.Changed -= value;
+            return _runTargets is { } targets
+                ? targets
+                : Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent);
         }
     }
 
     public void DiscardRemovedCarrierResults()
     {
-        if (work.CarrierPresent)
+        if (_work.Station.CarrierPresent)
             throw new InvalidOperationException("Results still belong to the current fastening carrier.");
         if (_pendingFastening is { } pending)
             TraceStep(BoltFasteningState.Waiting, target: $"removed carrier: {pending.Bolt}, {pending.Pass}", workId: pending.Job.Id);
         _pendingFastening = null;
         _pickupAttempt = null;
-        gantry.DiscardPendingResults();
+        _gantry.DiscardPendingResults();
     }
 
     public async Task RunAsync(BoltFasteningRecipe recipe, CancellationToken cancellationToken = default)
@@ -92,7 +114,7 @@ public sealed class BoltFasteningStation(
         finally
         {
             _pickupAttempt = null;
-            gantry.StopShooting(failure);
+            _gantry.StopShooting(failure);
         }
     }
 
@@ -102,12 +124,12 @@ public sealed class BoltFasteningStation(
             && PendingResult is null)
         {
             _pendingFastening = null;
-            gantry.DiscardPendingResults();
+            _gantry.DiscardPendingResults();
         }
 
-        if (work.State != BoltFasteningWorkState.ReadyToFasten)
+        if (_work.State != BoltFasteningWorkState.ReadyToFasten)
         {
-            TraceStep(work.State, workId: work.CurrentJob.Id);
+            TraceStep(_work.State, workId: _work.CurrentJob.Id);
             await WaitForChangeAsync(cancellationToken);
             return;
         }
@@ -115,28 +137,28 @@ public sealed class BoltFasteningStation(
         using var carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckCarrier()
         {
-            if (!work.CarrierSeated)
+            if (!_work.Station.CarrierSeated)
                 carrierOperation.Cancel();
         }
 
-        _runTargets = Enum.GetValues<HeatSinkSlot>().Where(work.HeatSinkPresent).ToArray();
-        work.Changed += CheckCarrier;
+        _runTargets = Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
+        _work.Changed += CheckCarrier;
         try
         {
             CheckCarrier();
             carrierOperation.Token.ThrowIfCancellationRequested();
             foreach (var heatSink in _runTargets)
             {
-                if (!getPcb().GetBolts(heatSink).Any())
+                if (!_getPcb().GetBolts(heatSink).Any())
                     throw new InvalidOperationException(
                         $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
             }
-            while (work.State == BoltFasteningWorkState.ReadyToFasten)
+            while (_work.State == BoltFasteningWorkState.ReadyToFasten)
             {
                 carrierOperation.Token.ThrowIfCancellationRequested();
                 if (PendingResult is { } pending)
                 {
-                    var head = gantry.GetHead(pending.Bolt.Head);
+                    var head = _gantry.GetHead(pending.Bolt.Head);
                     var result = await head.ReadPendingResultAsync(carrierOperation.Token);
                     if (result is not null)
                     {
@@ -145,8 +167,8 @@ public sealed class BoltFasteningStation(
                     }
                 }
 
-                var state = State();
-                TraceStep(state, ActiveBolt(state)?.ToString(), work.CurrentJob.Id);
+                var state = GetState();
+                TraceStep(state, GetActiveBolt(state)?.ToString(), _work.CurrentJob.Id);
                 await ExecuteAsync(recipe, state, carrierOperation.Token);
             }
         }
@@ -156,10 +178,10 @@ public sealed class BoltFasteningStation(
         }
         finally
         {
-            work.Changed -= CheckCarrier;
+            _work.Changed -= CheckCarrier;
             _runTargets = null;
             if (_pendingFastening is { } pending
-                && !gantry.GetHead(pending.Bolt.Head).HasPendingResult)
+                && !_gantry.GetHead(pending.Bolt.Head).HasPendingResult)
             {
                 _pendingFastening = null;
             }
@@ -176,39 +198,39 @@ public sealed class BoltFasteningStation(
             BoltFasteningState.FasteningPcb => FastenAsync(recipe, FasteningPass.Pcb, cancellationToken),
             BoltFasteningState.MovingToPcbBolt
                 => MoveToBoltAsync(
-                    PendingResult?.Bolt ?? PendingPcbBolts().First(),
+                    PendingResult?.Bolt ?? GetPendingPcbBolts().First(),
                     cancellationToken),
             BoltFasteningState.WaitingForShootingFeeder
-                => gantry.WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken),
+                => _gantry.WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken),
             BoltFasteningState.WaitingForPickupFeeder
-                => gantry.WaitForBoltSupplyAsync(FasteningHead.Pickup, cancellationToken),
-            BoltFasteningState.ShootingBolt => gantry.ShootBoltAsync(cancellationToken),
+                => _gantry.WaitForBoltSupplyAsync(FasteningHead.Pickup, cancellationToken),
+            BoltFasteningState.ShootingBolt => _gantry.ShootBoltAsync(cancellationToken),
             BoltFasteningState.AdvancingShootingEscape
-                => gantry.SetShootingEscapeForwardAsync(true, cancellationToken),
+                => _gantry.SetShootingEscapeForwardAsync(true, cancellationToken),
             BoltFasteningState.WaitingForShootingTubeClear
-                => gantry.WaitForShootingTubeClearAsync(cancellationToken),
+                => _gantry.WaitForShootingTubeClearAsync(cancellationToken),
             BoltFasteningState.RetractingShootingEscape
-                => gantry.SetShootingEscapeForwardAsync(false, cancellationToken),
+                => _gantry.SetShootingEscapeForwardAsync(false, cancellationToken),
             BoltFasteningState.ClearingShootingHead
                 => ClearHeadAsync(FasteningHead.Shooting, cancellationToken),
-            BoltFasteningState.MovingToPickupXY => gantry.MoveToPickupXYAsync(cancellationToken),
+            BoltFasteningState.MovingToPickupXY => _gantry.MoveToPickupXYAsync(cancellationToken),
             BoltFasteningState.LoweringForBoltPickup
-                => gantry.SetHeadDownAsync(FasteningHead.Pickup, true, cancellationToken),
-            BoltFasteningState.MovingToPickupZ => gantry.MoveToPickupZAsync(cancellationToken),
+                => _gantry.SetHeadDownAsync(FasteningHead.Pickup, true, cancellationToken),
+            BoltFasteningState.MovingToPickupZ => _gantry.MoveToPickupZAsync(cancellationToken),
             BoltFasteningState.PickingUpBolt
                 => PickUpBoltAsync(cancellationToken),
-            BoltFasteningState.RaisingPickedBolt => gantry.MoveToSafeZAsync(cancellationToken),
+            BoltFasteningState.RaisingPickedBolt => _gantry.MoveToSafeZAsync(cancellationToken),
             BoltFasteningState.RaisingPickupHead
-                => gantry.SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken),
+                => _gantry.SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken),
             BoltFasteningState.MovingToIpmSeatingBolt
                 => MoveToBoltAsync(
-                    PendingResult?.Bolt ?? PendingIpmSeatingBolts().First(),
+                    PendingResult?.Bolt ?? GetPendingIpmSeatingBolts().First(),
                     cancellationToken),
             BoltFasteningState.SeatingIpm
                 => FastenAsync(recipe, FasteningPass.IpmSeating, cancellationToken),
             BoltFasteningState.MovingToIpmFinalBolt
                 => MoveToBoltAsync(
-                    PendingResult?.Bolt ?? PendingIpmFinalBolts().First(),
+                    PendingResult?.Bolt ?? GetPendingIpmFinalBolts().First(),
                     cancellationToken),
             BoltFasteningState.FinalizingIpm
                 => FastenAsync(recipe, FasteningPass.IpmFinal, cancellationToken),
@@ -219,9 +241,9 @@ public sealed class BoltFasteningStation(
         };
     }
 
-    public BoltFasteningState State(bool live = true)
+    public BoltFasteningState GetState(bool live = true)
     {
-        if (work.State != BoltFasteningWorkState.ReadyToFasten)
+        if (_work.State != BoltFasteningWorkState.ReadyToFasten)
         {
             return BoltFasteningState.Waiting;
         }
@@ -232,9 +254,9 @@ public sealed class BoltFasteningStation(
             // without supplying another bolt or changing the result's owner.
             var shootingFeederEnabled = pending.Pass == FasteningPass.Pcb
                 && IsFeederEnabled(FasteningHead.Shooting);
-            if (shootingFeederEnabled && gantry.ShootingTubeBoltDetected)
+            if (shootingFeederEnabled && _gantry.ShootingTubeBoltDetected)
                 return BoltFasteningState.WaitingForShootingTubeClear;
-            if (!gantry.IsAt(pending.Bolt, live))
+            if (!_gantry.IsAt(pending.Bolt, live))
             {
                 return pending.Pass switch
                 {
@@ -244,7 +266,7 @@ public sealed class BoltFasteningStation(
                     _ => throw new ArgumentOutOfRangeException(nameof(pending.Pass)),
                 };
             }
-            if (shootingFeederEnabled && gantry.ShootingEscape != BoltEscapeState.Backward)
+            if (shootingFeederEnabled && _gantry.ShootingEscape != BoltEscapeState.Backward)
                 return BoltFasteningState.RetractingShootingEscape;
             return pending.Pass switch
             {
@@ -255,28 +277,28 @@ public sealed class BoltFasteningStation(
             };
         }
 
-        if (PcbState(PendingPcbBolts().FirstOrDefault(), live) is { } pcbState)
+        if (GetPcbState(GetPendingPcbBolts().FirstOrDefault(), live) is { } pcbState)
         {
             return pcbState;
         }
 
-        if (IpmSeatingState(PendingIpmSeatingBolts().FirstOrDefault(), live) is { } seatingState)
+        if (GetIpmSeatingState(GetPendingIpmSeatingBolts().FirstOrDefault(), live) is { } seatingState)
         {
             return seatingState;
         }
 
-        return IpmFinalState(PendingIpmFinalBolts().FirstOrDefault(), live)
+        return GetIpmFinalState(GetPendingIpmFinalBolts().FirstOrDefault(), live)
             ?? BoltFasteningState.CompletingCarrier;
     }
 
-    public BoltTarget? ActiveBolt(BoltFasteningState? state = null)
+    public BoltTarget? GetActiveBolt(BoltFasteningState? state = null)
     {
         if (PendingResult is { } pending)
         {
             return pending.Bolt;
         }
 
-        return (state ?? State()) switch
+        return (state ?? GetState()) switch
         {
             BoltFasteningState.MovingToPcbBolt
                 or BoltFasteningState.ShootingBolt
@@ -285,22 +307,22 @@ public sealed class BoltFasteningStation(
                 or BoltFasteningState.WaitingForShootingTubeClear
                 or BoltFasteningState.RetractingShootingEscape
                 or BoltFasteningState.FasteningPcb
-                => PendingPcbBolts().FirstOrDefault(),
+                => GetPendingPcbBolts().FirstOrDefault(),
             BoltFasteningState.MovingToIpmSeatingBolt
                 or BoltFasteningState.SeatingIpm
-                => PendingIpmSeatingBolts().FirstOrDefault(),
+                => GetPendingIpmSeatingBolts().FirstOrDefault(),
             BoltFasteningState.MovingToIpmFinalBolt
                 or BoltFasteningState.FinalizingIpm
-                => PendingIpmFinalBolts().FirstOrDefault(),
+                => GetPendingIpmFinalBolts().FirstOrDefault(),
             _ => null,
         };
     }
 
-    private BoltFasteningState? PcbState(BoltTarget? bolt, bool live = true)
+    private BoltFasteningState? GetPcbState(BoltTarget? bolt, bool live = true)
     {
         var feeding = IsFeederEnabled(FasteningHead.Shooting);
-        if ((bolt is null || !gantry.IsAt(bolt, live) || feeding && !gantry.ShootingBoltLoaded)
-            && gantry.ShootingHeadPosition != BoltCylinderState.Up)
+        if ((bolt is null || !_gantry.IsAt(bolt, live) || feeding && !_gantry.ShootingBoltLoaded)
+            && _gantry.ShootingHeadPosition != BoltCylinderState.Up)
         {
             return BoltFasteningState.ClearingShootingHead;
         }
@@ -310,12 +332,12 @@ public sealed class BoltFasteningStation(
             return null;
         }
 
-        if (feeding && gantry.ShootingTubeBoltDetected)
+        if (feeding && _gantry.ShootingTubeBoltDetected)
         {
             return BoltFasteningState.WaitingForShootingTubeClear;
         }
 
-        if (!gantry.IsAt(bolt, live))
+        if (!_gantry.IsAt(bolt, live))
         {
             return BoltFasteningState.MovingToPcbBolt;
         }
@@ -323,18 +345,18 @@ public sealed class BoltFasteningStation(
         if (!feeding)
             return BoltFasteningState.FasteningPcb;
 
-        if (!gantry.ShootingBoltLoaded)
+        if (!_gantry.ShootingBoltLoaded)
         {
-            return gantry.ShootingEscape switch
+            return _gantry.ShootingEscape switch
             {
                 BoltEscapeState.Forward => BoltFasteningState.ShootingBolt,
-                BoltEscapeState.Backward when shootingFeeder.State != BoltFeederState.BoltReady
+                BoltEscapeState.Backward when _shootingFeeder.State != BoltFeederState.BoltReady
                     => BoltFasteningState.WaitingForShootingFeeder,
                 _ => BoltFasteningState.AdvancingShootingEscape,
             };
         }
 
-        if (gantry.ShootingEscape != BoltEscapeState.Backward)
+        if (_gantry.ShootingEscape != BoltEscapeState.Backward)
         {
             return BoltFasteningState.RetractingShootingEscape;
         }
@@ -342,58 +364,58 @@ public sealed class BoltFasteningStation(
         return BoltFasteningState.FasteningPcb;
     }
 
-    private BoltFasteningState? IpmSeatingState(BoltTarget? bolt, bool live = true)
+    private BoltFasteningState? GetIpmSeatingState(BoltTarget? bolt, bool live = true)
     {
         if (bolt is null)
         {
-            var finalBolt = PendingIpmFinalBolts().FirstOrDefault();
-            return (!gantry.IsAtSafeZ(live) || !gantry.CanMoveHorizontal)
-                && (finalBolt is null || !gantry.IsAt(finalBolt, live))
+            var finalBolt = GetPendingIpmFinalBolts().FirstOrDefault();
+            return (!_gantry.IsAtSafeZ(live) || !_gantry.CanMoveHorizontal)
+                && (finalBolt is null || !_gantry.IsAt(finalBolt, live))
                 ? BoltFasteningState.ClearingPickupHead
                 : null;
         }
 
         var feeding = IsFeederEnabled(FasteningHead.Pickup);
         var pickupAttempted = _pickupAttempt is { } attempt
-            && ReferenceEquals(attempt.Job, work.CurrentJob)
+            && ReferenceEquals(attempt.Job, _work.CurrentJob)
             && attempt.Bolt == bolt;
-        if (feeding ? !gantry.PickupBoltLoaded : !pickupAttempted)
+        if (feeding ? !_gantry.PickupBoltLoaded : !pickupAttempted)
         {
-            if (!gantry.IsAtPickupXY(live))
+            if (!_gantry.IsAtPickupXY(live))
             {
-                return !gantry.CanMoveHorizontal
+                return !_gantry.CanMoveHorizontal
                     ? BoltFasteningState.ClearingPickupHead
                     : BoltFasteningState.MovingToPickupXY;
             }
 
-            if (gantry.PickupHeadPosition != BoltCylinderState.Down)
+            if (_gantry.PickupHeadPosition != BoltCylinderState.Down)
             {
-                return !gantry.IsAtSafeZ(live)
+                return !_gantry.IsAtSafeZ(live)
                     ? BoltFasteningState.MovingToPickupXY
                     : BoltFasteningState.LoweringForBoltPickup;
             }
 
-            if (!gantry.IsAtPickupPosition(live))
+            if (!_gantry.IsAtPickupPosition(live))
             {
                 return BoltFasteningState.MovingToPickupZ;
             }
 
-            return !feeding || pickupFeeder.State == BoltFeederState.BoltReady
+            return !feeding || _pickupFeeder.State == BoltFeederState.BoltReady
                 ? BoltFasteningState.PickingUpBolt
                 : BoltFasteningState.WaitingForPickupFeeder;
         }
 
-        if (gantry.IsAtPickupXY(live))
+        if (_gantry.IsAtPickupXY(live))
         {
-            if (!gantry.IsAtSafeZ(live))
+            if (!_gantry.IsAtSafeZ(live))
                 return BoltFasteningState.RaisingPickedBolt;
-            if (!gantry.CanMoveHorizontal)
+            if (!_gantry.CanMoveHorizontal)
                 return BoltFasteningState.RaisingPickupHead;
         }
 
-        if (!gantry.IsAt(bolt, live))
+        if (!_gantry.IsAt(bolt, live))
         {
-            return !gantry.CanMoveHorizontal
+            return !_gantry.CanMoveHorizontal
                 ? BoltFasteningState.ClearingPickupHead
                 : BoltFasteningState.MovingToIpmSeatingBolt;
         }
@@ -401,18 +423,18 @@ public sealed class BoltFasteningStation(
         return BoltFasteningState.SeatingIpm;
     }
 
-    private BoltFasteningState? IpmFinalState(BoltTarget? bolt, bool live = true)
+    private BoltFasteningState? GetIpmFinalState(BoltTarget? bolt, bool live = true)
     {
         if (bolt is null)
         {
-            return gantry.IsAtSafeZ(live) && gantry.CanMoveHorizontal
+            return _gantry.IsAtSafeZ(live) && _gantry.CanMoveHorizontal
                 ? null
                 : BoltFasteningState.ClearingPickupHead;
         }
 
-        if (!gantry.IsAt(bolt, live))
+        if (!_gantry.IsAt(bolt, live))
         {
-            return !gantry.CanMoveHorizontal
+            return !_gantry.CanMoveHorizontal
                 ? BoltFasteningState.ClearingPickupHead
                 : BoltFasteningState.MovingToIpmFinalBolt;
         }
@@ -422,13 +444,13 @@ public sealed class BoltFasteningStation(
 
     private async Task PickUpBoltAsync(CancellationToken cancellationToken)
     {
-        var job = work.CurrentJob;
-        var bolt = PendingIpmSeatingBolts().First();
+        var job = _work.CurrentJob;
+        var bolt = GetPendingIpmSeatingBolts().First();
         var feeding = IsFeederEnabled(FasteningHead.Pickup);
-        await gantry.SetVacuumAsync(
+        await _gantry.SetVacuumAsync(
             FasteningHead.Pickup, true, cancellationToken, waitForFeedback: feeding);
         cancellationToken.ThrowIfCancellationRequested();
-        work.RequireCurrentJob(job);
+        _work.RequireCurrentJob(job);
         if (!feeding)
             _pickupAttempt = new(job, bolt);
     }
@@ -443,23 +465,23 @@ public sealed class BoltFasteningStation(
         {
             var (bolt, preset) = pass switch
             {
-                FasteningPass.Pcb => (PendingPcbBolts().First(), recipe.PcbPreset),
-                FasteningPass.IpmSeating => (PendingIpmSeatingBolts().First(), recipe.IpmSeatingPreset),
-                FasteningPass.IpmFinal => (PendingIpmFinalBolts().First(), recipe.IpmFinalPreset),
+                FasteningPass.Pcb => (GetPendingPcbBolts().First(), recipe.PcbPreset),
+                FasteningPass.IpmSeating => (GetPendingIpmSeatingBolts().First(), recipe.IpmSeatingPreset),
+                FasteningPass.IpmFinal => (GetPendingIpmFinalBolts().First(), recipe.IpmFinalPreset),
                 _ => throw new ArgumentOutOfRangeException(nameof(pass)),
             };
-            var job = work.CurrentJob;
-            pending = new(bolt, job, work.Assembly(job, bolt.HeatSink), pass);
-            await gantry.GetHead(bolt.Head).SelectPresetAsync(preset, cancellationToken);
+            var job = _work.CurrentJob;
+            pending = new(bolt, job, _work.GetAssembly(job, bolt.HeatSink), pass);
+            await _gantry.GetHead(bolt.Head).SelectPresetAsync(preset, cancellationToken);
         }
 
         _pendingFastening = pending;
-        var head = gantry.GetHead(pending.Bolt.Head);
+        var head = _gantry.GetHead(pending.Bolt.Head);
         // The motor rotates only; the cylinder supplies the forward feed.
         // Raise before a new start, including a retry or the next pass at the same XY.
-        await gantry.RaiseCylindersAsync(cancellationToken);
-        work.RequireCurrentJob(pending.Job);
-        if (!gantry.IsAt(pending.Bolt))
+        await _gantry.RaiseCylindersAsync(cancellationToken);
+        _work.RequireCurrentJob(pending.Job);
+        if (!_gantry.IsAt(pending.Bolt))
             throw new InvalidOperationException("The head must be at the bolt's fastening XYZ before starting.");
 
         var completed = await head.TightenAsync(cancellationToken, LowerHeadWhileFasteningAsync);
@@ -467,13 +489,13 @@ public sealed class BoltFasteningStation(
 
         Task LowerHeadWhileFasteningAsync(CancellationToken token)
         {
-            return gantry.SetHeadDownAsync(pending.Bolt.Head, true, token);
+            return _gantry.SetHeadDownAsync(pending.Bolt.Head, true, token);
         }
     }
 
     private void RecordResult(PendingFastening pending, BoltResult result)
     {
-        work.RequireCurrentJob(pending.Job);
+        _work.RequireCurrentJob(pending.Job);
         switch (pending.Pass)
         {
             case FasteningPass.Pcb:
@@ -493,63 +515,63 @@ public sealed class BoltFasteningStation(
 
     private async Task MoveToBoltAsync(BoltTarget bolt, CancellationToken cancellationToken)
     {
-        await gantry.RaiseCylindersAsync(cancellationToken);
-        await gantry.MoveToBoltAsync(bolt, cancellationToken);
+        await _gantry.RaiseCylindersAsync(cancellationToken);
+        await _gantry.MoveToBoltAsync(bolt, cancellationToken);
     }
 
     private async Task ClearHeadAsync(FasteningHead head, CancellationToken cancellationToken)
     {
-        await gantry.FinishFasteningAsync(head, cancellationToken);
-        await gantry.RaiseCylindersAsync(cancellationToken);
-        await gantry.MoveToSafeZAsync(cancellationToken);
+        await _gantry.FinishFasteningAsync(head, cancellationToken);
+        await _gantry.RaiseCylindersAsync(cancellationToken);
+        await _gantry.MoveToSafeZAsync(cancellationToken);
     }
 
     private async Task CompleteAsync(CancellationToken cancellationToken)
     {
-        var job = work.CurrentJob;
+        var job = _work.CurrentJob;
         foreach (var heatSink in Targets)
         {
-            work.Assembly(job, heatSink).CompleteFastening();
+            _work.GetAssembly(job, heatSink).CompleteFastening();
         }
 
-        await gantry.FinishFasteningAsync(FasteningHead.Pickup, cancellationToken);
-        await gantry.FinishFasteningAsync(FasteningHead.Shooting, cancellationToken);
-        await gantry.MoveToSafeZAsync(cancellationToken);
+        await _gantry.FinishFasteningAsync(FasteningHead.Pickup, cancellationToken);
+        await _gantry.FinishFasteningAsync(FasteningHead.Shooting, cancellationToken);
+        await _gantry.MoveToSafeZAsync(cancellationToken);
 
         cancellationToken.ThrowIfCancellationRequested();
-        work.Complete(job);
+        _work.Complete(job);
     }
 
-    private IEnumerable<BoltTarget> PendingPcbBolts()
+    private IEnumerable<BoltTarget> GetPendingPcbBolts()
     {
-        return ApplicableBolts()
+        return GetApplicableBolts()
             .Where(bolt => bolt.Head == FasteningHead.Shooting)
             .Where(bolt => FindAssembly(bolt.HeatSink)?.PcbBoltResults.ContainsKey(bolt.Number) != true);
     }
 
-    private IEnumerable<BoltTarget> PendingIpmSeatingBolts()
+    private IEnumerable<BoltTarget> GetPendingIpmSeatingBolts()
     {
-        return ApplicableBolts()
+        return GetApplicableBolts()
             .Where(bolt => bolt.Head == FasteningHead.Pickup)
             .Where(
                 bolt => FindAssembly(bolt.HeatSink)?.IpmSeatingResults.ContainsKey(bolt.Number) != true);
     }
 
-    private IEnumerable<BoltTarget> PendingIpmFinalBolts()
+    private IEnumerable<BoltTarget> GetPendingIpmFinalBolts()
     {
-        return ApplicableBolts()
+        return GetApplicableBolts()
             .Where(bolt => bolt.Head == FasteningHead.Pickup)
             .Where(bolt => FindAssembly(bolt.HeatSink)?.IpmFinalResults.ContainsKey(bolt.Number) != true);
     }
 
     private HeatSinkAssembly? FindAssembly(HeatSinkSlot heatSink)
     {
-        return work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == heatSink);
+        return _work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == heatSink);
     }
 
-    private IEnumerable<BoltTarget> ApplicableBolts()
+    private IEnumerable<BoltTarget> GetApplicableBolts()
     {
-        return getPcb()
+        return _getPcb()
             .GetBolts()
             .Where(bolt => Targets.Contains(bolt.HeatSink))
             .OrderBy(bolt => bolt.HeatSink)
@@ -558,16 +580,11 @@ public sealed class BoltFasteningStation(
 
     private bool IsFeederEnabled(FasteningHead head)
     {
-        return isFeederEnabled?.Invoke(head) ?? true;
+        return _isFeederEnabled?.Invoke(head) ?? true;
     }
 
-    private IEnumerable<HeatSinkSlot> Targets
-    {
-        get
-        {
-            return _runTargets is { } targets
-                ? targets
-                : Enum.GetValues<HeatSinkSlot>().Where(work.HeatSinkPresent);
-        }
-    }
+    private sealed record PendingFastening(
+            BoltTarget Bolt, StationWork.Job Job, HeatSinkAssembly Assembly, FasteningPass Pass);
+
+    private sealed record PickupAttempt(StationWork.Job Job, BoltTarget Bolt);
 }

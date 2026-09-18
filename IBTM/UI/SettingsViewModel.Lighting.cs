@@ -24,6 +24,7 @@ public partial class SettingsViewModel
     private int? _pendingLightOffChannel;
     [ObservableProperty]
     private string _lightTestMessage = "Test only: does not change recipe brightness.";
+
     public string ActiveLightConnection { get; }
 
     private bool CanTestLight()

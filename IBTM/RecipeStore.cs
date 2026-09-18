@@ -11,24 +11,31 @@ using IBTM.UI;
 
 namespace IBTM;
 // WPF image conversion stays here; IBTM.Storage handles database records only.
-public sealed class RecipeStore(MachineStore database)
+public sealed class RecipeStore
 {
+    private readonly MachineStore _database;
+
+    public RecipeStore(MachineStore database)
+    {
+        _database = database;
+    }
+
     internal MachineStore Database
     {
         get
         {
-            return database;
+            return _database;
         }
     }
 
     public IReadOnlyList<string> GetRecipeNames()
     {
-        return database.GetRecipeNames();
+        return _database.GetRecipeNames();
     }
 
     public Task<Recipe> LoadRecipeAsync(string name, CancellationToken cancellationToken = default)
     {
-        return Task.Run(() => database.LoadRecipe<Recipe>(name), cancellationToken);
+        return Task.Run(() => _database.LoadRecipe<Recipe>(name), cancellationToken);
     }
 
     public Task SaveRecipeAsync(Recipe recipe, CancellationToken cancellationToken = default)
@@ -48,7 +55,7 @@ public sealed class RecipeStore(MachineStore database)
             {
                 var document = JsonSerializer.SerializeToNode(recipe)!;
                 document[nameof(Recipe.Name)] = name;
-                database.SaveRecipe(
+                _database.SaveRecipe(
                     name,
                     document,
                     recipe.CarrierImages.Select(tile => tile.Number).ToArray(),
@@ -85,7 +92,7 @@ public sealed class RecipeStore(MachineStore database)
                 var document = JsonSerializer.SerializeToNode(recipe)!;
                 document[nameof(Recipe.Name)] = name;
                 document[nameof(Recipe.CarrierImages)] = JsonSerializer.SerializeToNode(tiles);
-                database.SaveRecipe(
+                _database.SaveRecipe(
                     name,
                     document,
                     tiles.Select(tile => tile.Number).ToArray(),
@@ -99,7 +106,7 @@ public sealed class RecipeStore(MachineStore database)
 
     public BitmapSource LoadRecipeImage(string name, int number)
     {
-        using var stream = new MemoryStream(database.LoadRecipeImage(name, number), writable: false);
+        using var stream = new MemoryStream(_database.LoadRecipeImage(name, number), writable: false);
         var image = new PngBitmapDecoder(
             stream,
             BitmapCreateOptions.PreservePixelFormat,

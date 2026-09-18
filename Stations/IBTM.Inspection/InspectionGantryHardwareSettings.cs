@@ -5,14 +5,6 @@ namespace IBTM.Inspection;
 
 public sealed class InspectionGantryHardwareSettings : MotionHardwareSettings
 {
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.InspectionGantry;
-        }
-    }
-
     public InspectionGantryHardwareSettings() : base(
         MotionGroup.InspectionGantry,
         (
@@ -24,5 +16,13 @@ public sealed class InspectionGantryHardwareSettings : MotionHardwareSettings
             MachineAxis.InspectionGantryY,
             10))
     {
+    }
+
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.InspectionGantry;
+        }
     }
 }

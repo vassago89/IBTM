@@ -14,19 +14,15 @@ public abstract class StationWork
     private static readonly Lock JobGate = new();
     private volatile Job _job = new();
 
-    public sealed class Job
+    protected StationWork(ConveyorStation station, Func<bool>? isEnabled = null)
     {
-        private static long _nextId;
-        internal readonly ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> Assemblies = new();
-        internal bool Completed;
-
-        internal Job(long? id = null)
-        {
-            Id = id ?? Interlocked.Increment(ref _nextId);
-        }
-
-        public long Id { get; }
+        _isEnabled = isEnabled ?? IsAlwaysEnabled;
+        Station = station;
+        station.Changed += NotifyChanged;
+        station.CarrierChanged += OnCarrierChanged;
     }
+
+    public event Action? Changed;
 
     public Job CurrentJob
     {
@@ -36,15 +32,6 @@ public abstract class StationWork
         }
     }
 
-    protected StationWork(ConveyorStation station, Func<bool>? isEnabled = null)
-    {
-        _isEnabled = isEnabled ?? AlwaysEnabled;
-        Station = station;
-        station.Changed += NotifyChanged;
-        station.CarrierChanged += OnCarrierChanged;
-    }
-
-    public event Action? Changed;
     public bool Enabled
     {
         get
@@ -55,47 +42,13 @@ public abstract class StationWork
 
     public ConveyorStation Station { get; }
 
-    public bool CarrierPresent
-    {
-        get
-        {
-            return Station.CarrierPresent;
-        }
-    }
-
-    public StationCylinderState BackupPlate
-    {
-        get
-        {
-            return Station.BackupPlate;
-        }
-    }
-
-    public StationCylinderState Stopper
-    {
-        get
-        {
-            return Station.Stopper;
-        }
-    }
-
-    public bool CarrierSeated
-    {
-        get
-        {
-            return CarrierPresent
-                && BackupPlate == StationCylinderState.Up
-                && Stopper == StationCylinderState.Down;
-        }
-    }
-
     public virtual bool Completed
     {
         get
         {
             return Enabled
                 ? Volatile.Read(ref _job.Completed)
-                : CarrierPresent && BackupPlate == StationCylinderState.Up;
+                : Station.CarrierPresent && Station.BackupPlate == StationCylinderState.Up;
         }
     }
 
@@ -111,7 +64,7 @@ public abstract class StationWork
     {
         get
         {
-            return !CarrierPresent;
+            return !Station.CarrierPresent;
         }
     }
 
@@ -127,21 +80,16 @@ public abstract class StationWork
     {
         get
         {
-            return CarrierPresent && Completed && Stopper == StationCylinderState.Down;
+            return Station.CarrierPresent && Completed && Station.Stopper == StationCylinderState.Down;
         }
     }
 
-    public bool HeatSinkPresent(HeatSinkSlot heatSink)
+    public HeatSinkAssembly GetAssembly(HeatSinkSlot heatSink)
     {
-        return Station.HeatSinkPresent(heatSink);
+        return GetAssembly(CurrentJob, heatSink);
     }
 
-    public HeatSinkAssembly Assembly(HeatSinkSlot heatSink)
-    {
-        return Assembly(CurrentJob, heatSink);
-    }
-
-    public HeatSinkAssembly Assembly(Job job, HeatSinkSlot heatSink)
+    public HeatSinkAssembly GetAssembly(Job job, HeatSinkSlot heatSink)
     {
         lock (JobGate)
         {
@@ -193,7 +141,7 @@ public abstract class StationWork
         Changed?.Invoke();
     }
 
-    private static bool AlwaysEnabled()
+    private static bool IsAlwaysEnabled()
     {
         return true;
     }
@@ -205,5 +153,19 @@ public abstract class StationWork
             lock (JobGate)
                 _job = new();
         }
+    }
+
+    public sealed class Job
+    {
+        private static long _nextId;
+        internal readonly ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> Assemblies = new();
+        internal bool Completed;
+
+        internal Job(long? id = null)
+        {
+            Id = id ?? Interlocked.Increment(ref _nextId);
+        }
+
+        public long Id { get; }
     }
 }

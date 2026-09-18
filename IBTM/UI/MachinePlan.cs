@@ -520,7 +520,7 @@ public static class MachinePlan
         return (point.X - origin.X, point.Y - origin.Y);
     }
 
-    public static double Side(
+    public static double GetSide(
         (double X, double Y) point,
         (double X, double Y) first,
         (double X, double Y) second)

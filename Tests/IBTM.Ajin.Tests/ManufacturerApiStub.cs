@@ -4,29 +4,6 @@ using System.Collections.Generic;
 // Test assembly only. Production still uses the unchanged manufacturer's declarations.
 internal static class AjinSdk
 {
-    internal sealed record Call(
-        string Operation,
-        int? Module = null,
-        int? Offset = null,
-        uint? Value = null,
-        string? Path = null,
-        int? Axis = null);
-    internal sealed record Module(
-        int Inputs,
-        int Outputs,
-        AXT_MODULE Type,
-        int Board = 0,
-        int Position = 0);
-    internal sealed record MotionAxis(
-        uint Mechanical = 0,
-        uint HomeResult = 0,
-        uint ServoOn = 0,
-        double Position = 0,
-        double Unit = 1,
-        int Pulse = 1,
-        uint InMotion = 0,
-        uint AccelerationUnit = 0);
-    internal sealed record HomeMethod(int Direction, uint Signal, uint ZPhase, double ClearTime, double Offset);
     internal static readonly Dictionary<int, MotionAxis> MotionAxes = [];
     internal static readonly Dictionary<int, HomeMethod> HomeMethods = [];
     internal static readonly Dictionary<int, double[]> HomeVelocities = [];
@@ -67,6 +44,33 @@ internal static class AjinSdk
         BeforeCall?.Invoke(call);
         return Results.GetValueOrDefault(call, (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS);
     }
+
+    internal sealed record Call(
+            string Operation,
+            int? Module = null,
+            int? Offset = null,
+            uint? Value = null,
+            string? Path = null,
+            int? Axis = null);
+
+    internal sealed record Module(
+            int Inputs,
+            int Outputs,
+            AXT_MODULE Type,
+            int Board = 0,
+            int Position = 0);
+
+    internal sealed record MotionAxis(
+            uint Mechanical = 0,
+            uint HomeResult = 0,
+            uint ServoOn = 0,
+            double Position = 0,
+            double Unit = 1,
+            int Pulse = 1,
+            uint InMotion = 0,
+            uint AccelerationUnit = 0);
+
+    internal sealed record HomeMethod(int Direction, uint Signal, uint ZPhase, double ClearTime, double Offset);
 }
 
 internal static class CAXL

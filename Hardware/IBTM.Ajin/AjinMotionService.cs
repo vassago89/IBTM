@@ -9,20 +9,7 @@ using IBTM.Device;
 
 namespace IBTM.Ajin;
 
-public class AjinMotionService(
-    AjinController controller,
-    AxisHardware axisX,
-    AxisHardware? axisY,
-    AxisHardware? axisZ,
-    MotionSettings settings,
-    MachineOptions options,
-    OperationCancellation operationCancellation,
-    Func<double>? horizontalZ) : MotionService(
-        settings,
-        operationCancellation,
-        hasY: axisY is not null,
-        hasZ: axisZ is not null,
-        horizontalZ: horizontalZ), IMotionDiagnostics
+public class AjinMotionService : MotionService, IMotionDiagnostics
 {
     private const uint HomeSuccess = 0x01;
     private const uint HomeSearching = 0x02;
@@ -36,22 +23,44 @@ public class AjinMotionService(
     private const uint AccelerationInUnitsPerSecondSquared = 0;
     private static readonly TimeSpan StatusPollInterval = TimeSpan.FromMilliseconds(10);
 
-    private readonly int _axisX = axisX.Number;
-    private readonly int? _axisY = axisY?.Number;
-    private readonly int? _axisZ = axisZ?.Number;
-    private readonly Dictionary<int, (double Unit, int Pulse)> _axisScales = new[] { axisX, axisY, axisZ }
-        .OfType<AxisHardware>()
-        .ToDictionary(axis => axis.Number, axis => (axis.MoveUnit, axis.MovePulse));
-    private readonly Dictionary<int, HomeDirection> _homeDirections = new[] { axisX, axisY, axisZ }
-        .OfType<AxisHardware>()
-        .ToDictionary(axis => axis.Number, axis => axis.HomeDirection);
-    private readonly int[] _axes = new[] { axisX, axisY, axisZ }.OfType<AxisHardware>().Select(
-        axis => axis.Number).ToArray();
+    private readonly AjinController _controller;
+    private readonly MachineOptions _options;
+    private readonly int _axisX;
+    private readonly int? _axisY;
+    private readonly int? _axisZ;
+    private readonly Dictionary<int, (double Unit, int Pulse, HomeDirection HomeDirection)> _axisParameters;
+
+    public AjinMotionService(
+        AjinController controller,
+        AxisHardware axisX,
+        AxisHardware? axisY,
+        AxisHardware? axisZ,
+        MotionSettings settings,
+        MachineOptions options,
+        OperationCancellation operationCancellation,
+        Func<double>? horizontalZ)
+        : base(
+            settings,
+            operationCancellation,
+            hasY: axisY is not null,
+            hasZ: axisZ is not null,
+            horizontalZ: horizontalZ)
+    {
+        _controller = controller;
+        _options = options;
+        _axisX = axisX.Number;
+        _axisY = axisY?.Number;
+        _axisZ = axisZ?.Number;
+        _axisParameters = new[] { axisX, axisY, axisZ }
+            .OfType<AxisHardware>()
+            .ToDictionary(axis => axis.Number, axis => (axis.MoveUnit, axis.MovePulse, axis.HomeDirection));
+    }
+
     public override bool IsReady
     {
         get
         {
-            return _axes.All(AxisParametersMatch);
+            return _axisParameters.Keys.All(DoAxisParametersMatch);
         }
     }
 
@@ -73,10 +82,10 @@ public class AjinMotionService(
 
     public override void Initialize()
     {
-        controller.Initialize();
-        foreach (var axis in _axes)
+        _controller.Initialize();
+        foreach (var axis in _axisParameters.Keys)
         {
-            if (AxisParametersMatch(axis))
+            if (DoAxisParametersMatch(axis))
             {
                 continue;
             }
@@ -91,7 +100,7 @@ public class AjinMotionService(
                     $"Cannot change AJIN axis {axis} unit settings: AxmStatusReadInMotion={inMotion}.");
             }
 
-            var scale = _axisScales[axis];
+            var scale = _axisParameters[axis];
             AjinController.Check(
                 CAXM.AxmMotSetMoveUnitPerPulse(axis, scale.Unit, scale.Pulse),
                 $"{nameof(CAXM.AxmMotSetMoveUnitPerPulse)} (axis={axis})");
@@ -259,12 +268,12 @@ public class AjinMotionService(
         return (new AxisState(
             Homed: homeResult == HomeSuccess,
             ServoOn: servoOn != 0,
-            Alarm: Bit(mechanical, AlarmBit),
-            InPosition: Bit(mechanical, InPositionBit),
-            Emergency: Bit(mechanical, EmergencyBit),
-            HomeSensor: Bit(mechanical, HomeSensorBit),
-            PositiveLimit: Bit(mechanical, PositiveLimitBit),
-            NegativeLimit: Bit(mechanical, NegativeLimitBit),
+            Alarm: IsBitSet(mechanical, AlarmBit),
+            InPosition: IsBitSet(mechanical, InPositionBit),
+            Emergency: IsBitSet(mechanical, EmergencyBit),
+            HomeSensor: IsBitSet(mechanical, HomeSensorBit),
+            PositiveLimit: IsBitSet(mechanical, PositiveLimitBit),
+            NegativeLimit: IsBitSet(mechanical, NegativeLimitBit),
             InMotion: inMotion != 0), null);
     }
 
@@ -285,7 +294,7 @@ public class AjinMotionService(
 
         var home = Settings.Home(axis);
 
-        var homeDirection = _homeDirections[axisNumber];
+        var homeDirection = _axisParameters[axisNumber].HomeDirection;
         var direction = 0;
         var signal = 0U;
         var zPhase = 0U;
@@ -442,7 +451,7 @@ public class AjinMotionService(
 
     protected override void ResetAlarm()
     {
-        foreach (var axis in _axes)
+        foreach (var axis in _axisParameters.Keys)
         {
             AjinController.Check(
                 CAXM.AxmSignalServoAlarmReset(axis, 1),
@@ -495,7 +504,7 @@ public class AjinMotionService(
         {
             try
             {
-                StopAxes(_axes);
+                StopAxes(_axisParameters.Keys);
             }
             catch (Exception exception)
             {
@@ -533,7 +542,7 @@ public class AjinMotionService(
                     : new MotionException(operation, exception);
                 try
                 {
-                    StopAxes(_axes);
+                    StopAxes(_axisParameters.Keys);
                 }
                 catch (Exception stopFailure)
                 {
@@ -594,9 +603,9 @@ public class AjinMotionService(
         // Stop is already requested. Cancellation must not skip its hardware acknowledgement.
         while (ReadMoveState(axes).Moving)
         {
-            if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= options.TimeoutMilliseconds)
+            if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= _options.TimeoutMilliseconds)
                 throw new TimeoutException(
-                    $"Motion did not stop within {options.TimeoutMilliseconds} ms.");
+                    $"Motion did not stop within {_options.TimeoutMilliseconds} ms.");
             await Task.Delay(StatusPollInterval).ConfigureAwait(false);
         }
     }
@@ -618,9 +627,9 @@ public class AjinMotionService(
             else
             {
                 stoppedAt ??= Stopwatch.GetTimestamp();
-                if (Stopwatch.GetElapsedTime(stoppedAt.Value).TotalMilliseconds >= options.TimeoutMilliseconds)
+                if (Stopwatch.GetElapsedTime(stoppedAt.Value).TotalMilliseconds >= _options.TimeoutMilliseconds)
                     throw new TimeoutException(
-                        $"In-position feedback was not received within {options.TimeoutMilliseconds} ms.");
+                        $"In-position feedback was not received within {_options.TimeoutMilliseconds} ms.");
             }
 
             await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
@@ -643,8 +652,8 @@ public class AjinMotionService(
                 CAXM.AxmStatusReadMechanical(axis, ref mechanical),
                 nameof(CAXM.AxmStatusReadMechanical));
             moving |= inMotion != 0;
-            inPosition &= Bit(mechanical, InPositionBit);
-            faulted |= Bit(mechanical, AlarmBit) || Bit(mechanical, EmergencyBit);
+            inPosition &= IsBitSet(mechanical, InPositionBit);
+            faulted |= IsBitSet(mechanical, AlarmBit) || IsBitSet(mechanical, EmergencyBit);
         }
 
         PublishPosition();
@@ -653,10 +662,10 @@ public class AjinMotionService(
 
     public override void Stop()
     {
-        StopAxes(_axes);
+        StopAxes(_axisParameters.Keys);
     }
 
-    private void StopAxes(int[] axes, bool clearHome = false)
+    private void StopAxes(IEnumerable<int> axes, bool clearHome = false)
     {
         List<Exception>? failures = null;
         foreach (var axis in axes)
@@ -736,7 +745,7 @@ public class AjinMotionService(
             $"{operation} (axis={axis}) failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
     }
 
-    private bool AxisParametersMatch(int axis)
+    private bool DoAxisParametersMatch(int axis)
     {
         var unit = 0.0;
         var pulse = 0;
@@ -747,7 +756,7 @@ public class AjinMotionService(
         AjinController.Check(
             CAXM.AxmMotGetAccelUnit(axis, ref accelerationUnit),
             $"{nameof(CAXM.AxmMotGetAccelUnit)} (axis={axis})");
-        var expected = _axisScales[axis];
+        var expected = _axisParameters[axis];
         return unit == expected.Unit
             && pulse == expected.Pulse
             && accelerationUnit == AccelerationInUnitsPerSecondSquared;
@@ -755,7 +764,7 @@ public class AjinMotionService(
 
     private void EnsureAxisParameters(int axis)
     {
-        if (!AxisParametersMatch(axis))
+        if (!DoAxisParametersMatch(axis))
         {
             throw new InvalidOperationException(
                 $"AJIN axis {axis} unit settings changed. Initialize motion before issuing a move.");
@@ -769,7 +778,7 @@ public class AjinMotionService(
 
     private double FromUnits(int axis, double position, double unit, int pulse)
     {
-        var expected = _axisScales[axis];
+        var expected = _axisParameters[axis];
         // Convert a different live scale through raw pulses before converting micrometers to mm.
         return position * pulse / unit * expected.Unit / expected.Pulse / 1000;
     }
@@ -785,7 +794,7 @@ public class AjinMotionService(
         };
     }
 
-    private static bool Bit(uint value, int bit)
+    private static bool IsBitSet(uint value, int bit)
     {
         return ((value >> bit) & 1) != 0;
     }
@@ -795,5 +804,4 @@ public class AjinMotionService(
         var position = GetPosition();
         PublishPositionChanged(position.X, position.Y, position.Z);
     }
-
 }

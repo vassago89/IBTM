@@ -28,7 +28,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
     private readonly PcbPlacementHandler _placementHandler;
     private readonly BoltFasteningGantry _fasteningGantry;
     private readonly InspectionGantry _inspectionGantry;
-    private readonly MachineState _state;
     private readonly InspectionGantrySettings _inspectionGantrySettings;
     private readonly CarrierReferenceSettings _carrierReference;
     private readonly PcbPlacementHandlerSettings _placementSettings;
@@ -71,20 +70,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
 
     private string? _cameraError;
 
-    public string? CameraError
-    {
-        get
-        {
-            return _cameraError ?? Inspector.LiveViewError?.Message;
-        }
-        private set
-        {
-            SetProperty(ref _cameraError, value);
-        }
-    }
-
-    public BoltInspector Inspector { get; }
-
     public TeachingViewModel(
         PcbSupplyHandler supplyHandler,
         PcbSupplySettings supplySettings,
@@ -118,7 +103,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         _fasteningGantry = fasteningGantry;
         _inspectionGantry = inspectionGantry;
         Inspector = boltInspector;
-        _state = state;
         _inspectionGantrySettings = inspectionGantrySettings;
         _carrierReference = carrierReference;
         _placementSettings = placementSettings;
@@ -154,6 +138,20 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         RefreshTeachingPoints();
         ShowRecipeImages();
     }
+
+    public string? CameraError
+    {
+        get
+        {
+            return _cameraError ?? Inspector.LiveViewError?.Message;
+        }
+        private set
+        {
+            SetProperty(ref _cameraError, value);
+        }
+    }
+
+    public BoltInspector Inspector { get; }
 
     public RecipeEditor RecipeEditor { get; }
     public InspectionPreview Preview { get; }
@@ -214,11 +212,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         {
             return CanEditRecipe(live: false);
         }
-    }
-
-    private bool CanEditRecipe(bool live = true)
-    {
-        return live ? _state.SetupEditingEnabled : _state.Display.SetupEditingEnabled;
     }
 
     public override TeachingSaveBehavior SaveBehavior
@@ -287,6 +280,11 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         {
             return SelectedTeachingUnit is HardwareArea.PcbSupply or HardwareArea.PcbPlacementHandler;
         }
+    }
+
+    private bool CanEditRecipe(bool live = true)
+    {
+        return live ? State.SetupEditingEnabled : State.Display.SetupEditingEnabled;
     }
 
     partial void OnSelectedPcbChanged(HeatSinkSlot value)
@@ -451,17 +449,17 @@ public partial class TeachingViewModel : TeachingMotionViewModel
                     _carrierReference),
             HardwareArea.InspectionGantry
                 => [
-                .. _inspectionGantrySettings.GetTeachingPositions(_carrierReference),
-                new(
-                    TeachingTarget.DataMatrix,
-                    MotionGroup.InspectionGantry,
-                    TeachMode.Image,
-                    () => Inspector.HasBarcodeRegion(SelectedPcb)
+                    .. _inspectionGantrySettings.GetTeachingPositions(_carrierReference),
+                    new(
+                        TeachingTarget.DataMatrix,
+                        MotionGroup.InspectionGantry,
+                        TeachMode.Image,
+                        () => Inspector.HasBarcodeRegion(SelectedPcb)
                         ? Inspector.GetBarcodeFov(SelectedPcb).Center
                         : new(),
-                    apply: null,
-                    isDefined: () => Inspector.HasBarcodeRegion(SelectedPcb)),
-                .. RecipeEditor.Recipe.Pcb.GetBolts(SelectedPcb).Select(bolt =>
+                        apply: null,
+                        isDefined: () => Inspector.HasBarcodeRegion(SelectedPcb)),
+                    .. RecipeEditor.Recipe.Pcb.GetBolts(SelectedPcb).Select(bolt =>
                     new TeachingPosition(
                         TeachingTarget.BoltReference,
                         MotionGroup.InspectionGantry,
@@ -481,11 +479,11 @@ public partial class TeachingViewModel : TeachingMotionViewModel
             .ToArray();
         SelectedPoint = FilteredPoints.FirstOrDefault(
             point => point.Position.Target == selectedTarget && point.BoltNumber == selectedBolt)
-            ?? NextTeachingPoint()
-            ?? FilteredPoints.FirstOrDefault();
+            ?? GetNextTeachingPoint()
+                ?? FilteredPoints.FirstOrDefault();
     }
 
-    private TeachingPoint? NextTeachingPoint()
+    private TeachingPoint? GetNextTeachingPoint()
     {
         if (!IsInspectionSelected)
         {
@@ -622,5 +620,4 @@ public partial class TeachingViewModel : TeachingMotionViewModel
             cancellationToken,
             ViewCancellation);
     }
-
 }

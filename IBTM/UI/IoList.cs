@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,7 +18,7 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
     [ObservableProperty]
     private KeyValuePair<HardwareArea?, string> _selectedArea;
 
-    public IoList(TRow[] rows, Func<TRow, IoSignal<TSignal>> signal, string path = "")
+    public IoList(TRow[] rows, Func<TRow, IoSignal<TSignal>> signal)
     {
         Areas = [
             new(null, "All Units"),
@@ -27,20 +28,13 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
                 .Select(area => new KeyValuePair<HardwareArea?, string>(area, area.GetDescription())),
         ];
         _selectedArea = Areas[0];
-        FilteredRows = new ListCollectionView(rows);
-        var prefix = path.Length == 0 ? "" : path + ".";
-        foreach (var property in new[]
-        {
-            nameof(IoSignal<TSignal>.Area),
-            nameof(IoSignal<TSignal>.Section)
-        })
-        {
-            FilteredRows.SortDescriptions.Add(new(prefix + property, ListSortDirection.Ascending));
-            FilteredRows.GroupDescriptions.Add(new PropertyGroupDescription(prefix + property));
-        }
-
-        FilteredRows.SortDescriptions.Add(
-            new(prefix + nameof(IoSignal<TSignal>.Signal), ListSortDirection.Ascending));
+        FilteredRows = new ListCollectionView(rows
+            .OrderBy(row => signal(row).Area)
+            .ThenBy(row => signal(row).Section)
+            .ThenBy(row => signal(row).Signal)
+            .ToArray());
+        FilteredRows.GroupDescriptions.Add(new AreaGroupDescription(signal));
+        FilteredRows.GroupDescriptions.Add(new SectionGroupDescription(signal));
         FilteredRows.Filter = item =>
         {
             var row = signal((TRow)item);
@@ -70,5 +64,35 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
     partial void OnSelectedAreaChanged(KeyValuePair<HardwareArea?, string> value)
     {
         FilteredRows.Refresh();
+    }
+
+    private sealed class AreaGroupDescription : GroupDescription
+    {
+        private readonly Func<TRow, IoSignal<TSignal>> _signal;
+
+        public AreaGroupDescription(Func<TRow, IoSignal<TSignal>> signal)
+        {
+            _signal = signal;
+        }
+
+        public override object GroupNameFromItem(object item, int level, CultureInfo culture)
+        {
+            return _signal((TRow)item).Area;
+        }
+    }
+
+    private sealed class SectionGroupDescription : GroupDescription
+    {
+        private readonly Func<TRow, IoSignal<TSignal>> _signal;
+
+        public SectionGroupDescription(Func<TRow, IoSignal<TSignal>> signal)
+        {
+            _signal = signal;
+        }
+
+        public override object? GroupNameFromItem(object item, int level, CultureInfo culture)
+        {
+            return _signal((TRow)item).Section;
+        }
     }
 }

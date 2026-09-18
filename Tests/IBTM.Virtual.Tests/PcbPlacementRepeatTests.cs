@@ -49,7 +49,7 @@ public sealed class PcbPlacementRepeatTests
         };
 
         await rig.Placer.RunAsync(rig.Recipe, firstStop.Token, repeat: true);
-        Assert.True(rig.Work.Completed, rig.Placer.State(rig.Recipe).ToString());
+        Assert.True(rig.Work.Completed, rig.Placer.GetState(rig.Recipe).ToString());
         Assert.Equal(2, rig.Work.Assemblies.Count());
         Assert.Equal(2, handoffVisits);
         Assert.False(movedUnsafely);
@@ -125,7 +125,7 @@ public sealed class PcbPlacementRepeatTests
         };
         await rig.Placer.RunAsync(rig.Recipe, finish.Token, repeat: true);
         Assert.Same(job, rig.Work.CurrentJob);
-        Assert.True(rig.Work.Completed, rig.Placer.State(rig.Recipe).ToString());
+        Assert.True(rig.Work.Completed, rig.Placer.GetState(rig.Recipe).ToString());
         Assert.Equal(2, rig.Work.Assemblies.Count());
     }
 
@@ -146,23 +146,6 @@ public sealed class PcbPlacementRepeatTests
     private sealed class RepeatRig : IDisposable
     {
         private readonly VirtualMotionService _supplyMotion;
-        public VirtualIoService Io { get; }
-        public VirtualMotionService Motion { get; }
-        public PcbPlacementHandler Handler { get; }
-        public PcbPlacementWork Work { get; }
-        public PcbPlacer Placer { get; }
-        public PcbPlacementRecipe Recipe { get; } = new()
-        {
-            HeatSink1PcbPlacementPosition = new() { X = 70, Y = 20, Z = 10 },
-            HeatSink2PcbPlacementPosition = new() { X = 80, Y = 20, Z = 10 },
-        };
-        public AxisPosition[] Positions
-        {
-            get
-            {
-                return [Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition];
-            }
-        }
 
         public RepeatRig()
         {
@@ -175,7 +158,8 @@ public sealed class PcbPlacementRepeatTests
             var supplySettings = new PcbSupplySettings { Motion = motion };
             var bufferSettings = new PcbBufferSettings
             {
-                SupplyBoundary1 = 40, SupplyBoundary2 = 60,
+                SupplyBoundary1 = 40,
+                SupplyBoundary2 = 60,
                 PlacementBoundary1 = new() { X = 40, Y = 0 },
                 PlacementBoundary2 = new() { X = 60, Y = 15 },
             };
@@ -193,8 +177,27 @@ public sealed class PcbPlacementRepeatTests
             var buffer = new BufferStage(
                 bufferSettings, supply, Handler, supply.Motion, Handler.Motion,
                 supplySettings.BufferHandoffPosition, settings.BufferHandoffPosition, () => 0);
-            Work = new(ConveyorStation.PcbPlacement(Io));
+            Work = new(ConveyorStation.CreatePcbPlacement(Io));
             Placer = new(buffer, Handler, Work);
+        }
+
+        public VirtualIoService Io { get; }
+        public VirtualMotionService Motion { get; }
+        public PcbPlacementHandler Handler { get; }
+        public PcbPlacementWork Work { get; }
+        public PcbPlacer Placer { get; }
+        public PcbPlacementRecipe Recipe { get; } = new()
+        {
+            HeatSink1PcbPlacementPosition = new() { X = 70, Y = 20, Z = 10 },
+            HeatSink2PcbPlacementPosition = new() { X = 80, Y = 20, Z = 10 },
+        };
+
+        public AxisPosition[] Positions
+        {
+            get
+            {
+                return [Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition];
+            }
         }
 
         public async Task InitializeAsync(bool loadPcbs)

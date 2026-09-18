@@ -109,16 +109,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
     }
 
-    internal bool CanAcceptCarrier(bool? runCommandOn = null)
-    {
-        return _movement == Movement.None
-            && _ejectionPhase == EjectionPhase.Idle
-            && !Full
-            && !NeedsCompaction
-            && (_repeat || !EjectRequested)
-            && !(runCommandOn ?? RunCommandOn);
-    }
-
     internal bool ShuttleCanRaise
     {
         get
@@ -135,11 +125,29 @@ public sealed class NgCarrierConveyor : AutoUnit
     {
         get
         {
-            return ReadState(RunCommandOn);
+            return GetState(RunCommandOn);
         }
     }
 
-    public NgConveyorState ReadState(bool runCommandOn)
+    private bool NeedsCompaction
+    {
+        get
+        {
+            return _movement == Movement.Compacting || !Position1Occupied && Position2Occupied;
+        }
+    }
+
+    internal bool CanAcceptCarrier(bool? runCommandOn = null)
+    {
+        return _movement == Movement.None
+            && _ejectionPhase == EjectionPhase.Idle
+            && !Full
+            && !NeedsCompaction
+            && (_repeat || !EjectRequested)
+            && !(runCommandOn ?? RunCommandOn);
+    }
+
+    public NgConveyorState GetState(bool runCommandOn)
     {
         // A stopped transfer with no presence feedback has no known physical location.
         // The saved destination is work history, not permission to guess and resume.
@@ -378,14 +386,6 @@ public sealed class NgCarrierConveyor : AutoUnit
             ExceptionDispatchInfo.Throw(failures[0]);
         if (failures is not null)
             throw new AggregateException("NG conveyor outputs could not all be stopped.", failures);
-    }
-
-    private bool NeedsCompaction
-    {
-        get
-        {
-            return _movement == Movement.Compacting || !Position1Occupied && Position2Occupied;
-        }
     }
 
     private async Task MoveCarrierAsync(

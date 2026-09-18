@@ -451,5 +451,4 @@ public sealed class MotionSafetyTests
     {
         return new(new PcbSupplyHardwareSettings().Outputs, new MachineOptions());
     }
-
 }

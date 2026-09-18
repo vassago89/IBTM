@@ -31,13 +31,6 @@ public sealed class NgShuttle : AutoUnit
 
     public NgShuttleFeedback Feedback { get; }
 
-    public bool CanReceive(bool useConveyor, bool? conveyorRunning = null)
-    {
-        return Feedback.Lift == NgShuttleLiftState.Up
-            && !Feedback.CarrierDetected
-            && (!useConveyor || _conveyor.CanAcceptCarrier(conveyorRunning));
-    }
-
     public NgShuttleState State
     {
         get
@@ -74,6 +67,13 @@ public sealed class NgShuttle : AutoUnit
                 ? NgShuttleState.WaitingForCarrier
                 : NgShuttleState.Raising;
         }
+    }
+
+    public bool CanReceive(bool useConveyor, bool? conveyorRunning = null)
+    {
+        return Feedback.Lift == NgShuttleLiftState.Up
+            && !Feedback.CarrierDetected
+            && (!useConveyor || _conveyor.CanAcceptCarrier(conveyorRunning));
     }
 
     public Task RunAsync(CancellationToken cancellationToken = default)

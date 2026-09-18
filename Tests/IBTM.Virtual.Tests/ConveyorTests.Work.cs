@@ -22,9 +22,9 @@ public sealed partial class ConveyorTests
         var io = CreateIo();
         var station = heatSink1 switch
         {
-            InputIo.PcbPlacementHeatSink1Present => ConveyorStation.PcbPlacement(io),
-            InputIo.BoltFasteningHeatSink1Present => ConveyorStation.BoltFastening(io),
-            _ => ConveyorStation.Inspection(io),
+            InputIo.PcbPlacementHeatSink1Present => ConveyorStation.CreatePcbPlacement(io),
+            InputIo.BoltFasteningHeatSink1Present => ConveyorStation.CreateBoltFastening(io),
+            _ => ConveyorStation.CreateInspection(io),
         };
         var edges = new List<bool>();
         station.CarrierChanged += edges.Add;
@@ -60,20 +60,20 @@ public sealed partial class ConveyorTests
     public void DepartedWorkCannotCompleteNewCarrierAndTransferKeepsOriginalLoad()
     {
         var io = CreateIo();
-        var source = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
+        var source = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
         var destination = CreateInspectionWork(io);
         io.Initialize();
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         var departing = source.CurrentJob;
-        var original = source.Assembly(departing, HeatSinkSlot.HeatSink1);
+        var original = source.GetAssembly(departing, HeatSinkSlot.HeatSink1);
         original.RecordPcbBolt(1, new BoltResult(false, 1.25));
         source.Complete(departing);
 
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        var replacement = source.Assembly(HeatSinkSlot.HeatSink2);
+        var replacement = source.GetAssembly(HeatSinkSlot.HeatSink2);
         Assert.Throws<InvalidOperationException>(() => source.Complete(departing));
-        Assert.Throws<InvalidOperationException>(() => source.Assembly(departing, HeatSinkSlot.HeatSink1));
+        Assert.Throws<InvalidOperationException>(() => source.GetAssembly(departing, HeatSinkSlot.HeatSink1));
         Assert.False(source.Completed);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
@@ -90,12 +90,12 @@ public sealed partial class ConveyorTests
     public void HeatSinkInputChangesDoNotEraseCompletionOrTransferredNg()
     {
         var io = CreateIo();
-        var source = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
+        var source = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
         var destination = CreateInspectionWork(io);
         io.Initialize();
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
-        var assembly = source.Assembly(HeatSinkSlot.HeatSink1);
+        var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
         var result = new BoltResult(false, 1.25);
         assembly.RecordPcbBolt(1, result);
         source.Complete(source.CurrentJob);
@@ -136,8 +136,8 @@ public sealed partial class ConveyorTests
     {
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
-        var placementWork = new PcbPlacementWork(ConveyorStation.PcbPlacement(io));
-        var boltWork = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
+        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io));
+        var boltWork = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
         _ = new MainConveyor(
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
@@ -148,7 +148,7 @@ public sealed partial class ConveyorTests
             routeInspectionToNg: () => false);
 
         io.Initialize();
-        var assembly = placementWork.Assembly(HeatSinkSlot.HeatSink1);
+        var assembly = placementWork.GetAssembly(HeatSinkSlot.HeatSink1);
         VirtualTest.SetCarrier(virtualIo, InputIo.BoltFasteningHeatSink1Present, true);
 
         Assert.Same(assembly, Assert.Single(placementWork.Assemblies));
@@ -161,7 +161,7 @@ public sealed partial class ConveyorTests
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
         var enabled = false;
-        var placementWork = new PcbPlacementWork(ConveyorStation.PcbPlacement(io), () => enabled);
+        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), () => enabled);
 
         io.Initialize();
         Assert.False(placementWork.Completed);
@@ -202,11 +202,11 @@ public sealed partial class ConveyorTests
         var work = CreateInspectionWork(io,
             isEnabled: () => false);
 
-        Assert.True(work.CarrierSeated);
+        Assert.True(work.Station.CarrierSeated);
         Assert.True(work.CanTransfer);
         Assert.True(work.RouteToNg);
         Assert.False(work.HasNg);
-        work.Assembly(HeatSinkSlot.HeatSink1).RecordPcbBolt(1, new BoltResult(false, 1.25));
+        work.GetAssembly(HeatSinkSlot.HeatSink1).RecordPcbBolt(1, new BoltResult(false, 1.25));
         Assert.True(work.HasNg);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);

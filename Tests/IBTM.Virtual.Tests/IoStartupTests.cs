@@ -778,15 +778,15 @@ public sealed class IoStartupTests
     }
 
     [Theory]
-    [InlineData("receive")]
-    [InlineData("transfer")]
-    [InlineData("discharge")]
-    [InlineData("return")]
-    [InlineData("ng")]
-    [InlineData("shoot")]
-    [InlineData("supply")]
-    [InlineData("feeder")]
-    public async Task TransferStepPreservesOperationAndCleanupFailures(string step)
+    [InlineData(TransferFailureStep.Receive)]
+    [InlineData(TransferFailureStep.Transfer)]
+    [InlineData(TransferFailureStep.Discharge)]
+    [InlineData(TransferFailureStep.Return)]
+    [InlineData(TransferFailureStep.NgConveyor)]
+    [InlineData(TransferFailureStep.ShootBolt)]
+    [InlineData(TransferFailureStep.PcbSupply)]
+    [InlineData(TransferFailureStep.BoltFeeder)]
+    public async Task TransferStepPreservesOperationAndCleanupFailures(TransferFailureStep step)
     {
         using var services = CreateServices();
         var io = services.GetRequiredService<StartupIo>();
@@ -794,29 +794,29 @@ public sealed class IoStartupTests
         var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
         io.Initialize();
         physicalIo.SetInput(InputIo.AutoMode, false);
-        if (step == "receive")
+        if (step == TransferFailureStep.Receive)
             physicalIo.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
-        if (step == "transfer")
+        if (step == TransferFailureStep.Transfer)
         {
             var work = services.GetRequiredService<IBTM.PcbPlacement.PcbPlacementWork>();
             VirtualTest.SetCarrier(physicalIo, InputIo.PcbPlacementHeatSink1Present, true);
             await work.Station.SeatAsync(CancellationToken.None);
             work.Complete(work.CurrentJob);
         }
-        if (step == "discharge")
+        if (step == TransferFailureStep.Discharge)
         {
             physicalIo.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
             physicalIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
         }
-        if (step == "return")
+        if (step == TransferFailureStep.Return)
             VirtualTest.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
 
         var output = step switch
         {
-            "ng" => OutputIo.NgConveyorRun,
-            "shoot" => OutputIo.ShootBolt,
-            "supply" => OutputIo.PcbSupplyReadyToFront1,
-            "feeder" => OutputIo.ShootingFeederRunSignal,
+            TransferFailureStep.NgConveyor => OutputIo.NgConveyorRun,
+            TransferFailureStep.ShootBolt => OutputIo.ShootBolt,
+            TransferFailureStep.PcbSupply => OutputIo.PcbSupplyReadyToFront1,
+            TransferFailureStep.BoltFeeder => OutputIo.ShootingFeederRunSignal,
             _ => OutputIo.MainConveyorRun,
         };
         var runError = new IOException("Transfer step failed.");
@@ -824,8 +824,8 @@ public sealed class IoStartupTests
         var handshakeError = new IOException("Transfer handshake OFF failed.");
         var handshake = step switch
         {
-            "receive" => OutputIo.MainConveyorReadyToFront2,
-            "discharge" => OutputIo.MainConveyorAvailableToRear,
+            TransferFailureStep.Receive => OutputIo.MainConveyorReadyToFront2,
+            TransferFailureStep.Discharge => OutputIo.MainConveyorAvailableToRear,
             _ => (OutputIo?)null,
         };
         var started = false;
@@ -854,14 +854,14 @@ public sealed class IoStartupTests
         {
             var run = step switch
             {
-                "return" => conveyor.ReturnToStartAsync(timeout.Token),
-                "ng" => services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>()
+                TransferFailureStep.Return => conveyor.ReturnToStartAsync(timeout.Token),
+                TransferFailureStep.NgConveyor => services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>()
                     .RunUntilAsync(InputIo.NgConveyorPosition1Occupied, true, false, timeout.Token),
-                "shoot" => services.GetRequiredService<IBTM.BoltFastening.BoltFasteningGantry>()
+                TransferFailureStep.ShootBolt => services.GetRequiredService<IBTM.BoltFastening.BoltFasteningGantry>()
                     .ShootBoltAsync(timeout.Token),
-                "supply" => services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>()
+                TransferFailureStep.PcbSupply => services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>()
                     .RunAsync(new(), timeout.Token),
-                "feeder" => services.GetRequiredService<IBTM.BoltFeeder.ShootingBoltFeeder>()
+                TransferFailureStep.BoltFeeder => services.GetRequiredService<IBTM.BoltFeeder.ShootingBoltFeeder>()
                     .RunAsync(timeout.Token),
                 _ => conveyor.RunAsync(timeout.Token),
             };
@@ -1468,24 +1468,59 @@ public sealed class IoStartupTests
 
     // Physical I/O starts closed; the regular VirtualIoService starts ready and
     // permits output reads while disconnected, which cannot expose this bug.
-    private sealed class StartupIo(VirtualIoService inner) : IIoService
+    private sealed class StartupIo : IIoService
     {
+        private readonly VirtualIoService _inner;
+        public (InputIo Input, bool Value)? PendingInput;
+        public bool? ObservedLight;
+        public int InputScans;
+
+        public StartupIo(VirtualIoService inner)
+        {
+            _inner = inner;
+        }
+
+        public event Action<Exception>? Faulted;
+
+        public event Action<InputIo, bool>? InputChanged
+        {
+            add
+            {
+                _inner.InputChanged += value;
+            }
+
+            remove
+            {
+                _inner.InputChanged -= value;
+            }
+        }
+
+        public event Action<OutputIo, bool>? OutputChanged
+        {
+            add
+            {
+                _inner.OutputChanged += value;
+            }
+
+            remove
+            {
+                _inner.OutputChanged -= value;
+            }
+        }
+
         public bool IsReady { get; private set; }
 
         public int TimeoutMilliseconds
         {
             get
             {
-                return inner.TimeoutMilliseconds;
+                return _inner.TimeoutMilliseconds;
             }
         }
 
         public Exception? InitializationError { get; set; }
         public Exception? OutputReadError { get; set; }
         public Exception? InputScanError { get; set; }
-        public (InputIo Input, bool Value)? PendingInput;
-        public bool? ObservedLight;
-        public int InputScans;
         public Action? BeforeOutputRead { get; set; }
         public Action<InputIo>? BeforeInputRead { get; set; }
         public Action<OutputIo, bool>? BeforeOutputWrite { get; set; }
@@ -1494,39 +1529,12 @@ public sealed class IoStartupTests
         public int ReadsWhileUnavailable { get; private set; }
         public int WritesWhileUnavailable { get; private set; }
 
-        public event Action<Exception>? Faulted;
-        public event Action<InputIo, bool>? InputChanged
-        {
-            add
-            {
-                inner.InputChanged += value;
-            }
-
-            remove
-            {
-                inner.InputChanged -= value;
-            }
-        }
-
-        public event Action<OutputIo, bool>? OutputChanged
-        {
-            add
-            {
-                inner.OutputChanged += value;
-            }
-
-            remove
-            {
-                inner.OutputChanged -= value;
-            }
-        }
-
         public void Initialize()
         {
             if (!FailCheckReady && InitializationError is { } error)
                 throw error;
             IsReady = true;
-            inner.Initialize();
+            _inner.Initialize();
         }
 
         public void CheckReady()
@@ -1537,7 +1545,7 @@ public sealed class IoStartupTests
                 throw error;
             }
 
-            inner.CheckReady();
+            _inner.CheckReady();
         }
 
         public void RefreshInputs()
@@ -1551,7 +1559,7 @@ public sealed class IoStartupTests
             if (PendingInput is { } pending)
             {
                 PendingInput = null;
-                inner.SetInput(pending.Input, pending.Value);
+                _inner.SetInput(pending.Input, pending.Value);
             }
         }
 
@@ -1570,12 +1578,12 @@ public sealed class IoStartupTests
                 throw new IOException("Input scan is unavailable; cached inputs are not current feedback.");
             }
 
-            return inner.GetInput(input);
+            return _inner.GetInput(input);
         }
 
         public OutputFeedback? GetOutputFeedback(OutputIo output)
         {
-            return inner.GetOutputFeedback(output);
+            return _inner.GetOutputFeedback(output);
         }
 
         public bool GetOutput(OutputIo output)
@@ -1593,7 +1601,7 @@ public sealed class IoStartupTests
                 throw error;
             if (output == OutputIo.MachineLight && ObservedLight is { } light)
                 return light;
-            return inner.GetOutput(output);
+            return _inner.GetOutput(output);
         }
 
         public void SetOutput(OutputIo output, bool value)
@@ -1606,7 +1614,19 @@ public sealed class IoStartupTests
             }
 
             BeforeOutputWrite?.Invoke(output, value);
-            inner.SetOutput(output, value);
+            _inner.SetOutput(output, value);
         }
+    }
+
+    public enum TransferFailureStep
+    {
+        Receive,
+        Transfer,
+        Discharge,
+        Return,
+        NgConveyor,
+        ShootBolt,
+        PcbSupply,
+        BoltFeeder,
     }
 }

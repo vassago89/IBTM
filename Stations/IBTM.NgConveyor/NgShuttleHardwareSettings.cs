@@ -4,14 +4,6 @@ namespace IBTM.NgConveyor;
 
 public sealed class NgShuttleHardwareSettings : IoHardwareSettings
 {
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.NgShuttle;
-        }
-    }
-
     public NgShuttleHardwareSettings()
     {
         Inputs = new()
@@ -22,7 +14,15 @@ public sealed class NgShuttleHardwareSettings : IoHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.NgShuttleDown] = Output(68, 69, InputIo.NgShuttleDown, InputIo.NgShuttleUp),
+            [OutputIo.NgShuttleDown] = CreateOutput(68, 69, InputIo.NgShuttleDown, InputIo.NgShuttleUp),
         };
+    }
+
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.NgShuttle;
+        }
     }
 }

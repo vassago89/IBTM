@@ -47,6 +47,8 @@ public sealed class IoSignals : INotifyPropertyChanged
         io.Faulted += OnIoFaulted;
     }
 
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public bool InputsAvailable
     {
         get
@@ -55,7 +57,9 @@ public sealed class IoSignals : INotifyPropertyChanged
         }
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
+    public IReadOnlyDictionary<InputIo, IoInputStatus> Inputs { get; }
+    public IReadOnlyDictionary<OutputIo, IoOutputStatus> Outputs { get; }
+
     // Availability changes refresh every input, including levels unchanged on recovery.
     public void RefreshInputs()
     {
@@ -66,9 +70,6 @@ public sealed class IoSignals : INotifyPropertyChanged
             row.Refresh();
         PropertyChanged?.Invoke(this, new(nameof(InputsAvailable)));
     }
-
-    public IReadOnlyDictionary<InputIo, IoInputStatus> Inputs { get; }
-    public IReadOnlyDictionary<OutputIo, IoOutputStatus> Outputs { get; }
 
     // Called by the feedback monitor, never by a display worker or binding getter.
     public void RefreshOutputs()

@@ -10,10 +10,10 @@ using IBTM.Inspection;
 
 namespace IBTM.UI;
 // One captured frame, shared by ROI edits and reinspection. Never moves hardware.
-public partial class InspectionPreview(
-    BoltInspector inspector,
-    Recipe recipe) : ObservableObject
+public partial class InspectionPreview : ObservableObject
 {
+    private readonly BoltInspector _inspector;
+    private readonly Recipe _recipe;
     private ImageFrame? _frame;
     private BinaryCheckResult? _check;
     private HeatSinkSlot? _pcb;
@@ -27,6 +27,15 @@ public partial class InspectionPreview(
     private Rect? _region;
     [ObservableProperty]
     private string? _result;
+
+    public InspectionPreview(
+        BoltInspector inspector,
+        Recipe recipe)
+    {
+        _inspector = inspector;
+        _recipe = recipe;
+    }
+
     public bool HasImage
     {
         get
@@ -39,7 +48,7 @@ public partial class InspectionPreview(
     {
         get
         {
-            return _bolt?.Point.BrightnessThreshold ?? recipe.BoltInspection.BrightnessThreshold;
+            return _bolt?.Point.BrightnessThreshold ?? _recipe.BoltInspection.BrightnessThreshold;
         }
 
         set
@@ -49,7 +58,7 @@ public partial class InspectionPreview(
             _bolt.Point.BrightnessThreshold = value;
             if (_check is not null)
             {
-                _check = inspector.Check(_frame!, _sourceRegion!, _bolt);
+                _check = _inspector.Check(_frame!, _sourceRegion!, _bolt);
                 Overlay = CreateBitmap(_check.Image);
                 RefreshResult();
             }
@@ -61,7 +70,7 @@ public partial class InspectionPreview(
     {
         get
         {
-            return (_bolt?.Point.MinimumBrightRatio ?? recipe.BoltInspection.MinimumBrightRatio) * 100;
+            return (_bolt?.Point.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio) * 100;
         }
 
         set
@@ -111,7 +120,7 @@ public partial class InspectionPreview(
         RefreshRegion();
         if (_bolt is not null && region is not null)
         {
-            _check = inspector.Check(_frame, region, _bolt);
+            _check = _inspector.Check(_frame, region, _bolt);
             Overlay = CreateBitmap(_check.Image);
             RefreshResult();
         }
@@ -137,7 +146,7 @@ public partial class InspectionPreview(
         token.ThrowIfCancellationRequested();
         if (threshold != BrightnessThreshold)
         {
-            check = inspector.Check(frame, region, _bolt!);
+            check = _inspector.Check(frame, region, _bolt!);
             binary = CreateBitmap(check.Image);
         }
         _check = check;
@@ -157,7 +166,7 @@ public partial class InspectionPreview(
         if (_check is null)
             return;
         var ratio = _check.BrightRatio;
-        var minimum = _bolt?.Point.MinimumBrightRatio ?? recipe.BoltInspection.MinimumBrightRatio;
+        var minimum = _bolt?.Point.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio;
         Result = $"{(ratio >= minimum ? "OK" : "NG")} · Bright {ratio * 100:0.###}%";
     }
 

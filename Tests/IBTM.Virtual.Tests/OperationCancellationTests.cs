@@ -183,5 +183,4 @@ public sealed class OperationCancellationTests
         Assert.Contains(error.Flatten().InnerExceptions, exception => exception.Message == "Stop failed");
         Assert.Same(shutdown, operations.ShutdownAsync());
     }
-
 }

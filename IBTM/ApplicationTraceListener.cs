@@ -4,12 +4,19 @@ using IBTM.Core;
 
 namespace IBTM;
 
-internal sealed class ApplicationTraceListener(ApplicationLog log) : TraceListener
+internal sealed class ApplicationTraceListener : TraceListener
 {
+    private readonly ApplicationLog _log;
+
+    public ApplicationTraceListener(ApplicationLog log)
+    {
+        _log = log;
+    }
+
     public override void Write(string? message)
     {
         if (!string.IsNullOrEmpty(message))
-            log.Write(message);
+            _log.Write(message);
     }
 
     public override void WriteLine(string? message)
@@ -19,7 +26,7 @@ internal sealed class ApplicationTraceListener(ApplicationLog log) : TraceListen
 
     public override void Fail(string? message, string? detailMessage)
     {
-        log.Error($"{message}\n{detailMessage}");
+        _log.Error($"{message}\n{detailMessage}");
     }
 
     public override void TraceEvent(
@@ -30,7 +37,7 @@ internal sealed class ApplicationTraceListener(ApplicationLog log) : TraceListen
         string? message)
     {
         if (eventType is TraceEventType.Error or TraceEventType.Critical)
-            log.Error(message ?? "");
+            _log.Error(message ?? "");
         else
             Write(message);
     }

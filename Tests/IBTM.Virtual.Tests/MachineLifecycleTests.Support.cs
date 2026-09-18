@@ -27,158 +27,12 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
-    public class HomeResultMotion : DispatchProxy
-    {
-        public IXyMotion Motion { get; set; } = null!;
-        public TaskCompletionSource<bool> Result { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        public int HorizontalHomeCalls { get; private set; }
-        public bool AwaitCleanupAfterCancellation { get; set; }
-        public CancellationToken HomeCancellation { get; private set; }
-
-        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
-        {
-            if (method!.Name == nameof(IAxisMotion.HomeAsync)
-                && (MotionAxis)arguments![0]! == MotionAxis.Z)
-            {
-                HomeCancellation = (CancellationToken)arguments[2]!;
-                return AwaitCleanupAfterCancellation
-                    ? Result.Task
-                    : Result.Task.WaitAsync(HomeCancellation);
-            }
-
-            if (method.Name == nameof(IXyMotion.HomeHorizontalAsync))
-            {
-                HorizontalHomeCalls++;
-            }
-
-            return method.Invoke(Motion, arguments);
-        }
-    }
-
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         while (!condition())
         {
             await Task.Delay(10, timeout.Token);
-        }
-    }
-
-    private sealed class StoppingBoltHead : IBoltHead
-    {
-        public TaskCompletionSource Started { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Stopping { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Stopped { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public bool HasPendingResult
-        {
-            get
-            {
-                return false;
-            }
-        }
-
-        public Task CheckReadyAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task ResetAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public void DiscardPendingResult()
-        {
-        }
-
-        public Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<BoltResult?>(null);
-        }
-
-        public async Task<BoltResult> TightenAsync(
-            CancellationToken cancellationToken = default,
-            Func<CancellationToken, Task>? feedAsync = null)
-        {
-            Started.SetResult();
-            try
-            {
-                if (feedAsync is not null)
-                    await feedAsync(cancellationToken);
-                await Task.Delay(Timeout.Infinite, cancellationToken);
-                return new(true, 1);
-            }
-            finally
-            {
-                Stopping.SetResult();
-                await Stopped.Task;
-            }
-        }
-    }
-
-    private sealed class WaitingBoltHead : IBoltHead
-    {
-        public bool WaitForReadiness { get; set; }
-        public int ReadinessChecks { get; private set; }
-        public TaskCompletionSource ReadinessEntered { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource ReadinessReleased { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public bool HasPendingResult
-        {
-            get
-            {
-                return false;
-            }
-        }
-
-        public Task CheckReadyAsync(CancellationToken cancellationToken = default)
-        {
-            ReadinessChecks++;
-            if (!WaitForReadiness)
-            {
-                return Task.CompletedTask;
-            }
-
-            ReadinessEntered.TrySetResult();
-            return ReadinessReleased.Task.WaitAsync(cancellationToken);
-        }
-
-        public Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task ResetAsync(CancellationToken cancellationToken = default)
-        {
-            return CheckReadyAsync(cancellationToken);
-        }
-
-        public Task<BoltResult> TightenAsync(
-            CancellationToken cancellationToken = default,
-            Func<CancellationToken, Task>? feedAsync = null)
-        {
-            throw new NotSupportedException();
-        }
-
-        public void DiscardPendingResult()
-        {
-        }
-
-        public Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<BoltResult?>(null);
         }
     }
 
@@ -209,52 +63,6 @@ public sealed partial class MachineLifecycleTests
                         provider.GetRequiredService<InspectionGantrySettings>());
                 })
             .BuildServiceProvider();
-    }
-
-    public class DisplayReadMotion : DispatchProxy, IMotionDiagnostics
-    {
-        public IXyMotion Motion { get; set; } = null!;
-
-        public Action? BeforeRead;
-        public Action? BeforePositionRead;
-        public Action? BeforeHome;
-        public Exception? DiagnosticReadError;
-        public Action<MotionAxis>? AfterDiagnosticStateRead;
-        public MotionAxis? LastMovedAxis { get; private set; }
-        public double? LastMoveVelocity { get; private set; }
-        public List<(MotionAxis Axis, double Position)> AxisMoves { get; } = [];
-
-        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
-        {
-            if (DiagnosticReadError is { } error)
-                return (null, error);
-            var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
-            AfterDiagnosticStateRead?.Invoke(axis);
-            return read;
-        }
-
-        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
-        {
-            return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
-        }
-
-        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
-        {
-            if (method!.Name is nameof(IAxisMotion.HomeAsync) or nameof(IXyMotion.HomeHorizontalAsync))
-                BeforeHome?.Invoke();
-            if (method!.Name == nameof(IMotionFeedback.GetAxisState))
-                BeforeRead?.Invoke();
-            if (method.Name == nameof(IMotionFeedback.GetPosition))
-                BeforePositionRead?.Invoke();
-            if (method.Name == nameof(IAxisMotion.MoveAxisAsync))
-            {
-                LastMovedAxis = (MotionAxis)arguments![0]!;
-                AxisMoves.Add(((MotionAxis)arguments![0]!, (double)arguments[1]!));
-            }
-            if (method.Name is nameof(IAxisMotion.MoveAxisAsync) or nameof(IXyMotion.MoveToXYAsync))
-                LastMoveVelocity = (double)arguments![2]!;
-            return method.Invoke(Motion, arguments);
-        }
     }
 
     private static ServiceProvider CreateServices(MachineSettings settings)
@@ -330,70 +138,6 @@ public sealed partial class MachineLifecycleTests
                         settings.InspectionGantry));
         configure?.Invoke(services);
         return services.BuildServiceProvider();
-    }
-
-    public class ScopedMotionProbe : DispatchProxy, IMotionDiagnostics
-    {
-        private bool _initialized;
-        public IAxisMotion Motion = null!;
-        public bool ReportReady;
-        public bool FailHardwareCalls;
-        public int HardwareCalls;
-        public int InitializationCalls;
-        public int ResetCalls;
-        public Action? BeforeHardwareRead;
-        public Func<AxisState, AxisState>? OverrideState;
-        public Exception? DiagnosticReadError;
-
-        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
-        {
-            if (DiagnosticReadError is { } error)
-                return (null, error);
-            if (FailHardwareCalls)
-                return (null, new IOException("Unavailable diagnostic state."));
-            var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
-            return (read.State is { } state ? OverrideState?.Invoke(state) ?? state : null, read.Error);
-        }
-
-        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
-        {
-            if (DiagnosticReadError is { } error)
-                return (null, error);
-            if (FailHardwareCalls)
-                return (null, new IOException("Unavailable diagnostic position."));
-            return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
-        }
-
-        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
-        {
-            var name = method!.Name;
-            if (name == "get_IsReady")
-            {
-                BeforeHardwareRead?.Invoke();
-                return ReportReady || _initialized;
-            }
-            if (!method.IsSpecialName
-                || name is "get_IsAtHorizontalZ" or "get_IsMoving" or "get_IsMovingHorizontal")
-            {
-                BeforeHardwareRead?.Invoke();
-                Interlocked.Increment(ref HardwareCalls);
-                if (name == nameof(IAxisMotion.Reset))
-                    Interlocked.Increment(ref ResetCalls);
-                if (FailHardwareCalls)
-                    throw new IOException($"Unavailable motion: {name}");
-            }
-
-            var result = method.Invoke(Motion, arguments);
-            if (name == nameof(IAxisMotion.Initialize))
-            {
-                _initialized = true;
-                Interlocked.Increment(ref InitializationCalls);
-            }
-            if (name == nameof(IMotionFeedback.GetAxisState)
-                && OverrideState is { } transform)
-                return transform((AxisState)result!);
-            return result;
-        }
     }
 
     private static UnitSettings EnableOnly(MachineUnit unit)
@@ -537,6 +281,269 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
+    public class HomeResultMotion : DispatchProxy
+    {
+        public IXyMotion Motion { get; set; } = null!;
+        public TaskCompletionSource<bool> Result { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        public int HorizontalHomeCalls { get; private set; }
+        public bool AwaitCleanupAfterCancellation { get; set; }
+        public CancellationToken HomeCancellation { get; private set; }
+
+        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
+        {
+            if (method!.Name == nameof(IAxisMotion.HomeAsync)
+                && (MotionAxis)arguments![0]! == MotionAxis.Z)
+            {
+                HomeCancellation = (CancellationToken)arguments[2]!;
+                return AwaitCleanupAfterCancellation
+                    ? Result.Task
+                    : Result.Task.WaitAsync(HomeCancellation);
+            }
+
+            if (method.Name == nameof(IXyMotion.HomeHorizontalAsync))
+            {
+                HorizontalHomeCalls++;
+            }
+
+            return method.Invoke(Motion, arguments);
+        }
+    }
+
+    private sealed class StoppingBoltHead : IBoltHead
+    {
+        public TaskCompletionSource Started { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Stopping { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Stopped { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool HasPendingResult
+        {
+            get
+            {
+                return false;
+            }
+        }
+
+        public Task CheckReadyAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ResetAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public void DiscardPendingResult()
+        {
+        }
+
+        public Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<BoltResult?>(null);
+        }
+
+        public async Task<BoltResult> TightenAsync(
+            CancellationToken cancellationToken = default,
+            Func<CancellationToken, Task>? feedAsync = null)
+        {
+            Started.SetResult();
+            try
+            {
+                if (feedAsync is not null)
+                    await feedAsync(cancellationToken);
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+                return new(true, 1);
+            }
+            finally
+            {
+                Stopping.SetResult();
+                await Stopped.Task;
+            }
+        }
+    }
+
+    private sealed class WaitingBoltHead : IBoltHead
+    {
+        public bool WaitForReadiness { get; set; }
+        public int ReadinessChecks { get; private set; }
+        public TaskCompletionSource ReadinessEntered { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReadinessReleased { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool HasPendingResult
+        {
+            get
+            {
+                return false;
+            }
+        }
+
+        public Task CheckReadyAsync(CancellationToken cancellationToken = default)
+        {
+            ReadinessChecks++;
+            if (!WaitForReadiness)
+            {
+                return Task.CompletedTask;
+            }
+
+            ReadinessEntered.TrySetResult();
+            return ReadinessReleased.Task.WaitAsync(cancellationToken);
+        }
+
+        public Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task ResetAsync(CancellationToken cancellationToken = default)
+        {
+            return CheckReadyAsync(cancellationToken);
+        }
+
+        public Task<BoltResult> TightenAsync(
+            CancellationToken cancellationToken = default,
+            Func<CancellationToken, Task>? feedAsync = null)
+        {
+            throw new NotSupportedException();
+        }
+
+        public void DiscardPendingResult()
+        {
+        }
+
+        public Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<BoltResult?>(null);
+        }
+    }
+
+    public class DisplayReadMotion : DispatchProxy, IMotionDiagnostics
+    {
+        public Action? BeforeRead;
+        public Action? BeforePositionRead;
+        public Action? BeforeHome;
+        public Exception? DiagnosticReadError;
+        public Action<MotionAxis>? AfterDiagnosticStateRead;
+
+        public IXyMotion Motion { get; set; } = null!;
+        public MotionAxis? LastMovedAxis { get; private set; }
+        public double? LastMoveVelocity { get; private set; }
+        public List<(MotionAxis Axis, double Position)> AxisMoves { get; } = [];
+
+        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
+        {
+            if (DiagnosticReadError is { } error)
+                return (null, error);
+            var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
+            AfterDiagnosticStateRead?.Invoke(axis);
+            return read;
+        }
+
+        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
+        {
+            return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
+        }
+
+        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
+        {
+            if (method!.Name is nameof(IAxisMotion.HomeAsync) or nameof(IXyMotion.HomeHorizontalAsync))
+                BeforeHome?.Invoke();
+            if (method!.Name == nameof(IMotionFeedback.GetAxisState))
+                BeforeRead?.Invoke();
+            if (method.Name == nameof(IMotionFeedback.GetPosition))
+                BeforePositionRead?.Invoke();
+            if (method.Name == nameof(IAxisMotion.MoveAxisAsync))
+            {
+                LastMovedAxis = (MotionAxis)arguments![0]!;
+                AxisMoves.Add(((MotionAxis)arguments![0]!, (double)arguments[1]!));
+            }
+            if (method.Name is nameof(IAxisMotion.MoveAxisAsync) or nameof(IXyMotion.MoveToXYAsync))
+                LastMoveVelocity = (double)arguments![2]!;
+            return method.Invoke(Motion, arguments);
+        }
+    }
+
+    public class ScopedMotionProbe : DispatchProxy, IMotionDiagnostics
+    {
+        private bool _initialized;
+        public IAxisMotion Motion = null!;
+        public bool ReportReady;
+        public bool FailHardwareCalls;
+        public bool AllowStop;
+        public int HardwareCalls;
+        public int InitializationCalls;
+        public int ResetCalls;
+        public Action? BeforeHardwareRead;
+        public Func<AxisState, AxisState>? OverrideState;
+        public Exception? DiagnosticReadError;
+
+        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
+        {
+            if (DiagnosticReadError is { } error)
+                return (null, error);
+            if (FailHardwareCalls)
+                return (null, new IOException("Unavailable diagnostic state."));
+            var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
+            return (read.State is { } state ? OverrideState?.Invoke(state) ?? state : null, read.Error);
+        }
+
+        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
+        {
+            if (DiagnosticReadError is { } error)
+                return (null, error);
+            if (FailHardwareCalls)
+                return (null, new IOException("Unavailable diagnostic position."));
+            return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
+        }
+
+        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
+        {
+            var name = method!.Name;
+            // A disabled device may reject acquisition while still accepting an explicit STOP.
+            if (name == nameof(IAxisMotion.Stop) && AllowStop)
+            {
+                Motion.Stop();
+                return null;
+            }
+            if (name == "get_IsReady")
+            {
+                BeforeHardwareRead?.Invoke();
+                return ReportReady || _initialized;
+            }
+            if (!method.IsSpecialName
+                || name is "get_IsAtHorizontalZ" or "get_IsMoving" or "get_IsMovingHorizontal")
+            {
+                BeforeHardwareRead?.Invoke();
+                Interlocked.Increment(ref HardwareCalls);
+                if (name == nameof(IAxisMotion.Reset))
+                    Interlocked.Increment(ref ResetCalls);
+                if (FailHardwareCalls)
+                    throw new IOException($"Unavailable motion: {name}");
+            }
+
+            var result = method.Invoke(Motion, arguments);
+            if (name == nameof(IAxisMotion.Initialize))
+            {
+                _initialized = true;
+                Interlocked.Increment(ref InitializationCalls);
+            }
+            if (name == nameof(IMotionFeedback.GetAxisState)
+                && OverrideState is { } transform)
+                return transform((AxisState)result!);
+            return result;
+        }
+    }
+
     public enum MachineUnit
     {
         MainConveyor,
@@ -550,5 +557,4 @@ public sealed partial class MachineLifecycleTests
         NgShuttle,
         NgConveyor,
     }
-
 }

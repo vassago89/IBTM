@@ -19,7 +19,6 @@ public sealed class PcbLayout
     {
         return GetBolts().Where(bolt => bolt.HeatSink == pcb);
     }
-
 }
 
 public sealed record BoltTarget(BoltPoint Point)

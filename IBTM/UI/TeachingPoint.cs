@@ -7,6 +7,13 @@ namespace IBTM.UI;
 
 public partial class TeachingPoint : ObservableObject
 {
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
+    private double _x;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
+    private double _y;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
+    private double? _z;
+
     public TeachingPoint(TeachingPosition position)
     {
         Position = position;
@@ -22,13 +29,6 @@ public partial class TeachingPoint : ObservableObject
             return Position.Bolt?.Number ?? 0;
         }
     }
-
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
-    private double _x;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
-    private double _y;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
-    private double? _z;
 
     public string Name
     {

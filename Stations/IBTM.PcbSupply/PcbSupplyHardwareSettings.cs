@@ -5,14 +5,6 @@ namespace IBTM.PcbSupply;
 
 public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
 {
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.PcbSupply;
-        }
-    }
-
     public PcbSupplyHardwareSettings() : base(
         MotionGroup.PcbSupply,
         (
@@ -40,20 +32,28 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.PcbSupplyReadyToFront1] = Output(16),
-            [OutputIo.PcbSupplyGripperClosed] = Output(
+            [OutputIo.PcbSupplyReadyToFront1] = CreateOutput(16),
+            [OutputIo.PcbSupplyGripperClosed] = CreateOutput(
                 22,
                 23,
                 InputIo.PcbSupplyGripperClosed,
                 InputIo.PcbSupplyGripperOpen),
-            [OutputIo.PcbSupplyRotate] = Output(
+            [OutputIo.PcbSupplyRotate] = CreateOutput(
                 20,
                 21,
                 InputIo.PcbSupplyRotated,
                 InputIo.PcbSupplyUnrotated),
-            [OutputIo.PcbSupplyIpmFixerForward] = Output(
+            [OutputIo.PcbSupplyIpmFixerForward] = CreateOutput(
                 24,
                 InputIo.PcbSupplyIpmFixerForward),
         };
+    }
+
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.PcbSupply;
+        }
     }
 }

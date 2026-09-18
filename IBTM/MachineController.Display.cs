@@ -51,7 +51,7 @@ public sealed partial class MachineController
         var setupEditing = _state.SetupEditingEnabled;
         var manualSetup = setupEditing && !running && safetyReady;
         var fasteningState = teachingReady && _units.BoltFastening
-            ? _fasteningStation.State(live: false)
+            ? _fasteningStation.GetState(live: false)
             : BoltFasteningState.Waiting;
 
         return new()
@@ -64,11 +64,10 @@ public sealed partial class MachineController
             HomeBlock = HomeBlock,
             IsHoming = _state.IsHoming,
             AutomaticRunning = automatic,
-            ConveyorState = _conveyor.ReadState(mainRunning, live: false),
-            NgConveyorState = _ngConveyor.ReadState(ngRunning),
+            ConveyorState = _conveyor.GetState(mainRunning, live: false),
+            NgConveyorState = _ngConveyor.GetState(ngRunning),
             BufferConflict = conflict,
             SupplyInBufferArea = _state.Buffer.IsSupplyInside(live: false),
-            PlacementInBufferArea = _state.Buffer.IsPlacementInside(live: false),
             SupplyAtHandoff = _state.Buffer.IsSupplyAtHandoff(live: false),
             CanSupplyEnter = _state.Buffer.CanEnterSupply(live: false),
             EmergencyStopReleased = _state.EmergencyStopReleased,
@@ -94,18 +93,17 @@ public sealed partial class MachineController
                 .Where(item => CanHomeAxis(item.group, item.axis, live: false, running: running))
                 .ToHashSet(),
             ManualBlock = _state.GetManualBlock(motion, conflict, running),
-            ManualSetupEnabled = manualSetup,
             SetupEditingEnabled = setupEditing,
             PlacementState = _units.PcbPlacement
-                ? _pcbPlacement.State(_recipe.PcbPlacement, live: false)
+                ? _pcbPlacement.GetState(_recipe.PcbPlacement, live: false)
                 : PcbPlacementState.WaitingForSupply,
             PlacementTarget = _pcbPlacement.TargetHeatSink,
             FasteningState = fasteningState,
             FasteningBolt = teachingReady && _units.BoltFastening && automatic
-                ? _fasteningStation.ActiveBolt(fasteningState)
+                ? _fasteningStation.GetActiveBolt(fasteningState)
                 : null,
             InspectionState = teachingReady && _units.Inspection
-                ? _inspectionStation.State(
+                ? _inspectionStation.GetState(
                     bolts,
                     _state.RepeatEnabled,
                     holdAtShuttle: _state.RepeatEnabled && !_units.NgShuttle,
@@ -113,10 +111,10 @@ public sealed partial class MachineController
                     conveyorRunning: ngRunning)
                 : InspectionStationState.Waiting,
             InspectionBolt = teachingReady && _units.Inspection && automatic
-                ? _inspectionStation.ActiveBolt(bolts)
+                ? _inspectionStation.GetActiveBolt(bolts)
                 : null,
             InspectionPcb = teachingReady && _units.Inspection && automatic
-                ? _inspectionStation.ActivePcb(bolts)
+                ? _inspectionStation.GetActivePcb(bolts)
                 : null,
             RepeatPhase = _repeatDisplayPhase,
             RepeatCycles = _repeatCycles,

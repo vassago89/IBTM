@@ -38,7 +38,7 @@ public static class CarrierCoordinates
         AxisPosition targetUpperLeftLocatingPin,
         AxisPosition targetLowerRightLocatingPin)
     {
-        var (cosine, sine) = Rotation(
+        var (cosine, sine) = GetRotation(
             sourceUpperLeftLocatingPin,
             sourceLowerRightLocatingPin,
             targetUpperLeftLocatingPin,
@@ -51,7 +51,7 @@ public static class CarrierCoordinates
         };
     }
 
-    private static (double Cosine, double Sine) Rotation(
+    private static (double Cosine, double Sine) GetRotation(
         AxisPosition sourceUpperLeftLocatingPin,
         AxisPosition sourceLowerRightLocatingPin,
         AxisPosition targetUpperLeftLocatingPin,

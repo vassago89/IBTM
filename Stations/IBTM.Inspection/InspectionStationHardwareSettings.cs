@@ -4,14 +4,6 @@ namespace IBTM.Inspection;
 
 public sealed class InspectionStationHardwareSettings : InputHardwareSettings
 {
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.InspectionStation;
-        }
-    }
-
     public InspectionStationHardwareSettings()
     {
         Inputs = new()
@@ -19,5 +11,13 @@ public sealed class InspectionStationHardwareSettings : InputHardwareSettings
             [InputIo.InspectionHeatSink1Present] = 69,
             [InputIo.InspectionHeatSink2Present] = 70,
         };
+    }
+
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.InspectionStation;
+        }
     }
 }

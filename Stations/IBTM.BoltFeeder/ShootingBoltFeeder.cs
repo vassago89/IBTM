@@ -2,15 +2,21 @@ using IBTM.Device;
 
 namespace IBTM.BoltFeeder;
 
-public sealed class ShootingBoltFeeder(IIoService io, BoltFeederSettings settings) : BoltFeeder(
-    io,
-    InputIo.ShootingFeederBoltDetected)
+public sealed class ShootingBoltFeeder : BoltFeeder
 {
+    private readonly BoltFeederSettings _settings;
+
+    public ShootingBoltFeeder(IIoService io, BoltFeederSettings settings)
+        : base(io, InputIo.ShootingFeederBoltDetected)
+    {
+        _settings = settings;
+    }
+
     protected override int TimeoutMilliseconds
     {
         get
         {
-            return settings.ShootingTimeoutMilliseconds;
+            return _settings.ShootingTimeoutMilliseconds;
         }
     }
 

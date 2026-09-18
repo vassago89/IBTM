@@ -22,7 +22,6 @@ namespace IBTM.UI;
 
 public partial class OperationViewModel : ObservableObject
 {
-
     private readonly MachineController _machine;
     private readonly MachineOptions _options;
     private readonly Recipe _recipe;
@@ -64,8 +63,6 @@ public partial class OperationViewModel : ObservableObject
             new("DOOR 5", signals.Inputs[InputIo.Door5Open]),
             new("DOOR 6", signals.Inputs[InputIo.Door6Open]),
         ];
-        MainConveyorRun = signals.Outputs[OutputIo.MainConveyorRun];
-        NgConveyorRun = signals.Outputs[OutputIo.NgConveyorRun];
         _machine = machine;
         Units = units;
         _options = options;
@@ -109,8 +106,6 @@ public partial class OperationViewModel : ObservableObject
     public MachineState State { get; }
     public IoSignals Signals { get; }
     public IReadOnlyList<DoorSensorDisplay> DoorSensors { get; }
-    public IoOutputStatus MainConveyorRun { get; }
-    public IoOutputStatus NgConveyorRun { get; }
     public UnitSettings Units { get; }
 
     public PcbPlacementWork PcbPlacementWork { get; }
@@ -131,7 +126,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.Supply(Supply.Motion.Position)?.X;
+            return _map.GetSupplyPosition(Supply.Motion.Position)?.X;
         }
     }
 
@@ -139,7 +134,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.Supply(Supply.Motion.Position)?.Y;
+            return _map.GetSupplyPosition(Supply.Motion.Position)?.Y;
         }
     }
 
@@ -147,7 +142,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.Placement(Placement.Motion.Position)?.X;
+            return _map.GetPlacementPosition(Placement.Motion.Position)?.X;
         }
     }
 
@@ -155,7 +150,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.Placement(Placement.Motion.Position)?.Y;
+            return _map.GetPlacementPosition(Placement.Motion.Position)?.Y;
         }
     }
 
@@ -163,7 +158,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.Fastening(Fastening.Motion.Position)?.X;
+            return _map.GetFasteningPosition(Fastening.Motion.Position)?.X;
         }
     }
 
@@ -171,7 +166,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.Fastening(Fastening.Motion.Position)?.Y;
+            return _map.GetFasteningPosition(Fastening.Motion.Position)?.Y;
         }
     }
 
@@ -179,7 +174,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.PickupFeeder().X;
+            return _map.GetPickupFeederPosition().X;
         }
     }
 
@@ -187,7 +182,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.PickupFeeder().Y;
+            return _map.GetPickupFeederPosition().Y;
         }
     }
 
@@ -195,7 +190,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.Inspection(InspectionGantry.Motion.Position)?.X;
+            return _map.GetInspectionPosition(InspectionGantry.Motion.Position)?.X;
         }
     }
 
@@ -203,7 +198,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _map.Inspection(InspectionGantry.Motion.Position)?.Y;
+            return _map.GetInspectionPosition(InspectionGantry.Motion.Position)?.Y;
         }
     }
 
@@ -275,7 +270,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return PcbPlacementWork.Stopper == StationCylinderState.Up;
+            return PcbPlacementWork.Station.Stopper == StationCylinderState.Up;
         }
     }
 
@@ -283,7 +278,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return PcbPlacementWork.BackupPlate == StationCylinderState.Up;
+            return PcbPlacementWork.Station.BackupPlate == StationCylinderState.Up;
         }
     }
 
@@ -299,7 +294,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return PcbPlacementWork.HeatSinkPresent(HeatSinkSlot.HeatSink1);
+            return PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
         }
     }
 
@@ -307,7 +302,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return PcbPlacementWork.HeatSinkPresent(HeatSinkSlot.HeatSink2);
+            return PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
         }
     }
 
@@ -315,7 +310,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return BoltFasteningWork.HeatSinkPresent(HeatSinkSlot.HeatSink1);
+            return BoltFasteningWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
         }
     }
 
@@ -323,7 +318,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return BoltFasteningWork.HeatSinkPresent(HeatSinkSlot.HeatSink2);
+            return BoltFasteningWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
         }
     }
 
@@ -331,7 +326,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return BoltFasteningWork.Stopper == StationCylinderState.Up;
+            return BoltFasteningWork.Station.Stopper == StationCylinderState.Up;
         }
     }
 
@@ -339,7 +334,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return BoltFasteningWork.BackupPlate == StationCylinderState.Up;
+            return BoltFasteningWork.Station.BackupPlate == StationCylinderState.Up;
         }
     }
 
@@ -347,7 +342,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return InspectionWork.HeatSinkPresent(HeatSinkSlot.HeatSink1);
+            return InspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
         }
     }
 
@@ -355,7 +350,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return InspectionWork.HeatSinkPresent(HeatSinkSlot.HeatSink2);
+            return InspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
         }
     }
 
@@ -363,7 +358,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return InspectionWork.Stopper == StationCylinderState.Up;
+            return InspectionWork.Station.Stopper == StationCylinderState.Up;
         }
     }
 
@@ -371,7 +366,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return InspectionWork.BackupPlate == StationCylinderState.Up;
+            return InspectionWork.Station.BackupPlate == StationCylinderState.Up;
         }
     }
 
@@ -428,7 +423,7 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return Units.PcbPlacement
-                && PcbPlacementWork.CarrierPresent
+                && PcbPlacementWork.Station.CarrierPresent
                 && PcbPlacementHeatSink1Present
                 && HasAssembly(PcbPlacementWork, HeatSinkSlot.HeatSink1);
         }
@@ -439,7 +434,7 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return Units.PcbPlacement
-                && PcbPlacementWork.CarrierPresent
+                && PcbPlacementWork.Station.CarrierPresent
                 && PcbPlacementHeatSink2Present
                 && HasAssembly(PcbPlacementWork, HeatSinkSlot.HeatSink2);
         }
@@ -485,13 +480,6 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    private string? InspectionBarcode(HeatSinkSlot pcb)
-    {
-        return InspectionWork.CarrierPresent && InspectionWork.HeatSinkPresent(pcb)
-            ? InspectionWork.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode
-            : null;
-    }
-
     public IReadOnlyList<BoltTargetView> BoltTargets
     {
         get
@@ -512,7 +500,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Result(BoltFasteningWork, HeatSinkSlot.HeatSink1, inspection: false);
+            return GetAssemblyResult(BoltFasteningWork, HeatSinkSlot.HeatSink1, inspection: false);
         }
     }
 
@@ -520,7 +508,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Result(BoltFasteningWork, HeatSinkSlot.HeatSink2, inspection: false);
+            return GetAssemblyResult(BoltFasteningWork, HeatSinkSlot.HeatSink2, inspection: false);
         }
     }
 
@@ -528,7 +516,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Result(InspectionWork, HeatSinkSlot.HeatSink1, inspection: true);
+            return GetAssemblyResult(InspectionWork, HeatSinkSlot.HeatSink1, inspection: true);
         }
     }
 
@@ -536,7 +524,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Result(InspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
+            return GetAssemblyResult(InspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
         }
     }
 
@@ -591,6 +579,13 @@ public partial class OperationViewModel : ObservableObject
                 || !_options.UseDoorInterlock
                 || !_options.UseAirPressureInterlock;
         }
+    }
+
+    private string? InspectionBarcode(HeatSinkSlot pcb)
+    {
+        return InspectionWork.Station.CarrierPresent && InspectionWork.Station.IsHeatSinkPresent(pcb)
+            ? InspectionWork.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode
+            : null;
     }
 
     public void Activate()
@@ -671,12 +666,20 @@ public partial class OperationViewModel : ObservableObject
         return work.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
     }
 
-    private static AssemblyResult Result(StationWork work, HeatSinkSlot heatSink, bool inspection)
+    private static AssemblyResult GetAssemblyResult(StationWork work, HeatSinkSlot heatSink, bool inspection)
     {
         var assembly = work.Assemblies.FirstOrDefault(item => item.HeatSink == heatSink);
-        return assembly is null
-            ? AssemblyResult.Pending
-            : inspection ? assembly.InspectionResult : assembly.FasteningResult;
+        if (assembly is null)
+        {
+            return AssemblyResult.Pending;
+        }
+
+        if (inspection)
+        {
+            return assembly.InspectionResult;
+        }
+
+        return assembly.FasteningResult;
     }
 
     private IReadOnlyList<BoltTargetView> CreateFasteningTargets()
@@ -691,8 +694,8 @@ public partial class OperationViewModel : ObservableObject
             _recipe.Pcb.GetBolts().Where(bolt => Fastening.HasReference(bolt.Head)),
             BoltFasteningHeatSink1Present,
             BoltFasteningHeatSink2Present,
-            _map.FasteningTarget,
-            bolt => bolt == active ? BoltTargetState.Active : FasteningTargetState(bolt));
+            _map.GetFasteningTargetPosition,
+            bolt => bolt == active ? BoltTargetState.Active : GetFasteningTargetState(bolt));
     }
 
     private IReadOnlyList<BoltTargetView> CreateInspectionTargets()
@@ -707,8 +710,8 @@ public partial class OperationViewModel : ObservableObject
             _recipe.Pcb.GetBolts().ToArray(),
             InspectionHeatSink1Present,
             InspectionHeatSink2Present,
-            _map.InspectionTarget,
-            bolt => bolt == active ? BoltTargetState.Active : InspectionTargetState(bolt));
+            _map.GetInspectionTargetPosition,
+            bolt => bolt == active ? BoltTargetState.Active : GetInspectionTargetState(bolt));
     }
 
     private IReadOnlyList<BoltTargetView> CreateTargets(
@@ -733,7 +736,7 @@ public partial class OperationViewModel : ObservableObject
             .ToArray();
     }
 
-    private BoltTargetState FasteningTargetState(BoltTarget bolt)
+    private BoltTargetState GetFasteningTargetState(BoltTarget bolt)
     {
         var assembly = BoltFasteningWork.Assemblies.FirstOrDefault(
             item => item.HeatSink == bolt.HeatSink);
@@ -744,15 +747,15 @@ public partial class OperationViewModel : ObservableObject
 
         if (bolt.Head == FasteningHead.Shooting)
         {
-            return ResultState(assembly.PcbBoltResults, bolt.Number);
+            return GetResultState(assembly.PcbBoltResults, bolt.Number);
         }
 
-        var seating = ResultState(assembly.IpmSeatingResults, bolt.Number);
-        var final = ResultState(assembly.IpmFinalResults, bolt.Number);
+        var seating = GetResultState(assembly.IpmSeatingResults, bolt.Number);
+        var final = GetResultState(assembly.IpmFinalResults, bolt.Number);
         return seating == BoltTargetState.Ng || final == BoltTargetState.Ng ? BoltTargetState.Ng : final;
     }
 
-    private BoltTargetState InspectionTargetState(BoltTarget bolt)
+    private BoltTargetState GetInspectionTargetState(BoltTarget bolt)
     {
         var assembly = InspectionWork.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
         if (assembly is null
@@ -764,11 +767,19 @@ public partial class OperationViewModel : ObservableObject
         return present ? BoltTargetState.Ok : BoltTargetState.Ng;
     }
 
-    private static BoltTargetState ResultState(IReadOnlyDictionary<int, BoltResult> results, int number)
+    private static BoltTargetState GetResultState(IReadOnlyDictionary<int, BoltResult> results, int number)
     {
-        return results.TryGetValue(number, out var result)
-            ? result.Success ? BoltTargetState.Ok : BoltTargetState.Ng
-            : BoltTargetState.Pending;
+        if (results.TryGetValue(number, out var result))
+        {
+            if (result.Success)
+            {
+                return BoltTargetState.Ok;
+            }
+
+            return BoltTargetState.Ng;
+        }
+
+        return BoltTargetState.Pending;
     }
 
     private void OnPcbSupplyMotionChanged(object? _, PropertyChangedEventArgs e)

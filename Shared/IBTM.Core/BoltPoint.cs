@@ -18,6 +18,7 @@ public sealed class BoltPoint
 {
     private int? _brightnessThreshold;
     private double? _minimumBrightRatio;
+
     public int Number { get; set; }
     public HeatSinkSlot HeatSink { get; set; }
     public FasteningHead Head { get; set; } = FasteningHead.Shooting;

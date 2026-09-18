@@ -4,14 +4,6 @@ namespace IBTM.PcbPlacement;
 
 public sealed class PcbPlacementStationHardwareSettings : InputHardwareSettings
 {
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.PcbPlacementStation;
-        }
-    }
-
     public PcbPlacementStationHardwareSettings()
     {
         Inputs = new()
@@ -19,5 +11,13 @@ public sealed class PcbPlacementStationHardwareSettings : InputHardwareSettings
             [InputIo.PcbPlacementHeatSink1Present] = 54,
             [InputIo.PcbPlacementHeatSink2Present] = 55,
         };
+    }
+
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.PcbPlacementStation;
+        }
     }
 }

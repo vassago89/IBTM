@@ -5,20 +5,26 @@ using System.Threading;
 
 namespace IBTM.Device;
 
-public sealed class MovsLightController(LightingSettings settings) : ILightController, IDisposable
+public sealed class MovsLightController : ILightController, IDisposable
 {
-    private readonly Lock _writeLock = new();
+    private readonly Lock _writeLock;
     // Connection edits apply after restart, not to an already-created driver.
-    private readonly LightingSettings _connection = new()
-    {
-        Connection = settings.Connection,
-        BaudRate = settings.BaudRate,
-        DataBits = settings.DataBits,
-        Parity = settings.Parity,
-        StopBits = settings.StopBits,
-        WriteTimeoutMilliseconds = settings.WriteTimeoutMilliseconds,
-    };
+    private readonly LightingSettings _connection;
     private SerialPort? _port;
+
+    public MovsLightController(LightingSettings settings)
+    {
+        _writeLock = new();
+        _connection = new()
+        {
+            Connection = settings.Connection,
+            BaudRate = settings.BaudRate,
+            DataBits = settings.DataBits,
+            Parity = settings.Parity,
+            StopBits = settings.StopBits,
+            WriteTimeoutMilliseconds = settings.WriteTimeoutMilliseconds,
+        };
+    }
 
     public void Initialize()
     {

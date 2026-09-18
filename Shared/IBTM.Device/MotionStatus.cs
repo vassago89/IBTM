@@ -19,11 +19,45 @@ public sealed class MotionStatus : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
     public IMotionFeedback Feedback { get; }
     // Enabled/initialized control feedback; unavailable control invalidates these axes.
     public IReadOnlyDictionary<MotionAxis, AxisStatus> Axes { get; }
     // Independent raw monitoring continues for disabled, servo-off and alarmed axes.
     public IReadOnlyDictionary<MotionAxis, MotionDiagnostics> MonitorAxes { get; }
+
+    public bool XyHomed
+    {
+        get
+        {
+            return Axes[MotionAxis.X].State is { Homed: true }
+                && (!Feedback.HasY || Axes[MotionAxis.Y].State is { Homed: true });
+        }
+    }
+
+    public MotionPosition Position
+    {
+        get
+        {
+            // The axis snapshots own the coordinates; this is not a second position cache.
+            return new(
+                MonitorAxes[MotionAxis.X].Snapshot.Position,
+                Feedback.HasY ? MonitorAxes[MotionAxis.Y].Snapshot.Position : null,
+                Feedback.HasZ ? MonitorAxes[MotionAxis.Z].Snapshot.Position : null);
+        }
+    }
+
+    public bool IsMoving
+    {
+        get
+        {
+            // Observed movement only. Unknown feedback is exposed by the axis status;
+            // command admission must still read current hardware feedback.
+            return Feedback is IMotionDiagnostics
+                ? MonitorAxes.Values.Any(axis => axis.Snapshot.State is { InMotion: true })
+                : Axes.Values.Any(axis => axis.State is { InMotion: true });
+        }
+    }
 
     // The caller chooses the source explicitly. Cached reads never fall back to the SDK.
     public bool IsReady(bool live)
@@ -72,9 +106,10 @@ public sealed class MotionStatus : INotifyPropertyChanged
         var previousPosition = Position;
         foreach (var (axis, status) in MonitorAxes)
         {
-            var previous = status.Snapshot.ReadError?.Message;
+            var previous = status.Snapshot.ReadError;
             status.Refresh(diagnostics, axis);
-            if (status.Snapshot.ReadError is { } error && error.Message != previous)
+            // Report once per failed acquisition period; keep the latest exception in the snapshot.
+            if (status.Snapshot.ReadError is { } error && previous is null)
                 reportError?.Invoke(axis, error);
         }
 
@@ -82,15 +117,6 @@ public sealed class MotionStatus : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new(nameof(IsMoving)));
         if (previousPosition != Position)
             PropertyChanged?.Invoke(this, new(nameof(Position)));
-    }
-
-    public bool XyHomed
-    {
-        get
-        {
-            return Axes[MotionAxis.X].State is { Homed: true }
-                && (!Feedback.HasY || Axes[MotionAxis.Y].State is { Homed: true });
-        }
     }
 
     // Display only; motion commands read Feedback again when they execute.
@@ -101,31 +127,6 @@ public sealed class MotionStatus : INotifyPropertyChanged
             && Position.Z is { } current
             && Math.Abs(current - z) <= MotionService.PositionToleranceMillimeters;
     }
-
-    public MotionPosition Position
-    {
-        get
-        {
-            // The axis snapshots own the coordinates; this is not a second position cache.
-            return new(
-                MonitorAxes[MotionAxis.X].Snapshot.Position,
-                Feedback.HasY ? MonitorAxes[MotionAxis.Y].Snapshot.Position : null,
-                Feedback.HasZ ? MonitorAxes[MotionAxis.Z].Snapshot.Position : null);
-        }
-    }
-
-    public bool IsMoving
-    {
-        get
-        {
-            // Observed movement only. Unknown feedback is exposed by the axis status;
-            // command admission must still read current hardware feedback.
-            return Feedback is IMotionDiagnostics
-                ? MonitorAxes.Values.Any(axis => axis.Snapshot.State is { InMotion: true })
-                : Axes.Values.Any(axis => axis.State is { InMotion: true });
-        }
-    }
-
 
     public void RefreshControlFeedback(bool available = true)
     {
@@ -166,5 +167,4 @@ public sealed class MotionStatus : INotifyPropertyChanged
                 PropertyChanged?.Invoke(this, new(nameof(XyHomed)));
         }
     }
-
 }

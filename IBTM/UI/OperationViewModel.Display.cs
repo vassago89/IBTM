@@ -75,7 +75,8 @@ public partial class OperationViewModel
                 return HandlerDisplayState.Disabled;
             }
 
-            if (!State.Display.Available || MainConveyorRun.IsOn is not { } running)
+            if (!State.Display.Available
+                || Signals.Outputs[OutputIo.MainConveyorRun].IsOn is not { } running)
             {
                 return MachineDisplayState.Unavailable;
             }
@@ -245,7 +246,7 @@ public partial class OperationViewModel
             if (!State.Display.AutomaticRunning)
                 return StationDisplayState.Stopped;
 
-            if (!BoltFasteningWork.CarrierPresent)
+            if (!BoltFasteningWork.Station.CarrierPresent)
             {
                 return StationDisplayState.WaitingForCarrier;
             }
@@ -307,7 +308,7 @@ public partial class OperationViewModel
                 return StationDisplayState.Working;
             }
 
-            if (!InspectionWork.CarrierPresent)
+            if (!InspectionWork.Station.CarrierPresent)
             {
                 return StationDisplayState.WaitingForCarrier;
             }
@@ -338,5 +339,4 @@ public partial class OperationViewModel
                 or InspectionStationState.WaitingForShuttleCarrier;
         }
     }
-
 }

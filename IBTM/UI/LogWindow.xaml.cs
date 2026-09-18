@@ -19,5 +19,4 @@ public partial class LogWindow : Window
         _viewModel.Dispose();
         base.OnClosed(e);
     }
-
 }

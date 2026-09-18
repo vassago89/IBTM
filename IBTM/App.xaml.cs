@@ -200,5 +200,4 @@ public partial class App : System.Windows.Application
             $"ADC {(direction == AdcFrameDirection.Transmit ? "TX" : "RX RAW")} {Convert.ToHexString(
                 frame)}");
     }
-
 }

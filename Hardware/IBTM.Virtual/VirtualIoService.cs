@@ -8,24 +8,43 @@ using IBTM.Device;
 
 namespace IBTM.Virtual;
 
-public sealed class VirtualIoService(
-    IReadOnlyDictionary<OutputIo, OutputHardware> outputs,
-    MachineOptions options) : IIoService, INotifyPropertyChanged
+public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
 {
+    private readonly IReadOnlyDictionary<OutputIo, OutputHardware> _outputHardware;
+    private readonly MachineOptions _options;
     private const int FeedbackDelayMilliseconds = 200;
 
-    private readonly bool[] _inputs = CreateInitialInputs();
-    private readonly bool[] _outputs = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
-    private readonly int[] _feedbackVersions = new int[Enum.GetValues<OutputIo>().Max(
-        output => (int)output) + 1];
-    private readonly Lock _responseGate = new();
-    private bool _autoResponseEnabled = true;
+    private readonly bool[] _inputs;
+    private readonly bool[] _outputs;
+    private readonly int[] _feedbackVersions;
+    private readonly Lock _responseGate;
+    private bool _autoResponseEnabled;
     private int _autoResponseVersion;
-    private bool _connected = true;
+    private bool _connected;
+
+    public VirtualIoService(
+        IReadOnlyDictionary<OutputIo, OutputHardware> outputs,
+        MachineOptions options)
+    {
+        _outputHardware = outputs;
+        _options = options;
+        _inputs = CreateInitialInputs();
+        _outputs = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+        _feedbackVersions = new int[Enum.GetValues<OutputIo>().Max(
+            output => (int)output) + 1];
+        _responseGate = new();
+        _autoResponseEnabled = true;
+        _connected = true;
+    }
+
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<Exception>? Faulted;
+
+    internal event Action<OutputIo, bool>? OutputApplied;
+    internal event Action? FeedbackSynchronized;
+
     public bool IsReady
     {
         get
@@ -38,33 +57,8 @@ public sealed class VirtualIoService(
     {
         get
         {
-            return options.TimeoutMilliseconds;
+            return _options.TimeoutMilliseconds;
         }
-    }
-
-    internal event Action<OutputIo, bool>? OutputApplied;
-    internal event Action? FeedbackSynchronized;
-
-    private static bool[] CreateInitialInputs()
-    {
-        var inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
-        // Start in MANUAL using the same raw selector polarity as the machine.
-        inputs[(int)InputIo.AutoMode] = true;
-        // All six doors start closed; opening a door switches its raw input OFF.
-        inputs[(int)InputIo.Door1Open] = true;
-        inputs[(int)InputIo.Door2Open] = true;
-        inputs[(int)InputIo.Door3Open] = true;
-        inputs[(int)InputIo.Door4Open] = true;
-        inputs[(int)InputIo.Door5Open] = true;
-        inputs[(int)InputIo.Door6Open] = true;
-        inputs[(int)InputIo.AirPressureHigh] = true;
-        // Virtual equipment starts raised with an open NG gripper.
-        inputs[(int)InputIo.PickupHeadUp] = true;
-        inputs[(int)InputIo.ShootingHeadUp] = true;
-        inputs[(int)InputIo.NgCarrierPickupUp] = true;
-        inputs[(int)InputIo.NgCarrierGripperOpen] = true;
-        inputs[(int)InputIo.NgShuttleUp] = true;
-        return inputs;
     }
 
     public bool AutoResponseEnabled
@@ -87,7 +81,7 @@ public sealed class VirtualIoService(
                 var responseVersion = ++_autoResponseVersion;
                 if (value)
                 {
-                    foreach (var (output, hardware) in outputs)
+                    foreach (var (output, hardware) in _outputHardware)
                     {
                         if (hardware.Feedback is { } feedback)
                         {
@@ -115,6 +109,28 @@ public sealed class VirtualIoService(
         }
     }
 
+    private static bool[] CreateInitialInputs()
+    {
+        var inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
+        // Start in MANUAL using the same raw selector polarity as the machine.
+        inputs[(int)InputIo.AutoMode] = true;
+        // All six doors start closed; opening a door switches its raw input OFF.
+        inputs[(int)InputIo.Door1Open] = true;
+        inputs[(int)InputIo.Door2Open] = true;
+        inputs[(int)InputIo.Door3Open] = true;
+        inputs[(int)InputIo.Door4Open] = true;
+        inputs[(int)InputIo.Door5Open] = true;
+        inputs[(int)InputIo.Door6Open] = true;
+        inputs[(int)InputIo.AirPressureHigh] = true;
+        // Virtual equipment starts raised with an open NG gripper.
+        inputs[(int)InputIo.PickupHeadUp] = true;
+        inputs[(int)InputIo.ShootingHeadUp] = true;
+        inputs[(int)InputIo.NgCarrierPickupUp] = true;
+        inputs[(int)InputIo.NgCarrierGripperOpen] = true;
+        inputs[(int)InputIo.NgShuttleUp] = true;
+        return inputs;
+    }
+
     internal void ApplyAutoResponse(int version, Action response)
     {
         lock (_responseGate)
@@ -140,7 +156,7 @@ public sealed class VirtualIoService(
             AutoResponseVersion,
             () =>
             {
-                foreach (var feedback in outputs.Values.Select(output => output.Feedback).OfType<OutputFeedback>())
+                foreach (var feedback in _outputHardware.Values.Select(output => output.Feedback).OfType<OutputFeedback>())
                 {
                     if (feedback.OffInput is not { } offInput
                         || GetInput(feedback.OnInput)
@@ -188,7 +204,7 @@ public sealed class VirtualIoService(
 
     public OutputFeedback? GetOutputFeedback(OutputIo output)
     {
-        return outputs[output].Feedback;
+        return _outputHardware[output].Feedback;
     }
 
     public void SetInput(InputIo input, bool value)
@@ -217,7 +233,7 @@ public sealed class VirtualIoService(
             var feedbackVersion = ++_feedbackVersions[index];
             var responseVersion = _autoResponseVersion;
             OutputChanged?.Invoke(output, value);
-            if (_autoResponseEnabled && outputs[output].Feedback is { } feedback)
+            if (_autoResponseEnabled && _outputHardware[output].Feedback is { } feedback)
             {
                 _ = ApplyFeedbackAsync(output, value, feedback, feedbackVersion, responseVersion);
             }

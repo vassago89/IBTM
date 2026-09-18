@@ -594,5 +594,4 @@ public sealed class AlphaMotionControllerTests
         Assert.Equal(400, NativeCalls().Length);
         Assert.All(NativeCalls(), call => Assert.Equal((ushort)0, call.Card));
     }
-
 }

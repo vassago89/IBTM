@@ -31,7 +31,7 @@ public partial class MainWindow : Window
         if (!stopped)
         {
             if (MessageBox.Show(this, _viewModel.CloseError, "Shutdown Incomplete",
-                    MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
                 return;
             _viewModel.ApproveUnconfirmedExit();
         }

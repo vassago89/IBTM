@@ -211,19 +211,19 @@ public sealed partial class MachineController
     internal bool CanSetTeachingOutput(TeachingOutput output, bool live = true)
     {
         return (live ? _state.ManualSetupEnabled : _state.Display.ManualSetupEnabled)
-            && TeachingOutputInterlockReady(output.Signal, live)
+            && IsTeachingOutputInterlockReady(output.Signal, live)
             && (output.Signal != OutputIo.PcbSupplyRotate
                 || CanUseManualMotion(MotionGroup.PcbSupply, live));
     }
 
-    private bool TeachingOutputInterlockReady(OutputIo signal, bool live)
+    private bool IsTeachingOutputInterlockReady(OutputIo signal, bool live)
     {
         return signal switch
         {
             OutputIo.PcbSupplyRotate => _supplyHandler.IsInsideBuffer(live) == false,
             OutputIo.PcbPlacementHandlerRotate
                 => _placementHandler.IsAtHorizontalZ(live)
-                    && _placementHandler.CanMoveHorizontal,
+                    && _placementHandler.HandlerRaised,
             _ => true,
         };
     }

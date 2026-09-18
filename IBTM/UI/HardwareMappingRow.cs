@@ -3,15 +3,43 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public sealed class HardwareMappingRow(
-    HardwareSettings hardware,
-    Enum signal)
+public sealed class HardwareMappingRow
 {
-    public HardwareSettings Hardware { get; } = hardware;
-    public HardwareArea Area { get; } = hardware.Area;
-    public IoSection? Section { get; } = hardware.GetSection(signal);
-    public Enum Signal { get; } = signal;
-    public int Order { get; } = Convert.ToInt32(signal);
+    public HardwareMappingRow(
+        HardwareSettings hardware,
+        Enum signal)
+    {
+        Hardware = hardware;
+        Signal = signal;
+    }
+
+    public HardwareSettings Hardware { get; }
+    public Enum Signal { get; }
+
+    public HardwareArea Area
+    {
+        get
+        {
+            return Hardware.Area;
+        }
+    }
+
+    public IoSection? Section
+    {
+        get
+        {
+            return Hardware.GetSection(Signal);
+        }
+    }
+
+    public int Order
+    {
+        get
+        {
+            return Convert.ToInt32(Signal);
+        }
+    }
+
     public int Number { get; set; }
     public OutputHardware? Output { get; init; }
     public AxisHardware? Axis { get; init; }

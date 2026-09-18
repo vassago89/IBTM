@@ -34,6 +34,26 @@ public partial class TeachingViewModel
     [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
     private double? _rulerMillimeters;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
+    private CarrierImageTileView? _selectedFov;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FovRoiLabel))]
+    [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
+    private Rect? _fovRegion;
+
+    [ObservableProperty]
+    private string? _dataMatrixResult;
+
+    private readonly object _liveImageGate = new();
+    private ImageFrame? _pendingLiveFrame;
+    private bool _liveImageUpdateQueued;
+    private Task _liveImageUpdate = Task.CompletedTask;
+    private Task _cameraStop = Task.CompletedTask;
+
     public double? RulerResolution
     {
         get
@@ -42,6 +62,28 @@ public partial class TeachingViewModel
                 return null;
             var resolution = RulerMillimeters.Value / ruler.PixelLength;
             return double.IsFinite(resolution) && resolution > 0 ? resolution : null;
+        }
+    }
+
+    public string FovRoiLabel
+    {
+        get
+        {
+            var metadata = SelectedFov?.Metadata;
+            var saved = metadata?.Region is { } region
+                ? new Rect(region.X, region.Y, region.Width, region.Height)
+                : (Rect?)null;
+            if (FovRegion is not null && FovRegion != saved)
+            {
+                if (SelectedBarcode is null && SelectedPoint?.Position.Bolt is null)
+                    return "ROI not saved · Add/select a bolt or select Data Matrix, then Apply ROI.";
+                return "ROI not saved · Set the resolution and Apply ROI.";
+            }
+            if (metadata is { IsBarcode: true } barcode)
+                return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to replace ROI";
+            return metadata?.BoltNumber is { } number
+                ? $"{metadata.HeatSink.GetDescription()} · Bolt {number} · Drag to replace ROI"
+                : "Drag one ROI. Select a bolt or Data Matrix to save it.";
         }
     }
 
@@ -112,20 +154,6 @@ public partial class TeachingViewModel
             && SelectedFov is not null && RulerResolution is not null
             && RecipeEditor.CanSave && CarrierImages.Count == RecipeEditor.Recipe.CarrierImages.Count;
     }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
-    private CarrierImageTileView? _selectedFov;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FovRoiLabel))]
-    [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
-    private Rect? _fovRegion;
-
-    [ObservableProperty]
-    private string? _dataMatrixResult;
 
     partial void OnSelectedFovChanged(CarrierImageTileView? value)
     {
@@ -270,28 +298,6 @@ public partial class TeachingViewModel
             && bounds.Bottom <= fov.Image.PixelHeight;
     }
 
-    public string FovRoiLabel
-    {
-        get
-        {
-            var metadata = SelectedFov?.Metadata;
-            var saved = metadata?.Region is { } region
-                ? new Rect(region.X, region.Y, region.Width, region.Height)
-                : (Rect?)null;
-            if (FovRegion is not null && FovRegion != saved)
-            {
-                if (SelectedBarcode is null && SelectedPoint?.Position.Bolt is null)
-                    return "ROI not saved · Add/select a bolt or select Data Matrix, then Apply ROI.";
-                return "ROI not saved · Set the resolution and Apply ROI.";
-            }
-            if (metadata is { IsBarcode: true } barcode)
-                return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to replace ROI";
-            return metadata?.BoltNumber is { } number
-                ? $"{metadata.HeatSink.GetDescription()} · Bolt {number} · Drag to replace ROI"
-                : "Drag one ROI. Select a bolt or Data Matrix to save it.";
-        }
-    }
-
     [RelayCommand(CanExecute = nameof(CanDrawFovRegion))]
     private async Task DrawFovRegionAsync(Rect bounds)
     {
@@ -390,12 +396,6 @@ public partial class TeachingViewModel
             new AxisPosition { X = x, Y = y }, _carrierReference.UpperLeftLocatingPin!);
     }
 
-    private readonly object _liveImageGate = new();
-    private ImageFrame? _pendingLiveFrame;
-    private bool _liveImageUpdateQueued;
-    private Task _liveImageUpdate = Task.CompletedTask;
-    private Task _cameraStop = Task.CompletedTask;
-
     [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
     private async Task ToggleLiveViewAsync(CancellationToken cancellationToken)
     {
@@ -412,7 +412,7 @@ public partial class TeachingViewModel
             CameraError = null;
             SelectedCameraTab = 0;
             await Inspector.StartLiveViewAsync(cancellation.Token);
-            if (!_state.ManualMode || !IsInspectionSelected)
+            if (!State.ManualMode || !IsInspectionSelected)
                 await StopCameraLiveAsync();
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -428,7 +428,7 @@ public partial class TeachingViewModel
     {
         return Inspector.IsLiveView
             || IsInspectionSelected
-                && _state.ManualMode
+                && State.ManualMode
                 && !CaptureCarrierImageCommand.IsRunning
                 && !CaptureInspectionCommand.IsRunning;
     }
@@ -687,5 +687,4 @@ public partial class TeachingViewModel
                 () => HandlePreviewFailureAsync(exception)).Task.Unwrap();
         }
     }
-
 }

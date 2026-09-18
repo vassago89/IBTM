@@ -12,17 +12,17 @@ public sealed partial class MainConveyor
     private async Task ReturnCarrierAsync(CancellationToken cancellationToken)
     {
         if (!EntryCarrierDetected
-            && !_placement.CarrierPresent
-            && !_boltFastening.CarrierPresent
-            && !_inspection.CarrierPresent)
+            && !_placementWork.Station.CarrierPresent
+            && !_boltFasteningWork.Station.CarrierPresent
+            && !_inspectionWork.Station.CarrierPresent)
         {
             throw new InvalidOperationException("Return carrier position is unknown. Restore carrier presence before restarting.");
         }
 
         await Task.WhenAll(
-            _placement.ReleaseAsync(cancellationToken),
-            _boltFastening.ReleaseAsync(cancellationToken),
-            _inspection.ReleaseAsync(cancellationToken));
+            _placementWork.Station.ReleaseAsync(cancellationToken),
+            _boltFasteningWork.Station.ReleaseAsync(cancellationToken),
+            _inspectionWork.Station.ReleaseAsync(cancellationToken));
 
         if (EntryCarrierDetected)
             return;
@@ -53,8 +53,8 @@ public sealed partial class MainConveyor
         Exception? failure = null;
         try
         {
-            await _placement.PrepareToReceiveAsync(cancellationToken);
-            RequireSeatingPushPosition(_placement);
+            await _placementWork.Station.PrepareToReceiveAsync(cancellationToken);
+            RequireSeatingPushPosition(_placementWork.Station);
             if (!_repeat && !EntryCarrierDetected)
                 _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, true);
 
@@ -70,9 +70,9 @@ public sealed partial class MainConveyor
             StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorReadyToFront2);
         }
 
-        if (!_placement.CarrierPresent)
+        if (!_placementWork.Station.CarrierPresent)
             throw new InvalidOperationException("Carrier presence was lost after the seating push.");
-        await _placement.SeatAsync(cancellationToken);
+        await _placementWork.Station.SeatAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
     }
 
@@ -92,7 +92,7 @@ public sealed partial class MainConveyor
             await destination.PrepareToReceiveAsync(cancellationToken);
             RequireSeatingPushPosition(destination);
             sourceWork.RequireCurrentJob(departingJob);
-            if (!sourceWork.CarrierSeated
+            if (!sourceWork.Station.CarrierSeated
                 || !sourceWork.CanTransfer
                 || !destinationWork.CanReceive)
             {
@@ -143,7 +143,7 @@ public sealed partial class MainConveyor
         var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var carrierLeft = new AsyncAutoResetEvent();
-        var receiving = ReferenceEquals(destination, _placement);
+        var receiving = ReferenceEquals(destinationWork, _placementWork);
         void ObserveEntry(InputIo input, bool value)
         {
             if (input == InputIo.MainConveyorEntryCarrierDetected && value)
@@ -151,7 +151,7 @@ public sealed partial class MainConveyor
         }
         void ObserveArrival()
         {
-            if (destinationWork.HeatSinkPresent(HeatSinkSlot.HeatSink2))
+            if (destinationWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2))
                 arrived.TrySetResult();
             if (arrived.Task.IsCompleted && !destination.CarrierPresent)
                 carrierLeft.Set();
@@ -241,7 +241,7 @@ public sealed partial class MainConveyor
                 && _inspectionWork.CanTransfer
                 && _inspectionWork.IsTransferAtWaitingPosition())
             {
-                await _inspection.ReleaseAsync(cancellationToken);
+                await _inspectionWork.Station.ReleaseAsync(cancellationToken);
             }
 
             if (rearReleased.Task.IsCompleted)

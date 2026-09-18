@@ -28,7 +28,7 @@ public partial class TeachingViewModel
     {
         get
         {
-            if (!_state.Display.Available)
+            if (!State.Display.Available)
                 return IsInspectionSelected ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable;
             if (!IsInspectionSelected)
             {
@@ -48,11 +48,11 @@ public partial class TeachingViewModel
                 return TeachingMotionHint.NgPickupSafeXRequired;
             return ActiveMotionGroup switch
             {
-                MotionGroup.PcbSupply when _state.Display.SupplyInBufferArea
+                MotionGroup.PcbSupply when State.Display.SupplyInBufferArea
                     => TeachingMotionHint.SupplyInBufferRestricted,
                 MotionGroup.PcbSupply when CanEditTeaching && !CanJog(MotionAxis.X)
                     => TeachingMotionHint.SafeZRequired,
-                MotionGroup.PcbPlacementHandler when !_placementHandler.CanMoveHorizontal
+                MotionGroup.PcbPlacementHandler when !_placementHandler.HandlerRaised
                     => TeachingMotionHint.RaisePlacementCylinders,
                 MotionGroup.BoltFastening => TeachingMotionHint.BoltAdjustment,
                 MotionGroup.InspectionGantry when !_inspectionGantry.CanMove
@@ -161,7 +161,7 @@ public partial class TeachingViewModel
             ActiveMotionGroup,
             token =>
             {
-                var (axis, target) = StepTarget(direction, Motion.Feedback.GetPosition());
+                var (axis, target) = GetStepTarget(direction, Motion.Feedback.GetPosition());
                 return ActiveMotionGroup switch
                 {
                     MotionGroup.PcbSupply => _supplyHandler.MoveAxisAsync(axis, target, token),
@@ -257,7 +257,7 @@ public partial class TeachingViewModel
     {
         return ActiveMotionGroup switch
         {
-            MotionGroup.PcbPlacementHandler => _placementHandler.CanMoveHorizontal,
+            MotionGroup.PcbPlacementHandler => _placementHandler.HandlerRaised,
             MotionGroup.BoltFastening => _fasteningGantry.CanMoveHorizontal,
             MotionGroup.InspectionGantry => _inspectionGantry.CanMove,
             _ => false,
@@ -268,7 +268,7 @@ public partial class TeachingViewModel
     {
         OnPropertyChanged(nameof(HomeBlock));
         OnPropertyChanged(nameof(CanEditInspectionRecipe));
-        if (!_state.ManualMode && (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning))
+        if (!State.ManualMode && (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning))
         {
             _ = RequestCameraStopAsync();
         }
@@ -286,5 +286,4 @@ public partial class TeachingViewModel
         AddBoltPointCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
     }
-
 }

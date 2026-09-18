@@ -111,24 +111,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
     private readonly NgCarrierConveyor _ngConveyor;
-    internal BufferStage Buffer { get; }
     private readonly ApplicationLog? _log;
-
-    public bool RepeatEnabled
-    {
-        get
-        {
-            return _repeatEnabled;
-        }
-        set
-        {
-            if (_repeatEnabled == value || !SetupEditingEnabled)
-                return;
-            _repeatEnabled = value;
-            PropertyChanged?.Invoke(this, new(nameof(RepeatEnabled)));
-            RequestDisplayRefresh();
-        }
-    }
 
     public MachineState(
         MachineOptions options,
@@ -168,6 +151,25 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     public event Action? Changed;
     public event Action? DisplayChanged;
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    internal BufferStage Buffer { get; }
+
+    public bool RepeatEnabled
+    {
+        get
+        {
+            return _repeatEnabled;
+        }
+        set
+        {
+            if (_repeatEnabled == value || !SetupEditingEnabled)
+                return;
+            _repeatEnabled = value;
+            PropertyChanged?.Invoke(this, new(nameof(RepeatEnabled)));
+            RequestDisplayRefresh();
+        }
+    }
+
     public MachineDisplay Display
     {
         get
@@ -179,6 +181,206 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         {
             Volatile.Write(ref _display, value);
             PropertyChanged?.Invoke(this, new(nameof(Display)));
+        }
+    }
+
+    internal MotionReadiness MotionReadiness
+    {
+        get
+        {
+            return _feedback.ReadLiveReadiness();
+        }
+    }
+
+    internal MotionReadiness FeedbackReadiness
+    {
+        get
+        {
+            return _feedback.Readiness;
+        }
+    }
+
+    public bool Homed
+    {
+        get
+        {
+            return MotionReadiness.Homed;
+        }
+    }
+
+    public bool ServosOn
+    {
+        get
+        {
+            return MotionReadiness.ServosOn;
+        }
+    }
+
+    public bool Faulted
+    {
+        get
+        {
+            return MotionReadiness.Faulted;
+        }
+    }
+
+    public bool Ready
+    {
+        get
+        {
+            return IsMotionReady(MotionReadiness);
+        }
+    }
+
+    public bool EmergencyStopReleased
+    {
+        get
+        {
+            return _io.IsReady
+                && !_io.GetInput(InputIo.EmergencyStop1Pressed)
+                && !_io.GetInput(InputIo.EmergencyStop2Pressed);
+        }
+    }
+
+    public bool DoorClosed
+    {
+        get
+        {
+            return
+            // Door contacts are energized only while closed (legacy mapping keys end in Open).
+            _io.IsReady
+                && _io.GetInput(InputIo.Door1Open)
+                && _io.GetInput(InputIo.Door2Open)
+                && _io.GetInput(InputIo.Door3Open)
+                && _io.GetInput(InputIo.Door4Open)
+                && _io.GetInput(InputIo.Door5Open)
+                && _io.GetInput(InputIo.Door6Open);
+        }
+    }
+
+    public bool AirPressureOk
+    {
+        get
+        {
+            return _io.IsReady && _io.GetInput(InputIo.AirPressureHigh);
+        }
+    }
+
+    public bool ServoMainContactorOn
+    {
+        get
+        {
+            return _io.IsReady && _io.GetInput(InputIo.ServoMainContactorOn);
+        }
+    }
+
+    public bool AutoMode
+    {
+        get
+        {
+            return
+            // The selector contact is energized in MANUAL, open in AUTO.
+            _io.IsReady && !_io.GetInput(InputIo.AutoMode);
+        }
+    }
+
+    public bool ManualMode
+    {
+        get
+        {
+            return !AutoMode;
+        }
+    }
+
+    public bool DoorInterlockReady
+    {
+        get
+        {
+            return !_options.UseDoorInterlock || ManualMode || DoorClosed;
+        }
+    }
+
+    public bool SafetyReady
+    {
+        get
+        {
+            return (!_options.UseEmergencyStop || EmergencyStopReleased)
+                && (!_options.UseAirPressureInterlock || AirPressureOk);
+        }
+    }
+
+    public bool IsError
+    {
+        get
+        {
+            return Alarm != MachineAlarm.None;
+        }
+    }
+
+    public bool AutomaticRunning { get; private set; }
+    public bool BoltTestRunning { get; private set; }
+    public bool IsHoming { get; private set; }
+    public MachineAlarm Alarm { get; private set; }
+    public string? AlarmDetail { get; private set; }
+    public string? AlarmMessage { get; private set; }
+
+    public bool ConveyorRunning
+    {
+        get
+        {
+            return _io.IsReady && _conveyor.RunCommandOn;
+        }
+    }
+
+    public bool IsRunning
+    {
+        get
+        {
+            return GetIsRunning();
+        }
+    }
+
+    public ManualControlBlock ManualBlock
+    {
+        get
+        {
+            return GetManualBlock(MotionReadiness);
+        }
+    }
+
+    public bool ManualControlsEnabled
+    {
+        get
+        {
+            return ManualBlock == ManualControlBlock.None;
+        }
+    }
+
+    // Editing data does not operate a device or require motion readiness.
+    public bool SetupEditingEnabled
+    {
+        get
+        {
+            return !_operations.IsShuttingDown
+                && ManualMode
+                && !_operations.HasActiveOperations
+                && !AutomaticRunning
+                && !BoltTestRunning
+                && !IsHoming;
+        }
+    }
+
+    // Teaching hardware commands and coordinated cylinder preparation. OUTPUTS uses
+    // MachineController.ToggleDiagnosticOutput and does not require teaching readiness.
+    public bool ManualSetupEnabled
+    {
+        get
+        {
+            return _io.IsReady
+                && !_operations.IsShuttingDown
+                && ManualMode
+                && SafetyReady
+                && !IsRunning;
         }
     }
 
@@ -291,7 +493,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         {
             if (_feedback.ReadError is { } error)
             {
-                if (Display.ReadError?.Message != error.Message)
+                if (!ReferenceEquals(Display.ReadError, error))
                     Display = new() { ReadError = error };
                 return;
             }
@@ -300,11 +502,11 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         }
         catch (IOException exception)
         {
-            if (Display.ReadError?.Message != exception.Message)
+            if (Display.ReadError is null)
                 _log?.Error("Display refresh failed.", exception);
             if (_io.IsReady)
             {
-                if (Display.ReadError?.Message != exception.Message)
+                if (!ReferenceEquals(Display.ReadError, exception))
                     Display = new() { ReadError = exception };
             }
             else
@@ -328,173 +530,9 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
             StopDisplayUpdatesAsync().GetAwaiter().GetResult();
     }
 
-    internal MotionReadiness MotionReadiness
-    {
-        get
-        {
-            return _feedback.ReadLiveReadiness();
-        }
-    }
-
-    internal MotionReadiness FeedbackReadiness
-    {
-        get
-        {
-            return _feedback.Readiness;
-        }
-    }
-
-    public bool Homed
-    {
-        get
-        {
-            return MotionReadiness.Homed;
-        }
-    }
-
-    public bool ServosOn
-    {
-        get
-        {
-            return MotionReadiness.ServosOn;
-        }
-    }
-
-    public bool Faulted
-    {
-        get
-        {
-            return MotionReadiness.Faulted;
-        }
-    }
-
-    public bool Ready
-    {
-        get
-        {
-            return IsMotionReady(MotionReadiness);
-        }
-    }
-
     private bool IsMotionReady(MotionReadiness motion)
     {
         return ServoMainContactorOn && motion.Homed && motion.ServosOn && !motion.Faulted;
-    }
-
-    public bool EmergencyStopReleased
-    {
-        get
-        {
-            return _io.IsReady
-                && !_io.GetInput(InputIo.EmergencyStop1Pressed)
-                && !_io.GetInput(InputIo.EmergencyStop2Pressed);
-        }
-    }
-
-    public bool DoorClosed
-    {
-        get
-        {
-            return
-            // Door contacts are energized only while closed (legacy mapping keys end in Open).
-            _io.IsReady
-                && _io.GetInput(InputIo.Door1Open)
-                && _io.GetInput(InputIo.Door2Open)
-                && _io.GetInput(InputIo.Door3Open)
-                && _io.GetInput(InputIo.Door4Open)
-                && _io.GetInput(InputIo.Door5Open)
-                && _io.GetInput(InputIo.Door6Open);
-        }
-    }
-
-    public bool AirPressureOk
-    {
-        get
-        {
-            return _io.IsReady && _io.GetInput(InputIo.AirPressureHigh);
-        }
-    }
-
-    public bool ServoMainContactorOn
-    {
-        get
-        {
-            return _io.IsReady && _io.GetInput(InputIo.ServoMainContactorOn);
-        }
-    }
-
-    public bool AutoMode
-    {
-        get
-        {
-            return
-            // The selector contact is energized in MANUAL, open in AUTO.
-            _io.IsReady && !_io.GetInput(InputIo.AutoMode);
-        }
-    }
-
-    public bool ManualMode
-    {
-        get
-        {
-            return !AutoMode;
-        }
-    }
-
-    public bool DoorInterlockReady
-    {
-        get
-        {
-            return !_options.UseDoorInterlock || ManualMode || DoorClosed;
-        }
-    }
-
-    public bool SafetyReady
-    {
-        get
-        {
-            return (!_options.UseEmergencyStop || EmergencyStopReleased)
-                && (!_options.UseAirPressureInterlock || AirPressureOk);
-        }
-    }
-
-    public bool IsError
-    {
-        get
-        {
-            return Alarm != MachineAlarm.None;
-        }
-    }
-
-    public bool AutomaticRunning { get; private set; }
-    public bool BoltTestRunning { get; private set; }
-    public bool IsHoming { get; private set; }
-    public MachineAlarm Alarm { get; private set; }
-    public string? AlarmDetail { get; private set; }
-    public string? AlarmMessage { get; private set; }
-
-    public bool ConveyorRunning
-    {
-        get
-        {
-            return _io.IsReady && _conveyor.RunCommandOn;
-        }
-    }
-
-    public MainConveyorState MainConveyorState
-    {
-        get
-        {
-            return _conveyor.State;
-        }
-    }
-
-    public bool IsRunning
-    {
-        get
-        {
-            return GetIsRunning();
-        }
     }
 
     internal bool GetIsRunning(bool? mainRunning = null, bool? ngRunning = null)
@@ -508,22 +546,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
             // calls while the UI evaluates commands such as RESET.
             || _feedback.Motions.Values.Any(static motion => motion.IsMoving)
             || (_io.IsReady && (ngRunning ?? _ngConveyor.RunCommandOn));
-    }
-
-    public bool CanOperate
-    {
-        get
-        {
-            return !IsError && Ready && SafetyReady && !Buffer.HasConflict();
-        }
-    }
-
-    public ManualControlBlock ManualBlock
-    {
-        get
-        {
-            return GetManualBlock(MotionReadiness);
-        }
     }
 
     internal ManualControlBlock GetManualBlock(
@@ -541,42 +563,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
             _ when running ?? IsRunning => ManualControlBlock.Busy,
             _ => ManualControlBlock.None,
         };
-    }
-
-    public bool ManualControlsEnabled
-    {
-        get
-        {
-            return ManualBlock == ManualControlBlock.None;
-        }
-    }
-
-    // Editing data does not operate a device or require motion readiness.
-    public bool SetupEditingEnabled
-    {
-        get
-        {
-            return !_operations.IsShuttingDown
-                && ManualMode
-                && !_operations.HasActiveOperations
-                && !AutomaticRunning
-                && !BoltTestRunning
-                && !IsHoming;
-        }
-    }
-
-    // Teaching hardware commands and coordinated cylinder preparation. OUTPUTS uses
-    // MachineController.ToggleDiagnosticOutput and does not require teaching readiness.
-    public bool ManualSetupEnabled
-    {
-        get
-        {
-            return _io.IsReady
-                && !_operations.IsShuttingDown
-                && ManualMode
-                && SafetyReady
-                && !IsRunning;
-        }
     }
 
     public void Refresh()

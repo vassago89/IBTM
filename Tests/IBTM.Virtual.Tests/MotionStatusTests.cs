@@ -13,6 +13,44 @@ namespace IBTM.Virtual.Tests;
 public sealed class MotionStatusTests
 {
     [Fact]
+    public void DiagnosticErrorsKeepLatestExceptionAndReportOnceUntilFeedbackRecovers()
+    {
+        var motion = new StatusMotion();
+        var status = new MotionStatus(motion);
+        var diagnostics = status.MonitorAxes[MotionAxis.X];
+        var reports = 0;
+        var changes = 0;
+        diagnostics.PropertyChanged += (_, _) => changes++;
+        void Report(MotionAxis axis, Exception error)
+        {
+            Assert.Equal(MotionAxis.X, axis);
+            reports++;
+        }
+
+        motion.Failure = new IOException("Feedback failed.");
+        status.RefreshMonitorFeedback(Report);
+        Assert.Equal(1, reports);
+        var previous = diagnostics.Snapshot;
+        var previousChanges = changes;
+
+        // Equal text does not make two failures the same: retain the new cause and stack.
+        motion.Failure = new IOException("Feedback failed.", new InvalidOperationException());
+        status.RefreshMonitorFeedback(Report);
+        Assert.NotSame(previous, diagnostics.Snapshot);
+        Assert.True(changes > previousChanges);
+        var error = Assert.IsType<AggregateException>(diagnostics.Snapshot.ReadError);
+        Assert.All(error.InnerExceptions, failure => Assert.Same(motion.Failure, failure));
+        Assert.Equal(1, reports);
+
+        motion.Failure = null;
+        status.RefreshMonitorFeedback(Report);
+        Assert.Null(diagnostics.Snapshot.ReadError);
+        motion.Failure = new IOException("Feedback failed.");
+        status.RefreshMonitorFeedback(Report);
+        Assert.Equal(2, reports);
+    }
+
+    [Fact]
     public async Task FailedAdjustmentDoesNotReadFeedbackAgainToClearCommandHistory()
     {
         var motion = new StatusMotion();
@@ -102,22 +140,30 @@ public sealed class MotionStatusTests
         Assert.Null(status.Position.X);
     }
 
-    private sealed class StatusMotion() : AjinMotionService(
-        new AjinController(new AjinSettings()),
-        new AxisHardware(),
-        null,
-        null,
-        new MotionSettings(),
-        new MachineOptions(),
-        new OperationCancellation(),
-        null), IMotionDiagnostics
+    private sealed class StatusMotion : AjinMotionService, IMotionDiagnostics
     {
-        public AxisState State = new(true, true, false, true, false, false, false, false);
+        public AxisState State;
         public Exception? Failure;
         public Exception? ReadinessFailure;
         public int Reads;
         public int PositionReads;
-        public (double X, double Y, double Z) Position = (12, 0, 0);
+        public (double X, double Y, double Z) Position;
+
+        public StatusMotion()
+            : base(
+                new AjinController(new AjinSettings()),
+                new AxisHardware(),
+                null,
+                null,
+                new MotionSettings(),
+                new MachineOptions(),
+                new OperationCancellation(),
+                null)
+        {
+            State = new(true, true, false, true, false, false, false, false);
+            Position = (12, 0, 0);
+        }
+
         public override bool IsReady
         {
             get

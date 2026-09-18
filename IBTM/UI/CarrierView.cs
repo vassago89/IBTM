@@ -12,19 +12,6 @@ public sealed class CarrierView : Control
         typeof(IReadOnlyList<BoltTargetView>),
         typeof(CarrierView));
 
-    public IReadOnlyList<BoltTargetView>? BoltTargets
-    {
-        get
-        {
-            return (IReadOnlyList<BoltTargetView>?)GetValue(BoltTargetsProperty);
-        }
-
-        set
-        {
-            SetValue(BoltTargetsProperty, value);
-        }
-    }
-
     public static readonly DependencyProperty HeatSink1PresentProperty = DependencyProperty.Register(
         nameof(HeatSink1Present),
         typeof(bool),
@@ -57,6 +44,19 @@ public sealed class CarrierView : Control
         nameof(HeatSink2Result),
         typeof(AssemblyResult),
         typeof(CarrierView));
+
+    public IReadOnlyList<BoltTargetView>? BoltTargets
+    {
+        get
+        {
+            return (IReadOnlyList<BoltTargetView>?)GetValue(BoltTargetsProperty);
+        }
+
+        set
+        {
+            SetValue(BoltTargetsProperty, value);
+        }
+    }
 
     public bool HeatSink1Present
     {

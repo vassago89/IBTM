@@ -31,7 +31,11 @@ public sealed partial class MachineLifecycleTests
         foreach (var heatSink in Enum.GetValues<HeatSinkSlot>())
             recipe.Pcb.BoltPoints.Add(new()
             {
-                Number = 2, HeatSink = heatSink, Head = FasteningHead.Pickup, X = 15, Y = 10,
+                Number = 2,
+                HeatSink = heatSink,
+                Head = FasteningHead.Pickup,
+                X = 15,
+                Y = 10,
             });
         TeachInspectionFovs(settings, recipe);
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 12 };
@@ -122,7 +126,7 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => state.Display.RepeatCycles >= 2 || state.IsError, TimeSpan.FromSeconds(55)),
-                $"Cycles={state.Display.RepeatCycles}; Phase={state.Display.RepeatPhase}; Main={state.MainConveyorState}; {state.AlarmDetail}");
+                $"Cycles={state.Display.RepeatCycles}; Phase={state.Display.RepeatPhase}; Main={state.Display.ConveyorState}; {state.AlarmDetail}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(state.Display.RepeatCycles >= 2);
             Assert.True(shootingStarts >= 4);
@@ -494,6 +498,7 @@ public sealed partial class MachineLifecycleTests
             await machine.ShutdownAsync();
         }
     }
+
     [Fact]
     [Trait("Category", "MachineFlow")]
     public async Task RepeatRunsAutoThroughDisabledStationsAndReturnsFromNgEndTwice()
@@ -555,7 +560,7 @@ public sealed partial class MachineLifecycleTests
                 await VirtualTest.WaitUntilAsync(
                     () => state.Display.RepeatCycles >= 2 || state.IsError,
                     TimeSpan.FromSeconds(22)),
-                $"Repeat timed out. Cycles={state.Display.RepeatCycles}, Phase={state.Display.RepeatPhase}, Main={state.MainConveyorState}, Alarm={state.AlarmMessage}");
+                $"Repeat timed out. Cycles={state.Display.RepeatCycles}, Phase={state.Display.RepeatPhase}, Main={state.Display.ConveyorState}, Alarm={state.AlarmMessage}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(state.Display.RepeatCycles >= 2, state.AlarmDetail);
             Assert.True(ngReverse >= 2);

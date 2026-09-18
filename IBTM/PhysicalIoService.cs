@@ -10,32 +10,55 @@ using IBTM.Device;
 
 namespace IBTM;
 
-public sealed class PhysicalIoService(
-    AlphaMotionController alphaMotion,
-    AjinController ajin,
-    IReadOnlyDictionary<InputIo, int> inputMap,
-    IReadOnlyDictionary<OutputIo, OutputHardware> outputMap,
-    MachineOptions options,
-    ApplicationLog? log = null) : IIoService, IDisposable
+public sealed class PhysicalIoService : IIoService, IDisposable
 {
+    private readonly AlphaMotionController _alphaMotion;
+    private readonly AjinController _ajin;
+    private readonly IReadOnlyDictionary<InputIo, int> _inputMap;
+    private readonly IReadOnlyDictionary<OutputIo, OutputHardware> _outputMap;
+    private readonly MachineOptions _options;
+    private readonly ApplicationLog? _log;
     // Persisted logical address boundary, not the detected AlphaMotion board size.
     private const int AlphaMotionChannelCount = AlphaMotionController.ChannelCount;
-    private readonly InputIo[] _mappedInputs = inputMap
-        .Where(mapping => mapping.Value >= 0)
-        .Select(mapping => mapping.Key)
-        .ToArray();
-    private readonly bool[] _inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
-    private readonly bool[] _inputScan = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
-    private readonly InputIo[] _changedInputs = new InputIo[inputMap.Count];
-    private readonly uint[] _rtexInputs = new uint[ajin.RtexInputWordCount];
-    private readonly Lock _lifecycleGate = new();
+    private readonly InputIo[] _mappedInputs;
+    private readonly bool[] _inputs;
+    private readonly bool[] _inputScan;
+    private readonly InputIo[] _changedInputs;
+    private readonly uint[] _rtexInputs;
+    private readonly Lock _lifecycleGate;
     // Notification history only: initial levels are not edges; recovered changes are.
     private bool _hasInputSnapshot;
     private volatile bool _ready;
 
+    public PhysicalIoService(
+        AlphaMotionController alphaMotion,
+        AjinController ajin,
+        IReadOnlyDictionary<InputIo, int> inputMap,
+        IReadOnlyDictionary<OutputIo, OutputHardware> outputMap,
+        MachineOptions options,
+        ApplicationLog? log = null)
+    {
+        _alphaMotion = alphaMotion;
+        _ajin = ajin;
+        _inputMap = inputMap;
+        _outputMap = outputMap;
+        _options = options;
+        _log = log;
+        _mappedInputs = _inputMap
+            .Where(mapping => mapping.Value >= 0)
+            .Select(mapping => mapping.Key)
+            .ToArray();
+        _inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
+        _inputScan = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
+        _changedInputs = new InputIo[_inputMap.Count];
+        _rtexInputs = new uint[_ajin.RtexInputWordCount];
+        _lifecycleGate = new();
+    }
+
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
     public event Action<Exception>? Faulted;
+
     public bool IsReady
     {
         get
@@ -48,7 +71,7 @@ public sealed class PhysicalIoService(
     {
         get
         {
-            return options.TimeoutMilliseconds;
+            return _options.TimeoutMilliseconds;
         }
     }
 
@@ -64,19 +87,19 @@ public sealed class PhysicalIoService(
             var stage = "AlphaMotion initialization";
             try
             {
-                log?.Write(stage + " started.");
-                alphaMotion.Initialize();
-                log?.Write(stage + " completed.");
+                _log?.Write(stage + " started.");
+                _alphaMotion.Initialize();
+                _log?.Write(stage + " completed.");
                 stage = "AJIN AxlOpen initialization / DIO module validation";
-                log?.Write(stage + " started.");
-                ajin.Initialize();
-                log?.Write(stage + " completed.");
+                _log?.Write(stage + " started.");
+                _ajin.Initialize();
+                _log?.Write(stage + " completed.");
                 foreach (var input in _mappedInputs)
                 {
-                    stage = $"Initial DI read: {input}, channel={inputMap[input]}";
-                    var value = ReadInput(inputMap[input]);
+                    stage = $"Initial DI read: {input}, channel={_inputMap[input]}";
+                    var value = ReadInput(_inputMap[input]);
                     _inputScan[(int)input] = value;
-                    log?.Write($"{stage}: {(value ? "ON" : "OFF")}");
+                    _log?.Write($"{stage}: {(value ? "ON" : "OFF")}");
                 }
 
                 stage = "Initial DI cache update / change notification";
@@ -85,7 +108,7 @@ public sealed class PhysicalIoService(
             catch (Exception exception)
             {
                 _ready = false;
-                log?.Error($"{stage} failed. Input feedback is unavailable. {exception.Message}");
+                _log?.Error($"{stage} failed. Input feedback is unavailable. {exception.Message}");
                 throw;
             }
         }
@@ -103,12 +126,12 @@ public sealed class PhysicalIoService(
 
             try
             {
-                foreach (var channel in _mappedInputs.Select(input => inputMap[input]).Distinct())
+                foreach (var channel in _mappedInputs.Select(input => _inputMap[input]).Distinct())
                 {
                     _ = ReadInput(channel);
                 }
 
-                foreach (var output in outputMap.Values)
+                foreach (var output in _outputMap.Values)
                 {
                     _ = ReadOutput(output.Number);
                     if (output.OffNumber is >= 0 and var offChannel)
@@ -120,7 +143,7 @@ public sealed class PhysicalIoService(
             catch (Exception exception)
             {
                 _ready = false;
-                log?.Error($"Control I/O readiness check failed. {exception.Message}");
+                _log?.Error($"Control I/O readiness check failed. {exception.Message}");
                 throw;
             }
         }
@@ -128,7 +151,7 @@ public sealed class PhysicalIoService(
 
     public bool GetInput(InputIo input)
     {
-        if (!inputMap.TryGetValue(input, out var channel) || channel < 0)
+        if (!_inputMap.TryGetValue(input, out var channel) || channel < 0)
             throw new IOException($"DI {input} is unavailable: no configured input address.");
         if (!_ready)
         {
@@ -140,17 +163,17 @@ public sealed class PhysicalIoService(
 
     public bool GetOutput(OutputIo output)
     {
-        return ReadOutput(outputMap[output].Number);
+        return ReadOutput(_outputMap[output].Number);
     }
 
     public OutputFeedback? GetOutputFeedback(OutputIo output)
     {
-        return outputMap[output].Feedback;
+        return _outputMap[output].Feedback;
     }
 
     public void SetOutput(OutputIo output, bool value)
     {
-        var mapping = outputMap[output];
+        var mapping = _outputMap[output];
         try
         {
             // Validate both coils before any write; a missing OFF address is not a single-coil valve.
@@ -168,13 +191,13 @@ public sealed class PhysicalIoService(
         }
         catch (Exception exception)
         {
-            log?.Error(
+            _log?.Error(
                 $"DO {output}, channel={mapping.Number}, paired OFF={mapping.OffNumber}: write {(value ? "ON" : "OFF")} failed.",
                 exception);
             throw;
         }
 
-        log?.Write($"DO {output}, channel={mapping.Number}: {(value ? "ON" : "OFF")}");
+        _log?.Write($"DO {output}, channel={mapping.Number}: {(value ? "ON" : "OFF")}");
         OutputChanged?.Invoke(output, value);
     }
 
@@ -189,26 +212,26 @@ public sealed class PhysicalIoService(
     private bool ReadInput(int channel)
     {
         return channel < AlphaMotionChannelCount
-            ? alphaMotion.ReadInput(channel)
-            : ajin.ReadRtexInput(channel - AlphaMotionChannelCount);
+            ? _alphaMotion.ReadInput(channel)
+            : _ajin.ReadRtexInput(channel - AlphaMotionChannelCount);
     }
 
     private bool ReadOutput(int channel)
     {
         return channel < AlphaMotionChannelCount
-            ? alphaMotion.ReadOutput(channel)
-            : ajin.ReadRtexOutput(channel - AlphaMotionChannelCount);
+            ? _alphaMotion.ReadOutput(channel)
+            : _ajin.ReadRtexOutput(channel - AlphaMotionChannelCount);
     }
 
     private void WriteOutput(int channel, bool value)
     {
         if (channel < AlphaMotionChannelCount)
         {
-            alphaMotion.WriteOutput(channel, value);
+            _alphaMotion.WriteOutput(channel, value);
             return;
         }
 
-        ajin.WriteRtexOutput(channel - AlphaMotionChannelCount, value);
+        _ajin.WriteRtexOutput(channel - AlphaMotionChannelCount, value);
     }
 
     public void RefreshInputs()
@@ -222,14 +245,14 @@ public sealed class PhysicalIoService(
             var stage = "AlphaMotion input read";
             try
             {
-                var alphaInputs = alphaMotion.ReadInputs();
+                var alphaInputs = _alphaMotion.ReadInputs();
                 stage = "AJIN input read";
-                ajin.ReadRtexInputs(_rtexInputs);
+                _ajin.ReadRtexInputs(_rtexInputs);
 
                 stage = "Input address mapping";
                 foreach (var input in _mappedInputs)
                 {
-                    _inputScan[(int)input] = ReadMonitoredInput(inputMap[input], alphaInputs);
+                    _inputScan[(int)input] = ReadMonitoredInput(_inputMap[input], alphaInputs);
                 }
 
                 stage = "Input cache update / change notification";
@@ -238,7 +261,7 @@ public sealed class PhysicalIoService(
             catch (Exception exception)
             {
                 _ready = false;
-                log?.Error(
+                _log?.Error(
                     $"Input scan failed during {stage}. Inputs remain unavailable until initialization succeeds.",
                     exception);
                 Faulted?.Invoke(exception);
@@ -271,8 +294,8 @@ public sealed class PhysicalIoService(
         for (var index = 0; index < changedCount; index++)
         {
             var input = _changedInputs[index];
-            log?.Write(
-                $"DI {input}, channel={inputMap[input]}: {(_inputScan[(int)input] ? "ON" : "OFF")}");
+            _log?.Write(
+                $"DI {input}, channel={_inputMap[input]}: {(_inputScan[(int)input] ? "ON" : "OFF")}");
             InputChanged?.Invoke(input, _inputScan[(int)input]);
         }
     }

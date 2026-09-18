@@ -121,7 +121,7 @@ public sealed partial class MachineController
                 var endState = holdAtShuttle
                     ? NgTransferState.HoldingAtDestination
                     : NgTransferState.Completed;
-                while (_ngMove.State(
+                while (_ngMove.GetState(
                     NgTransferDestination.Shuttle,
                     canPickUp: true,
                     holdAtDestination: holdAtShuttle) != endState)
@@ -187,7 +187,7 @@ public sealed partial class MachineController
     {
         if (_units.PcbPlacement)
         {
-            if (!_placementHandler.CanMoveHorizontal)
+            if (!_placementHandler.HandlerRaised)
                 return OutputBlockReason.PlacementNotRaised;
             if (!_placementHandler.IsAtHorizontalZ())
                 return OutputBlockReason.PlacementNotAtSafeZ;

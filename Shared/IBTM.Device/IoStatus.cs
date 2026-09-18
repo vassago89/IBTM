@@ -5,18 +5,27 @@ using System.Linq;
 
 namespace IBTM.Device;
 
-public abstract class IoSignal<T>(
-    T signal,
-    HardwareArea area,
-    IoSection? section,
-    int? number = null) : INotifyPropertyChanged
+public abstract class IoSignal<T> : INotifyPropertyChanged
     where T : struct, Enum
 {
+    protected IoSignal(
+        T signal,
+        HardwareArea area,
+        IoSection? section,
+        int? number = null)
+    {
+        Signal = signal;
+        Area = area;
+        Section = section;
+        Number = number;
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
-    public T Signal { get; } = signal;
-    public HardwareArea Area { get; } = area;
-    public IoSection? Section { get; } = section;
-    public int? Number { get; } = number;
+
+    public T Signal { get; }
+    public HardwareArea Area { get; }
+    public IoSection? Section { get; }
+    public int? Number { get; }
 
     public virtual string Address
     {
@@ -39,18 +48,26 @@ public abstract class IoSignal<T>(
     }
 }
 
-public sealed class IoInputStatus(
-    InputIo signal,
-    HardwareArea area,
-    IoSection? section,
-    IIoService io,
-    int? number = null) : IoSignal<InputIo>(signal, area, section, number)
+public sealed class IoInputStatus : IoSignal<InputIo>
 {
+    private readonly IIoService _io;
+
+    public IoInputStatus(
+        InputIo signal,
+        HardwareArea area,
+        IoSection? section,
+        IIoService io,
+        int? number = null)
+        : base(signal, area, section, number)
+    {
+        _io = io;
+    }
+
     public override bool? IsOn
     {
         get
         {
-            return Number is not null && io.IsReady ? io.GetInput(Signal) : null;
+            return Number is not null && _io.IsReady ? _io.GetInput(Signal) : null;
         }
     }
 }

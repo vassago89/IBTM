@@ -45,16 +45,6 @@ public sealed class BoltInspector
 
     public event Action? LiveViewChanged;
 
-    public bool IsLiveView
-    {
-        get
-        {
-            return camera.IsLiveView;
-        }
-    }
-
-    public Exception? LiveViewError { get; private set; }
-
     public event Action<ImageFrame>? FrameReady
     {
         add
@@ -67,6 +57,16 @@ public sealed class BoltInspector
             camera.FrameReady -= value;
         }
     }
+
+    public bool IsLiveView
+    {
+        get
+        {
+            return camera.IsLiveView;
+        }
+    }
+
+    public Exception? LiveViewError { get; private set; }
 
     public async Task InitializeVisionAsync(CancellationToken cancellationToken = default)
     {

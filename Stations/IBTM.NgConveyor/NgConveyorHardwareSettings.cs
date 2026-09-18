@@ -4,6 +4,32 @@ namespace IBTM.NgConveyor;
 
 public sealed class NgConveyorHardwareSettings : IoHardwareSettings
 {
+    public NgConveyorHardwareSettings()
+    {
+        Inputs = new()
+        {
+            [InputIo.NgConveyorManualMode] = 83,
+            [InputIo.NgConveyorPosition1Occupied] = 84,
+            [InputIo.NgConveyorPosition2Occupied] = 85,
+            [InputIo.NgConveyorStopperDown] = 87,
+            [InputIo.NgConveyorStopperUp] = 88,
+            [InputIo.NgCarrierEjectButton] = 89,
+            [InputIo.NgCarrierEjectCompleteButton] = 90,
+        };
+        Outputs = new()
+        {
+            [OutputIo.NgConveyorStopperUp] = CreateOutput(
+                70,
+                71,
+                InputIo.NgConveyorStopperUp,
+                InputIo.NgConveyorStopperDown),
+            [OutputIo.NgConveyorRun] = CreateOutput(72),
+            [OutputIo.NgConveyorReverse] = CreateOutput(73),
+            [OutputIo.NgCarrierEjectLamp] = CreateOutput(75),
+            [OutputIo.NgCarrierEjectCompleteLamp] = CreateOutput(76),
+        };
+    }
+
     public override HardwareArea Area
     {
         get
@@ -31,32 +57,6 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
                 or OutputIo.NgCarrierEjectCompleteLamp
                 => IoSection.NgConveyorOperatorEject,
             _ => null,
-        };
-    }
-
-    public NgConveyorHardwareSettings()
-    {
-        Inputs = new()
-        {
-            [InputIo.NgConveyorManualMode] = 83,
-            [InputIo.NgConveyorPosition1Occupied] = 84,
-            [InputIo.NgConveyorPosition2Occupied] = 85,
-            [InputIo.NgConveyorStopperDown] = 87,
-            [InputIo.NgConveyorStopperUp] = 88,
-            [InputIo.NgCarrierEjectButton] = 89,
-            [InputIo.NgCarrierEjectCompleteButton] = 90,
-        };
-        Outputs = new()
-        {
-            [OutputIo.NgConveyorStopperUp] = Output(
-                70,
-                71,
-                InputIo.NgConveyorStopperUp,
-                InputIo.NgConveyorStopperDown),
-            [OutputIo.NgConveyorRun] = Output(72),
-            [OutputIo.NgConveyorReverse] = Output(73),
-            [OutputIo.NgCarrierEjectLamp] = Output(75),
-            [OutputIo.NgCarrierEjectCompleteLamp] = Output(76),
         };
     }
 }

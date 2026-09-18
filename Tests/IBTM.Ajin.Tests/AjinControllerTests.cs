@@ -12,6 +12,11 @@ namespace IBTM.Ajin.Tests;
 
 public sealed class AjinControllerTests
 {
+    public AjinControllerTests()
+    {
+        AjinSdk.Reset();
+    }
+
     [Fact]
     public void UnassignedSupplyFeedbackStaysUnknownAndNeitherCoilIsWrittenWithoutBothAddresses()
     {
@@ -179,20 +184,20 @@ public sealed class AjinControllerTests
         };
         using var io = new PhysicalIoService(
             alpha, ajin, inputs, new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>(), new());
-        var work = new RecoveryWork(ConveyorStation.Inspection(io));
+        var work = new RecoveryWork(ConveyorStation.CreateInspection(io));
         var arrivals = 0;
         work.Station.CarrierChanged += present =>
         {
             if (present)
             {
                 arrivals++;
-                Assert.True(work.CarrierSeated);
+                Assert.True(work.Station.CarrierSeated);
             }
         };
         AjinSdk.Inputs[0] = 0b111;
         io.Initialize();
         Assert.Equal(0, arrivals); // Initial levels are not new input edges.
-        var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordPcbBolt(1, new BoltResult(false, 1.25));
         work.Complete(work.CurrentJob);
         Assert.True(work.CanTransfer);
@@ -204,7 +209,7 @@ public sealed class AjinControllerTests
         Assert.Equal(0, arrivals);
         AjinSdk.Inputs[0] = 0b110;
         io.RefreshInputs();
-        Assert.False(work.CarrierPresent);
+        Assert.False(work.Station.CarrierPresent);
 
         Shared.TMCAEDLL.Errors["AIO_GetDIDWord"] = Shared.tmcDef.ERR_INVALID_PARAMETER;
         Assert.Throws<IOException>(io.RefreshInputs);
@@ -212,17 +217,13 @@ public sealed class AjinControllerTests
         Shared.TMCAEDLL.Errors.Clear();
         io.Initialize();
 
-        Assert.True(work.CarrierSeated);
+        Assert.True(work.Station.CarrierSeated);
         Assert.False(work.Completed);
         Assert.False(work.CanTransfer);
         Assert.Empty(work.Assemblies);
         Assert.Equal(1, arrivals);
         io.RefreshInputs();
         Assert.Equal(1, arrivals);
-    }
-
-    private sealed class RecoveryWork(ConveyorStation station) : StationWork(station)
-    {
     }
 
     [Fact]
@@ -252,7 +253,9 @@ public sealed class AjinControllerTests
 
         AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with
         {
-            InMotion = 0, Mechanical = 0, Position = 2400
+            InMotion = 0,
+            Mechanical = 0,
+            Position = 2400
         };
         feedback.RefreshMonitorFeedback();
         feedback.RefreshControlFeedback();
@@ -341,11 +344,6 @@ public sealed class AjinControllerTests
             .Select(call => call.Axis!.Value));
         Assert.True(motion.IsMoving);
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
-    }
-
-    public AjinControllerTests()
-    {
-        AjinSdk.Reset();
     }
 
     [Fact]
@@ -1317,5 +1315,13 @@ public sealed class AjinControllerTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => new AjinController(new() { InterruptNumber = -1 }));
         Assert.Empty(AjinSdk.Calls);
+    }
+
+    private sealed class RecoveryWork : StationWork
+    {
+        public RecoveryWork(ConveyorStation station)
+            : base(station)
+        {
+        }
     }
 }

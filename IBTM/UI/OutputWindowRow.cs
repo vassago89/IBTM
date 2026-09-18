@@ -6,12 +6,19 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public sealed partial class OutputWindowRow(IoOutputStatus io, MachineController machine) : ObservableObject
+public sealed partial class OutputWindowRow : ObservableObject
 {
+    private readonly MachineController _machine;
     [ObservableProperty]
     private string? _actionMessage;
 
-    public IoOutputStatus Io { get; } = io;
+    public OutputWindowRow(IoOutputStatus io, MachineController machine)
+    {
+        _machine = machine;
+        Io = io;
+    }
+
+    public IoOutputStatus Io { get; }
 
     [RelayCommand]
     private void Toggle()
@@ -19,7 +26,7 @@ public sealed partial class OutputWindowRow(IoOutputStatus io, MachineController
         ActionMessage = null;
         try
         {
-            var reason = machine.ToggleDiagnosticOutput(Io.Signal);
+            var reason = _machine.ToggleDiagnosticOutput(Io.Signal);
             if (reason != OutputBlockReason.None)
                 ActionMessage = $"[{reason}] {reason.GetDescription()}";
         }

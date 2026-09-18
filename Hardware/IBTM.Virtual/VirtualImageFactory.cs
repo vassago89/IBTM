@@ -77,7 +77,7 @@ internal static class VirtualImageFactory
             return (48, 92, 116);
         }
 
-        if (InsideCircle(x, y, 2, 2, 0.6) || InsideCircle(x, y, 38, 28, 0.6))
+        if (IsInsideCircle(x, y, 2, 2, 0.6) || IsInsideCircle(x, y, 38, 28, 0.6))
         {
             return (40, 190, 230);
         }
@@ -92,7 +92,7 @@ internal static class VirtualImageFactory
                 return (BoltRecessIntensity, BoltRecessIntensity, BoltRecessIntensity);
             }
 
-            if (InsideCircle(x, y, bolt.X, bolt.Y, BoltRadius))
+            if (IsInsideCircle(x, y, bolt.X, bolt.Y, BoltRadius))
             {
                 return (190, 190, 190);
             }
@@ -125,7 +125,7 @@ internal static class VirtualImageFactory
                 || Math.Abs(y - bottom) <= thickness);
     }
 
-    private static bool InsideCircle(double x, double y, double centerX, double centerY, double radius)
+    private static bool IsInsideCircle(double x, double y, double centerX, double centerY, double radius)
     {
         var offsetX = x - centerX;
         var offsetY = y - centerY;

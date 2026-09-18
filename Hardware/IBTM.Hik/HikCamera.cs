@@ -11,13 +11,14 @@ using MvCameraControl;
 
 namespace IBTM.Hik;
 
-public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDisposable
+public sealed class HikCamera : ICamera, IDisposable
 {
+    private readonly InspectionCameraSettings _settings;
     private static readonly MvGvspPixelType ConversionPixelType = MvGvspPixelType.PixelType_Gvsp_RGB8_Packed;
 
     // Device selection changes apply after restart, not during connection recovery.
-    private readonly string _deviceId = settings.DeviceId;
-    private readonly object _grabGate = new();
+    private readonly string _deviceId;
+    private readonly object _grabGate;
     private IDevice? _device;
     private IStreamGrabber? _streamGrabber;
     private Thread? _liveThread;
@@ -25,8 +26,16 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
     private bool _grabbing;
     private volatile bool _liveView;
 
+    public HikCamera(InspectionCameraSettings settings)
+    {
+        _settings = settings;
+        _deviceId = _settings.DeviceId;
+        _grabGate = new();
+    }
+
     public event Action<ImageFrame>? FrameReady;
     public event Action<Exception>? LiveViewFailed;
+
     public bool IsLiveView
     {
         get
@@ -124,7 +133,7 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
             {
                 Check(
                     stream.GetImageBuffer(
-                        checked((uint)settings.FrameTimeoutMilliseconds),
+                        checked((uint)_settings.FrameTimeoutMilliseconds),
                         out var frameOut),
                     "Get single Hik frame");
                 image = CopyAndReleaseFrame(device, stream, frameOut);
@@ -166,7 +175,7 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
         try
         {
             return captured.Task
-                .WaitAsync(TimeSpan.FromMilliseconds(settings.FrameTimeoutMilliseconds))
+                .WaitAsync(TimeSpan.FromMilliseconds(_settings.FrameTimeoutMilliseconds))
                 .GetAwaiter().GetResult();
         }
         finally
@@ -187,7 +196,7 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
 
             Initialize();
             var device = _device!;
-            var framesPerSecond = settings.LiveViewFramesPerSecond;
+            var framesPerSecond = _settings.LiveViewFramesPerSecond;
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(framesPerSecond);
             ApplyExposureAndGain(device, exposureMicroseconds, gain);
             var frameInterval = Stopwatch.Frequency / framesPerSecond;

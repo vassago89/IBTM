@@ -21,8 +21,8 @@ public sealed partial class ConveyorTests
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
         _ = new VirtualMachine(virtualIo, []);
-        var placementWork = new PcbPlacementWork(ConveyorStation.PcbPlacement(io));
-        var boltWork = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
+        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io));
+        var boltWork = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
         var inspectionWork = CreateInspectionWork(io);
         var conveyor = new MainConveyor(
             io,
@@ -41,7 +41,7 @@ public sealed partial class ConveyorTests
             InputIo.BoltFasteningHeatSink1Present,
             OutputIo.BoltFasteningBackupPlateUp);
         virtualIo.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
-        var assembly = boltWork.Assembly(HeatSinkSlot.HeatSink1);
+        var assembly = boltWork.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordPcbBolt(1, new BoltResult(false, 0));
         boltWork.Complete(boltWork.CurrentJob);
         virtualIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
@@ -85,8 +85,8 @@ public sealed partial class ConveyorTests
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
             new OperationCancellation(),
-            new PcbPlacementWork(ConveyorStation.PcbPlacement(io), isEnabled: () => false),
-            new BoltFasteningWork(ConveyorStation.BoltFastening(io), isEnabled: () => false),
+            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), isEnabled: () => false),
+            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), isEnabled: () => false),
             inspectionWork,
             routeInspectionToNg: () => ngTransferEnabled && inspectionWork.RouteToNg);
         var discharged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -112,7 +112,7 @@ public sealed partial class ConveyorTests
             io,
             InputIo.InspectionHeatSink1Present,
             OutputIo.InspectionBackupPlateUp);
-        var assembly = inspectionWork.Assembly(HeatSinkSlot.HeatSink1);
+        var assembly = inspectionWork.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordBoltPresence(1, false);
         assembly.CompleteInspection();
         inspectionWork.Complete(inspectionWork.CurrentJob);

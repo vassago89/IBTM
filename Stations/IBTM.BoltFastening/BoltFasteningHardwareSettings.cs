@@ -5,6 +5,51 @@ namespace IBTM.BoltFastening;
 
 public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
 {
+    public BoltFasteningHardwareSettings() : base(
+        MotionGroup.BoltFastening,
+        (
+            MotionAxis.X,
+            MachineAxis.BoltFasteningX,
+            6),
+        (
+            MotionAxis.Y,
+            MachineAxis.BoltFasteningY,
+            7),
+        (
+            MotionAxis.Z,
+            MachineAxis.BoltFasteningZ,
+            8))
+    {
+        Inputs = new()
+        {
+            [InputIo.PickupHeadDown] = 42,
+            [InputIo.PickupHeadUp] = 43,
+            [InputIo.ShootingHeadDown] = 44,
+            [InputIo.ShootingHeadUp] = 45,
+            [InputIo.PickupHeadVacuumDetected] = 46,
+            [InputIo.ShootingHeadVacuumDetected] = 47,
+            [InputIo.ShootingTubeBoltDetected] = 49,
+            [InputIo.ShootingEscapeForward] = 50,
+            [InputIo.ShootingEscapeBackward] = 51,
+        };
+        Outputs = new()
+        {
+            [OutputIo.PickupHeadDown] = CreateOutput(39, 40, InputIo.PickupHeadDown, InputIo.PickupHeadUp),
+            [OutputIo.ShootingHeadDown] = CreateOutput(
+                41,
+                42,
+                InputIo.ShootingHeadDown,
+                InputIo.ShootingHeadUp),
+            [OutputIo.PickupHeadVacuumPump] = CreateOutput(43),
+            [OutputIo.ShootingHeadVacuumPump] = CreateOutput(44),
+            [OutputIo.ShootingEscapeForward] = CreateOutput(
+                46,
+                InputIo.ShootingEscapeForward,
+                InputIo.ShootingEscapeBackward),
+            [OutputIo.ShootBolt] = CreateOutput(47),
+        };
+    }
+
     public override HardwareArea Area
     {
         get
@@ -37,50 +82,4 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
             _ => null,
         };
     }
-
-    public BoltFasteningHardwareSettings() : base(
-        MotionGroup.BoltFastening,
-        (
-            MotionAxis.X,
-            MachineAxis.BoltFasteningX,
-            6),
-        (
-            MotionAxis.Y,
-            MachineAxis.BoltFasteningY,
-            7),
-        (
-            MotionAxis.Z,
-            MachineAxis.BoltFasteningZ,
-            8))
-    {
-        Inputs = new()
-        {
-            [InputIo.PickupHeadDown] = 42,
-            [InputIo.PickupHeadUp] = 43,
-            [InputIo.ShootingHeadDown] = 44,
-            [InputIo.ShootingHeadUp] = 45,
-            [InputIo.PickupHeadVacuumDetected] = 46,
-            [InputIo.ShootingHeadVacuumDetected] = 47,
-            [InputIo.ShootingTubeBoltDetected] = 49,
-            [InputIo.ShootingEscapeForward] = 50,
-            [InputIo.ShootingEscapeBackward] = 51,
-        };
-        Outputs = new()
-        {
-            [OutputIo.PickupHeadDown] = Output(39, 40, InputIo.PickupHeadDown, InputIo.PickupHeadUp),
-            [OutputIo.ShootingHeadDown] = Output(
-                41,
-                42,
-                InputIo.ShootingHeadDown,
-                InputIo.ShootingHeadUp),
-            [OutputIo.PickupHeadVacuumPump] = Output(43),
-            [OutputIo.ShootingHeadVacuumPump] = Output(44),
-            [OutputIo.ShootingEscapeForward] = Output(
-                46,
-                InputIo.ShootingEscapeForward,
-                InputIo.ShootingEscapeBackward),
-            [OutputIo.ShootBolt] = Output(47),
-        };
-    }
-
 }

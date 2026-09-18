@@ -150,11 +150,11 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData("motion")]
-    [InlineData("canceled")]
-    [InlineData("safety")]
-    [InlineData("programming")]
-    public async Task ManualCommandHandlesCombinedDeviceFailuresWithoutHidingProgrammingErrors(string failureKind)
+    [InlineData(ManualCommandFailure.Motion)]
+    [InlineData(ManualCommandFailure.Canceled)]
+    [InlineData(ManualCommandFailure.Safety)]
+    [InlineData(ManualCommandFailure.Programming)]
+    public async Task ManualCommandHandlesCombinedDeviceFailuresWithoutHidingProgrammingErrors(ManualCommandFailure failureKind)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -165,11 +165,11 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         Exception operationFailure = failureKind switch
         {
-            "motion" or "safety" => new MotionException("Manual move", new IOException("Motion feedback failed.")),
-            "canceled" => new OperationCanceledException(cancellation.Token),
+            ManualCommandFailure.Motion or ManualCommandFailure.Safety => new MotionException("Manual move", new IOException("Motion feedback failed.")),
+            ManualCommandFailure.Canceled => new OperationCanceledException(cancellation.Token),
             _ => new InvalidOperationException("Invalid command state."),
         };
-        Exception cleanupFailure = failureKind == "programming"
+        Exception cleanupFailure = failureKind == ManualCommandFailure.Programming
             ? new InvalidOperationException("Invalid cleanup state.")
             : new IOException("Cleanup output failed.");
         var failure = new AggregateException(operationFailure, new AggregateException(cleanupFailure));
@@ -182,18 +182,18 @@ public sealed partial class MachineLifecycleTests
                 MotionGroup.InspectionGantry,
                 _ =>
                 {
-                    if (failureKind != "programming")
+                    if (failureKind != ManualCommandFailure.Programming)
                         io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
-                    if (failureKind == "canceled")
+                    if (failureKind == ManualCommandFailure.Canceled)
                         cancellation.Cancel();
-                    if (failureKind == "safety")
+                    if (failureKind == ManualCommandFailure.Safety)
                         io.SetInput(InputIo.EmergencyStop1Pressed, true);
                     return Task.FromException(failure);
                 },
                 cancellation.Token,
                 CancellationToken.None);
 
-            if (failureKind == "programming")
+            if (failureKind == ManualCommandFailure.Programming)
             {
                 Assert.Same(failure, await Assert.ThrowsAsync<AggregateException>(() => command));
                 Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -204,8 +204,8 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(
                     failureKind switch
                     {
-                        "safety" => MachineAlarm.EmergencyStop,
-                        "motion" => MachineAlarm.MotionUnavailable,
+                        ManualCommandFailure.Safety => MachineAlarm.EmergencyStop,
+                        ManualCommandFailure.Motion => MachineAlarm.MotionUnavailable,
                         _ => MachineAlarm.Inspection,
                     },
                     state.Alarm);
@@ -1081,7 +1081,7 @@ public sealed partial class MachineLifecycleTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
         Assert.False(machine.CanHome);
         Assert.Equal(HomeBlockReason.PlacementNotRaised, machine.HomeBlock);
-        Assert.True(placement.CanMoveHorizontal);
+        Assert.True(placement.HandlerRaised);
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmDown));
 
         var move = placement.MoveToXYAsync(new() { X = 20, Y = 20 });
@@ -1626,5 +1626,13 @@ public sealed partial class MachineLifecycleTests
             machine.Stop();
             await homing;
         }
+    }
+
+    public enum ManualCommandFailure
+    {
+        Motion,
+        Canceled,
+        Safety,
+        Programming,
     }
 }

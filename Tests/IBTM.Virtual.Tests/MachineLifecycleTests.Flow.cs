@@ -177,5 +177,4 @@ public sealed partial class MachineLifecycleTests
                         Assert.False(motion.GetAxisState(axis).Homed);
                     }));
     }
-
 }

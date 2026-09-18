@@ -188,16 +188,27 @@ public sealed class OperationCancellation
         }
     }
 
-    public sealed class Operation(OperationCancellation owner, CancellationTokenSource source) : IDisposable
+    public sealed class Operation : IDisposable
     {
-        private readonly Lock _gate = new();
-        private int _users = 1; // Scope ownership plus active cancellation callbacks.
+        private readonly OperationCancellation _owner;
+        private readonly CancellationTokenSource _source;
+        private readonly Lock _gate;
+        private int _users; // Scope ownership plus active cancellation callbacks.
         private bool _disposeRequested;
+
+        public Operation(OperationCancellation owner, CancellationTokenSource source)
+        {
+            _owner = owner;
+            _source = source;
+            _gate = new();
+            _users = 1;
+        }
+
         public CancellationToken Token
         {
             get
             {
-                return source.Token;
+                return _source.Token;
             }
         }
 
@@ -205,7 +216,7 @@ public sealed class OperationCancellation
         {
             get
             {
-                return source.IsCancellationRequested;
+                return _source.IsCancellationRequested;
             }
         }
 
@@ -221,7 +232,7 @@ public sealed class OperationCancellation
             Exception? failure = null;
             try
             {
-                source.Cancel();
+                _source.Cancel();
             }
             catch (Exception exception)
             {
@@ -261,8 +272,8 @@ public sealed class OperationCancellation
                     return;
             }
 
-            source.Dispose();
-            owner.CompleteOperation();
+            _source.Dispose();
+            _owner.CompleteOperation();
         }
     }
 }

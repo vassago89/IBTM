@@ -173,7 +173,7 @@ public sealed class InspectionTests
         var io = new VirtualIoService(
             new NgCarrierTransferHardwareSettings().Outputs,
             new MachineOptions());
-        var transferFeedback = new NgCarrierTransfer(io);
+        var transfer = new NgCarrierTransfer(io);
         var carrierReference = new CarrierReferenceSettings
         {
             UpperLeftLocatingPin = new AxisPosition { X = 2, Y = 2 },
@@ -188,10 +188,9 @@ public sealed class InspectionTests
             gantrySettings.Motion,
             operations,
             hasZ: false);
-        var transfer = new NgCarrierTransfer(io);
         var gantry = new InspectionGantry(motion, transfer, operations, gantrySettings);
         var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0 };
-        var work = new InspectionWork(io, transferFeedback, gantry, transferSettings);
+        var work = new InspectionWork(io, transfer, gantry, transferSettings);
         BoltTarget[] bolts = [
             Bolt(1, HeatSinkSlot.HeatSink1, 9, 9, carrierReference),
             Bolt(2, HeatSinkSlot.HeatSink1, 9, 21, carrierReference),
@@ -203,8 +202,8 @@ public sealed class InspectionTests
                 motion.GetPosition,
                 () => bolts.Select(bolt => gantrySettings.GetBoltPosition(bolt, carrierReference)),
                 () => [
-            new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
-            new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2")
+                    new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
+                    new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2")
         ]),
             motion.GetPosition,
             gantrySettings.GetBoltPosition(bolts[1], carrierReference));
@@ -236,11 +235,10 @@ public sealed class InspectionTests
             ]);
         var shuttleFeedback = new NgShuttleFeedback(io);
         var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), shuttleFeedback);
-        var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, transferFeedback);
+        var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, transfer);
         var station = new InspectionStation(
             work,
             inspector,
-            transfer,
             new NgCarrierMove(work, shuttle, transfer, gantry, transferSettings),
             shuttle,
             isTransferEnabled: () => false,
@@ -257,8 +255,8 @@ public sealed class InspectionTests
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
 
         Assert.Empty(work.Assemblies);
-        Assert.Equal(HeatSinkSlot.HeatSink1, station.ActivePcb(bolts));
-        _ = station.State(bolts);
+        Assert.Equal(HeatSinkSlot.HeatSink1, station.GetActivePcb(bolts));
+        _ = station.GetState(bolts);
         Assert.Empty(work.Assemblies);
 
         var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
@@ -273,37 +271,37 @@ public sealed class InspectionTests
         var firstRun = station.RunAsync(bolts, firstStop.Token);
         Assert.True(
             await WaitUntilAsync(
-                () => work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults.Count == 1,
+                () => work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults.Count == 1,
                 TimeSpan.FromSeconds(2)));
         firstStop.Cancel();
         await firstRun;
 
         Assert.False(work.Completed);
-        Assert.Single(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
 
-        var firstBarcode = work.Assembly(HeatSinkSlot.HeatSink1).PcbBarcode;
+        var firstBarcode = work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode;
         await station.RunAsync(bolts, firstStop.Token);
-        Assert.Single(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
-        Assert.Equal(firstBarcode, work.Assembly(HeatSinkSlot.HeatSink1).PcbBarcode);
+        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Equal(firstBarcode, work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
 
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
         camera.AfterCapture = () =>
         {
-            if (station.ActiveBolt(bolts) is null)
+            if (station.GetActiveBolt(bolts) is null)
                 return;
             camera.AfterCapture = null;
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
             io.SetInput(InputIo.InspectionHeatSink2Present, false);
-            Assert.Equal(HeatSinkSlot.HeatSink2, station.ActiveBolt(bolts)!.HeatSink);
+            Assert.Equal(HeatSinkSlot.HeatSink2, station.GetActiveBolt(bolts)!.HeatSink);
         };
         using var cancellation = new CancellationTokenSource();
         var run = station.RunAsync(bolts, cancellation.Token);
         Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
 
-        Assert.Single(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
-        Assert.Equal(firstBarcode, work.Assembly(HeatSinkSlot.HeatSink1).PcbBarcode);
-        Assert.Equal(2, work.Assembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Count);
-        Assert.Equal(AssemblyResult.Ok, work.Assembly(HeatSinkSlot.HeatSink2).InspectionResult);
+        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Equal(firstBarcode, work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
+        Assert.Equal(2, work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Count);
+        Assert.Equal(AssemblyResult.Ok, work.GetAssembly(HeatSinkSlot.HeatSink2).InspectionResult);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
         Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
@@ -317,7 +315,7 @@ public sealed class InspectionTests
         Assert.All(heatSink2.BoltPresenceResults.Values, Assert.True);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-        Assert.False(work.CarrierPresent);
+        Assert.False(work.Station.CarrierPresent);
 
         HeatSinkAssembly[] interruptedAssemblies = [];
         camera.AfterCapture = () =>
@@ -346,7 +344,7 @@ public sealed class InspectionTests
         };
         var transferWork = new InspectionWork(
             io,
-            transferFeedback,
+            transfer,
             gantry,
             transferSettings,
             isEnabled: () => false,
@@ -354,7 +352,6 @@ public sealed class InspectionTests
         var transferStation = new InspectionStation(
             transferWork,
             inspector,
-            transfer,
             new NgCarrierMove(transferWork, shuttle, transfer, gantry, transferSettings),
             shuttle,
             isTransferEnabled: () => true,
@@ -362,26 +359,26 @@ public sealed class InspectionTests
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
-        Assert.Equal(InspectionStationState.ReturningToNgPickup, transferStation.State([]));
+        Assert.Equal(InspectionStationState.ReturningToNgPickup, transferStation.GetState([]));
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionStopperDown, true);
-        Assert.Equal(InspectionStationState.MovingTransferToCarrier, transferStation.State([]));
+        Assert.Equal(InspectionStationState.MovingTransferToCarrier, transferStation.GetState([]));
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
-        Assert.Equal(InspectionStationState.WaitingForShuttleCarrier, transferStation.State([]));
+        Assert.Equal(InspectionStationState.WaitingForShuttleCarrier, transferStation.GetState([]));
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.Equal(InspectionStationState.RaisingCarrierTransfer, transferStation.State([]));
-        Assert.Equal(InspectionStationState.Waiting, station.State(bolts));
+        Assert.Equal(InspectionStationState.RaisingCarrierTransfer, transferStation.GetState([]));
+        Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
 
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
-        Assert.Equal(InspectionStationState.Waiting, station.State(bolts));
+        Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
     }
 
     private static BoltTarget Bolt(
@@ -397,20 +394,20 @@ public sealed class InspectionTests
         return new BoltTarget(new BoltPoint { Number = number, HeatSink = heatSink, X = position.X, Y = position.Y });
     }
 
-    private sealed class MissingBoltCamera(
-        ICamera camera,
-        Func<(double X, double Y, double Z)> position,
-        AxisPosition missingPosition) : ICamera
+    private sealed class MissingBoltCamera : ICamera
     {
-        public bool IsLiveView { get; }
-        public Action? AfterCapture { get; set; }
+        private readonly ICamera _camera;
+        private readonly Func<(double X, double Y, double Z)> _position;
+        private readonly AxisPosition _missingPosition;
 
-        public (int Width, int Height) FrameSize
+        public MissingBoltCamera(
+            ICamera camera,
+            Func<(double X, double Y, double Z)> position,
+            AxisPosition missingPosition)
         {
-            get
-            {
-                return camera.FrameSize;
-            }
+            _camera = camera;
+            _position = position;
+            _missingPosition = missingPosition;
         }
 
         public event Action<ImageFrame>? FrameReady
@@ -435,17 +432,28 @@ public sealed class InspectionTests
             }
         }
 
+        public bool IsLiveView { get; }
+        public Action? AfterCapture { get; set; }
+
+        public (int Width, int Height) FrameSize
+        {
+            get
+            {
+                return _camera.FrameSize;
+            }
+        }
+
         public void Initialize()
         {
-            camera.Initialize();
+            _camera.Initialize();
         }
 
         public ImageFrame Capture(double exposureMicroseconds, double gain)
         {
-            var image = camera.Capture(exposureMicroseconds, gain);
-            var current = position();
-            var missing = Math.Abs(current.X - missingPosition.X) <= MotionService.PositionToleranceMillimeters
-                && Math.Abs(current.Y - missingPosition.Y) <= MotionService.PositionToleranceMillimeters;
+            var image = _camera.Capture(exposureMicroseconds, gain);
+            var current = _position();
+            var missing = Math.Abs(current.X - _missingPosition.X) <= MotionService.PositionToleranceMillimeters
+                && Math.Abs(current.Y - _missingPosition.Y) <= MotionService.PositionToleranceMillimeters;
             var captured = missing
                 ? image with
                 {

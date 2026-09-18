@@ -26,7 +26,6 @@ public sealed record MachineDisplay
     public NgConveyorState NgConveyorState { get; init; }
     public bool BufferConflict { get; init; }
     public bool SupplyInBufferArea { get; init; }
-    public bool PlacementInBufferArea { get; init; }
     public bool SupplyAtHandoff { get; init; }
     public bool CanSupplyEnter { get; init; }
     public bool EmergencyStopReleased { get; init; }
@@ -52,7 +51,14 @@ public sealed record MachineDisplay
         }
     }
 
-    public bool ManualSetupEnabled { get; init; }
+    public bool ManualSetupEnabled
+    {
+        get
+        {
+            return Available && SetupEditingEnabled && !IsRunning && SafetyReady;
+        }
+    }
+
     public bool SetupEditingEnabled { get; init; }
     public PcbPlacementState PlacementState { get; init; }
     public HeatSinkSlot? PlacementTarget { get; init; }

@@ -107,6 +107,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     }
 
     public int[] BaudRates { get; } = [9600, 19200, 38400, 57600, 115200];
+
     public string FrameLogText
     {
         get
@@ -116,6 +117,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                 : string.Join(Environment.NewLine, _frameLogView.Cast<string>());
         }
     }
+
     public AdcFunctionCode[] RegisterAccesses { get; } = [
         AdcFunctionCode.ReadHoldingRegisters,
         AdcFunctionCode.ReadInputRegisters,
@@ -131,6 +133,54 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     }
 
     public AdcEventStatus[] FasteningResults { get; } = [AdcEventStatus.FasteningOk, AdcEventStatus.FasteningNg, AdcEventStatus.Error,];
+
+    public bool ConnectionControlsEnabled
+    {
+        get
+        {
+            return !_disposed && !IsClosing && _operationCancellation is null;
+        }
+    }
+
+    public bool PortSelectionEnabled
+    {
+        get
+        {
+            return ConnectionControlsEnabled && _machine.CanUseAdcProtocol && !_bus.IsOpen;
+        }
+    }
+
+    public bool SlaveSelectionEnabled
+    {
+        get
+        {
+            return ConnectionControlsEnabled && (IsVirtual || _machine.CanUseAdcProtocol);
+        }
+    }
+
+    public bool ProtocolEnabled
+    {
+        get
+        {
+            return ConnectionControlsEnabled && _machine.CanUseAdcProtocol && _bus.IsOpen;
+        }
+    }
+
+    public bool VirtualResultEnabled
+    {
+        get
+        {
+            return !IsClosing;
+        }
+    }
+
+    private byte SlaveAddress
+    {
+        get
+        {
+            return byte.Parse(SlaveText);
+        }
+    }
 
     [RelayCommand]
     private void QueueResult()
@@ -510,46 +560,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    public bool ConnectionControlsEnabled
-    {
-        get
-        {
-            return !_disposed && !IsClosing && _operationCancellation is null;
-        }
-    }
-
-    public bool PortSelectionEnabled
-    {
-        get
-        {
-            return ConnectionControlsEnabled && _machine.CanUseAdcProtocol && !_bus.IsOpen;
-        }
-    }
-
-    public bool SlaveSelectionEnabled
-    {
-        get
-        {
-            return ConnectionControlsEnabled && (IsVirtual || _machine.CanUseAdcProtocol);
-        }
-    }
-
-    public bool ProtocolEnabled
-    {
-        get
-        {
-            return ConnectionControlsEnabled && _machine.CanUseAdcProtocol && _bus.IsOpen;
-        }
-    }
-
-    public bool VirtualResultEnabled
-    {
-        get
-        {
-            return !IsClosing;
-        }
-    }
-
     private bool CanConnect()
     {
         return ConnectionControlsEnabled && _machine.CanUseAdcProtocol
@@ -641,13 +651,5 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private static string ToHex(byte[] data)
     {
         return string.Join(' ', data.Select(value => value.ToString("X2")));
-    }
-
-    private byte SlaveAddress
-    {
-        get
-        {
-            return byte.Parse(SlaveText);
-        }
     }
 }

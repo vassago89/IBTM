@@ -6,20 +6,29 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public sealed partial class TeachingOutputRow(
-    IoOutputStatus io,
-    TeachingOutput? output,
-    MachineController machine) : ObservableObject
+public sealed partial class TeachingOutputRow : ObservableObject
 {
-    public IoOutputStatus Io { get; } = io;
-    public TeachingOutput? Output { get; } = output;
+    private readonly MachineController _machine;
+
+    public TeachingOutputRow(
+        IoOutputStatus io,
+        TeachingOutput? output,
+        MachineController machine)
+    {
+        _machine = machine;
+        Io = io;
+        Output = output;
+    }
+
+    public IoOutputStatus Io { get; }
+    public TeachingOutput? Output { get; }
     internal CancellationToken ViewCancellation { get; set; }
 
     private bool CanToggleOutput()
     {
         return !ViewCancellation.IsCancellationRequested
             && Output is not null
-            && machine.CanSetTeachingOutput(Output, live: false);
+            && _machine.CanSetTeachingOutput(Output, live: false);
     }
 
     [RelayCommand(CanExecute = nameof(CanToggleOutput))]
@@ -27,6 +36,6 @@ public sealed partial class TeachingOutputRow(
     {
         if (Output is null)
             return Task.CompletedTask;
-        return machine.ToggleTeachingOutputAsync(Output, cancellationToken, ViewCancellation);
+        return _machine.ToggleTeachingOutputAsync(Output, cancellationToken, ViewCancellation);
     }
 }

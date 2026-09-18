@@ -124,19 +124,34 @@ public enum TeachingTarget
 
 }
 
-public sealed class TeachingPosition(
-    TeachingTarget target,
-    MotionGroup motionGroup,
-    TeachMode mode,
-    Func<AxisPosition> read,
-    Action<AxisPosition>? apply,
-    Setting? setting = null,
-    Func<bool>? isDefined = null)
+public sealed class TeachingPosition
 {
-    public TeachingTarget Target { get; } = target;
-    public MotionGroup MotionGroup { get; } = motionGroup;
-    public TeachMode Mode { get; } = mode;
-    public Setting? Setting { get; } = setting;
+    private readonly Func<AxisPosition> _read;
+    private readonly Action<AxisPosition>? _apply;
+    private readonly Func<bool>? _isDefined;
+
+    public TeachingPosition(
+        TeachingTarget target,
+        MotionGroup motionGroup,
+        TeachMode mode,
+        Func<AxisPosition> read,
+        Action<AxisPosition>? apply,
+        Setting? setting = null,
+        Func<bool>? isDefined = null)
+    {
+        _read = read;
+        _apply = apply;
+        _isDefined = isDefined;
+        Target = target;
+        MotionGroup = motionGroup;
+        Mode = mode;
+        Setting = setting;
+    }
+
+    public TeachingTarget Target { get; }
+    public MotionGroup MotionGroup { get; }
+    public TeachMode Mode { get; }
+    public Setting? Setting { get; }
     public BoltTarget? Bolt { get; init; }
     public bool Staged { get; init; }
 
@@ -144,9 +159,17 @@ public sealed class TeachingPosition(
     {
         get
         {
-            return Staged
-                ? TeachingStorage.Buffer
-                : Setting is null ? TeachingStorage.Recipe : TeachingStorage.Machine;
+            if (Staged)
+            {
+                return TeachingStorage.Buffer;
+            }
+
+            if (Setting is null)
+            {
+                return TeachingStorage.Recipe;
+            }
+
+            return TeachingStorage.Machine;
         }
     }
 
@@ -154,7 +177,7 @@ public sealed class TeachingPosition(
     {
         get
         {
-            return isDefined?.Invoke() ?? true;
+            return _isDefined?.Invoke() ?? true;
         }
     }
 
@@ -162,17 +185,17 @@ public sealed class TeachingPosition(
     {
         get
         {
-            return apply is not null;
+            return _apply is not null;
         }
     }
 
     public AxisPosition Read()
     {
-        return read();
+        return _read();
     }
 
     public void Apply(AxisPosition position)
     {
-        apply!(position);
+        _apply!(position);
     }
 }

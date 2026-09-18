@@ -71,13 +71,22 @@ public partial class MotionWindowViewModel : ObservableObject
     {
         get
         {
-            return !_state.Display.Available
-                ? "Read only: machine status is unavailable."
-                : _state.Display.AutoMode
-                    ? "AUTO · monitoring only."
-                    : _state.Display.IsRunning
-                        ? "Operation in progress · monitoring remains available."
-                        : "MANUAL";
+            if (!_state.Display.Available)
+            {
+                return "Read only: machine status is unavailable.";
+            }
+
+            if (_state.Display.AutoMode)
+            {
+                return "AUTO · monitoring only.";
+            }
+
+            if (_state.Display.IsRunning)
+            {
+                return "Operation in progress · monitoring remains available.";
+            }
+
+            return "MANUAL";
         }
     }
 

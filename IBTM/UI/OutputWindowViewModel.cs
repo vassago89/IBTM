@@ -15,7 +15,7 @@ public partial class OutputWindowViewModel : ObservableObject
         Rows = signals.Outputs.Values.OrderBy(row => row.Signal)
             .Select(row => new OutputWindowRow(row, machine))
             .ToArray();
-        Filter = new(Rows, row => row.Io, nameof(OutputWindowRow.Io));
+        Filter = new(Rows, row => row.Io);
 
         state.RequestDisplayRefresh();
     }
@@ -30,5 +30,4 @@ public partial class OutputWindowViewModel : ObservableObject
         foreach (var row in Rows)
             row.ActionMessage = null;
     }
-
 }

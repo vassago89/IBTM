@@ -30,6 +30,7 @@ public enum AxisCondition
 public sealed class AxisStatus : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
+
     public AxisState? State { get; private set; }
 
     public bool ServoOn

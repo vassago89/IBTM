@@ -39,10 +39,10 @@ public sealed partial class MachineController
     internal bool CanUseManualMotion(MotionGroup group, bool live = true)
     {
         return !(live ? _state.IsRunning : _state.Display.IsRunning)
-            && ManualMotionReady(group, live);
+            && IsManualMotionReady(group, live);
     }
 
-    private bool ManualMotionReady(MotionGroup group, bool live = true)
+    private bool IsManualMotionReady(MotionGroup group, bool live = true)
     {
         if (_operations.IsShuttingDown
             || !_io.IsReady
@@ -79,7 +79,7 @@ public sealed partial class MachineController
             () => CanUseManualMotion(group),
             cancellationToken,
             viewCancellation,
-            canContinue: () => ManualMotionReady(group));
+            canContinue: () => IsManualMotionReady(group));
     }
 
     internal Task RunTeachingEditAsync(

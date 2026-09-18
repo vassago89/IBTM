@@ -8,12 +8,19 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public sealed partial class ManualConveyorRow(IoOutputStatus io, MachineController machine) : ObservableObject
+public sealed partial class ManualConveyorRow : ObservableObject
 {
+    private readonly MachineController _machine;
     [ObservableProperty]
     private string? _actionMessage;
 
-    public IoOutputStatus Io { get; } = io;
+    public ManualConveyorRow(IoOutputStatus io, MachineController machine)
+    {
+        _machine = machine;
+        Io = io;
+    }
+
+    public IoOutputStatus Io { get; }
 
     [RelayCommand]
     private async Task RunAsync(CancellationToken cancellationToken)
@@ -21,7 +28,7 @@ public sealed partial class ManualConveyorRow(IoOutputStatus io, MachineControll
         ActionMessage = null;
         try
         {
-            var reason = await machine.RunManualConveyorAsync(Io.Signal, cancellationToken);
+            var reason = await _machine.RunManualConveyorAsync(Io.Signal, cancellationToken);
             if (reason != OutputBlockReason.None)
                 ActionMessage = $"[{reason}] {reason.GetDescription()}";
         }
@@ -41,7 +48,7 @@ public sealed partial class ManualConveyorRow(IoOutputStatus io, MachineControll
         try
         {
             await CommandShutdown.StopAsync(
-                () => machine.StopManualConveyor(Io.Signal),
+                () => _machine.StopManualConveyor(Io.Signal),
                 RunCommand);
         }
         catch (Exception exception)

@@ -20,19 +20,41 @@ public sealed partial class MachineController
         }
     }
 
-    private bool IsStartAllowed(StartBlockReason block, bool? running = null)
-    {
-        return !_operations.IsShuttingDown
-            && !(running ?? _state.IsRunning)
-            && block == StartBlockReason.None;
-    }
-
     public StartBlockReason StartBlock
     {
         get
         {
             return GetStartBlock(_state.MotionReadiness);
         }
+    }
+
+    public bool TeachingReady
+    {
+        get
+        {
+            if ((_units.BoltFastening || _units.Inspection)
+                && _recipe.Pcb.BoltPoints.Count == 0)
+                return false;
+
+            if (_units.BoltFastening
+                && (!_carrierReference.IsDefined
+                    || _recipe.Pcb.GetBolts().Any(bolt =>
+                        bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))))
+            {
+                return false;
+            }
+
+            return !_units.Inspection
+                || _recipe.Pcb.GetBolts().All(_boltInspector.HasPosition)
+                    && Enum.GetValues<HeatSinkSlot>().All(_boltInspector.HasBarcodeRegion);
+        }
+    }
+
+    private bool IsStartAllowed(StartBlockReason block, bool? running = null)
+    {
+        return !_operations.IsShuttingDown
+            && !(running ?? _state.IsRunning)
+            && block == StartBlockReason.None;
     }
 
     private StartBlockReason GetStartBlock(MotionReadiness motion, bool? bufferConflict = null)
@@ -69,28 +91,6 @@ public sealed partial class MachineController
                 || _units.NgConveyor && !_units.NgShuttle))
             return StartBlockReason.RepeatRouteUnavailable;
         return _units.HasEnabledUnit() ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
-    }
-
-    public bool TeachingReady
-    {
-        get
-        {
-            if ((_units.BoltFastening || _units.Inspection)
-                && _recipe.Pcb.BoltPoints.Count == 0)
-                return false;
-
-            if (_units.BoltFastening
-                && (!_carrierReference.IsDefined
-                    || _recipe.Pcb.GetBolts().Any(bolt =>
-                        bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))))
-            {
-                return false;
-            }
-
-            return !_units.Inspection
-                || _recipe.Pcb.GetBolts().All(_boltInspector.HasPosition)
-                    && Enum.GetValues<HeatSinkSlot>().All(_boltInspector.HasBarcodeRegion);
-        }
     }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)

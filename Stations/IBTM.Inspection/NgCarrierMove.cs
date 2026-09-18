@@ -53,88 +53,103 @@ public enum NgTransferState
 }
 
 // Automatic operation and dry run use the same physical transfer.
-public sealed class NgCarrierMove(
-    InspectionWork station,
-    NgShuttle shuttle,
-    NgCarrierTransfer pickup,
-    InspectionGantry gantry,
-    NgCarrierTransferSettings settings) : AutoUnit
+public sealed class NgCarrierMove : AutoUnit
 {
+    private readonly InspectionWork _work;
+    private readonly NgShuttle _shuttle;
+    private readonly NgCarrierTransfer _pickup;
+    private readonly InspectionGantry _gantry;
+    private readonly NgCarrierTransferSettings _settings;
+
+    public NgCarrierMove(
+        InspectionWork station,
+        NgShuttle shuttle,
+        NgCarrierTransfer pickup,
+        InspectionGantry gantry,
+        NgCarrierTransferSettings settings)
+    {
+        _work = station;
+        _shuttle = shuttle;
+        _pickup = pickup;
+        _gantry = gantry;
+        _settings = settings;
+    }
+
     public override event Action? Changed
     {
         add
         {
-            station.Changed += value;
-            shuttle.Changed += value;
-            pickup.Changed += value;
-            gantry.Feedback.StateChanged += value;
+            _work.Changed += value;
+            _shuttle.Changed += value;
+            _pickup.Changed += value;
+            _gantry.Feedback.StateChanged += value;
         }
 
         remove
         {
-            station.Changed -= value;
-            shuttle.Changed -= value;
-            pickup.Changed -= value;
-            gantry.Feedback.StateChanged -= value;
+            _work.Changed -= value;
+            _shuttle.Changed -= value;
+            _pickup.Changed -= value;
+            _gantry.Feedback.StateChanged -= value;
         }
     }
 
-    public bool CarrierPresent(NgTransferDestination location)
+    public bool IsCarrierPresent(NgTransferDestination location)
     {
         return location == NgTransferDestination.Station
-            ? station.CarrierPresent
-            : shuttle.Feedback.CarrierDetected;
+            ? _work.Station.CarrierPresent
+            : _shuttle.Feedback.CarrierDetected;
     }
 
-    public NgTransferState State(
+    public NgTransferState GetState(
         NgTransferDestination destination,
         bool canPickUp,
         bool canReceive = true,
         bool holdAtDestination = false,
         bool live = true)
     {
-        var source = Opposite(destination);
-        var destinationPosition = Position(destination);
-        var sourcePosition = Position(source);
-        var atDestination = destinationPosition is not null && gantry.IsAt(destinationPosition, live);
-        var atSource = sourcePosition is not null && gantry.IsAt(sourcePosition, live);
+        var source = GetOppositeDestination(destination);
+        var destinationPosition = GetTransferPosition(destination);
+        var sourcePosition = GetTransferPosition(source);
+        var atDestination = destinationPosition is not null && _gantry.IsAt(destinationPosition, live);
+        var atSource = sourcePosition is not null && _gantry.IsAt(sourcePosition, live);
         // Transfer-only repeat keeps the carrier gripped; the disabled shuttle is not a support.
         var holdAtShuttle = holdAtDestination && destination == NgTransferDestination.Shuttle;
-        var destinationPresent = !holdAtShuttle && CarrierPresent(destination);
-        var down = pickup.Lift == NgTransferLiftState.Down;
-        var open = pickup.Gripper == NgTransferGripperState.Open;
+        var destinationPresent = !holdAtShuttle && IsCarrierPresent(destination);
+        var down = _pickup.Lift == NgTransferLiftState.Down;
+        var open = _pickup.Gripper == NgTransferGripperState.Open;
         if (holdAtDestination && atDestination && down)
         {
-            if (!holdAtShuttle && !SupportReady(destination))
-                return SupportNotReady(destination);
-            if (pickup.Gripper != NgTransferGripperState.Closed)
+            if (!holdAtShuttle && !IsSupportReady(destination))
+                return GetSupportWaitingState(destination);
+            if (_pickup.Gripper != NgTransferGripperState.Closed)
                 return NgTransferState.Closing;
-            return pickup.CarrierDetected
+            return _pickup.CarrierDetected
                 ? NgTransferState.HoldingAtDestination
                 : NgTransferState.WaitingForGrip;
         }
 
         // Released carriers may still be visible to the pickup's presence sensor.
         if (!holdAtShuttle && atDestination && open && destinationPresent)
-            return pickup.IsRaised ? NgTransferState.Completed : NgTransferState.Raising;
+            return _pickup.IsRaised ? NgTransferState.Completed : NgTransferState.Raising;
         if (!holdAtShuttle
             && atDestination
             && open
-            && !pickup.IsRaised
-            && (pickup.CarrierDetected || !CarrierPresent(source)))
+            && !_pickup.IsRaised
+            && (_pickup.CarrierDetected || !IsCarrierPresent(source)))
             return NgTransferState.WaitingForPlacement;
         if (atDestination && down && destinationPresent)
-            return SupportReady(destination) ? NgTransferState.Opening : SupportNotReady(destination);
+            return IsSupportReady(destination) ? NgTransferState.Opening : GetSupportWaitingState(destination);
 
-        if (pickup.CarrierDetected)
+        if (_pickup.CarrierDetected)
         {
-            if (pickup.Gripper != NgTransferGripperState.Closed)
+            if (_pickup.Gripper != NgTransferGripperState.Closed)
                 return NgTransferState.Closing;
-            if (!atDestination && !pickup.IsRaised)
+            if (!atDestination && !_pickup.IsRaised)
                 return NgTransferState.Raising;
-            if (!holdAtShuttle && !SupportReady(destination))
-                return SupportNotReady(destination);
-            if (atDestination && !pickup.IsRaised)
+            if (!holdAtShuttle && !IsSupportReady(destination))
+                return GetSupportWaitingState(destination);
+            if (atDestination && !_pickup.IsRaised)
                 return down ? NgTransferState.Opening : NgTransferState.LoweringAtDestination;
             if (destinationPresent || !canReceive)
                 return NgTransferState.WaitingForDestination;
@@ -143,20 +158,20 @@ public sealed class NgCarrierMove(
                 : NgTransferState.MovingToDestination;
         }
 
-        if (atSource && down && pickup.Gripper == NgTransferGripperState.Closed)
+        if (atSource && down && _pickup.Gripper == NgTransferGripperState.Closed)
             return NgTransferState.WaitingForGrip;
-        if (!pickup.IsRaised && (!canPickUp || !atSource))
+        if (!_pickup.IsRaised && (!canPickUp || !atSource))
             return NgTransferState.Raising;
         if (!canPickUp)
             return open ? NgTransferState.Idle : NgTransferState.Opening;
-        if (!CarrierPresent(source))
+        if (!IsCarrierPresent(source))
             return NgTransferState.WaitingForCarrier;
         if (destinationPresent)
             return NgTransferState.WaitingForDestination;
-        if (!SupportReady(source))
-            return SupportNotReady(source);
-        if (!holdAtShuttle && !SupportReady(destination))
-            return SupportNotReady(destination);
+        if (!IsSupportReady(source))
+            return GetSupportWaitingState(source);
+        if (!holdAtShuttle && !IsSupportReady(destination))
+            return GetSupportWaitingState(destination);
         if (atSource)
             return down
                 ? NgTransferState.Closing
@@ -169,16 +184,16 @@ public sealed class NgCarrierMove(
         CancellationToken cancellationToken)
     {
         await RunLoopAsync(
-            token => ExecuteAsync(destination, State(destination, canPickUp: true), token)
+            token => ExecuteAsync(destination, GetState(destination, canPickUp: true), token)
                 ?? WaitForChangeAsync(token),
             cancellationToken,
-            () => State(destination, canPickUp: true) == NgTransferState.Completed);
+            () => GetState(destination, canPickUp: true) == NgTransferState.Completed);
         cancellationToken.ThrowIfCancellationRequested();
     }
 
     public async Task ReturnToStationAsync(CancellationToken cancellationToken)
     {
-        await station.Station.SeatAsync(cancellationToken);
+        await _work.Station.SeatAsync(cancellationToken);
         await RunToAsync(NgTransferDestination.Station, cancellationToken);
     }
 
@@ -186,16 +201,16 @@ public sealed class NgCarrierMove(
     {
         if (firstFov is null)
             return;
-        if (!station.CarrierPresent
-            || pickup.Gripper != NgTransferGripperState.Open
-            || !pickup.IsRaised)
+        if (!_work.Station.CarrierPresent
+            || _pickup.Gripper != NgTransferGripperState.Open
+            || !_pickup.IsRaised)
             throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the first FOV.");
 
-        var safeX = settings.PickupSafeX
+        var safeX = _settings.PickupSafeX
             ?? throw new InvalidOperationException("Teach NG Pickup Safe X before leaving Station 3.");
-        await gantry.MoveAxisAsync(MotionAxis.X, safeX, settings.Speed, cancellationToken);
-        await gantry.MoveAxisAsync(MotionAxis.Y, firstFov.Y, settings.Speed, cancellationToken);
-        await gantry.MoveAxisAsync(MotionAxis.X, firstFov.X, settings.Speed, cancellationToken);
+        await _gantry.MoveAxisAsync(MotionAxis.X, safeX, _settings.Speed, cancellationToken);
+        await _gantry.MoveAxisAsync(MotionAxis.Y, firstFov.Y, _settings.Speed, cancellationToken);
+        await _gantry.MoveAxisAsync(MotionAxis.X, firstFov.X, _settings.Speed, cancellationToken);
     }
 
     // Passive states issue no command; the caller waits or performs its other work.
@@ -204,32 +219,32 @@ public sealed class NgCarrierMove(
         NgTransferState state,
         CancellationToken cancellationToken)
     {
-        TraceStep(state, destination.ToString(), station.CurrentJob.Id);
+        TraceStep(state, destination.ToString(), _work.CurrentJob.Id);
         return state switch
         {
-            NgTransferState.Raising => pickup.SetLiftUpAsync(true, cancellationToken),
-            NgTransferState.Opening => pickup.SetGripperOpenAsync(true, cancellationToken),
-            NgTransferState.Closing => pickup.SetGripperOpenAsync(false, cancellationToken),
+            NgTransferState.Raising => _pickup.SetLiftUpAsync(true, cancellationToken),
+            NgTransferState.Opening => _pickup.SetGripperOpenAsync(true, cancellationToken),
+            NgTransferState.Closing => _pickup.SetGripperOpenAsync(false, cancellationToken),
             NgTransferState.LoweringToCarrier or NgTransferState.LoweringAtDestination
-                => pickup.SetLiftUpAsync(false, cancellationToken),
+                => _pickup.SetLiftUpAsync(false, cancellationToken),
             NgTransferState.MovingToCarrier
-                => MoveToCarrierAsync(Opposite(destination), cancellationToken),
+                => MoveToCarrierAsync(GetOppositeDestination(destination), cancellationToken),
             NgTransferState.MovingToDestination
-                => gantry.MoveToAsync(
-                    Position(destination)
+                => _gantry.MoveToAsync(
+                    GetTransferPosition(destination)
                         ?? throw new InvalidOperationException("Teach NG Pickup Safe X before returning to Station 3."),
-                    settings.Speed,
+                    _settings.Speed,
                     cancellationToken),
-            NgTransferState.WaitingForGrip => pickup.WaitForCarrierGripAsync(cancellationToken),
+            NgTransferState.WaitingForGrip => _pickup.WaitForCarrierGripAsync(cancellationToken),
             NgTransferState.WaitingForPlacement
                 => destination == NgTransferDestination.Shuttle
-                    ? shuttle.WaitForCarrierAsync(cancellationToken)
-                    : station.Station.WaitForCarrierAsync(cancellationToken),
+                    ? _shuttle.WaitForCarrierAsync(cancellationToken)
+                    : _work.Station.WaitForCarrierAsync(cancellationToken),
             _ => null,
         };
     }
 
-    private static NgTransferDestination Opposite(NgTransferDestination destination)
+    private static NgTransferDestination GetOppositeDestination(NgTransferDestination destination)
     {
         return destination == NgTransferDestination.Shuttle
             ? NgTransferDestination.Station
@@ -241,34 +256,34 @@ public sealed class NgCarrierMove(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var position = Position(source)
+        var position = GetTransferPosition(source)
             ?? throw new InvalidOperationException("Teach NG Pickup Safe X before moving to a carrier.");
-        if (gantry.IsAt(position))
+        if (_gantry.IsAt(position))
             return;
-        var safeX = settings.PickupSafeX
+        var safeX = _settings.PickupSafeX
             ?? throw new InvalidOperationException("Teach NG Pickup Safe X before moving to a carrier.");
-        await gantry.MoveAxisAsync(MotionAxis.X, safeX, settings.Speed, cancellationToken);
-        await gantry.MoveAxisAsync(MotionAxis.Y, position.Y, settings.Speed, cancellationToken);
+        await _gantry.MoveAxisAsync(MotionAxis.X, safeX, _settings.Speed, cancellationToken);
+        await _gantry.MoveAxisAsync(MotionAxis.Y, position.Y, _settings.Speed, cancellationToken);
         if (source == NgTransferDestination.Shuttle)
-            await gantry.MoveAxisAsync(MotionAxis.X, position.X, settings.Speed, cancellationToken);
+            await _gantry.MoveAxisAsync(MotionAxis.X, position.X, _settings.Speed, cancellationToken);
     }
 
-    private AxisPosition? Position(NgTransferDestination location)
+    private AxisPosition? GetTransferPosition(NgTransferDestination location)
     {
         return location == NgTransferDestination.Station
-            ? settings.GetCarrierPickupPosition()
-            : settings.ShuttlePlacePosition;
+            ? _settings.GetCarrierPickupPosition()
+            : _settings.ShuttlePlacePosition;
     }
 
-    private bool SupportReady(NgTransferDestination location)
+    private bool IsSupportReady(NgTransferDestination location)
     {
         return location == NgTransferDestination.Station
-            ? station.BackupPlate == StationCylinderState.Up
-                && station.Stopper == StationCylinderState.Down
-            : shuttle.Feedback.Lift == NgShuttleLiftState.Up;
+            ? _work.Station.BackupPlate == StationCylinderState.Up
+                && _work.Station.Stopper == StationCylinderState.Down
+            : _shuttle.Feedback.Lift == NgShuttleLiftState.Up;
     }
 
-    private static NgTransferState SupportNotReady(NgTransferDestination location)
+    private static NgTransferState GetSupportWaitingState(NgTransferDestination location)
     {
         return location == NgTransferDestination.Station
             ? NgTransferState.StationNotReady

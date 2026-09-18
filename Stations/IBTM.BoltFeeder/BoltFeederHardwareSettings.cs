@@ -4,14 +4,6 @@ namespace IBTM.BoltFeeder;
 
 public sealed class BoltFeederHardwareSettings : IoHardwareSettings
 {
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.BoltFeeder;
-        }
-    }
-
     public BoltFeederHardwareSettings()
     {
         Inputs = new()
@@ -21,7 +13,15 @@ public sealed class BoltFeederHardwareSettings : IoHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.ShootingFeederRunSignal] = Output(45),
+            [OutputIo.ShootingFeederRunSignal] = CreateOutput(45),
         };
+    }
+
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.BoltFeeder;
+        }
     }
 }

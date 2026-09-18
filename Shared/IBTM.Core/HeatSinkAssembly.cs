@@ -16,14 +16,23 @@ public enum AssemblyResult
     Ng,
 }
 
-public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
+public sealed class HeatSinkAssembly
 {
-    private readonly ConcurrentDictionary<int, BoltResult> _pcbBoltResults = new();
-    private readonly ConcurrentDictionary<int, BoltResult> _ipmSeatingResults = new();
-    private readonly ConcurrentDictionary<int, BoltResult> _ipmFinalResults = new();
-    private readonly ConcurrentDictionary<int, bool> _boltPresenceResults = new();
+    private readonly ConcurrentDictionary<int, BoltResult> _pcbBoltResults;
+    private readonly ConcurrentDictionary<int, BoltResult> _ipmSeatingResults;
+    private readonly ConcurrentDictionary<int, BoltResult> _ipmFinalResults;
+    private readonly ConcurrentDictionary<int, bool> _boltPresenceResults;
 
-    public HeatSinkSlot HeatSink { get; } = heatSink;
+    public HeatSinkAssembly(HeatSinkSlot heatSink)
+    {
+        _pcbBoltResults = new();
+        _ipmSeatingResults = new();
+        _ipmFinalResults = new();
+        _boltPresenceResults = new();
+        HeatSink = heatSink;
+    }
+
+    public HeatSinkSlot HeatSink { get; }
 
     public IReadOnlyDictionary<int, BoltResult> PcbBoltResults
     {
@@ -61,17 +70,17 @@ public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
     public AssemblyResult InspectionResult { get; private set; }
     public string? PcbBarcode { get; private set; }
 
-    public void RecordBarcode(string barcode)
-    {
-        PcbBarcode = barcode;
-    }
-
     public AssemblyResult Result
     {
         get
         {
             return FasteningResult == AssemblyResult.Ng ? AssemblyResult.Ng : InspectionResult;
         }
+    }
+
+    public void RecordBarcode(string barcode)
+    {
+        PcbBarcode = barcode;
     }
 
     public void RecordPcbBolt(int number, BoltResult result)

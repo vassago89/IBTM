@@ -23,7 +23,7 @@ public sealed class InspectionWork : StationWork
         NgCarrierTransferSettings transferSettings,
         Func<bool>? isEnabled = null,
         Func<bool>? isGantryEnabled = null,
-        Func<bool>? isConveyorEnabled = null) : base(ConveyorStation.Inspection(io), isEnabled)
+        Func<bool>? isConveyorEnabled = null) : base(ConveyorStation.CreateInspection(io), isEnabled)
     {
         _io = io;
         _transferFeedback = transferFeedback;
@@ -41,9 +41,9 @@ public sealed class InspectionWork : StationWork
     {
         get
         {
-            return CarrierPresent
-                && BackupPlate == StationCylinderState.Down
-                && Stopper == StationCylinderState.Up
+            return Station.CarrierPresent
+                && Station.BackupPlate == StationCylinderState.Down
+                && Station.Stopper == StationCylinderState.Up
                 && !_io.GetOutput(OutputIo.MainConveyorRun);
         }
     }
@@ -56,21 +56,6 @@ public sealed class InspectionWork : StationWork
         }
     }
 
-    public void RequestInspection(Job job)
-    {
-        RequireCurrentJob(job);
-        if (!AtInspectionPosition || !PickupClear)
-            throw new InvalidOperationException("Inspection requires a present carrier, plate DOWN, stopper UP, stopped belt and clear pickup.");
-        _inspectionRequestedJob = job;
-        NotifyChanged();
-    }
-
-    public void ClearInspectionRequest()
-    {
-        _inspectionRequestedJob = null;
-        NotifyChanged();
-    }
-
     public bool PickupClear
     {
         get
@@ -79,20 +64,11 @@ public sealed class InspectionWork : StationWork
         }
     }
 
-    public bool IsTransferAtWaitingPosition(bool live = true)
-    {
-        if (!(_isGantryEnabled?.Invoke() ?? Enabled))
-            return true;
-        return _transferFeedback.IsClear
-            && _transferSettings.GetCarrierPickupPosition() is { } position
-            && _gantry.IsAt(position, live);
-    }
-
     public override bool Completed
     {
         get
         {
-            return Enabled ? base.Completed : CarrierPresent;
+            return Enabled ? base.Completed : Station.CarrierPresent;
         }
     }
 
@@ -100,7 +76,7 @@ public sealed class InspectionWork : StationWork
     {
         get
         {
-            return CarrierPresent && Completed && (AtInspectionPosition || CarrierSeated);
+            return Station.CarrierPresent && Completed && (AtInspectionPosition || Station.CarrierSeated);
         }
     }
 
@@ -124,7 +100,7 @@ public sealed class InspectionWork : StationWork
     {
         get
         {
-            return CarrierPresent
+            return Station.CarrierPresent
                 && (base.HasNg
                     || Enabled && Completed
                         && !Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending));
@@ -135,7 +111,7 @@ public sealed class InspectionWork : StationWork
     {
         get
         {
-            if (!CarrierPresent)
+            if (!Station.CarrierPresent)
             {
                 return InspectionWorkState.WaitingForCarrier;
             }
@@ -157,6 +133,30 @@ public sealed class InspectionWork : StationWork
                 ? InspectionWorkState.WaitingForGantry
                 : InspectionWorkState.ReadyToInspect;
         }
+    }
+
+    public bool IsTransferAtWaitingPosition(bool live = true)
+    {
+        if (!(_isGantryEnabled?.Invoke() ?? Enabled))
+            return true;
+        return _transferFeedback.IsClear
+            && _transferSettings.GetCarrierPickupPosition() is { } position
+            && _gantry.IsAt(position, live);
+    }
+
+    public void RequestInspection(Job job)
+    {
+        RequireCurrentJob(job);
+        if (!AtInspectionPosition || !PickupClear)
+            throw new InvalidOperationException("Inspection requires a present carrier, plate DOWN, stopper UP, stopped belt and clear pickup.");
+        _inspectionRequestedJob = job;
+        NotifyChanged();
+    }
+
+    public void ClearInspectionRequest()
+    {
+        _inspectionRequestedJob = null;
+        NotifyChanged();
     }
 
     private void OnOutputChanged(OutputIo output, bool _)

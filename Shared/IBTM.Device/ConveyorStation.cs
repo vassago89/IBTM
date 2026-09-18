@@ -58,7 +58,43 @@ public sealed class ConveyorStation
     public event Action? Changed;
     public event Action<bool>? CarrierChanged;
 
-    public static ConveyorStation PcbPlacement(IIoService io)
+    public bool CarrierPresent
+    {
+        get
+        {
+            var present = _io.GetInput(_heatSink1) || _io.GetInput(_heatSink2);
+            _lastNotifiedPresence ??= present;
+            return present;
+        }
+    }
+
+    public StationCylinderState BackupPlate
+    {
+        get
+        {
+            return GetCylinderState(_backupPlateUp, _backupPlateDown);
+        }
+    }
+
+    public StationCylinderState Stopper
+    {
+        get
+        {
+            return GetCylinderState(_stopperUp, _stopperDown);
+        }
+    }
+
+    public bool CarrierSeated
+    {
+        get
+        {
+            return CarrierPresent
+                && BackupPlate == StationCylinderState.Up
+                && Stopper == StationCylinderState.Down;
+        }
+    }
+
+    public static ConveyorStation CreatePcbPlacement(IIoService io)
     {
         return new(
             io,
@@ -72,7 +108,7 @@ public sealed class ConveyorStation
             OutputIo.PcbPlacementStopperUp);
     }
 
-    public static ConveyorStation BoltFastening(IIoService io)
+    public static ConveyorStation CreateBoltFastening(IIoService io)
     {
         return new(
             io,
@@ -86,7 +122,7 @@ public sealed class ConveyorStation
             OutputIo.BoltFasteningStopperUp);
     }
 
-    public static ConveyorStation Inspection(IIoService io)
+    public static ConveyorStation CreateInspection(IIoService io)
     {
         return new(
             io,
@@ -100,48 +136,22 @@ public sealed class ConveyorStation
             OutputIo.InspectionStopperUp);
     }
 
-    public bool CarrierPresent
-    {
-        get
-        {
-            var present = _io.GetInput(_heatSink1) || _io.GetInput(_heatSink2);
-            _lastNotifiedPresence ??= present;
-            return present;
-        }
-    }
-
     public IoStatus CreateIoStatus(HardwareArea area, IoSignals io)
     {
         return io.Select(
             area,
             [
-            _backupPlateUp,
-            _backupPlateDown,
-            _stopperUp,
-            _stopperDown,
-            _heatSink1,
-            _heatSink2
-        ],
+                _backupPlateUp,
+                _backupPlateDown,
+                _stopperUp,
+                _stopperDown,
+                _heatSink1,
+                _heatSink2,
+            ],
             [_backupPlate, _stopper]);
     }
 
-    public StationCylinderState BackupPlate
-    {
-        get
-        {
-            return CylinderState(_backupPlateUp, _backupPlateDown);
-        }
-    }
-
-    public StationCylinderState Stopper
-    {
-        get
-        {
-            return CylinderState(_stopperUp, _stopperDown);
-        }
-    }
-
-    internal bool HeatSinkPresent(HeatSinkSlot heatSink)
+    public bool IsHeatSinkPresent(HeatSinkSlot heatSink)
     {
         return _io.GetInput(heatSink == HeatSinkSlot.HeatSink1 ? _heatSink1 : _heatSink2);
     }
@@ -203,7 +213,7 @@ public sealed class ConveyorStation
         }
     }
 
-    private StationCylinderState CylinderState(InputIo up, InputIo down)
+    private StationCylinderState GetCylinderState(InputIo up, InputIo down)
     {
         return (_io.GetInput(up), _io.GetInput(down)) switch
         {

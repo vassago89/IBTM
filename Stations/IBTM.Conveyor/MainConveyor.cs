@@ -17,9 +17,6 @@ public sealed partial class MainConveyor : AutoUnit
     private readonly StationWork _placementWork;
     private readonly StationWork _boltFasteningWork;
     private readonly InspectionWork _inspectionWork;
-    private readonly ConveyorStation _placement;
-    private readonly ConveyorStation _boltFastening;
-    private readonly ConveyorStation _inspection;
     private readonly Func<bool> _routeInspectionToNg;
     private OperationCancellation.Operation? _runCancellation;
     // The command currently being awaited, not a physical position or a resumable phase.
@@ -44,9 +41,6 @@ public sealed partial class MainConveyor : AutoUnit
         _placementWork = placementWork;
         _boltFasteningWork = boltFasteningWork;
         _inspectionWork = inspectionWork;
-        _placement = placementWork.Station;
-        _boltFastening = boltFasteningWork.Station;
-        _inspection = inspectionWork.Station;
         _routeInspectionToNg = routeInspectionToNg;
         io.InputChanged += OnInputChanged;
         placementWork.Changed += NotifyChanged;
@@ -55,6 +49,14 @@ public sealed partial class MainConveyor : AutoUnit
     }
 
     public override event Action? Changed;
+
+    public MainConveyorState State
+    {
+        get
+        {
+            return GetState(RunCommandOn);
+        }
+    }
 
     public bool UpstreamCarrierAvailable
     {
@@ -138,9 +140,9 @@ public sealed partial class MainConveyor : AutoUnit
         get
         {
             return (EntryCarrierDetected ? 1 : 0)
-                + (_placement.CarrierPresent ? 1 : 0)
-                + (_boltFastening.CarrierPresent ? 1 : 0)
-                + (_inspection.CarrierPresent ? 1 : 0)
+                + (_placementWork.Station.CarrierPresent ? 1 : 0)
+                + (_boltFasteningWork.Station.CarrierPresent ? 1 : 0)
+                + (_inspectionWork.Station.CarrierPresent ? 1 : 0)
                 + (ExitCarrierDetected ? 1 : 0);
         }
     }

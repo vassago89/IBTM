@@ -32,6 +32,9 @@ public sealed record MotionDiagnosticSnapshot(AxisState? State, double? Position
 public sealed class MotionDiagnostics : INotifyPropertyChanged
 {
     private MotionDiagnosticSnapshot _snapshot = new(null, null, null);
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public MotionDiagnosticSnapshot Snapshot
     {
         get
@@ -39,8 +42,6 @@ public sealed class MotionDiagnostics : INotifyPropertyChanged
             return System.Threading.Volatile.Read(ref _snapshot);
         }
     }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     internal void Invalidate(Exception error)
     {
@@ -50,10 +51,7 @@ public sealed class MotionDiagnostics : INotifyPropertyChanged
     private void Update(MotionDiagnosticSnapshot snapshot)
     {
         var previous = Snapshot;
-        if (previous.State == snapshot.State
-            && previous.Position == snapshot.Position
-            && previous.ReadError?.GetType() == snapshot.ReadError?.GetType()
-            && previous.ReadError?.Message == snapshot.ReadError?.Message)
+        if (previous == snapshot)
             return;
         System.Threading.Volatile.Write(ref _snapshot, snapshot);
         PropertyChanged?.Invoke(this, new(nameof(Snapshot)));

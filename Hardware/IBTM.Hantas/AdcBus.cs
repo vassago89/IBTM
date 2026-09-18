@@ -9,12 +9,21 @@ using IBTM.Device;
 
 namespace IBTM.Hantas;
 
-public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
+public sealed class AdcBus : IAdcBus, IDisposable
 {
+    private readonly HantasSettings _settings;
     private const byte ExceptionFunctionMask = 0x80;
 
-    private readonly SemaphoreSlim _exchange = new(1, 1);
+    private readonly SemaphoreSlim _exchange;
     private SerialPort? _port;
+
+    public AdcBus(HantasSettings settings)
+    {
+        _settings = settings;
+        _exchange = new(1, 1);
+    }
+
+    public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
     public bool IsOpen
     {
@@ -40,8 +49,6 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
     }
 
-    public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
-
     public string[] GetPortNames()
     {
         return SerialPort.GetPortNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -59,8 +66,8 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         _port = new SerialPort(portName, baudRate, Parity.None, dataBits: 8, StopBits.One)
         {
             Handshake = Handshake.None,
-            ReadTimeout = settings.ResponseTimeoutMilliseconds,
-            WriteTimeout = settings.ResponseTimeoutMilliseconds,
+            ReadTimeout = _settings.ResponseTimeoutMilliseconds,
+            WriteTimeout = _settings.ResponseTimeoutMilliseconds,
         };
         try
         {
@@ -200,7 +207,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
             await Task.Delay(frameGapMilliseconds, cancellationToken);
             port.DiscardInBuffer();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(settings.ResponseTimeoutMilliseconds);
+            timeout.CancelAfter(_settings.ResponseTimeoutMilliseconds);
 
             byte[] response;
             try
@@ -232,7 +239,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 throw new TimeoutException(
-                    $"ADC {slaveAddress} response timed out after {settings.ResponseTimeoutMilliseconds} ms.");
+                    $"ADC {slaveAddress} response timed out after {_settings.ResponseTimeoutMilliseconds} ms.");
             }
 
             return response;

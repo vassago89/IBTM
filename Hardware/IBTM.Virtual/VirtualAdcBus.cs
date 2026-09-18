@@ -15,6 +15,9 @@ public sealed class VirtualAdcBus : IAdcBus
     private const int FasteningMilliseconds = 250;
 
     private readonly ConcurrentDictionary<byte, Controller> _controllers = [];
+
+    public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
+
     public bool IsOpen { get; private set; }
 
     public string PortName
@@ -26,8 +29,6 @@ public sealed class VirtualAdcBus : IAdcBus
     }
 
     public int BaudRate { get; private set; }
-
-    public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
     public void SetNextFasteningResult(byte slaveAddress, AdcEventStatus status)
     {

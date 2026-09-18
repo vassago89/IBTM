@@ -35,8 +35,6 @@ public sealed class ApplicationLog : IDisposable, INotifyPropertyChanged
     private long _sequence;
     private string? _fileError;
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
     public ApplicationLog(string? filePath = null)
     {
         Entries = new ReadOnlyObservableCollection<LogEntry>(_entries);
@@ -47,6 +45,8 @@ public sealed class ApplicationLog : IDisposable, INotifyPropertyChanged
             new UnboundedChannelOptions { SingleReader = true, AllowSynchronousContinuations = false, });
         _fileWriter = Task.Run(WriteFileAsync);
     }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     public string? FilePath { get; }
 

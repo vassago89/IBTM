@@ -210,6 +210,14 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    public bool CanEditSettings
+    {
+        get
+        {
+            return _state.SetupEditingEnabled && !SaveSettingsCommand.IsRunning;
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task SaveSettingsAsync()
     {
@@ -232,14 +240,6 @@ public partial class SettingsViewModel : ObservableObject
         {
             Trace.TraceError("Machine settings save failed. {0}", exception);
             DatabaseMessage = $"Settings not saved: {exception.GetBaseException().Message}";
-        }
-    }
-
-    public bool CanEditSettings
-    {
-        get
-        {
-            return _state.SetupEditingEnabled && !SaveSettingsCommand.IsRunning;
         }
     }
 

@@ -7,10 +7,16 @@ using IBTM.Core;
 
 namespace IBTM.Device;
 
-public sealed class OutputFeedback(InputIo onInput, InputIo? offInput = null)
+public sealed class OutputFeedback
 {
-    public InputIo OnInput { get; } = onInput;
-    public InputIo? OffInput { get; } = offInput;
+    public OutputFeedback(InputIo onInput, InputIo? offInput = null)
+    {
+        OnInput = onInput;
+        OffInput = offInput;
+    }
+
+    public InputIo OnInput { get; }
+    public InputIo? OffInput { get; }
 }
 
 public sealed class OutputHardware
@@ -38,6 +44,7 @@ public sealed class AxisHardware
 
     public int Number { get; set; }
     public HomeDirection HomeDirection { get; set; } = HomeDirection.Negative;
+
     public double MoveUnit
     {
         get
@@ -65,7 +72,6 @@ public sealed class AxisHardware
             _movePulse = value;
         }
     }
-
 }
 
 public abstract class HardwareSettings : Setting
@@ -114,7 +120,7 @@ public abstract class IoHardwareSettings : InputHardwareSettings
         }
     }
 
-    protected static OutputHardware Output(int number)
+    protected static OutputHardware CreateOutput(int number)
     {
         return new()
         {
@@ -122,7 +128,7 @@ public abstract class IoHardwareSettings : InputHardwareSettings
         };
     }
 
-    protected static OutputHardware Output(int number, InputIo onInput, InputIo? offInput = null)
+    protected static OutputHardware CreateOutput(int number, InputIo onInput, InputIo? offInput = null)
     {
         return new()
         {
@@ -131,7 +137,7 @@ public abstract class IoHardwareSettings : InputHardwareSettings
         };
     }
 
-    protected static OutputHardware Output(int number, int offNumber, InputIo onInput, InputIo offInput)
+    protected static OutputHardware CreateOutput(int number, int offNumber, InputIo onInput, InputIo offInput)
     {
         return new()
         {
@@ -142,20 +148,27 @@ public abstract class IoHardwareSettings : InputHardwareSettings
     }
 }
 
-public abstract class MotionHardwareSettings(
-    MotionGroup group,
-    params (MotionAxis Axis, MachineAxis Signal, int Number)[] axes) : IoHardwareSettings
+public abstract class MotionHardwareSettings : IoHardwareSettings
 {
-    [JsonIgnore]
-    public MotionGroup Group { get; } = group;
+    protected MotionHardwareSettings(
+        MotionGroup group,
+        params (MotionAxis Axis, MachineAxis Signal, int Number)[] axes)
+    {
+        Group = group;
+        AxisSignals = axes.ToDictionary(
+            axis => axis.Axis,
+            axis => axis.Signal);
+        Axes = axes.ToDictionary(
+            axis => axis.Signal,
+            axis => new AxisHardware { Number = axis.Number });
+    }
 
     [JsonIgnore]
-    public IReadOnlyDictionary<MotionAxis, MachineAxis> AxisSignals { get; } = axes.ToDictionary(
-        axis => axis.Axis,
-        axis => axis.Signal);
-    public Dictionary<MachineAxis, AxisHardware> Axes { get; set; } = axes.ToDictionary(
-        axis => axis.Signal,
-        axis => new AxisHardware { Number = axis.Number });
+    public MotionGroup Group { get; }
+    [JsonIgnore]
+    public IReadOnlyDictionary<MotionAxis, MachineAxis> AxisSignals { get; }
+    public Dictionary<MachineAxis, AxisHardware> Axes { get; set; }
+
     public AxisHardware? GetAxis(MotionAxis axis)
     {
         return AxisSignals.TryGetValue(axis, out var signal) ? Axes[signal] : null;

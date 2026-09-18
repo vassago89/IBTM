@@ -4,14 +4,6 @@ namespace IBTM.Inspection;
 
 public sealed class NgCarrierTransferHardwareSettings : IoHardwareSettings
 {
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.NgCarrierTransfer;
-        }
-    }
-
     public NgCarrierTransferHardwareSettings()
     {
         Inputs = new()
@@ -24,16 +16,24 @@ public sealed class NgCarrierTransferHardwareSettings : IoHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.NgCarrierPickupDown] = Output(
+            [OutputIo.NgCarrierPickupDown] = CreateOutput(
                 64,
                 65,
                 InputIo.NgCarrierPickupDown,
                 InputIo.NgCarrierPickupUp),
-            [OutputIo.NgCarrierGripperClose] = Output(
+            [OutputIo.NgCarrierGripperClose] = CreateOutput(
                 66,
                 67,
                 InputIo.NgCarrierGripperClosed,
                 InputIo.NgCarrierGripperOpen),
         };
+    }
+
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.NgCarrierTransfer;
+        }
     }
 }

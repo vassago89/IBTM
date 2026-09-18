@@ -8,15 +8,15 @@ using IBTM.PcbSupply;
 
 namespace IBTM.UI;
 
-public sealed class MachineMap(
-    Recipe recipe,
-    PcbSupplySettings supply,
-    PcbPlacementHandlerSettings placement,
-    BoltFasteningSettings fastening,
-    CarrierReferenceSettings carrier,
-    InspectionGantrySettings inspection,
-    NgCarrierTransferSettings transfer)
+public sealed class MachineMap
 {
+    private readonly Recipe _recipe;
+    private readonly PcbSupplySettings _supply;
+    private readonly PcbPlacementHandlerSettings _placement;
+    private readonly BoltFasteningSettings _fastening;
+    private readonly CarrierReferenceSettings _carrier;
+    private readonly InspectionGantrySettings _inspection;
+    private readonly NgCarrierTransferSettings _transfer;
     private static readonly (double X, double Y) SupplyPcb1 = MachinePlan.Offset(
         MachinePlan.SupplyPcb1Center,
         MachinePlan.SupplyToolCenter);
@@ -48,18 +48,36 @@ public sealed class MachineMap(
         -MachinePlan.PickupFeederWidth / 2,
         -MachinePlan.PickupFeederHeight / 2);
 
+    public MachineMap(
+        Recipe recipe,
+        PcbSupplySettings supply,
+        PcbPlacementHandlerSettings placement,
+        BoltFasteningSettings fastening,
+        CarrierReferenceSettings carrier,
+        InspectionGantrySettings inspection,
+        NgCarrierTransferSettings transfer)
+    {
+        _recipe = recipe;
+        _supply = supply;
+        _placement = placement;
+        _fastening = fastening;
+        _carrier = carrier;
+        _inspection = inspection;
+        _transfer = transfer;
+    }
+
     public bool SupplyDefined
     {
         get
         {
-            return MachinePlan.Side(
-                (supply.BufferHandoffPosition.X, supply.BufferHandoffPosition.Y),
+            return MachinePlan.GetSide(
+                (_supply.BufferHandoffPosition.X, _supply.BufferHandoffPosition.Y),
                 (
-                    recipe.PcbSupply.Pcb1PickPosition.X,
-                    supply.CarrierY),
+                    _recipe.PcbSupply.Pcb1PickPosition.X,
+                    _supply.CarrierY),
                 (
-                    recipe.PcbSupply.Pcb2PickPosition.X,
-                    supply.CarrierY)) != 0;
+                    _recipe.PcbSupply.Pcb2PickPosition.X,
+                    _supply.CarrierY)) != 0;
         }
     }
 
@@ -67,16 +85,16 @@ public sealed class MachineMap(
     {
         get
         {
-            return MachinePlan.Side(
+            return MachinePlan.GetSide(
                 (
-                    placement.BufferHandoffPosition.X,
-                    placement.BufferHandoffPosition.Y),
+                    _placement.BufferHandoffPosition.X,
+                    _placement.BufferHandoffPosition.Y),
                 (
-                    recipe.PcbPlacement.HeatSink1PcbPlacementPosition.X,
-                    recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
+                    _recipe.PcbPlacement.HeatSink1PcbPlacementPosition.X,
+                    _recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
                 (
-                    recipe.PcbPlacement.HeatSink2PcbPlacementPosition.X,
-                    recipe.PcbPlacement.HeatSink2PcbPlacementPosition.Y)) != 0;
+                    _recipe.PcbPlacement.HeatSink2PcbPlacementPosition.X,
+                    _recipe.PcbPlacement.HeatSink2PcbPlacementPosition.Y)) != 0;
         }
     }
 
@@ -84,8 +102,16 @@ public sealed class MachineMap(
     {
         get
         {
-            return carrier.IsDefined
-                && (HasPins(fastening.ShootingHead) || HasPins(fastening.PickupHead));
+            return _carrier.IsDefined
+                && (HasPins(_fastening.ShootingHead) || HasPins(_fastening.PickupHead));
+        }
+    }
+
+    public bool InspectionDefined
+    {
+        get
+        {
+            return _carrier.IsDefined;
         }
     }
 
@@ -94,15 +120,7 @@ public sealed class MachineMap(
         return CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin);
     }
 
-    public bool InspectionDefined
-    {
-        get
-        {
-            return carrier.IsDefined;
-        }
-    }
-
-    public (double X, double Y)? Supply(MotionPosition current)
+    public (double X, double Y)? GetSupplyPosition(MotionPosition current)
     {
         if (current is not { X: { } x, Y: { } y })
             return null;
@@ -110,20 +128,20 @@ public sealed class MachineMap(
             x,
             y,
             (
-                recipe.PcbSupply.Pcb1PickPosition.X,
-                supply.CarrierY),
+                _recipe.PcbSupply.Pcb1PickPosition.X,
+                _supply.CarrierY),
             (
-                recipe.PcbSupply.Pcb2PickPosition.X,
-                supply.CarrierY),
+                _recipe.PcbSupply.Pcb2PickPosition.X,
+                _supply.CarrierY),
             (
-                supply.BufferHandoffPosition.X,
-                supply.BufferHandoffPosition.Y),
+                _supply.BufferHandoffPosition.X,
+                _supply.BufferHandoffPosition.Y),
             SupplyPcb1,
             SupplyPcb2,
             SupplyBuffer);
     }
 
-    public (double X, double Y)? Placement(MotionPosition current)
+    public (double X, double Y)? GetPlacementPosition(MotionPosition current)
     {
         if (current is not { X: { } x, Y: { } y })
             return null;
@@ -131,36 +149,36 @@ public sealed class MachineMap(
             x,
             y,
             (
-                placement.BufferHandoffPosition.X,
-                placement.BufferHandoffPosition.Y),
+                _placement.BufferHandoffPosition.X,
+                _placement.BufferHandoffPosition.Y),
             (
-                recipe.PcbPlacement.HeatSink1PcbPlacementPosition.X,
-                recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
+                _recipe.PcbPlacement.HeatSink1PcbPlacementPosition.X,
+                _recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
             (
-                recipe.PcbPlacement.HeatSink2PcbPlacementPosition.X,
-                recipe.PcbPlacement.HeatSink2PcbPlacementPosition.Y),
+                _recipe.PcbPlacement.HeatSink2PcbPlacementPosition.X,
+                _recipe.PcbPlacement.HeatSink2PcbPlacementPosition.Y),
             PlacementBuffer,
             PlacementHeatSink1,
             PlacementHeatSink2);
     }
 
-    public (double X, double Y)? Fastening(MotionPosition current)
+    public (double X, double Y)? GetFasteningPosition(MotionPosition current)
     {
         return current is { X: { } x, Y: { } y } ? MapFastening(x, y) : null;
     }
 
-    public (double X, double Y) PickupFeeder()
+    public (double X, double Y) GetPickupFeederPosition()
     {
-        var point = fastening.PickupPosition;
+        var point = _fastening.PickupPosition;
         var mapped = MapFastening(point.X, point.Y);
         return (
             mapped.X + MachinePlan.PickupToolCenter.X + PickupFeederOffset.X,
             mapped.Y + MachinePlan.PickupToolCenter.Y + PickupFeederOffset.Y);
     }
 
-    public (double X, double Y) FasteningTarget(BoltTarget bolt)
+    public (double X, double Y) GetFasteningTargetPosition(BoltTarget bolt)
     {
-        var target = fastening.GetBoltPosition(bolt, carrier);
+        var target = _fastening.GetBoltPosition(bolt, _carrier);
         var mapped = MapFastening(target.X, target.Y);
         var tool = bolt.Head == FasteningHead.Pickup
             ? MachinePlan.PickupToolCenter
@@ -170,14 +188,14 @@ public sealed class MachineMap(
             mapped.Y + tool.Y - MachinePlan.FasteningContentOrigin.Y);
     }
 
-    public (double X, double Y)? Inspection(MotionPosition current)
+    public (double X, double Y)? GetInspectionPosition(MotionPosition current)
     {
         return current is { X: { } x, Y: { } y } ? MapInspection(x, y) : null;
     }
 
-    public (double X, double Y) InspectionTarget(BoltTarget bolt)
+    public (double X, double Y) GetInspectionTargetPosition(BoltTarget bolt)
     {
-        var target = inspection.GetBoltPosition(bolt, carrier);
+        var target = _inspection.GetBoltPosition(bolt, _carrier);
         var mapped = MapInspection(target.X, target.Y);
         return (
             mapped.X + MachinePlan.CameraCenter.X - MachinePlan.InspectionContentOrigin.X,
@@ -189,10 +207,10 @@ public sealed class MachineMap(
         if (!FasteningDefined)
             return default;
 
-        if (fastening.ShootingHead.UpperLeftLocatingPin is { } first
-            && fastening.ShootingHead.LowerRightLocatingPin is { } second
-            && fastening.PickupHead.UpperLeftLocatingPin is { } pickup
-            && MachinePlan.Side((pickup.X, pickup.Y), (first.X, first.Y), (second.X, second.Y)) != 0)
+        if (_fastening.ShootingHead.UpperLeftLocatingPin is { } first
+            && _fastening.ShootingHead.LowerRightLocatingPin is { } second
+            && _fastening.PickupHead.UpperLeftLocatingPin is { } pickup
+            && MachinePlan.GetSide((pickup.X, pickup.Y), (first.X, first.Y), (second.X, second.Y)) != 0)
         {
             return FromThreePoints(
                 x,
@@ -205,8 +223,8 @@ public sealed class MachineMap(
                 PickupUpperLeft);
         }
 
-        var shooting = HasPins(fastening.ShootingHead);
-        var head = shooting ? fastening.ShootingHead : fastening.PickupHead;
+        var shooting = HasPins(_fastening.ShootingHead);
+        var head = shooting ? _fastening.ShootingHead : _fastening.PickupHead;
         var tool = shooting ? MachinePlan.ShootingToolCenter : MachinePlan.PickupToolCenter;
         return FromTwoPoints(
             x,
@@ -223,14 +241,14 @@ public sealed class MachineMap(
     {
         if (!InspectionDefined)
             return default;
-        var upperLeft = carrier.UpperLeftLocatingPin!;
-        var lowerRight = carrier.LowerRightLocatingPin!;
+        var upperLeft = _carrier.UpperLeftLocatingPin!;
+        var lowerRight = _carrier.LowerRightLocatingPin!;
         var first = (upperLeft.X, upperLeft.Y);
         var second = (lowerRight.X, lowerRight.Y);
-        var pickup = transfer.GetCarrierPickupPosition();
-        var shuttle = transfer.ShuttlePlacePosition;
-        var pickupSide = pickup is null ? 0 : MachinePlan.Side((pickup.X, pickup.Y), first, second);
-        var shuttleSide = MachinePlan.Side((shuttle.X, shuttle.Y), first, second);
+        var pickup = _transfer.GetCarrierPickupPosition();
+        var shuttle = _transfer.ShuttlePlacePosition;
+        var pickupSide = pickup is null ? 0 : MachinePlan.GetSide((pickup.X, pickup.Y), first, second);
+        var shuttleSide = MachinePlan.GetSide((shuttle.X, shuttle.Y), first, second);
         var cameraUpperLeft = MachinePlan.Offset(
             MachinePlan.InspectionUpperLeft,
             MachinePlan.CameraCenter);
@@ -240,7 +258,7 @@ public sealed class MachineMap(
 
         if (pickup is not null && pickupSide * shuttleSide < 0)
         {
-            var towardPickup = MachinePlan.Side((x, y), first, second) * pickupSide >= 0;
+            var towardPickup = MachinePlan.GetSide((x, y), first, second) * pickupSide >= 0;
             return FromThreePoints(
                 x,
                 y,
@@ -293,12 +311,12 @@ public sealed class MachineMap(
         (double X, double Y) target2,
         (double X, double Y) target3)
     {
-        var area = MachinePlan.Side(source1, source2, source3);
+        var area = MachinePlan.GetSide(source1, source2, source3);
         if (area == 0)
             return default;
 
-        var first = MachinePlan.Side((x, y), source2, source3) / area;
-        var second = MachinePlan.Side((x, y), source3, source1) / area;
+        var first = MachinePlan.GetSide((x, y), source2, source3) / area;
+        var second = MachinePlan.GetSide((x, y), source3, source1) / area;
         var third = 1 - first - second;
         return (
             (first * target1.X) + (second * target2.X) + (third * target3.X),

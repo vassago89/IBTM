@@ -108,6 +108,7 @@
                                     Visibility="Collapsed"/>
                             </StackPanel>
                             <TextBlock Grid.Column="2"
+                                Tag="{Binding Io.IsOn}"
                                 Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
                                 Style="{StaticResource IoInputStateStyle}"/>
                             <Button Grid.Column="3" Content="Toggle" Style="{StaticResource IoToggleButtonStyle}"

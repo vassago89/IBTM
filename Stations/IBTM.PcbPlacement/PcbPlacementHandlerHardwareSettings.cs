@@ -5,14 +5,6 @@ namespace IBTM.PcbPlacement;
 
 public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
 {
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.PcbPlacementHandler;
-        }
-    }
-
     public PcbPlacementHandlerHardwareSettings() : base(
         MotionGroup.PcbPlacementHandler,
         (
@@ -43,27 +35,35 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.PcbPlacementHandlerDown] = Output(
+            [OutputIo.PcbPlacementHandlerDown] = CreateOutput(
                 28,
                 29,
                 InputIo.PcbPlacementHandlerDown,
                 InputIo.PcbPlacementHandlerUp),
-            [OutputIo.PcbPlacementHandlerRotate] = Output(
+            [OutputIo.PcbPlacementHandlerRotate] = CreateOutput(
                 30,
                 31,
                 InputIo.PcbPlacementHandlerRotated,
                 InputIo.PcbPlacementHandlerUnrotated),
-            [OutputIo.PcbPlacementIpmDown] = Output(
+            [OutputIo.PcbPlacementIpmDown] = CreateOutput(
                 32,
                 33,
                 InputIo.PcbPlacementIpmDown,
                 InputIo.PcbPlacementIpmUp),
-            [OutputIo.PcbPlacementIpmGripperClose] = Output(
+            [OutputIo.PcbPlacementIpmGripperClose] = CreateOutput(
                 34,
                 35,
                 InputIo.PcbPlacementIpmGripperClosed,
                 InputIo.PcbPlacementIpmGripperOpen),
-            [OutputIo.PcbPlacementVacuumEjector] = Output(36),
+            [OutputIo.PcbPlacementVacuumEjector] = CreateOutput(36),
         };
+    }
+
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.PcbPlacementHandler;
+        }
     }
 }

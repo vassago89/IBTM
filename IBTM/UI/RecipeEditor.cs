@@ -9,29 +9,47 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public partial class RecipeEditor(
-    RecipeStore store,
-    RecipeSelectionSettings selection,
-    Recipe recipe,
-    OperationCancellation operations) : ObservableObject
+public partial class RecipeEditor : ObservableObject
 {
-    private string _imageRecipeName = recipe.Name;
+    private readonly RecipeStore _store;
+    private readonly RecipeSelectionSettings _selection;
+    private readonly Recipe _recipe;
+    private readonly OperationCancellation _operations;
+    private string _imageRecipeName;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSave))]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    private string _name = recipe.Name;
+    private string _name;
 
     [ObservableProperty]
     private string? _error;
 
     [ObservableProperty]
-    private IReadOnlyList<string> _recipes = store.GetRecipeNames();
+    private IReadOnlyList<string> _recipes;
+
+    public RecipeEditor(
+        RecipeStore store,
+        RecipeSelectionSettings selection,
+        Recipe recipe,
+        OperationCancellation operations)
+    {
+        _store = store;
+        _selection = selection;
+        _recipe = recipe;
+        _operations = operations;
+        _imageRecipeName = _recipe.Name;
+        _name = _recipe.Name;
+        _recipes = _store.GetRecipeNames();
+    }
+
+    public event Action? Changed;
+
     public Recipe Recipe
     {
         get
         {
-            return recipe;
+            return _recipe;
         }
     }
 
@@ -39,7 +57,7 @@ public partial class RecipeEditor(
     {
         get
         {
-            return recipe.Name;
+            return _recipe.Name;
         }
     }
 
@@ -51,12 +69,10 @@ public partial class RecipeEditor(
         }
     }
 
-    public event Action? Changed;
-
     public void Refresh()
     {
-        Name = recipe.Name;
-        Recipes = store.GetRecipeNames();
+        Name = _recipe.Name;
+        Recipes = _store.GetRecipeNames();
     }
 
     public Task ShutdownAsync()
@@ -73,9 +89,9 @@ public partial class RecipeEditor(
         var name = Name.Trim();
         try
         {
-            using var operation = operations.Link(cancellationToken);
-            await store.SaveRecipeAsync(
-                recipe,
+            using var operation = _operations.Link(cancellationToken);
+            await _store.SaveRecipeAsync(
+                _recipe,
                 name,
                 _imageRecipeName,
                 new RecipeSelectionSettings { LastRecipeName = name },
@@ -97,19 +113,19 @@ public partial class RecipeEditor(
         Error = null;
         try
         {
-            using var operation = operations.Link();
-            var loaded = await store.LoadRecipeAsync(recipeName, operation.Token);
+            using var operation = _operations.Link();
+            var loaded = await _store.LoadRecipeAsync(recipeName, operation.Token);
             await Task.Run(
-                () => store.Database.SaveSettings(
+                () => _store.Database.SaveSettings(
                     [new RecipeSelectionSettings { LastRecipeName = loaded.Name }],
                     operation.Token),
                 operation.Token);
 
             // Once selection is committed, apply it even if cancellation arrives afterward.
-            recipe.ReplaceWith(loaded);
-            _imageRecipeName = recipe.Name;
-            selection.LastRecipeName = recipe.Name;
-            Name = recipe.Name;
+            _recipe.ReplaceWith(loaded);
+            _imageRecipeName = _recipe.Name;
+            _selection.LastRecipeName = _recipe.Name;
+            Name = _recipe.Name;
             OnPropertyChanged(nameof(ActiveName));
             Changed?.Invoke();
         }
@@ -126,18 +142,18 @@ public partial class RecipeEditor(
     private void New()
     {
         Error = null;
-        recipe.ReplaceWith(new Recipe { Name = "New" });
-        _imageRecipeName = recipe.Name;
-        Name = recipe.Name;
+        _recipe.ReplaceWith(new Recipe { Name = "New" });
+        _imageRecipeName = _recipe.Name;
+        Name = _recipe.Name;
         OnPropertyChanged(nameof(ActiveName));
         Changed?.Invoke();
     }
 
     private void Saved(string name)
     {
-        recipe.Name = name;
+        _recipe.Name = name;
         _imageRecipeName = name;
-        selection.LastRecipeName = name;
+        _selection.LastRecipeName = name;
         Name = name;
         OnPropertyChanged(nameof(ActiveName));
         if (!Recipes.Contains(name))
@@ -154,9 +170,9 @@ public partial class RecipeEditor(
         var name = Name.Trim();
         try
         {
-            using var operation = operations.Link(cancellationToken);
-            recipe.CarrierImages = await store.SaveRecipeImagesAsync(
-                recipe,
+            using var operation = _operations.Link(cancellationToken);
+            _recipe.CarrierImages = await _store.SaveRecipeImagesAsync(
+                _recipe,
                 name,
                 images,
                 new RecipeSelectionSettings { LastRecipeName = name },
@@ -192,8 +208,8 @@ public partial class RecipeEditor(
     public Task<CarrierImageTileView[]> LoadCarrierImagesAsync(
         CancellationToken cancellationToken = default)
     {
-        var name = recipe.Name;
-        var tiles = recipe.CarrierImages;
+        var name = _recipe.Name;
+        var tiles = _recipe.CarrierImages;
         if (tiles.Count == 0)
             return Task.FromResult<CarrierImageTileView[]>([]);
         return Task.Run(
@@ -203,7 +219,7 @@ public partial class RecipeEditor(
                     cancellationToken.ThrowIfCancellationRequested();
                     return new CarrierImageTileView(
                         tile,
-                        store.LoadRecipeImage(name, tile.Number));
+                        _store.LoadRecipeImage(name, tile.Number));
                 })
                 .ToArray(),
             cancellationToken);

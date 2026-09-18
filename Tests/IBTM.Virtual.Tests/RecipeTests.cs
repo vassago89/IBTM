@@ -72,13 +72,21 @@ public sealed class RecipeTests
         var layout = recipe.Pcb;
         layout.BoltPoints.Add(new()
         {
-            Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 13, Y = 24,
-            BrightnessThreshold = 140, MinimumBrightRatio = 0.2,
+            Number = 1,
+            HeatSink = HeatSinkSlot.HeatSink1,
+            X = 13,
+            Y = 24,
+            BrightnessThreshold = 140,
+            MinimumBrightRatio = 0.2,
         });
         layout.BoltPoints.Add(new()
         {
-            Number = 1, HeatSink = HeatSinkSlot.HeatSink2, X = 73, Y = 29,
-            BrightnessThreshold = 210, MinimumBrightRatio = 0.7,
+            Number = 1,
+            HeatSink = HeatSinkSlot.HeatSink2,
+            X = 73,
+            Y = 29,
+            BrightnessThreshold = 210,
+            MinimumBrightRatio = 0.7,
         });
         var targets = layout.GetBolts().ToArray();
         Assert.NotSame(targets[0].Point, targets[1].Point);

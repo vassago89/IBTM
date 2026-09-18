@@ -124,5 +124,4 @@ public sealed class ApplicationLogTests
             Directory.Delete(directory);
         }
     }
-
 }

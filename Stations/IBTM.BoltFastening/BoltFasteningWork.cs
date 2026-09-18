@@ -3,15 +3,18 @@ using IBTM.Device;
 
 namespace IBTM.BoltFastening;
 
-public sealed class BoltFasteningWork(ConveyorStation station, Func<bool>? isEnabled = null) : StationWork(
-    station,
-    isEnabled)
+public sealed class BoltFasteningWork : StationWork
 {
+    public BoltFasteningWork(ConveyorStation station, Func<bool>? isEnabled = null)
+        : base(station, isEnabled)
+    {
+    }
+
     internal BoltFasteningWorkState State
     {
         get
         {
-            if (!CarrierPresent)
+            if (!Station.CarrierPresent)
             {
                 return BoltFasteningWorkState.WaitingForCarrier;
             }
@@ -21,10 +24,9 @@ public sealed class BoltFasteningWork(ConveyorStation station, Func<bool>? isEna
                 return BoltFasteningWorkState.WaitingForTransfer;
             }
 
-            return CarrierSeated
+            return Station.CarrierSeated
                 ? BoltFasteningWorkState.ReadyToFasten
                 : BoltFasteningWorkState.WaitingForSeat;
         }
     }
-
 }

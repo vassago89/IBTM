@@ -5,12 +5,6 @@ namespace Shared;
 // Test assembly only. Production uses the unchanged manufacturer's tmcDApiAed.cs.
 internal static class TMCAEDLL
 {
-    internal sealed record Call(
-        string Operation,
-        ushort? Card = null,
-        ushort? Channel = null,
-        ushort? Group = null,
-        ushort? Value = null);
     internal static readonly List<Call> Calls = [];
     internal static readonly Dictionary<string, int> Results = [];
     internal static readonly Dictionary<string, int> Errors = [];
@@ -111,4 +105,11 @@ internal static class TMCAEDLL
             Outputs = value == 0 ? Outputs & ~(1U << channel) : Outputs | (1U << channel);
         return result;
     }
+
+    internal sealed record Call(
+            string Operation,
+            ushort? Card = null,
+            ushort? Channel = null,
+            ushort? Group = null,
+            ushort? Value = null);
 }

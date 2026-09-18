@@ -345,11 +345,11 @@ public sealed partial class ConveyorTests
 
     [Theory]
     [InlineData(OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp,
-        InputIo.PcbPlacementBackupPlateUp, InputIo.PcbPlacementBackupPlateDown, 50, 57)]
+            InputIo.PcbPlacementBackupPlateUp, InputIo.PcbPlacementBackupPlateDown, 50, 57)]
     [InlineData(OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp,
-        InputIo.BoltFasteningBackupPlateUp, InputIo.BoltFasteningBackupPlateDown, 54, 64)]
+            InputIo.BoltFasteningBackupPlateUp, InputIo.BoltFasteningBackupPlateDown, 54, 64)]
     [InlineData(OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp,
-        InputIo.InspectionBackupPlateUp, InputIo.InspectionBackupPlateDown, 58, 71)]
+            InputIo.InspectionBackupPlateUp, InputIo.InspectionBackupPlateDown, 58, 71)]
     public async Task StationCylindersOnRaisesAndOffLowers(
         OutputIo output,
         OutputIo stopper,
@@ -362,9 +362,9 @@ public sealed partial class ConveyorTests
         io.Initialize();
         var station = output switch
         {
-            OutputIo.PcbPlacementBackupPlateUp => ConveyorStation.PcbPlacement(io),
-            OutputIo.BoltFasteningBackupPlateUp => ConveyorStation.BoltFastening(io),
-            _ => ConveyorStation.Inspection(io),
+            OutputIo.PcbPlacementBackupPlateUp => ConveyorStation.CreatePcbPlacement(io),
+            OutputIo.BoltFasteningBackupPlateUp => ConveyorStation.CreateBoltFastening(io),
+            _ => ConveyorStation.CreateInspection(io),
         };
         var settings = new ConveyorHardwareSettings();
         var hardware = settings.Outputs[output];
@@ -488,8 +488,6 @@ public sealed partial class ConveyorTests
         Assert.False(ranWithoutCarrier);
     }
 
-
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -596,8 +594,8 @@ public sealed partial class ConveyorTests
             io,
             settings ?? new ConveyorSettings { CarrierStopDelaySeconds = 0 },
             new OperationCancellation(),
-            new PcbPlacementWork(ConveyorStation.PcbPlacement(io), () => placementEnabled),
-            new BoltFasteningWork(ConveyorStation.BoltFastening(io), () => boltFasteningEnabled),
+            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), () => placementEnabled),
+            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), () => boltFasteningEnabled),
             CreateInspectionWork(io,
                 () => inspectionEnabled),
             routeInspectionToNg: () => false);
@@ -640,5 +638,4 @@ public sealed partial class ConveyorTests
         };
         await io.SetOutputAndWaitAsync(stopper, false);
     }
-
 }

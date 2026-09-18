@@ -6,36 +6,49 @@ using IBTM.Device;
 
 namespace IBTM.Virtual;
 
-public sealed class VirtualMotionService(
-    MotionSettings settings,
-    OperationCancellation operationCancellation,
-    bool hasY = true,
-    bool hasZ = true,
-    double zPositiveLimitPosition = 100,
-    double resolutionMillimeters = 0.001,
-    Func<double>? horizontalZ = null,
-    Func<bool>? servoPowerOn = null,
-    (double X, double Y, double Z)? axisResolutionMillimeters = null) : MotionService(
-        settings,
-        operationCancellation,
-        hasY,
-        hasZ,
-        horizontalZ), IDisposable, IMotionDiagnostics
+public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDiagnostics
 {
+    private readonly double _zPositiveLimitPosition;
+    private readonly Func<bool>? _servoPowerOn;
     private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(10);
     private static readonly int AxisCount = Enum.GetValues<MotionAxis>().Length;
-    private readonly (double X, double Y, double Z) _resolution = axisResolutionMillimeters
-        ?? (resolutionMillimeters, resolutionMillimeters, resolutionMillimeters);
+    private readonly (double X, double Y, double Z) _resolution;
 
-    private readonly bool[] _servoOn = new bool[AxisCount];
-    private readonly bool[] _homed = new bool[AxisCount];
-    private readonly bool[] _alarm = new bool[AxisCount];
+    private readonly bool[] _servoOn;
+    private readonly bool[] _homed;
+    private readonly bool[] _alarm;
     private OperationCancellation.Operation? _movement;
     private bool _seekingZPositiveLimit;
     private bool _zPositiveLimit;
     private double _x;
     private double _y;
     private double _z;
+
+    public VirtualMotionService(
+        MotionSettings settings,
+        OperationCancellation operationCancellation,
+        bool hasY = true,
+        bool hasZ = true,
+        double zPositiveLimitPosition = 100,
+        double resolutionMillimeters = 0.001,
+        Func<double>? horizontalZ = null,
+        Func<bool>? servoPowerOn = null,
+        (double X, double Y, double Z)? axisResolutionMillimeters = null)
+        : base(
+            settings,
+            operationCancellation,
+            hasY,
+            hasZ,
+            horizontalZ)
+    {
+        _zPositiveLimitPosition = zPositiveLimitPosition;
+        _servoPowerOn = servoPowerOn;
+        _resolution = axisResolutionMillimeters
+            ?? (resolutionMillimeters, resolutionMillimeters, resolutionMillimeters);
+        _servoOn = new bool[AxisCount];
+        _homed = new bool[AxisCount];
+        _alarm = new bool[AxisCount];
+    }
 
     public override bool IsReady
     {
@@ -49,7 +62,7 @@ public sealed class VirtualMotionService(
     {
         foreach (var axis in Axes)
         {
-            _servoOn[(int)axis] = servoPowerOn?.Invoke() ?? true;
+            _servoOn[(int)axis] = _servoPowerOn?.Invoke() ?? true;
         }
 
         PublishStateChanged();
@@ -86,7 +99,7 @@ public sealed class VirtualMotionService(
         _seekingZPositiveLimit = true;
         try
         {
-            await SimulateMoveAsync(_x, _y, zPositiveLimitPosition, velocity, false, cancellationToken);
+            await SimulateMoveAsync(_x, _y, _zPositiveLimitPosition, velocity, false, cancellationToken);
         }
         finally
         {
@@ -308,12 +321,12 @@ public sealed class VirtualMotionService(
         _y = Quantize(y, _resolution.Y);
         _z = Quantize(z, _resolution.Z);
         if (_seekingZPositiveLimit
-            && Math.Abs(_z - zPositiveLimitPosition) <= _resolution.Z / 2)
+            && Math.Abs(_z - _zPositiveLimitPosition) <= _resolution.Z / 2)
         {
             _zPositiveLimit = true;
         }
         else if (_zPositiveLimit
-            && _z < zPositiveLimitPosition - _resolution.Z / 2)
+            && _z < _zPositiveLimitPosition - _resolution.Z / 2)
         {
             _zPositiveLimit = false;
         }

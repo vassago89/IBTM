@@ -38,7 +38,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     {
         get
         {
-            return CylinderState(InputIo.PcbPlacementHandlerUp, InputIo.PcbPlacementHandlerDown);
+            return GetCylinderState(InputIo.PcbPlacementHandlerUp, InputIo.PcbPlacementHandlerDown);
         }
     }
 
@@ -54,7 +54,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     {
         get
         {
-            return CylinderState(InputIo.PcbPlacementIpmUp, InputIo.PcbPlacementIpmDown);
+            return GetCylinderState(InputIo.PcbPlacementIpmUp, InputIo.PcbPlacementIpmDown);
         }
     }
 
@@ -128,14 +128,6 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
             : !Motion.IsMoving
                 && Motion.Axes[MotionAxis.Z].State is { InPosition: true }
                 && Motion.IsAtZ(_settings.BufferHandoffPosition.Z);
-    }
-
-    public bool CanMoveHorizontal
-    {
-        get
-        {
-            return Lift == PlacementCylinderState.Up;
-        }
     }
 
     public bool IsAtBufferXY(bool live = true)
@@ -248,8 +240,8 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     {
         return axis switch
         {
-            MotionAxis.X => CanMoveHorizontal && IsAtHorizontalZ(live),
-            MotionAxis.Y => _motion.HasY && CanMoveHorizontal && IsAtHorizontalZ(live),
+            MotionAxis.X => HandlerRaised && IsAtHorizontalZ(live),
+            MotionAxis.Y => _motion.HasY && HandlerRaised && IsAtHorizontalZ(live),
             MotionAxis.Z => _motion.HasZ,
             _ => false,
         };
@@ -282,7 +274,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     public Task SetRotatedAsync(bool rotated, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!CanMoveHorizontal || !IsAtHorizontalZ())
+        if (!HandlerRaised || !IsAtHorizontalZ())
         {
             throw new MotionInterlockException(
                 "Placement rotation requires the handler lift Up and Z stopped at the travel height.");
@@ -308,7 +300,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         return _io.WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, cancellationToken);
     }
 
-    private PlacementCylinderState CylinderState(InputIo upInput, InputIo downInput)
+    private PlacementCylinderState GetCylinderState(InputIo upInput, InputIo downInput)
     {
         return (_io.GetInput(upInput), _io.GetInput(downInput)) switch
         {
@@ -321,7 +313,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     private void EnsureCanMoveHorizontal(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!CanMoveHorizontal)
+        if (!HandlerRaised)
         {
             throw new MotionInterlockException("Raise the placement handler before moving X/Y.");
         }
@@ -343,5 +335,4 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
             Changed?.Invoke();
         }
     }
-
 }

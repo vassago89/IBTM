@@ -291,6 +291,14 @@ public sealed class HikCameraTests
         Assert.Contains(errors, error => error.Message.Contains("Stop Hik grabbing"));
     }
 
+    private static T Stub<T>(Func<MethodInfo, object?[], object?> invoke)
+        where T : class
+    {
+        var stub = DispatchProxy.Create<T, SdkProxy>();
+        ((SdkProxy)(object)stub).Handler = invoke;
+        return stub;
+    }
+
     private sealed class CameraSdk
     {
         public readonly ConcurrentQueue<string> Calls = new();
@@ -426,14 +434,6 @@ public sealed class HikCameraTests
                 stream);
             return camera;
         }
-    }
-
-    private static T Stub<T>(Func<MethodInfo, object?[], object?> invoke)
-        where T : class
-    {
-        var stub = DispatchProxy.Create<T, SdkProxy>();
-        ((SdkProxy)(object)stub).Handler = invoke;
-        return stub;
     }
 
     public class SdkProxy : DispatchProxy

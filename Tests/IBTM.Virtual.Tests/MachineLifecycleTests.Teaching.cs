@@ -312,10 +312,10 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData("stop")]
-    [InlineData("unit")]
-    [InlineData("close")]
-    public async Task TeachingStopReportsDriverCancellationFailureAndDrainsJog(string action)
+    [InlineData(TeachingStopAction.Stop)]
+    [InlineData(TeachingStopAction.ChangeUnit)]
+    [InlineData(TeachingStopAction.Close)]
+    public async Task TeachingStopReportsDriverCancellationFailureAndDrainsJog(TeachingStopAction action)
     {
         using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
@@ -338,15 +338,15 @@ public sealed partial class MachineLifecycleTests
         {
             var failure = await Record.ExceptionAsync(async () =>
             {
-                if (action == "close")
+                if (action == TeachingStopAction.Close)
                     await teaching.ShutdownAsync();
-                else if (action == "unit")
+                else if (action == TeachingStopAction.ChangeUnit)
                     teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
                 else
                     teaching.JogStopCommand.Execute(null);
             });
             await jog.WaitAsync(TimeSpan.FromSeconds(2));
-            if (action == "close")
+            if (action == TeachingStopAction.Close)
             {
                 var failures = Assert.IsType<AggregateException>(failure).Flatten().InnerExceptions;
                 Assert.Contains(stopError, failures);
@@ -456,7 +456,6 @@ public sealed partial class MachineLifecycleTests
             }
         }
     }
-
 
     [Fact]
     public async Task ImageRulerCalibratesBothHeatSinksWithoutMovingOrChangingRois()
@@ -1396,5 +1395,12 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         Assert.False(gantry.Feedback.IsMoving);
         Assert.Equal(MotionCommand.None, gantry.Feedback.Command);
+    }
+
+    public enum TeachingStopAction
+    {
+        Stop,
+        ChangeUnit,
+        Close,
     }
 }

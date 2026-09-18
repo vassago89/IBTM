@@ -7,21 +7,33 @@ using IBTM.Core;
 
 namespace IBTM.Ajin;
 
-public sealed class AjinController(AjinSettings settings, ApplicationLog? log = null) : IDisposable
+public sealed class AjinController : IDisposable
 {
+    private readonly ApplicationLog? _log;
     // Keep the existing logical address slots; a 16-point module uses only bits 0..15.
     private const int RtexChannelCountPerModule = 32;
-    private readonly int _interruptNumber = GetInterruptNumber(settings.InterruptNumber);
-    private readonly int[] _inputModules = CaptureModules(
-        settings.RtexInputModules,
-        nameof(settings.RtexInputModules));
-    private readonly int[] _outputModules = CaptureModules(
-        settings.RtexOutputModules,
-        nameof(settings.RtexOutputModules));
-    private readonly Lock _gate = new();
-    private int[] _inputCounts = [];
-    private int[] _outputCounts = [];
+    private readonly int _interruptNumber;
+    private readonly int[] _inputModules;
+    private readonly int[] _outputModules;
+    private readonly Lock _gate;
+    private int[] _inputCounts;
+    private int[] _outputCounts;
     private bool _initialized;
+
+    public AjinController(AjinSettings settings, ApplicationLog? log = null)
+    {
+        _log = log;
+        _interruptNumber = GetInterruptNumber(settings.InterruptNumber);
+        _inputModules = CaptureModules(
+            settings.RtexInputModules,
+            nameof(settings.RtexInputModules));
+        _outputModules = CaptureModules(
+            settings.RtexOutputModules,
+            nameof(settings.RtexOutputModules));
+        _gate = new();
+        _inputCounts = [];
+        _outputCounts = [];
+    }
 
     public int RtexInputWordCount
     {
@@ -49,21 +61,21 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
                 }
                 catch (IOException exception)
                 {
-                    log?.Error("AJIN connection probe failed; reopening.", exception);
+                    _log?.Error("AJIN connection probe failed; reopening.", exception);
                     Dispose();
                 }
             }
             // Match the manufacturer DIO sample: open AXL, then query the modules.
-            log?.Write($"AJIN opening with AxlOpen(interrupt={_interruptNumber}).");
+            _log?.Write($"AJIN opening with AxlOpen(interrupt={_interruptNumber}).");
             var openResult = CAXL.AxlOpen(_interruptNumber);
-            log?.Write(
+            _log?.Write(
                 $"AJIN AxlOpen(interrupt={_interruptNumber}) returned {(AXT_FUNC_RESULT)openResult} (0x{openResult:X8}).");
             Check(openResult, nameof(CAXL.AxlOpen));
             try
             {
                 ValidateModules();
                 _initialized = true;
-                log?.Write("AJIN initialized with AxlOpen; DIO mapping validated and no .mot file loaded.");
+                _log?.Write("AJIN initialized with AxlOpen; DIO mapping validated and no .mot file loaded.");
             }
             catch (Exception exception)
             {
@@ -74,7 +86,7 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
                 catch (Exception cleanupError)
                 {
                     exception.Data["AjinCloseError"] = cleanupError.ToString();
-                    log?.Error("AJIN cleanup after initialization failure also failed.", cleanupError);
+                    _log?.Error("AJIN cleanup after initialization failure also failed.", cleanupError);
                 }
 
                 throw;
@@ -171,7 +183,7 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
 
         var moduleCount = 0;
         Check(CAXD.AxdInfoGetModuleCount(ref moduleCount), nameof(CAXD.AxdInfoGetModuleCount));
-        log?.Write(
+        _log?.Write(
             $"AJIN DIO module count={moduleCount}; input modules=[{string.Join(",", _inputModules)}], output modules=[{string.Join(
                 ",",
                 _outputModules)}].");
@@ -200,13 +212,13 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
                 nameof(CAXD.AxdInfoGetOutputCount),
                 module);
             counts.Add(module, (inputs, outputs));
-            log?.Write(
+            _log?.Write(
                 $"AJIN DIO module={module}, board={board}, position={position}, type={(AXT_MODULE)type} (0x{type:X}), DI={inputs}, DO={outputs}.");
         }
 
         _inputCounts = GetChannelCounts(_inputModules, counts, input: true);
         _outputCounts = GetChannelCounts(_outputModules, counts, input: false);
-        log?.Write("AJIN DIO mapping validated. Input scan uses WORD offset 0 for 16 DI and offsets 0/1 for 32 DI.");
+        _log?.Write("AJIN DIO mapping validated. Input scan uses WORD offset 0 for 16 DI and offsets 0/1 for 32 DI.");
     }
 
     private static int[] GetChannelCounts(

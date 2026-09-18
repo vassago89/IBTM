@@ -169,6 +169,7 @@
                     <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock
+                            Tag="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].IsOn}"
                             Text="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].IsOn, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MapIoInputStyle}"/>
                         <TextBlock Text="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].Address}"
@@ -178,6 +179,7 @@
                     <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Outputs[PcbSupplyReadyToFront1].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock
+                            Tag="{Binding Signals.Outputs[PcbSupplyReadyToFront1].IsOn}"
                             Text="{Binding Signals.Outputs[PcbSupplyReadyToFront1].IsOn, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MapIoOutputStyle}"/>
                         <TextBlock Text="{Binding Signals.Outputs[PcbSupplyReadyToFront1].Address}"
@@ -187,6 +189,7 @@
                     <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Inputs[PcbSupplyPcbDetected].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock
+                            Tag="{Binding Signals.Inputs[PcbSupplyPcbDetected].IsOn}"
                             Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MapIoInputStyle}"/>
                         <TextBlock Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].Address}"

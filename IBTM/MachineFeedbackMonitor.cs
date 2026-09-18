@@ -32,7 +32,6 @@ public sealed class MachineFeedbackMonitor : IDisposable
     private static readonly TimeSpan MotionPollInterval = TimeSpan.FromMilliseconds(250);
     private readonly UnitSettings _units;
     private readonly IIoService _io;
-    internal IoSignals Io { get; }
     private readonly ApplicationLog? _log;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly AsyncAutoResetEvent _outputsRequested = new();
@@ -67,10 +66,13 @@ public sealed class MachineFeedbackMonitor : IDisposable
         io.OutputChanged += OnOutputChanged;
     }
 
-    internal IReadOnlyDictionary<MotionGroup, MotionStatus> Motions { get; }
     internal event Action<MotionGroup, MotionFeedbackSample>? Sampled;
     internal event Action<Exception>? IoFaulted;
     internal event Action? Changed;
+
+    internal IoSignals Io { get; }
+
+    internal IReadOnlyDictionary<MotionGroup, MotionStatus> Motions { get; }
 
     internal Exception? Failure
     {
@@ -105,6 +107,27 @@ public sealed class MachineFeedbackMonitor : IDisposable
             }
 
             return null;
+        }
+    }
+
+    internal MotionReadiness Readiness
+    {
+        get
+        {
+            var homed = true;
+            var servosOn = true;
+            var faulted = false;
+            foreach (var group in Motions.Keys)
+            {
+                if (!_units.IsMotionEnabled(group))
+                    continue;
+                var sample = _samples.GetValueOrDefault(group);
+                homed &= sample is { Enabled: true, IoReady: true, Readiness.Homed: true };
+                servosOn &= sample is { Enabled: true, IoReady: true, Readiness.ServosOn: true };
+                faulted |= sample is not { Enabled: true, IoReady: true, ReadError: null, Readiness.Faulted: false };
+            }
+
+            return new(homed, servosOn, faulted);
         }
     }
 
@@ -210,7 +233,7 @@ public sealed class MachineFeedbackMonitor : IDisposable
             {
                 var previous = _outputReadError;
                 _outputReadError = error;
-                if (previous?.Message != error.Message)
+                if (previous is null)
                 {
                     _log?.Error("Output monitor: feedback read failed.", error);
                     IoFaulted?.Invoke(error);
@@ -299,27 +322,6 @@ public sealed class MachineFeedbackMonitor : IDisposable
             new(false, false, true), error);
         _samples[group] = sample;
         Sampled?.Invoke(group, sample);
-    }
-
-    internal MotionReadiness Readiness
-    {
-        get
-        {
-            var homed = true;
-            var servosOn = true;
-            var faulted = false;
-            foreach (var group in Motions.Keys)
-            {
-                if (!_units.IsMotionEnabled(group))
-                    continue;
-                var sample = _samples.GetValueOrDefault(group);
-                homed &= sample is { Enabled: true, IoReady: true, Readiness.Homed: true };
-                servosOn &= sample is { Enabled: true, IoReady: true, Readiness.ServosOn: true };
-                faulted |= sample is not { Enabled: true, IoReady: true, ReadError: null, Readiness.Faulted: false };
-            }
-
-            return new(homed, servosOn, faulted);
-        }
     }
 
     internal MotionReadiness ReadLiveReadiness()

@@ -135,7 +135,7 @@ public sealed class PcbTransferTests
             new PcbBufferSettings { SupplyBoundary1 = 40, SupplyBoundary2 = 60 });
         var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
         var buffer = Buffer(source, recipient, supplySettings, placementSettings);
-        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.PcbPlacement(io)));
+        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io)));
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -159,7 +159,7 @@ public sealed class PcbTransferTests
             Assert.True(buffer.CanEnterSupply());
             await source.MoveToHandoffAsync(timeout.Token);
         }
-        Assert.Equal(PcbPlacementState.RaisingHandler, placer.State(new(), HeatSinkSlot.HeatSink1));
+        Assert.Equal(PcbPlacementState.RaisingHandler, placer.GetState(new(), HeatSinkSlot.HeatSink1));
         var movedWithCylinderDown = false;
         placementMotion.MovingChanged += moving =>
         {
@@ -177,7 +177,7 @@ public sealed class PcbTransferTests
         if (!supplyFirst)
         {
             // Placement waits at receiving Z without descending its cylinder.
-            Assert.Equal(PcbPlacementState.WaitingForSupply, placer.State(new(), HeatSinkSlot.HeatSink1));
+            Assert.Equal(PcbPlacementState.WaitingForSupply, placer.GetState(new(), HeatSinkSlot.HeatSink1));
             Assert.Null(placer.PlaceStepAsync(new(), HeatSinkSlot.HeatSink1, timeout.Token));
             Assert.True(buffer.CanEnterSupply());
             await source.MoveToHandoffAsync(timeout.Token);
@@ -191,13 +191,13 @@ public sealed class PcbTransferTests
         };
         var axisMovedDuringReceipt = false;
         placementMotion.MovingChanged += moving => axisMovedDuringReceipt |= moving;
-        Assert.Equal(PcbPlacementState.LoweringHandler, placer.State(new(), HeatSinkSlot.HeatSink1));
+        Assert.Equal(PcbPlacementState.LoweringHandler, placer.GetState(new(), HeatSinkSlot.HeatSink1));
         await placer.PlaceStepAsync(new(), HeatSinkSlot.HeatSink1, timeout.Token)!;
         Assert.Equal(PlacementCylinderState.Down, recipient.Lift);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
-        Assert.Equal(PcbPlacementState.ApplyingVacuum, placer.State(new(), HeatSinkSlot.HeatSink1));
+        Assert.Equal(PcbPlacementState.ApplyingVacuum, placer.GetState(new(), HeatSinkSlot.HeatSink1));
         await placer.PlaceStepAsync(new(), HeatSinkSlot.HeatSink1, timeout.Token)!;
-        Assert.Equal(PcbPlacementState.ClosingGripper, placer.State(new(), HeatSinkSlot.HeatSink1));
+        Assert.Equal(PcbPlacementState.ClosingGripper, placer.GetState(new(), HeatSinkSlot.HeatSink1));
         await placer.PlaceStepAsync(new(), HeatSinkSlot.HeatSink1, timeout.Token)!;
         Assert.True(buffer.IsPlacementSecuredAtHandoff());
         Assert.False(axisMovedDuringReceipt);
@@ -231,7 +231,7 @@ public sealed class PcbTransferTests
         var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
         var buffer = Buffer(source, recipient, supplySettings, placementSettings);
         var supplier = new PcbSupplier(source, buffer);
-        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.PcbPlacement(io)));
+        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io)));
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -275,7 +275,7 @@ public sealed class PcbTransferTests
         foreach (var signal in receipt)
             io.SetInput(signal, true);
         Assert.True(buffer.IsPlacementSecuredAtHandoff());
-        Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.State(new(), HeatSinkSlot.HeatSink1));
+        Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.GetState(new(), HeatSinkSlot.HeatSink1));
         using var released = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var order = new System.Collections.Generic.List<OutputIo>();
         io.OutputChanged += (output, on) =>
@@ -283,7 +283,7 @@ public sealed class PcbTransferTests
             if (!on && output is OutputIo.PcbSupplyIpmFixerForward or OutputIo.PcbSupplyGripperClosed)
             {
                 Assert.True(buffer.IsPlacementSecuredAtHandoff());
-                Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.State(new(), HeatSinkSlot.HeatSink1));
+                Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.GetState(new(), HeatSinkSlot.HeatSink1));
                 order.Add(output);
                 if (output == OutputIo.PcbSupplyGripperClosed)
                     io.SetInput(InputIo.PcbSupplyPcbDetected, false);
@@ -300,10 +300,10 @@ public sealed class PcbTransferTests
         Assert.Equal(new[] { OutputIo.PcbSupplyIpmFixerForward, OutputIo.PcbSupplyGripperClosed }, order);
         Assert.True(source.PcbReleased);
         Assert.Equal((50, 10, supplySettings.RotationZ), supplyMotion.GetPosition());
-        Assert.Equal(PcbPlacementState.RaisingHandler, placer.State(new(), HeatSinkSlot.HeatSink1));
+        Assert.Equal(PcbPlacementState.RaisingHandler, placer.GetState(new(), HeatSinkSlot.HeatSink1));
         io.SetInput(InputIo.PcbSupplyGripperClosed, true); // Both endpoints ON is not released.
         Assert.False(source.PcbReleased);
-        Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.State(new(), HeatSinkSlot.HeatSink1));
+        Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.GetState(new(), HeatSinkSlot.HeatSink1));
         io.SetInput(InputIo.PcbSupplyGripperClosed, false);
         Assert.False(buffer.CanExitSupply());
         io.SetInput(InputIo.PcbPlacementHandlerUp, true); // Down still ON is not confirmed Up.
@@ -311,7 +311,7 @@ public sealed class PcbTransferTests
         io.SetInput(InputIo.PcbPlacementHandlerUp, false);
         await placer.PlaceStepAsync(new(), HeatSinkSlot.HeatSink1, CancellationToken.None)!;
         Assert.True(buffer.CanExitSupply());
-        Assert.Equal(PcbPlacementState.WaitingForSupplyExit, placer.State(new(), HeatSinkSlot.HeatSink1));
+        Assert.Equal(PcbPlacementState.WaitingForSupplyExit, placer.GetState(new(), HeatSinkSlot.HeatSink1));
 
         var exitRecipe = new PcbSupplyRecipe { Pcb1PickPosition = new() { X = 15, Z = 5 } };
         using var exited = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -328,7 +328,7 @@ public sealed class PcbTransferTests
         Assert.True(diagonalExit);
         Assert.Equal((15, 30, supplySettings.RotationZ), supplyMotion.GetPosition());
         Assert.True(buffer.IsSupplyOutside());
-        Assert.NotEqual(PcbPlacementState.WaitingForSupplyExit, placer.State(new(), HeatSinkSlot.HeatSink1));
+        Assert.NotEqual(PcbPlacementState.WaitingForSupplyExit, placer.GetState(new(), HeatSinkSlot.HeatSink1));
 
         source.Motion.InvalidateFeedback(new System.IO.IOException("Supply feedback disconnected."));
         Assert.False(buffer.IsSupplyOutside(live: false));
@@ -340,11 +340,13 @@ public sealed class PcbTransferTests
         var operations = new OperationCancellation();
         var supplySettings = new PcbSupplySettings
         {
-            Motion = FastMotion(), BufferHandoffPosition = new() { X = 50, Y = 10 },
+            Motion = FastMotion(),
+            BufferHandoffPosition = new() { X = 50, Y = 10 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
         {
-            Motion = FastMotion(), BufferHandoffPosition = Position(50, 10, 8),
+            Motion = FastMotion(),
+            BufferHandoffPosition = Position(50, 10, 8),
         };
         var io = new VirtualIoService(
             Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
@@ -383,8 +385,6 @@ public sealed class PcbTransferTests
         Assert.True(buffer.IsSupplyAtHandoff());
         Assert.False(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
     }
-
-
 
     [Trait("Category", "MachineFlow")]
     [Fact]
@@ -452,7 +452,7 @@ public sealed class PcbTransferTests
             new PcbBufferSettings { SupplyBoundary1 = 40, SupplyBoundary2 = 60 });
         var buffer = Buffer(supplyHandler, placementHandler, supplySettings, placementSettings);
         var supply = new PcbSupplier(supplyHandler, buffer);
-        var work = new PcbPlacementWork(ConveyorStation.PcbPlacement(io));
+        var work = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io));
         var placement = new PcbPlacer(buffer, placementHandler, work);
         var returnedPositions = new System.Collections.Generic.List<(double X, double Y, double Z)>();
         supply.Trace += message =>
@@ -468,7 +468,7 @@ public sealed class PcbTransferTests
         var heatSinkChangedDuringMove = false;
         placementMotion.PositionChanged += (x, y, _) =>
         {
-            movedWithLoweredCylinder |= placementMotion.IsMovingHorizontal && !placementHandler.CanMoveHorizontal;
+            movedWithLoweredCylinder |= placementMotion.IsMovingHorizontal && !placementHandler.HandlerRaised;
             carriedWithIpmRaised |= placementMotion.IsMovingHorizontal
                 && placementHandler.Pcb == PlacementPcbState.Secured
                 && placementHandler.IpmLift != PlacementCylinderState.Down;
@@ -531,7 +531,7 @@ public sealed class PcbTransferTests
         io.SetInput(InputIo.PcbPlacementHeatSink2Present, false);
         VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
 
-        Assert.True(work.CarrierSeated);
+        Assert.True(work.Station.CarrierSeated);
         using var supplyCancellation = new CancellationTokenSource();
         var supplyRun = supply.RunAsync(supplyRecipe, supplyCancellation.Token);
         using var firstStop = new CancellationTokenSource();
@@ -556,9 +556,9 @@ public sealed class PcbTransferTests
         var prefetched = completed
             && await WaitUntilAsync(
                 () => placementHandler.Pcb == PlacementPcbState.Secured
-                    && placement.State(placementRecipe) == PcbPlacementState.WaitingForCarrier,
+                    && placement.GetState(placementRecipe) == PcbPlacementState.WaitingForCarrier,
                 TimeSpan.FromSeconds(10));
-        var stoppedState = placement.State(placementRecipe);
+        var stoppedState = placement.GetState(placementRecipe);
         var stoppedTarget = placement.TargetHeatSink;
 
         resumed.Cancel();
@@ -867,5 +867,4 @@ public sealed class PcbTransferTests
             && Math.Abs(y - targetY) <= MotionService.PositionToleranceMillimeters
             && Math.Abs(z - targetZ) <= MotionService.PositionToleranceMillimeters;
     }
-
 }

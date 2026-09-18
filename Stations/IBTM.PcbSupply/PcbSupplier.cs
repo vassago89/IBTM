@@ -37,72 +37,10 @@ public sealed class PcbSupplier : AutoUnit
 
     public async Task RunAsync(PcbSupplyRecipe recipe, CancellationToken cancellationToken = default)
     {
-        async Task ExecuteAsync(CancellationToken token)
-        {
-            if (_pickStep != PickStep.WaitingForCarrierExit)
-            {
-                _handler.SetUpstreamReady(true);
-            }
-            else if (_handler.IsAtRotationZ() && _handler.Pcb != PcbSupplyPcbState.Detected)
-            {
-                // Keep Ready through both slot checks and the final pickup lift.
-                // Its falling edge tells the upstream machine that pickup is complete.
-                _handler.SetUpstreamReady(false);
-            }
-
-            var state = State();
-            TraceStep(state, _pickStep.ToString());
-            switch (state)
-            {
-                case PcbSupplyState.PickingPcb:
-                    await PickPcbAsync(recipe, token);
-                    break;
-                case PcbSupplyState.SecuringPcb:
-                    await _handler.SetGripperClosedAsync(true, token);
-                    await _handler.SetIpmFixerAsync(true, token);
-                    await _handler.MoveToRotationZAsync(token);
-                    break;
-                case PcbSupplyState.RaisingForPickup:
-                    await _handler.MoveToRotationZAsync(token);
-                    break;
-                case PcbSupplyState.RotatingForHandoff:
-                    await _handler.SetRotatedAsync(true, token);
-                    break;
-                case PcbSupplyState.MovingToHandoff:
-                    await _handler.MoveToHandoffAsync(token);
-                    break;
-                case PcbSupplyState.ReleasingPcb:
-                    if (_handler.IpmFixed)
-                    {
-                        if (!_buffer.IsPlacementSecuredAtHandoff())
-                            throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
-                        await _handler.SetIpmFixerAsync(false, token);
-                    }
-                    if (_handler.Gripper != PcbSupplyCylinderState.Backward)
-                    {
-                        if (!_buffer.IsPlacementSecuredAtHandoff())
-                            throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
-                        await _handler.SetGripperClosedAsync(false, token);
-                    }
-                    break;
-                case PcbSupplyState.MovingFromHandoff:
-                    await _handler.MoveFromHandoffAsync(
-                        _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition,
-                        token);
-                    break;
-                case PcbSupplyState.UnrotatingForPickup:
-                    await _handler.SetRotatedAsync(false, token);
-                    break;
-                default:
-                    await WaitForChangeAsync(token);
-                    break;
-            }
-        }
-
         Exception? failure = null;
         try
         {
-            await RunLoopAsync(ExecuteAsync, cancellationToken);
+            await RunLoopAsync(token => ExecuteAsync(recipe, token), cancellationToken);
         }
         catch (Exception exception)
         {
@@ -120,6 +58,68 @@ public sealed class PcbSupplier : AutoUnit
             {
                 throw new AggregateException(failure, cleanupFailure);
             }
+        }
+    }
+
+    private async Task ExecuteAsync(PcbSupplyRecipe recipe, CancellationToken cancellationToken)
+    {
+        if (_pickStep != PickStep.WaitingForCarrierExit)
+        {
+            _handler.SetUpstreamReady(true);
+        }
+        else if (_handler.IsAtRotationZ() && _handler.Pcb != PcbSupplyPcbState.Detected)
+        {
+            // Keep Ready through both slot checks and the final pickup lift.
+            // Its falling edge tells the upstream machine that pickup is complete.
+            _handler.SetUpstreamReady(false);
+        }
+
+        var state = GetState();
+        TraceStep(state, _pickStep.ToString());
+        switch (state)
+        {
+            case PcbSupplyState.PickingPcb:
+                await PickPcbAsync(recipe, cancellationToken);
+                break;
+            case PcbSupplyState.SecuringPcb:
+                await _handler.SetGripperClosedAsync(true, cancellationToken);
+                await _handler.SetIpmFixerAsync(true, cancellationToken);
+                await _handler.MoveToRotationZAsync(cancellationToken);
+                break;
+            case PcbSupplyState.RaisingForPickup:
+                await _handler.MoveToRotationZAsync(cancellationToken);
+                break;
+            case PcbSupplyState.RotatingForHandoff:
+                await _handler.SetRotatedAsync(true, cancellationToken);
+                break;
+            case PcbSupplyState.MovingToHandoff:
+                await _handler.MoveToHandoffAsync(cancellationToken);
+                break;
+            case PcbSupplyState.ReleasingPcb:
+                if (_handler.IpmFixed)
+                {
+                    if (!_buffer.IsPlacementSecuredAtHandoff())
+                        throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
+                    await _handler.SetIpmFixerAsync(false, cancellationToken);
+                }
+                if (_handler.Gripper != PcbSupplyCylinderState.Backward)
+                {
+                    if (!_buffer.IsPlacementSecuredAtHandoff())
+                        throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
+                    await _handler.SetGripperClosedAsync(false, cancellationToken);
+                }
+                break;
+            case PcbSupplyState.MovingFromHandoff:
+                await _handler.MoveFromHandoffAsync(
+                    _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition,
+                    cancellationToken);
+                break;
+            case PcbSupplyState.UnrotatingForPickup:
+                await _handler.SetRotatedAsync(false, cancellationToken);
+                break;
+            default:
+                await WaitForChangeAsync(cancellationToken);
+                break;
         }
     }
 
@@ -168,7 +168,7 @@ public sealed class PcbSupplier : AutoUnit
         }
     }
 
-    private PcbSupplyState State()
+    private PcbSupplyState GetState()
     {
         var pcb = _handler.Pcb;
         var rotation = _handler.Rotation;

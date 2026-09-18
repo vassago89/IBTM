@@ -334,47 +334,6 @@ public sealed class DiagnosticToolsTests
         }
     }
 
-    public class DiagnosticMotionProbe : System.Reflection.DispatchProxy, IMotionDiagnostics
-    {
-        private readonly VirtualMotionService _motion = new(new(), new(), hasZ: false);
-        public volatile bool Alarmed;
-        public volatile bool FailX;
-        public volatile bool FailPosition;
-        public volatile bool FailControl;
-        public volatile bool InMotion;
-        public int Position;
-        public int Reads;
-        public int Stops;
-        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
-        {
-            Interlocked.Increment(ref Reads);
-            if (FailX && axis == MotionAxis.X)
-                return (null, new IOException("Diagnostic X read failed."));
-            return (new(false, false, Alarmed, true, false, true, false, false, InMotion), null);
-        }
-
-        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
-        {
-            if (FailPosition && axis == MotionAxis.X)
-                return (null, new IOException("Diagnostic X position read failed."));
-            return (Volatile.Read(ref Position), null);
-        }
-
-        protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)
-        {
-            if (method!.Name == nameof(IAxisMotion.Stop))
-            {
-                Interlocked.Increment(ref Stops);
-                InMotion = false;
-            }
-            if (method!.Name == "get_IsMoving")
-                throw new IOException("Command availability must use the independent monitor snapshot.");
-            if (FailControl && method!.Name == "get_" + nameof(IMotionFeedback.IsReady))
-                throw new IOException("Control readiness read failed.");
-            return method!.Invoke(_motion, arguments);
-        }
-    }
-
     [Fact]
     public async Task DirectSmemaOutputRemainsAvailableInTeaching()
     {
@@ -456,30 +415,6 @@ public sealed class DiagnosticToolsTests
         }
     }
 
-    private sealed class PausedSynchronizationContext : SynchronizationContext
-    {
-        private readonly ConcurrentQueue<Action> _pending = new();
-        private int _released;
-        public override void Post(SendOrPostCallback callback, object? state)
-        {
-            _pending.Enqueue(() => callback(state));
-            if (Volatile.Read(ref _released) != 0)
-                Drain();
-        }
-
-        public void Release()
-        {
-            Volatile.Write(ref _released, 1);
-            Drain();
-        }
-
-        private void Drain()
-        {
-            while (_pending.TryDequeue(out var callback))
-                ThreadPool.QueueUserWorkItem(_ => callback());
-        }
-    }
-
     private static ServiceProvider CreateServices(
         RecordingLight light,
         Action<ServiceCollection>? configure = null)
@@ -511,6 +446,73 @@ public sealed class DiagnosticToolsTests
             .AddSingleton<ILightController>(light);
         configure?.Invoke(collection);
         return collection.BuildServiceProvider();
+    }
+
+    public class DiagnosticMotionProbe : System.Reflection.DispatchProxy, IMotionDiagnostics
+    {
+        private readonly VirtualMotionService _motion = new(new(), new(), hasZ: false);
+        public volatile bool Alarmed;
+        public volatile bool FailX;
+        public volatile bool FailPosition;
+        public volatile bool FailControl;
+        public volatile bool InMotion;
+        public int Position;
+        public int Reads;
+        public int Stops;
+
+        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
+        {
+            Interlocked.Increment(ref Reads);
+            if (FailX && axis == MotionAxis.X)
+                return (null, new IOException("Diagnostic X read failed."));
+            return (new(false, false, Alarmed, true, false, true, false, false, InMotion), null);
+        }
+
+        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
+        {
+            if (FailPosition && axis == MotionAxis.X)
+                return (null, new IOException("Diagnostic X position read failed."));
+            return (Volatile.Read(ref Position), null);
+        }
+
+        protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)
+        {
+            if (method!.Name == nameof(IAxisMotion.Stop))
+            {
+                Interlocked.Increment(ref Stops);
+                InMotion = false;
+            }
+            if (method!.Name == "get_IsMoving")
+                throw new IOException("Command availability must use the independent monitor snapshot.");
+            if (FailControl && method!.Name == "get_" + nameof(IMotionFeedback.IsReady))
+                throw new IOException("Control readiness read failed.");
+            return method!.Invoke(_motion, arguments);
+        }
+    }
+
+    private sealed class PausedSynchronizationContext : SynchronizationContext
+    {
+        private readonly ConcurrentQueue<Action> _pending = new();
+        private int _released;
+
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            _pending.Enqueue(() => callback(state));
+            if (Volatile.Read(ref _released) != 0)
+                Drain();
+        }
+
+        public void Release()
+        {
+            Volatile.Write(ref _released, 1);
+            Drain();
+        }
+
+        private void Drain()
+        {
+            while (_pending.TryDequeue(out var callback))
+                ThreadPool.QueueUserWorkItem(_ => callback());
+        }
     }
 
     private sealed class RecordingLight : ILightController

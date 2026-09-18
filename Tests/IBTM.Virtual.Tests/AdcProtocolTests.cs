@@ -169,6 +169,8 @@ public sealed class AdcProtocolTests
     // Valid replies with independently controlled RUN feedback and command readback.
     internal sealed class ControllerBus : IAdcBus
     {
+        public event Action<AdcFrameDirection, byte[]>? FrameTransferred { add { } remove { } }
+
         public ushort CurrentPreset { get; set; } = 3;
         public AdcDirection CurrentDirection { get; set; }
         public bool IgnorePresetWrites { get; set; }
@@ -182,21 +184,27 @@ public sealed class AdcProtocolTests
         public int StopWrites { get; private set; }
         public int StopFeedbackReads { get; private set; }
         public bool IsOpen { get; private set; } = true;
+
         public string PortName { get { return "Controller test bus"; } }
+
         public int BaudRate { get { return 115200; } }
-        public event Action<AdcFrameDirection, byte[]>? FrameTransferred { add { } remove { } }
 
         public string[] GetPortNames() { return []; }
+
         public void Open(string portName, int baudRate) { IsOpen = true; }
+
         public void Close() { IsOpen = false; }
+
         public Task<byte[]> ReadDeviceInformationAsync(byte slaveAddress, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new byte[12]);
         }
+
         public Task<byte[]> CaptureDeviceInformationAsync(byte slaveAddress, int durationMilliseconds, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
+
         public Task WriteRegisterAsync(byte slaveAddress, ushort address, ushort value, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -222,6 +230,7 @@ public sealed class AdcProtocolTests
             }
             return Task.CompletedTask;
         }
+
         public Task<ushort[]> ReadRegistersAsync(byte slaveAddress, AdcFunctionCode function, ushort address, ushort count, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();

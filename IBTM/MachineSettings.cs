@@ -91,11 +91,6 @@ public sealed class MachineSettings
         }
     }
 
-    public Task SaveAsync(MachineStore store, CancellationToken cancellationToken = default)
-    {
-        return Task.Run(() => store.SaveSettings(Sections, cancellationToken), cancellationToken);
-    }
-
     internal Setting[] Sections
     {
         get
@@ -123,6 +118,11 @@ public sealed class MachineSettings
                 InspectionGantry,
             ];
         }
+    }
+
+    public Task SaveAsync(MachineStore store, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() => store.SaveSettings(Sections, cancellationToken), cancellationToken);
     }
 
     public static Task<MachineSettings> LoadAsync(

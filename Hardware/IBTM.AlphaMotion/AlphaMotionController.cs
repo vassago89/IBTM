@@ -9,17 +9,26 @@ using Shared;
 
 namespace IBTM.AlphaMotion;
 
-public sealed class AlphaMotionController(AlphaMotionSettings settings, ApplicationLog? log = null) : IDisposable
+public sealed class AlphaMotionController : IDisposable
 {
+    private readonly ApplicationLog? _log;
     // Reserved logical address window. AJIN starts at 16; this is not a board-size requirement.
     public const int ChannelCount = 16;
     private const uint MappedPortMask = (1U << ChannelCount) - 1;
-    private readonly ushort _cardNumber = GetCardNumber(settings.ControllerNumber);
-    private readonly Lock _gate = new();
-    private readonly HashSet<(string Operation, int Result, int Error)> _reportedResults = [];
+    private readonly ushort _cardNumber;
+    private readonly Lock _gate;
+    private readonly HashSet<(string Operation, int Result, int Error)> _reportedResults;
     private bool _initialized;
     private uint _inputCount;
     private uint _outputCount;
+
+    public AlphaMotionController(AlphaMotionSettings settings, ApplicationLog? log = null)
+    {
+        _log = log;
+        _cardNumber = GetCardNumber(settings.ControllerNumber);
+        _gate = new();
+        _reportedResults = [];
+    }
 
     public void Initialize()
     {
@@ -35,7 +44,7 @@ public sealed class AlphaMotionController(AlphaMotionSettings settings, Applicat
                 }
                 catch (IOException exception)
                 {
-                    log?.Error("AlphaMotion connection probe failed; reloading the device.", exception);
+                    _log?.Error("AlphaMotion connection probe failed; reloading the device.", exception);
                     Dispose();
                 }
             }
@@ -84,7 +93,7 @@ public sealed class AlphaMotionController(AlphaMotionSettings settings, Applicat
                 // Probe each available direction before allowing any output command.
                 var initialInputs = ReadPort(input: true);
                 var initialOutputs = ReadPort(input: false);
-                log?.Write(
+                _log?.Write(
                     $"AlphaMotion ready: card={_cardNumber}, DI={inputs}, DO={outputs}, loaded boards={(long)loadResult + 1} (AIO_LoadDevice={loadResult}); initial DI=0x{initialInputs:X8}, DO=0x{initialOutputs:X8}.");
                 _initialized = true;
             }
@@ -97,7 +106,7 @@ public sealed class AlphaMotionController(AlphaMotionSettings settings, Applicat
                 catch (Exception cleanupError)
                 {
                     exception.Data["AlphaMotionUnloadError"] = cleanupError.ToString();
-                    log?.Error(
+                    _log?.Error(
                         "AlphaMotion cleanup after initialization failure also failed.",
                         cleanupError);
                 }
@@ -277,8 +286,8 @@ public sealed class AlphaMotionController(AlphaMotionSettings settings, Applicat
     {
         // First result (and status changes) only: no per-poll log flood.
         if (always || _reportedResults.Add((operation, result, error)))
-            log?.Write(
-                $"AlphaMotion native {Address(operation, bit)}: result={result}, {ErrorName(error)} ({error}); {detail}." + (result == 0 && operation != nameof(
+            _log?.Write(
+                $"AlphaMotion native {Address(operation, bit)}: result={result}, {GetErrorName(error)} ({error}); {detail}." + (result == 0 && operation != nameof(
                     TMCAEDLL.AIO_LoadDevice)
                     ? " Zero-result compatibility path; hardware verification required."
                     : ""));
@@ -292,10 +301,10 @@ public sealed class AlphaMotionController(AlphaMotionSettings settings, Applicat
         int? bit = null)
     {
         return new(
-            $"{Address(operation, bit)} failed with AlphaMotion result {result}; {ErrorName(error)} ({error})." + (detail is null ? "" : $" {detail}"));
+            $"{Address(operation, bit)} failed with AlphaMotion result {result}; {GetErrorName(error)} ({error})." + (detail is null ? "" : $" {detail}"));
     }
 
-    private static string ErrorName(int error)
+    private static string GetErrorName(int error)
     {
         return typeof(tmcDef).GetFields(BindingFlags.Public | BindingFlags.Static)
             .FirstOrDefault(

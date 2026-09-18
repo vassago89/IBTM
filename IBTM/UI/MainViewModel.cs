@@ -461,5 +461,4 @@ public partial class MainViewModel : ObservableObject
                     _settingsViewModel.RefreshCommands();
             });
     }
-
 }

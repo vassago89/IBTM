@@ -82,7 +82,7 @@ public sealed class BoltFasteningGantry
     {
         get
         {
-            return CylinderState(InputIo.PickupHeadUp, InputIo.PickupHeadDown);
+            return GetCylinderState(InputIo.PickupHeadUp, InputIo.PickupHeadDown);
         }
     }
 
@@ -90,7 +90,7 @@ public sealed class BoltFasteningGantry
     {
         get
         {
-            return CylinderState(InputIo.ShootingHeadUp, InputIo.ShootingHeadDown);
+            return GetCylinderState(InputIo.ShootingHeadUp, InputIo.ShootingHeadDown);
         }
     }
 
@@ -498,7 +498,7 @@ public sealed class BoltFasteningGantry
             && Math.Abs(current.Z - target.Z) <= MotionService.PositionToleranceMillimeters;
     }
 
-    private BoltCylinderState CylinderState(InputIo up, InputIo down)
+    private BoltCylinderState GetCylinderState(InputIo up, InputIo down)
     {
         return (_io.GetInput(up), _io.GetInput(down)) switch
         {
@@ -550,5 +550,4 @@ public sealed class BoltFasteningGantry
             throw new MotionInterlockException("Raise both fastening heads before moving X/Y.");
         }
     }
-
 }

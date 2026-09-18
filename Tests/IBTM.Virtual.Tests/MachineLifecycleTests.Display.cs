@@ -60,19 +60,34 @@ public sealed partial class MachineLifecycleTests
             probe.BeforeHardwareRead = BeforeHardwareRead;
         try
         {
-            foreach (var station in new[] { "PcbPlacement", "BoltFastening", "Inspection" })
+            foreach (var station in new (InputIo Carrier, InputIo PlateDown, InputIo PlateUp,
+                InputIo StopperUp, InputIo StopperDown, InputIo HeatSink)[]
             {
-                io.SetInput(Enum.Parse<InputIo>(station + "CarrierPresent"), true);
-                io.SetInput(Enum.Parse<InputIo>(station + "BackupPlateDown"), false);
-                io.SetInput(Enum.Parse<InputIo>(station + "BackupPlateUp"), true);
-                io.SetInput(Enum.Parse<InputIo>(station + "StopperUp"), false);
-                io.SetInput(Enum.Parse<InputIo>(station + "StopperDown"), true);
-                io.SetInput(Enum.Parse<InputIo>(station + "HeatSink1Present"), true);
+                (InputIo.PcbPlacementCarrierPresent,
+                    InputIo.PcbPlacementBackupPlateDown, InputIo.PcbPlacementBackupPlateUp,
+                    InputIo.PcbPlacementStopperUp, InputIo.PcbPlacementStopperDown,
+                    InputIo.PcbPlacementHeatSink1Present),
+                (InputIo.BoltFasteningCarrierPresent,
+                    InputIo.BoltFasteningBackupPlateDown, InputIo.BoltFasteningBackupPlateUp,
+                    InputIo.BoltFasteningStopperUp, InputIo.BoltFasteningStopperDown,
+                    InputIo.BoltFasteningHeatSink1Present),
+                (InputIo.InspectionCarrierPresent,
+                    InputIo.InspectionBackupPlateDown, InputIo.InspectionBackupPlateUp,
+                    InputIo.InspectionStopperUp, InputIo.InspectionStopperDown,
+                    InputIo.InspectionHeatSink1Present),
+            })
+            {
+                io.SetInput(station.Carrier, true);
+                io.SetInput(station.PlateDown, false);
+                io.SetInput(station.PlateUp, true);
+                io.SetInput(station.StopperUp, false);
+                io.SetInput(station.StopperDown, true);
+                io.SetInput(station.HeatSink, true);
             }
 
             Assert.True(machine.TeachingReady);
-            Assert.True(services.GetRequiredService<BoltFasteningWork>().CarrierSeated);
-            Assert.True(services.GetRequiredService<InspectionWork>().CarrierSeated);
+            Assert.True(services.GetRequiredService<BoltFasteningWork>().Station.CarrierSeated);
+            Assert.True(services.GetRequiredService<InspectionWork>().Station.CarrierSeated);
             state.SetAutomaticRunning(true);
             readingDisplay.Value = true;
             var display = machine.ReadDisplay();
@@ -182,11 +197,11 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData("Alarm")]
-    [InlineData("ServoOff")]
-    [InlineData("HomeLost")]
-    [InlineData("ReadFailure")]
-    public async Task AutomaticFeedbackStopsOnSilentMotionFaultAfterDisplayStops(string fault)
+    [InlineData(MotionFeedbackFault.Alarm)]
+    [InlineData(MotionFeedbackFault.ServoOff)]
+    [InlineData(MotionFeedbackFault.HomeLost)]
+    [InlineData(MotionFeedbackFault.ReadFailure)]
+    public async Task AutomaticFeedbackStopsOnSilentMotionFaultAfterDisplayStops(MotionFeedbackFault fault)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
@@ -200,6 +215,7 @@ public sealed partial class MachineLifecycleTests
             item => item.Value))
         {
             probe.ReportReady = true;
+            probe.AllowStop = true;
             probe.FailHardwareCalls = true; // Disabled hardware must not be sampled, even while AUTO polls.
         }
 
@@ -209,7 +225,9 @@ public sealed partial class MachineLifecycleTests
             await machine.InitializeAsync();
             await machine.HomeAsync(CancellationToken.None);
             io.SetInput(InputIo.AutoMode, false);
-            Assert.True(machine.CanStart);
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => machine.CanStart, TimeSpan.FromSeconds(2)),
+                $"START blocked: {machine.StartBlock}; busy={state.IsRunning}; alarm={state.AlarmDetail}");
             run = machine.StartAsync();
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => state.AutomaticRunning, TimeSpan.FromSeconds(2)),
@@ -218,15 +236,16 @@ public sealed partial class MachineLifecycleTests
             var display = state.Display;
             Assert.False(run.IsCompleted);
             Assert.Equal(MachineAlarm.None, state.Alarm);
-            if (fault == "ReadFailure")
+            if (fault == MotionFeedbackFault.ReadFailure)
                 // Isolate the monitor: a simultaneous command read failure has its own unit alarm.
                 active.DiagnosticReadError = new IOException("Unavailable diagnostic feedback.");
             else
                 active.OverrideState = value => fault switch
                 {
-                    "Alarm" => value with { Alarm = true },
-                    "HomeLost" => value with { Homed = false },
-                    _ => value with { ServoOn = false },
+                    MotionFeedbackFault.Alarm => value with { Alarm = true },
+                    MotionFeedbackFault.HomeLost => value with { Homed = false },
+                    MotionFeedbackFault.ServoOff => value with { ServoOn = false },
+                    _ => throw new ArgumentOutOfRangeException(nameof(fault)),
                 };
             // No StateChanged, DI changes, UI timer or explicit refresh request accompanies this fault.
             await run.WaitAsync(TimeSpan.FromSeconds(2));
@@ -250,6 +269,9 @@ public sealed partial class MachineLifecycleTests
         {
             active.DiagnosticReadError = null;
             active.OverrideState = null;
+            // Shutdown verifies every axis, including disabled groups.
+            foreach (var probe in probes.Values)
+                probe.FailHardwareCalls = false;
             await machine.ShutdownAsync();
             if (run is not null)
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
@@ -342,6 +364,11 @@ public sealed partial class MachineLifecycleTests
         Assert.All(
             services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
+
+        var nextError = new IOException(error.Message, new InvalidOperationException());
+        feedback.DiagnosticReadError = nextError;
+        feedback.BeforeRead = () => throw nextError;
+        await WaitUntilAsync(() => ReferenceEquals(nextError, state.Display.ReadError));
 
         feedback.BeforeRead = null;
         feedback.DiagnosticReadError = null;
@@ -450,4 +477,11 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
     }
 
+    public enum MotionFeedbackFault
+    {
+        Alarm,
+        ServoOff,
+        HomeLost,
+        ReadFailure,
+    }
 }

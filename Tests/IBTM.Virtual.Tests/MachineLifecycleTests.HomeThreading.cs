@@ -107,7 +107,8 @@ public sealed partial class MachineLifecycleTests
                 }
             }));
             Dispatcher.Run();
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await finished.Task.WaitAsync(TimeSpan.FromSeconds(15));

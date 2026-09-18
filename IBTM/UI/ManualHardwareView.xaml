@@ -22,7 +22,8 @@
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                         Style="{StaticResource PanelTitleStyle}" Margin="0,0,16,0"/>
-                                    <TextBlock Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
+                                    <TextBlock Tag="{Binding Io.IsOn}"
+                                        Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
                                         Style="{StaticResource IoOutputStateStyle}"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" Content="Run"

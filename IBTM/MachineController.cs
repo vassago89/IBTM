@@ -59,6 +59,7 @@ public sealed partial class MachineController
     private readonly InspectionWork _inspectionWork;
     private readonly BoltInspector _boltInspector;
     private readonly ApplicationLog? _log;
+
     public MachineController(
         MachineState state,
         MachineFeedbackMonitor feedback,
@@ -134,6 +135,22 @@ public sealed partial class MachineController
         shootingBoltFeeder.Changed += state.RequestDisplayRefresh;
     }
 
+    private bool BufferHandlersEnabled
+    {
+        get
+        {
+            return _units.PcbSupply || _units.PcbPlacement;
+        }
+    }
+
+    private bool InspectionGantryEnabled
+    {
+        get
+        {
+            return _units.IsMotionEnabled(MotionGroup.InspectionGantry);
+        }
+    }
+
     public async Task InitializeAsync()
     {
         _log?.Write("Machine initialization started.");
@@ -144,7 +161,7 @@ public sealed partial class MachineController
             var (alarm, error) = await InitializeHardwareAsync(operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             if (alarm == MachineAlarm.None)
-                alarm = SafetyAlarm();
+                alarm = GetSafetyAlarm();
 
             if (alarm == MachineAlarm.None)
                 _state.Refresh();
@@ -275,7 +292,7 @@ public sealed partial class MachineController
     {
         if (MachineState.IsSafetyInput(input))
         {
-            var alarm = SafetyAlarm();
+            var alarm = GetSafetyAlarm();
             if (alarm != MachineAlarm.None)
             {
                 StopAndReportFailure(alarm);
@@ -327,7 +344,7 @@ public sealed partial class MachineController
     {
         if (_units.BoltFastening
             && _fasteningGantry.Feedback.Command == MotionCommand.Adjustment
-            && (!ManualMotionReady(MotionGroup.BoltFastening)
+            && (!IsManualMotionReady(MotionGroup.BoltFastening)
                 || _state.AutomaticRunning
                 || _state.IsHoming
                 || _state.BoltTestRunning))
@@ -342,7 +359,7 @@ public sealed partial class MachineController
         var alarm = MachineAlarm.None;
         string? interlockDetail = null;
         if (_units.PcbPlacement
-            && !_placementHandler.CanMoveHorizontal
+            && !_placementHandler.HandlerRaised
             && _placementHandler.Feedback.IsMovingHorizontal)
         {
             alarm = MachineAlarm.PcbPlacement;
@@ -409,7 +426,7 @@ public sealed partial class MachineController
         _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.StopFailed, failure);
     }
 
-    private MachineAlarm SafetyAlarm()
+    private MachineAlarm GetSafetyAlarm()
     {
         if (_options.UseEmergencyStop && !_state.EmergencyStopReleased)
         {
@@ -424,22 +441,6 @@ public sealed partial class MachineController
         return _options.UseAirPressureInterlock && !_state.AirPressureOk
             ? MachineAlarm.AirPressureLow
             : MachineAlarm.None;
-    }
-
-    private bool BufferHandlersEnabled
-    {
-        get
-        {
-            return _units.PcbSupply || _units.PcbPlacement;
-        }
-    }
-
-    private bool InspectionGantryEnabled
-    {
-        get
-        {
-            return _units.IsMotionEnabled(MotionGroup.InspectionGantry);
-        }
     }
 
     internal void StopRunOutputs()

@@ -66,13 +66,11 @@ public enum TeachingMotionHint
     NgPickupSafeXRequired,
 }
 
-public abstract partial class TeachingMotionViewModel(
-    MachineState state,
-    MachineController machine,
-    MachineStore store,
-    IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
-    IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : ObservableObject
+public abstract partial class TeachingMotionViewModel : ObservableObject
 {
+    private readonly MachineStore _store;
+    private readonly IReadOnlyDictionary<HardwareArea, IoStatus[]> _ioGroups;
+    private readonly IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> _teachingOutputs;
     private CancellationTokenSource _viewCancellation = new();
     private readonly Dictionary<HardwareArea, TeachingIoGroup[]> _teachingIoGroups = [];
     private int _manualCommandRefreshQueued;
@@ -97,6 +95,20 @@ public abstract partial class TeachingMotionViewModel(
     [ObservableProperty]
     private string? _saveError;
 
+    protected TeachingMotionViewModel(
+        MachineState state,
+        MachineController machine,
+        MachineStore store,
+        IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
+        IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
+    {
+        State = state;
+        Machine = machine;
+        _store = store;
+        _ioGroups = ioGroups;
+        _teachingOutputs = teachingOutputs;
+    }
+
     public TeachingMoveMode[] MoveModes { get; } = Enum.GetValues<TeachingMoveMode>();
 
     public string ManualSpeedLabel
@@ -111,9 +123,17 @@ public abstract partial class TeachingMotionViewModel(
     {
         get
         {
-            return CanEditTeaching
-                ? ManualControlBlock.None
-                : state.Display.AutoMode ? ManualControlBlock.AutoMode : ManualControlBlock.Busy;
+            if (CanEditTeaching)
+            {
+                return ManualControlBlock.None;
+            }
+
+            if (State.Display.AutoMode)
+            {
+                return ManualControlBlock.AutoMode;
+            }
+
+            return ManualControlBlock.Busy;
         }
     }
 
@@ -121,7 +141,7 @@ public abstract partial class TeachingMotionViewModel(
     {
         get
         {
-            return state.Display.SetupEditingEnabled;
+            return State.Display.SetupEditingEnabled;
         }
     }
 
@@ -134,11 +154,11 @@ public abstract partial class TeachingMotionViewModel(
         {
             if (!_teachingIoGroups.TryGetValue(ActiveTeachingUnit, out var groups))
             {
-                groups = ioGroups[ActiveTeachingUnit].Select(
+                groups = _ioGroups[ActiveTeachingUnit].Select(
                     io =>
                         new TeachingIoGroup(
                             io,
-                            teachingOutputs[ActiveTeachingUnit],
+                            _teachingOutputs[ActiveTeachingUnit],
                             Machine))
                     .ToArray();
                 foreach (var row in groups.SelectMany(group => group.Outputs))
@@ -165,11 +185,12 @@ public abstract partial class TeachingMotionViewModel(
     {
         get
         {
-            return state.GetMotionStatus(ActiveMotionGroup);
+            return State.GetMotionStatus(ActiveMotionGroup);
         }
     }
 
-    protected MachineController Machine { get; } = machine;
+    protected MachineController Machine { get; }
+    protected MachineState State { get; }
 
     public abstract MotionGroup ActiveMotionGroup { get; }
     public abstract HardwareArea ActiveTeachingUnit { get; }
@@ -185,6 +206,18 @@ public abstract partial class TeachingMotionViewModel(
     }
 
     protected abstract IReadOnlyList<TeachingPoint> CurrentPoints { get; }
+
+    private int CurrentPointIndex
+    {
+        get
+        {
+            for (var index = 0; index < CurrentPoints.Count; index++)
+                if (CurrentPoints[index] == SelectedPoint)
+                    return index;
+            return -1;
+        }
+    }
+
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
         CancelTeaching();
@@ -254,6 +287,7 @@ public abstract partial class TeachingMotionViewModel(
     }
 
     protected abstract void RefreshPointPositions();
+
     protected virtual void OnPointTaught(TeachingPoint point)
     {
     }
@@ -271,7 +305,7 @@ public abstract partial class TeachingMotionViewModel(
         SaveError = null;
         try
         {
-            await Task.Run(() => store.SaveSettings(settings, cancellationToken), cancellationToken);
+            await Task.Run(() => _store.SaveSettings(settings, cancellationToken), cancellationToken);
             System.Diagnostics.Trace.TraceInformation(
                 "Teaching settings saved: {0}.",
                 ActiveMotionGroup);
@@ -290,17 +324,6 @@ public abstract partial class TeachingMotionViewModel(
                 exception);
             SaveError = $"Teaching values were not saved: {exception.GetBaseException().Message}";
             return false;
-        }
-    }
-
-    private int CurrentPointIndex
-    {
-        get
-        {
-            for (var index = 0; index < CurrentPoints.Count; index++)
-                if (CurrentPoints[index] == SelectedPoint)
-                    return index;
-            return -1;
         }
     }
 
@@ -338,7 +361,7 @@ public abstract partial class TeachingMotionViewModel(
     [RelayCommand(CanExecute = nameof(CanStep))]
     protected abstract Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken);
 
-    protected (MotionAxis Axis, double Position) StepTarget(
+    protected (MotionAxis Axis, double Position) GetStepTarget(
         TeachingDirection direction,
         (double X, double Y, double Z) current)
     {
@@ -402,6 +425,7 @@ public abstract partial class TeachingMotionViewModel(
     }
 
     protected abstract bool CanJog(MotionAxis axis);
+
     protected abstract void NotifyManualTeachingCommands();
 
     [RelayCommand(CanExecute = nameof(CanHome))]
@@ -435,8 +459,8 @@ public abstract partial class TeachingMotionViewModel(
                 || exception is AggregateException aggregate
                     && aggregate.Flatten().InnerExceptions.Any(error => error is IOException or MotionException)))
         {
-            if (!state.IsError)
-                state.SetError(MachineAlarm.StopFailed, exception);
+            if (!State.IsError)
+                State.SetError(MachineAlarm.StopFailed, exception);
             else
                 System.Diagnostics.Trace.TraceError("Teaching STOP also failed. {0}", exception);
         }
@@ -497,5 +521,4 @@ public abstract partial class TeachingMotionViewModel(
                 }
             });
     }
-
 }

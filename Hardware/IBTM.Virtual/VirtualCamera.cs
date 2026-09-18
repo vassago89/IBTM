@@ -7,13 +7,26 @@ namespace IBTM.Virtual;
 
 public sealed record VirtualDataMatrix(AxisPosition Center, double Width, double Height, string Text);
 
-public sealed class VirtualCamera(
-    Func<(double X, double Y, double Z)> getPosition,
-    Func<IEnumerable<AxisPosition>> getBoltPositions,
-    Func<IEnumerable<VirtualDataMatrix>>? getDataMatrices = null) : ICamera
+public sealed class VirtualCamera : ICamera
 {
+    private readonly Func<(double X, double Y, double Z)> _getPosition;
+    private readonly Func<IEnumerable<AxisPosition>> _getBoltPositions;
+    private readonly Func<IEnumerable<VirtualDataMatrix>>? _getDataMatrices;
+
+    public VirtualCamera(
+        Func<(double X, double Y, double Z)> getPosition,
+        Func<IEnumerable<AxisPosition>> getBoltPositions,
+        Func<IEnumerable<VirtualDataMatrix>>? getDataMatrices = null)
+    {
+        _getPosition = getPosition;
+        _getBoltPositions = getBoltPositions;
+        _getDataMatrices = getDataMatrices;
+        BoltsPresent = true;
+    }
+
     public event Action<ImageFrame>? FrameReady;
     public event Action<Exception>? LiveViewFailed;
+
     public bool IsLiveView { get; private set; }
     public ImageFrame? SourceImage { get; set; }
 
@@ -27,7 +40,7 @@ public sealed class VirtualCamera(
         }
     }
 
-    public bool BoltsPresent { get; set; } = true;
+    public bool BoltsPresent { get; set; }
 
     public void Initialize()
     {
@@ -37,9 +50,9 @@ public sealed class VirtualCamera(
     public ImageFrame Capture(double exposureMicroseconds, double gain)
     {
         return SourceImage ?? VirtualImageFactory.CreateInspection(
-            getPosition(),
-            BoltsPresent ? getBoltPositions() : [],
-            getDataMatrices?.Invoke() ?? []);
+            _getPosition(),
+            BoltsPresent ? _getBoltPositions() : [],
+            _getDataMatrices?.Invoke() ?? []);
     }
 
     public void StartLiveView(double exposureMicroseconds, double gain)

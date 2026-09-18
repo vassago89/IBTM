@@ -20,18 +20,6 @@ public sealed partial class MachineController
         }
     }
 
-    private bool IsHomeAllowed(MotionReadiness motion, bool? running = null)
-    {
-        return !_operations.IsShuttingDown
-            && _state.SafetyReady
-            && motion.ServosOn
-            && !motion.Faulted
-            && _state.ServoMainContactorOn
-            && !_state.IsError
-            && !(running ?? _state.IsRunning)
-            && HomeBlock == HomeBlockReason.None;
-    }
-
     public HomeBlockReason HomeBlock
     {
         get
@@ -48,6 +36,18 @@ public sealed partial class MachineController
                 && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
                 && IsCylinderRaiseClear();
         }
+    }
+
+    private bool IsHomeAllowed(MotionReadiness motion, bool? running = null)
+    {
+        return !_operations.IsShuttingDown
+            && _state.SafetyReady
+            && motion.ServosOn
+            && !motion.Faulted
+            && _state.ServoMainContactorOn
+            && !_state.IsError
+            && !(running ?? _state.IsRunning)
+            && HomeBlock == HomeBlockReason.None;
     }
 
     private bool IsCylinderRaiseClear()
@@ -67,7 +67,7 @@ public sealed partial class MachineController
         if ((group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
             || group is null
             && BufferHandlersEnabled)
-            && (!_placementHandler.CanMoveHorizontal
+            && (!_placementHandler.HandlerRaised
                 || _placementHandler.IpmLift != PlacementCylinderState.Up))
             return HomeBlockReason.PlacementNotRaised;
 
@@ -89,10 +89,10 @@ public sealed partial class MachineController
         return _units.IsMotionEnabled(group)
             && group != MotionGroup.PcbSupply
             && !(running ?? (live ? _state.IsRunning : _state.Display.IsRunning))
-            && HomeAxisConditionsReady(group, axis, live);
+            && AreHomeAxisConditionsReady(group, axis, live);
     }
 
-    private bool HomeAxisConditionsReady(MotionGroup group, MotionAxis axis, bool live = true)
+    private bool AreHomeAxisConditionsReady(MotionGroup group, MotionAxis axis, bool live = true)
     {
         if (!_units.IsMotionEnabled(group)
             || !_state.ManualMode
@@ -137,7 +137,7 @@ public sealed partial class MachineController
             MachineAlarm.HomeFailed,
             () => CanHomeAxis(group, axis),
             cancellationToken,
-            canContinue: () => HomeAxisConditionsReady(group, axis));
+            canContinue: () => AreHomeAxisConditionsReady(group, axis));
     }
 
     internal bool CanHomeUnit(MotionGroup group, bool live = true)
@@ -196,7 +196,7 @@ public sealed partial class MachineController
             () => CanHomeUnit(group),
             cancellationToken,
             canContinue: () => _state.GetMotionStatus(group).Feedback.Axes
-                .All(axis => HomeAxisConditionsReady(group, axis)));
+                .All(axis => AreHomeAxisConditionsReady(group, axis)));
     }
 
     public async Task RaiseCylindersAsync(CancellationToken cancellationToken)

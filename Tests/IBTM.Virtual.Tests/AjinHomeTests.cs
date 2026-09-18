@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,27 +23,22 @@ public sealed class AjinHomeTests
         // Exercise conversion without loading the native driver or issuing hardware commands.
         var toUnits = typeof(AjinMotionService).GetMethod("ToUnits", BindingFlags.Static | BindingFlags.NonPublic)!;
         var fromUnits = typeof(AjinMotionService).GetMethod("FromUnits", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var scales = (Dictionary<int, (double Unit, int Pulse)>)typeof(AjinMotionService)
-            .GetField("_axisScales", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(motion)!;
-        Assert.Equal((1d, 1), scales[5]);
-        Assert.Equal((0.1, 1), scales[4]);
-        Assert.Equal((1d, 10), scales[3]);
-        foreach (var (axis, scale) in scales)
+        foreach (var axis in new[] { x, y, z })
         {
             var command = (double)toUnits.Invoke(motion, [1d])!;
             Assert.Equal(1_000d, command);
-            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis, command, scale.Unit, scale.Pulse])!, 6);
+            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis.Number, command, axis.MoveUnit, axis.MovePulse])!, 6);
 
             // Monitoring remains correct even before our SDK scale is applied.
-            var rawPulses = command * scale.Pulse / scale.Unit;
-            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis, rawPulses, 1d, 1])!, 6);
+            var rawPulses = command * axis.MovePulse / axis.MoveUnit;
+            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis.Number, rawPulses, 1d, 1])!, 6);
         }
 
         Assert.Throws<ArgumentOutOfRangeException>(() => y.MoveUnit = 0);
         Assert.Throws<ArgumentOutOfRangeException>(() => y.MovePulse = 0);
         // Edits take effect after restart, not halfway through a move.
         y.MoveUnit = 10;
-        Assert.Equal((0.1, 1), scales[4]);
+        Assert.Equal(1d, (double)fromUnits.Invoke(motion, [y.Number, 10_000d, 1d, 1])!, 6);
     }
 
     [Fact]
@@ -87,33 +81,6 @@ public sealed class AjinHomeTests
 
         motion = new TestCompletion(new() { TimeoutMilliseconds = 25 });
         await Assert.ThrowsAsync<TimeoutException>(motion.WaitForStop);
-    }
-
-    private sealed class TestCompletion(MachineOptions options) : AjinMotionService(
-        new AjinController(new AjinSettings()),
-        new AxisHardware(),
-        null,
-        null,
-        new MotionSettings(),
-        options,
-        new OperationCancellation(),
-        null)
-    {
-        public (bool Moving, bool InPosition, bool Faulted) Feedback = (true, false, false);
-        public Task Wait(CancellationToken token)
-        {
-            return WaitForMoveAsync([0], token);
-        }
-
-        public Task WaitForStop()
-        {
-            return WaitForStopAsync([0]);
-        }
-
-        protected override (bool Moving, bool InPosition, bool Faulted) ReadMoveState(int[] axes)
-        {
-            return Feedback;
-        }
     }
 
     [Theory]
@@ -184,21 +151,62 @@ public sealed class AjinHomeTests
         Assert.Equal(0, motion.YHomeCalls);
     }
 
-    private sealed class TestAjinHome(bool hasY = true) : AjinMotionService(
-        new AjinController(new AjinSettings()),
-        new AxisHardware { Number = 0 },
-        hasY ? new AxisHardware { Number = 1 } : null,
-        axisZ: null,
-        new MotionSettings(),
-        new MachineOptions(),
-        new OperationCancellation(),
-        horizontalZ: null)
+    private sealed class TestCompletion : AjinMotionService
     {
-        public TaskCompletionSource<bool>[] Results { get; } = [
-            new(TaskCreationOptions.RunContinuationsAsynchronously),
-            new(TaskCreationOptions.RunContinuationsAsynchronously),
+        public (bool Moving, bool InPosition, bool Faulted) Feedback;
+
+        public TestCompletion(MachineOptions options)
+            : base(
+                new AjinController(new AjinSettings()),
+                new AxisHardware(),
+                null,
+                null,
+                new MotionSettings(),
+                options,
+                new OperationCancellation(),
+                null)
+        {
+            Feedback = (true, false, false);
+        }
+
+        public Task Wait(CancellationToken token)
+        {
+            return WaitForMoveAsync([0], token);
+        }
+
+        public Task WaitForStop()
+        {
+            return WaitForStopAsync([0]);
+        }
+
+        protected override (bool Moving, bool InPosition, bool Faulted) ReadMoveState(int[] axes)
+        {
+            return Feedback;
+        }
+    }
+
+    private sealed class TestAjinHome : AjinMotionService
+    {
+        public TestAjinHome(bool hasY = true)
+            : base(
+                new AjinController(new AjinSettings()),
+                new AxisHardware { Number = 0 },
+                hasY ? new AxisHardware { Number = 1 } : null,
+                axisZ: null,
+                new MotionSettings(),
+                new MachineOptions(),
+                new OperationCancellation(),
+                horizontalZ: null)
+        {
+            Results = [
+                new(TaskCreationOptions.RunContinuationsAsynchronously),
+                new(TaskCreationOptions.RunContinuationsAsynchronously),
         ];
-        public CancellationToken[] Tokens { get; } = new CancellationToken[2];
+            Tokens = new CancellationToken[2];
+        }
+
+        public TaskCompletionSource<bool>[] Results { get; }
+        public CancellationToken[] Tokens { get; }
         public int YHomeCalls { get; private set; }
 
         public Task<bool> HomeHorizontal(CancellationToken cancellationToken)

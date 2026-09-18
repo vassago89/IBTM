@@ -31,10 +31,10 @@ public sealed record ImageRuler(Point Start, Point End)
 // Drawing and measurement coordinates are original-image pixels, independent of display size.
 public sealed class ImageTeachingView : FrameworkElement
 {
-    private static readonly Pen RegionPen = FrozenPen(Color.FromRgb(74, 222, 128), 2.5);
-    private static readonly Pen RulerPen = FrozenPen(Color.FromRgb(56, 189, 248), 2);
-    private static readonly Pen CrosshairOutlinePen = FrozenPen(Colors.Black, 3);
-    private static readonly Pen CrosshairPen = FrozenPen(Color.FromRgb(251, 191, 36), 1);
+    private static readonly Pen RegionPen = CreateFrozenPen(Color.FromRgb(74, 222, 128), 2.5);
+    private static readonly Pen RulerPen = CreateFrozenPen(Color.FromRgb(56, 189, 248), 2);
+    private static readonly Pen CrosshairOutlinePen = CreateFrozenPen(Colors.Black, 3);
+    private static readonly Pen CrosshairPen = CreateFrozenPen(Color.FromRgb(251, 191, 36), 1);
 
     private Point? _dragStart;
     private Point? _dragEnd;
@@ -186,7 +186,7 @@ public sealed class ImageTeachingView : FrameworkElement
         if (Source is not { } source || ActualWidth <= 0 || ActualHeight <= 0)
             return;
 
-        var fitted = ImageBounds();
+        var fitted = GetImageBounds();
         var scale = fitted.Width / source.PixelWidth;
         drawing.DrawImage(source, fitted);
         if (SourceRegion is { } region)
@@ -245,9 +245,9 @@ public sealed class ImageTeachingView : FrameworkElement
         var mouse = e.GetPosition(this);
         if (Source is null
             || ActualWidth <= 0 || ActualHeight <= 0
-            || !ImageBounds().Contains(mouse))
+            || !GetImageBounds().Contains(mouse))
             return;
-        var point = ImagePoint(mouse);
+        var point = GetImagePoint(mouse);
         if (IsMeasuring
             ? MeasureCommand?.CanExecute(new ImageRuler(point, point)) != true
             : RegionCommand?.CanExecute(Rect.Empty) != true)
@@ -267,7 +267,7 @@ public sealed class ImageTeachingView : FrameworkElement
         if (_dragStart is null || Source is null)
             return;
 
-        _dragEnd = ImagePoint(e.GetPosition(this));
+        _dragEnd = GetImagePoint(e.GetPosition(this));
         InvalidateVisual();
     }
 
@@ -276,7 +276,7 @@ public sealed class ImageTeachingView : FrameworkElement
         base.OnMouseLeftButtonUp(e);
         if (_dragStart is not { } start || Source is null)
             return;
-        var end = ImagePoint(e.GetPosition(this));
+        var end = GetImagePoint(e.GetPosition(this));
         CancelDrag();
         if (IsMeasuring)
         {
@@ -320,7 +320,7 @@ public sealed class ImageTeachingView : FrameworkElement
         InvalidateVisual();
     }
 
-    private Rect ImageBounds()
+    private Rect GetImageBounds()
     {
         var source = Source!;
         var scale = Math.Min(ActualWidth / source.PixelWidth, ActualHeight / source.PixelHeight);
@@ -329,10 +329,10 @@ public sealed class ImageTeachingView : FrameworkElement
         return new Rect((ActualWidth - width) / 2, (ActualHeight - height) / 2, width, height);
     }
 
-    private Point ImagePoint(Point screen)
+    private Point GetImagePoint(Point screen)
     {
         var source = Source!;
-        var fitted = ImageBounds();
+        var fitted = GetImageBounds();
         var scale = fitted.Width / source.PixelWidth;
         return new Point(
             Math.Clamp((screen.X - fitted.X) / scale, 0, source.PixelWidth),
@@ -344,7 +344,7 @@ public sealed class ImageTeachingView : FrameworkElement
         ((ImageTeachingView)sender).CancelDrag();
     }
 
-    private static Pen FrozenPen(Color color, double thickness)
+    private static Pen CreateFrozenPen(Color color, double thickness)
     {
         var pen = new Pen(new SolidColorBrush(color), thickness);
         pen.Freeze();

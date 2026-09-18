@@ -29,7 +29,8 @@ public sealed class IoTests
     {
         var virtualIo = new VirtualIoService(
             new NgShuttleHardwareSettings().Outputs,
-            new MachineOptions { TimeoutMilliseconds = 100 }) { AutoResponseEnabled = false };
+            new MachineOptions { TimeoutMilliseconds = 100 })
+        { AutoResponseEnabled = false };
         IIoService io = virtualIo;
         virtualIo.SetInput(InputIo.NgShuttleUp, false);
         virtualIo.SetInput(InputIo.NgShuttleDown, false);
@@ -329,27 +330,6 @@ public sealed class IoTests
         Assert.Equal(2, availabilityChanges);
     }
 
-    public class OutputReadProbe : DispatchProxy
-    {
-        public IIoService Io = null!;
-        public int Reads;
-        public Action? BeforeRead;
-        public Exception? Error;
-
-        protected override object? Invoke(MethodInfo? method, object?[]? args)
-        {
-            if (method!.Name == nameof(IIoService.GetOutput))
-            {
-                BeforeRead?.Invoke();
-                Reads++;
-                if (Error is { } error)
-                    throw error;
-            }
-
-            return method.Invoke(Io, args);
-        }
-    }
-
     [Fact]
     public async Task CylinderFeedbackRequiresOneEndpointAndRejectsContradictoryInputs()
     {
@@ -418,5 +398,26 @@ public sealed class IoTests
         io.SetInput(InputIo.ResetButton, true);
         Assert.True(io.GetInput(InputIo.ServoMainContactorOn));
         Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).ServoOn));
+    }
+
+    public class OutputReadProbe : DispatchProxy
+    {
+        public IIoService Io = null!;
+        public int Reads;
+        public Action? BeforeRead;
+        public Exception? Error;
+
+        protected override object? Invoke(MethodInfo? method, object?[]? args)
+        {
+            if (method!.Name == nameof(IIoService.GetOutput))
+            {
+                BeforeRead?.Invoke();
+                Reads++;
+                if (Error is { } error)
+                    throw error;
+            }
+
+            return method.Invoke(Io, args);
+        }
     }
 }

@@ -111,7 +111,7 @@ public sealed partial class MachineLifecycleTests
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(12));
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-            Assert.True(work.Completed, services.GetRequiredService<BoltFasteningStation>().State().ToString());
+            Assert.True(work.Completed, services.GetRequiredService<BoltFasteningStation>().GetState().ToString());
             var assembly = Assert.Single(work.Assemblies);
             Assert.Equal(BoltResultSource.IoAssumedOk,
                 Assert.Single(assembly.PcbBoltResults).Value.Source);
@@ -290,7 +290,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(gantry.IsAtSafeZ());
             Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
             Assert.False(gantry.PickupBoltLoaded);
-            Assert.Empty(work.Assembly(HeatSinkSlot.HeatSink1).IpmSeatingResults);
+            Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink1).IpmSeatingResults);
             Assert.False(station.HasPendingResult);
 
             settings.Options.TimeoutMilliseconds = 2_000;
@@ -310,7 +310,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(2, pickups);
             Assert.False(gantry.PickupBoltLoaded);
             Assert.Equal(2, starts);
-            Assert.Equal(AssemblyResult.Ok, work.Assembly(HeatSinkSlot.HeatSink1).FasteningResult);
+            Assert.Equal(AssemblyResult.Ok, work.GetAssembly(HeatSinkSlot.HeatSink1).FasteningResult);
             Assert.True(gantry.CanMoveHorizontal);
             Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
         }

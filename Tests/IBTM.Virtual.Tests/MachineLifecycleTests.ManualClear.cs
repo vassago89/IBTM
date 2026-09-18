@@ -31,7 +31,7 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
             await work.Station.SeatAsync(CancellationToken.None);
             var job = work.CurrentJob;
-            var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
+            var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
             var completed = work.Completed;
             if (stoppedAutomatically)
             {
@@ -59,7 +59,7 @@ public sealed partial class MachineLifecycleTests
 
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.Null(state.AlarmDetail);
-            Assert.True(work.CarrierSeated);
+            Assert.True(work.Station.CarrierSeated);
             Assert.True(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
             Assert.Equal(0, plateWrites);
             Assert.Same(job, work.CurrentJob);
@@ -76,7 +76,7 @@ public sealed partial class MachineLifecycleTests
             try
             {
                 await VirtualTest.WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
-                Assert.Equal(StationCylinderState.Down, work.BackupPlate);
+                Assert.Equal(StationCylinderState.Down, work.Station.BackupPlate);
                 Assert.True(state.AutomaticRunning);
             }
             finally
