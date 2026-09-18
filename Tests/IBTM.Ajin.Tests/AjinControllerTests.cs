@@ -10,7 +10,7 @@ using Xunit;
 
 namespace IBTM.Ajin.Tests;
 
-public sealed class AjinControllerTests
+public sealed partial class AjinControllerTests
 {
     public AjinControllerTests()
     {
@@ -389,18 +389,20 @@ public sealed class AjinControllerTests
         }
     }
 
-    [Fact]
-    public async Task HorizontalHomeUsesZHomeSearchSpeedBeforeHomingTheRequestedAxis()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SingleAxisHomeNeverHomesOrPositionsZ(bool zHomed)
     {
         using var controller = new AjinController(new());
         var settings = new MotionSettings
         {
-            ZSpeed = 100,
-            ZHome = new() { SearchSpeed = 7 },
+            ZSpeed = double.NaN,
+            ZHome = new() { SearchSpeed = double.NaN },
         };
         var motion = new AjinMotionService(
             controller, new() { Number = 9 }, null, new() { Number = 11 },
-            settings, new(), new(), () => 0);
+            settings, new(), new(), () => 8);
         foreach (var axis in new[] { 9, 11 })
         {
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 0xFF, ServoOn: 1);
@@ -409,19 +411,28 @@ public sealed class AjinControllerTests
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: axis)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axis)] = 0;
         }
+        AjinSdk.MotionAxes[11] = AjinSdk.MotionAxes[11] with { HomeResult = zHomed ? 1U : 0xFFU };
         AjinSdk.BeforeCall = call =>
         {
             if (call.Operation == nameof(CAXM.AxmHomeSetStart))
                 AjinSdk.MotionAxes[call.Axis!.Value] = AjinSdk.MotionAxes[call.Axis.Value] with { HomeResult = 1 };
         };
 
-        Assert.True(await motion.HomeAsync(MotionAxis.X, 15));
+        if (zHomed)
+        {
+            Assert.True(await motion.HomeAsync(MotionAxis.X, 15));
+            Assert.Equal(15000, AjinSdk.HomeVelocities[9][0]);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<MotionInterlockException>(() => motion.HomeAsync(MotionAxis.X, 15));
+        }
 
-        Assert.Equal(7000, AjinSdk.HomeVelocities[11][0]);
-        Assert.Equal(15000, AjinSdk.HomeVelocities[9][0]);
-        Assert.Equal(new[] { 11, 9 }, AjinSdk.Calls
+        Assert.False(AjinSdk.HomeVelocities.ContainsKey(11));
+        Assert.Equal(zHomed ? new[] { 9 } : Array.Empty<int>(), AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmHomeSetStart))
             .Select(call => call.Axis!.Value));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMovePos));
     }
 
     [Fact]

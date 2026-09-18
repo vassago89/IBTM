@@ -161,19 +161,13 @@ public sealed partial class MachineController
                         case MotionGroup.PcbPlacementHandler:
                             homed = await _placementHandler.HomeAxisAsync(MotionAxis.Z, token);
                             if (homed)
-                            {
-                                await _placementHandler.MoveToHorizontalZAsync(token);
                                 homed = await _placementHandler.HomeHorizontalAsync(token);
-                            }
                             break;
 
                         case MotionGroup.BoltFastening:
                             homed = await _fasteningGantry.HomeAxisAsync(MotionAxis.Z, token);
                             if (homed)
-                            {
-                                await _fasteningGantry.MoveToSafeZAsync(token);
                                 homed = await _fasteningGantry.HomeHorizontalAsync(token);
-                            }
                             break;
 
                         case MotionGroup.InspectionGantry:
@@ -340,103 +334,13 @@ public sealed partial class MachineController
             }
         }
 
-        async Task RunHomeStepAsync(Task step)
-        {
-            try
-            {
-                await step;
-            }
-            catch (Exception exception)
-            {
-                if (exception is not OperationCanceledException)
-                {
-                    _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
-                }
-
-                throw;
-            }
-        }
-
-        async Task CheckHomeAsync(Task<bool> homing)
-        {
-            await RunHomeStepAsync(homing);
-            if (!await homing && !cancellationToken.IsCancellationRequested)
-            {
-                _state.SetError(MachineAlarm.HomeFailed);
-            }
-        }
-
         _state.Changed += StopWhenHomeBecomesUnavailable;
         try
         {
             _state.SetHoming(true);
-            var zHomeTasks = new List<Task>(3);
-            if (_units.PcbPlacement)
-            {
-                zHomeTasks.Add(
-                    CheckHomeAsync(_placementHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken)));
-            }
-
-            if (_units.PcbSupply)
-            {
-                zHomeTasks.Add(RunHomeStepAsync(_supplyHandler.PrepareHomeAsync(cancellationToken)));
-            }
-
-            if (_units.BoltFastening)
-            {
-                zHomeTasks.Add(
-                    CheckHomeAsync(_fasteningGantry.HomeAxisAsync(MotionAxis.Z, cancellationToken)));
-            }
-
-            await Task.WhenAll(zHomeTasks);
+            await HomeVerticalAxesAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-
-            var safeZTasks = new List<Task>(2);
-            if (_units.PcbPlacement)
-            {
-                safeZTasks.Add(
-                    RunHomeStepAsync(_placementHandler.MoveToHorizontalZAsync(cancellationToken)));
-            }
-
-            if (_units.BoltFastening)
-            {
-                safeZTasks.Add(RunHomeStepAsync(_fasteningGantry.MoveToSafeZAsync(cancellationToken)));
-            }
-
-            await Task.WhenAll(safeZTasks);
-
-            var horizontalHomeTasks = new List<Task>(4);
-            if (_units.PcbPlacement)
-            {
-                horizontalHomeTasks.Add(
-                    CheckHomeAsync(_placementHandler.HomeHorizontalAsync(cancellationToken)));
-            }
-
-            if (_units.PcbSupply)
-            {
-                horizontalHomeTasks.Add(
-                    CheckHomeAsync(_supplyHandler.CompleteHomeAsync(cancellationToken)));
-            }
-
-            if (_units.BoltFastening)
-            {
-                horizontalHomeTasks.Add(
-                    CheckHomeAsync(_fasteningGantry.HomeHorizontalAsync(cancellationToken)));
-            }
-
-            if (InspectionGantryEnabled)
-            {
-                horizontalHomeTasks.Add(
-                    CheckHomeAsync(_inspectionGantry.HomeHorizontalAsync(cancellationToken)));
-            }
-
-            await Task.WhenAll(horizontalHomeTasks);
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (_units.PcbSupply)
-            {
-                await _supplyHandler.MoveToRotationZAsync(cancellationToken);
-            }
+            await HomeHorizontalAxesAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -450,6 +354,68 @@ public sealed partial class MachineController
             _state.Changed -= StopWhenHomeBecomesUnavailable;
             _state.SetHoming(false);
             _state.Refresh();
+        }
+    }
+
+    private async Task HomeVerticalAxesAsync(CancellationToken cancellationToken)
+    {
+        await Task.WhenAll(
+            _units.PcbPlacement
+                ? CheckHomeAsync(
+                    _placementHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                : Task.CompletedTask,
+            _units.PcbSupply
+                ? ObserveHomeStepAsync(_supplyHandler.PrepareHomeAsync(cancellationToken))
+                : Task.CompletedTask,
+            _units.BoltFastening
+                ? CheckHomeAsync(
+                    _fasteningGantry.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                : Task.CompletedTask);
+    }
+
+    private async Task HomeHorizontalAxesAsync(CancellationToken cancellationToken)
+    {
+        await Task.WhenAll(
+            _units.PcbPlacement
+                ? CheckHomeAsync(_placementHandler.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                : Task.CompletedTask,
+            _units.PcbSupply
+                ? CheckHomeAsync(_supplyHandler.CompleteHomeAsync(cancellationToken), cancellationToken)
+                : Task.CompletedTask,
+            _units.BoltFastening
+                ? CheckHomeAsync(_fasteningGantry.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                : Task.CompletedTask,
+            InspectionGantryEnabled
+                ? CheckHomeAsync(_inspectionGantry.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                : Task.CompletedTask);
+    }
+
+    private async Task CheckHomeAsync(Task<bool> homing, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!await homing && !cancellationToken.IsCancellationRequested)
+                _state.SetError(MachineAlarm.HomeFailed);
+        }
+        catch (Exception exception)
+        {
+            if (exception is not OperationCanceledException)
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
+            throw;
+        }
+    }
+
+    private async Task ObserveHomeStepAsync(Task step)
+    {
+        try
+        {
+            await step;
+        }
+        catch (Exception exception)
+        {
+            if (exception is not OperationCanceledException)
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
+            throw;
         }
     }
 }

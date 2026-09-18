@@ -166,6 +166,30 @@ Home의 허용 조건·차단 이유·실행은 `MachineController.Home.cs`,
 장치 초기화·Reset은 `MachineController.Reset.cs`, 수동 작업 수명은
 `MachineController.Manual.cs`에서 따라간다. 모두 같은 `MachineController`의 partial 파일이며
 의존성과 공통 Stop·안전 인터록은 `MachineController.cs`가 소유한다.
+
+HOME 순서와 추가 이동 제거(2026-09-18):
+
+- 전체 HOME은 `HomeVerticalAxesAsync` → `HomeHorizontalAxesAsync`다.
+  안착·체결은 Z HOME 완료 뒤 X/Y HOME을 수행한다. 티칭 유닛 HOME도 같은 순서다.
+- HOME 중 안착의 Handoff / Travel Z, 체결의 Safe Z로 이동하지 않는다.
+  전체 HOME 종료 뒤 공급기의 Rotation Z로 이동하던 단계도 제거했다.
+- 단일 축 HOME은 지정한 축만 실행한다. X/Y HOME에서 Z가 미원점이면 오류로 알린다.
+  Z HOME이나 높이 이동을 공통 드라이버가 대신 실행하지 않는다.
+  X/Y HOME의 Z 조건은 현재 원점 완료와 정지이며, 운전용 높이 좌표를 요구하지 않는다.
+- AJIN의 동시 X/Y HOME은 두 축을 시작한 뒤 한 루프에서 결과를 확인한다.
+  취소·실패 시 두 축의 정지 확인과 오류 수거를 끝내야 HOME이 반환한다.
+  상위 단계도 한 유닛의 시작 오류 때문에 이미 시작한 다른 유닛을 남겨 두지 않는다.
+
+추가 동작 점검에서 남긴 검토 항목:
+
+| 위치 | 기존에 들어 있는 동작 | 이번 처리 |
+| --- | --- | --- |
+| `PcbSupplyHandler.PrepareHomeAsync` / `CompleteHomeAsync` | 회전 → Z 상한 → X HOME → Y HOME → Z HOME | 최초 구현부터 있으나 현재 자료로 원 요청 근거는 확인되지 않음. 공급기의 별도 순서로 유지 |
+| `MotionService.MoveAxisAsync` / `MoveToXYAsync` | X/Y 위치 이동 전에 Z를 운전용 높이로 자동 이동 | HOME 외 운전·티칭 이동에 광범위하게 연결됨. 숨은 선행 동작으로 확인했으며 이번 HOME 변경에서는 유지 |
+
+실린더 상승 피드백·서보·알람·정지 완료 검사는 추가 이동과 별개다.
+위 단계에서 임의로 실린더를 올리거나 장치 준비 상태를 추정하지 않는다.
+
 START/HOME/실린더 상승의 실행 전 조건 읽기도 명령의 오류 처리 범위에 포함한다.
 장치 읽기 실패는 동작을 시작하지 않고 알람·원인으로 남긴다. HOME/상승 중 상태 변경 통지에서
 조건을 다시 읽다 실패하면 해당 작업을 취소한다. 조건 getter의 읽기 오류를 false나 캐시값으로 숨기지 않는다.

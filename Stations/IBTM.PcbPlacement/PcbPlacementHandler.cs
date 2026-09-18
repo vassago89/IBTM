@@ -155,17 +155,17 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         _motion.SetServo(axis, on);
     }
 
-    public Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
+    public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
         if (axis != MotionAxis.Z)
             EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.HomeAsync(axis, _settings.Motion.Home(axis).SearchSpeed, cancellationToken);
+        return await _motion.HomeAsync(axis, _settings.Motion.Home(axis).SearchSpeed, cancellationToken);
     }
 
-    public Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
     {
         EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.HomeHorizontalAsync(
+        return await _motion.HomeHorizontalAsync(
             _settings.Motion.HorizontalHome.SearchSpeed,
             cancellationToken);
     }
@@ -185,9 +185,9 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
             && Math.Abs(Motion.ReadPosition(live).Z - position.Z) <= MotionService.PositionToleranceMillimeters;
     }
 
-    public Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default)
+    public async Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default)
     {
-        return _motion.MoveToHorizontalZAsync(cancellationToken);
+        await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
     public Task MoveAboveBufferAsync(CancellationToken cancellationToken = default)

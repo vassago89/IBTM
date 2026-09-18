@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -7,7 +9,10 @@ using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
+using IBTM.BoltFastening;
 using IBTM.Device;
+using IBTM.PcbPlacement;
+using IBTM.PcbSupply;
 using IBTM.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -16,10 +21,107 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Fact]
+    public async Task AllUnitsHomeEndsAtHomeWithoutMovingToWorkHeights()
+    {
+        var settings = FlowSettings();
+        settings.PcbPlacementHandler.BufferHandoffPosition.Z = 8;
+        settings.BoltFastening.SafeZ = 12;
+        settings.PcbSupply.RotationZ = 16;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            var motions = new[]
+            {
+                services.GetRequiredService<PcbPlacementHandler>().Feedback,
+                services.GetRequiredService<BoltFasteningGantry>().Feedback,
+                services.GetRequiredService<PcbSupplyHandler>().Feedback,
+            };
+            foreach (var motion in motions)
+            {
+                Assert.Equal((0, 0, 0), motion.GetPosition());
+                Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).Homed));
+            }
+            Assert.False(state.IsHoming);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task SynchronousHomeStartFailureWaitsForAlreadyStartedAxes()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.BoltFastening = true;
+        var failure = new MotionException("Start fastening HOME", new InvalidOperationException("SDK start failed."));
+        var results = new Dictionary<MotionGroup, HomeResultMotion>();
+        IXyMotion Wrap(IServiceProvider provider, MotionGroup group)
+        {
+            var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
+            var result = (HomeResultMotion)motion;
+            result.Motion = provider.GetRequiredKeyedService<IXyMotion>(group);
+            result.AwaitCleanupAfterCancellation = true;
+            if (group == MotionGroup.BoltFastening)
+                result.StartFailure = failure;
+            results.Add(group, result);
+            return motion;
+        }
+
+        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(settings)
+            .AddSingleton(provider => new PcbPlacementHandler(
+                Wrap(provider, MotionGroup.PcbPlacementHandler),
+                provider.GetRequiredService<IIoService>(), settings.PcbPlacementHandler))
+            .AddSingleton(provider => new BoltFasteningGantry(
+                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
+                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
+                provider.GetRequiredService<IIoService>(), Wrap(provider, MotionGroup.BoltFastening),
+                settings.BoltFastening, settings.CarrierReference))
+            .BuildServiceProvider();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        var homing = machine.HomeAsync(default);
+        var placement = results[MotionGroup.PcbPlacementHandler];
+        try
+        {
+            await results[MotionGroup.BoltFastening].Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await WaitUntilAsync(() => placement.HomeCancellation.IsCancellationRequested);
+            Assert.False(homing.IsCompleted);
+            Assert.True(state.IsHoming);
+            Assert.True(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+
+            placement.Result.SetCanceled();
+            await homing.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Contains("SDK start failed.", state.AlarmDetail);
+            Assert.False(state.IsHoming);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.All(results.Values, result => Assert.Equal(0, result.HorizontalHomeCalls));
+        }
+        finally
+        {
+            placement.Result.TrySetCanceled();
+            machine.Stop();
+            await homing;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task HomeCommandKeepsDispatcherResponsiveDuringSlowHardwareCall(bool teachingHome)
+    [InlineData(HomeCommandTarget.Axis)]
+    [InlineData(HomeCommandTarget.TeachingUnit)]
+    [InlineData(HomeCommandTarget.AllUnits)]
+    public async Task HomeCommandKeepsDispatcherResponsiveDuringSlowHardwareCall(HomeCommandTarget target)
     {
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -42,7 +144,11 @@ public sealed partial class MachineLifecycleTests
                     {
                         var uiThread = Environment.CurrentManagedThreadId;
                         IAsyncRelayCommand command;
-                        if (teachingHome)
+                        if (target == HomeCommandTarget.AllUnits)
+                        {
+                            command = services.GetRequiredService<OperationViewModel>().HomeCommand;
+                        }
+                        else if (target == HomeCommandTarget.TeachingUnit)
                         {
                             var teaching = services.GetRequiredService<TeachingViewModel>();
                             teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
@@ -146,5 +252,12 @@ public sealed partial class MachineLifecycleTests
         {
             await machine.ShutdownAsync();
         }
+    }
+
+    public enum HomeCommandTarget
+    {
+        Axis,
+        TeachingUnit,
+        AllUnits,
     }
 }

@@ -288,6 +288,8 @@ public sealed partial class MachineLifecycleTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         public int HorizontalHomeCalls { get; private set; }
         public bool AwaitCleanupAfterCancellation { get; set; }
+        public Exception? StartFailure { get; set; }
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public CancellationToken HomeCancellation { get; private set; }
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
@@ -296,6 +298,9 @@ public sealed partial class MachineLifecycleTests
                 && (MotionAxis)arguments![0]! == MotionAxis.Z)
             {
                 HomeCancellation = (CancellationToken)arguments[2]!;
+                Started.TrySetResult();
+                if (StartFailure is not null)
+                    throw StartFailure;
                 return AwaitCleanupAfterCancellation
                     ? Result.Task
                     : Result.Task.WaitAsync(HomeCancellation);

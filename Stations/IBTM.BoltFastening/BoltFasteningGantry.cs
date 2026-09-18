@@ -176,17 +176,17 @@ public sealed class BoltFasteningGantry
         _motion.SetServo(axis, on);
     }
 
-    public Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
+    public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
         if (axis != MotionAxis.Z)
             EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.HomeAsync(axis, _settings.Motion.Home(axis).SearchSpeed, cancellationToken);
+        return await _motion.HomeAsync(axis, _settings.Motion.Home(axis).SearchSpeed, cancellationToken);
     }
 
-    public Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
     {
         EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.HomeHorizontalAsync(
+        return await _motion.HomeHorizontalAsync(
             _settings.Motion.HorizontalHome.SearchSpeed,
             cancellationToken);
     }
@@ -442,9 +442,9 @@ public sealed class BoltFasteningGantry
         }
     }
 
-    public Task MoveToSafeZAsync(CancellationToken cancellationToken = default)
+    public async Task MoveToSafeZAsync(CancellationToken cancellationToken = default)
     {
-        return _motion.MoveToHorizontalZAsync(cancellationToken);
+        await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
     public void StopShooting(Exception? operationFailure = null)

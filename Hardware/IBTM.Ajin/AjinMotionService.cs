@@ -287,52 +287,37 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         double velocity,
         CancellationToken cancellationToken = default)
     {
+        return await HomeAxesAsync([axis], velocity, cancellationToken).ConfigureAwait(false);
+    }
+
+    protected override async Task<bool> HomeHorizontalCoreAsync(
+        double velocity,
+        CancellationToken cancellationToken)
+    {
+        MotionAxis[] axes = _axisY is null ? [MotionAxis.X] : [MotionAxis.X, MotionAxis.Y];
+        return await HomeAxesAsync(axes, velocity, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<bool> HomeAxesAsync(
+        MotionAxis[] axes,
+        double velocity,
+        CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
-        var axisNumber = GetAxis(axis);
-        EnsureAxisParameters(axisNumber);
-        var velocityInUnits = ToUnits(velocity);
-
-        var home = Settings.Home(axis);
-
-        var homeDirection = _axisParameters[axisNumber].HomeDirection;
-        var direction = 0;
-        var signal = 0U;
-        var zPhase = 0U;
-        var clearTime = 0d;
-        var offset = 0d;
-        AjinController.Check(
-            CAXM.AxmHomeGetMethod(
-                axisNumber, ref direction, ref signal, ref zPhase, ref clearTime, ref offset),
-            $"{nameof(CAXM.AxmHomeGetMethod)} (axis={axisNumber})");
-        direction = homeDirection switch
+        var axisNumbers = axes.Select(GetAxis).ToArray();
+        foreach (var axis in axes)
         {
-            HomeDirection.Negative => 0, // AJIN DIR_CCW
-            HomeDirection.Positive => 1, // AJIN DIR_CW
-            _ => throw new InvalidOperationException($"Invalid home direction for axis {axisNumber}: {homeDirection}."),
-        };
-        AjinController.Check(
-            CAXM.AxmHomeSetMethod(axisNumber, direction, signal, zPhase, clearTime, offset),
-            $"{nameof(CAXM.AxmHomeSetMethod)} (axis={axisNumber})");
+            cancellationToken.ThrowIfCancellationRequested();
+            ConfigureHome(axis, velocity);
+        }
 
-        AjinController.Check(
-            CAXM.AxmHomeSetResult(axisNumber, HomeUnknown),
-            $"{nameof(CAXM.AxmHomeSetResult)} (axis={axisNumber})");
-        AjinController.Check(
-            CAXM.AxmHomeSetVel(
-                axisNumber,
-                velocityInUnits,
-                ToUnits(home.DetectionSpeed),
-                ToUnits(home.ApproachSpeed),
-                ToUnits(home.FineSpeed),
-                velocityInUnits / home.SearchAccelerationSeconds,
-                ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds),
-            $"{nameof(CAXM.AxmHomeSetVel)} (axis={axisNumber})");
+        var horizontal = axes.Any(axis => axis != MotionAxis.Z);
         Exception? cancellationFailure = null;
         void StopOnCancellation()
         {
             try
             {
-                StopAxes([axisNumber], clearHome: true);
+                StopAxes(axisNumbers, clearHome: true);
             }
             catch (Exception exception)
             {
@@ -342,30 +327,55 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
         Exception? failure = null;
         var homed = false;
-        var homeResult = HomeUnknown;
+        var clearHomeOnFailure = true;
         using (cancellationToken.Register(StopOnCancellation))
         {
             try
             {
-                BeginMotion(axis != MotionAxis.Z);
-                cancellationToken.ThrowIfCancellationRequested();
-                AjinController.Check(
-                    CAXM.AxmHomeSetStart(axisNumber),
-                    $"{nameof(CAXM.AxmHomeSetStart)} (axis={axisNumber})");
-                while (true)
+                BeginMotion(horizontal);
+                // Start every axis before waiting. One HOME operation owns X/Y cancellation and cleanup.
+                foreach (var axisNumber in axisNumbers)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     AjinController.Check(
-                        CAXM.AxmHomeGetResult(axisNumber, ref homeResult),
-                        $"{nameof(CAXM.AxmHomeGetResult)} (axis={axisNumber})");
-                    PublishPosition();
+                        CAXM.AxmHomeSetStart(axisNumber),
+                        $"{nameof(CAXM.AxmHomeSetStart)} (axis={axisNumber})");
+                }
 
-                    if (homeResult != HomeSearching)
+                while (true)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var allHomed = true;
+                    List<Exception>? homeFailures = null;
+                    foreach (var axisNumber in axisNumbers)
                     {
-                        homed = homeResult == HomeSuccess;
-                        break;
+                        var homeResult = HomeUnknown;
+                        AjinController.Check(
+                            CAXM.AxmHomeGetResult(axisNumber, ref homeResult),
+                            $"{nameof(CAXM.AxmHomeGetResult)} (axis={axisNumber})");
+                        if (homeResult == HomeSuccess)
+                            continue;
+                        allHomed = false;
+                        if (homeResult != HomeSearching)
+                        {
+                            // Preserve the controller's failed result for diagnostics.
+                            clearHomeOnFailure = false;
+                            (homeFailures ??= []).Add(new System.IO.IOException(
+                                $"AJIN home failed (axis={axisNumber}): {(AXT_MOTION_HOME_RESULT)homeResult} (0x{homeResult:X2})."));
+                        }
                     }
 
+                    if (homeFailures is { Count: 1 })
+                        throw homeFailures[0];
+                    if (homeFailures is not null)
+                        throw new MotionException("Home axes", new AggregateException(homeFailures));
+
+                    PublishPosition();
+                    if (allHomed)
+                    {
+                        homed = true;
+                        break;
+                    }
                     await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -376,22 +386,17 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
             if (!homed)
             {
-                var clearHome = failure is not null;
-                failure ??= new System.IO.IOException(
-                    $"AJIN home failed (axis={axisNumber}): {(AXT_MOTION_HOME_RESULT)homeResult} (0x{homeResult:X2}).");
                 try
                 {
-                    StopAxes([axisNumber], clearHome: clearHome);
+                    StopAxes(axisNumbers, clearHome: clearHomeOnFailure);
                 }
                 catch (Exception stopFailure)
                 {
-                    failure = failure is null
-                        ? stopFailure
-                        : new MotionException("Stop home", new AggregateException(failure, stopFailure));
+                    failure = new MotionException("Stop home", new AggregateException(failure!, stopFailure));
                 }
             }
 
-            failure = await EndMotionAsync([axisNumber], axis != MotionAxis.Z, failure).ConfigureAwait(false);
+            failure = await EndMotionAsync(axisNumbers, horizontal, failure).ConfigureAwait(false);
         }
 
         // Registration disposal joins any STOP callback before its failure is collected.
@@ -406,47 +411,43 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         return homed;
     }
 
-    protected override async Task<bool> HomeHorizontalCoreAsync(
-        double velocity,
-        CancellationToken cancellationToken)
+    private void ConfigureHome(MotionAxis axis, double velocity)
     {
-        if (_axisY is null)
+        var axisNumber = GetAxis(axis);
+        EnsureAxisParameters(axisNumber);
+        var velocityInUnits = ToUnits(velocity);
+        var home = Settings.Home(axis);
+        var direction = 0;
+        var signal = 0U;
+        var zPhase = 0U;
+        var clearTime = 0d;
+        var offset = 0d;
+        AjinController.Check(
+            CAXM.AxmHomeGetMethod(
+                axisNumber, ref direction, ref signal, ref zPhase, ref clearTime, ref offset),
+            $"{nameof(CAXM.AxmHomeGetMethod)} (axis={axisNumber})");
+        direction = _axisParameters[axisNumber].HomeDirection switch
         {
-            return await HomeCoreAsync(MotionAxis.X, velocity, cancellationToken);
-        }
-
-        using var homing = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        async Task<bool> HomeAxisAsync(MotionAxis axis)
-        {
-            var succeeded = false;
-            try
-            {
-                succeeded = await HomeCoreAsync(axis, velocity, homing.Token);
-                return succeeded;
-            }
-            finally
-            {
-                if (!succeeded)
-                {
-                    homing.Cancel();
-                }
-            }
-        }
-
-        var homingTasks = Task.WhenAll(HomeAxisAsync(MotionAxis.X), HomeAxisAsync(MotionAxis.Y));
-        try
-        {
-            var result = await homingTasks;
-            return result[0] && result[1];
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return false;
-        }
-        catch (Exception) when (homingTasks.Exception is { InnerExceptions.Count: > 1 } failures)
-        {
-            throw new MotionException("Home horizontal axes", failures);
-        }
+            HomeDirection.Negative => 0, // AJIN DIR_CCW
+            HomeDirection.Positive => 1, // AJIN DIR_CW
+            var value => throw new InvalidOperationException($"Invalid home direction for axis {axisNumber}: {value}."),
+        };
+        AjinController.Check(
+            CAXM.AxmHomeSetMethod(axisNumber, direction, signal, zPhase, clearTime, offset),
+            $"{nameof(CAXM.AxmHomeSetMethod)} (axis={axisNumber})");
+        AjinController.Check(
+            CAXM.AxmHomeSetResult(axisNumber, HomeUnknown),
+            $"{nameof(CAXM.AxmHomeSetResult)} (axis={axisNumber})");
+        AjinController.Check(
+            CAXM.AxmHomeSetVel(
+                axisNumber,
+                velocityInUnits,
+                ToUnits(home.DetectionSpeed),
+                ToUnits(home.ApproachSpeed),
+                ToUnits(home.FineSpeed),
+                velocityInUnits / home.SearchAccelerationSeconds,
+                ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds),
+            $"{nameof(CAXM.AxmHomeSetVel)} (axis={axisNumber})");
     }
 
     protected override void ResetAlarm()

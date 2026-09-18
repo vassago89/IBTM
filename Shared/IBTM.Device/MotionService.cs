@@ -383,20 +383,8 @@ public abstract class MotionService : IXyMotion
 
         ValidateHome(axis, velocity);
         EnsureStopped();
-        if (axis != MotionAxis.Z && HasZ)
-        {
-            ValidateMove(Settings.ZSpeed);
-            if (!GetAxisState(MotionAxis.Z).Homed)
-            {
-                ValidateHome(MotionAxis.Z, Settings.ZHome.SearchSpeed);
-                if (!await HomeCoreAsync(MotionAxis.Z, Settings.ZHome.SearchSpeed, cancellationToken))
-                {
-                    return false;
-                }
-            }
-
-            await MoveToHorizontalZAsync(cancellationToken);
-        }
+        if (axis != MotionAxis.Z)
+            EnsureZHomed();
 
         return await HomeCoreAsync(axis, velocity, cancellationToken);
     }
@@ -411,7 +399,7 @@ public abstract class MotionService : IXyMotion
         if (HasY)
             ValidateHome(MotionAxis.Y, velocity);
         EnsureStopped();
-        EnsureHorizontalZ();
+        EnsureZHomed();
         return await HomeHorizontalCoreAsync(velocity, cancellationToken);
     }
 
@@ -489,6 +477,12 @@ public abstract class MotionService : IXyMotion
             MovingChanged?.Invoke(false);
             PublishStateChanged();
         }
+    }
+
+    private void EnsureZHomed()
+    {
+        if (HasZ && !GetAxisState(MotionAxis.Z).Homed)
+            throw new MotionInterlockException("Home Z before homing X/Y.");
     }
 
     private void EnsureHorizontalZ()

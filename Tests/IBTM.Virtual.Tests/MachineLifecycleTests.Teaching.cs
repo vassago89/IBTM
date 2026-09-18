@@ -83,7 +83,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(HardwareArea.PcbPlacementHandler, MotionGroup.PcbPlacementHandler)]
     [InlineData(HardwareArea.BoltFastening, MotionGroup.BoltFastening)]
-    public async Task TeachingHomeCompletesZAndSafeHeightBeforeXY(
+    public async Task TeachingHomeCompletesZBeforeXYWithoutMovingToTravelHeight(
         HardwareArea unit,
         MotionGroup group)
     {
@@ -114,9 +114,9 @@ public sealed partial class MachineLifecycleTests
         Assert.All(samples.Skip(firstHorizontal), position =>
         {
             Assert.True(position.ZHomed);
-            Assert.Equal(8, position.Z);
+            Assert.Equal(0, position.Z);
         });
-        Assert.Equal((0, 0, 8), motion.GetPosition());
+        Assert.Equal((0, 0, 0), motion.GetPosition());
         Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).Homed));
         var otherGroup = group == MotionGroup.BoltFastening
             ? MotionGroup.PcbPlacementHandler

@@ -1512,6 +1512,8 @@ public sealed partial class MachineLifecycleTests
         var stopFailure = new MotionException("Fastening STOP", new IOException("Fastening stop failed."));
         try
         {
+            await Task.WhenAll(results.Values.Select(result => result.Started.Task))
+                .WaitAsync(TimeSpan.FromSeconds(2));
             Assert.True(state.IsHoming);
             results[MotionGroup.PcbPlacementHandler].Result.SetException(firstFailure);
             await WaitUntilAsync(() => results[MotionGroup.BoltFastening].HomeCancellation.IsCancellationRequested);
