@@ -80,6 +80,9 @@ public partial class OperationViewModel
                 return MachineDisplayState.Unavailable;
             }
 
+            if (State.Display.ConveyorState == MainConveyorState.ManualClearRequired)
+                return State.Display.ConveyorState;
+
             return !State.Display.AutomaticRunning && !running
                 ? HandlerDisplayState.Stopped
                 : State.Display.ConveyorState;

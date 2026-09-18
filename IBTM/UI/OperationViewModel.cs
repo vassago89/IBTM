@@ -29,8 +29,6 @@ public partial class OperationViewModel : ObservableObject
     private readonly MachineMap _map;
     private readonly PickupBoltFeeder _pickupFeeder;
     private readonly ShootingBoltFeeder _shootingFeeder;
-    private readonly PcbPlacementRecoveryPreparation _pcbPlacementRecovery;
-    private readonly BoltFasteningRecoveryPreparation _boltFasteningRecovery;
     private volatile bool _active;
 
     public OperationViewModel(
@@ -51,8 +49,6 @@ public partial class OperationViewModel : ObservableObject
         NgCarrierConveyor ngConveyor,
         NgShuttle ngShuttle,
         NgCarrierTransfer ngTransfer,
-        PcbPlacementRecoveryPreparation pcbPlacementRecovery,
-        BoltFasteningRecoveryPreparation boltFasteningRecovery,
         PcbSupplyHandler supply,
         PcbPlacementHandler placement,
         BoltFasteningGantry fastening,
@@ -80,8 +76,6 @@ public partial class OperationViewModel : ObservableObject
         _map = map;
         NgConveyor = ngConveyor;
         NgShuttle = ngShuttle;
-        _pcbPlacementRecovery = pcbPlacementRecovery;
-        _boltFasteningRecovery = boltFasteningRecovery;
         Conveyor = conveyor;
         Buffer = buffer;
         _pickupFeeder = pickupFeeder;
@@ -599,22 +593,6 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public bool PcbPlacementRecoveryAvailable
-    {
-        get
-        {
-            return _pcbPlacementRecovery.Required;
-        }
-    }
-
-    public bool BoltFasteningRecoveryAvailable
-    {
-        get
-        {
-            return _boltFasteningRecovery.Required;
-        }
-    }
-
     public void Activate()
     {
         _active = true;
@@ -651,29 +629,8 @@ public partial class OperationViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenPcbPlacementRecovery()
-    {
-        _pcbPlacementRecovery.Open(Application.Current.MainWindow);
-    }
-
-    [RelayCommand]
-    private void OpenBoltFasteningRecovery()
-    {
-        _boltFasteningRecovery.Open(Application.Current.MainWindow);
-    }
-
-    [RelayCommand]
     private async Task StartAsync(CancellationToken cancellationToken)
     {
-        var owner = Application.Current.MainWindow;
-        if (!_pcbPlacementRecovery.Prepare(owner)
-            || !_boltFasteningRecovery.Prepare(owner)
-            || !_pcbPlacementRecovery.Prepared
-            || !_boltFasteningRecovery.Prepared)
-        {
-            return;
-        }
-
         await Task.Run(() => _machine.StartAsync(cancellationToken), cancellationToken);
     }
 
@@ -935,7 +892,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));
         OnPropertyChanged(nameof(PlacementDisplayState));
-        OnPropertyChanged(nameof(PcbPlacementRecoveryAvailable));
         OnPcbSupplyChanged();
     }
 
@@ -970,7 +926,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(BoltFasteningHeatSink1Result));
         OnPropertyChanged(nameof(BoltFasteningHeatSink2Result));
         OnPropertyChanged(nameof(BoltDisplayState));
-        OnPropertyChanged(nameof(BoltFasteningRecoveryAvailable));
     }
 
     private void OnInspectionChanged()

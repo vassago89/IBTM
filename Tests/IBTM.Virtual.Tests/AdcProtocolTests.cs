@@ -29,7 +29,6 @@ public sealed class AdcProtocolTests
         Assert.Equal(1, bus.StopWrites);
         Assert.False(bus.Running);
         Assert.True(head.HasPendingResult);
-        Assert.True(head.RequiresRecovery);
         // A controller result cannot prove that the cylinder fed the bolt.
         Assert.Null(await head.ReadPendingResultAsync());
         await head.ResetAsync();
@@ -39,7 +38,7 @@ public sealed class AdcProtocolTests
         Assert.Equal(1, bus.StartWrites);
 
         head.DiscardPendingResult();
-        Assert.False(head.RequiresRecovery);
+        Assert.False(head.HasPendingResult);
         var feeds = 0;
         Task ConfirmFeedAsync(CancellationToken token)
         {

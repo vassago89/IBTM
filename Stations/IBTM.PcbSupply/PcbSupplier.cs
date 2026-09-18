@@ -10,7 +10,7 @@ public sealed class PcbSupplier : AutoUnit
 {
     private readonly PcbSupplyHandler _handler;
     private readonly BufferStage _buffer;
-    // Checked slots belong to the upstream carrier and survive STOP.
+    // Slot progress belongs only to the current run and upstream carrier.
     private PickStep _pickStep;
 
     public PcbSupplier(PcbSupplyHandler handler, BufferStage buffer)
@@ -111,6 +111,7 @@ public sealed class PcbSupplier : AutoUnit
         }
         finally
         {
+            _pickStep = PickStep.Pcb1;
             try
             {
                 _handler.StopUpstream();
@@ -144,7 +145,7 @@ public sealed class PcbSupplier : AutoUnit
         {
             StopWhenCarrierLeaves();
             await _handler.PickAsync(pickPosition, pickup.Token);
-            // A completed check survives STOP, but never advances a replacement carrier.
+            // Never advance a replacement carrier.
             if (!carrierChanged)
                 _pickStep = pickStep == PickStep.Pcb1 ? PickStep.Pcb2 : PickStep.WaitingForCarrierExit;
         }

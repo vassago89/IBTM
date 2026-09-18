@@ -70,14 +70,4 @@ public sealed class InspectionWork : StationWork
         }
     }
 
-    internal void RestartInspection()
-    {
-        foreach (var assembly in Assemblies)
-        {
-            assembly.ResetInspection();
-        }
-
-        Restart();
-    }
-
 }

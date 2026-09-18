@@ -155,7 +155,7 @@ and the Stopper is Down.
 Only the backup plates participating in a future transfer are lowered. A source
 Stopper is lowered to release its Carrier; a destination Stopper is raised before
 the belt starts so the arriving Carrier is physically stopped. The destination
-Heat Sink 1 input starts the configured extra belt run to reach the stopper. Only
+Heat Sink 2 input starts the configured extra belt run to reach the stopper. Only
 after that duration does the belt stop, the Backup Plate rise, and the Stopper return down.
 Stop stops the belt and leaves pneumatic outputs at their current state. If the
 source still detects either heat sink, its completed work remains valid and the
@@ -167,7 +167,7 @@ sensors still requires manual recovery because no input identifies its position.
 Front Available is the receive trigger. After it arrives, PCB Placement raises its
 Stopper and lowers its Backup Plate before Front Ready is asserted and both conveyors
 run. Front Ready turns off when the entry sensor turns on. The conveyor continues
-until PCB Placement detects Heat Sink 1, runs for the configured extra duration,
+until PCB Placement detects Heat Sink 2, runs for the configured extra duration,
 then seats the carrier. Rear
 Available is advertised after Inspection work completes and Rear Ready is the
 discharge trigger. Rear wins when it is ready; a blocked Rear does not prevent an

@@ -111,7 +111,7 @@ ROI·대상·촬영 좌표의 화면용 복사본을 추가하지 않는다.
   START/HOME/수동 이동·컨베이어/ADC/초기화·복구와 설정 저장·조명 테스트가 이 경계를 사용한다.
 - `MachineController.StartAsync.StopWhenOperationBecomesUnavailable`: 정지를 요구하는 DI를 먼저
   확인한 뒤 정상 상태에서만 현재 SDK 준비 상태를 읽는다. SDK 대신 캐시로 운전을 허용하지 않는다.
-- `MainConveyor.PrepareEmptyStationsAsync`: 최초 START와 STOP 후 재개 모두 빈 스테이션만 내린다.
+- `MainConveyor.PrepareEmptyStationsAsync`: 중단된 이송이 있으면 START 준비를 거부한다. 정상 시작에서는 빈 스테이션만 내린다.
   캐리어 또는 NG 픽업의 지지 상태는 유지하고, 실제 이송의 Release 단계가 하강을 소유한다.
 - `StationWork.CurrentJob` / `Complete(job)`: 결과와 완료의 작업 주인이다. 캐리어 교체 후 이전 작업의
   완료는 거부한다. `MainConveyor._transferJob`은 출발 시 결과를 잡아 새 출발 캐리어와 섞이지 않게 한다.
@@ -194,7 +194,7 @@ PCB를 들고 있을 때는 IPM을 내린 상태를 유지하며, 버튼 표시�
 | 특정 유닛이 시작하지 않음 | `RunAutomaticUnitsAsync`의 해당 유닛 `if`, `RunAutomaticUnitAsync`의 취소 조건 | `_units`, `repeat`, `alarm`, `cycle.IsCancellationRequested` |
 | 자동운전 중 알람 발생 | `RunAutomaticUnitAsync`의 `catch (Exception exception)` | `alarm`은 발생 유닛, `exception`은 원본 오류, `_state.Alarm`은 먼저 발생한 알람 |
 | Repeat 메인 복귀가 취소됨 | `MachineController.Repeat.cs`의 `GetMainConveyorReturnBlock`, `ReturnMainCarrierAsync`의 `CheckPath` | 핸들러 상승·안전 Z, NG 픽업 상승·캐리어 센서; 현재 피드백으로 차단 이유를 반환 |
-| 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.ExecuteAsync`, `ReadState` | `state`, `_transfer`의 출발·도착·수신/배출 단계, 현재 도착 센서 |
+| 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.ExecuteAsync`, `ReadState` | `state`, `RequiresManualClear`, 현재 도착·착좌 센서; 중간 정지는 수동으로 비운 뒤 RESET |
 | PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)`, `PickPcbAsync` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceStepAsync`의 `switch (state)` | `heatSink`, `state`, `action`; `action == null`이면 피드백 대기 |
 | 공급 진입 또는 안착 인수 실린더가 대기함 | `BufferStage.CanEnterSupply`, `CanEnterPlacement`, `HasConflict` | 도착 순서는 무관; Placement Handler Up/Down 입력, 양쪽 현재 위치·Home·정지 피드백, Supply `PcbSecured`, 인계 좌표 |
@@ -286,24 +286,22 @@ ADC 수동 정회전·역회전은 현재 캐리어의 미회수 체결 결과�
 
 NG 컨베이어의 `MoveCarrierAsync`는 `_movement`에 기록할 목적지 하나로 도착 센서를 정한다.
 `RunUntilAsync`가 실제 센서 도착을 기다리고 `finally`에서 모터를 정지한다.
-메인·NG 컨베이어의 이송 목적지와 배출 단계는 센서 사이에서 정지한 작업을 구별하는 이력이다.
+NG 컨베이어의 이송 목적지와 배출 단계는 센서 사이에서 정지한 작업을 구별하는 이력이다.
 존재 센서가 없는 상태는 `CarrierPositionUnknown`으로 남기며 이력만으로 이동을 재개하지 않는다.
-메인 컨베이어는 중단한 이송 목적지를 새 앞단 입고보다 먼저 처리한다. Station 2→3 재개 시
-앞단에 다른 캐리어가 있으면 Station 1 스토퍼·플레이트를 입고 상태로 준비한 뒤 벨트를 구동한다.
-Station 3 도착 때는 출발 시 잡은 `StationWork.Job`의 체결 결과를 넘긴다.
-도착 신호는 `OnBoltFasteningCarrierChanged`, `OnInspectionCarrierChanged`에서 각각
-해당 스테이션의 결과 전달로 바로 이어진다.
-작업 추적 번호는 이송 뒤에도 같지만, 도착 스테이션의 완료 주인은 새 객체다.
-출발 스테이션에 다음 캐리어가 들어왔어도 그 작업 결과를 지우거나 대신 넘기지 않는다.
-`StoppedTransferKeepsResultsWhenAnotherCarrierReachesEntry`가 이 재개 경로와 NG 결과 전달을 확인한다.
-`MainConveyor.CompleteSeatingPushAsync`는 전단 반입과 공정 간 이송의 감지 후 밀착을 처리한다.
-밀착과 모터 정지를 마치면 `_transfer`를 끝내고 플레이트를 올린다. 밀착 중 STOP은 이송 단계에
-남아 밀착을 다시 수행하고, 상승 중 STOP은 기존 착좌 상태 판단으로 재개한다.
-별도 밀착 완료 이력은 두지 않는다. 재구동 전 실제 플레이트 하강·스토퍼 상승을 확인하고,
-밀착 중 감지 소실은 오류로 종료한다. 로그의 `target=seating push`로 이 구간을 구분한다.
-집중 검사는 `RestartAfterArrivalFinishesSeatingPushBeforeRaisingPlate`,
-`StopDuringPlateRaiseResumesWithoutAnotherPushOrLoweringSupport`,
-`LostCarrierStopsSeatingPushAndRestartPreservesRaisedSupport`다.
+메인 컨베이어는 중단 단계의 자동 재개를 하지 않는다. `ConveyorTransfer`와 장기 보관 도착 이력은 없다.
+정상 이송은 출발 시 잡은 `StationWork.Job`을 `MoveCarrierAsync`의 도착 이벤트에서 전달하고,
+이송 종료 시 이벤트를 해제한다. 중단 뒤 들어온 신호로 이전 작업 결과를 다른 캐리어에 붙이지 않는다.
+작업 추적 번호는 유지하며, 도착 스테이션의 완료 주인은 새 객체다. 출발지의 다음 작업과 섞지 않는다.
+`RunToStationAsync`는 현재 구동의 입구·Heat Sink 2 감지와 추가 밀착 시간을 처리한다.
+모터 정지 후 플레이트를 올리는 것까지 한 실행에 포함하며, 중간 취소/오류는 `RequiresManualClear`를 남긴다.
+이는 물리 위치나 재개 단계가 아니라 작업자 확인이 필요한 미완료 기록이다.
+START는 차단하고 기존 지지 출력은 유지한다. 센서 사이까지 수동으로 비운 뒤 RESET에서
+`ConfirmManualClear`를 호출한다. 정지 출력과 모든 재실 입력·Station 3 인수 가능 상태를 확인하며,
+센서 OFF만으로는 중단 기록을 해제하지 않는다. 미전달 작업 참조는 이 명시적인 제거 확인 때 해제한다.
+대기 중 STOP은 정리 요구를 만들지 않는다. 처음부터 착좌가 불완전한 캐리어도 자동 상승시키지 않는다.
+집중 검사는 `InterruptedSeatingDoesNotResumeAfterSensorChanges`, `InterruptedPlateRaiseDoesNotResumeOrLowerSupport`,
+`InterruptedTransferKeepsPendingResultsWithoutMovingThemOnLaterInput`, `ActiveTransferKeepsOriginalResultsWhenSourceGetsAnotherCarrier`,
+`ResetAcknowledgesInterruptedConveyorOnlyAfterManualClear`다.
 셔틀의 `_cycleReturnPending`도 정지했던 상승 동작을 마치기 위한 이력이다.
 `NgShuttle.CycleAsync`는 하강 완료 뒤 상승하기 전에도 현재 캐리어 감지와 픽업 상승을 확인한다.
 이 조건을 잃으면 상승을 막고, 복구 후에는 완료한 하강을 반복하지 않는다.
@@ -432,7 +430,7 @@ AJIN/AlphaMotion 래퍼는 각 SDK 대역 테스트 프로젝트에서 해당 �
 
 Repeat는 PCB가 이미 안착된 캐리어 하나를 메인 입구(첫 번째) 센서에 놓고 시작한다.
 첫 Station 1 도착부터 기존 PCB를 집어 왕복한다. 역방향은 메인 입구 전용 센서까지 복귀하고,
-전진은 Station 1의 HS1 감지 후 설정된 추가 이송 시간과 캐리어 상승을 그대로 거친다.
+전진은 Station 1의 HS2 감지 후 설정된 추가 이송 시간과 캐리어 상승을 그대로 거친다.
 Placement는 기존 PCB를 집어 기존 인계 좌표까지 왕복한 뒤 원래 자리에 재안착·압착한다.
 Supply에서 새 PCB를 받지 않으며, Placement가 켜져 있으면 왕복 완료 후 다음 공정으로 보낸다.
 일반 운전과 Repeat 모두 Pickup Feeder OFF에서도 피더 XY 이동·실린더 하강·픽업 Z 이동·진공 ON·Safe Z 복귀·실린더 상승을 수행한다.

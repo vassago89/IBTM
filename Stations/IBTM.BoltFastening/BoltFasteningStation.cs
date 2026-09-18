@@ -18,7 +18,7 @@ public sealed class BoltFasteningStation(
     Func<FasteningHead, bool>? isFeederEnabled = null) : AutoUnit
 {
     private HeatSinkSlot[]? _runTargets;
-    // The result belongs to this bolt/pass, even after STOP or a recovery edit.
+    // The result belongs to this bolt/pass until collection or explicit manual clear.
     private PendingFastening? _pendingFastening;
     // Command history when pickup confirmation is disabled, not a loaded-bolt state.
     private PickupAttempt? _pickupAttempt;
@@ -68,24 +68,15 @@ public sealed class BoltFasteningStation(
         }
     }
 
-    public void PrepareRecovery(
-        IEnumerable<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)> items)
+    public void ConfirmManualClear()
     {
-        var recovery = items.ToArray();
-        work.PrepareRecovery(recovery);
+        if (work.CarrierPresent)
+            throw new InvalidOperationException("Remove the fastening carrier before clearing interrupted work.");
+        if (_pendingFastening is { } pending)
+            TraceStep(BoltFasteningState.Waiting, target: $"manual clear of {pending.Bolt}, {pending.Pass}", workId: pending.Job.Id);
+        _pendingFastening = null;
         _pickupAttempt = null;
-        // An explicit recovery decision may retry an interrupted cycle;
-        // retain valid uncollected results until they are collected.
-        if (PendingResult is not { } pending
-            || !recovery.Any(item => item.HeatSink == pending.Bolt.HeatSink
-                && item.Number == pending.Bolt.Number
-                && item.Pass == pending.Pass
-                && !item.Completed)
-            || gantry.GetHead(pending.Bolt.Head).RequiresRecovery)
-        {
-            _pendingFastening = null;
-            gantry.DiscardPendingResults();
-        }
+        gantry.DiscardPendingResults();
     }
 
     public async Task RunAsync(BoltFasteningRecipe recipe, CancellationToken cancellationToken = default)
@@ -102,6 +93,7 @@ public sealed class BoltFasteningStation(
         }
         finally
         {
+            _pickupAttempt = null;
             gantry.StopShooting(failure);
         }
     }
@@ -153,9 +145,8 @@ public sealed class BoltFasteningStation(
                         RecordResult(pending, result);
                         continue;
                     }
-                    if (head.RequiresRecovery)
-                        throw new InvalidOperationException(
-                            "Resolve the interrupted fastening in Recovery before moving the head or restarting.");
+                    throw new InvalidOperationException(
+                        "Fastening was interrupted. Remove the carrier and held parts, then press RESET before starting new work.");
                 }
 
                 var state = State();

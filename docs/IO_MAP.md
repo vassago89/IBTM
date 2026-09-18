@@ -90,8 +90,8 @@ START OFF 확인 전까지 보관하므로 재운전 없이 회수할 수 있다
 - Station 1·2·3의 캐리어 재실은 각 위치의 Heat Sink 1 OR Heat Sink 2다.
   기존 스테이션 전용 캐리어 입력과 PCB 버퍼 입력은 사용하지 않는다.
   입구·출구 경계 센서는 유지한다.
-- 정방향 안착의 추가 구동 시간은 목적지 Heat Sink 1 감지부터 시작한다.
-  Heat Sink 2만으로 타이머를 시작하지 않는다. [안착·재시작 조건](STATION3_COMMISSIONING.md)을 참고한다.
+- 정방향 안착의 추가 구동 시간은 목적지 Heat Sink 2 감지부터 시작한다.
+  Heat Sink 1만으로 타이머를 시작하지 않는다. [안착·재시작 조건](STATION3_COMMISSIONING.md)을 참고한다.
 - AirPressureHigh 입력 ON은 공압 정상이다. 발생했던 알람의 래치는 별도로 확인한다.
 - 각 스테이션의 BackupPlateUp / StopperUp 출력 ON은 상승 명령이다.
 - MainConveyorForward ON은 메인 벨트 정방향이다. NG는 Reverse 명칭을 쓴다.

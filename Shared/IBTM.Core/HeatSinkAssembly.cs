@@ -19,7 +19,6 @@ public enum AssemblyResult
 
 public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
 {
-    private static readonly BoltResult ManualCompletion = new(true, 0, BoltResultSource.Manual);
     private readonly ConcurrentDictionary<int, BoltResult> _pcbBoltResults = new();
     private readonly ConcurrentDictionary<int, BoltResult> _ipmSeatingResults = new();
     private readonly ConcurrentDictionary<int, BoltResult> _ipmFinalResults = new();
@@ -108,38 +107,6 @@ public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
         }
     }
 
-    public void PrepareFasteningRecovery(
-        IEnumerable<(int Number, bool Completed)> pcbBolts,
-        IEnumerable<(int Number, bool Completed)> ipmSeatingBolts,
-        IEnumerable<(int Number, bool Completed)> ipmFinalBolts)
-    {
-        ApplyCompletion(_pcbBoltResults, pcbBolts);
-        ApplyCompletion(_ipmSeatingResults, ipmSeatingBolts);
-        ApplyCompletion(_ipmFinalResults, ipmFinalBolts);
-        FasteningResult = _pcbBoltResults.Values.Concat(_ipmSeatingResults.Values)
-            .Concat(_ipmFinalResults.Values)
-            .Any(result => !result.Success)
-            ? AssemblyResult.Ng
-            : AssemblyResult.Pending;
-    }
-
-    private static void ApplyCompletion(
-        ConcurrentDictionary<int, BoltResult> results,
-        IEnumerable<(int Number, bool Completed)> items)
-    {
-        foreach (var (number, completed) in items)
-        {
-            if (completed)
-            {
-                results.TryAdd(number, ManualCompletion);
-            }
-            else
-            {
-                results.TryRemove(number, out _);
-            }
-        }
-    }
-
     public void RecordBoltPresence(int number, bool present)
     {
         _boltPresenceResults[number] = present;
@@ -147,13 +114,6 @@ public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
         {
             InspectionResult = AssemblyResult.Ng;
         }
-    }
-
-    public void ResetInspection()
-    {
-        PcbBarcode = null;
-        _boltPresenceResults.Clear();
-        InspectionResult = AssemblyResult.Pending;
     }
 
     public void CompleteInspection()

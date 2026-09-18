@@ -118,7 +118,7 @@ public sealed partial class MachineController
             InspectionPcb = teachingReady && _units.Inspection && automatic
                 ? _inspectionStation.ActivePcb(bolts)
                 : null,
-            RepeatPhase = _repeatPhase,
+            RepeatPhase = _repeatDisplayPhase,
             RepeatCycles = _repeatCycles,
         };
     }

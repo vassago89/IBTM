@@ -20,6 +20,49 @@ namespace IBTM.Virtual.Tests;
 public sealed class AlarmRecoveryTests
 {
     [Fact]
+    public async Task ResetAcknowledgesInterruptedConveyorOnlyAfterManualClear()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var conveyor = services.GetRequiredService<MainConveyor>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            var run = conveyor.RunAsync();
+            try
+            {
+                await VirtualTest.WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            }
+            finally
+            {
+                conveyor.Stop();
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+            }
+
+            Assert.True(conveyor.RequiresManualClear);
+            Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
+            Assert.False(machine.CanStart);
+            Assert.True(machine.CanReset);
+            await machine.ResetAsync();
+            Assert.True(conveyor.RequiresManualClear);
+            Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
+
+            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
+            await machine.ResetAsync();
+            Assert.False(conveyor.RequiresManualClear);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(conveyor.RunCommandOn);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task IndicatorsChangeOnNotificationsNotDisplayRefreshOrNgMotorStop()
     {
         using var services = CreateServices();

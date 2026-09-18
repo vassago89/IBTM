@@ -24,9 +24,6 @@ public interface IBoltHead
 {
     // Result ownership only, not the physical head's ready/running state.
     bool HasPendingResult { get; }
-    // An interrupted operation needs an explicit recovery decision before retry/result collection.
-    bool RequiresRecovery { get; }
-
     Task CheckReadyAsync(CancellationToken cancellationToken = default);
     Task ResetAsync(CancellationToken cancellationToken = default);
     Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default);

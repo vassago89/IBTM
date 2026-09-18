@@ -172,17 +172,6 @@ public sealed class ConveyorStation
         await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
     }
 
-    public Task WaitForHeatSink1Async(
-        CancellationToken cancellationToken,
-        int? timeoutMilliseconds = null)
-    {
-        return _io.WaitForInputAsync(
-            _heatSink1,
-            true,
-            timeoutMilliseconds ?? _io.TimeoutMilliseconds,
-            cancellationToken);
-    }
-
     public async Task WaitForCarrierAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

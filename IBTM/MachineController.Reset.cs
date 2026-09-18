@@ -35,7 +35,7 @@ public sealed partial class MachineController
 
             // Hardware recovery admission, not permission to acknowledge the buzzer.
             // A failed feedback scan must leave recovery usable without another native read.
-            if (_state.IsError || _feedback.ReadError is not null)
+            if (_state.IsError || _feedback.ReadError is not null || RequiresManualClear)
                 return true;
             var motion = _state.FeedbackReadiness;
             return motion.Faulted || !motion.ServosOn || !_state.ServoMainContactorOn;
@@ -176,8 +176,56 @@ public sealed partial class MachineController
             return;
         }
 
+        try
+        {
+            ConfirmAutomaticManualClear();
+            _conveyor.ConfirmManualClear();
+        }
+        catch (Exception exception)
+        {
+            _log?.Error("Machine manual clear was not confirmed.", exception);
+            _state.SetError(MachineAlarm.MainConveyor, exception);
+            return;
+        }
+
+        _automaticNeedsManualClear = false;
         _state.ClearError();
         _state.Refresh();
+    }
+
+    private void ConfirmAutomaticManualClear()
+    {
+        if (!RequiresManualClear)
+            return;
+
+        _io.CheckReady();
+        // RESET acknowledges manual removal even in gaps between presence sensors.
+        // Never infer that a stopped motion can continue from its previous destination.
+        foreach (var input in CarrierInputs)
+        {
+            if (_io.GetInput(input))
+                throw new InvalidOperationException($"Remove the carrier at {input} before RESET.");
+        }
+        InputIo[] heldParts = [
+            InputIo.PcbSupplyPcbDetected,
+            InputIo.PcbPlacementPcbDetected,
+            InputIo.PcbPlacementVacuumDetected,
+            InputIo.PickupHeadVacuumDetected,
+            InputIo.ShootingHeadVacuumDetected,
+        ];
+        foreach (var input in heldParts)
+        {
+            if (_io.GetInput(input))
+                throw new InvalidOperationException($"Remove the held part at {input} before RESET.");
+        }
+        if (_units.PcbSupply && _supplyHandler.UpstreamCarrierAvailable)
+            throw new InvalidOperationException("Remove the upstream PCB carrier before RESET.");
+        if (_conveyor.RunCommandOn || _ngConveyor.RunCommandOn)
+            throw new InvalidOperationException("Stop both conveyors before RESET.");
+
+        _fasteningStation.ConfirmManualClear();
+        _ngConveyor.ConfirmManualClear();
+        _log?.Write("Operator confirmed the machine empty; interrupted automatic work abandoned.");
     }
 
     private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeIoAsync(

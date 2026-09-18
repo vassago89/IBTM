@@ -27,70 +27,48 @@ public enum RepeatPhase
 
 public sealed partial class MachineController
 {
-    // An unfinished route destination survives STOP; carrier position still comes from I/O.
-    private volatile RepeatPhase _repeatPhase;
+    // Display only. Each invocation executes a new route from its first step.
+    private volatile RepeatPhase _repeatDisplayPhase;
     private int _repeatCycles;
 
     private async Task RunRepeatAsync(CancellationToken cancellationToken)
     {
         try
         {
-            if (_repeatPhase == RepeatPhase.Automatic)
-            {
-                var carriers = _conveyor.CarrierCount
-                    + (_units.NgShuttle && _ngShuttle.Feedback.CarrierDetected ? 1 : 0)
-                    + (_units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
-                    + (_units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
-                if (carriers == 0 && _ngTransfer.CarrierDetected)
-                    carriers = 1;
-                if (carriers != 1 || _conveyor.ExitCarrierDetected)
-                    throw new InvalidOperationException("Repeat requires one carrier inside the machine, with known presence feedback.");
-            }
+            var carriers = _conveyor.CarrierCount
+                + (_units.NgShuttle && _ngShuttle.Feedback.CarrierDetected ? 1 : 0)
+                + (_units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
+                + (_units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
+            if (carriers != 1 || _conveyor.ExitCarrierDetected || _ngTransfer.CarrierDetected)
+                throw new InvalidOperationException("Repeat requires one supported carrier with known presence feedback and an empty NG pickup.");
 
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                switch (_repeatPhase)
+                SetRepeatPhase(RepeatPhase.Automatic);
+                await RunToRepeatEndAsync(cancellationToken);
+                if (_units.NgConveyor)
                 {
-                    case RepeatPhase.Automatic:
-                        await RunToRepeatEndAsync(cancellationToken);
-                        SetRepeatPhase(_units.NgConveyor
-                            ? RepeatPhase.ReturnToShuttle
-                            : _units.NgShuttle
-                                ? RepeatPhase.CycleShuttle
-                                : RepeatPhase.ReturnToStation3);
-                        break;
-
-                    case RepeatPhase.ReturnToShuttle:
-                        await ReturnNgCarrierAsync(cancellationToken);
-                        SetRepeatPhase(RepeatPhase.ReturnToStation3);
-                        break;
-
-                    case RepeatPhase.ReturnToStation3:
-                        await _ngMove.ReturnToStationAsync(cancellationToken);
-                        SetRepeatPhase(RepeatPhase.ClearStation3);
-                        break;
-
-                    case RepeatPhase.ClearStation3:
-                        await _ngMove.ClearStationAsync(
-                            _recipe.CarrierImages.MinBy(image => image.Number)?.Center,
-                            cancellationToken);
-                        SetRepeatPhase(RepeatPhase.ReturnToStart);
-                        break;
-
-                    case RepeatPhase.CycleShuttle:
-                        await _ngShuttle.CycleAsync(cancellationToken);
-                        SetRepeatPhase(RepeatPhase.ReturnToStation3);
-                        break;
-
-                    case RepeatPhase.ReturnToStart:
-                        await ReturnMainCarrierAsync(cancellationToken);
-                        cancellationToken.ThrowIfCancellationRequested();
-                        _repeatCycles++;
-                        _log?.Write($"Repeat cycle {_repeatCycles} returned to the entry sensor.");
-                        SetRepeatPhase(RepeatPhase.Automatic);
-                        break;
+                    SetRepeatPhase(RepeatPhase.ReturnToShuttle);
+                    await ReturnNgCarrierAsync(cancellationToken);
                 }
+                else if (_units.NgShuttle)
+                {
+                    SetRepeatPhase(RepeatPhase.CycleShuttle);
+                    await _ngShuttle.CycleAsync(cancellationToken);
+                }
+
+                SetRepeatPhase(RepeatPhase.ReturnToStation3);
+                await _ngMove.ReturnToStationAsync(cancellationToken);
+                SetRepeatPhase(RepeatPhase.ClearStation3);
+                await _ngMove.ClearStationAsync(
+                    _recipe.CarrierImages.MinBy(image => image.Number)?.Center,
+                    cancellationToken);
+                SetRepeatPhase(RepeatPhase.ReturnToStart);
+                await ReturnMainCarrierAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                _repeatCycles++;
+                _log?.Write($"Repeat cycle {_repeatCycles} returned to the entry sensor.");
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -101,7 +79,7 @@ public sealed partial class MachineController
         {
             var alarm = IsMotionFailure(exception)
                 ? MachineAlarm.MotionUnavailable
-                : _repeatPhase switch
+                : _repeatDisplayPhase switch
                 {
                     RepeatPhase.ReturnToShuttle => MachineAlarm.NgConveyor,
                     RepeatPhase.CycleShuttle => MachineAlarm.NgShuttle,
@@ -110,13 +88,19 @@ public sealed partial class MachineController
                 };
             _state.SetError(_state.IsError ? _state.Alarm : alarm, exception);
         }
+        finally
+        {
+            SetRepeatPhase(RepeatPhase.Automatic);
+        }
     }
 
     private async Task RunToRepeatEndAsync(CancellationToken cancellationToken)
     {
         using var cycle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var transferChanged = new AsyncAutoResetEvent();
-        if (!_units.NgConveyor)
+        if (_units.NgConveyor)
+            _ngConveyor.Changed += transferChanged.Set;
+        else
             _ngMove.Changed += transferChanged.Set;
         var automatic = RunAutomaticUnitsAsync(cycle, repeat: true);
         try
@@ -125,6 +109,11 @@ public sealed partial class MachineController
             {
                 await _io.WaitForInputAsync(
                     InputIo.NgConveyorPosition1Occupied, true, Timeout.Infinite, cycle.Token);
+                while (_ngConveyor.State != NgConveyor.NgConveyorState.ReadyToEject
+                    || _ngConveyor.RunCommandOn)
+                {
+                    await transferChanged.WaitAsync(cycle.Token);
+                }
             }
             else
             {
@@ -144,6 +133,7 @@ public sealed partial class MachineController
         finally
         {
             _ngMove.Changed -= transferChanged.Set;
+            _ngConveyor.Changed -= transferChanged.Set;
             cycle.Cancel();
             // Reverse begins only after every forward unit has released its commands.
             await automatic;
@@ -253,7 +243,7 @@ public sealed partial class MachineController
 
     private void SetRepeatPhase(RepeatPhase phase)
     {
-        _repeatPhase = phase;
+        _repeatDisplayPhase = phase;
         _state.RequestDisplayRefresh();
     }
 }

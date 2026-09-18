@@ -384,34 +384,7 @@ public sealed class PcbTransferTests
         Assert.False(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
     }
 
-    [Fact]
-    public void PlacementRecoveryChangesOnlyTheDisplayedSelections()
-    {
-        var io = new VirtualIoService(Outputs(new ConveyorHardwareSettings()), new MachineOptions());
-        var work = new PcbPlacementWork(ConveyorStation.PcbPlacement(io));
-        io.Initialize();
-        VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
-        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
-        var first = work.Assembly(HeatSinkSlot.HeatSink1);
-        var hidden = work.Assembly(HeatSinkSlot.HeatSink2);
-        work.Complete(work.CurrentJob);
-        var displayed = Enum.GetValues<HeatSinkSlot>()
-            .Where(work.HeatSinkPresent)
-            .Select(heatSink => (HeatSink: heatSink, Completed: true))
-            .ToArray();
-        Assert.Equal(HeatSinkSlot.HeatSink1, Assert.Single(displayed).HeatSink);
 
-        io.SetInputs((InputIo.PcbPlacementHeatSink1Present, false), (InputIo.PcbPlacementHeatSink2Present, true));
-        work.PrepareRecovery(displayed);
-
-        Assert.False(work.Completed);
-        Assert.Same(first, work.Assemblies.Single(item => item.HeatSink == HeatSinkSlot.HeatSink1));
-        Assert.Same(hidden, work.Assemblies.Single(item => item.HeatSink == HeatSinkSlot.HeatSink2));
-
-        work.PrepareRecovery([(HeatSinkSlot.HeatSink1, false)]);
-
-        Assert.Same(hidden, Assert.Single(work.Assemblies));
-    }
 
     [Trait("Category", "MachineFlow")]
     [Fact]

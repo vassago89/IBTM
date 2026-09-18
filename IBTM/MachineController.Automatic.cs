@@ -12,6 +12,21 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
+    private volatile bool _automaticNeedsManualClear;
+
+    public bool RequiresManualClear
+    {
+        get
+        {
+            return _automaticNeedsManualClear
+                || _conveyor.RequiresManualClear
+                || _ngConveyor.RequiresManualClear
+                || !_state.AutomaticRunning
+                    && (_fasteningGantry.GetHead(FasteningHead.Pickup).HasPendingResult
+                        || _fasteningGantry.GetHead(FasteningHead.Shooting).HasPendingResult);
+        }
+    }
+
     public bool CanStart
     {
         get
@@ -51,6 +66,8 @@ public sealed partial class MachineController
             return StartBlockReason.EmergencyStop;
         if (_options.UseAirPressureInterlock && !_state.AirPressureOk)
             return StartBlockReason.AirPressure;
+        if (RequiresManualClear)
+            return StartBlockReason.ManualClearRequired;
         if (motion.Faulted)
             return StartBlockReason.MotionFault;
         if (!motion.ServosOn || !_state.ServoMainContactorOn)
@@ -63,10 +80,6 @@ public sealed partial class MachineController
             return StartBlockReason.TeachingMode;
         if (!TeachingReady)
             return StartBlockReason.TeachingIncomplete;
-        if (_state.RepeatEnabled
-            && (_repeatPhase == RepeatPhase.ReturnToShuttle && !_units.NgConveyor
-                || _repeatPhase == RepeatPhase.CycleShuttle && !_units.NgShuttle))
-            return StartBlockReason.RepeatReturnUnitDisabled;
         if (_state.RepeatEnabled
             && (!_units.MainConveyor
                 || !_units.NgCarrierTransfer
@@ -112,6 +125,7 @@ public sealed partial class MachineController
 
         var repeat = _state.RepeatEnabled;
         var startedInManual = _state.ManualMode;
+        var automaticStarted = false;
         var feedbackStartedAt = Stopwatch.GetTimestamp();
         using var operation = _operations.TryBegin(cancellationToken);
         if (operation is null)
@@ -235,6 +249,7 @@ public sealed partial class MachineController
             }
 
             operation.Token.ThrowIfCancellationRequested();
+            automaticStarted = true;
             _state.SetAutomaticRunning(true);
             if (repeat)
             {
@@ -251,6 +266,8 @@ public sealed partial class MachineController
         }
         finally
         {
+            if (automaticStarted)
+                _automaticNeedsManualClear = true;
             _state.Changed -= StopWhenOperationBecomesUnavailable;
             _feedback.Sampled -= StopWhenMotionFeedbackBecomesUnavailable;
             _state.SetAutomaticRunning(false);

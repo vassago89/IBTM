@@ -14,7 +14,7 @@ public sealed partial class MachineController
     {
         get
         {
-            return _state.ManualSetupEnabled && !_fasteningStation.HasPendingResult;
+            return _state.ManualSetupEnabled && !RequiresManualClear;
         }
     }
 
@@ -243,10 +243,10 @@ public sealed partial class MachineController
             throw new InvalidOperationException("Bolt testing requires safe manual mode.");
         }
 
-        if (_fasteningStation.HasPendingResult)
+        if (RequiresManualClear)
         {
             throw new InvalidOperationException(
-                "Resolve interrupted fastening results in Recovery before testing a bolt head.");
+                "Remove the carrier and held parts, then press RESET before testing a bolt head.");
         }
 
         try
@@ -261,6 +261,9 @@ public sealed partial class MachineController
         }
         finally
         {
+            if (_fasteningGantry.GetHead(FasteningHead.Pickup).HasPendingResult
+                || _fasteningGantry.GetHead(FasteningHead.Shooting).HasPendingResult)
+                _automaticNeedsManualClear = true;
             _state.SetBoltTestRunning(false);
         }
     }

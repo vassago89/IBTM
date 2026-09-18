@@ -422,69 +422,7 @@ public sealed class BoltFasteningTests
         Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
     }
 
-    [Fact]
-    public void RecoveryPreservesMeasuredResultsUntilExplicitlyUnchecked()
-    {
-        var io = new VirtualIoService(Outputs(new ConveyorHardwareSettings()), new MachineOptions());
-        var work = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
-        io.Initialize();
-        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
-        io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
-        var first = work.Assembly(HeatSinkSlot.HeatSink1);
-        var second = work.Assembly(HeatSinkSlot.HeatSink2);
-        var pcbNg = new BoltResult(false, 1.25);
-        var seatingOk = new BoltResult(true, 0.8);
-        var finalNg = new BoltResult(false, 2.3);
-        var secondPcbOk = new BoltResult(true, 1.4);
-        first.RecordPcbBolt(1, pcbNg);
-        first.RecordIpmSeating(2, seatingOk);
-        first.RecordIpmFinal(2, finalNg);
-        second.RecordPcbBolt(3, secondPcbOk);
-        work.Complete(work.CurrentJob);
 
-        (HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)[] items = [
-            (
-                HeatSinkSlot.HeatSink1,
-                1,
-                FasteningPass.Pcb,
-                true),
-            (
-                HeatSinkSlot.HeatSink1,
-                4,
-                FasteningPass.IpmSeating,
-                true),
-        ];
-        io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
-        io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
-        work.PrepareRecovery(items);
-
-        Assert.Same(pcbNg, first.PcbBoltResults[1]);
-        Assert.Same(seatingOk, first.IpmSeatingResults[2]);
-        Assert.Same(finalNg, first.IpmFinalResults[2]);
-        Assert.Same(secondPcbOk, second.PcbBoltResults[3]);
-        Assert.Equal(BoltResultSource.Manual, first.IpmSeatingResults[4].Source);
-        Assert.Equal(AssemblyResult.Ng, first.FasteningResult);
-        Assert.True(work.HasNg);
-        Assert.False(work.Completed);
-
-        work.PrepareRecovery([(HeatSinkSlot.HeatSink1, 1, FasteningPass.Pcb, false),]);
-
-        Assert.Empty(first.PcbBoltResults);
-        Assert.Same(finalNg, first.IpmFinalResults[2]);
-        Assert.Equal(AssemblyResult.Ng, first.FasteningResult);
-        Assert.True(work.HasNg);
-
-        work.PrepareRecovery([(HeatSinkSlot.HeatSink1, 2, FasteningPass.IpmFinal, false),]);
-
-        Assert.Empty(first.IpmFinalResults);
-        Assert.Same(seatingOk, first.IpmSeatingResults[2]);
-        Assert.Equal(BoltResultSource.Manual, first.IpmSeatingResults[4].Source);
-        Assert.Same(secondPcbOk, second.PcbBoltResults[3]);
-        Assert.Equal(AssemblyResult.Pending, first.FasteningResult);
-        Assert.False(work.HasNg);
-        Assert.False(work.Completed);
-    }
 
     [Theory]
     [InlineData(AdcFunctionCode.ReadInputRegisters)]
@@ -802,7 +740,7 @@ public sealed class BoltFasteningTests
             if (stopDuringDescent || missingDownFeedback)
             {
                 Assert.Empty(results);
-                Assert.True(selected.RequiresRecovery);
+                Assert.True(selected.HasPendingResult);
                 Assert.True(station.HasPendingResult);
                 headEnabled = false;
                 await Assert.ThrowsAsync<InvalidOperationException>(() => station.RunAsync(new()));
@@ -827,7 +765,7 @@ public sealed class BoltFasteningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task InterruptedFasteningRequiresRecoveryBeforeRetryingTheSameBolt(bool useIo)
+    public async Task InterruptedFasteningRequiresEmptyStationBeforeNewWork(bool useIo)
     {
         var settings = new BoltFasteningSettings
         {
@@ -886,7 +824,7 @@ public sealed class BoltFasteningTests
         await station.RunAsync(new(), stop.Token);
         interruptDescent = false;
         Assert.True(station.HasPendingResult);
-        Assert.True(pickup.RequiresRecovery);
+        Assert.True(pickup.HasPendingResult);
         Assert.Empty(assembly.IpmFinalResults);
 
         // Feeder OFF cannot erase an interrupted tightening.
@@ -900,10 +838,12 @@ public sealed class BoltFasteningTests
             Assert.Equal(1, bus.StartWrites);
         pickupEnabled = true;
 
-        station.PrepareRecovery([
-            (HeatSinkSlot.HeatSink1, 1, FasteningPass.IpmSeating, true),
-            (HeatSinkSlot.HeatSink1, 1, FasteningPass.IpmFinal, false),
-        ]);
+        Assert.Throws<InvalidOperationException>(station.ConfirmManualClear);
+        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+        station.ConfirmManualClear();
+        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        assembly = work.Assembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordIpmSeating(1, new(true, null));
         Assert.False(station.HasPendingResult);
         Assert.False(pickup.HasPendingResult);
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -929,12 +869,9 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public async Task FasteningResumeKeepsTheResultWithItsCarrierBoltAndPass(
-        bool replaceCarrier,
-        bool markCompleted)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PendingResultStaysWithItsCarrierBoltAndPass(bool replaceCarrier)
     {
         var settings = new BoltFasteningSettings
         {
@@ -1043,20 +980,6 @@ public sealed class BoltFasteningTests
         }
         else
         {
-            // Changing an earlier pass must not reassign the outstanding final-pass result.
-            station.PrepareRecovery([
-                (HeatSinkSlot.HeatSink1, 1, FasteningPass.IpmSeating, false),
-                (HeatSinkSlot.HeatSink1, 1, FasteningPass.IpmFinal, markCompleted),
-            ]);
-            Assert.Equal(!markCompleted, pickupHead.HasPendingResult);
-            Assert.Equal(!markCompleted, station.HasPendingResult);
-            if (markCompleted)
-            {
-                Assert.Equal(BoltResultSource.Manual, originalAssembly.IpmFinalResults[1].Source);
-                Assert.NotEqual(BoltFasteningState.FinalizingIpm, station.State());
-                return;
-            }
-
             io.SetInput(InputIo.PickupHeadDown, false);
             io.SetInput(InputIo.PickupHeadUp, true);
             Assert.Equal(BoltFasteningState.FinalizingIpm, station.State());
@@ -1076,7 +999,7 @@ public sealed class BoltFasteningTests
         }
         else
         {
-            Assert.Empty(assembly.IpmSeatingResults);
+            Assert.Single(assembly.IpmSeatingResults);
         }
     }
 

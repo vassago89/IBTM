@@ -15,7 +15,7 @@ public sealed partial class PcbPlacer : AutoUnit
     private readonly PcbPlacementWork _work;
     private HeatSinkSlot[]? _runTargets;
     // Down before release and Down after pressing have identical IO feedback.
-    // Keep only the pending press target across Stop, never a cached cylinder state.
+    // Keep the press target only while this run owns the operation.
     private HeatSinkSlot? _pressingHeatSink;
 
     public PcbPlacer(BufferStage buffer, PcbPlacementHandler handler, PcbPlacementWork work)
@@ -54,8 +54,6 @@ public sealed partial class PcbPlacer : AutoUnit
         CancellationToken cancellationToken = default,
         bool repeat = false)
     {
-        if (!repeat && _repeatTrip is not null)
-            throw new InvalidOperationException("Finish or recover the interrupted PCB repeat before production.");
         _repeat = repeat;
         _runTargets = null;
         try
@@ -65,6 +63,9 @@ public sealed partial class PcbPlacer : AutoUnit
         finally
         {
             _runTargets = null;
+            _pressingHeatSink = null;
+            _repeatTrip = null;
+            _repeat = false;
         }
     }
 

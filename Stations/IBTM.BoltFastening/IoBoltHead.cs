@@ -50,14 +50,6 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         }
     }
 
-    public bool RequiresRecovery
-    {
-        get
-        {
-            return Volatile.Read(ref _pendingPhase) == Interrupted;
-        }
-    }
-
     public Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -114,7 +106,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         {
             return await ReadPendingResultAsync(cancellationToken)
                 ?? throw new InvalidOperationException(
-                    $"{_head} IO fastening was interrupted without a complete FASTEN ON/OFF cycle. Check the bolt and resolve it in Recovery before restarting.");
+                    $"{_head} IO fastening was interrupted without a complete FASTEN ON/OFF cycle. Remove the carrier and held parts, then press RESET.");
         }
 
         await CheckReadyAsync(cancellationToken);

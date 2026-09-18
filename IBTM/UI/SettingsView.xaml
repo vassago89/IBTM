@@ -180,7 +180,7 @@
                                     <TextBlock Text="Main Conveyor · Carrier Seating" Style="{StaticResource SettingSectionTitle}"/>
                                     <TextBlock Text="센서 감지 후 추가 구동 시간"
                                         Foreground="{StaticResource TextPrimaryBrush}" FontSize="20" FontWeight="SemiBold"/>
-                                    <TextBlock Text="목적지 Heat Sink 1 센서가 ON된 뒤, 캐리어를 밀착시키기 위해 벨트를 더 구동하는 시간입니다."
+                                    <TextBlock Text="목적지 Heat Sink 2 센서가 ON된 뒤, 캐리어를 밀착시키기 위해 벨트를 더 구동하는 시간입니다."
                                         Style="{StaticResource SettingHelpText}"/>
                                     <TextBlock Text="Station 1 · 2 · 3 공통 / 정방향 이송에 적용"
                                         Style="{StaticResource SettingHelpText}"/>
@@ -195,7 +195,7 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        <TextBlock Text="Heat Sink 2만 감지되면 추가 구동 타이머는 시작하지 않습니다. 아래의 Timeout은 신호를 기다리는 최대 시간입니다."
+                        <TextBlock Text="Heat Sink 1만 감지되면 추가 구동 타이머는 시작하지 않습니다. 아래의 Timeout은 신호를 기다리는 최대 시간입니다."
                             Style="{StaticResource SettingHelpText}" Margin="4,0,4,12"/>
 
                         <Grid>

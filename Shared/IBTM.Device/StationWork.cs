@@ -157,12 +157,6 @@ public abstract class StationWork
                 $"Carrier work changed from {job.Id} to {_job.Id}; the previous work cannot update this carrier.");
     }
 
-    protected void RemoveAssembly(HeatSinkSlot heatSink)
-    {
-        lock (JobGate)
-            _job.Assemblies.TryRemove(heatSink, out _);
-    }
-
     public void TransferAssembliesTo(StationWork destination, Job job)
     {
         lock (JobGate)
@@ -191,13 +185,6 @@ public abstract class StationWork
                 return;
             Volatile.Write(ref job.Completed, true);
         }
-        Changed?.Invoke();
-    }
-
-    protected void Restart()
-    {
-        lock (JobGate)
-            Volatile.Write(ref _job.Completed, false);
         Changed?.Invoke();
     }
 

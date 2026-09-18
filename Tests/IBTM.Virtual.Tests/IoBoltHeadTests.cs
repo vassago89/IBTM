@@ -39,7 +39,7 @@ public sealed class IoBoltHeadTests
             () => head.TightenAsync(feedAsync: FeedAsync)));
         Assert.False(fed);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(head.RequiresRecovery);
+        Assert.True(head.HasPendingResult);
         Assert.Null(await head.ReadPendingResultAsync());
     }
 
@@ -218,7 +218,7 @@ public sealed class IoBoltHeadTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => cycle.WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(head.RequiresRecovery);
+        Assert.True(head.HasPendingResult);
         Assert.Null(await head.ReadPendingResultAsync());
     }
 

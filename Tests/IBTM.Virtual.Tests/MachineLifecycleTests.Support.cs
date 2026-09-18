@@ -67,14 +67,6 @@ public sealed partial class MachineLifecycleTests
 
     private sealed class StoppingBoltHead : IBoltHead
     {
-        public bool RequiresRecovery
-        {
-            get
-            {
-                return false;
-            }
-        }
-
         public TaskCompletionSource Started { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Stopping { get; } = new(
@@ -136,14 +128,6 @@ public sealed partial class MachineLifecycleTests
 
     private sealed class WaitingBoltHead : IBoltHead
     {
-        public bool RequiresRecovery
-        {
-            get
-            {
-                return false;
-            }
-        }
-
         public bool WaitForReadiness { get; set; }
         public int ReadinessChecks { get; private set; }
         public TaskCompletionSource ReadinessEntered { get; } = new(

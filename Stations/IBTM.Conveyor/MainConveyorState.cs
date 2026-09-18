@@ -13,13 +13,13 @@ public enum MainConveyorState
     [Description("Waiting for downstream")]
     WaitingForRearEquipment,
 
-    [Description("Seating at S1")]
+    [Description("S1 carrier not seated")]
     SeatingPcbPlacementCarrier,
 
-    [Description("Seating at S2")]
+    [Description("S2 carrier not seated")]
     SeatingBoltFasteningCarrier,
 
-    [Description("Seating at S3")]
+    [Description("S3 carrier not seated")]
     SeatingInspectionCarrier,
 
     [Description("Receiving at infeed")]
@@ -34,6 +34,9 @@ public enum MainConveyorState
     [Description("Discharging S3")]
     DischargingInspectionCarrier,
 
-    [Description("Carrier position unknown")]
-    CarrierPositionUnknown,
+    [Description("Manual clear required · empty conveyor, then RESET")]
+    ManualClearRequired,
+
+    [Description("Conveyor RUN output ON")]
+    Running,
 }

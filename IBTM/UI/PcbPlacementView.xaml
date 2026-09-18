@@ -13,13 +13,6 @@
         <Canvas>
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
                 Text="PCB Supply / Placement" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
-            <Button Canvas.Right="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
-                Content="RESUME WORK"
-                Command="{Binding OpenPcbPlacementRecoveryCommand}"
-                IsEnabled="{Binding PcbPlacementRecoveryAvailable}"
-                Style="{StaticResource SecondaryButtonStyle}" MinWidth="92" Height="30"
-                Visibility="{Binding PcbPlacementRecoveryAvailable,
-                                         Converter={StaticResource BoolToVis}}"/>
 
             <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
                 Orientation="Horizontal">

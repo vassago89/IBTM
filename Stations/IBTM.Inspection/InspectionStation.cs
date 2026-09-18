@@ -75,11 +75,6 @@ public sealed class InspectionStation : AutoUnit
     {
         if (cancellationToken.IsCancellationRequested)
             return;
-        if (_work.Enabled && _work.CarrierPresent && !_work.Completed)
-        {
-            _work.RestartInspection();
-        }
-
         await RunLoopAsync(token => ExecuteAsync(bolts, repeat, holdAtShuttle, token), cancellationToken);
     }
 

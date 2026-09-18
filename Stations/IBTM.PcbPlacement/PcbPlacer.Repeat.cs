@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -11,8 +9,7 @@ namespace IBTM.PcbPlacement;
 public sealed partial class PcbPlacer
 {
     private bool _repeat;
-    // Keep the source and trip progress through STOP. Feedback alone cannot tell
-    // whether a held PCB has already visited the handoff position.
+    // Current-run ownership only; discarded when RunAsync exits.
     private RepeatPcbTrip? _repeatTrip;
 
     private enum RepeatPcbPhase { Picking, ToHandoff, Placing, Releasing }
@@ -22,26 +19,6 @@ public sealed partial class PcbPlacer
         public StationWork.Job Job { get; } = job;
         public HeatSinkSlot HeatSink { get; } = heatSink;
         public RepeatPcbPhase Phase { get; set; }
-    }
-
-    public void PrepareRecovery(IEnumerable<(HeatSinkSlot HeatSink, bool Completed)> items)
-    {
-        var decisions = items.ToArray();
-        if (_repeatTrip is { } trip
-            && (!ReferenceEquals(trip.Job, _work.CurrentJob)
-                || !decisions.Any(item => item.HeatSink == trip.HeatSink && !item.Completed)))
-        {
-            if (_handler.Pcb != PlacementPcbState.None
-                || _handler.VacuumDetected
-                || _handler.Lift != PlacementCylinderState.Up)
-            {
-                throw new InvalidOperationException(
-                    "Remove or return the held PCB and raise the handler before discarding the interrupted repeat.");
-            }
-            _repeatTrip = null;
-            _pressingHeatSink = null;
-        }
-        _work.PrepareRecovery(decisions);
     }
 
     private async Task ExecuteRepeatAsync(

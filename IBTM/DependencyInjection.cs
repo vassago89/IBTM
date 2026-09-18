@@ -327,8 +327,6 @@ public static class DependencyInjection
                     () => units.NgConveyor);
             });
         services.AddSingleton<RecipeEditor>();
-        services.AddSingleton<PcbPlacementRecoveryPreparation>();
-        services.AddSingleton<BoltFasteningRecoveryPreparation>();
         services.AddSingleton<MachineMap>();
         services.AddSingleton<OperationViewModel>();
         services.AddSingleton<SettingsViewModel>();

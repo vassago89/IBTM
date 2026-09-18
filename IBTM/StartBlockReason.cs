@@ -43,6 +43,6 @@ public enum StartBlockReason
     [Description("Complete bolt teaching")]
     TeachingIncomplete,
 
-    [Description("Re-enable the NG unit used by the unfinished repeat return")]
-    RepeatReturnUnitDisabled,
+    [Description("Remove carriers and held parts, including between sensors, then press RESET")]
+    ManualClearRequired,
 }

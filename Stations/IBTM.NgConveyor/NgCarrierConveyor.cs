@@ -16,6 +16,26 @@ public sealed class NgCarrierConveyor : AutoUnit
     private volatile Movement _movement;
     private volatile EjectionPhase _ejectionPhase;
     private bool _repeat;
+    private bool _requiresManualClear;
+
+    public bool RequiresManualClear
+    {
+        get
+        {
+            return _requiresManualClear;
+        }
+    }
+
+    public void ConfirmManualClear()
+    {
+        if (!_requiresManualClear)
+            return;
+        _io.CheckReady();
+        if (RunCommandOn || CarrierCount != 0)
+            throw new InvalidOperationException("Stop and manually empty the NG conveyor and shuttle before RESET.");
+        _requiresManualClear = false;
+        Changed?.Invoke();
+    }
 
     public NgCarrierConveyor(IIoService io, NgConveyorSettings settings, NgShuttleFeedback shuttle)
     {
@@ -111,7 +131,8 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     internal bool CanAcceptCarrier(bool? runCommandOn = null)
     {
-        return _movement == Movement.None
+        return !_requiresManualClear
+            && _movement == Movement.None
             && _ejectionPhase == EjectionPhase.Idle
             && !Full
             && !NeedsCompaction
@@ -141,6 +162,8 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     public NgConveyorState ReadState(bool runCommandOn)
     {
+        if (_requiresManualClear)
+            return NgConveyorState.ManualClearRequired;
         // A stopped transfer with no presence feedback has no known physical location.
         // The saved destination is work history, not permission to guess and resume.
         if (!runCommandOn
@@ -235,6 +258,8 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     public Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
+        if (_requiresManualClear)
+            throw new InvalidOperationException("NG conveyor movement was interrupted. Manually clear it and press RESET.");
         _repeat = repeat;
         return RunControlledAsync(
             async token =>
@@ -290,6 +315,10 @@ public sealed class NgCarrierConveyor : AutoUnit
         finally
         {
             _repeat = false;
+            if (_movement != Movement.None || _ejectionPhase != EjectionPhase.Idle)
+                _requiresManualClear = true;
+            _movement = Movement.None;
+            _ejectionPhase = EjectionPhase.Idle;
             try
             {
                 Stop();
@@ -303,6 +332,8 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     public async Task ReturnToShuttleAsync(CancellationToken cancellationToken)
     {
+        if (_requiresManualClear)
+            throw new InvalidOperationException("NG conveyor movement was interrupted. Manually clear it and press RESET.");
         if (CarrierCount != 1)
             throw new InvalidOperationException("NG return requires one carrier with known presence feedback.");
         if (_shuttle.Lift != NgShuttleLiftState.Down && !Position3Occupied)
@@ -461,6 +492,7 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
         catch (Exception exception)
         {
+            _requiresManualClear = true;
             failure = exception;
             throw;
         }
