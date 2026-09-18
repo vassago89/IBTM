@@ -254,8 +254,10 @@ Repeat PCB 왕복 단계와 실행 대상을 버린다. 현재 캐리어·IPM·�
 장비 자동 운전이 종료되면 `MachineController.RequiresManualClear`가 전체 START를 차단한다.
 PCB 공급·안착·체결·검사·NG 이송·셔틀 및 Repeat에 같은 정책을 적용하며,
 Main Conveyor나 해당 유닛을 비활성화해도 차단을 우회하지 못한다.
-캐리어와 핸들러의 보유 부품, 센서 사이의 소재까지 수동 제거하고 RESET한다.
-RESET은 현재 재실·보유 부품과 컨베이어 정지를 확인하고 중단 작업을 폐기한다.
+RESET은 캐리어가 착좌되어 있거나 부품이 감지되어도 장치 오류를 해제한다.
+재실·보유 부품 감지를 RESET 실패나 새 알람으로 처리하지 않으며, 지지 출력과 작업 결과를 유지한다.
+중단 작업의 START 차단은 별개다. 캐리어와 핸들러의 보유 부품, 센서 사이의 소재까지
+수동 제거하고 RESET하면 `TryConfirmAutomaticManualClear`가 정지·비움을 확인하고 차단을 해제한다.
 센서 OFF만으로 차단을 해제하지 않으며, RESET은 자동 운전을 시작하거나 작업을 완료 처리하지 않는다.
 복구창, `StartPreparation`, `PrepareRecovery`, 수동 완료 결과 생성은 제거했다.
 
@@ -293,7 +295,7 @@ S3 배출 → S2에서 S3 → S1에서 S2 → 신규 반입 순서이며, 목적
 정상 착좌가 중단되어도 수동 정리·RESET 차단이 걸리며, 중단된 동작을 자동 재개하지 않는다.
 집중 검사는 `InterruptedSeatingDoesNotResumeAfterSensorChanges`, `InterruptedPlateRaiseDoesNotResumeOrLowerSupport`,
 `InterruptedTransferKeepsPendingResultsWithoutMovingThemOnLaterInput`, `ActiveTransferKeepsOriginalResultsWhenSourceGetsAnotherCarrier`,
-`ResetAcknowledgesInterruptedConveyorOnlyAfterManualClear`다.
+`ResetClearsAlarmButKeepsInterruptedConveyorStartBlockUntilManualClear`, `ResetPreservesSeatedCarrierAndResults`다.
 셔틀의 `_cycleReturnPending`은 제거했다. `CycleAsync`는 하강 완료 후 현재 캐리어와
 픽업 상승을 확인하고 상승한다. 중단된 상승을 별도로 기억해 이어가지 않는다.
 전체 Repeat도 저장 단계 분기 없이 정방향 → NG 반환/셔틀 왕복 → Station 3 → 입구 순서로 실행한다.

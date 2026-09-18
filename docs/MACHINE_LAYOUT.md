@@ -184,8 +184,11 @@ advertised together. Outputs are commands, not state evidence.
 After an automatic run stops, START is blocked for the whole machine. Remove all carriers
 and held parts, including material between sensors, then press RESET. Empty inputs alone
 do not clear the block. PCB supply, placement, NG conveyor and Repeat route progress do
-not survive the run. Reset restores device readiness and acknowledges manual clearing;
-it never resumes an interrupted sequence or marks unfinished work complete.
+not survive the run. RESET can restore device readiness and clear alarms while carriers
+remain seated or parts are detected; their presence does not raise a RESET alarm or
+change support outputs and work results. Acknowledging manual clearing is separate:
+the interrupted-work START block remains until the machine is empty and RESET is pressed.
+RESET never resumes an interrupted sequence or marks unfinished work complete.
 
 The machine has three external SMEMA connections. Front 1 belongs to PCB Supply,
 Front 2 belongs to the main heat sink carrier conveyor, and Rear belongs to the
