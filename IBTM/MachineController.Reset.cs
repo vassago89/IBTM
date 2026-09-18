@@ -45,7 +45,12 @@ public sealed partial class MachineController
         }
     }
 
-    public Task ResetAsync()
+    public async Task ResetAsync()
+    {
+        await Task.Run(AcknowledgeAndResetAsync);
+    }
+
+    private Task AcknowledgeAndResetAsync()
     {
         _state.SilenceBuzzer();
         lock (_resetGate)

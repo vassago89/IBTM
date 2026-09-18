@@ -174,6 +174,11 @@ public sealed partial class MachineController
         _log?.Write($"Machine initialization finished. Alarm={_state.Alarm}.");
     }
 
+    public async Task StopAsync()
+    {
+        await Task.Run(Stop);
+    }
+
     public void Stop()
     {
         _log?.Write("Machine STOP requested.");
@@ -220,6 +225,12 @@ public sealed partial class MachineController
     }
 
     public async Task ShutdownAsync()
+    {
+        // Cancellation callbacks and final feedback reads call synchronous device SDKs.
+        await Task.Run(ShutdownHardwareAsync);
+    }
+
+    private async Task ShutdownHardwareAsync()
     {
         _log?.Write("Machine shutdown requested.");
         var displayStopped = _state.StopDisplayUpdatesAsync();

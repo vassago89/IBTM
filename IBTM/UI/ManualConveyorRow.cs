@@ -48,7 +48,7 @@ public sealed partial class ManualConveyorRow : ObservableObject
         try
         {
             await CommandShutdown.StopAsync(
-                () => _machine.StopManualConveyor(Io.Signal),
+                () => _machine.StopManualConveyorAsync(Io.Signal),
                 RunCommand);
         }
         catch (Exception exception)

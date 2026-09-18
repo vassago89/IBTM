@@ -34,7 +34,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 1;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var gantry = services.GetRequiredService<InspectionGantry>();
         var state = services.GetRequiredService<MachineState>();
@@ -90,7 +90,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.PcbPlacementHandler.BufferHandoffPosition.Z = 8;
         settings.BoltFastening.SafeZ = 8;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
@@ -130,7 +130,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task NgTransferTeachingHasSeparatePointsAndUsesTheInspectionAxes()
     {
-        using var services = CreateDisplayServices(out var feedback);
+        await using var services = CreateDisplayServices(out var feedback);
         var transferSettings = services.GetRequiredService<NgCarrierTransferSettings>();
         transferSettings.Speed = 1_234;
         transferSettings.PickupSafeX = null;
@@ -234,7 +234,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true)]
     public async Task TeachingRechecksFeedbackBeforeJogOrSavingPosition(bool savePosition)
     {
-        using var services = CreateDisplayServices(out var feedback);
+        await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
@@ -274,7 +274,7 @@ public sealed partial class MachineLifecycleTests
         InputIo raised,
         MachineAlarm expectedAlarm)
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var state = services.GetRequiredService<MachineState>();
@@ -317,7 +317,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(TeachingStopAction.Close)]
     public async Task TeachingStopReportsDriverCancellationFailureAndDrainsJog(TeachingStopAction action)
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
@@ -378,7 +378,7 @@ public sealed partial class MachineLifecycleTests
         double x,
         double y)
     {
-        using var services = CreateDisplayServices(out var feedback);
+        await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var gantry = services.GetRequiredService<InspectionGantry>();
         await machine.InitializeAsync();
@@ -407,7 +407,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(MotionGroup.InspectionGantry)]
     public async Task TeachingJogStopsWhenTeachingContextChanges(MotionGroup group)
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
@@ -460,7 +460,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task ImageRulerCalibratesBothHeatSinksWithoutMovingOrChangingRois()
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         await services.GetRequiredService<MachineController>().InitializeAsync();
         var recipe = services.GetRequiredService<Recipe>();
         var reference = services.GetRequiredService<CarrierReferenceSettings>();
@@ -526,7 +526,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task InspectionTargetSelectionOwnsFovRoiAndPerBoltPreview()
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var recipe = services.GetRequiredService<Recipe>();
         recipe.BoltInspection.BrightnessThreshold = 128;
         recipe.BoltInspection.MinimumBrightRatio = 0.5;
@@ -626,7 +626,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task TeachingUnitSelectionOwnsHandoffAxesAndCancelsJog()
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var supply = services.GetRequiredService<PcbSupplyHandler>();
@@ -677,7 +677,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
-        using var services = CreateMotionScopeServices(settings, out var probes);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var placement = services.GetRequiredService<PcbPlacementHandler>();
@@ -737,7 +737,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task TeachingOutputsWaitForFeedbackAndCancelWithoutReversingPneumatics()
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
@@ -799,7 +799,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task TeachingRotationRechecksThePlacementLiftBeforeWritingTheOutput()
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var state = services.GetRequiredService<MachineState>();
@@ -840,7 +840,7 @@ public sealed partial class MachineLifecycleTests
     public async Task TeachingOutputsKeepOwnerMovementRulesAndReportFeedbackTimeout()
     {
         var settings = FlowSettings();
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var state = services.GetRequiredService<MachineState>();
@@ -905,7 +905,7 @@ public sealed partial class MachineLifecycleTests
     public async Task TeachingReportsMotionAndHomeBlocks()
     {
         var settings = FlowSettings();
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -939,7 +939,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task TeachingControlsOnlyItsOwnStopper()
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -979,7 +979,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
         settings.Units.PcbPlacement = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -1035,7 +1035,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units.NgCarrierTransfer = false;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
@@ -1120,7 +1120,7 @@ public sealed partial class MachineLifecycleTests
         using var release = new ManualResetEventSlim();
         var recipe = new Recipe();
         TeachInspectionFovs(settings, recipe);
-        using var services = new ServiceCollection().AddIbtmApplication(
+        await using var services = new ServiceCollection().AddIbtmApplication(
             settings,
             recipe)
             .AddSingleton<ICamera>(
@@ -1187,7 +1187,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         var store = VirtualTest.OpenMachineStore(
             Path.Combine(Path.GetTempPath(), $"IBTM-buffer-teaching-{Guid.NewGuid():N}.db"));
-        using var services = new ServiceCollection().AddSingleton(store)
+        await using var services = new ServiceCollection().AddSingleton(store)
             .AddIbtmApplication(settings, new Recipe())
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
@@ -1274,7 +1274,7 @@ public sealed partial class MachineLifecycleTests
     public async Task BufferSetupCancelledBeforeExecutionDoesNotApply(bool closeTeaching)
     {
         var settings = FlowSettings();
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
@@ -1309,7 +1309,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units.Inspection = false;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();

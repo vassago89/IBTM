@@ -47,10 +47,16 @@ public sealed class CommandShutdownTests
         var stopFailure = new IOException("Cancel callback failed.");
         var commandFailure = new IOException("Command cleanup failed.");
         var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var command = new AsyncRelayCommand((CancellationToken _) => pending.Task);
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var command = new AsyncRelayCommand(async token =>
+        {
+            using var registration = token.Register(() => canceled.TrySetResult());
+            await pending.Task;
+        });
         var execution = command.ExecuteAsync(null);
         var shutdown = CommandShutdown.StopAsync(() => throw stopFailure, command);
 
+        await canceled.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.True(command.IsCancellationRequested);
         Assert.False(shutdown.IsCompleted);
         pending.SetException(commandFailure);
@@ -76,7 +82,9 @@ public sealed class CommandShutdownTests
         var secondRun = second.ExecuteAsync(null);
         try
         {
-            var shutdown = CommandShutdown.StopAsync(() => { }, first, second);
+            var shutdown = CommandShutdown.StopAsync(() => Task.CompletedTask, first, second);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => secondRun.WaitAsync(TimeSpan.FromSeconds(2)));
             Assert.True(first.IsCancellationRequested);
             Assert.True(second.IsCancellationRequested);
             Assert.False(shutdown.IsCompleted);

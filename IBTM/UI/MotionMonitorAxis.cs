@@ -67,9 +67,9 @@ public sealed partial class MotionMonitorAxis : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanHome), IncludeCancelCommand = true)]
-    private Task HomeAsync(CancellationToken cancellationToken)
+    private async Task HomeAsync(CancellationToken cancellationToken)
     {
-        return Task.Run(() => _machine.HomeAxisAsync(Group, Axis, cancellationToken));
+        await _machine.HomeAxisAsync(Group, Axis, cancellationToken);
     }
 
     private bool CanHome()

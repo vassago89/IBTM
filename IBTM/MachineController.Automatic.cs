@@ -95,6 +95,11 @@ public sealed partial class MachineController
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
+        await Task.Run(() => RunAutomaticAsync(cancellationToken), cancellationToken);
+    }
+
+    private async Task RunAutomaticAsync(CancellationToken cancellationToken)
+    {
         try
         {
             if (!IsStartAllowed(StartBlock))

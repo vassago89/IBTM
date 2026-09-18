@@ -50,22 +50,25 @@ public sealed partial class MachineController
         return OutputBlockReason.None;
     }
 
-    internal void StopManualConveyor(OutputIo signal)
+    internal async Task StopManualConveyorAsync(OutputIo signal)
     {
-        try
+        await Task.Run(() =>
         {
-            if (signal == OutputIo.MainConveyorRun)
-                _conveyor.Stop();
-            else if (signal == OutputIo.NgConveyorRun)
-                _ngConveyor.Stop();
-            else
-                throw new ArgumentOutOfRangeException(nameof(signal));
-        }
-        catch (Exception exception)
-        {
-            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, exception);
-            _operations.Cancel();
-        }
+            try
+            {
+                if (signal == OutputIo.MainConveyorRun)
+                    _conveyor.Stop();
+                else if (signal == OutputIo.NgConveyorRun)
+                    _ngConveyor.Stop();
+                else
+                    throw new ArgumentOutOfRangeException(nameof(signal));
+            }
+            catch (Exception exception)
+            {
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, exception);
+                _operations.Cancel();
+            }
+        });
     }
 
     internal async Task<OutputBlockReason> RunManualConveyorAsync(

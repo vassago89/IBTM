@@ -105,9 +105,9 @@ public partial class MotionWindowViewModel : ObservableObject
     {
         try
         {
-            await Task.Run(() => CommandShutdown.StopAsync(
-                _machine.Stop,
-                Axes.Select(axis => axis.HomeCommand).ToArray()));
+            await CommandShutdown.StopAsync(
+                _machine.StopAsync,
+                Axes.Select(axis => axis.HomeCommand).ToArray());
         }
         catch (Exception exception)
         {

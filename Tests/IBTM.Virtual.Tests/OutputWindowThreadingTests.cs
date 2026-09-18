@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Threading;
+using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
@@ -162,7 +163,7 @@ public sealed class OutputWindowThreadingTests
                     Source = new Uri($"pack://application:,,,/IBTM;component/UI/{resource}.xaml"),
                 });
         await VerifyLogBindingsAsync();
-        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(
                 new MachineSettings
                 {
@@ -327,7 +328,7 @@ public sealed class OutputWindowThreadingTests
                 Assert.True(closed.Task.IsCompleted);
                 Assert.True(io.GetOutput(output)); // Closing the view is not a STOP command.
                 window = null;
-                manualStop.Command.Execute(null);
+                await ((IAsyncRelayCommand)manualStop.Command).ExecuteAsync(null);
                 Assert.False(io.GetOutput(output));
             }
 
@@ -888,8 +889,8 @@ public sealed class OutputWindowThreadingTests
                 () => (10, 17, 0),
                 () => [],
                 () => [new(new() { X = 13, Y = 15 }, 4, 4, "PCB-000123")]);
-            var barcodeImage = await Task.Run(
-                () => InspectionPreview.CreateBitmap(barcodeCamera.Capture(500, 0)));
+            var barcodeFrame = await barcodeCamera.CaptureAsync(500, 0);
+            var barcodeImage = await Task.Run(() => InspectionPreview.CreateBitmap(barcodeFrame));
             teaching.CarrierImages = [savedFovs[1] with { Image = barcodeImage }];
             teaching.FovRegion = new Rect(180, 40, 80, 80);
             Assert.Null(teaching.DataMatrixResult);

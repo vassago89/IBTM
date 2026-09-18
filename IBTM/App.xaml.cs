@@ -20,6 +20,7 @@ public partial class App : System.Windows.Application
     private ApplicationLog? _log;
     private ApplicationTraceListener? _traceListener;
     private IAdcBus? _adcBus;
+    private int _exitCode;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -107,6 +108,8 @@ public partial class App : System.Windows.Application
                 "Database Startup Failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
+            _exitCode = 1;
+            await CompleteExitAsync();
             Shutdown();
             return;
         }
@@ -128,31 +131,37 @@ public partial class App : System.Windows.Application
         _log.Write("Main window opened.");
     }
 
-    protected override void OnExit(ExitEventArgs e)
+    internal async Task CompleteExitAsync()
     {
         try
         {
             try
             {
-                _serviceProvider?.GetService<MachineController>()?.Stop();
+                if (_serviceProvider is { } services)
+                    await services.GetRequiredService<MachineController>().StopAsync();
             }
             catch (Exception exception)
             {
                 _log?.Error("Final device STOP failed during application exit.", exception);
-                e.ApplicationExitCode = 1;
+                _exitCode = 1;
             }
 
             try
             {
-                _serviceProvider?.Dispose();
+                if (_serviceProvider is { } services)
+                {
+                    // DI also owns synchronous SDK handles; dispose them off the dispatcher.
+                    await Task.Run(async () => await services.DisposeAsync());
+                }
             }
             catch (Exception exception)
             {
                 _log?.Error("Device disposal failed during application exit.", exception);
-                e.ApplicationExitCode = 1;
+                _exitCode = 1;
             }
 
-            _log?.Write(e.ApplicationExitCode == 0
+            _serviceProvider = null;
+            _log?.Write(_exitCode == 0
                 ? "Application stopped."
                 : "Application exited with shutdown errors. See preceding errors for unconfirmed device cleanup.");
         }
@@ -166,7 +175,26 @@ public partial class App : System.Windows.Application
             if (_traceListener is not null)
                 Trace.Listeners.Remove(_traceListener);
             _traceListener?.Dispose();
-            _log?.Dispose();
+            if (_log is not null)
+                await _log.DisposeAsync();
+        }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        try
+        {
+            // Unexpected application exit still attempts a synchronous hardware STOP.
+            _serviceProvider?.GetService<MachineController>()?.Stop();
+        }
+        catch (Exception exception)
+        {
+            _log?.Error("Final device STOP failed during application exit.", exception);
+            _exitCode = 1;
+        }
+        finally
+        {
+            e.ApplicationExitCode = _exitCode;
             _instanceMutex?.ReleaseMutex();
             _instanceMutex?.Dispose();
             base.OnExit(e);

@@ -394,7 +394,11 @@ public partial class TeachingViewModel : TeachingMotionViewModel
     public async Task ShutdownAsync()
     {
         var commandsStopped = CommandShutdown.StopAsync(
-            Deactivate,
+            () =>
+            {
+                Deactivate();
+                return Task.CompletedTask;
+            },
             [
                 ToggleLiveViewCommand,
                 JogCommand,

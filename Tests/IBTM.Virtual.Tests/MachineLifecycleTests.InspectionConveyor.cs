@@ -23,7 +23,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true, true)]
     public async Task InspectionParksThenDischargesOrRaisesBeforeOtherTransfers(bool ng, bool rearReady)
     {
-        using var services = CreateInspectionServices(enableConveyor: true, enableNgTransfer: ng);
+        await using var services = CreateInspectionServices(enableConveyor: true, enableNgTransfer: ng);
         var machine = services.GetRequiredService<MachineController>();
         var machineState = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -147,7 +147,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true)]
     public async Task InspectionArrivalYieldsToStation2RefillAndFrontReceiving(bool carrierWaitingAtS1)
     {
-        using var services = CreateInspectionServices(enableConveyor: true);
+        await using var services = CreateInspectionServices(enableConveyor: true);
         var machine = services.GetRequiredService<MachineController>();
         var machineState = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -247,7 +247,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task InspectionParksWhileIdleAndRejectsResultsIfConveyorStarts()
     {
-        using var services = CreateInspectionServices(enableConveyor: false);
+        await using var services = CreateInspectionServices(enableConveyor: false);
         var machine = services.GetRequiredService<MachineController>();
         var bolts = services.GetRequiredService<Recipe>().Pcb.GetBolts().ToArray();
         var io = services.GetRequiredService<VirtualIoService>();

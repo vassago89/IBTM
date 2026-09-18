@@ -38,7 +38,7 @@ public sealed partial class MachineLifecycleTests
                 throw unexpectedRead;
         }
 
-        using var services = CreateMotionScopeServices(settings, out var probes, registrations =>
+        await using var services = CreateMotionScopeServices(settings, out var probes, registrations =>
             registrations.AddSingleton<IIoService>(provider =>
             {
                 var wrapper = System.Reflection.DispatchProxy.Create<IIoService, IoTests.OutputReadProbe>();
@@ -114,7 +114,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task DisplayReadsCoalesceWithoutBlockingViewsAndSurviveMachineStop()
     {
-        using var services = CreateDisplayServices(out var feedback);
+        await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
@@ -206,7 +206,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
         settings.Units.MainConveyor = true;
-        using var services = CreateMotionScopeServices(settings, out var probes);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -283,7 +283,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
-        using var services = CreateDisplayServices(out var motion, settings);
+        await using var services = CreateDisplayServices(out var motion, settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
@@ -342,7 +342,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task DisplayReadFailureIsVisibleAndDoesNotReplaceLiveAdmissionChecks()
     {
-        using var services = CreateDisplayServices(out var feedback);
+        await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
@@ -423,7 +423,7 @@ public sealed partial class MachineLifecycleTests
         }
         finally
         {
-            Assert.Same(error, Record.Exception(services.Dispose));
+            Assert.Same(error, await Record.ExceptionAsync(async () => await services.DisposeAsync()));
         }
     }
 
@@ -432,7 +432,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true)]
     public async Task ManualServoFailureStaysAtTheCommandBoundary(bool emergencyStop)
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         await services.GetRequiredService<MachineController>().InitializeAsync();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -465,7 +465,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task ManualCommandAfterShutdownDoesNotEscapeTheBoundary()
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         var operations = services.GetRequiredService<OperationCancellation>();

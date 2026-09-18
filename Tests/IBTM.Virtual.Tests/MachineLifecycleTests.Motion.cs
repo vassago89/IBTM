@@ -32,7 +32,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = new MachineSettings { Units = EnableOnly(MachineUnit.MainConveyor) };
         settings.Units.NgCarrierTransfer = true;
-        using var services = CreateDisplayServices(out var feedback, settings);
+        await using var services = CreateDisplayServices(out var feedback, settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -71,7 +71,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task ConcurrentManualAdmissionOnlyStartsOneDeviceCommand()
     {
-        using var services = CreateDisplayServices(out var feedback);
+        await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -127,7 +127,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(inspectionEnabled ? MachineUnit.Inspection : MachineUnit.NgCarrierTransfer);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
@@ -158,7 +158,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         using var cancellation = new CancellationTokenSource();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -227,7 +227,7 @@ public sealed partial class MachineLifecycleTests
     public async Task ManualBoltTestReportsLateFailureWithoutReplacingEmergencyStop(bool emergencyStop)
     {
         var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgConveyor) };
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -271,7 +271,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
         settings.Units.PcbPlacement = true;
         settings.PcbSupply.Motion.HorizontalSpeed = 100;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -344,7 +344,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -386,7 +386,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        using var services = CreateMotionScopeServices(settings, out var probes);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
         var machine = services.GetRequiredService<MachineController>();
         var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
         await machine.InitializeAsync();
@@ -420,7 +420,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
-        using var services = CreateDisplayServices(out var feedback, settings);
+        await using var services = CreateDisplayServices(out var feedback, settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
@@ -458,7 +458,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task IndividualHomeReportsReadFailureBeforeMotionStarts()
     {
-        using var services = CreateDisplayServices(out var feedback);
+        await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
@@ -556,7 +556,7 @@ public sealed partial class MachineLifecycleTests
             Units = EnableOnly(MachineUnit.NgCarrierTransfer),
         };
         FastHomes(settings);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var gantry = services.GetRequiredService<InspectionGantry>();
@@ -601,7 +601,7 @@ public sealed partial class MachineLifecycleTests
     public async Task HomeRequiresRaisedCylindersWithoutChangingOutputs()
     {
         var settings = FlowSettings();
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -663,7 +663,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -720,7 +720,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.NgCarrierTransfer = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -755,7 +755,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task RaiseCylindersPreparesHomeWithoutMovingAxesOrOtherActuators()
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -817,7 +817,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -858,7 +858,7 @@ public sealed partial class MachineLifecycleTests
         };
         FastHomes(settings);
         settings.Options.TimeoutMilliseconds = 100;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -889,7 +889,7 @@ public sealed partial class MachineLifecycleTests
     public async Task CylinderRaiseFailureAfterStopIsReportedWithoutReplacingSafetyAlarm(bool safetyStop)
     {
         var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgCarrierTransfer) };
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -943,7 +943,7 @@ public sealed partial class MachineLifecycleTests
             Units = EnableOnly(MachineUnit.NgCarrierTransfer),
         };
         FastHomes(settings);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -1015,7 +1015,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.PcbPlacementHandler.Motion.HorizontalSpeed = 10;
         settings.BoltFastening.Motion.HorizontalSpeed = 10;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -1070,7 +1070,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.PcbPlacementHandler.Motion.HorizontalSpeed = 100;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -1103,7 +1103,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.BoltFastening.SafeZ = 5;
         settings.BoltFastening.PickupPosition = new() { X = 40, Y = 30, Z = 12 };
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -1196,7 +1196,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -1226,7 +1226,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(false)]
     public async Task FasteningAdjustmentStopsOnModeOrServoLoss(bool autoMode)
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<BoltFasteningGantry>();
@@ -1254,7 +1254,7 @@ public sealed partial class MachineLifecycleTests
     public async Task CylinderFeedbackIsRecheckedBetweenTravelZAndXy()
     {
         var settings = FlowSettings();
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -1292,7 +1292,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(unit);
-        using var services = CreateMotionScopeServices(settings, out var probes);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var manual = services.GetRequiredService<MotionWindowViewModel>();
@@ -1358,7 +1358,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
-        using var services = CreateMotionScopeServices(settings, out var probes);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         probes[MotionGroup.PcbSupply].FailHardwareCalls = true;
@@ -1399,7 +1399,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         foreach (var motionSettings in MotionSettingsOf(settings))
             motionSettings.ZHome.SearchSpeed = 20;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -1435,7 +1435,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         foreach (var motionSettings in MotionSettingsOf(settings))
             motionSettings.ZHome.SearchSpeed = 20;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var placement = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
@@ -1489,7 +1489,7 @@ public sealed partial class MachineLifecycleTests
             return motion;
         }
 
-        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddSingleton(provider => new PcbPlacementHandler(
                 Wrap(provider, MotionGroup.PcbPlacementHandler),
@@ -1551,7 +1551,7 @@ public sealed partial class MachineLifecycleTests
         foreach (var motionSettings in MotionSettingsOf(settings))
             motionSettings.ZHome.SearchSpeed = 1;
         HomeResultMotion? homeResult = null;
-        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddSingleton(
                 provider =>

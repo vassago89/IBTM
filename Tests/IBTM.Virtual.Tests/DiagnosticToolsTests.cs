@@ -21,7 +21,7 @@ public sealed class DiagnosticToolsTests
     public async Task LightTestOwnsOperationUntilOffAndStopsOnAuto()
     {
         var light = new RecordingLight();
-        using var services = CreateServices(light);
+        await using var services = CreateServices(light);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -68,7 +68,7 @@ public sealed class DiagnosticToolsTests
     public async Task LightTestCleansUpPartialOnFailureAndReportsOffFailure()
     {
         var light = new RecordingLight { FailOn = true, FailOff = true };
-        using var services = CreateServices(light);
+        await using var services = CreateServices(light);
         var machine = services.GetRequiredService<MachineController>();
         var settings = services.GetRequiredService<SettingsViewModel>();
         await machine.InitializeAsync();
@@ -145,7 +145,7 @@ public sealed class DiagnosticToolsTests
     [Fact]
     public async Task MotionMonitorShowsFeedbackWithAxisAlarmServoOffAndLatchedMachineAlarm()
     {
-        using var services = CreateServices(new RecordingLight());
+        await using var services = CreateServices(new RecordingLight());
         var settings = services.GetRequiredService<MachineSettings>();
         settings.Units.NgCarrierTransfer = true;
         var machine = services.GetRequiredService<MachineController>();
@@ -199,7 +199,7 @@ public sealed class DiagnosticToolsTests
     {
         var probe = System.Reflection.DispatchProxy.Create<IXyMotion, DiagnosticMotionProbe>();
         var diagnostics = (DiagnosticMotionProbe)probe;
-        using var services = CreateServices(
+        await using var services = CreateServices(
             new RecordingLight(),
             collection =>
                 collection.AddSingleton(
@@ -337,7 +337,7 @@ public sealed class DiagnosticToolsTests
     [Fact]
     public async Task DirectSmemaOutputRemainsAvailableInTeaching()
     {
-        using var services = CreateServices(new RecordingLight());
+        await using var services = CreateServices(new RecordingLight());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
@@ -369,7 +369,7 @@ public sealed class DiagnosticToolsTests
     [Fact]
     public async Task ManualConveyorSendsOffWhileUiContextIsBlocked()
     {
-        using var services = CreateServices(new RecordingLight());
+        await using var services = CreateServices(new RecordingLight());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var context = new PausedSynchronizationContext();

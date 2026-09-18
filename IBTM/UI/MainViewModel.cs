@@ -286,6 +286,7 @@ public partial class MainViewModel : ObservableObject
 
     public void ApproveUnconfirmedExit()
     {
+        IsClosing = true;
         _log.Write("Operator approved application exit after shutdown failure; device stop is unconfirmed.");
     }
 
@@ -316,7 +317,7 @@ public partial class MainViewModel : ObservableObject
         Trace.TraceInformation("On-screen RESET requested.");
         try
         {
-            await Task.Run(_machine.ResetAsync);
+            await _machine.ResetAsync();
         }
         catch (OperationCanceledException)
         {

@@ -25,7 +25,7 @@ public sealed partial class MachineLifecycleTests
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.Units.PickupBoltFeeder = false;
         settings.Conveyor.CarrierStopDelaySeconds = 0;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
         PrepareCarrierTeaching(settings, recipe);
         foreach (var heatSink in Enum.GetValues<HeatSinkSlot>())
@@ -170,7 +170,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units.NgCarrierTransfer = true;
         settings.Units.NgShuttle = shuttleEnabled;
         settings.Conveyor.CarrierStopDelaySeconds = 0;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -286,7 +286,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units.NgCarrierTransfer = true;
         settings.Units.NgShuttle = true;
         settings.Units.NgConveyor = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -356,7 +356,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
         settings.Units.NgCarrierTransfer = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -405,7 +405,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units.NgCarrierTransfer = true;
         settings.Units.NgShuttle = true;
         settings.Units.NgConveyor = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -455,7 +455,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units.NgCarrierTransfer = true;
         settings.Units.NgShuttle = true;
         settings.Units.NgConveyor = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -510,7 +510,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units.NgCarrierTransfer = true;
         settings.Units.NgShuttle = true;
         settings.Units.NgConveyor = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();

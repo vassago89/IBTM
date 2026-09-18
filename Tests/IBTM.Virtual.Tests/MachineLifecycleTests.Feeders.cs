@@ -26,7 +26,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = pickupEnabled;
         settings.Units.ShootingBoltFeeder = shootingEnabled;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
         recipe.Pcb.BoltPoints = [
             new() { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10 },
@@ -171,7 +171,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10 }];
         var machine = services.GetRequiredService<MachineController>();
@@ -240,7 +240,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Pickup, X = 20, Y = 10 }];
         var machine = services.GetRequiredService<MachineController>();

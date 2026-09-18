@@ -128,7 +128,7 @@ public sealed class IoTests
     }
 
     [Fact]
-    public void BuildingServicesDoesNotRewriteConfiguredInputMappings()
+    public async Task BuildingServicesDoesNotRewriteConfiguredInputMappings()
     {
         var settings = new MachineSettings();
         InputIo[] retired =
@@ -139,7 +139,7 @@ public sealed class IoTests
         ];
         foreach (var input in retired)
             settings.ConveyorHardware.Inputs[input] = 999;
-        using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
+        await using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
         var inputs = services.GetRequiredService<IReadOnlyDictionary<InputIo, int>>();
         foreach (var input in retired)
         {

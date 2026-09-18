@@ -110,9 +110,10 @@ public sealed partial class MachineController
                             is { ServoOn: true, Alarm: false, Emergency: false });
     }
 
-    internal Task HomeAxisAsync(MotionGroup group, MotionAxis axis, CancellationToken cancellationToken)
+    internal async Task HomeAxisAsync(MotionGroup group, MotionAxis axis, CancellationToken cancellationToken)
     {
-        return RunManualAsync(
+        // Admission and HOME startup read the synchronous SDK before the first asynchronous wait.
+        await Task.Run(() => RunManualAsync(
             async token =>
             {
                 _state.SetHoming(true);
@@ -137,7 +138,7 @@ public sealed partial class MachineController
             MachineAlarm.HomeFailed,
             () => CanHomeAxis(group, axis),
             cancellationToken,
-            canContinue: () => AreHomeAxisConditionsReady(group, axis));
+            canContinue: () => AreHomeAxisConditionsReady(group, axis)));
     }
 
     internal bool CanHomeUnit(MotionGroup group, bool live = true)
@@ -146,9 +147,9 @@ public sealed partial class MachineController
             .All(axis => CanHomeAxis(group, axis, live));
     }
 
-    internal Task HomeUnitAsync(MotionGroup group, CancellationToken cancellationToken)
+    internal async Task HomeUnitAsync(MotionGroup group, CancellationToken cancellationToken)
     {
-        return RunManualAsync(
+        await Task.Run(() => RunManualAsync(
             async token =>
             {
                 _state.SetHoming(true);
@@ -196,10 +197,15 @@ public sealed partial class MachineController
             () => CanHomeUnit(group),
             cancellationToken,
             canContinue: () => _state.GetMotionStatus(group).Feedback.Axes
-                .All(axis => AreHomeAxisConditionsReady(group, axis)));
+                .All(axis => AreHomeAxisConditionsReady(group, axis))));
     }
 
     public async Task RaiseCylindersAsync(CancellationToken cancellationToken)
+    {
+        await Task.Run(() => RaiseHomeCylindersAsync(cancellationToken), cancellationToken);
+    }
+
+    private async Task RaiseHomeCylindersAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -277,6 +283,11 @@ public sealed partial class MachineController
     }
 
     public async Task HomeAsync(CancellationToken cancellationToken)
+    {
+        await Task.Run(() => HomeAllAxesAsync(cancellationToken), cancellationToken);
+    }
+
+    private async Task HomeAllAxesAsync(CancellationToken cancellationToken)
     {
         try
         {

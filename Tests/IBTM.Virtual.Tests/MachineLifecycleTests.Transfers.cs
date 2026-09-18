@@ -19,7 +19,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task SmemaTestInputsRequireTeachingAndClearWhenTheSelectorTurnsOff()
     {
-        using var services = CreateServices(FlowSettings());
+        await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var supply = services.GetRequiredService<PcbSupplyHandler>();
@@ -91,7 +91,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.ShootingBoltFeeder = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         services.GetRequiredService<Recipe>().Pcb.BoltPoints =
             [new() { Number = 1, Head = FasteningHead.Shooting, X = 0, Y = 0 }];
         var machine = services.GetRequiredService<MachineController>();
@@ -144,7 +144,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var supply = services.GetRequiredService<PcbSupplier>();
@@ -220,7 +220,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true)]
     public async Task ReverseNgPickupStaysAtShuttleAndClearsStationOnlyWithFirstFov(bool hasFov)
     {
-        using var services = CreateDisplayServices(out var feedback);
+        await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var move = services.GetRequiredService<NgCarrierMove>();
         var settings = services.GetRequiredService<NgCarrierTransferSettings>();
@@ -292,7 +292,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task NgPickupApproachUsesSafeXThenYAndGripsWithoutAnotherXMove()
     {
-        using var services = CreateDisplayServices(out var feedback);
+        await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var move = services.GetRequiredService<NgCarrierMove>();
         var settings = services.GetRequiredService<NgCarrierTransferSettings>();
@@ -355,7 +355,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
         settings.Units.PcbSupply = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var handler = services.GetRequiredService<PcbPlacementHandler>();
@@ -434,7 +434,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
         settings.Units.PcbSupply = true;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var handler = services.GetRequiredService<PcbPlacementHandler>();
@@ -554,7 +554,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var move = services.GetRequiredService<NgCarrierMove>();

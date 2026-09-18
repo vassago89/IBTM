@@ -112,53 +112,65 @@ public sealed class HikCamera : ICamera, IDisposable
         }
     }
 
-    public ImageFrame Capture(double exposureMicroseconds, double gain)
+    public async Task<ImageFrame> CaptureAsync(
+        double exposureMicroseconds,
+        double gain,
+        CancellationToken cancellationToken = default)
     {
-        lock (_grabGate)
+        // Single-frame SDK acquisition is synchronous. Live frames arrive through events.
+        var frame = await Task.Run(() =>
         {
-            if (_liveView)
+            lock (_grabGate)
             {
-                return CaptureLiveFrame();
+                cancellationToken.ThrowIfCancellationRequested();
+                return _liveView
+                    ? CaptureLiveFrameAsync(cancellationToken)
+                    : Task.FromResult(CaptureSingleFrame(exposureMicroseconds, gain));
             }
-
-            // Teaching may use the camera before machine-wide initialization reaches vision.
-            Initialize();
-            var device = _device!;
-            var stream = _streamGrabber!;
-            ApplyExposureAndGain(device, exposureMicroseconds, gain);
-            StartGrabbing();
-            ImageFrame? image = null;
-            Exception? failure = null;
-            try
-            {
-                Check(
-                    stream.GetImageBuffer(
-                        checked((uint)_settings.FrameTimeoutMilliseconds),
-                        out var frameOut),
-                    "Get single Hik frame");
-                image = CopyAndReleaseFrame(device, stream, frameOut);
-            }
-            catch (Exception exception)
-            {
-                failure = exception;
-            }
-
-            try
-            {
-                StopGrabbing();
-            }
-            catch (Exception cleanupFailure) when (failure is not null)
-            {
-                throw new AggregateException(failure, cleanupFailure);
-            }
-
-            if (failure is not null)
-                ExceptionDispatchInfo.Throw(failure);
-            return image!;
-        }
+        }, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return frame;
     }
 
-    private ImageFrame CaptureLiveFrame()
+    private ImageFrame CaptureSingleFrame(double exposureMicroseconds, double gain)
+    {
+        // Teaching may use the camera before machine-wide initialization reaches vision.
+        Initialize();
+        var device = _device!;
+        var stream = _streamGrabber!;
+        ApplyExposureAndGain(device, exposureMicroseconds, gain);
+        StartGrabbing();
+        ImageFrame? image = null;
+        Exception? failure = null;
+        try
+        {
+            Check(
+                stream.GetImageBuffer(
+                    checked((uint)_settings.FrameTimeoutMilliseconds),
+                    out var frameOut),
+                "Get single Hik frame");
+            image = CopyAndReleaseFrame(device, stream, frameOut);
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
+
+        try
+        {
+            StopGrabbing();
+        }
+        catch (Exception cleanupFailure) when (failure is not null)
+        {
+            throw new AggregateException(failure, cleanupFailure);
+        }
+
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
+        return image!;
+    }
+
+    private async Task<ImageFrame> CaptureLiveFrameAsync(CancellationToken cancellationToken)
     {
         var captured = new TaskCompletionSource<ImageFrame>(TaskCreationOptions.RunContinuationsAsynchronously);
         void OnFrame(ImageFrame frame)
@@ -174,9 +186,9 @@ public sealed class HikCamera : ICamera, IDisposable
         LiveViewFailed += OnFailure;
         try
         {
-            return captured.Task
-                .WaitAsync(TimeSpan.FromMilliseconds(_settings.FrameTimeoutMilliseconds))
-                .GetAwaiter().GetResult();
+            return await captured.Task.WaitAsync(
+                TimeSpan.FromMilliseconds(_settings.FrameTimeoutMilliseconds),
+                cancellationToken).ConfigureAwait(false);
         }
         finally
         {

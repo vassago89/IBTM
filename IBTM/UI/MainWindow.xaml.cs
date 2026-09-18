@@ -35,6 +35,8 @@ public partial class MainWindow : Window
                 return;
             _viewModel.ApproveUnconfirmedExit();
         }
+        if (Application.Current is App app)
+            await app.CompleteExitAsync();
         _closeApproved = true;
         _ = Dispatcher.BeginInvoke(Close);
     }

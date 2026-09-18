@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -47,7 +49,15 @@ public sealed class VirtualCamera : ICamera
         StopLiveView();
     }
 
-    public ImageFrame Capture(double exposureMicroseconds, double gain)
+    public async Task<ImageFrame> CaptureAsync(
+        double exposureMicroseconds,
+        double gain,
+        CancellationToken cancellationToken = default)
+    {
+        return await Task.Run(CreateFrame, cancellationToken).ConfigureAwait(false);
+    }
+
+    private ImageFrame CreateFrame()
     {
         return SourceImage ?? VirtualImageFactory.CreateInspection(
             _getPosition(),
@@ -60,7 +70,7 @@ public sealed class VirtualCamera : ICamera
         IsLiveView = true;
         try
         {
-            FrameReady?.Invoke(Capture(exposureMicroseconds, gain));
+            FrameReady?.Invoke(CreateFrame());
         }
         catch (Exception exception)
         {

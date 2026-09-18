@@ -22,7 +22,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task InterruptedConveyorStartsWithCarrierStillPresentWithoutReset()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var conveyor = services.GetRequiredService<MainConveyor>();
@@ -71,7 +71,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task IndicatorsChangeOnNotificationsNotDisplayRefreshOrNgMotorStop()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -164,7 +164,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task DirectOutputsChangeOnlyTheSelectedSignalWithoutSetupOrFeedbackAdmission()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -209,7 +209,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task DirectRunOutputsStillStopOnAutoAndEmergencyStop()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var signals = services.GetRequiredService<IoSignals>();
@@ -263,7 +263,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task OutputOffDoesNotRequireOnAdmissionOrOwnership()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var signals = services.GetRequiredService<IoSignals>();
@@ -291,7 +291,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task DiagnosticMainConveyorRunsUntilStopAutoOrWindowCancellation()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -348,7 +348,7 @@ public sealed class AlarmRecoveryTests
     [InlineData(OutputIo.NgConveyorRun)]
     public async Task ManualAndOutputsShareConveyorControlAndCanStopEachOther(OutputIo output)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         services.GetRequiredService<MachineSettings>().Units.NgConveyor = true;
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -397,7 +397,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task NgMotorRunDoesNotUseCarrierOrShuttlePositionAsAdmission()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         services.GetRequiredService<MachineSettings>().Units.NgConveyor = true;
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -461,7 +461,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task ModeSelectorUsesManualOnAndAutoOffWithoutChangingRawIo()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var view = services.GetRequiredService<SettingsViewModel>();
@@ -503,7 +503,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task AlarmSettingsRequireManualModeAndSavingDoesNotClearTheAlarm()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var view = services.GetRequiredService<SettingsViewModel>();
@@ -579,7 +579,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task SettingsSaveKeepsEditedIoAfterRestartAndIsNotCancelledByEquipmentStop()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var view = services.GetRequiredService<SettingsViewModel>();
@@ -637,13 +637,13 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task SettingsCommandsStayDisabledWhileBusyOrClosingEvenWithAnAlarm()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var view = services.GetRequiredService<SettingsViewModel>();
         await machine.InitializeAsync();
         var camera = Assert.IsType<VirtualCamera>(services.GetRequiredService<ICamera>());
-        var sourceImage = camera.Capture(1, 1);
+        var sourceImage = await camera.CaptureAsync(1, 1);
         camera.SourceImage = sourceImage;
         view.VirtualImageName = "locked-input.png";
         SetAlarm(state, MachineAlarm.Inspection);
@@ -681,7 +681,7 @@ public sealed class AlarmRecoveryTests
     [Fact]
     public async Task SoftwareResetWorksWithoutPhysicalResetInputAndKeepsAutoSettingsLocked()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var view = services.GetRequiredService<SettingsViewModel>();
@@ -719,7 +719,7 @@ public sealed class AlarmRecoveryTests
     [InlineData(InputIo.AirPressureHigh)]
     public async Task SoftwareResetCannotClearAnActiveAutoSafetyFault(InputIo input)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();

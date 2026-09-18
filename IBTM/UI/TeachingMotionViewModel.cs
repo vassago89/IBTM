@@ -305,7 +305,7 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         SaveError = null;
         try
         {
-            await Task.Run(() => _store.SaveSettings(settings, cancellationToken), cancellationToken);
+            await _store.SaveSettingsAsync(settings, cancellationToken);
             System.Diagnostics.Trace.TraceInformation(
                 "Teaching settings saved: {0}.",
                 ActiveMotionGroup);
@@ -435,7 +435,7 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
             cancellationToken,
             ViewCancellation);
         var group = ActiveMotionGroup;
-        await Task.Run(() => Machine.HomeUnitAsync(group, cancellation.Token));
+        await Machine.HomeUnitAsync(group, cancellation.Token);
     }
 
     private bool CanHome()

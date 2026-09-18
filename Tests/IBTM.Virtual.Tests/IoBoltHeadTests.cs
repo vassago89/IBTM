@@ -47,11 +47,11 @@ public sealed class IoBoltHeadTests
     [InlineData(BoltDriver.Io)]
     [InlineData(BoltDriver.Virtual)]
     [InlineData(BoltDriver.HantasAdc)]
-    public void DriverSelectionChangesControllerButKeepsAllIoAvailable(BoltDriver driver)
+    public async Task DriverSelectionChangesControllerButKeepsAllIoAvailable(BoltDriver driver)
     {
         var settings = new MachineSettings();
         settings.Drivers.Bolt = driver;
-        using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
+        await using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
         var signals = services.GetRequiredService<IoSignals>();
         foreach (var head in Enum.GetValues<FasteningHead>())
         {

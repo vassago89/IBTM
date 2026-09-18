@@ -158,7 +158,7 @@ public sealed class BoltInspector
         await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var frame = await Task.Run(Capture, cancellationToken).ConfigureAwait(false);
+            var frame = await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             return frame;
         }
@@ -215,15 +215,15 @@ public sealed class BoltInspector
         return MoveToAsync(GetFov(point).Center, cancellationToken);
     }
 
-    private ImageFrame Capture()
+    private async Task<ImageFrame> CaptureWithLightAsync(CancellationToken cancellationToken)
     {
-        StopLiveView();
+        await Task.Run(StopLiveView, cancellationToken).ConfigureAwait(false);
         var channel = lightingSettings.InspectionChannel;
         Exception? failure = null;
         try
         {
-            TurnLightOn(channel);
-            return CaptureFrame();
+            await Task.Run(() => TurnLightOn(channel), cancellationToken).ConfigureAwait(false);
+            return await CaptureFrameAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -232,7 +232,7 @@ public sealed class BoltInspector
         }
         finally
         {
-            TurnLightOff(channel, failure);
+            await Task.Run(() => TurnLightOff(channel, failure)).ConfigureAwait(false);
         }
     }
 
@@ -267,7 +267,7 @@ public sealed class BoltInspector
         try
         {
             var image = await Task.Run(
-                () =>
+                async () =>
                 {
                     var feedback = gantry.Feedback;
                     if (feedback.IsMoving
@@ -277,7 +277,9 @@ public sealed class BoltInspector
 
                     var position = feedback.GetPosition();
                     var center = new AxisPosition { X = position.X, Y = position.Y };
-                    var frame = camera.IsLiveView ? CaptureFrame() : Capture();
+                    var frame = camera.IsLiveView
+                        ? await CaptureFrameAsync(cancellationToken).ConfigureAwait(false)
+                        : await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
                     if (!gantry.IsAt(center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);
@@ -429,9 +431,10 @@ public sealed class BoltInspector
         light.TurnOn(channel);
     }
 
-    private ImageFrame CaptureFrame()
+    private async Task<ImageFrame> CaptureFrameAsync(CancellationToken cancellationToken)
     {
         var recipe = getRecipe();
-        return camera.Capture(recipe.ExposureMicroseconds, recipe.Gain);
+        return await camera.CaptureAsync(
+            recipe.ExposureMicroseconds, recipe.Gain, cancellationToken).ConfigureAwait(false);
     }
 }

@@ -25,7 +25,7 @@ public sealed record LogEntry(
 }
 
 // Writers never wait for UI dispatch or file I/O from a hardware thread.
-public sealed class ApplicationLog : IDisposable, INotifyPropertyChanged
+public sealed class ApplicationLog : IDisposable, IAsyncDisposable, INotifyPropertyChanged
 {
     public const int RecentEntryLimit = 2000;
     private readonly object _gate = new();
@@ -137,7 +137,14 @@ public sealed class ApplicationLog : IDisposable, INotifyPropertyChanged
 
     public void Dispose()
     {
+        // Fatal-exit callers can close the queue; normal shutdown awaits DisposeAsync.
         _fileQueue?.Writer.TryComplete();
-        _fileWriter?.GetAwaiter().GetResult();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        if (_fileWriter is not null)
+            await _fileWriter.ConfigureAwait(false);
     }
 }

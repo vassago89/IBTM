@@ -25,7 +25,7 @@ internal sealed record MotionFeedbackSample(
     Exception? ReadError);
 
 // Owns device acquisition independently of views and display calculation.
-public sealed class MachineFeedbackMonitor : IDisposable
+public sealed class MachineFeedbackMonitor : IAsyncDisposable
 {
     private static readonly TimeSpan InputPollInterval = TimeSpan.FromMilliseconds(10);
     private static readonly TimeSpan OutputPollInterval = TimeSpan.FromMilliseconds(250);
@@ -386,9 +386,9 @@ public sealed class MachineFeedbackMonitor : IDisposable
         _outputsRequested.Set();
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         using (_lifetime)
-            StopAsync().GetAwaiter().GetResult();
+            await StopAsync().ConfigureAwait(false);
     }
 }

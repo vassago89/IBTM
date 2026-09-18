@@ -616,7 +616,11 @@ public partial class OperationViewModel : ObservableObject
     public Task ShutdownAsync()
     {
         return CommandShutdown.StopAsync(
-            Deactivate,
+            () =>
+            {
+                Deactivate();
+                return Task.CompletedTask;
+            },
             StopCommand,
             StartCommand,
             HomeCommand,
@@ -626,7 +630,7 @@ public partial class OperationViewModel : ObservableObject
     [RelayCommand]
     private async Task StartAsync(CancellationToken cancellationToken)
     {
-        await Task.Run(() => _machine.StartAsync(cancellationToken), cancellationToken);
+        await _machine.StartAsync(cancellationToken);
     }
 
     [RelayCommand(AllowConcurrentExecutions = true)]
@@ -634,11 +638,11 @@ public partial class OperationViewModel : ObservableObject
     {
         try
         {
-            await Task.Run(() => CommandShutdown.StopAsync(
-                _machine.Stop,
+            await CommandShutdown.StopAsync(
+                _machine.StopAsync,
                 StartCommand,
                 RaiseCylindersCommand,
-                HomeCommand));
+                HomeCommand);
         }
         catch (Exception exception)
         {
@@ -650,15 +654,15 @@ public partial class OperationViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task RaiseCylindersAsync(CancellationToken cancellationToken)
+    private async Task RaiseCylindersAsync(CancellationToken cancellationToken)
     {
-        return Task.Run(() => _machine.RaiseCylindersAsync(cancellationToken), cancellationToken);
+        await _machine.RaiseCylindersAsync(cancellationToken);
     }
 
     [RelayCommand]
-    private Task HomeAsync(CancellationToken cancellationToken)
+    private async Task HomeAsync(CancellationToken cancellationToken)
     {
-        return Task.Run(() => _machine.HomeAsync(cancellationToken), cancellationToken);
+        await _machine.HomeAsync(cancellationToken);
     }
 
     private static bool HasAssembly(StationWork work, HeatSinkSlot heatSink)

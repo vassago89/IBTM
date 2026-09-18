@@ -24,11 +24,11 @@ public sealed class IoStartupTests
     [InlineData(BoltDriver.Io)]
     [InlineData(BoltDriver.Virtual)]
     [InlineData(BoltDriver.HantasAdc)]
-    public void MachineStopClearsBothIoBoltStartsEvenWhenOneWriteFails(BoltDriver driver)
+    public async Task MachineStopClearsBothIoBoltStartsEvenWhenOneWriteFails(BoltDriver driver)
     {
         var settings = new MachineSettings();
         settings.Drivers.Bolt = driver;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
         io.Initialize();
@@ -56,7 +56,7 @@ public sealed class IoStartupTests
     {
         var settings = new MachineSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var io = services.GetRequiredService<StartupIo>();
         var raw = services.GetRequiredService<VirtualIoService>();
         var head = Assert.IsType<IoBoltHead>(services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup));
@@ -93,7 +93,7 @@ public sealed class IoStartupTests
     {
         var settings = new MachineSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var io = services.GetRequiredService<StartupIo>();
         var head = services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup);
         io.Initialize();
@@ -125,7 +125,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task TeachingStopsSequenceSmemaButLeavesDirectOutputsAvailable()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var sequenceIo = services.GetRequiredService<IIoService>();
@@ -172,7 +172,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task TeachingSmemaIgnoresPeerInputsButRequiresSelectorFeedback()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
         var supply = services.GetRequiredService<PcbSupplyHandler>();
@@ -241,7 +241,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task InputFaultStopsReachableOutputsAndManualStopCanRetry()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
         var physicalOutputs = services.GetRequiredService<VirtualIoService>();
@@ -262,13 +262,15 @@ public sealed class IoStartupTests
             var readsBeforeManualCommands = io.ReadsWhileUnavailable;
 
             physicalOutputs.SetOutput(OutputIo.MainConveyorRun, true);
-            machine.StopManualConveyor(OutputIo.MainConveyorRun);
+            await machine.StopManualConveyorAsync(OutputIo.MainConveyorRun);
             Assert.False(physicalOutputs.GetOutput(OutputIo.MainConveyorRun));
             Assert.Equal(OutputBlockReason.IoUnavailable, machine.ToggleDiagnosticOutput(OutputIo.MainConveyorRun));
             Assert.Equal(readsBeforeManualCommands, io.ReadsWhileUnavailable);
         }
         finally
         {
+            // Teardown can now read feedback; the assertions above exercised the disconnect.
+            io.Initialize();
             await machine.ShutdownAsync();
         }
     }
@@ -278,7 +280,7 @@ public sealed class IoStartupTests
     [InlineData(true)]
     public async Task ScreenStopReportsOutputFailureAndStillStopsOtherDevices(bool motionWindow)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -319,7 +321,7 @@ public sealed class IoStartupTests
         MachineAlarm alarm,
         bool manualRun)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -376,7 +378,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task AutomaticStopFailureKeepsFeedbackAliveAndStaysAtCommandBoundary()
     {
-        using var services = CreateServices(new MachineSettings
+        await using var services = CreateServices(new MachineSettings
         {
             Units = new UnitSettings
             {
@@ -434,7 +436,7 @@ public sealed class IoStartupTests
     [InlineData(true)]
     public async Task RepeatReturnKeepsOperationAndStopFailuresWithoutReplacingSafetyAlarm(bool safetyStop)
     {
-        using var services = CreateServices(new MachineSettings
+        await using var services = CreateServices(new MachineSettings
         {
             Units = new UnitSettings
             {
@@ -494,7 +496,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task ManualFailureStopsRemainingOutputsAndReportsStopFailure()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -542,7 +544,7 @@ public sealed class IoStartupTests
         OutputIo motor,
         OutputIo handshake)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var io = services.GetRequiredService<StartupIo>();
         io.Initialize();
         using var cancellation = new CancellationTokenSource();
@@ -584,7 +586,7 @@ public sealed class IoStartupTests
         OutputIo motor,
         OutputIo handshake)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
@@ -621,7 +623,7 @@ public sealed class IoStartupTests
     [InlineData(true)]
     public async Task SupplyReadyDoesNotSignalCompletionOnStopOrEmergency(bool emergency)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
@@ -652,7 +654,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task SupplyStopPreservesReadyWhenCarrierInputCannotBeRead()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
         var signals = services.GetRequiredService<VirtualIoService>();
@@ -690,7 +692,7 @@ public sealed class IoStartupTests
     [InlineData(OutputIo.NgCarrierEjectLamp)]
     public async Task StopAttemptsEveryDeviceAndPreservesWriteFailures(OutputIo failedOutput)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
@@ -740,7 +742,7 @@ public sealed class IoStartupTests
     [InlineData(OutputIo.NgConveyorRun, false)]
     public async Task ConveyorRunFailureSurvivesOutputCleanupFailure(OutputIo motor, bool manual)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
@@ -788,7 +790,7 @@ public sealed class IoStartupTests
     [InlineData(TransferFailureStep.BoltFeeder)]
     public async Task TransferStepPreservesOperationAndCleanupFailures(TransferFailureStep step)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var io = services.GetRequiredService<StartupIo>();
         var physicalIo = services.GetRequiredService<VirtualIoService>();
         var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
@@ -879,7 +881,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task MainConveyorStopPreservesCancellationAndOutputFailures()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var io = services.GetRequiredService<StartupIo>();
         var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
         io.Initialize();
@@ -914,7 +916,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task FasteningRunPreservesFailureWhenShootingCleanupFails()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var io = services.GetRequiredService<StartupIo>();
         var physicalIo = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<IBTM.BoltFastening.BoltFasteningWork>();
@@ -950,14 +952,19 @@ public sealed class IoStartupTests
     [InlineData(true)]
     public async Task StopAndShutdownPreserveCancellationAndOutputFailures(bool shuttingDown)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
         using var operation = services.GetRequiredService<OperationCancellation>().Link();
         var cancelError = new IOException("Active command STOP failed.");
         var outputError = new IOException("Conveyor output STOP failed.");
-        using var registration = operation.Token.Register(() => throw cancelError);
+        var cancellationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = operation.Token.Register(() =>
+        {
+            cancellationStarted.TrySetResult();
+            throw cancelError;
+        });
         io.BeforeOutputWrite = (output, _) =>
         {
             if (output == OutputIo.MainConveyorRun)
@@ -971,6 +978,7 @@ public sealed class IoStartupTests
                 var shutdown = machine.ShutdownAsync();
                 Assert.False(shutdown.IsCompleted);
                 Assert.False(services.GetRequiredService<MachineFeedbackMonitor>().Completion.IsCompleted);
+                await cancellationStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
                 operation.Dispose();
                 failure = await Assert.ThrowsAsync<AggregateException>(
                     () => shutdown.WaitAsync(TimeSpan.FromSeconds(2)));
@@ -1007,7 +1015,7 @@ public sealed class IoStartupTests
     [InlineData(OutputIo.NgConveyorRun)]
     public async Task ManualConveyorReadFailureWaitsForDeviceCleanup(OutputIo output)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var operations = services.GetRequiredService<OperationCancellation>();
@@ -1066,7 +1074,7 @@ public sealed class IoStartupTests
     [InlineData(true)]
     public async Task CylinderRaiseReportsInputReadFailureBeforeAnyActuation(bool operationStarted)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var operations = services.GetRequiredService<OperationCancellation>();
@@ -1075,12 +1083,12 @@ public sealed class IoStartupTests
         await state.StopDisplayUpdatesAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         Assert.True(machine.CanRaiseCylinders);
-        var failure = new IOException("Carrier input became unavailable before cylinder raise.");
+        var failure = new IOException("PCB input became unavailable before cylinder raise.");
         var readsFailed = 0;
         var cylinderWrites = 0;
         io.BeforeInputRead = input =>
         {
-            if (input != InputIo.PcbPlacementHeatSink1Present
+            if (input != InputIo.PcbPlacementPcbDetected
                 || operations.HasActiveOperations != operationStarted)
                 return;
             io.BeforeInputRead = null;
@@ -1120,7 +1128,7 @@ public sealed class IoStartupTests
         var settings = new MachineSettings();
         settings.BoltFastening.SafeZ = 10;
         settings.BoltFastening.Motion.ZSpeed = 1;
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -1164,9 +1172,9 @@ public sealed class IoStartupTests
     }
 
     [Fact]
-    public void StateQueriesBeforeInitializationDoNotReadOutputs()
+    public async Task StateQueriesBeforeInitializationDoNotReadOutputs()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -1186,9 +1194,9 @@ public sealed class IoStartupTests
     }
 
     [Fact]
-    public void TeachingHintsAndCaptureAvailabilityBeforeInitializationDoNotReadInputs()
+    public async Task TeachingHintsAndCaptureAvailabilityBeforeInitializationDoNotReadInputs()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var io = services.GetRequiredService<StartupIo>();
         var station = services.GetRequiredService<TeachingViewModel>();
 
@@ -1214,7 +1222,7 @@ public sealed class IoStartupTests
     [InlineData(true)]
     public async Task InitializationFailurePreservesOriginalAlarmAndAllowsReset(bool failCheckReady)
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -1263,7 +1271,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task LostConnectionDoesNotReplaceTheOriginalFaultWithAnOutputRead()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -1289,7 +1297,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task ConnectionFailureDuringOutputScanPreservesTheOriginalFault()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -1315,7 +1323,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task ReadyOutputReadFailureStillFailsClosed()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -1348,7 +1356,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task InputAndOutputMonitorsOutliveDisplayAndWaitForOperationCleanup()
     {
-        using var services = CreateServices();
+        await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
@@ -1369,7 +1377,7 @@ public sealed class IoStartupTests
             Assert.Same(display, state.Display);
 
             var shutdown = machine.ShutdownAsync();
-            Assert.True(operation.Token.IsCancellationRequested);
+            await WaitUntilAsync(() => operation.Token.IsCancellationRequested);
             Assert.False(shutdown.IsCompleted);
             io.PendingInput = (input.Signal, false);
             io.ObservedLight = false;
@@ -1432,7 +1440,7 @@ public sealed class IoStartupTests
         }
         finally
         {
-            Assert.Same(error, Record.Exception(services.Dispose));
+            Assert.Same(error, await Record.ExceptionAsync(async () => await services.DisposeAsync()));
         }
     }
 

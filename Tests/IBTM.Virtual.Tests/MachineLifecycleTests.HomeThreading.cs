@@ -32,7 +32,7 @@ public sealed partial class MachineLifecycleTests
                 {
                     var settings = FlowSettings();
                     settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
-                    using var services = CreateDisplayServices(out var feedback, settings);
+                    await using var services = CreateDisplayServices(out var feedback, settings);
                     var machine = services.GetRequiredService<MachineController>();
                     using var release = new ManualResetEventSlim();
                     var entered = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -119,7 +119,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
-        using var services = CreateServices(settings);
+        await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
         var monitor = services.GetRequiredService<MotionWindowViewModel>();

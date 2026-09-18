@@ -7,12 +7,13 @@ namespace IBTM.UI;
 
 internal static class CommandShutdown
 {
-    public static async Task StopAsync(Action? stop, params IAsyncRelayCommand[] commands)
+    public static async Task StopAsync(Func<Task>? stop, params IAsyncRelayCommand[] commands)
     {
         var pending = Capture(commands);
         try
         {
-            stop?.Invoke();
+            if (stop is not null)
+                await stop();
         }
         catch (Exception exception)
         {
@@ -25,7 +26,8 @@ internal static class CommandShutdown
                 continue;
             try
             {
-                command.Cancel();
+                // Token callbacks can synchronously stop a native device.
+                await Task.Run(command.Cancel);
             }
             catch (Exception exception)
             {

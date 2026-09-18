@@ -18,7 +18,7 @@ public sealed class LightingTests
     public async Task ResetRecoversMotionAndBoltHeadsEvenWhenVisionIsStillFaulted()
     {
         var camera = new TestCamera();
-        using var services = new ServiceCollection()
+        await using var services = new ServiceCollection()
             .AddSingleton(VirtualTest.OpenMachineStore())
             .AddIbtmApplication(new MachineSettings
             {
@@ -63,7 +63,7 @@ public sealed class LightingTests
         var light = new RecordingLight();
         var settings = new MachineSettings();
         light.OnStarted = () => settings.Lighting.InspectionChannel++;
-        using var services = new ServiceCollection().AddSingleton(
+        await using var services = new ServiceCollection().AddSingleton(
             VirtualTest.OpenMachineStore(
                 Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
             .AddIbtmApplication(settings)
@@ -137,7 +137,7 @@ public sealed class LightingTests
     {
         var light = new RecordingLight { FailOn = false, Connected = false };
         var camera = new TestCamera();
-        using var services = new ServiceCollection()
+        await using var services = new ServiceCollection()
             .AddSingleton(VirtualTest.OpenMachineStore())
             .AddIbtmApplication(new MachineSettings())
             .AddSingleton<ILightController>(light)
@@ -213,14 +213,14 @@ public sealed class LightingTests
     [Theory]
     [InlineData(ControlDriver.Physical, LightDriver.Virtual)]
     [InlineData(ControlDriver.Virtual, LightDriver.Movs)]
-    public void LightSelectionIsIndependentAndMissingComDoesNotBreakConstruction(
+    public async Task LightSelectionIsIndependentAndMissingComDoesNotBreakConstruction(
         ControlDriver motion,
         LightDriver light)
     {
         var settings = new MachineSettings();
         settings.Drivers.Control = motion;
         settings.Drivers.Light = light;
-        using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
+        await using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
         var controller = services.GetRequiredService<ILightController>();
         if (light == LightDriver.Virtual)
             Assert.IsType<VirtualLightController>(controller);
@@ -291,15 +291,16 @@ public sealed class LightingTests
             IsLiveView = false;
         }
 
-        public ImageFrame Capture(double exposureMicroseconds, double gain)
+        public Task<ImageFrame> CaptureAsync(double exposureMicroseconds, double gain, CancellationToken cancellationToken = default)
         {
-            return new(1, 1, 3, [0, 0, 0]);
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new ImageFrame(1, 1, 3, [0, 0, 0]));
         }
 
         public void StartLiveView(double exposureMicroseconds, double gain)
         {
             IsLiveView = true;
-            FrameReady?.Invoke(Capture(exposureMicroseconds, gain));
+            FrameReady?.Invoke(new(1, 1, 3, [0, 0, 0]));
         }
 
         public void StopLiveView()

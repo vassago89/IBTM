@@ -73,14 +73,14 @@ public sealed class ApplicationLogTests
     }
 
     [Fact]
-    public void FileRetainsFullHistoryAndDisposeFlushesPendingMessages()
+    public async Task FileRetainsFullHistoryAndDisposeAsyncFlushesPendingMessages()
     {
         var directory = Path.Combine(Path.GetTempPath(), "IBTM-log-test-" + Guid.NewGuid().ToString("N"));
         var path = Path.Combine(directory, "session.log");
         const int count = ApplicationLog.RecentEntryLimit + 10;
         try
         {
-            using (var log = new ApplicationLog(path))
+            await using (var log = new ApplicationLog(path))
             {
                 for (var index = 0; index < count; index++)
                     log.Write($"Message {index}");
@@ -102,15 +102,15 @@ public sealed class ApplicationLogTests
     }
 
     [Fact]
-    public void FileFailureDoesNotLoseInMemoryMessagesOrThrowOnShutdown()
+    public async Task FileFailureDoesNotLoseInMemoryMessagesOrThrowOnShutdown()
     {
         var directory = Path.Combine(Path.GetTempPath(), "IBTM-log-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {
-            using var log = new ApplicationLog(directory);
+            await using var log = new ApplicationLog(directory);
             log.Write("Original machine error");
-            log.Dispose();
+            await log.DisposeAsync();
             Assert.NotNull(log.FileError);
             Assert.Contains(log.Snapshot(), entry => entry.Message == "Original machine error");
             Assert.Contains(

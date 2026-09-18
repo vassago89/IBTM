@@ -120,9 +120,9 @@ public sealed class MachineSettings
         }
     }
 
-    public Task SaveAsync(MachineStore store, CancellationToken cancellationToken = default)
+    public async Task SaveAsync(MachineStore store, CancellationToken cancellationToken = default)
     {
-        return Task.Run(() => store.SaveSettings(Sections, cancellationToken), cancellationToken);
+        await store.SaveSettingsAsync(Sections, cancellationToken);
     }
 
     public static Task<MachineSettings> LoadAsync(

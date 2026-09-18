@@ -94,7 +94,7 @@ public enum ManualControlBlock
     Busy,
 }
 
-public sealed class MachineState : IDisposable, INotifyPropertyChanged
+public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
 {
     private readonly AsyncAutoResetEvent _displayRequested = new();
     private readonly CancellationTokenSource _displayLifetime = new();
@@ -524,10 +524,10 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         return _displayUpdates ?? Task.CompletedTask;
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         using (_displayLifetime)
-            StopDisplayUpdatesAsync().GetAwaiter().GetResult();
+            await StopDisplayUpdatesAsync().ConfigureAwait(false);
     }
 
     private bool IsMotionReady(MotionReadiness motion)

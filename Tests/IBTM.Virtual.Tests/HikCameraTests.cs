@@ -16,7 +16,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class HikCameraTests
 {
     [Fact]
-    public void CaptureAndLiveFlipBothAxesAndKeepBgrColors()
+    public async Task CaptureAndLiveFlipBothAxesAndKeepBgrColors()
     {
         var sdk = new CameraSdk
         {
@@ -26,7 +26,7 @@ public sealed class HikCameraTests
         };
         using var camera = sdk.CreateCamera();
         byte[] expected = [33, 22, 11, 255, 0, 0, 0, 255, 0, 0, 0, 255];
-        var captured = camera.Capture(500, 0);
+        var captured = await camera.CaptureAsync(500, 0);
         Assert.Equal(1, sdk.ConnectionChecks);
         Assert.Equal((2, 2, 6), (captured.Width, captured.Height, captured.Stride));
         Assert.Equal(expected, captured.Pixels);
@@ -57,15 +57,15 @@ public sealed class HikCameraTests
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public void CaptureReturnsBufferAndStopsBeforeNextCapture(bool noData, bool conversionFails)
+    public async Task CaptureReturnsBufferAndStopsBeforeNextCapture(bool noData, bool conversionFails)
     {
         var sdk = new CameraSdk { NoData = noData, ConversionFails = conversionFails };
         using var camera = sdk.CreateCamera();
 
         if (noData || conversionFails)
-            Assert.Throws<InvalidOperationException>(() => camera.Capture(500, 0));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => camera.CaptureAsync(500, 0));
         else
-            Assert.Equal(1, camera.Capture(500, 0).Width);
+            Assert.Equal(1, (await camera.CaptureAsync(500, 0)).Width);
 
         Assert.Equal(
             noData ? ["Start", "Read", "Stop"] : ["Start", "Read", "Free", "Stop"],
@@ -73,12 +73,12 @@ public sealed class HikCameraTests
         sdk.NoData = false;
         sdk.ConversionFails = false;
         sdk.Calls.Clear();
-        camera.Capture(500, 0);
+        await camera.CaptureAsync(500, 0);
         Assert.Equal(["Start", "Read", "Free", "Stop"], sdk.Calls.ToArray());
     }
 
     [Fact]
-    public void LiveCanRestartAndThenCaptureWithoutRestartingOnStop()
+    public async Task LiveCanRestartAndThenCaptureWithoutRestartingOnStop()
     {
         var sdk = new CameraSdk();
         using var camera = sdk.CreateCamera();
@@ -95,7 +95,7 @@ public sealed class HikCameraTests
             {
                 camera.StartLiveView(500, 0);
                 Assert.True(frameReceived.Wait(TimeSpan.FromSeconds(2)));
-                Assert.Equal(1, camera.Capture(500, 0).Width);
+                Assert.Equal(1, (await camera.CaptureAsync(500, 0)).Width);
                 Assert.True(camera.IsLiveView);
                 Assert.Single(sdk.Calls.ToArray(), call => call == "Start");
                 Assert.DoesNotContain("Stop", sdk.Calls.ToArray());
@@ -119,21 +119,46 @@ public sealed class HikCameraTests
             sdk.Calls.Clear();
         }
 
-        camera.Capture(500, 0);
+        await camera.CaptureAsync(500, 0);
         Assert.Equal(["Start", "Read", "Free", "Stop"], sdk.Calls.ToArray());
     }
 
     [Fact]
-    public void LiveSnapshotTimesOutWithoutStoppingTheStream()
+    public async Task LiveSnapshotTimesOutWithoutStoppingTheStream()
     {
         var sdk = new CameraSdk { NoData = true };
         using var camera = sdk.CreateCamera(frameTimeoutMilliseconds: 100);
         camera.StartLiveView(500, 0);
         try
         {
-            Assert.Throws<TimeoutException>(() => camera.Capture(500, 0));
+            await Assert.ThrowsAsync<TimeoutException>(() => camera.CaptureAsync(500, 0));
             Assert.True(camera.IsLiveView);
             Assert.DoesNotContain("Stop", sdk.Calls.ToArray());
+        }
+        finally
+        {
+            camera.StopLiveView();
+        }
+    }
+
+    [Fact]
+    public async Task LiveSnapshotCancellationLeavesStreamAvailableForTheNextCapture()
+    {
+        var sdk = new CameraSdk { NoData = true };
+        using var camera = sdk.CreateCamera();
+        using var cancellation = new CancellationTokenSource();
+        camera.StartLiveView(500, 0);
+        try
+        {
+            var capture = camera.CaptureAsync(500, 0, cancellation.Token);
+            Assert.False(capture.IsCompleted);
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => capture);
+            Assert.True(camera.IsLiveView);
+            Assert.DoesNotContain("Stop", sdk.Calls.ToArray());
+
+            sdk.NoData = false;
+            Assert.Equal(1, (await camera.CaptureAsync(500, 0)).Width);
         }
         finally
         {
@@ -146,7 +171,7 @@ public sealed class HikCameraTests
     {
         var sdk = new CameraSdk();
         using var camera = sdk.CreateCamera();
-        using var services = new ServiceCollection()
+        await using var services = new ServiceCollection()
             .AddSingleton(VirtualTest.OpenMachineStore())
             .AddIbtmApplication(new MachineSettings())
             .AddSingleton<ICamera>(camera)
@@ -180,11 +205,11 @@ public sealed class HikCameraTests
     }
 
     [Fact]
-    public void InitializationReleasesABrokenGrabHandleForTheNextRecovery()
+    public async Task InitializationReleasesABrokenGrabHandleForTheNextRecovery()
     {
         var sdk = new CameraSdk { StopFailures = 3 };
         using var camera = sdk.CreateCamera();
-        Assert.Throws<InvalidOperationException>(() => camera.Capture(500, 0));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => camera.CaptureAsync(500, 0));
         Assert.Throws<AggregateException>(camera.Initialize);
         Assert.True(sdk.Disposed);
         Assert.Null(typeof(HikCamera).GetField("_device", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -192,7 +217,7 @@ public sealed class HikCameraTests
     }
 
     [Fact]
-    public void LiveFailureStopsAcquisitionBeforeReportingAndAllowsRestart()
+    public async Task LiveFailureStopsAcquisitionBeforeReportingAndAllowsRestart()
     {
         var sdk = new CameraSdk { ConversionFails = true };
         using var camera = sdk.CreateCamera();
@@ -213,16 +238,16 @@ public sealed class HikCameraTests
         camera.StartLiveView(500, 0);
         Assert.True(received.Wait(TimeSpan.FromSeconds(2)));
         camera.StopLiveView();
-        Assert.Equal(1, camera.Capture(500, 0).Width);
+        Assert.Equal(1, (await camera.CaptureAsync(500, 0)).Width);
     }
 
     [Fact]
-    public void FailedStopIsRetriedBeforeStartingAnotherCapture()
+    public async Task FailedStopIsRetriedBeforeStartingAnotherCapture()
     {
         var sdk = new CameraSdk { StopFailures = 1 };
         using var camera = sdk.CreateCamera();
-        Assert.Throws<InvalidOperationException>(() => camera.Capture(500, 0));
-        Assert.Equal(1, camera.Capture(500, 0).Width);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => camera.CaptureAsync(500, 0));
+        Assert.Equal(1, (await camera.CaptureAsync(500, 0)).Width);
         Assert.Equal(
             ["Start", "Read", "Free", "Stop", "Stop", "Start", "Read", "Free", "Stop"],
             sdk.Calls.ToArray());
@@ -261,7 +286,7 @@ public sealed class HikCameraTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FrameAndCleanupFailuresAreAllReported(bool live)
+    public async Task FrameAndCleanupFailuresAreAllReported(bool live)
     {
         var sdk = new CameraSdk { ConversionFails = true, FreeFails = true, StopFailures = 1 };
         using var camera = sdk.CreateCamera();
@@ -281,7 +306,7 @@ public sealed class HikCameraTests
         }
         else
         {
-            failure = Assert.Throws<AggregateException>(() => camera.Capture(500, 0));
+            failure = await Assert.ThrowsAsync<AggregateException>(() => camera.CaptureAsync(500, 0));
         }
 
         var errors = Assert.IsType<AggregateException>(failure).Flatten().InnerExceptions;

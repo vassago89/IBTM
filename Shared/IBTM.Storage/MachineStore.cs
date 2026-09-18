@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using IBTM.Core;
 using Microsoft.EntityFrameworkCore;
 
@@ -78,6 +79,13 @@ public sealed class MachineStore
 
         cancellationToken.ThrowIfCancellationRequested();
         db.SaveChanges();
+    }
+
+    public async Task SaveSettingsAsync(
+        IEnumerable<Setting> settings,
+        CancellationToken cancellationToken = default)
+    {
+        await Task.Run(() => SaveSettings(settings, cancellationToken), cancellationToken);
     }
 
     public IReadOnlyList<string> GetRecipeNames()

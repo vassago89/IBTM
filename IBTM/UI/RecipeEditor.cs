@@ -115,10 +115,8 @@ public partial class RecipeEditor : ObservableObject
         {
             using var operation = _operations.Link();
             var loaded = await _store.LoadRecipeAsync(recipeName, operation.Token);
-            await Task.Run(
-                () => _store.Database.SaveSettings(
-                    [new RecipeSelectionSettings { LastRecipeName = loaded.Name }],
-                    operation.Token),
+            await _store.Database.SaveSettingsAsync(
+                [new RecipeSelectionSettings { LastRecipeName = loaded.Name }],
                 operation.Token);
 
             // Once selection is committed, apply it even if cancellation arrives afterward.
