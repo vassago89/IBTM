@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +10,41 @@ namespace IBTM.Ajin.Tests;
 
 public sealed partial class AjinControllerTests
 {
+    [Fact]
+    public async Task AxisMoveAndJogUseAnyWaveUnitsAndAcceleration()
+    {
+        using var controller = new AjinController(new());
+        var motion = CreateHorizontalHome(controller, hasY: false);
+        using var cancellation = new CancellationTokenSource();
+        AjinSdk.Results[new(nameof(CAXM.AxmMovePos), Axis: 9)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveVel), Axis: 9)] = 0;
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmMovePos))
+                AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = 2500 };
+            if (call.Operation == nameof(CAXM.AxmMoveVel))
+                cancellation.Cancel();
+        };
+
+        await motion.MoveAxisAsync(MotionAxis.X, 2.5, 3);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            motion.JogAsync(MotionAxis.X, -3, cancellation.Token));
+
+        Assert.Equal(2, AjinSdk.Moves.Count);
+        var move = AjinSdk.Moves[0];
+        Assert.Equal(new double[] { 2500 }, move.Positions);
+        Assert.Equal(new double[] { 3000 }, move.Velocities);
+        Assert.Equal(new double[] { 6000 }, move.Accelerations);
+        Assert.Equal(move.Accelerations, move.Decelerations);
+        var jog = AjinSdk.Moves[1];
+        Assert.Null(jog.Positions);
+        Assert.Equal(new double[] { -3000 }, jog.Velocities);
+        Assert.Equal(new double[] { -6000 }, jog.Accelerations);
+        Assert.Equal(jog.Accelerations, jog.Decelerations);
+        Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
     [Fact]
     public async Task HorizontalHomeStartsBothAxesBeforeWaitingAndWaitsForBothResults()
     {
@@ -44,7 +78,8 @@ public sealed partial class AjinControllerTests
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmHomeSetStart)).Select(call => call.Axis!.Value));
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
-        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
+            .Where(call => call.Operation == nameof(CAXM.AxmHomeSetResult)).Select(call => call.Axis!.Value));
     }
 
     [Theory]
@@ -66,34 +101,9 @@ public sealed partial class AjinControllerTests
             }
         };
 
-        var error = await Assert.ThrowsAsync<IOException>(() => motion.HomeHorizontalAsync(1));
-        Assert.Contains($"axis={failedAxis}", error.Message);
-        Assert.Contains("HOME_ERR_VELOCITY", error.Message);
+        Assert.False(await motion.HomeHorizontalAsync(1));
         Assert.Equal(0x12U, AjinSdk.MotionAxes[failedAxis].HomeResult);
-        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
-        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
-            .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop)).Select(call => call.Axis!.Value));
-    }
-
-    [Fact]
-    public async Task HorizontalHomePreservesBothAxesFailedResults()
-    {
-        using var controller = new AjinController(new());
-        var motion = CreateHorizontalHome(controller);
-        AjinSdk.BeforeCall = call =>
-        {
-            if (call.Operation == nameof(CAXM.AxmHomeSetStart))
-            {
-                var axis = call.Axis!.Value;
-                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { HomeResult = 0x12 };
-            }
-        };
-
-        var error = await Assert.ThrowsAsync<MotionException>(() => motion.HomeHorizontalAsync(1));
-        var failures = Assert.IsType<AggregateException>(error.InnerException).Flatten().InnerExceptions;
-        Assert.Equal(2, failures.Count);
-        Assert.Contains(failures, failure => failure.Message.Contains("axis=9"));
-        Assert.Contains(failures, failure => failure.Message.Contains("axis=10"));
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == nameof(CAXM.AxmHomeSetResult)));
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop)).Select(call => call.Axis!.Value));
     }
@@ -106,9 +116,8 @@ public sealed partial class AjinControllerTests
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: 10)] =
             (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
 
-        var error = await Assert.ThrowsAsync<IOException>(() => motion.HomeHorizontalAsync(1));
-        Assert.Contains("AxmHomeSetStart (axis=10)", error.Message);
-        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
+        Assert.False(await motion.HomeHorizontalAsync(1));
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == nameof(CAXM.AxmHomeSetResult)));
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop)).Select(call => call.Axis!.Value));
         Assert.Equal(MotionCommand.None, motion.Command);
@@ -152,7 +161,7 @@ public sealed partial class AjinControllerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             motion.HomeHorizontalAsync(1, cancellation.Token).WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.True(stopChecks >= 6);
-        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == nameof(CAXM.AxmHomeSetResult)));
         foreach (var axis in new[] { 9, 10 })
             Assert.Equal((uint)AXT_MOTION_HOME_RESULT.HOME_ERR_USER_BREAK, AjinSdk.MotionAxes[axis].HomeResult);
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls

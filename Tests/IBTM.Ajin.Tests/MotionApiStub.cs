@@ -95,6 +95,7 @@ internal static partial class CAXM
         double[] accelerations,
         double[] decelerations)
     {
+        AjinSdk.Moves.Add(new(axes, positions, velocities, accelerations, decelerations));
         return Command(new(nameof(AxmMoveMultiPos)));
     }
 
@@ -105,12 +106,14 @@ internal static partial class CAXM
         double acceleration,
         double deceleration)
     {
+        AjinSdk.Moves.Add(new([axis], [position], [velocity], [acceleration], [deceleration]));
         return Command(new(nameof(AxmMovePos), Axis: axis));
     }
 
     public static uint AxmMoveVel(int axis, double velocity, double acceleration, double deceleration)
     {
-        throw new NotSupportedException();
+        AjinSdk.Moves.Add(new([axis], null, [velocity], [acceleration], [deceleration]));
+        return Command(new(nameof(AxmMoveVel), Axis: axis));
     }
 
     public static uint AxmMoveSStop(int axis)

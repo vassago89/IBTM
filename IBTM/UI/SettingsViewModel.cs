@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Ports;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -61,7 +60,7 @@ public partial class SettingsViewModel : ObservableObject
         _lightTestChannel = settings.Lighting.InspectionChannel;
         ActiveLightConnection = settings.Drivers.Light == LightDriver.Virtual
             ? "Virtual"
-            : $"{settings.Lighting.Connection} · {settings.Lighting.BaudRate} baud";
+            : settings.Lighting.Connection;
         TestLightCommand.PropertyChanged += OnLightCommandChanged;
         OffTestLightCommand.PropertyChanged += OnLightCommandChanged;
         SaveSettingsCommand.PropertyChanged += OnSaveSettingsCommandChanged;
@@ -159,9 +158,6 @@ public partial class SettingsViewModel : ObservableObject
     public CameraDriver[] CameraDrivers { get; }
     public BoltDriver[] BoltDrivers { get; }
     public LightDriver[] LightDrivers { get; } = Enum.GetValues<LightDriver>();
-    public Parity[] LightParities { get; } = Enum.GetValues<Parity>();
-    public StopBits[] LightStopBits { get; } = [StopBits.One, StopBits.OnePointFive, StopBits.Two];
-    public int[] LightDataBits { get; } = [5, 6, 7, 8];
 
     public bool IsVirtualCamera
     {

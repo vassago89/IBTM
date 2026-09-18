@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -119,24 +120,78 @@ public partial class TeachingViewModel
             };
     }
 
-    protected override Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
+    protected override async Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
+        var group = ActiveMotionGroup;
         var (axis, sign) = Resolve(direction);
-        return Machine.RunManualMotionAsync(
-            ActiveMotionGroup,
-            token => ActiveMotionGroup switch
+        var velocity = sign * JogSpeed;
+        var viewCancellation = ViewCancellation;
+        var activeCancellation = cancellationToken;
+        try
+        {
+            if (!Machine.CanUseManualMotion(group))
+                return;
+            using var operation = _operations.TryBegin(cancellationToken, viewCancellation);
+            if (operation is null)
+                return;
+            activeCancellation = operation.Token;
+            void StopWhenUnavailable()
             {
-                MotionGroup.PcbSupply => _supplyHandler.JogAsync(axis, sign * JogSpeed, token),
-                MotionGroup.PcbPlacementHandler
-                    => _placementHandler.JogAsync(axis, sign * JogSpeed, token),
-                MotionGroup.BoltFastening
-                    => _fasteningGantry.JogAsync(axis, sign * JogSpeed, token),
-                MotionGroup.InspectionGantry
-                    => _inspectionGantry.JogAsync(axis, sign * JogSpeed, token),
-                _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
-            },
-            cancellationToken,
-            ViewCancellation);
+                if (!operation.IsCancellationRequested && !Machine.IsManualMotionReady(group))
+                    operation.Cancel();
+            }
+
+            State.Changed += StopWhenUnavailable;
+            try
+            {
+                StopWhenUnavailable();
+                operation.Token.ThrowIfCancellationRequested();
+                IXyMotion motion;
+                switch (group)
+                {
+                    case MotionGroup.PcbSupply:
+                        _supplyHandler.EnsureCanJog(axis, operation.Token);
+                        motion = _supplyMotion;
+                        break;
+                    case MotionGroup.PcbPlacementHandler:
+                        _placementHandler.EnsureCanJog(axis, operation.Token);
+                        motion = _placementMotion;
+                        break;
+                    case MotionGroup.BoltFastening:
+                        motion = _fasteningMotion;
+                        break;
+                    case MotionGroup.InspectionGantry:
+                        _inspectionGantry.EnsureCanJog(axis, operation.Token);
+                        motion = _inspectionMotion;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(group));
+                }
+
+                await motion.JogAsync(
+                    axis,
+                    velocity,
+                    operation.Token,
+                    atCurrentHeight: group == MotionGroup.BoltFastening);
+            }
+            finally
+            {
+                State.Changed -= StopWhenUnavailable;
+            }
+        }
+        catch (OperationCanceledException) when (activeCancellation.IsCancellationRequested
+            || viewCancellation.IsCancellationRequested
+            || _operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (
+            exception is IOException or MotionException or MotionInterlockException or IoTimeoutException
+            || exception is AggregateException aggregate
+                && aggregate.Flatten().InnerExceptions.Any(
+                    error => error is IOException or MotionException or MotionInterlockException or IoTimeoutException))
+        {
+            Machine.ReportManualMotionFailure(group, exception);
+        }
     }
 
     protected override Task MoveToHorizontalZAsync(CancellationToken cancellationToken)

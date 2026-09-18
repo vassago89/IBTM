@@ -24,6 +24,13 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 앱 종료는 명령 취소·장치 정리 뒤 DI의 `DisposeAsync`와 로그의 `DisposeAsync`까지 기다리고 창을 닫는다.
 실행 중인 피드백·화면 감시의 소유자는 `await using` 또는 `DisposeAsync`를 사용한다.
 
+조명은 `C:\git\AnyWave\AnyWave.Device\Lights\MOVSService.cs` 원본을
+`Shared/IBTM.Device/MOVSService.cs`에 그대로 포함한다. 컴파일에 필요한 using과 nullable 지시문만 덧붙였다.
+`MovsLightController`는 기존 `ILightController` 호출을 원본의 Connect/Set/On/Off/Disconnect에 연결한다.
+19200 통신, 문자 버퍼, 전송 뒤 50ms 대기, 빈 COM/미연결 처리도 원본을 따른다.
+추가했던 시리얼 세부 설정·쓰기 잠금·드라이버 예외 재포장은 제거했다. 설정에는 COM과 검사 채널만 남긴다.
+원본의 Find도 보존하지만, 장비 초기화나 검증에서 자동 포트 검색을 호출하지 않는다.
+
 | 형태 | 의미 | 예 |
 | --- | --- | --- |
 | 명사 프로퍼티 | 현재 값·상태 노출 | `CarrierPresent`, `BackupPlate`, `CurrentJob`, `State` |
@@ -131,6 +138,14 @@ Move To는 Safe Z에서 위치만 확인한다. 각 Z 티칭값은 설비 설정
 생성된 `*Command` 코드를 수정하지 말고 해당 ViewModel의 이름 있는 메서드를 수정한다.
 알람 전체 조건과 개별 동작의 간섭 조건을 섞지 않는다. 임의의 지연·재시도·catch로 원인을 감추지 않는다.
 
+티칭 조그의 순서는 `TeachingViewModel.JogAsync` 한 곳에서 관리한다.
+장비 준비 확인 → 실행권 확보 → 유닛의 `EnsureCanJog`로 간섭 확인 → 선택된 모션 장치의
+`JogAsync` 실행 → 구독 해제·실행권 반환 순서로, 각 호출은 티칭 함수로 돌아온다.
+`MachineController`와 유닛은 조그 실행을 감싸거나 다음 계층으로 전달하지 않는다.
+드라이버도 공통 `ValidateJog` 호출이 돌아온 뒤 SDK 시작 → 완료/취소 대기 → 종료를 직접 수행한다.
+오류가 발생하면 티칭 함수에서 `MachineController.ReportManualMotionFailure`를 호출한다.
+전체 STOP·실린더 간섭 감시는 기존 장비 감시에서 유지한다.
+
 티칭 DO는 `ToggleOutputCommand` → `MachineController.ToggleTeachingOutputAsync`에서
 현재 DO를 읽어 반전한다. XAML은 ON/OFF에 따라 명령을 교체하지 않는다.
 저장 FOV의 화면 객체는 `Metadata`로 레시피의 `CarrierImageTile`을 직접 참조한다.
@@ -181,6 +196,12 @@ HOME 순서와 추가 이동 제거(2026-09-18):
 - AJIN의 동시 X/Y HOME은 두 축을 시작한 뒤 한 루프에서 결과를 확인한다.
   취소·실패 시 두 축의 정지 확인과 오류 수거를 끝내야 HOME이 반환한다.
   상위 단계도 한 유닛의 시작 오류 때문에 이미 시작한 다른 유닛을 남겨 두지 않는다.
+- AJIN 디바이스 동작은 `C:\git\AnyWave\AnyWave.Device\Motions\Ajin\AjinService.cs`가 기준이다.
+  원본의 HOME 결과 초기화·Z HOME 방식·속도 비율·Task.Run을 복원했다.
+  HOME 시작/결과 실패는 원본처럼 false로 반환하고, 상위에서 HomeFailed를 처리한다.
+  이동 가감속은 속도의 2배, XY 속도 배분은 각 축 이동거리 / 두 축 이동거리 합이다.
+  별도로 추가했던 HOME 방향·세부 속도·가감속 시간 설정과 범용 이동 실행기를 제거했다.
+  IBTM 연결에 필요한 취소, SDK 오류, 실제 이동·정지 피드백 처리는 유지한다.
 
 추가 동작 점검에서 남긴 검토 항목:
 
@@ -465,7 +486,11 @@ WPF 화면 바인딩/명령 수명 회귀는
 `OutputWindowThreadingTests.BoundConveyorButtonsKeepDisplayAliveAcrossOffCloseAndReopen`에
 기존 티칭·FOV 검사도 묶여 있다. WPF Application을 여러 개 만드는 새 테스트 호스트를 추가하지 않는다.
 AJIN/AlphaMotion 래퍼는 각 SDK 대역 테스트 프로젝트에서 해당 테스트만 선택한다.
-처음 체크아웃해서 assets가 없으면 먼저 `dotnet restore IBTM.slnx`를 실행한다.
+장비 코드 수정은 `IBTM.slnx`, 테스트 프로젝트를 IDE에서 열 때는 `Tests/IBTM.Tests.slnx`를 사용한다.
+SDK 대역 프로젝트는 실제 드라이버 파일을 링크해 동명 SDK 스텁과 다시 컴파일한다.
+같은 파일의 참조 문맥이 섞이지 않도록 장비용 솔루션에는 테스트 프로젝트를 넣지 않는다.
+처음 체크아웃해서 assets가 없으면 장비는 `dotnet restore IBTM.slnx`,
+테스트는 `dotnet restore Tests/IBTM.Tests.slnx`를 실행한다.
 
 ## 바꾸지 말아야 할 경계
 

@@ -16,11 +16,17 @@ using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
 
 public partial class TeachingViewModel : TeachingMotionViewModel
 {
+    private readonly OperationCancellation _operations;
+    private readonly IXyMotion _supplyMotion;
+    private readonly IXyMotion _placementMotion;
+    private readonly IXyMotion _fasteningMotion;
+    private readonly IXyMotion _inspectionMotion;
     private readonly PcbSupplyHandler _supplyHandler;
     private readonly PcbSupplySettings _supplySettings;
     private readonly PcbBufferSettings _bufferSettings;
@@ -81,6 +87,11 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         BoltInspector boltInspector,
         MachineState state,
         MachineController machine,
+        OperationCancellation operations,
+        [FromKeyedServices(MotionGroup.PcbSupply)] IXyMotion supplyMotion,
+        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion placementMotion,
+        [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion fasteningMotion,
+        [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspectionMotion,
         InspectionGantrySettings inspectionGantrySettings,
         CarrierReferenceSettings carrierReference,
         PcbPlacementHandlerSettings placementSettings,
@@ -98,6 +109,11 @@ public partial class TeachingViewModel : TeachingMotionViewModel
             ioGroups,
             teachingOutputs)
     {
+        _operations = operations;
+        _supplyMotion = supplyMotion;
+        _placementMotion = placementMotion;
+        _fasteningMotion = fasteningMotion;
+        _inspectionMotion = inspectionMotion;
         _supplyHandler = supplyHandler;
         _supplySettings = supplySettings;
         _bufferSettings = bufferSettings;

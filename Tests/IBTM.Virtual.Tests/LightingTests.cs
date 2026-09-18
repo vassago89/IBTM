@@ -227,50 +227,12 @@ public sealed class LightingTests
         else
         {
             Assert.IsType<MovsLightController>(controller);
-            // Empty COM is rejected before any OS port is opened.
-            var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
-            Assert.Contains("COM port is empty", error.Message);
-            Assert.Contains("Settings > Devices & Safety > Lighting", error.Message);
-            Assert.Throws<InvalidOperationException>(() => controller.SetLevel(2, 80));
-        }
-    }
-
-    [Fact]
-    public void ConnectionEditsRequireANewDriverAndDisconnectedOffIsNotReportedAsSuccess()
-    {
-        var settings = new LightingSettings();
-        using var controller = new MovsLightController(settings);
-        settings.Connection = "COM9";
-        Assert.Contains(
-            "COM port is empty",
-            Assert.Throws<InvalidOperationException>(controller.Initialize).Message);
-        Assert.Throws<InvalidOperationException>(controller.TurnOffAll);
-    }
-
-    [Fact]
-    public void MovsRejectsValuesThatDoNotFitTheCommandBeforeWriting()
-    {
-        using var controller = new MovsLightController(new LightingSettings());
-        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(2, -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(2, 256));
-        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOn(10));
-        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOff(-1));
-        Assert.Throws<InvalidOperationException>(() => controller.TurnOff(0));
-    }
-
-    [Theory]
-    [InlineData(0, 1000)]
-    [InlineData(19200, 0)]
-    public void InvalidSerialSettingsReportLightingErrorAndCanBeRetried(int baudRate, int timeout)
-    {
-        using var controller = new MovsLightController(
-            new LightingSettings { Connection = "COM9", BaudRate = baudRate, WriteTimeoutMilliseconds = timeout, });
-        for (var attempt = 0; attempt < 2; attempt++)
-        {
-            // Invalid constructor/setter values fail before SerialPort.Open.
-            var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
-            Assert.Contains("MOVS light connection failed (COM9)", error.Message);
-            Assert.IsAssignableFrom<ArgumentException>(error.InnerException);
+            // AnyWave leaves an empty COM disconnected. No physical port is opened.
+            controller.Initialize();
+            controller.SetLevel(2, 80);
+            controller.TurnOn(2);
+            controller.TurnOff(2);
+            controller.TurnOffAll();
         }
     }
 

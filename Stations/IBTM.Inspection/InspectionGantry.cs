@@ -96,12 +96,11 @@ public sealed class InspectionGantry
         return _motion.MoveAxisAsync(axis, position, velocity, cancellationToken);
     }
 
-    public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
+    public void EnsureCanJog(MotionAxis axis, CancellationToken cancellationToken = default)
     {
         EnsureCanMove(cancellationToken);
         if (axis is not (MotionAxis.X or MotionAxis.Y))
             throw new ArgumentOutOfRangeException(nameof(axis));
-        return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
     public bool IsAt(AxisPosition position, bool live = true)

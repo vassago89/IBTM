@@ -588,7 +588,9 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.Null(state.AlarmDetail);
         using var stopped = new CancellationTokenSource();
-        var jog = gantry.JogAsync(MotionAxis.X, 10, stopped.Token);
+        gantry.EnsureCanJog(MotionAxis.X, stopped.Token);
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+        var jog = motion.JogAsync(MotionAxis.X, 10, stopped.Token);
         Assert.True(gantry.Feedback.IsMoving);
         stopped.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
@@ -984,7 +986,7 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
-        await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.JogAsync(MotionAxis.X, 10));
+        Assert.Throws<MotionInterlockException>(() => gantry.EnsureCanJog(MotionAxis.X));
         await Assert.ThrowsAsync<MotionInterlockException>(
             async () => await gantry.MoveToAsync(new AxisPosition { X = 20, Y = 10 }, 100));
         io.SetInput(InputIo.NgCarrierPickupDown, false);
@@ -1049,8 +1051,7 @@ public sealed partial class MachineLifecycleTests
                 ? placement.HomeAxisAsync(MotionAxis.X)
                 : fastening.HomeAxisAsync(MotionAxis.X));
         if (isPlacement)
-            await Assert.ThrowsAsync<MotionInterlockException>(
-                () => placement.JogAsync(MotionAxis.Y, 10));
+            Assert.Throws<MotionInterlockException>(() => placement.EnsureCanJog(MotionAxis.Y));
 
         io.SetInput(up, true);
         await Assert.ThrowsAsync<MotionInterlockException>(MoveXY);
@@ -1235,7 +1236,8 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveZAsync(10);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true);
-        var jog = gantry.JogAsync(MotionAxis.X, 1);
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
+        var jog = motion.JogAsync(MotionAxis.X, 1, atCurrentHeight: true);
         await WaitUntilAsync(() => gantry.Feedback.GetPosition().X > 0);
         if (autoMode)
             io.SetInput(InputIo.AutoMode, false);

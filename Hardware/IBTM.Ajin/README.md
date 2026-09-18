@@ -44,10 +44,32 @@ restart is required. Closing and reinitializing refreshes the hardware point cou
 The shared physical input monitor still faults if either provider fails; no
 communication error is converted to an OFF input or successful machine readiness.
 
+## Motion implementation
+
+`AjinMotionService` follows `C:/git/AnyWave/AnyWave.Device/Motions/Ajin/AjinService.cs`.
+The native HOME startup, velocity ratios, Z method, move acceleration and Task.Run
+calls are restored from that source. IBTM keeps its axis mapping, shared controller
+initialization, cancellation and completion feedback at the integration boundary.
+The AnyWave static initializer that closes AXL and loads `Settings/Default.mot`
+is not called by each IBTM motion group; `AjinController` owns that shared connection.
+
+- HOME sets `HOME_ERR_UNKNOWN`, then velocities, then starts the requested axes.
+- X/Y retain the SDK home method. Z uses `AxmHomeSetMethod(axis, 0, 4, 0, 1000, 0)`.
+- HOME velocities are search speed × `1, 1/5, 1/10, 1/100`; accelerations are × `1, 1/10`.
+- HOME polls at 100 ms and returns false for a failed startup or result.
+- Position moves use velocity × 2 for acceleration and deceleration.
+  XY speed is distributed by `distanceX / (distanceX + distanceY)` and the Y equivalent.
+- Native command return values and position/stop feedback are checked by IBTM.
+  Cancellation stops the commanded axes and waits for feedback before releasing the operation.
+  There is no additional STOP callback that duplicates cancellation cleanup.
+
+Search speed remains editable. The former separate HOME stage speeds, acceleration
+times and software home-direction override are removed from settings and the UI.
+The driver's mm conversion and configured SDK move units remain unchanged.
+
 `AxlOpen` initializes the library and hardware; it does not promise to preserve
-previous hardware settings. Homing uses the current SDK direction, sensor and method
-settings. `AjinMotionService` applies configured move units and acceleration units in pulses/s²,
-and applies home speeds when homing; the driver's mm conversion is unchanged.
+previous hardware settings. `AjinMotionService` applies configured move units and
+acceleration units in pulses/s².
 Initialization does not send Servo ON or an explicit axis-alarm reset. Once initialized,
 position and signal feedback remain readable with servos OFF or axis alarms active.
 Read-only diagnostic getters also work for motion groups that have not been initialized,
@@ -64,10 +86,9 @@ Explicit Servo ON failures do not invalidate communication readiness. The existi
 operator RESET sequence still resets axis alarms before requesting Servo ON.
 
 Motion STOP checks every `AxmMoveSStop` return code and continues to the remaining
-axes after a failure. Interrupted homing also attempts to clear the home result,
-even if STOP fails. Errors identify the SDK call and axis, and remain attached to
-the original operation error alongside stop-feedback or final-position failures.
-`MotionFailureSurvivesStopFeedbackAndFinalPositionFailures` covers this with the SDK stand-in.
+axes after a failure. HOME results are initialized only at startup, not on STOP.
+Command/read errors remain attached to stop and stop-feedback errors.
+`MotionFailureSurvivesStopAndFeedbackFailures` covers this with the SDK stand-in.
 
 `IBTM.Ajin.Tests` compiles the real controller, motion wrapper and manufacturer constants against
 a test-only in-memory SDK stand-in. It never loads AXL.dll or operates equipment.

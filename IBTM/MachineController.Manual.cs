@@ -42,7 +42,7 @@ public sealed partial class MachineController
             && IsManualMotionReady(group, live);
     }
 
-    private bool IsManualMotionReady(MotionGroup group, bool live = true)
+    internal bool IsManualMotionReady(MotionGroup group, bool live = true)
     {
         if (_operations.IsShuttingDown
             || !_io.IsReady
@@ -56,6 +56,29 @@ public sealed partial class MachineController
                 axis =>
                     (live ? motion.Feedback.GetAxisState(axis) : motion.Axes[axis].State)
                         is { Homed: true, ServoOn: true, Alarm: false, Emergency: false });
+    }
+
+    internal void ReportManualMotionFailure(MotionGroup group, Exception exception)
+    {
+        var alarm = group switch
+        {
+            MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
+            MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
+            MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
+            MotionGroup.InspectionGantry => _units.Inspection
+                ? MachineAlarm.Inspection
+                : MachineAlarm.NgCarrierTransfer,
+            _ => throw new ArgumentOutOfRangeException(nameof(group)),
+        };
+        if (_state.IsError)
+            alarm = _state.Alarm;
+        else if (IsMotionFailure(exception))
+            alarm = MachineAlarm.MotionUnavailable;
+
+        if (exception is IoTimeoutException)
+            _state.SetError(alarm, exception);
+        else
+            StopAndReportFailure(alarm, exception);
     }
 
     internal Task RunManualMotionAsync(

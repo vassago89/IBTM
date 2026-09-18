@@ -196,7 +196,7 @@ public sealed class MotionStatusTests
             return Failure is { } failure ? (null, failure) : (Position.X, null);
         }
 
-        protected override Task MoveAxisCoreAsync(
+        protected override Task MoveAsync(
             MotionAxis axis,
             double position,
             double velocity,

@@ -111,7 +111,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         PublishStateChanged();
     }
 
-    protected override async Task MoveXYCoreAsync(
+    protected override async Task MoveXYAsync(
         double x,
         double y,
         double velocity,
@@ -129,13 +129,13 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
         if (distanceX == 0)
         {
-            await MoveAxisCoreAsync(MotionAxis.Y, y, velocity, cancellationToken).ConfigureAwait(false);
+            await MoveAsync(MotionAxis.Y, y, velocity, cancellationToken).ConfigureAwait(false);
             return;
         }
 
         if (distanceY == 0)
         {
-            await MoveAxisCoreAsync(MotionAxis.X, x, velocity, cancellationToken).ConfigureAwait(false);
+            await MoveAsync(MotionAxis.X, x, velocity, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -179,18 +179,22 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         }
     }
 
-    protected override async Task JogCoreAsync(
+    public override async Task JogAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default,
+        bool atCurrentHeight = false)
     {
+        using var operation = Operations.Link(cancellationToken);
+        cancellationToken = operation.Token;
+        ValidateJog(axis, velocity, atCurrentHeight);
         var axisNumber = GetAxis(axis);
         var velocityInUnits = ToUnits(velocity);
         cancellationToken.ThrowIfCancellationRequested();
         EnsureAxisParameters(axisNumber);
         try
         {
-            BeginMotion(axis != MotionAxis.Z);
+            BeginMotion(axis != MotionAxis.Z, adjustment: atCurrentHeight);
             AjinController.Check(
                 CAXM.AxmMoveVel(axisNumber, velocityInUnits, velocityInUnits * 2, velocityInUnits * 2),
                 nameof(CAXM.AxmMoveVel));
@@ -279,23 +283,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         return ReadPositionFeedback(GetAxis(axis));
     }
 
-    protected override async Task<bool> HomeCoreAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        return await HomeAxesAsync([axis], velocity, cancellationToken).ConfigureAwait(false);
-    }
-
-    protected override async Task<bool> HomeHorizontalCoreAsync(
-        double velocity,
-        CancellationToken cancellationToken)
-    {
-        MotionAxis[] axes = _axisY is null ? [MotionAxis.X] : [MotionAxis.X, MotionAxis.Y];
-        return await HomeAxesAsync(axes, velocity, cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<bool> HomeAxesAsync(
+    protected override async Task<bool> HomeAxesAsync(
         MotionAxis[] axes,
         double velocity,
         CancellationToken cancellationToken)
@@ -371,6 +359,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             EndMotion(horizontal);
         }
     }
+
     protected override void ResetAlarm()
     {
         foreach (var axis in _axisParameters.Keys)
@@ -383,7 +372,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         PublishStateChanged();
     }
 
-    protected override async Task MoveAxisCoreAsync(
+    protected override async Task MoveAsync(
         MotionAxis axis,
         double position,
         double velocity,
@@ -453,6 +442,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         if (failures.Count > 1)
             throw new MotionException("Stop motion", new AggregateException(failures));
     }
+
     protected async Task WaitForStopAsync(int[] axes)
     {
         var started = Stopwatch.GetTimestamp();

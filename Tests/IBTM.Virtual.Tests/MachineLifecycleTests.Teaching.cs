@@ -318,6 +318,40 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
+    [Fact]
+    public async Task TeachingJogKeepsExclusiveControlUntilStopped()
+    {
+        await using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        var motion = services.GetRequiredService<InspectionGantry>().Feedback;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.JogSpeed = 1;
+        var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
+        try
+        {
+            await WaitUntilAsync(() => motion.IsMoving);
+            Assert.True(operations.HasActiveOperations);
+            using var secondOperation = operations.TryBegin();
+
+            Assert.Null(secondOperation);
+            Assert.False(jog.IsCompleted);
+            Assert.True(motion.IsMoving);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            teaching.JogStopCommand.Execute(null);
+            await jog.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        Assert.False(motion.IsMoving);
+        Assert.False(operations.HasActiveOperations);
+    }
+
     [Theory]
     [InlineData(TeachingStopAction.Stop)]
     [InlineData(TeachingStopAction.ChangeUnit)]
@@ -419,6 +453,8 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        if (group == MotionGroup.PcbPlacementHandler)
+            await services.GetRequiredService<PcbPlacementHandler>().MoveToHorizontalZAsync();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = group switch
         {
@@ -1370,7 +1406,8 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MotionCommand.None, gantry.Feedback.Command);
         await gantry.AdjustAxisAsync(MotionAxis.X, 201, 10_000);
         using var jogStop = new CancellationTokenSource();
-        var beyondOldMaximum = gantry.JogAsync(MotionAxis.X, 10, jogStop.Token);
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
+        var beyondOldMaximum = motion.JogAsync(MotionAxis.X, 10, jogStop.Token, atCurrentHeight: true);
         await WaitUntilAsync(() => gantry.Feedback.GetPosition().X > 201.1);
         jogStop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => beyondOldMaximum);

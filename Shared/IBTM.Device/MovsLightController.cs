@@ -1,116 +1,47 @@
 using System;
-using System.Globalization;
-using System.IO.Ports;
-using System.Threading;
+using AnyWave.Device.LightControllers;
 
 namespace IBTM.Device;
 
+// Connect the original AnyWave controller to IBTM's inspection and settings screens.
 public sealed class MovsLightController : ILightController, IDisposable
 {
-    private readonly Lock _writeLock;
-    // Connection edits apply after restart, not to an already-created driver.
-    private readonly LightingSettings _connection;
-    private SerialPort? _port;
+    private readonly MOVSService _controller;
+    private readonly string _portName;
 
     public MovsLightController(LightingSettings settings)
     {
-        _writeLock = new();
-        _connection = new()
-        {
-            Connection = settings.Connection,
-            BaudRate = settings.BaudRate,
-            DataBits = settings.DataBits,
-            Parity = settings.Parity,
-            StopBits = settings.StopBits,
-            WriteTimeoutMilliseconds = settings.WriteTimeoutMilliseconds,
-        };
+        _controller = new MOVSService();
+        _portName = settings.Connection;
     }
 
     public void Initialize()
     {
-        lock (_writeLock)
-        {
-            if (_port?.IsOpen == true)
-                return;
-            if (string.IsNullOrWhiteSpace(_connection.Connection))
-                throw new InvalidOperationException("MOVS light COM port is empty. Set Settings > Devices & Safety > Lighting > COM Port, save and restart.");
-            try
-            {
-                _port ??= new SerialPort(
-                    _connection.Connection,
-                    _connection.BaudRate,
-                    _connection.Parity,
-                    _connection.DataBits,
-                    _connection.StopBits)
-                {
-                    Handshake = Handshake.None,
-                    WriteTimeout = _connection.WriteTimeoutMilliseconds,
-                };
-                _port.Open();
-            }
-            catch (Exception exception) when (exception is ArgumentException
-                or System.IO.IOException
-                or UnauthorizedAccessException
-                or InvalidOperationException)
-            {
-                _port?.Dispose();
-                _port = null;
-                throw new InvalidOperationException(
-                    $"MOVS light connection failed ({_connection.Connection}). Check Settings > Devices & Safety > Lighting. {exception.Message}",
-                    exception);
-            }
-        }
+        _controller.Connect(_portName);
     }
 
     public void SetLevel(int channel, int level)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(level);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, 255);
-        Write(channel, string.Create(CultureInfo.InvariantCulture, $":L{channel}{level:000}\r\n"));
+        _controller.Set(channel, level);
     }
 
     public void TurnOn(int channel)
     {
-        Write(channel, $":O{channel}\r\n");
+        _controller.On(channel);
     }
 
     public void TurnOff(int channel)
     {
-        Write(channel, $":F{channel}\r\n");
+        _controller.Off(channel);
     }
 
     public void TurnOffAll()
     {
-        Write(0, ":F0\r\n");
+        _controller.Off();
     }
 
     public void Dispose()
     {
-        lock (_writeLock)
-        {
-            try
-            {
-                if (_port is not null)
-                    TurnOffAll();
-            }
-            finally
-            {
-                _port?.Dispose();
-                _port = null;
-            }
-        }
-    }
-
-    private void Write(int channel, string command)
-    {
-        // The protocol uses one channel digit; zero addresses all channels.
-        ArgumentOutOfRangeException.ThrowIfNegative(channel);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(channel, 9);
-        lock (_writeLock)
-        {
-            if (_port?.IsOpen != true)
-                throw new InvalidOperationException("MOVS light controller is not connected.");
-            _port.Write(command);
-        }
+        _controller.Disconnect();
     }
 }

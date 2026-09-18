@@ -4,6 +4,10 @@
 
 ## 바로 작업하기
 
+장비 코드 수정·디버깅은 `IBTM.slnx`를 연다. 테스트 프로젝트는 `Tests/IBTM.Tests.slnx`로 분리했다.
+SDK 대역 테스트는 드라이버 소스를 다시 컴파일하므로, 장비용 솔루션에 함께 넣으면 같은 파일이
+실제 SDK와 테스트 스텁을 참조하는 두 프로젝트 문맥으로 열린다.
+
 - [개발 안내: 수정할 파일, 디버깅 순서, 검증 명령](docs/DEVELOPMENT.md)
 - [Inspection 티칭: FOV 하나에 볼트 또는 Data Matrix 하나](docs/INSPECTION_TEACHING.md)
 - [Station 3 / NG / Repeat 현장 확인](docs/STATION3_COMMISSIONING.md)

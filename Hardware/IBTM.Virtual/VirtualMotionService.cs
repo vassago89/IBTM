@@ -63,7 +63,7 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         PublishStateChanged();
     }
 
-    protected override Task MoveXYCoreAsync(
+    protected override Task MoveXYAsync(
         double x,
         double y,
         double velocity,
@@ -72,7 +72,7 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         return SimulateMoveAsync(x, y, _z, velocity, true, cancellationToken);
     }
 
-    protected override Task MoveAxisCoreAsync(
+    protected override Task MoveAsync(
         MotionAxis axis,
         double position,
         double velocity,
@@ -128,50 +128,40 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
             InMotion: IsMoving);
     }
 
-    protected override async Task<bool> HomeCoreAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        _homed[(int)axis] = false;
-        switch (axis)
-        {
-            case MotionAxis.X:
-                await SimulateMoveAsync(0, _y, _z, velocity, true, cancellationToken);
-                break;
-            case MotionAxis.Y:
-                await SimulateMoveAsync(_x, 0, _z, velocity, true, cancellationToken);
-                break;
-            case MotionAxis.Z:
-                await SimulateMoveAsync(_x, _y, 0, velocity, false, cancellationToken);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(axis));
-        }
-
-        _homed[(int)axis] = true;
-        PublishStateChanged();
-        return true;
-    }
-
-    protected override async Task<bool> HomeHorizontalCoreAsync(
+    protected override async Task<bool> HomeAxesAsync(
+        MotionAxis[] axes,
         double velocity,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _homed[(int)MotionAxis.X] = false;
-        if (HasY)
+        var x = _x;
+        var y = _y;
+        var z = _z;
+        foreach (var axis in axes)
         {
-            _homed[(int)MotionAxis.Y] = false;
+            switch (axis)
+            {
+                case MotionAxis.X:
+                    x = 0;
+                    break;
+                case MotionAxis.Y:
+                    y = 0;
+                    break;
+                case MotionAxis.Z:
+                    z = 0;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(axes));
+            }
+            _homed[(int)axis] = false;
         }
 
-        await SimulateMoveAsync(0, HasY ? 0 : _y, _z, velocity, true, cancellationToken);
-        _homed[(int)MotionAxis.X] = true;
-        if (HasY)
-        {
-            _homed[(int)MotionAxis.Y] = true;
-        }
+        await SimulateMoveAsync(
+            x, y, z, velocity,
+            Array.Exists(axes, axis => axis != MotionAxis.Z),
+            cancellationToken);
+        foreach (var axis in axes)
+            _homed[(int)axis] = true;
 
         PublishStateChanged();
         return true;
@@ -236,12 +226,15 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         }
     }
 
-    protected override async Task JogCoreAsync(
+    public override async Task JogAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default,
+        bool atCurrentHeight = false)
     {
-        using var movement = BeginMovement(axis != MotionAxis.Z, cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
+        ValidateJog(axis, velocity, atCurrentHeight);
+        using var movement = BeginMovement(axis != MotionAxis.Z, operation.Token, adjustment: atCurrentHeight);
         var startX = _x;
         var startY = _y;
         var startZ = _z;
@@ -270,12 +263,13 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
 
     private OperationCancellation.Operation BeginMovement(
         bool horizontal,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool adjustment = false)
     {
         var movement = _movement = Operations.Link(cancellationToken);
         try
         {
-            BeginMotion(horizontal);
+            BeginMotion(horizontal, adjustment);
             return movement;
         }
         catch

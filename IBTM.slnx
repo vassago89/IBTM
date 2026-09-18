@@ -27,9 +27,4 @@
     <Project Path="Shared/IBTM.Device/IBTM.Device.csproj" />
     <Project Path="Shared/IBTM.Storage/IBTM.Storage.csproj" />
   </Folder>
-  <Folder Name="/Tests/">
-    <Project Path="Tests/IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj" />
-    <Project Path="Tests/IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj" />
-    <Project Path="Tests/IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj" />
-  </Folder>
 </Solution>
