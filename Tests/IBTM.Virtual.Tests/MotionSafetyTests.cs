@@ -241,7 +241,7 @@ public sealed class MotionSafetyTests
     }
 
     [Fact]
-    public async Task SupplyMovesXyTogetherAtHandoffHeightAfterRotation()
+    public async Task SupplyUsesRotatedPickupAndUnrotatedHandoffTravelHeights()
     {
         var io = CreateIo();
         var settings = new PcbSupplySettings
@@ -272,6 +272,20 @@ public sealed class MotionSafetyTests
         motion.Initialize();
         await HomeAsync(motion, 1_000);
 
+        var points = settings.GetTeachingPositions(new());
+        var handoff = Array.Find(points, point => point.Target == TeachingTarget.SupplyBufferHandoff)!;
+        var pickups = Array.FindAll(points,
+            point => point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick);
+        await supply.SetRotatedAsync(true);
+        Assert.All(pickups, point => Assert.True(supply.IsMoveToTeachingPositionAllowed(point)));
+        Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => supply.MoveToHandoffAsync(default));
+        Assert.True(supply.IsAtTravelZ());
+        await supply.MoveAxisAsync(MotionAxis.Z, 5);
+        Assert.False(supply.IsAtTravelZ());
+        await supply.MoveAxisAsync(MotionAxis.X, 0);
+        Assert.Equal(settings.RotationZ, motion.GetPosition().Z);
+
         var xyMovedTogether = false;
         var yMovedInsideBuffer = false;
         var movedAtWrongZ = false;
@@ -291,19 +305,18 @@ public sealed class MotionSafetyTests
                 && Math.Abs(z - settings.BufferHandoffPosition.Z) > MotionService.PositionToleranceMillimeters;
         };
 
-        await Assert.ThrowsAsync<MotionInterlockException>(() => supply.MoveToHandoffAsync(default));
-
-        await supply.SetRotatedAsync(true);
+        await supply.SetRotatedAsync(false);
+        Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
+        Assert.All(pickups, point => Assert.False(supply.IsMoveToTeachingPositionAllowed(point)));
         Assert.Equal(settings.RotationZ, motion.GetPosition().Z);
+        Assert.False(supply.IsAtTravelZ());
         await supply.MoveAxisAsync(MotionAxis.Z, 5);
-        var handoff = Array.Find(
-            settings.GetTeachingPositions(new()),
-            point => point.Target == TeachingTarget.SupplyBufferHandoff)!;
         await supply.MoveToTeachingPositionAsync(handoff, new() { X = 20, Y = 15, Z = 7 });
 
         Assert.True(xyMovedTogether);
         Assert.False(movedAtWrongZ);
         Assert.Equal((20, 15, settings.BufferHandoffPosition.Z), motion.GetPosition());
+        Assert.True(supply.IsAtTravelZ());
         Assert.Equal(TeachMode.Full, handoff.Mode);
 
         await supply.MoveAxisAsync(MotionAxis.Y, 14);
@@ -316,6 +329,11 @@ public sealed class MotionSafetyTests
         Assert.True(yMovedInsideBuffer);
         Assert.False(movedAtWrongZ);
         Assert.Equal((0, 0, settings.BufferHandoffPosition.Z), motion.GetPosition());
+
+        io.SetInput(InputIo.PcbSupplyRotated, true); // Both inputs ON is unknown.
+        Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));
+        Assert.All(pickups, point => Assert.False(supply.IsMoveToTeachingPositionAllowed(point)));
+        Assert.False(supply.IsAtTravelZ());
     }
 
     private static VirtualIoService CreateIo()

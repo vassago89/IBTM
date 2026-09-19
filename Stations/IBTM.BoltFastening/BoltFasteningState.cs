@@ -22,6 +22,15 @@ public enum BoltFasteningState
     [Description("Waiting")]
     Waiting,
 
+    [Description("Moving to First Shooting Bolt / Travel Z")]
+    MovingToStandby,
+
+    [Description("Raising Pickup Table")]
+    RaisingPickupTable,
+
+    [Description("Lowering Pickup Table")]
+    LoweringPickupTable,
+
     [Description("Moving to PCB Bolt")]
     MovingToPcbBolt,
 
@@ -67,35 +76,17 @@ public enum BoltFasteningState
     [Description("Raising Pickup Head")]
     RaisingPickupHead,
 
-    [Description("Moving to IPM Seating Bolt")]
-    MovingToIpmSeatingBolt,
+    [Description("Moving to Pickup Bolt")]
+    MovingToPickupBolt,
 
-    [Description("Seating IPM Bolt")]
-    SeatingIpm,
-
-    [Description("Moving to IPM Final Bolt")]
-    MovingToIpmFinalBolt,
-
-    [Description("Finalizing IPM Bolt")]
-    FinalizingIpm,
+    [Description("Fastening Pickup Bolt")]
+    FasteningPickup,
 
     [Description("Clearing Pickup Head")]
     ClearingPickupHead,
 
     [Description("Completing Carrier")]
     CompletingCarrier,
-}
-
-public enum FasteningPass
-{
-    [Description("PCB Fastening")]
-    Pcb,
-
-    [Description("IPM Seating")]
-    IpmSeating,
-
-    [Description("IPM Final")]
-    IpmFinal,
 }
 
 public enum BoltCylinderState

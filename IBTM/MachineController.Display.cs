@@ -48,7 +48,6 @@ public sealed partial class MachineController
         var bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
         var automatic = _state.AutomaticRunning;
         var setupEditing = _state.SetupEditingEnabled;
-        var manualSetup = setupEditing && !running && safetyReady;
         var fasteningState = teachingReady && _units.BoltFastening
             ? _fasteningStation.GetState(live: false)
             : BoltFasteningState.Waiting;
@@ -77,9 +76,6 @@ public sealed partial class MachineController
             Homed = motion.Homed,
             IsStartAllowed = IsStartAllowedFor(block, running),
             IsHomeAllowed = IsHomeAllowedFor(motion, running),
-            IsRaiseCylindersAllowed = manualSetup
-                && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
-                && IsCylinderRaiseClear,
             HomeableAxes = Enum.GetValues<MotionGroup>()
                 .SelectMany(
                     group => _state.GetMotionStatus(group).Feedback.Axes.Select(

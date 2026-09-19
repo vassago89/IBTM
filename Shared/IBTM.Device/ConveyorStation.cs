@@ -28,7 +28,6 @@ public sealed class ConveyorStation
     private readonly InputIo _stopperUp;
     private readonly InputIo _stopperDown;
     private readonly InputIo _heatSink1;
-    private readonly InputIo _heatSink2;
     private readonly OutputIo _backupPlate;
     private readonly OutputIo _stopper;
 
@@ -49,11 +48,13 @@ public sealed class ConveyorStation
         _stopperUp = stopperUp;
         _stopperDown = stopperDown;
         _heatSink1 = heatSink1;
-        _heatSink2 = heatSink2;
+        HeatSink2Input = heatSink2;
         _backupPlate = backupPlate;
         _stopper = stopper;
         io.InputChanged += OnInputChanged;
     }
+
+    public InputIo HeatSink2Input { get; }
 
     public event Action? Changed;
     public event Action<bool>? CarrierChanged;
@@ -62,7 +63,7 @@ public sealed class ConveyorStation
     {
         get
         {
-            var present = _io.GetInput(_heatSink1) || _io.GetInput(_heatSink2);
+            var present = _io.GetInput(_heatSink1) || _io.GetInput(HeatSink2Input);
             _lastNotifiedPresence ??= present;
             return present;
         }
@@ -162,14 +163,14 @@ public sealed class ConveyorStation
                 _stopperUp,
                 _stopperDown,
                 _heatSink1,
-                _heatSink2,
+                HeatSink2Input,
             ],
             [_backupPlate, _stopper]);
     }
 
     public bool IsHeatSinkPresent(HeatSinkSlot heatSink)
     {
-        return _io.GetInput(heatSink == HeatSinkSlot.HeatSink1 ? _heatSink1 : _heatSink2);
+        return _io.GetInput(heatSink == HeatSinkSlot.HeatSink1 ? _heatSink1 : HeatSink2Input);
     }
 
     public Task PrepareToReceiveAsync(CancellationToken cancellationToken)
@@ -219,7 +220,7 @@ public sealed class ConveyorStation
         catch (TimeoutException exception)
         {
             throw new TimeoutException(
-                $"Carrier arrival requires {_heatSink1} or {_heatSink2}=ON "
+                $"Carrier arrival requires {_heatSink1} or {HeatSink2Input}=ON "
                     + $"within {_io.TimeoutMilliseconds} ms.",
                 exception);
         }
@@ -231,10 +232,10 @@ public sealed class ConveyorStation
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input == _heatSink1 || input == _heatSink2)
+        if (input == _heatSink1 || input == HeatSink2Input)
         {
             var previous = _lastNotifiedPresence;
-            var present = _io.GetInput(_heatSink1) || _io.GetInput(_heatSink2);
+            var present = _io.GetInput(_heatSink1) || _io.GetInput(HeatSink2Input);
             _lastNotifiedPresence = present;
             if (previous != present)
                 CarrierChanged?.Invoke(present);
@@ -245,7 +246,7 @@ public sealed class ConveyorStation
             || input == _stopperUp
             || input == _stopperDown
             || input == _heatSink1
-            || input == _heatSink2)
+            || input == HeatSink2Input)
         {
             Changed?.Invoke();
         }

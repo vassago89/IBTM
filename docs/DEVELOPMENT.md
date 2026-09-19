@@ -125,6 +125,10 @@ STOP과 창 닫기는 현재 작업을 취소하고 완료를 기다리며, 모�
 텍스트 선택과 마우스 캡처, 컨트롤 템플릿 동작은 WPF 컨트롤 책임이다.
 `LogTextBox`는 선택 문자열·일시정지 값을 바인딩으로 전달하고, `ComboBoxDropDownButton`은 드롭다운만 연다.
 `App.xaml.cs`는 DI 구성·앱 시작과 종료를 담당하는 진입점으로 유지한다.
+종료 시 카메라는 DI 전체 정리 전에 명시적으로 Dispose하고 완료를 기다린다.
+`OnExit`와 치명적 예외 종료에도 같은 해제를 호출한다. MVS는 수신 종료·버퍼 반환 →
+StopGrabbing → 장치 Close → Dispose → SDK Finalize 순서이며, 연결 상태가 OFF여도
+남은 장치 핸들의 Close를 시도한다. Dispose 이후에는 Initialize·Live·Grab으로 다시 연결하지 않는다.
 
 ## 막힌 동작을 따라가는 순서
 
@@ -135,13 +139,30 @@ Inspection, NG Transfer를 선택한다. 인계 위치·회전 및 이동 높이
 Teaching 메뉴를 나갔다 다시 열면 저장·적용된 설정에서 다시 읽는다.
 
 각 유닛 목록은 작업 위치, 설비 기준값, 계산 위치로 구분한다. 인계 영역 경계값은 사용하지 않는다.
-Supply의 `PCB Give Position`은 XYZ를 티칭한다. `Rotation Z`에서 회전한 뒤 인계 Z로 먼저 이동하고,
-그 높이에서 인계 XY로 이동한다. 대기는 PCB 1 X·공통 Pickup Y·Rotation Z다.
+Supply의 `PCB Give Position`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unrotated 상태다.
+`Rotation Z`에서 Unrotated로 전환한 뒤 인계 Z → 인계 XY 순서로 이동한다.
+대기는 PCB 1 X·공통 Pickup Y·Rotation Z에서 Rotated 상태다.
 Placement는 핸들러 상승 → 인계 Z → 인계 XY에서 대기하고, 인계 후 Heat Sink 1/2에 차례로 안착한다.
 체결의 `Safe Z (Travel)`은 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
-`Pickup Head Fastening Z`는 IPM 안착·최종 체결 높이다.
+`Pickup Head Fastening Z`는 픽업 볼트의 체결 높이다. 볼트마다 한 번만 체결한다.
 자동 동작은 양쪽 헤드 상승 → Safe Z에서 XY 이동 → 선택 헤드의 체결 Z 이동 → 체결 START → 즉시 해당 헤드 하강 순서다.
 체결기는 회전을, 실린더는 볼트 전진을 담당한다. START 전송 성공 후 하강하며, 하강 중 오류·정지 시 체결기도 정지한다.
+대기는 Heat Sink 1의 첫 슈팅 볼트 XY·Safe Z다. 백업 플레이트가 상승해 캐리어가 착좌되면 체결 Z로 내려간다.
+모든 Heat Sink의 슈팅 체결이 끝날 때까지 픽업 테이블을 상승 상태로 유지한다.
+슈팅 완료 후 헤드 상승 → Safe Z → 픽업 테이블 하강 확인 → Pickup XY → Pickup Z → 볼트 취득 →
+Safe Z → 헤드 상승 → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다.
+별도의 가체결·본체결 패스는 없다. `PickupPreset`은 기존 레시피의 본체결 프리셋 값을 이어받는다.
+
+| 체결 상태 | 동작 / 완료 기준 |
+| --- | --- |
+| `MovingToStandby` → `Waiting` | PCB 1 첫 슈팅 볼트 XY·이동 Z에서 캐리어 착좌 대기 |
+| `RaisingPickupTable` | 양쪽 헤드 상승·이동 Z 확보 후 테이블 상승 피드백 확인 |
+| `MovingToPcbBolt` → `FasteningPcb` | 슈팅 볼트를 Heat Sink / 번호 순으로 각각 체결. 체결 중 테이블 상승 피드백 이탈 시 중지 |
+| `ClearingShootingHead` → `LoweringPickupTable` | 슈팅 완료 후 이동 Z 복귀, 테이블 하강 피드백 확인 |
+| `MovingToPickupXY` → `MovingToPickupZ` → `PickingUpBolt` | 픽업 위치에서 볼트 취득 |
+| `RaisingPickedBolt` → `RaisingPickupHead` → `MovingToPickupBolt` → `FasteningPickup` | 이동 Z·헤드 상승 후 대상 XY와 체결 Z로 이동해 한 번 체결 |
+| `CompletingCarrier` | 모든 볼트 결과와 헤드·Z 복귀 확인 후 이송 가능. 첫 슈팅 위치로 돌아가 다음 캐리어 대기 |
+
 `Bolt Pickup`의 Z는 별도 픽업 높이로 유지한다. 체결의 B1/B2는 헤드별 계산 XY 위치이며
 Move To는 Safe Z에서 위치만 확인한다. 각 Z 티칭값은 설비 설정에 독립적으로 자동 저장된다.
 기존 공통 체결 Z는 두 헤드 체결 Z의 초기값으로 옮기며, 이후에는 서로 영향을 주지 않는다.
@@ -205,12 +226,17 @@ Home의 허용 조건·차단 이유·실행은 `MachineController.Home.cs`,
 `MachineController.Manual.cs`에서 따라간다. 모두 같은 `MachineController`의 partial 파일이며
 의존성과 공통 Stop·안전 인터록은 `MachineController.cs`가 소유한다.
 
-HOME 순서와 추가 이동 제거(2026-09-18):
+HOME·START 선상승과 HOME 순서(2026-09-19):
 
-- 전체 HOME은 `HomeVerticalAxesAsync` → `HomeHorizontalAxesAsync`다.
+- `HOME ALL`은 운전 화면에 항상 표시한다. 별도 `RAISE CYLINDERS`와 `STOP HOME` 버튼은 제거했다.
+  모든 HOME은 해당 실린더의 상승·완료 피드백 확인부터 시작하며, 이 준비부터 종료까지 장비 상태는 `Homing`이다.
+  공통 STOP으로 준비·원점복귀를 취소할 수 있고, 취소 후 다음 단계로 넘어가지 않는다.
+- 전체 HOME은 `RaiseCylindersAsync` → `HomeVerticalAxesAsync` → `HomeHorizontalAxesAsync`다.
   공급·안착·체결은 Z HOME 완료 뒤 X/Y 동시 HOME을 수행한다. 티칭 유닛 HOME도 같은 순서다.
   공급기 전용 회전·Z 상한 이동·X→Y→Z 순서와 해당 전용 모션 API를 제거했다.
-  공급기 축별 HOME도 지정 축만 실행하며, HOME은 실린더 출력을 변경하지 않는다.
+  티칭·모션 창의 개별 HOME도 해당 유닛의 실린더를 먼저 올린다. 축별 HOME은 지정 축만 실행한다.
+- START도 같은 실행권·취소 토큰 안에서 활성 유닛의 실린더 상승을 완료한 뒤 자동 시퀀스를 시작한다.
+  START가 HOME을 대신 수행하지는 않으며, 원점 완료 조건은 유지한다.
 - HOME 중 안착의 Handoff / Travel Z, 체결의 Safe Z로 이동하지 않는다.
   전체 HOME 종료 뒤 공급기의 Rotation Z로 이동하던 단계도 제거했다.
 - 단일 축 HOME은 지정한 축만 실행한다. X/Y HOME에서 Z가 미원점이면 오류로 알린다.
@@ -276,8 +302,9 @@ NG 컨베이어도 `NgCarrierConveyor.Stop`에서 모터·배출 안내·완료 
 장치 오류가 없는 프로그래밍 예외는 호출부로 전달한다.
 실린더 상승의 `ObserveRaiseAsync`도 STOP 이후 장치 오류를 누락하지 않는다. 먼저 발생한 안전 알람이
 있으면 유지하고, 추가 오류는 `Cylinder raise ... failed while stopping` 로그로 확인한다.
-일괄 실린더 상승은 `IsCylinderRaiseClear`에서 캐리어 재실과 플레이스먼트 PCB 감지를 확인한다.
-PCB를 들고 있을 때는 IPM을 내린 상태를 유지하며, 버튼 표시·실행·진행 중 취소가 같은 조건을 사용한다.
+START 준비 중 Placement가 PCB를 들고 있으면 핸들러만 올리고 IPM 지지는 유지한다.
+HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `PlacementHoldingPcb`로 표시한다.
+단순 실린더 하강은 HOME 진입을 막지 않으며, 축 HOME 시작 후에는 상승 피드백을 계속 감시한다.
 
 운전·티칭·설정·수동 컨베이어·모션 화면은 정지 명령을 직접 시작하고,
 `UI/CommandShutdown.CancelAndWaitAsync`에서
@@ -311,7 +338,7 @@ PCB를 들고 있을 때는 IPM을 내린 상태를 유지하며, 버튼 표시�
 | 공급 진입 또는 안착 인수 실린더가 대기함 | `BufferStage.CanEnterSupply`, `CanEnterPlacement`, `HasConflict` | 도착 순서는 무관; Placement Handler Up/Down 입력, 양쪽 현재 위치·Home·정지 피드백, Supply `PcbSecured`, 인계 좌표 |
 | 인수 후 실린더 상승 또는 Supply 복귀가 대기함 | `BufferStage.CanRaisePlacement`, `CanExitSupply`, `PcbSupplier.State` | Supply `PcbReleased`는 그리퍼·IPM 고정 실린더 모두 후퇴 확인; Placement 상승 확인 후 `MovingFromHandoff`에서 다음 PCB 픽업 XY로 복귀 |
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.ExecuteAsync` | `waitingForBolt`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
-| 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `pass`, `_pendingFastening`의 볼트·캐리어·패스 |
+| 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
 | Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `transfer == null`이면 이송 명령 없이 피드백을 기다림 |
 | NG 이송의 정방향·복귀 순서가 예상과 다름 | `NgCarrierMove.State`, `ExecuteAsync`, `MoveToCarrierAsync` | `destination`, `state`, 현재 픽업 상승·그립·캐리어 감지, Safe X |
 | NG 셔틀이 대기하거나 Repeat 상승하지 않음 | `NgShuttle.ExecuteAsync`, `CycleAsync` | `state`, 실제 Up/Down·캐리어·픽업 상승 피드백 |
@@ -350,10 +377,11 @@ OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류�
 `MoveToHandoffAsync`에서 인계 Z 확보 → XY 동시 이동 순서로 진행한다. `MoveToXYAsync`의
 `travelZ` 인자로 인계 높이를 전달하므로 XY 이동 전에 Rotation Z로 되돌아가지 않는다.
 픽업은 Rotation Z에서 XY 도착 후 해당 PCB 픽업 Z로 내려간다.
-회전 IO는 Rotation Z에서만 조작하고, 회전된 핸들러의 수평 이송·조그는 인계 Z를 사용한다.
+회전 IO는 Rotation Z에서만 조작한다. 수평 이송·조그는 Rotated일 때 Rotation Z,
+Unrotated일 때 인계 Z를 사용한다.
 해제 후에는 두 Supply 실린더의 후퇴 완료 → Placement Handler Up 확인 → `MoveFromHandoffAsync`의
 XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2 X와 Carrier Y, PCB2 후에는
-다음 캐리어의 PCB1 X와 Carrier Y로 돌아간다. 픽업 XY에 도착한 뒤 Rotation Z로 이동하고 회전 복귀한다.
+다음 캐리어의 PCB1 X와 Carrier Y로 돌아간다. 픽업 XY에 도착한 뒤 Rotation Z로 이동하고 Rotated로 전환한다.
 별도 Clear Z나 복귀 좌표는 없다. 시작 시 SMEMA가 없으면 PCB 1 XY·Rotation Z까지 이동해 대기한다.
 기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Give Position`의 XYZ를 확인하고 `Apply & Save Handoff`로 저장한다.
 Placement는 Supply 해제 확인 후 핸들러를 올리고 선택한 히트싱크 XY로 바로 이동한다.
@@ -398,8 +426,15 @@ HS2 감지·추가 밀착 → 결과 전달 → 정지 → S1/S2 착좌 순서�
 늦게 들어온 도착 신호가 이전 결과를 다른 캐리어에 붙이지 않는다. 지지 출력은 유지한다.
 `_executingTransfer`는 실행 중인 명령만 표시하고 종료·취소·오류 시 지운다. 재개 이력이 아니다.
 `GetNextTransfer`의 우선순위는 출구 잔류 → S3 배출 → S2→S3 → S1→S2 → 신규 반입이다.
+S1 작업 완료 대기는 `WaitingForPcbPlacement`, S2 작업 완료 대기는 `WaitingForBoltFastening`으로 표시한다.
+입구 감지·목적지 HS2 도착·출구 감지/해제·Repeat 역방향 입구 도착에는 `ConveyorSettings.TransferTimeoutSeconds`(기본 5초)를 적용한다.
+각 센서 대기 단계에서 시간을 재며, 초과 시 모터와 해당 SMEMA 출력을 끄고 기다리던 입력을 타임아웃으로 보고한다.
+스테이션 작업 완료·후단 준비 대기는 제한하지 않는다. 실린더 피드백은 기존 공통 I/O 타임아웃을 사용한다.
+HS2 감지 후 추가 밀착 시간과 출구 구멍 통과 여유 시간은 별도이며, Settings → Operation & Timing → Main Conveyor에 모았다.
 S1/S2는 동시에 착좌하고 각 유닛이 작업한다. S3는 검사 전에 다른 이송이 가능하면 올려서
 기다린다. 가능한 이송이 끝나면 내리고 검사하며, 검사 요청 후에는 벨트를 정지한다.
+S3 캐리어가 벨트에 놓여 있으면 전단 Ready도 OFF로 유지한다. S3를 올려 다른 물류를
+이송할 수 있거나 S3가 비었을 때 기존 반입 조건에 따라 전단 Ready를 켠다.
 검사 완료 후 NG 픽업 위치 복귀를 확인하고, OK·후단 준비 시 바로 배출하거나 올려서 기다린다.
 착좌 중 STOP 뒤에도 RESET 없이 현재 상승·하강 피드백으로 새 START를 실행한다.
 집중 검사는 `InterruptedSeatingRestartsFromCurrentPresenceWithoutReset`, `InterruptedPlateRaiseUsesFeedbackOnRestartWithoutLoweringSupport`,
@@ -573,7 +608,7 @@ Supply에서 새 PCB를 받지 않으며, Placement가 켜져 있으면 왕복 �
 Shooting Bolt Feeder OFF는 공급 대기·이스케이프·볼트 발사와 공급 관련 감지 대기를 생략한다.
 피더 ON/OFF와 관계없이 모든 볼트의 XY·헤드별 체결 Z로 이동하고, 프리셋 선택 → START → 실린더 하강 → 체결 결과 수거를 수행한다.
 IO형은 기존 FASTEN ON → OFF를 확인한 뒤 START를 끄고 IO · Assumed OK로 기록한다. 통신형은 체결기의 실제 OK/NG 결과를 기록한다.
-픽업 헤드의 가체결·본체결 위치도 모두 방문한다. 체결기 준비 확인과 검사도 유지한다.
+픽업 볼트는 각 위치에서 한 번만 체결한다. 체결기 준비 확인과 검사도 유지한다.
 미수거 결과와 중단된 체결의 복구 조건, XY 이동에 필요한 양쪽 헤드 상승과 Safe Z도 유지한다.
 통신형도 START 후 실린더 하강이 확인되지 않으면 늦게 온 결과를 자동 반영하지 않는다.
 새 START로 재체결할 때 새 하강 피드백과 새 결과를 확인한다.

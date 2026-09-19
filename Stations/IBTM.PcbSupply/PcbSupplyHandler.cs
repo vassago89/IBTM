@@ -129,9 +129,9 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         {
             switch (Rotation)
             {
-                case PcbSupplyRotationState.Unrotated:
-                    return _settings.RotationZ;
                 case PcbSupplyRotationState.Rotated:
+                    return _settings.RotationZ;
+                case PcbSupplyRotationState.Unrotated:
                     return _settings.BufferHandoffPosition.Z;
                 default:
                     return null;
@@ -190,8 +190,8 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
 
     public async Task MoveToHandoffAsync(CancellationToken cancellationToken, AxisPosition? position = null)
     {
-        if (Rotation != PcbSupplyRotationState.Rotated)
-            throw new MotionInterlockException("Supply must be rotated before moving to the handoff position.");
+        if (Rotation != PcbSupplyRotationState.Unrotated)
+            throw new MotionInterlockException("Supply must be unrotated before moving to the handoff position.");
         position ??= _settings.BufferHandoffPosition;
         await _motion.MoveToXYAsync(
             position.X,
@@ -226,9 +226,9 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
     {
         return point.Target switch
         {
-            TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
+            TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Unrotated,
             TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick
-                => Rotation == PcbSupplyRotationState.Unrotated,
+                => Rotation == PcbSupplyRotationState.Rotated,
             _ => true,
         };
     }

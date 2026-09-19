@@ -22,8 +22,8 @@ public enum PcbSupplyState
     [Description("Raising for Pickup")]
     RaisingForPickup,
 
-    [Description("Rotating for Handoff")]
-    RotatingForHandoff,
+    [Description("Unrotating for Handoff")]
+    UnrotatingForHandoff,
 
     [Description("Moving to Handoff")]
     MovingToHandoff,
@@ -40,8 +40,8 @@ public enum PcbSupplyState
     [Description("Leaving Handoff in XY")]
     MovingFromHandoff,
 
-    [Description("Unrotating for Pickup")]
-    UnrotatingForPickup,
+    [Description("Rotating for Pickup")]
+    RotatingForPickup,
 }
 
 public enum PcbSupplyRotationState

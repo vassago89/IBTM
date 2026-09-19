@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:machine="clr-namespace:IBTM"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
     IsEnabled="{Binding ControlsEnabled}"
@@ -396,43 +397,24 @@
                                     Foreground="{StaticResource TextSecondaryBrush}"
                                     Visibility="{Binding Operation.State.RepeatEnabled, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
-                            <Button Command="{Binding Operation.RaiseCylindersCommand}"
-                                IsEnabled="{Binding Operation.State.Display.IsRaiseCylindersAllowed}"
-                                ToolTip="Raise cylinders for the homing units only. Does not move or home axes." MinWidth="156" Height="40"
-                                Margin="0,0,6,0">
+                            <Button Command="{Binding Operation.HomeCommand}"
+                                IsEnabled="{Binding Operation.State.Display.IsHomeAllowed}"
+                                ToolTipService.ShowOnDisabled="True" MinWidth="144" Height="48" Margin="0,0,8,0">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                        <Setter Property="Content" Value="RAISE CYLINDERS"/>
+                                        <Setter Property="Content" Value="HOME ALL"/>
+                                        <Setter Property="ToolTip" Value="{Binding Operation.State.Display.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.RaiseCylindersCommand.IsRunning}" Value="True">
-                                                <Setter Property="Content" Value="RAISING..."/>
+                                            <DataTrigger Binding="{Binding Operation.State.Display.HomeBlock}" Value="{x:Static machine:HomeBlockReason.None}">
+                                                <Setter Property="ToolTip" Value="Raise cylinders, confirm feedback, then home all enabled axes. STOP cancels the operation."/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Operation.State.Display.IsHoming}" Value="True">
+                                                <Setter Property="Content" Value="HOMING..."/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Content="HOME ALL"
-                                Command="{Binding Operation.HomeCommand}"
-                                IsEnabled="{Binding Operation.State.Display.IsHomeAllowed}"
-                                ToolTip="{Binding Operation.State.Display.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
-                                ToolTipService.ShowOnDisabled="True" MinWidth="104" Height="40" Margin="0,0,6,0">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
-                                                Value="{x:Static ui:MachineDisplayState.HomeRequired}">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                            <Button Content="STOP HOME"
-                                Command="{Binding Operation.StopCommand}"
-                                MinWidth="104" Height="40" Margin="0,0,6,0" Style="{StaticResource SecondaryButtonStyle}"
-                                Visibility="{Binding Operation.HomeCommand.IsRunning,
-                                                         Converter={StaticResource BoolToVis}}"/>
                             <Button Content="START"
                                 Command="{Binding Operation.StartCommand}"
                                 IsEnabled="{Binding Operation.State.Display.IsStartAllowed}"
@@ -479,6 +461,11 @@
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
                                             Value="{x:Static ui:MachineDisplayState.Running}">
+                                            <Setter Property="Background" Value="{StaticResource AttentionBackgroundBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Operation.State.Display.IsHoming}" Value="True">
                                             <Setter Property="Background" Value="{StaticResource AttentionBackgroundBrush}"/>
                                             <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                                             <Setter Property="Foreground" Value="White"/>

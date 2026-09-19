@@ -250,13 +250,6 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         return _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, down, cancellationToken);
     }
 
-    public Task RaiseAsync(CancellationToken cancellationToken = default)
-    {
-        return Task.WhenAll(
-            SetLiftDownAsync(false, cancellationToken),
-            SetIpmLiftDownAsync(false, cancellationToken));
-    }
-
     public Task SetIpmLiftDownAsync(bool down, CancellationToken cancellationToken = default)
     {
         return _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, down, cancellationToken);

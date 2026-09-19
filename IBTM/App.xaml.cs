@@ -22,6 +22,7 @@ public partial class App : System.Windows.Application
     private ILoggerFactory? _loggerFactory;
     private ApplicationTraceListener? _traceListener;
     private IAdcBus? _adcBus;
+    private IDisposable? _camera;
     private object? _displayedError;
     private int _exitCode;
 
@@ -127,6 +128,7 @@ public partial class App : System.Windows.Application
         var serviceProvider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, });
         _serviceProvider = serviceProvider;
+        _camera = serviceProvider.GetRequiredService<ICamera>() as IDisposable;
         _adcBus = serviceProvider.GetService<IAdcBus>();
         if (_adcBus is not null)
             _adcBus.FrameTransferred += OnAdcFrameTransferred;
@@ -152,6 +154,9 @@ public partial class App : System.Windows.Application
                 _exitCode = 1;
                 ShowError("Device STOP failed during application exit.", exception);
             }
+
+            // Release the MVS connection even if a later DI-owned service fails to dispose.
+            await Task.Run(DisposeCamera);
 
             try
             {
@@ -203,10 +208,31 @@ public partial class App : System.Windows.Application
         }
         finally
         {
+            // Application.Shutdown / session exit can bypass the awaited window-close path.
+            DisposeCamera();
             e.ApplicationExitCode = _exitCode;
             _instanceMutex?.ReleaseMutex();
             _instanceMutex?.Dispose();
             base.OnExit(e);
+        }
+    }
+
+    private void DisposeCamera()
+    {
+        if (_camera is not { } camera)
+            return;
+
+        try
+        {
+            camera.Dispose();
+            _camera = null;
+            _log?.LogInformation("Inspection camera disconnected and disposed.");
+        }
+        catch (Exception exception)
+        {
+            _log?.LogError(exception, "Camera disconnection failed during application exit.");
+            _exitCode = 1;
+            ShowError("Camera disconnection failed during application exit.", exception);
         }
     }
 
@@ -227,7 +253,10 @@ public partial class App : System.Windows.Application
                 : "An unhandled application error occurred.",
             e.ExceptionObject);
         if (e.IsTerminating)
+        {
+            DisposeCamera();
             _loggerFactory?.Dispose();
+        }
     }
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)

@@ -108,8 +108,8 @@ public sealed class PcbSupplier : AutoUnit
             case PcbSupplyState.RaisingForPickup:
                 await _handler.MoveToRotationZAsync(cancellationToken);
                 break;
-            case PcbSupplyState.RotatingForHandoff:
-                await _handler.SetRotatedAsync(true, cancellationToken);
+            case PcbSupplyState.UnrotatingForHandoff:
+                await _handler.SetRotatedAsync(false, cancellationToken);
                 break;
             case PcbSupplyState.MovingToHandoff:
                 await _handler.MoveToHandoffAsync(cancellationToken);
@@ -133,8 +133,8 @@ public sealed class PcbSupplier : AutoUnit
                     _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition,
                     cancellationToken);
                 break;
-            case PcbSupplyState.UnrotatingForPickup:
-                await _handler.SetRotatedAsync(false, cancellationToken);
+            case PcbSupplyState.RotatingForPickup:
+                await _handler.SetRotatedAsync(true, cancellationToken);
                 break;
             default:
                 await WaitForChangeAsync(cancellationToken);
@@ -211,16 +211,16 @@ public sealed class PcbSupplier : AutoUnit
                 case true when pcb == PcbSupplyPcbState.Detected:
                     return PcbSupplyState.SecuringPcb;
                 case true when pcb == PcbSupplyPcbState.Secured:
-                    if (rotation != PcbSupplyRotationState.Rotated)
+                    if (rotation != PcbSupplyRotationState.Unrotated)
                     {
-                        return PcbSupplyState.RotatingForHandoff;
+                        return PcbSupplyState.UnrotatingForHandoff;
                     }
 
                     return PcbSupplyState.MovingToHandoff;
                 case true when !_handler.IsAtRotationZ():
                     return PcbSupplyState.RaisingForPickup;
-                case true when rotation != PcbSupplyRotationState.Unrotated:
-                    return PcbSupplyState.UnrotatingForPickup;
+                case true when rotation != PcbSupplyRotationState.Rotated:
+                    return PcbSupplyState.RotatingForPickup;
                 case true when _pickStep == PickStep.WaitingForCarrierExit:
                     return PcbSupplyState.WaitingForCarrierExit;
                 default:

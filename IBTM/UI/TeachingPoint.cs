@@ -156,7 +156,7 @@ public enum TeachingPointGroup
 
 public enum TeachingSaveBehavior
 {
-    [Description("Teach give XYZ. Supply rotates at Rotation Z, moves to give Z, then moves XY and holds until Placement detects the PCB, vacuum and closed gripper. Apply & Save Handoff before leaving Teaching.")]
+    [Description("Teach give XYZ. Supply picks while Rotated, unrotates at Rotation Z, moves to give Z, then moves XY and holds until Placement detects the PCB, vacuum and closed gripper. Apply & Save Handoff before leaving Teaching.")]
     SupplyHandoff,
     [Description("Teach receiving XYZ. This Z is shared by XY travel, rotation and receipt, with clearance while the handler cylinder is Up. Either handler may arrive first; only the cylinder lowers after both arrive. Apply & Save Handoff before leaving Teaching.")]
     PlacementHandoff,
@@ -168,7 +168,7 @@ public enum TeachingSaveBehavior
     [Description("Teach with Head 1 down; saves automatically. Move To lowers Head 1 at pickup XY, then moves Z. Vacuum is unchanged.")]
     BoltPickup,
 
-    [Description("Work Z for this head: Shooting for PCB, Pickup for IPM seating and final fastening. Automatic operation reaches this Z with both heads raised, starts rotation, then immediately lowers the selected head to feed the bolt. Saves automatically.")]
+    [Description("Work Z for this head: Shooting for PCB, Pickup for one fastening per picked bolt. Automatic operation reaches this Z with both heads raised, starts rotation, then immediately lowers the selected head to feed the bolt. Saves automatically.")]
     FasteningZ,
 
     [Description("Calculated from this heat sink's bolt teaching and head reference pins. Move to verify at Safe Z; teach bolt positions in Inspection.")]

@@ -9,6 +9,7 @@ public static class MachinePlan
     public const double PcbSlotPadding = 4;
     public const double CarrierWidth = 268;
     public const double CarrierHeight = 84;
+    public const double NgPickerWidth = 100;
     public const double PlatePadding = 8;
     public const double CameraSize = 48;
     public const double CameraGap = 20;

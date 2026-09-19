@@ -136,8 +136,7 @@ public sealed partial class MachineLifecycleTests
                         assembly.HeatSink == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2",
                         assembly.PcbBarcode);
                     Assert.Empty(assembly.PcbBoltResults);
-                    Assert.Empty(assembly.IpmSeatingResults);
-                    Assert.Empty(assembly.IpmFinalResults);
+                    Assert.Empty(assembly.PickupBoltResults);
                     Assert.Equal(!missingBolts, Assert.Single(assembly.BoltPresenceResults).Value);
                 });
             if (missingBolts)

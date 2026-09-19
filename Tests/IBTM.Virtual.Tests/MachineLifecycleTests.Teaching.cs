@@ -78,9 +78,10 @@ public sealed partial class MachineLifecycleTests
         var homeStarted = false;
         gantry.Feedback.MovingChanged += moving => homeStarted |= moving;
         await teaching.HomeCommand.ExecuteAsync(null);
-        Assert.False(homeStarted);
+        Assert.True(homeStarted);
+        Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.Equal((0, 0, 0), gantry.Feedback.GetPosition());
-        await WaitUntilAsync(() => !teaching.HomeCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
     }
 
     [Theory]
@@ -1457,7 +1458,7 @@ public sealed partial class MachineLifecycleTests
         teaching.StepDistance = 0.1;
         await WaitUntilAsync(() => !teaching.MoveToPointCommand.CanExecute(null));
         await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
-        Assert.Equal(HomeBlockReason.FasteningNotRaised, machine.HomeBlock);
+        Assert.Equal(HomeBlockReason.FasteningNotRaised, machine.GetHomeBlock(requireRaised: true));
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
 
         await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);

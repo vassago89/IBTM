@@ -102,7 +102,7 @@ public sealed partial class MainConveyor
                     : MainConveyorState.WaitingForBoltFastening;
             default:
                 return _placementWork.Station.CarrierPresent
-                    ? MainConveyorState.Idle
+                    ? MainConveyorState.WaitingForPcbPlacement
                     : MainConveyorState.WaitingForFrontCarrier;
         }
     }
@@ -156,6 +156,9 @@ public sealed partial class MainConveyor
                         "S3 inspection complete and transfer returned to NG pickup; conveyor remains stopped",
                     MainConveyorState.WaitingForInspectionTransfer =>
                         "NG pickup raised, empty and at its waiting position",
+                    MainConveyorState.WaitingForPcbPlacement =>
+                        $"S1 placement complete; enabled={_placementWork.Enabled}, completed={_placementWork.Completed}, "
+                            + $"work={_placementWork.CurrentJob.Id}",
                     MainConveyorState.WaitingForBoltFastening =>
                         $"S2 work complete; enabled={_boltFasteningWork.Enabled}, completed={_boltFasteningWork.Completed}, "
                             + $"plate={_boltFasteningWork.Station.BackupPlate}, stopper={_boltFasteningWork.Station.Stopper}, "
@@ -166,7 +169,6 @@ public sealed partial class MainConveyor
                             + $"S3 canReceive={_inspectionWork.IsReceiveAllowed}, HS1={_inspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)}, "
                             + $"HS2={_inspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)}, "
                             + $"NG carrier detected={_io.GetInput(InputIo.NgCarrierDetected)}",
-                    MainConveyorState.Idle => "station work complete and destination vacant",
                     _ => null,
                 });
                 try
@@ -260,7 +262,8 @@ public sealed partial class MainConveyor
                 && _inspectionWork.IsTransferAtWaitingPosition();
         _io.SetAutomaticSmemaOutput(
             OutputIo.MainConveyorReadyToFront2,
-            !_repeat && _placementWork.IsReceiveAllowed && !rearAvailable);
+            !_repeat && _placementWork.IsReceiveAllowed && !rearAvailable
+                && (!_inspectionWork.Station.CarrierPresent || _inspectionWork.Station.CarrierSeated));
         _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
     }
 }

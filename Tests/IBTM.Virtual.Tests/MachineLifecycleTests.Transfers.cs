@@ -159,8 +159,8 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.AutoResponseEnabled = false;
-        io.SetInput(InputIo.PcbSupplyRotated, false);
-        io.SetInput(InputIo.PcbSupplyUnrotated, true);
+        io.SetInput(InputIo.PcbSupplyRotated, true);
+        io.SetInput(InputIo.PcbSupplyUnrotated, false);
         io.SetInput(InputIo.PcbSupplyPcbDetected, false);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
         io.SetInput(InputIo.AutoMode, testSignal);

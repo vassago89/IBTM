@@ -35,8 +35,7 @@ public sealed partial class MachineLifecycleTests
             new() { Number = 3, Head = FasteningHead.Pickup, X = 30, Y = 10 },
         ];
         recipe.BoltFastening.PcbPreset = 1;
-        recipe.BoltFastening.IpmSeatingPreset = 2;
-        recipe.BoltFastening.IpmFinalPreset = 3;
+        recipe.BoltFastening.PickupPreset = 3;
         settings.BoltFastening.ShootingHead.FasteningZ = 8;
         settings.BoltFastening.PickupHead.FasteningZ = 12;
         var machine = services.GetRequiredService<MachineController>();
@@ -116,18 +115,14 @@ public sealed partial class MachineLifecycleTests
             var assembly = Assert.Single(work.Assemblies);
             Assert.Equal(BoltResultSource.IoAssumedOk,
                 Assert.Single(assembly.PcbBoltResults).Value.Source);
-            Assert.Equal(2, assembly.IpmSeatingResults.Count);
-            Assert.Equal(2, assembly.IpmFinalResults.Count);
-            Assert.All(assembly.IpmSeatingResults.Values.Concat(assembly.IpmFinalResults.Values), result =>
+            Assert.Equal(2, assembly.PickupBoltResults.Count);
+            Assert.All(assembly.PickupBoltResults.Values, result =>
                 Assert.Equal(BoltResultSource.IoAssumedOk, result.Source));
-            Assert.All(assembly.PcbBoltResults.Values.Concat(assembly.IpmSeatingResults.Values)
-                .Concat(assembly.IpmFinalResults.Values), result => Assert.Null(result.Torque));
+            Assert.All(assembly.PcbBoltResults.Values.Concat(assembly.PickupBoltResults.Values), result => Assert.Null(result.Torque));
             Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
             var positions = new[]
             {
                 (FasteningHead.Shooting, 10d, 10d, 8d),
-                (FasteningHead.Pickup, 20d, 10d, 12d),
-                (FasteningHead.Pickup, 30d, 10d, 12d),
                 (FasteningHead.Pickup, 20d, 10d, 12d),
                 (FasteningHead.Pickup, 30d, 10d, 12d),
             };
@@ -291,7 +286,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(gantry.IsAtSafeZ());
             Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
             Assert.False(gantry.PickupBoltLoaded);
-            Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink1).IpmSeatingResults);
+            Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults);
             Assert.False(station.HasPendingResult);
 
             settings.Options.TimeoutMilliseconds = 2_000;

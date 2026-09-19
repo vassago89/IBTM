@@ -587,7 +587,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task HomeRequiresRaisedCylindersWithoutChangingOutputs()
+    public async Task HomeAdmissionAllowsPreparationButAxisMotionRequiresRaisedCylinders()
     {
         var settings = FlowSettings();
         await using var services = CreateServices(settings);
@@ -621,12 +621,12 @@ public sealed partial class MachineLifecycleTests
         })
         {
             io.SetInput(up, false);
-            Assert.Equal(reason, machine.HomeBlock);
-            Assert.False(machine.IsHomeAllowed);
-            await machine.HomeAsync(CancellationToken.None);
+            Assert.Equal(HomeBlockReason.None, machine.HomeBlock);
+            Assert.Equal(reason, machine.GetHomeBlock(requireRaised: true));
+            Assert.True(machine.IsHomeAllowed);
             io.SetInput(down, true);
             io.SetInput(up, true);
-            Assert.Equal(reason, machine.HomeBlock);
+            Assert.Equal(reason, machine.GetHomeBlock(requireRaised: true));
             io.SetInput(down, false);
             Assert.True(machine.IsHomeAllowed);
         }
@@ -742,7 +742,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task RaiseCylindersPreparesHomeWithoutMovingAxesOrOtherActuators()
+    public async Task HomeRaisesCylindersBeforeMovingAxesAndDisplaysHoming()
     {
         await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
@@ -767,42 +767,99 @@ public sealed partial class MachineLifecycleTests
             services.GetRequiredService<InspectionGantry>().Feedback,
         };
         var moved = false;
+        var movedBeforeRaised = false;
         foreach (var motion in motions)
-            motion.MovingChanged += moving => moved |= moving;
+            motion.MovingChanged += moving =>
+            {
+                moved |= moving;
+                movedBeforeRaised |= moving && machine.GetHomeBlock(requireRaised: true) != HomeBlockReason.None;
+            };
         var outputChanges = new ConcurrentQueue<OutputIo>();
         io.OutputChanged += (output, _) => outputChanges.Enqueue(output);
 
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.True(machine.IsRaiseCylindersAllowed);
+        Assert.True(machine.IsHomeAllowed);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
-        Assert.False(machine.IsRaiseCylindersAllowed);
-        await machine.RaiseCylindersAsync(CancellationToken.None);
-        Assert.Empty(outputChanges);
-        await WaitUntilAsync(() => !state.Display.IsRaiseCylindersAllowed);
-        io.SetInput(InputIo.PcbPlacementPcbDetected, false);
-        Assert.True(machine.IsRaiseCylindersAllowed);
-        await WaitUntilAsync(() => state.Display.IsRaiseCylindersAllowed);
         Assert.False(machine.IsHomeAllowed);
+        await machine.HomeAsync(CancellationToken.None);
+        Assert.Empty(outputChanges);
+        await WaitUntilAsync(() => !state.Display.IsHomeAllowed);
+        io.SetInput(InputIo.PcbPlacementPcbDetected, false);
+        Assert.True(machine.IsHomeAllowed);
+        await WaitUntilAsync(() => state.Display.IsHomeAllowed);
 
-        var raising = machine.RaiseCylindersAsync(CancellationToken.None);
+        var homing = machine.HomeAsync(CancellationToken.None);
+        await WaitUntilAsync(() => state.Display.IsHoming);
         Assert.True(state.IsRunning);
-        Assert.False(state.IsHoming);
+        Assert.True(state.IsHoming);
+        Assert.Equal(MachineDisplayState.Homing, services.GetRequiredService<OperationViewModel>().MachineDisplayState);
         Assert.False(state.ManualSetupEnabled);
         Assert.False(machine.IsHomeAllowed);
-        await raising;
+        await homing;
         Assert.True(machine.IsHomeAllowed);
-        Assert.False(state.Homed);
-        Assert.False(moved);
+        Assert.True(state.Homed);
+        Assert.False(state.IsHoming);
+        Assert.True(moved);
+        Assert.False(movedBeforeRaised);
         Assert.Equal(cylinders.Order(), outputChanges.Order());
         Assert.All(cylinders, output => Assert.False(io.GetOutput(output)));
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmUp));
         Assert.False(io.GetInput(InputIo.PcbPlacementIpmDown));
-        await machine.RaiseCylindersAsync(CancellationToken.None);
+        await machine.HomeAsync(CancellationToken.None);
         Assert.True(machine.IsHomeAllowed);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartRaisesCylindersBeforeAutomaticAndPreservesHeldPcb(bool holdingPcb)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Options.UseDoorInterlock = false;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await placement.SetLiftDownAsync(true);
+        await placement.SetIpmLiftDownAsync(true);
+        io.SetInput(InputIo.PcbPlacementPcbDetected, holdingPcb);
+        io.SetInput(InputIo.AutoMode, false);
+        var started = false;
+        var readyBeforeStarting = false;
+        void StopAtAutomaticStart()
+        {
+            if (!state.AutomaticRunning || started)
+                return;
+            started = true;
+            readyBeforeStarting = placement.HandlerRaised
+                && placement.IpmLift == (holdingPcb ? PlacementCylinderState.Down : PlacementCylinderState.Up);
+            machine.Stop();
+        }
+
+        state.Changed += StopAtAutomaticStart;
+        try
+        {
+            Assert.True(machine.IsStartAllowed);
+            await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(started);
+            Assert.True(readyBeforeStarting);
+            Assert.Equal(holdingPcb, io.GetOutput(OutputIo.PcbPlacementIpmDown));
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(state.IsRunning);
+        }
+        finally
+        {
+            state.Changed -= StopAtAutomaticStart;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
-    public async Task CylinderRaiseStopsBeforeLiftingIpmWhenPlacementDetectsPcb()
+    public async Task HomePreparationStopsBeforeLiftingIpmWhenPlacementDetectsPcb()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -823,13 +880,13 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += DetectPcb;
         try
         {
-            Assert.True(machine.IsRaiseCylindersAllowed);
-            await machine.RaiseCylindersAsync(CancellationToken.None);
+            Assert.True(machine.IsHomeAllowed);
+            await machine.HomeAsync(CancellationToken.None);
             Assert.True(io.GetInput(InputIo.PcbPlacementPcbDetected));
             Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmDown));
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.False(state.IsRunning);
-            Assert.False(machine.IsRaiseCylindersAllowed);
+            Assert.False(machine.IsHomeAllowed);
         }
         finally
         {
@@ -838,44 +895,56 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task RaiseCylindersUsesEnabledUnitsAndKeepsOutputsOnStopOrTimeout()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HomeAndStartPreparationStopBeforeAxesOnStopOrTimeout(bool start)
     {
         var settings = new MachineSettings
         {
             Units = EnableOnly(MachineUnit.NgCarrierTransfer),
         };
         FastHomes(settings);
-        settings.Options.TimeoutMilliseconds = 100;
+        settings.Options.TimeoutMilliseconds = 500;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
+        if (start)
+            await machine.HomeAsync(CancellationToken.None);
         io.AutoResponseEnabled = false;
         io.SetOutput(OutputIo.NgCarrierPickupDown, true);
         io.SetOutput(OutputIo.PcbPlacementHandlerDown, true);
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
-        var raising = machine.RaiseCylindersAsync(CancellationToken.None);
-        machine.Stop();
-        await raising;
+        var operation = services.GetRequiredService<OperationViewModel>();
+        var command = start ? operation.StartCommand : operation.HomeCommand;
+        var running = command.ExecuteAsync(null);
+        await WaitUntilAsync(() => state.IsRunning && !io.GetOutput(OutputIo.NgCarrierPickupDown));
+        Assert.Equal(!start, state.IsHoming);
+        Assert.False(state.AutomaticRunning);
+        Assert.True(operation.StopCommand.CanExecute(null));
+        await operation.StopCommand.ExecuteAsync(null);
+        await running;
+        Assert.False(state.IsHoming);
+        Assert.Equal(start, state.Homed);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.True(io.GetOutput(OutputIo.PcbPlacementHandlerDown));
-        Assert.False(machine.IsHomeAllowed);
+        Assert.True(machine.IsHomeAllowed);
 
-        await machine.RaiseCylindersAsync(CancellationToken.None);
+        await command.ExecuteAsync(null);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
         Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.False(state.IsRunning);
-        Assert.False(state.Homed);
+        Assert.Equal(start, state.Homed);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CylinderRaiseFailureAfterStopIsReportedWithoutReplacingSafetyAlarm(bool safetyStop)
+    public async Task HomePreparationFailureAfterStopIsReportedWithoutReplacingSafetyAlarm(bool safetyStop)
     {
         var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgCarrierTransfer) };
         await using var services = CreateServices(settings);
@@ -900,8 +969,8 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += FailAfterStop;
         try
         {
-            Assert.True(machine.IsRaiseCylindersAllowed);
-            await machine.RaiseCylindersAsync(CancellationToken.None);
+            Assert.True(machine.IsHomeAllowed);
+            await machine.HomeAsync(CancellationToken.None);
 
             Assert.Equal(
                 safetyStop ? MachineAlarm.AirPressureLow : MachineAlarm.NgCarrierTransfer,
@@ -925,7 +994,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task InspectionHomeRequiresRaisedPickupAndIgnoresCarrierInput()
+    public async Task InspectionHomeRaisesPickupAndIgnoresCarrierInput()
     {
         var settings = new MachineSettings
         {
@@ -943,8 +1012,7 @@ public sealed partial class MachineLifecycleTests
         await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
-        Assert.False(machine.IsHomeAllowed);
-        await machine.HomeAsync(CancellationToken.None);
+        Assert.True(machine.IsHomeAllowed);
         await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.HomeAxisAsync(MotionAxis.X));
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
         Assert.False(state.Homed);
@@ -952,9 +1020,6 @@ public sealed partial class MachineLifecycleTests
         var transfer = services.GetRequiredService<NgCarrierTransfer>();
         Assert.False(transfer.IsRaised);
         Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
-
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, false);
-        Assert.True(machine.IsHomeAllowed);
 
         var unsafeMovement = false;
         gantry.Feedback.MovingChanged += moving =>
@@ -1055,7 +1120,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task PlacementIpmBlocksHomeButNotHorizontalTravel()
+    public async Task PlacementHoldingPcbBlocksIpmRaiseForHomeButNotHorizontalTravel()
     {
         var settings = FlowSettings();
         settings.PcbPlacementHandler.Motion.HorizontalSpeed = 100;
@@ -1068,8 +1133,9 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Homed);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+        io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.False(machine.IsHomeAllowed);
-        Assert.Equal(HomeBlockReason.PlacementNotRaised, machine.HomeBlock);
+        Assert.Equal(HomeBlockReason.PlacementHoldingPcb, machine.HomeBlock);
         Assert.True(placement.HandlerRaised);
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmDown));
 
@@ -1412,10 +1478,11 @@ public sealed partial class MachineLifecycleTests
         Assert.False(placement.Feedback.IsMoving);
         Assert.False(fastening.Feedback.IsMoving);
         Assert.False(placement.Feedback.GetAxisState(MotionAxis.Z).Homed);
-        Assert.False(machine.IsHomeAllowed);
+        Assert.NotEqual(HomeBlockReason.None, machine.GetHomeBlock(requireRaised: true));
+        await WaitUntilAsync(() => machine.IsHomeAllowed);
         if (teachingHome)
         {
-            Assert.False(teaching.HomeCommand.CanExecute(null));
+            await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
         }
     }
 

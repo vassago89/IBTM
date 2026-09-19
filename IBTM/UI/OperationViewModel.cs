@@ -56,7 +56,6 @@ public partial class OperationViewModel : ObservableObject
     {
         StartCommand = new AsyncRelayCommand(StartAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        RaiseCylindersCommand = new AsyncRelayCommand(RaiseCylindersAsync);
         HomeCommand = new AsyncRelayCommand(HomeAsync);
 
         State = state;
@@ -322,7 +321,7 @@ public partial class OperationViewModel : ObservableObject
     {
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, StartCommand, HomeCommand, RaiseCylindersCommand]);
+            [StopCommand, StartCommand, HomeCommand]);
     }
 
     public IAsyncRelayCommand StartCommand { get; }
@@ -338,7 +337,7 @@ public partial class OperationViewModel : ObservableObject
     {
         try
         {
-            IAsyncRelayCommand[] commands = [StartCommand, RaiseCylindersCommand, HomeCommand];
+            IAsyncRelayCommand[] commands = [StartCommand, HomeCommand];
             var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
                 commands,
@@ -352,13 +351,6 @@ public partial class OperationViewModel : ObservableObject
             else
                 System.Diagnostics.Trace.TraceError("Machine STOP also failed. {0}", exception);
         }
-    }
-
-    public IAsyncRelayCommand RaiseCylindersCommand { get; }
-
-    private async Task RaiseCylindersAsync(CancellationToken cancellationToken)
-    {
-        await _machine.RaiseCylindersAsync(cancellationToken);
     }
 
     public IAsyncRelayCommand HomeCommand { get; }
@@ -399,9 +391,7 @@ public partial class OperationViewModel : ObservableObject
                 return GetResultState(assembly.PcbBoltResults, bolt.Number);
         }
 
-        var seating = GetResultState(assembly.IpmSeatingResults, bolt.Number);
-        var final = GetResultState(assembly.IpmFinalResults, bolt.Number);
-        return seating == BoltTargetState.Ng || final == BoltTargetState.Ng ? BoltTargetState.Ng : final;
+        return GetResultState(assembly.PickupBoltResults, bolt.Number);
     }
 
     private BoltTargetState GetInspectionTargetState(BoltPoint bolt)

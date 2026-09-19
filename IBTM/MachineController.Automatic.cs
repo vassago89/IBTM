@@ -212,6 +212,8 @@ public sealed partial class MachineController
                 return;
             }
 
+            await RaiseCylindersAsync(operation);
+
             if (_units.MainConveyor)
             {
                 try
@@ -242,6 +244,10 @@ public sealed partial class MachineController
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
         {
+        }
+        catch (IOException exception)
+        {
+            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, exception);
         }
         finally
         {

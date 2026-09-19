@@ -19,15 +19,13 @@ public enum AssemblyResult
 public sealed class HeatSinkAssembly
 {
     private readonly ConcurrentDictionary<int, BoltResult> _pcbBoltResults;
-    private readonly ConcurrentDictionary<int, BoltResult> _ipmSeatingResults;
-    private readonly ConcurrentDictionary<int, BoltResult> _ipmFinalResults;
+    private readonly ConcurrentDictionary<int, BoltResult> _pickupBoltResults;
     private readonly ConcurrentDictionary<int, bool> _boltPresenceResults;
 
     public HeatSinkAssembly(HeatSinkSlot heatSink)
     {
         _pcbBoltResults = new();
-        _ipmSeatingResults = new();
-        _ipmFinalResults = new();
+        _pickupBoltResults = new();
         _boltPresenceResults = new();
         HeatSink = heatSink;
     }
@@ -36,9 +34,7 @@ public sealed class HeatSinkAssembly
 
     public IReadOnlyDictionary<int, BoltResult> PcbBoltResults => _pcbBoltResults;
 
-    public IReadOnlyDictionary<int, BoltResult> IpmSeatingResults => _ipmSeatingResults;
-
-    public IReadOnlyDictionary<int, BoltResult> IpmFinalResults => _ipmFinalResults;
+    public IReadOnlyDictionary<int, BoltResult> PickupBoltResults => _pickupBoltResults;
 
     public IReadOnlyDictionary<int, bool> BoltPresenceResults => _boltPresenceResults;
 
@@ -53,14 +49,9 @@ public sealed class HeatSinkAssembly
         Record(_pcbBoltResults, number, result);
     }
 
-    public void RecordIpmSeating(int number, BoltResult result)
+    public void RecordPickupBolt(int number, BoltResult result)
     {
-        Record(_ipmSeatingResults, number, result);
-    }
-
-    public void RecordIpmFinal(int number, BoltResult result)
-    {
-        Record(_ipmFinalResults, number, result);
+        Record(_pickupBoltResults, number, result);
     }
 
     private void Record(ConcurrentDictionary<int, BoltResult> results, int number, BoltResult result)

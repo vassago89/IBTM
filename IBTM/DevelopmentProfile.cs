@@ -96,8 +96,7 @@ internal static class DevelopmentProfile
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
         recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 10 };
         recipe.BoltFastening.PcbPreset = 4;
-        recipe.BoltFastening.IpmSeatingPreset = 3;
-        recipe.BoltFastening.IpmFinalPreset = 5;
+        recipe.BoltFastening.PickupPreset = 5;
         recipe.Pcb.BoltPoints = [
             new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Shooting, X = 7, Y = 7 },
             new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Pickup, X = 7, Y = 19 },

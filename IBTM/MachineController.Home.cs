@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -17,16 +16,6 @@ public sealed partial class MachineController
 
     public HomeBlockReason HomeBlock => GetHomeBlock();
 
-    public bool IsRaiseCylindersAllowed
-    {
-        get
-        {
-            return _state.ManualSetupEnabled
-                && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
-                && IsCylinderRaiseClear;
-        }
-    }
-
     private bool IsHomeAllowedFor(MotionReadiness motion, bool? running = null)
     {
         return !_operations.IsShuttingDown
@@ -39,16 +28,7 @@ public sealed partial class MachineController
             && HomeBlock == HomeBlockReason.None;
     }
 
-    private bool IsCylinderRaiseClear
-    {
-        get
-        {
-            // Keep the IPM down while Placement holds a PCB.
-            return !BufferHandlersEnabled || !_io.GetInput(InputIo.PcbPlacementPcbDetected);
-        }
-    }
-
-    internal HomeBlockReason GetHomeBlock(MotionGroup? group = null)
+    internal HomeBlockReason GetHomeBlock(MotionGroup? group = null, bool requireRaised = false)
     {
         switch (true)
         {
@@ -61,13 +41,20 @@ public sealed partial class MachineController
             case true when (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
                 || group is null
                 && BufferHandlersEnabled)
+                && _io.GetInput(InputIo.PcbPlacementPcbDetected)
+                && _placementHandler.IpmLift != PlacementCylinderState.Up:
+                return HomeBlockReason.PlacementHoldingPcb;
+            case true when requireRaised
+                && (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
+                    || group is null && BufferHandlersEnabled)
                 && (!_placementHandler.HandlerRaised
                     || _placementHandler.IpmLift != PlacementCylinderState.Up):
                 return HomeBlockReason.PlacementNotRaised;
-            case true when (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
+            case true when requireRaised
+                && (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
                 && !_fasteningGantry.IsHorizontalMoveAllowed:
                 return HomeBlockReason.FasteningNotRaised;
-            case true when (group == MotionGroup.InspectionGantry
+            case true when requireRaised && (group == MotionGroup.InspectionGantry
                 || group is null
                 && InspectionGantryEnabled)
                 && !_ngTransfer.IsRaised:
@@ -77,12 +64,13 @@ public sealed partial class MachineController
         }
     }
 
-    private bool IsHomeAxisReady(MotionGroup group, MotionAxis? axis = null, bool live = true)
+    private bool IsHomeAxisReady(
+        MotionGroup group, MotionAxis? axis = null, bool live = true, bool requireRaised = false)
     {
         if (!_state.ManualMode
             || !_state.SafetyReady
             || !_state.ServoMainContactorOn
-            || GetHomeBlock(group) != HomeBlockReason.None)
+            || GetHomeBlock(group, requireRaised) != HomeBlockReason.None)
             return false;
 
         var motion = _state.GetMotionStatus(group);
@@ -107,8 +95,9 @@ public sealed partial class MachineController
             {
                 if (_state.IsRunning)
                     return;
+                var homingAxes = false;
                 using var operation = BeginManualOperation(
-                    () => IsHomeAxisReady(group, axis),
+                    () => IsHomeAxisReady(group, axis, requireRaised: homingAxes),
                     cancellationToken);
                 if (operation is null)
                     return;
@@ -117,6 +106,10 @@ public sealed partial class MachineController
                 _state.IsHoming = true;
                 try
                 {
+                    await RaiseCylindersAsync(operation, group);
+                    homingAxes = true;
+                    if (!IsHomeAxisReady(group, axis, requireRaised: true))
+                        return;
                     bool homed;
                     switch (group)
                     {
@@ -164,46 +157,9 @@ public sealed partial class MachineController
         });
     }
 
-    public async Task RaiseCylindersAsync(CancellationToken cancellationToken)
+    private async Task RaiseCylindersAsync(
+        OperationCancellation.Operation operation, MotionGroup? group = null)
     {
-        await Task.Run(() => RaiseHomeCylindersAsync(cancellationToken), cancellationToken);
-    }
-
-    private async Task RaiseHomeCylindersAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (!IsRaiseCylindersAllowed)
-                return;
-        }
-        catch (IOException exception)
-        {
-            StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, exception);
-            return;
-        }
-
-        using var operation = _operations.TryBegin(cancellationToken);
-        if (operation is null)
-            return;
-        void StopWhenUnavailable()
-        {
-            if (operation.IsCancellationRequested)
-                return;
-            try
-            {
-                if (!_state.ManualMode
-                    || !_state.SafetyReady
-                    || !_io.IsReady
-                    || !IsCylinderRaiseClear)
-                    operation.Cancel();
-            }
-            catch (IOException exception)
-            {
-                operation.Cancel();
-                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, exception);
-            }
-        }
-
         async Task ObserveRaiseAsync(Task raising, MachineAlarm alarm)
         {
             try
@@ -221,27 +177,27 @@ public sealed partial class MachineController
                     _log?.LogError(exception, "{Message}", $"Cylinder raise {alarm} failed while stopping; existing alarm={_state.Alarm}.");
                 operation.Cancel();
             }
+            operation.Token.ThrowIfCancellationRequested();
         }
 
-        _state.Changed += StopWhenUnavailable;
-        try
+        operation.Token.ThrowIfCancellationRequested();
+        if (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
+            || group is null && BufferHandlersEnabled)
         {
-            StopWhenUnavailable();
-            var tasks = new List<Task>(3);
-            if (BufferHandlersEnabled)
-                tasks.Add(ObserveRaiseAsync(_placementHandler.RaiseAsync(operation.Token), MachineAlarm.PcbPlacement));
-            if (_units.BoltFastening)
-                tasks.Add(ObserveRaiseAsync(_fasteningGantry.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening));
-            if (InspectionGantryEnabled)
-                tasks.Add(ObserveRaiseAsync(
-                    _ngTransfer.SetLiftUpAsync(true, operation.Token),
-                    MachineAlarm.NgCarrierTransfer));
-            await Task.WhenAll(tasks);
+            // A held PCB needs its IPM support during START. HOME admission checks this separately.
+            var holdingPcb = _io.GetInput(InputIo.PcbPlacementPcbDetected);
+            await ObserveRaiseAsync(
+                _placementHandler.SetLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
+            if (!holdingPcb && !_io.GetInput(InputIo.PcbPlacementPcbDetected))
+                await ObserveRaiseAsync(
+                    _placementHandler.SetIpmLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
         }
-        finally
-        {
-            _state.Changed -= StopWhenUnavailable;
-        }
+        if (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
+            await ObserveRaiseAsync(_fasteningGantry.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening);
+        if (group == MotionGroup.InspectionGantry || group is null && InspectionGantryEnabled)
+            await ObserveRaiseAsync(
+                _ngTransfer.SetLiftUpAsync(true, operation.Token), MachineAlarm.NgCarrierTransfer);
+        operation.Token.ThrowIfCancellationRequested();
     }
 
     public async Task HomeAsync(CancellationToken cancellationToken)
@@ -266,6 +222,7 @@ public sealed partial class MachineController
         if (operation is null)
             return;
         cancellationToken = operation.Token;
+        var homingAxes = false;
         void StopWhenHomeBecomesUnavailable()
         {
             if (operation.IsCancellationRequested)
@@ -278,7 +235,7 @@ public sealed partial class MachineController
                 if (!_io.IsReady
                     || _state.IsError
                     || !_state.SafetyReady
-                    || HomeBlock != HomeBlockReason.None)
+                    || GetHomeBlock(requireRaised: homingAxes) != HomeBlockReason.None)
                 {
                     operation.Cancel();
                     return;
@@ -289,10 +246,6 @@ public sealed partial class MachineController
                 {
                     operation.Cancel();
                     _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable);
-                }
-                else if (_state.IsError || HomeBlock != HomeBlockReason.None)
-                {
-                    operation.Cancel();
                 }
             }
             catch (Exception exception)
@@ -306,6 +259,10 @@ public sealed partial class MachineController
         try
         {
             _state.IsHoming = true;
+            await RaiseCylindersAsync(operation);
+            homingAxes = true;
+            StopWhenHomeBecomesUnavailable();
+            cancellationToken.ThrowIfCancellationRequested();
             await HomeVerticalAxesAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await HomeHorizontalAxesAsync(cancellationToken);
@@ -315,7 +272,8 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
+            _state.SetError(_state.IsError ? _state.Alarm
+                : exception is IOException ? MachineAlarm.IoCommunication : MachineAlarm.HomeFailed, exception);
         }
         finally
         {

@@ -269,7 +269,7 @@ public sealed partial class ConveyorTests
         };
         using var restartStop = new CancellationTokenSource();
         var restarted = conveyor.RunAsync(restartStop.Token);
-        Assert.Equal(MainConveyorState.Idle, conveyor.State);
+        Assert.Equal(MainConveyorState.WaitingForPcbPlacement, conveyor.State);
         restartStop.Cancel();
         await restarted.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(unsafeOutput);

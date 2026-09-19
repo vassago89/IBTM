@@ -41,7 +41,6 @@ public sealed record MachineDisplay
     public bool Homed { get; init; }
     public bool IsStartAllowed { get; init; }
     public bool IsHomeAllowed { get; init; }
-    public bool IsRaiseCylindersAllowed { get; init; }
     public IReadOnlySet<(MotionGroup Group, MotionAxis Axis)> HomeableAxes { get; init; }
     public ManualControlBlock ManualBlock { get; init; } = ManualControlBlock.MotionNotReady;
 

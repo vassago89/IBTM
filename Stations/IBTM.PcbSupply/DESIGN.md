@@ -7,7 +7,7 @@ The confirmed sequence uses separate rotation and handoff heights.
 
 - Pick PCB 1 and PCB 2 from the same upstream carrier.
 - Secure each PCB with the supply gripper and IPM fixer.
-- Rotate at Rotation Z, then approach Placement at the taught give Z.
+- Pick while Rotated, then unrotate at Rotation Z and approach Placement at the taught give Z.
 - Hold the PCB until Placement confirms its receiving position and holding inputs.
 - Complete the upstream SMEMA handshake after both pickup positions are checked.
 
@@ -21,7 +21,7 @@ The confirmed sequence uses separate rotation and handoff heights.
 | PCB 2 Pick X/Z | Second pickup position |
 | PCB Give Position XYZ | Handoff Z followed by handoff XY; also the return travel height |
 
-Standby is PCB 1 X, common pickup Y, and Rotation Z, with rotation returned.
+Standby is PCB 1 X, common pickup Y, and Rotation Z, with Rotated feedback confirmed.
 There is no separate standby, Clear Z, return coordinate, or collision boundary.
 The two pick X/Z values belong to the recipe; the other values are machine settings.
 
@@ -32,14 +32,14 @@ must have give Z taught before equipment operation; do not infer it from Rotatio
 ## Normal flow
 
 ```text
-PCB 1 XY + Rotation Z, unrotated
+PCB 1 XY + Rotation Z, rotated
   -> wait for upstream Board Available
   -> selected PCB pickup Z
   -> PCB detection
   -> close supply gripper and confirm
   -> advance IPM fixer and confirm
   -> Rotation Z
-  -> rotation IO ON and rotated input confirmed
+  -> rotation IO OFF and unrotated input confirmed
   -> give Z
   -> give X/Y together, keeping give Z
   -> wait for Placement to secure the PCB at its receiving XYZ
@@ -48,7 +48,7 @@ PCB 1 XY + Rotation Z, unrotated
   -> wait for Placement Handler Up
   -> next pickup X/Y together, keeping give Z
   -> Rotation Z
-  -> rotation IO OFF and unrotated input confirmed
+  -> rotation IO ON and rotated input confirmed
 ```
 
 PCB 2 follows the same pickup and handoff sequence, without another upstream
@@ -63,7 +63,8 @@ same carrier handshake.
 `MovingToHandoff` reaches give Z before any XY approach. The motion call receives
 this height explicitly, so it cannot first move back to the default Rotation Z.
 `MovingFromHandoff` keeps give Z throughout the XY withdrawal. Only after the
-handler reaches the next pickup XY does `RaisingForPickup` return to Rotation Z for unrotation.
+handler reaches the next pickup XY does `RaisingForPickup` return to Rotation Z for rotation.
+`UnrotatingForHandoff` confirms Unrotated before handoff; `RotatingForPickup` confirms Rotated before pickup.
 
 ## Direct handoff and live feedback
 
@@ -88,8 +89,8 @@ inputs ON or both OFF mean Between. PCB detection alone does not prove holding:
 `Secured` also requires closed-gripper and IPM-fixer feedback. Output commands
 never substitute for endpoint confirmation.
 
-Manual XY travel and jog use Rotation Z when unrotated and give Z when rotated. A handoff point
-move requires rotated feedback. A pickup point move requires unrotated feedback.
+Manual XY travel and jog use Rotation Z when rotated and give Z when unrotated. A handoff point
+move requires unrotated feedback. A pickup point move requires rotated feedback.
 
 ## SMEMA and slot progress
 

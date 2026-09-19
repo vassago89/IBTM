@@ -1077,7 +1077,7 @@ public sealed class IoStartupTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CylinderRaiseReportsInputReadFailureBeforeAnyActuation(bool operationStarted)
+    public async Task HomePreparationReportsInputReadFailureBeforeAnyActuation(bool operationStarted)
     {
         await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
@@ -1087,7 +1087,7 @@ public sealed class IoStartupTests
         await machine.InitializeAsync();
         await state.StopDisplayUpdatesAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
-        Assert.True(machine.IsRaiseCylindersAllowed);
+        Assert.True(machine.IsHomeAllowed);
         var failure = new IOException("PCB input became unavailable before cylinder raise.");
         var readsFailed = 0;
         var cylinderWrites = 0;
@@ -1108,12 +1108,12 @@ public sealed class IoStartupTests
         };
         try
         {
-            var escaped = await Record.ExceptionAsync(() => machine.RaiseCylindersAsync(CancellationToken.None));
+            var escaped = await Record.ExceptionAsync(() => machine.HomeAsync(CancellationToken.None));
 
             Assert.Null(escaped);
             Assert.Equal(1, readsFailed);
             Assert.Equal(0, cylinderWrites);
-            Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
             Assert.Equal(failure.ToString(), state.AlarmDetail);
             Assert.False(operations.HasActiveOperations);
             Assert.False(state.IsRunning);

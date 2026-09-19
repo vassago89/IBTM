@@ -40,6 +40,9 @@ public enum MainConveyorState
     [Description("Waiting for S2 fastening completion")]
     WaitingForBoltFastening,
 
+    [Description("Waiting for S1 placement completion")]
+    WaitingForPcbPlacement,
+
     [Description("Waiting for S3 / NG pickup to clear")]
     WaitingForInspectionClear,
 

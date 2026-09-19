@@ -34,6 +34,7 @@ public sealed partial class MainConveyor
             await _io.WaitForInputAsync(
                 InputIo.MainConveyorEntryCarrierDetected,
                 true,
+                (int)(_settings.TransferTimeoutSeconds * 1000),
                 cancellationToken);
         }
         catch (Exception exception)
@@ -55,6 +56,8 @@ public sealed partial class MainConveyor
         var destination = destinationWork.Station;
         var departingJob = sourceWork?.CurrentJob;
         var receiving = sourceWork is null;
+        var timeout = TimeSpan.FromSeconds(_settings.TransferTimeoutSeconds);
+        var timeoutMilliseconds = (int)timeout.TotalMilliseconds;
         var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var carrierLeft = new AsyncAutoResetEvent();
@@ -106,15 +109,22 @@ public sealed partial class MainConveyor
             {
                 try
                 {
-                    await entered.Task.WaitAsync(TimeSpan.FromMilliseconds(_io.TimeoutMilliseconds), cancellationToken);
+                    await entered.Task.WaitAsync(timeout, cancellationToken);
                 }
                 catch (TimeoutException)
                 {
-                    throw new IoTimeoutException(InputIo.MainConveyorEntryCarrierDetected, true, _io.TimeoutMilliseconds);
+                    throw new IoTimeoutException(InputIo.MainConveyorEntryCarrierDetected, true, timeoutMilliseconds);
                 }
                 _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
             }
-            await arrived.Task.WaitAsync(cancellationToken);
+            try
+            {
+                await arrived.Task.WaitAsync(timeout, cancellationToken);
+            }
+            catch (TimeoutException)
+            {
+                throw new IoTimeoutException(destination.HeatSink2Input, true, timeoutMilliseconds);
+            }
             if (!destination.CarrierPresent)
                 carrierLeft.Set();
             TraceStep(State, target: "seating push", workId: destinationWork.CurrentJob.Id, waitingFor:
@@ -169,6 +179,7 @@ public sealed partial class MainConveyor
         var rearReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var feedbackChanged = new AsyncAutoResetEvent();
         var clearDelay = TimeSpan.FromSeconds(_settings.ExitSensorClearDelaySeconds);
+        var timeout = TimeSpan.FromSeconds(_settings.TransferTimeoutSeconds);
         void ObserveRear()
         {
             if (!DownstreamReady)
@@ -212,7 +223,6 @@ public sealed partial class MainConveyor
                 $"Rear Ready=OFF OR exit detected then first OFF + {clearDelay.TotalSeconds} s and sensor=OFF");
             var started = Stopwatch.GetTimestamp();
             StartMotor(cancellationToken);
-            var timeout = TimeSpan.FromMilliseconds(_io.TimeoutMilliseconds);
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -254,7 +264,7 @@ public sealed partial class MainConveyor
                 }
                 if (remaining <= TimeSpan.Zero)
                     throw new IoTimeoutException(
-                        InputIo.MainConveyorExitCarrierDetected, waitingForDetection, _io.TimeoutMilliseconds);
+                        InputIo.MainConveyorExitCarrierDetected, waitingForDetection, (int)timeout.TotalMilliseconds);
                 await feedbackChanged.WaitAsync(remaining, cancellationToken);
             }
         }

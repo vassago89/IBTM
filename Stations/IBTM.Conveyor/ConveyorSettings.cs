@@ -5,6 +5,24 @@ namespace IBTM.Conveyor;
 
 public sealed class ConveyorSettings : Setting
 {
+    public double TransferTimeoutSeconds
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value)
+                || value <= 0
+                || value > int.MaxValue / 1000.0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Transfer timeout must be positive and fit in milliseconds.");
+            }
+
+            field = value;
+        }
+    } = 5.0;
+
     public double CarrierStopDelaySeconds
     {
         get;

@@ -256,6 +256,52 @@ public sealed class HikCameraTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task DisposeWaitsForLiveBufferThenClosesHandleEvenWhenConnectionIsLost(bool connectionLost)
+    {
+        using var reading = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var sdk = new CameraSdk
+        {
+            BeforeRead = () =>
+            {
+                reading.Set();
+                Assert.True(release.Wait(TimeSpan.FromSeconds(3)));
+            },
+        };
+        using var camera = sdk.CreateCamera();
+        camera.StartLiveView();
+        Task? disposing = null;
+        try
+        {
+            Assert.True(reading.Wait(TimeSpan.FromSeconds(2)));
+            sdk.Connected = !connectionLost;
+            disposing = Task.Run(camera.Dispose);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => !camera.IsLiveView, TimeSpan.FromSeconds(1)));
+            Assert.False(disposing.IsCompleted);
+            Assert.False(sdk.Disposed);
+            Assert.DoesNotContain("Close", sdk.Calls);
+        }
+        finally
+        {
+            release.Set();
+            if (disposing is not null)
+                await disposing.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        Assert.Equal(["Start", "Read", "Free", "Stop", "Close", "Dispose"], sdk.Calls.ToArray());
+        Assert.False(sdk.Connected);
+        Assert.True(sdk.Disposed);
+        sdk.Calls.Clear();
+        camera.Dispose(); // The DI container can release the same singleton after application cleanup.
+        Assert.Throws<ObjectDisposedException>(camera.Initialize);
+        Assert.Throws<ObjectDisposedException>(camera.StartLiveView);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => camera.CaptureAsync());
+        Assert.Empty(sdk.Calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void DisposeReleasesDeviceAndPreservesCleanupFailures(bool cascadingFailures)
     {
         var sdk = new CameraSdk
@@ -334,6 +380,8 @@ public sealed class HikCameraTests
         public bool CloseFails;
         public bool DisposeFails;
         public bool Disposed;
+        public bool Connected = true;
+        public Action? BeforeRead;
         public int ConnectionChecks;
         public uint Width = 1;
         public uint Height = 1;
@@ -390,6 +438,7 @@ public sealed class HikCameraTests
                             Assert.True(_grabbing);
                             Assert.False(_bufferHeld);
                             Calls.Enqueue("Read");
+                            BeforeRead?.Invoke();
                             Thread.Sleep(1);
                             if (NoData)
                                 return MvError.MV_E_NODATA;
@@ -428,8 +477,9 @@ public sealed class HikCameraTests
                     {
                         case "get_IsConnected":
                             ConnectionChecks++;
-                            return true;
+                            return Connected;
                         case "Dispose":
+                            Calls.Enqueue("Dispose");
                             Disposed = true;
                             if (DisposeFails)
                                 throw new InvalidOperationException("Simulated device dispose failure.");
@@ -439,6 +489,8 @@ public sealed class HikCameraTests
                         case "get_PixelTypeConverter":
                             return converter;
                         case "Close":
+                            Calls.Enqueue("Close");
+                            Connected = false;
                             return CloseFails ? MvError.MV_E_CALLORDER : MvError.MV_OK;
                         default:
                             throw new NotSupportedException(method.Name);

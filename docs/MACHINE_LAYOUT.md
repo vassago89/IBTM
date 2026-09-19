@@ -77,11 +77,11 @@ and sensor hardware. The operator view therefore shows:
 - the shared HANDOFF area, without a physical buffer or locating pins.
 
 PCB 1 and PCB 2 share one carrier Y and differ in X. The Buffer has the second
-Supply Y. Supply rotates at Rotation Z, reaches give Z, then
+Supply Y. Supply picks while Rotated, unrotates at Rotation Z, reaches give Z, then
 moves X/Y together at give Z between those two lines. After release and confirmed
 Placement Handler Up, it returns at give Z directly to the next PCB pickup X and
 Carrier Y: PCB 2 after PCB 1, and the next carrier's PCB 1 after PCB 2. It then reaches
-Rotation Z and unrotates. Initial standby is PCB 1 XY at Rotation Z.
+Rotation Z and rotates for pickup. Initial standby is PCB 1 XY at Rotation Z, Rotated.
 
 There is no physical PCB buffer or buffer-present input. The HANDOFF area shows
 handler position and PCB presence. There are no collision boundaries or area-based
@@ -478,8 +478,9 @@ button; operator confirmation has no automatic timeout.
   unknown until the supply handler's PCB sensor checks each pickup position.
 - Show the inspection camera and NG gripper on the same moving Inspection Gantry.
   The camera is mounted on the operator side (down in the plan); the carrier picker
-  is behind it (up), not beside it. The picker uses the shared carrier width and
-  height, and its jaws span the carrier rather than a PCB-sized footprint.
+  is behind it (up), not beside it. The picker grips the upper and lower carrier
+  edges along Y, with horizontal jaws and a narrow body centred on the carrier.
+  The carried workpiece retains the shared carrier width and height.
 - Show exactly one main carrier conveyor.
 - Show NG Conveyor and NG Shuttle as a secondary path, not as another production
   station or a generic NG Stack box.

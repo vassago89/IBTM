@@ -54,6 +54,64 @@ public sealed partial class ConveyorTests
         Assert.False(conveyor.RunCommandOn);
     }
 
+    [Theory]
+    [InlineData(InputIo.MainConveyorEntryCarrierDetected)]
+    [InlineData(InputIo.PcbPlacementHeatSink2Present)]
+    [InlineData(InputIo.BoltFasteningHeatSink2Present)]
+    [InlineData(InputIo.InspectionHeatSink2Present)]
+    public async Task TransferTimeoutStopsBeltAndReportsMissingArrivalInput(InputIo missingInput)
+    {
+        var io = CreateIo(timeoutMilliseconds: 1_000);
+        io.Initialize();
+        var conveyor = CreateConveyor(
+            io,
+            placementEnabled: false,
+            boltFasteningEnabled: false,
+            settings: new ConveyorSettings { TransferTimeoutSeconds = 0.2 });
+        switch (missingInput)
+        {
+            case InputIo.MainConveyorEntryCarrierDetected:
+                io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
+                break;
+            case InputIo.PcbPlacementHeatSink2Present:
+                io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+                break;
+            case InputIo.BoltFasteningHeatSink2Present:
+                await SetSeatedCarrierAsync(io, io,
+                    InputIo.PcbPlacementHeatSink1Present, OutputIo.PcbPlacementBackupPlateUp);
+                break;
+            case InputIo.InspectionHeatSink2Present:
+                await SetSeatedCarrierAsync(io, io,
+                    InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
+                break;
+        }
+
+        var run = conveyor.RunAsync();
+        await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+        // HS1 alone must not complete or restart the HS2 arrival wait.
+        switch (missingInput)
+        {
+            case InputIo.PcbPlacementHeatSink2Present:
+                io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+                break;
+            case InputIo.BoltFasteningHeatSink2Present:
+                io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+                break;
+            case InputIo.InspectionHeatSink2Present:
+                io.SetInput(InputIo.InspectionHeatSink1Present, true);
+                break;
+        }
+        var error = await Assert.ThrowsAsync<IoTimeoutException>(
+            () => run.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal(new IoTimeoutException(missingInput, true, 200).Message, error.Message);
+        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+        Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
+        Assert.False(io.GetOutput(OutputIo.BoltFasteningBackupPlateUp));
+        Assert.False(io.GetOutput(OutputIo.InspectionBackupPlateUp));
+    }
+
     [Fact]
     public async Task RepeatSeatsStation1AndWaitsForPlacementBeforeTransfer()
     {
@@ -115,6 +173,7 @@ public sealed partial class ConveyorTests
         var io = CreateIo(timeoutMilliseconds: 1_000);
         io.Initialize();
         Assert.Equal(3.0, new ConveyorSettings().CarrierStopDelaySeconds);
+        Assert.Equal(5.0, new ConveyorSettings().TransferTimeoutSeconds);
         var settings = new ConveyorSettings { CarrierStopDelaySeconds = 0.2 };
         var conveyor = CreateConveyor(
             io,
@@ -347,6 +406,13 @@ public sealed partial class ConveyorTests
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
         source.Complete(source.CurrentJob);
         io.AutoResponseEnabled = false;
+        var inspectionWaiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        conveyor.Trace += message =>
+        {
+            if (message.StartsWith("Waiting for feedback / work change:", StringComparison.Ordinal)
+                && message.Contains(nameof(MainConveyorState.WaitingForInspection), StringComparison.Ordinal))
+                inspectionWaiting.TrySetResult();
+        };
         var run = conveyor.RunAsync();
         try
         {
@@ -378,6 +444,12 @@ public sealed partial class ConveyorTests
             Assert.True(await WaitUntilAsync(
                 () => conveyor.State == MainConveyorState.WaitingForInspection,
                 TimeSpan.FromSeconds(1)));
+            await inspectionWaiting.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
+            Assert.Equal(MainConveyorState.WaitingForInspection, conveyor.State);
+            Assert.False(conveyor.RunCommandOn);
+            io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
             Assert.True(destination.AtInspectionPosition);
             Assert.False(io.GetOutput(OutputIo.InspectionBackupPlateUp));
             Assert.True(io.GetOutput(OutputIo.InspectionStopperUp));

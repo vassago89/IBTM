@@ -23,6 +23,7 @@ public sealed class HikCamera : ICamera, IDisposable
     private IStreamGrabber? _streamGrabber;
     private Thread? _liveThread;
     private bool _sdkInitialized;
+    private bool _disposed;
     private bool _grabbing;
     private volatile bool _liveView;
 
@@ -44,6 +45,7 @@ public sealed class HikCamera : ICamera, IDisposable
     {
         lock (_grabGate)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             if (_device?.IsConnected == true)
             {
                 try
@@ -306,6 +308,7 @@ public sealed class HikCamera : ICamera, IDisposable
     {
         lock (_grabGate)
         {
+            _disposed = true;
             Exception? failure = null;
             try
             {
@@ -445,7 +448,7 @@ public sealed class HikCamera : ICamera, IDisposable
         FrameSize = default;
         try
         {
-            if (device?.IsConnected == true)
+            if (device is not null)
                 Check(device.Close(), "Close Hik camera");
         }
         catch (Exception exception)

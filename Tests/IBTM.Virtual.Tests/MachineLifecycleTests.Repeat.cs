@@ -42,8 +42,7 @@ public sealed partial class MachineLifecycleTests
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 12 };
         recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 12 };
         recipe.BoltFastening.PcbPreset = 3;
-        recipe.BoltFastening.IpmSeatingPreset = 2;
-        recipe.BoltFastening.IpmFinalPreset = 1;
+        recipe.BoltFastening.PickupPreset = 1;
         settings.BoltFastening.ShootingHead.FasteningZ = 8;
         settings.BoltFastening.PickupHead.FasteningZ = 12;
         var machine = services.GetRequiredService<MachineController>();
@@ -143,8 +142,7 @@ public sealed partial class MachineLifecycleTests
                 foreach (var assembly in assemblies)
                 {
                     Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(assembly.PcbBoltResults).Value.Source);
-                    Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(assembly.IpmSeatingResults).Value.Source);
-                    Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(assembly.IpmFinalResults).Value.Source);
+                    Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(assembly.PickupBoltResults).Value.Source);
                     Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
                 }
             }

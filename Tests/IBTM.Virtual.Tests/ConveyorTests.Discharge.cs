@@ -311,13 +311,17 @@ public sealed partial class ConveyorTests
     [InlineData(true)]
     public async Task DischargeStillFaultsWhenExitFeedbackNeverArrivesOrNeverClears(bool stuckOn)
     {
-        var settings = new ConveyorSettings { ExitSensorClearDelaySeconds = 0.05 };
+        var settings = new ConveyorSettings
+        {
+            TransferTimeoutSeconds = 0.2,
+            ExitSensorClearDelaySeconds = 0.05,
+        };
         var (io, conveyor) = await PrepareRearDischargeAsync(settings, timeoutMilliseconds: 1_000);
         io.SetInput(InputIo.MainConveyorExitCarrierDetected, stuckOn);
 
         var error = await Assert.ThrowsAsync<IoTimeoutException>(() => conveyor.RunAsync());
         Assert.Equal(new IoTimeoutException(
-            InputIo.MainConveyorExitCarrierDetected, !stuckOn, io.TimeoutMilliseconds).Message, error.Message);
+            InputIo.MainConveyorExitCarrierDetected, !stuckOn, 200).Message, error.Message);
 
         Assert.False(conveyor.RunCommandOn);
         Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));

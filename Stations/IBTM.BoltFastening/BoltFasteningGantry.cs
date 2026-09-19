@@ -80,6 +80,22 @@ public sealed class BoltFasteningGantry
         }
     }
 
+    public BoltCylinderState PickupTablePosition
+    {
+        get
+        {
+            switch ((_io.GetInput(InputIo.PickupTableUp), _io.GetInput(InputIo.PickupTableDown)))
+            {
+                case (true, false):
+                    return BoltCylinderState.Up;
+                case (false, true):
+                    return BoltCylinderState.Down;
+                default:
+                    return BoltCylinderState.Between;
+            }
+        }
+    }
+
     public bool IsHorizontalMoveAllowed
     {
         get
@@ -113,9 +129,12 @@ public sealed class BoltFasteningGantry
             && (live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.SafeZ));
     }
 
-    internal bool IsAt(BoltPoint bolt, bool live = true)
+    internal bool IsAt(BoltPoint bolt, bool live = true, bool atTravelZ = false)
     {
-        return IsAt(_settings.GetBoltPosition(bolt, _carrierReference), live);
+        var position = _settings.GetBoltPosition(bolt, _carrierReference);
+        if (atTravelZ)
+            position.Z = _settings.SafeZ;
+        return IsAt(position, live);
     }
 
     internal bool HasPosition(BoltPoint bolt)
@@ -269,13 +288,17 @@ public sealed class BoltFasteningGantry
         }
     }
 
-    internal async Task MoveToBoltAsync(BoltPoint bolt, CancellationToken cancellationToken = default)
+    internal async Task MoveToBoltAsync(
+        BoltPoint bolt, CancellationToken cancellationToken = default, bool atTravelZ = false)
     {
         var position = _settings.GetBoltPosition(bolt, _carrierReference);
         // XY travel uses Safe Z. Approach the work height with both heads raised.
         await MoveToXYAsync(position.X, position.Y, cancellationToken);
-        EnsureCanMoveHorizontal(cancellationToken);
-        await MoveZAsync(position.Z, cancellationToken);
+        if (!atTravelZ)
+        {
+            EnsureCanMoveHorizontal(cancellationToken);
+            await MoveZAsync(position.Z, cancellationToken);
+        }
     }
 
     internal async Task FinishFasteningAsync(
@@ -301,6 +324,11 @@ public sealed class BoltFasteningGantry
         return _io.SetOutputAndWaitAsync(output, down, cancellationToken);
     }
 
+    internal Task SetPickupTableDownAsync(bool down, CancellationToken cancellationToken)
+    {
+        return _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, down, cancellationToken);
+    }
+
     public Task RaiseCylindersAsync(CancellationToken cancellationToken = default)
     {
         return Task.WhenAll(
@@ -311,6 +339,9 @@ public sealed class BoltFasteningGantry
     internal async Task MoveToPickupXYAsync(CancellationToken cancellationToken = default)
     {
         await RaiseCylindersAsync(cancellationToken);
+        await MoveToSafeZAsync(cancellationToken);
+        if (PickupTablePosition != BoltCylinderState.Down)
+            await SetPickupTableDownAsync(true, cancellationToken);
         await MoveToXYAsync(
             _settings.PickupPosition.X,
             _settings.PickupPosition.Y,
@@ -513,6 +544,8 @@ public sealed class BoltFasteningGantry
             or InputIo.PickupHeadDown
             or InputIo.ShootingHeadUp
             or InputIo.ShootingHeadDown
+            or InputIo.PickupTableUp
+            or InputIo.PickupTableDown
             or InputIo.ShootingEscapeForward
             or InputIo.ShootingEscapeBackward)
         {
