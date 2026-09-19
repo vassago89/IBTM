@@ -80,11 +80,11 @@ public partial class TeachingViewModel
                         return "ROI not saved · Add/select a bolt or select Data Matrix, then Apply ROI.";
                     return "ROI not saved · Set the resolution and Apply ROI.";
                 case true when metadata is { IsBarcode: true } barcode:
-                    return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to replace ROI";
+                    return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to resize the centered square";
                 default:
                     return metadata?.BoltNumber is { } number
-                        ? $"{metadata.HeatSink.GetDescription()} · Bolt {number} · Drag to replace ROI"
-                        : "Drag one ROI. Select a bolt or Data Matrix to save it.";
+                        ? $"{metadata.HeatSink.GetDescription()} · Bolt {number} · Drag to resize the centered square"
+                        : "Resize the centered square. Select a bolt or Data Matrix, then Apply ROI.";
             }
         }
     }
@@ -207,7 +207,14 @@ public partial class TeachingViewModel
 
         ReadDataMatrixCommand.Cancel();
         DataMatrixResult = null;
-        var bounds = metadata?.Region is { } region
+        var region = metadata?.Region;
+        if (region is null && value is not null)
+        {
+            var width = value.Image.PixelWidth;
+            var height = value.Image.PixelHeight;
+            region = PixelRegion.CenteredSquare(width, height, Math.Min(width, height) / 4);
+        }
+        var bounds = region is not null
             ? new Rect(region.X, region.Y, region.Width, region.Height)
             : (Rect?)null;
         if (FovRegion == bounds)
@@ -331,6 +338,12 @@ public partial class TeachingViewModel
 
     private async Task DrawFovRegionAsync(Rect bounds)
     {
+        if (bounds.IsEmpty)
+            return;
+        var image = SelectedFov!.Image;
+        var region = PixelRegion.CenteredSquare(
+            image.PixelWidth, image.PixelHeight, (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
+        bounds = new Rect(region.X, region.Y, region.Width, region.Height);
         FovRegion = bounds;
         if (IsTeachFovRegionAllowed(bounds))
             await TeachFovRegionAsync(bounds);
@@ -349,16 +362,16 @@ public partial class TeachingViewModel
 
     private async Task TeachFovRegionAsync(Rect bounds)
     {
+        if (bounds.IsEmpty)
+            return;
         var fov = SelectedFov!;
         var point = SelectedPoint!;
         var barcode = SelectedBarcode;
         var bolt = point.Position.Bolt;
         var pcb = SelectedPcb;
-        var left = (int)Math.Floor(bounds.Left);
-        var top = (int)Math.Floor(bounds.Top);
-        var region = new PixelRegion(left, top, (int)Math.Ceiling(bounds.Right) - left, (int)Math.Ceiling(bounds.Bottom) - top);
-        if (!region.IsInside(fov.Image.PixelWidth, fov.Image.PixelHeight))
-            return;
+        var region = PixelRegion.CenteredSquare(
+            fov.Image.PixelWidth, fov.Image.PixelHeight,
+            (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
         var viewToken = ViewCancellation;
         var activeToken = CancellationToken.None;
         try

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using IBTM.Core;
 using IBTM.Inspection;
 
 namespace IBTM.UI;
@@ -151,14 +152,15 @@ public sealed class ImageTeachingView : FrameworkElement
         var fitted = ImageBounds;
         var scale = fitted.Width / source.PixelWidth;
         drawing.DrawImage(source, fitted);
-        if (SourceRegion is { } region)
+        var displayedRegion = !IsMeasuring && _dragEnd is { } point ? GetRegion(point) : SourceRegion;
+        if (displayedRegion is { } region)
         {
             var bounds = new Rect(
                 fitted.X + region.X * scale,
                 fitted.Y + region.Y * scale,
                 region.Width * scale,
                 region.Height * scale);
-            if (SourceOverlay is not null)
+            if (SourceOverlay is not null && _dragStart is null)
                 drawing.DrawImage(SourceOverlay, bounds);
             drawing.DrawRectangle(null, RegionPen, bounds);
         }
@@ -177,13 +179,6 @@ public sealed class ImageTeachingView : FrameworkElement
                 drawing.DrawEllipse(Brushes.Black, RulerPen, first, 4, 4);
                 drawing.DrawEllipse(Brushes.Black, RulerPen, last, 4, 4);
             }
-        }
-        else if (_dragStart is { } start && _dragEnd is { } end)
-        {
-            var draft = new Rect(start, end);
-            drawing.DrawRectangle(null, RegionPen, new Rect(
-                fitted.X + draft.X * scale, fitted.Y + draft.Y * scale,
-                draft.Width * scale, draft.Height * scale));
         }
 
         if (!ShowCrosshair)
@@ -248,7 +243,7 @@ public sealed class ImageTeachingView : FrameworkElement
         }
         else
         {
-            var region = new Rect(start, end);
+            var region = GetRegion(end);
             if (region is { Width: > 0, Height: > 0 } && RegionCommand?.CanExecute(region) == true)
                 RegionCommand.Execute(region);
         }
@@ -302,6 +297,17 @@ public sealed class ImageTeachingView : FrameworkElement
         return new Point(
             Math.Clamp((screen.X - fitted.X) / scale, 0, source.PixelWidth),
             Math.Clamp((screen.Y - fitted.Y) / scale, 0, source.PixelHeight));
+    }
+
+    private Rect GetRegion(Point point)
+    {
+        var source = Source!;
+        var halfSize = Math.Max(
+            Math.Abs(point.X - source.PixelWidth / 2.0),
+            Math.Abs(point.Y - source.PixelHeight / 2.0));
+        var region = PixelRegion.CenteredSquare(
+            source.PixelWidth, source.PixelHeight, (int)Math.Ceiling(halfSize) * 2);
+        return new Rect(region.X, region.Y, region.Width, region.Height);
     }
 
     private static void OnDrawingContextChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)

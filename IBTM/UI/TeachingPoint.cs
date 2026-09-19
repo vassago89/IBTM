@@ -190,8 +190,8 @@ public enum TeachingSaveBehavior
     Recipe,
     [Description("PCB handoff · Apply & Save Handoff before leaving Teaching; otherwise staged changes are discarded.")]
     Buffer,
-    [Description("Add Current Image, then draw the bolt ROI on the saved FOV. This heat sink is taught independently. Saves automatically.")]
+    [Description("Center the bolt in Live, then Add Current Image. Resize the centered square ROI. This heat sink is taught independently. Saves automatically.")]
     Image,
-    [Description("Live: jog, stop, Add Current Image. Draw the barcode ROI on the saved FOV for this heat sink. Reading returns to the captured XY. Saves automatically.")]
+    [Description("Center the Data Matrix in Live, stop, then Add Current Image. Resize the centered square ROI. Reading returns to the captured XY. Saves automatically.")]
     BarcodeFov,
 }

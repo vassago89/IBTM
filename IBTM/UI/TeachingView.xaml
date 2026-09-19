@@ -84,7 +84,7 @@
                     </ui:TeachingPointList>
                     <StackPanel Grid.Row="2" Margin="0,8,0,0"
                         Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="Add Bolt → Add Current Image → Draw ROI"
+                        <TextBlock Text="Add Bolt → Center in Live → Add Current Image → Resize ROI"
                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                         <ComboBox ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" Margin="0,0,0,6"/>
                         <UniformGrid Columns="2">
@@ -197,7 +197,7 @@
                                         Command="{Binding TeachFovRegionCommand}"
                                         CommandParameter="{Binding FovRegion}"
                                         Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"
-                                        ToolTip="Save this ROI for the selected bolt or Data Matrix. Bolt coordinates use the entered resolution; captured XY does not change."/>
+                                        ToolTip="Save the centered square ROI for the selected bolt or Data Matrix. Captured XY does not change."/>
                                     <ToggleButton Content="Ruler" IsChecked="{Binding IsMeasuring}"
                                         Padding="10,6" Margin="6,0,0,6"
                                         ToolTip="Drag between two known points on the saved image to calibrate mm per pixel."/>
@@ -218,8 +218,8 @@
                                         RegionCommand="{Binding DrawFovRegionCommand}"
                                         IsMeasuring="{Binding IsMeasuring}"
                                         Ruler="{Binding Ruler}" MeasureCommand="{Binding MeasureImageCommand}"
-                                        ShowCrosshair="False" Cursor="Cross"
-                                        ToolTip="Drag to draw an ROI, or to measure a line in Ruler mode. Esc cancels the drag."/>
+                                        ShowCrosshair="True" Cursor="Cross"
+                                        ToolTip="Drag toward or away from the center to resize the square ROI. The center stays fixed. Ruler measures freely. Esc cancels the drag."/>
                                     <ScrollViewer Grid.Column="1" Width="200" Margin="10,0,0,0"
                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                         Visibility="{Binding IsBoltSelected, Converter={StaticResource BoolToVis}}">
@@ -269,7 +269,7 @@
                                                 </Button.Style>
                                             </Button>
                                         </WrapPanel>
-                                        <TextBlock Text="Updates both heat sinks' saved bolt coordinates from their ROIs. Capture XY and ROIs stay fixed. Turn Ruler off to draw an ROI."
+                                        <TextBlock Text="Updates both heat sinks' saved bolt coordinates from their ROIs. Capture XY and ROIs stay fixed. Turn Ruler off to resize the ROI."
                                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
                                     </StackPanel>
                                     <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"
@@ -281,12 +281,12 @@
                                     </StackPanel>
                                     <TextBlock Text="{Binding FovRoiLabel}" TextWrapping="Wrap"/>
                                     <TextBlock
-                                        Text="Bolt: ROI center sets its coordinate. Data Matrix: read only this ROI. Both return to the original capture XY."
+                                        Text="ROI: centered square, size only. Align the bolt or Data Matrix with the live crosshair before capturing."
                                         TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}">
                                         <Run Text="Capture XY · "/><Run Text="{Binding SelectedFov.Metadata.Center.X, StringFormat={}{0:F3}}"/>
                                         <Run Text=", "/><Run Text="{Binding SelectedFov.Metadata.Center.Y, StringFormat={}{0:F3}}"/>
-                                        <Run Text=" mm · Drawing saves when the selected target is ready"/>
+                                        <Run Text=" mm · Resizing saves when the selected target is ready"/>
                                     </TextBlock>
                                 </StackPanel>
                             </Grid>
