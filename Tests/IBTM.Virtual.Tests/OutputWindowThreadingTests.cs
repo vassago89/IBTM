@@ -157,7 +157,7 @@ public sealed class OutputWindowThreadingTests
 
     private static async Task VerifyWindowsAsync(Application app)
     {
-        foreach (var resource in new[] { "AppStyles", "MachineStyles", "IoWindowStyles" })
+        foreach (var resource in new[] { "AppStyles", "MachineStyles", "WorkpieceStyles", "IoWindowStyles" })
             app.Resources.MergedDictionaries.Add(
                 new ResourceDictionary
                 {
@@ -392,6 +392,10 @@ public sealed class OutputWindowThreadingTests
 
         var operation = services.GetRequiredService<OperationViewModel>();
         operation.Activate();
+        var operationView = new OperationView { DataContext = operation };
+        operationView.Measure(new Size(1600, 900));
+        operationView.Arrange(new Rect(0, 0, 1600, 900));
+        operationView.UpdateLayout();
         var conveyorEnabled = new CheckBox();
         conveyorEnabled.SetBinding(
             System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,

@@ -46,6 +46,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInputs(
             (InputIo.MainConveyorAvailableFromFront2, false),
             (InputIo.MainConveyorReadyFromRear, false),
+            (InputIo.NgCarrierDetected, true),
             (InputIo.PcbPlacementHeatSink1Present, false),
             (InputIo.PcbPlacementHeatSink2Present, true));
         // Match the equipment case: HS2 only and the empty next station raised.
@@ -70,6 +71,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(fastening.Station.CarrierPresent);
             Assert.False(inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1));
             Assert.True(inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2));
+            Assert.True(io.GetInput(InputIo.NgCarrierDetected));
             Assert.False(conveyor.RunCommandOn);
             Assert.True(state.AutomaticRunning);
             Assert.Equal(MachineAlarm.None, state.Alarm);

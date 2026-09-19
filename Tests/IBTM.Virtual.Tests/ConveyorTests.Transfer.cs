@@ -298,7 +298,7 @@ public sealed partial class ConveyorTests
         io.SetInput(InputIo.NgCarrierDetected, true);
         await SetSeatedCarrierAsync(
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
-        var conveyor = CreateConveyor(io, boltFasteningEnabled: false);
+        var conveyor = CreateConveyor(io, boltFasteningEnabled: false, ngCarrierTransferEnabled: true);
         var steps = new System.Collections.Concurrent.ConcurrentQueue<string>();
         conveyor.Trace += steps.Enqueue;
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));

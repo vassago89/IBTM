@@ -290,8 +290,8 @@
                                         Text="ROI: centered square, size only. Align the bolt or Data Matrix with the live crosshair before capturing."
                                         TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}">
-                                        <Run Text="Capture XY · "/><Run Text="{Binding SelectedFov.Metadata.Center.X, StringFormat={}{0:F3}}"/>
-                                        <Run Text=", "/><Run Text="{Binding SelectedFov.Metadata.Center.Y, StringFormat={}{0:F3}}"/>
+                                        <Run Text="Capture XY · "/><Run Text="{Binding SelectedFov.Metadata.Center.X, Mode=OneWay, StringFormat={}{0:F3}}"/>
+                                        <Run Text=", "/><Run Text="{Binding SelectedFov.Metadata.Center.Y, Mode=OneWay, StringFormat={}{0:F3}}"/>
                                         <Run Text=" mm · Resizing saves when the selected target is ready"/>
                                     </TextBlock>
                                 </StackPanel>

@@ -23,7 +23,7 @@
                     <TextBlock Margin="0,3,0,0" FontSize="14" TextTrimming="CharacterEllipsis"
                         Foreground="{StaticResource TextPrimaryBrush}"
                         ToolTip="{Binding InspectionActiveBarcode}">
-                        <Run Text="ID · "/><Run Text="{Binding InspectionActiveBarcode, TargetNullValue='Not Read'}"/>
+                        <Run Text="ID · "/><Run Text="{Binding InspectionActiveBarcode, Mode=OneWay, TargetNullValue='Not Read'}"/>
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Style.Triggers>

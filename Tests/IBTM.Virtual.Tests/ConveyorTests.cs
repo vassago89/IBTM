@@ -82,7 +82,7 @@ public sealed partial class ConveyorTests
     public async Task StartupPreparationPreservesOccupiedSupportsAndNgPickupSupport()
     {
         var io = CreateIo();
-        var conveyor = CreateConveyor(io);
+        var conveyor = CreateConveyor(io, ngCarrierTransferEnabled: true);
         io.Initialize();
         await SetSeatedCarrierAsync(io, io, InputIo.PcbPlacementHeatSink1Present, OutputIo.PcbPlacementBackupPlateUp);
         await SetSeatedCarrierAsync(io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
@@ -592,14 +592,15 @@ public sealed partial class ConveyorTests
         bool placementEnabled = true,
         bool boltFasteningEnabled = true,
         bool inspectionEnabled = true,
-        ConveyorSettings? settings = null)
+        ConveyorSettings? settings = null,
+        bool ngCarrierTransferEnabled = false)
     {
         var units = new UnitSettings
         {
             PcbPlacement = placementEnabled,
             BoltFastening = boltFasteningEnabled,
             Inspection = inspectionEnabled,
-            NgCarrierTransfer = false,
+            NgCarrierTransfer = ngCarrierTransferEnabled,
         };
         return new(
             io,
