@@ -81,11 +81,15 @@
     </UserControl.Resources>
 
     <Grid Margin="18,8,18,2">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="320"/>
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Border Margin="0,0,0,8" Padding="10,8" MaxWidth="1602" HorizontalAlignment="Stretch"
+        <Border Grid.ColumnSpan="2" Margin="0,0,0,8" Padding="10,8" MaxWidth="1602" HorizontalAlignment="Stretch"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="3">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -245,5 +249,19 @@
             </Grid>
         </Border>
         </Viewbox>
+        <Border Grid.Row="1" Grid.Column="1" Margin="12,0,0,0" Padding="12" VerticalAlignment="Top"
+            Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
+            BorderThickness="1" CornerRadius="3">
+            <StackPanel>
+                <TextBlock Text="Inspection Image" Style="{StaticResource TitleStyle}"/>
+                <TextBlock Margin="0,4,0,10" Text="{Binding InspectionImageCaption, TargetNullValue='Waiting for inspection'}"
+                    Foreground="{StaticResource TextSecondaryBrush}"/>
+                <Border Height="240" Background="{StaticResource ControlBgBrush}">
+                    <Image Source="{Binding InspectionImage}" Stretch="Uniform"/>
+                </Border>
+                <TextBlock Margin="0,8,0,0" Text="Last captured inspection image"
+                    Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

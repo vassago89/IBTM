@@ -13,12 +13,28 @@
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
                 Text="Inspection / Sort" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
+                Width="{x:Static ui:MachinePlan.PlateWidth}"
                 Tag="{Binding InspectionDisplayState}"
                 Style="{StaticResource StationStateBadgeStyle}">
-                <TextBlock
-                    Text="{Binding InspectionStatus,
-                                          Converter={StaticResource EnumDescriptionConverter}}"
-                    Style="{StaticResource PrimaryStateTextStyle}"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock
+                        Text="{Binding InspectionStatus, Converter={StaticResource EnumDescriptionConverter}}"
+                        Style="{StaticResource PrimaryStateTextStyle}"/>
+                    <TextBlock Margin="0,3,0,0" FontSize="14" TextTrimming="CharacterEllipsis"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        ToolTip="{Binding InspectionActiveBarcode}">
+                        <Run Text="ID · "/><Run Text="{Binding InspectionActiveBarcode, TargetNullValue='Not Read'}"/>
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding InspectionActivePcb}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
             </Border>
 
             <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.DetailTop}"

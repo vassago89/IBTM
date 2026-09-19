@@ -923,11 +923,26 @@ public sealed class OutputWindowThreadingTests
             Assert.Equal(1, presetBus.CurrentPreset);
             Assert.Equal("Preset 1 selected", presetModel.ResultMessage);
             Assert.Equal(0, presetBus.StartWrites);
+
+            presetBus.CurrentPreset = 7;
+            await presetModel.StartCommand.ExecuteAsync(null);
+            Assert.Equal(1, presetBus.CurrentPreset);
+            Assert.Equal(1, presetBus.StartWrites);
+            Assert.StartsWith("OK", presetModel.ResultMessage);
+            Assert.False(presetBus.Running);
+
+            presetBus.CurrentPreset = 7;
+            presetBus.IgnorePresetWrites = true;
+            await presetModel.StartCommand.ExecuteAsync(null);
+            Assert.Equal(1, presetBus.StartWrites);
+            Assert.Contains("failed", presetModel.ResultMessage);
+            Assert.Contains("preset is 7", presetModel.ConnectionStatus);
         }
         finally
         {
             presetWindow.Close();
             presetBus.Close();
+            state.ClearError();
         }
     }
 

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
@@ -31,6 +32,12 @@ public partial class OperationViewModel : ObservableObject
     private readonly ShootingBoltFeeder _shootingFeeder;
     private volatile bool _active;
 
+    [ObservableProperty]
+    public partial BitmapSource? InspectionImage { get; private set; }
+
+    [ObservableProperty]
+    public partial string? InspectionImageCaption { get; private set; }
+
     public OperationViewModel(
         MachineState state,
         IoSignals signals,
@@ -52,7 +59,8 @@ public partial class OperationViewModel : ObservableObject
         PcbSupplyHandler supply,
         PcbPlacementHandler placement,
         BoltFasteningGantry fastening,
-        InspectionGantry inspectionGantry)
+        InspectionGantry inspectionGantry,
+        BoltInspector inspector)
     {
         StartCommand = new AsyncRelayCommand(StartAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -102,6 +110,7 @@ public partial class OperationViewModel : ObservableObject
         pcbPlacementWork.Changed += OnPcbPlacementChanged;
         boltFasteningWork.Changed += OnBoltFasteningChanged;
         inspectionWork.Changed += OnInspectionChanged;
+        inspector.InspectionCaptured += OnInspectionCaptured;
         ngTransfer.Changed += OnNgConveyorChanged;
         ngConveyor.Changed += OnNgConveyorChanged;
         ngShuttle.Feedback.Changed += OnNgConveyorChanged;
@@ -190,6 +199,8 @@ public partial class OperationViewModel : ObservableObject
     public BoltPoint? InspectionActiveBolt => InspectionStateVisible ? State.Display.InspectionBolt : null;
 
     public HeatSinkSlot? InspectionActivePcb => InspectionStateVisible ? State.Display.InspectionPcb : null;
+
+    public string? InspectionActiveBarcode => InspectionActivePcb is { } pcb ? InspectionBarcode(pcb) : null;
 
     public string? InspectionPcb1Barcode => InspectionBarcode(HeatSinkSlot.HeatSink1);
 
@@ -557,6 +568,14 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(BoltDisplayState));
     }
 
+    private void OnInspectionCaptured(ImageFrame frame, HeatSinkSlot pcb, int? boltNumber)
+    {
+        InspectionImageCaption = boltNumber is { } number
+            ? $"{pcb.GetDescription()} · Bolt {number}"
+            : $"{pcb.GetDescription()} · Data Matrix";
+        InspectionImage = InspectionPreview.CreateBitmap(frame);
+    }
+
     private void OnInspectionChanged()
     {
         if (!_active)
@@ -565,6 +584,7 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(InspectionWork));
         OnPropertyChanged(nameof(InspectionActiveBolt));
         OnPropertyChanged(nameof(InspectionActivePcb));
+        OnPropertyChanged(nameof(InspectionActiveBarcode));
         OnPropertyChanged(nameof(InspectionPcb1Barcode));
         OnPropertyChanged(nameof(InspectionPcb2Barcode));
         OnPropertyChanged(nameof(InspectionTargets));

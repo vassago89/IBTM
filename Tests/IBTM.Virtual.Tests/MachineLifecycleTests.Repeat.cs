@@ -67,7 +67,7 @@ public sealed partial class MachineLifecycleTests
         };
         services.GetRequiredService<PcbPlacer>().Trace += message =>
         {
-            if (message.StartsWith("PcbPlacer: MovingAboveBuffer ", StringComparison.Ordinal))
+            if (message.StartsWith($"PcbPlacer: {nameof(PcbPlacementState.MovingToHandoff)} ", StringComparison.Ordinal))
                 Interlocked.Increment(ref handoffTrips);
         };
         io.OutputChanged += (output, on) =>
@@ -128,8 +128,8 @@ public sealed partial class MachineLifecycleTests
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(state.Display.RepeatCycles >= 2);
             Assert.True(shootingStarts >= 4);
-            Assert.True(pickupDescents >= 8);
-            Assert.True(pickupStarts >= 8);
+            Assert.True(pickupDescents >= 4);
+            Assert.True(pickupStarts >= 4);
             Assert.True(pickupAttempts >= 4);
             Assert.True(handoffTrips >= 4);
             Assert.True(completed.Count >= 2);

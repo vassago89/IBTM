@@ -45,6 +45,8 @@ public sealed class BoltInspector
 
     public event Action? LiveViewChanged;
 
+    public event Action<ImageFrame, HeatSinkSlot, int?>? InspectionCaptured;
+
     public event Action<ImageFrame>? FrameReady
     {
         add => camera.FrameReady += value;
@@ -159,6 +161,7 @@ public sealed class BoltInspector
     {
         var region = GetBarcodeFov(pcb).Region!;
         var image = await CaptureCurrentAsync(cancellationToken);
+        InspectionCaptured?.Invoke(image, pcb, null);
         var text = await Task.Run(() => DataMatrixReader.Read(image, region), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         return !string.IsNullOrEmpty(text)
@@ -235,6 +238,7 @@ public sealed class BoltInspector
     {
         var region = GetFov(point).Region!;
         var image = await CaptureCurrentAsync(cancellationToken).ConfigureAwait(false);
+        InspectionCaptured?.Invoke(image, point.HeatSink, point.Number);
         return await Task.Run(
             () =>
             {
