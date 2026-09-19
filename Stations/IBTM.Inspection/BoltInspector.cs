@@ -420,6 +420,7 @@ public sealed class BoltInspector
 
     private void TurnLightOn(int channel)
     {
+        light.Initialize();
         _lightChannel = channel;
         light.SetLevel(channel, recipes.Current.BoltInspection.LightLevel);
         light.TurnOn(channel);

@@ -9,4 +9,8 @@
     <!-- Offline equipment PCs cannot fetch vulnerability data; keep the failure visible as a warning. -->
     <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900</WarningsNotAsErrors>
   </PropertyGroup>
+  <PropertyGroup Condition="Exists('$(MSBuildThisFileDirectory)packages-offline')">
+    <RestoreSources>$(MSBuildThisFileDirectory)packages-offline</RestoreSources>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
 </Project>

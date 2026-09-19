@@ -27,6 +27,8 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 조명은 `C:\git\AnyWave\AnyWave.Device\Lights\MOVSService.cs` 원본을
 `Shared/IBTM.Device/MOVSService.cs`에 그대로 포함한다. 컴파일에 필요한 using과 nullable 지시문만 덧붙였다.
 `MovsLightController`는 기존 `ILightController` 호출을 원본의 Connect/Set/On/Off/Disconnect에 연결한다.
+촬영·Live 점등 직전에 원본과 같이 Connect → Set → On 순서로 호출한다.
+검사 유닛 Disabled로 시작해 초기화에서 조명 연결을 생략했어도 수동 티칭 점등 시 연결한다.
 19200 통신, 문자 버퍼, 전송 뒤 50ms 대기, 빈 COM/미연결 처리도 원본을 따른다.
 추가했던 시리얼 세부 설정·쓰기 잠금·드라이버 예외 재포장은 제거했다. 설정에는 COM과 검사 채널만 남긴다.
 원본의 Find도 보존하지만, 장비 초기화나 검증에서 자동 포트 검색을 호출하지 않는다.
@@ -496,16 +498,24 @@ NG 셔틀·검사 작업처럼 연결된 객체를 통해 같은 변경 알림�
 파일 저장 실패는 화면 로그와 `FileError`에 남기며, 파일 저장 실패가 장비 호출로 전파되지 않는다.
 종료 시 팩터리의 동기 `Dispose`가 남은 파일 기록을 기다리므로 UI에서는 `Task.Run`으로 실행하고 완료를 기다린다.
 
-로그 관련 패키지와 의존 패키지는 `artifacts/IBTM-logging-packages.zip`에 있다.
-장비 PC에서 압축을 풀고, 기존 패키지 캐시를 유지한 채 저장소 루트에서 다음처럼 복원한다.
+오프라인 장비에는 `artifacts/IBTM-offline-packages.zip`을 저장소 루트에 푼다.
+ZIP에는 현재 장비·테스트 프로젝트의 전체 NuGet 의존 패키지와 `Directory.Build.props`가 들어 있다.
+예를 들어 `C:\git\IBTM\packages-offline\`에 `.nupkg` 파일들이 놓여야 한다.
+`Directory.Build.props`는 이 폴더가 있을 때 복원 원본을 해당 폴더로 제한하고,
+인터넷이 필요한 취약성 검사를 끈다. Visual Studio의 자동 복원에도 같은 설정이 적용된다.
+폴더가 없으면 기존 NuGet 원본과 취약성 검사 설정을 그대로 사용한다.
+
+장비에서 Visual Studio로 빌드하거나 다음 명령을 실행한다.
 
 ```powershell
-dotnet restore IBTM.slnx --source C:\path\logging-packages -p:NuGetAudit=false
+dotnet restore IBTM.slnx
 dotnet build IBTM/IBTM.csproj -c Debug --no-restore
 ```
 
-`NuGetAudit=false`는 해당 오프라인 복원 명령에만 적용한다. ZIP에는 로그 관련 패키지만 있으므로
-처음 설치하는 PC라면 나머지 프로젝트 패키지도 별도로 옮겨야 한다.
+기존 `IBTM-logging-packages.zip`은 로그 관련 패키지만 담았으므로 위 전체 패키지 ZIP을 사용한다.
+패키지 참조나 버전을 변경하면 로컬 패키지도 함께 갱신해야 한다.
+ZIP은 .NET SDK·Visual Studio·장비 SDK 설치 파일을 포함하지 않는다.
+NuGet의 원본 지정과 취약성 검사 옵션은 [공식 복원 문서](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-restore)를 참고한다.
 
 ## 짧게 검증하기
 

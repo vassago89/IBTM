@@ -89,9 +89,11 @@ public sealed class LightingTests
             },
         })
         {
+            light.Connected = false;
             var channel = settings.Lighting.InspectionChannel;
             var error = await Assert.ThrowsAsync<IOException>(action);
             Assert.Same(light.Failure, error);
+            Assert.True(light.Connected);
             Assert.False(light.IsOn);
             Assert.Equal(channel, light.LastOffChannel);
         }
@@ -145,9 +147,12 @@ public sealed class LightingTests
             .BuildServiceProvider();
         var inspector = services.GetRequiredService<BoltInspector>();
 
-        await Assert.ThrowsAsync<AggregateException>(() => inspector.StartLiveViewAsync());
-        Assert.False(inspector.IsLiveView);
-        Assert.NotNull(inspector.LiveViewError);
+        // Teaching can start while automatic inspection is disabled and startup skipped vision.
+        await inspector.StartLiveViewAsync();
+        Assert.True(light.Connected);
+        Assert.True(light.IsOn);
+        Assert.True(inspector.IsLiveView);
+        await inspector.StopLiveViewAsync();
         await inspector.InitializeVisionAsync();
         Assert.True(light.Connected);
         Assert.False(light.IsOn);

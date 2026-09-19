@@ -210,6 +210,7 @@ publish/
 PublishScripts/
 
 # NuGet Packages
+/packages-offline/
 *.nupkg
 # NuGet Symbol Packages
 *.snupkg
