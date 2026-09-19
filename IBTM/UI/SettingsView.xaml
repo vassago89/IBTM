@@ -471,15 +471,12 @@
                                 <Border Style="{StaticResource SettingCard}">
                                     <StackPanel>
                                         <TextBlock Text="Motion / I/O Driver" Style="{StaticResource SettingSectionTitle}"/>
-                                            <StackPanel Margin="0,0,12,0">
-                                                <TextBlock Text="Motion / I/O" Style="{StaticResource SettingFieldLabel}"/>
-                                                <ComboBox ItemsSource="{Binding ControlDrivers}"
-                                                    IsEnabled="{Binding IsDriverChangeAllowed}"
-                                                    SelectedItem="{Binding Settings.Drivers.Control, Mode=TwoWay}"/>
-                                                <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
-    <Run Text="Active: "/><Run Text="{Binding ActiveControlDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
+                                        <ComboBox ItemsSource="{Binding ControlDrivers}"
+                                            IsEnabled="{Binding IsDriverChangeAllowed}"
+                                            SelectedItem="{Binding Settings.Drivers.Control, Mode=TwoWay}"/>
+                                        <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                            <Run Text="Active: "/><Run Text="{Binding ActiveControlDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
                                         </TextBlock>
-                                            </StackPanel>
                                     </StackPanel>
                                 </Border>
                                 <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12">
@@ -506,15 +503,12 @@
                                 <Border Style="{StaticResource SettingCard}">
                                     <StackPanel>
                                         <TextBlock Text="Bolt Driver" Style="{StaticResource SettingSectionTitle}"/>
-                                            <StackPanel Margin="0,0,12,0">
-                                                <TextBlock Text="Bolt Heads" Style="{StaticResource SettingFieldLabel}"/>
-                                                <ComboBox ItemsSource="{Binding BoltDrivers}"
-                                                    IsEnabled="{Binding IsDriverChangeAllowed}"
-                                                    SelectedItem="{Binding SelectedBoltDriver, Mode=TwoWay}"/>
-                                                <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
-    <Run Text="Active: "/><Run Text="{Binding ActiveBoltDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
+                                        <ComboBox ItemsSource="{Binding BoltDrivers}"
+                                            IsEnabled="{Binding IsDriverChangeAllowed}"
+                                            SelectedItem="{Binding SelectedBoltDriver, Mode=TwoWay}"/>
+                                        <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                            <Run Text="Active: "/><Run Text="{Binding ActiveBoltDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
                                         </TextBlock>
-                                            </StackPanel>
                                     </StackPanel>
                                 </Border>
                                 <Border Margin="0,0,0,12">
@@ -577,15 +571,13 @@
                                 <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="Inspection Camera" Style="{StaticResource SettingSectionTitle}"/>
-                                            <StackPanel Margin="0,0,12,0">
-                                                <TextBlock Text="Camera" Style="{StaticResource SettingFieldLabel}"/>
-                                                <ComboBox ItemsSource="{Binding CameraDrivers}"
-                                                    IsEnabled="{Binding IsDriverChangeAllowed}"
-                                                    SelectedItem="{Binding Settings.Drivers.Camera, Mode=TwoWay}"/>
-                                                <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
-    <Run Text="Active: "/><Run Text="{Binding ActiveCameraDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
+                                        <TextBlock Text="Camera Driver" Style="{StaticResource SettingFieldLabel}"/>
+                                        <ComboBox ItemsSource="{Binding CameraDrivers}"
+                                            IsEnabled="{Binding IsDriverChangeAllowed}"
+                                            SelectedItem="{Binding Settings.Drivers.Camera, Mode=TwoWay}"/>
+                                        <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,12">
+                                            <Run Text="Active: "/><Run Text="{Binding ActiveCameraDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
                                         </TextBlock>
-                                            </StackPanel>
                                         <TextBlock Text="Device ID / Serial Number" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.InspectionCamera.DeviceId, UpdateSourceTrigger=PropertyChanged}"
@@ -599,8 +591,7 @@
                                     Visibility="{Binding IsVirtualCamera, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="Virtual Camera Image" Style="{StaticResource SettingSectionTitle}"/>
-                                        <StackPanel Margin="0,0,0,12"
-                                            Visibility="{Binding IsVirtualCamera, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel>
                                             <TextBlock Text="{Binding VirtualImageName, TargetNullValue=Generated image}"
                                                 TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
                                             <StackPanel Orientation="Horizontal">
@@ -630,8 +621,8 @@
                                             IsEnabled="{Binding IsDriverChangeAllowed}"
                                             SelectedItem="{Binding Settings.Drivers.Light, Mode=TwoWay}"/>
                                         <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,12">
-    <Run Text="Active: "/><Run Text="{Binding ActiveLightDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
-                                </TextBlock>
+                                            <Run Text="Active: "/><Run Text="{Binding ActiveLightDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
+                                        </TextBlock>
                                         <UniformGrid Columns="2">
                                             <StackPanel Margin="0,0,4,0">
                                                 <TextBlock Text="COM Port" Style="{StaticResource SettingFieldLabel}"/>
@@ -650,8 +641,8 @@
                                                 <TextBlock Text="Light Test" Style="{StaticResource SettingSectionTitle}"/>
                                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10"
                                                     TextWrapping="Wrap">
-    <Run Text="Active connection: "/><Run Text="{Binding ActiveLightConnection, Mode=OneWay}"/>
-                                        </TextBlock>
+                                                    <Run Text="Active connection: "/><Run Text="{Binding ActiveLightConnection, Mode=OneWay}"/>
+                                                </TextBlock>
                                                 <UniformGrid Columns="2">
                                                     <StackPanel Margin="0,0,4,10">
                                                         <TextBlock Text="Test Channel (1–9)" Style="{StaticResource SettingFieldLabel}"/>
