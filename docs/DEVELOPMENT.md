@@ -46,6 +46,32 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 체결·검사·안착도 `GetState()`로 판단을 확인하고 `RunAsync()`와 `ExecuteAsync()`에서 실행을 따라간다.
 PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 두어 F12와 함수 중단점으로 찾을 수 있다.
 
+## 스테이션 상태의 범위
+
+상태는 한 번 선택한 뒤 끝까지 `await`하는 작업 단위다. 실린더 하나, 축 하나,
+결과 기록 한 번마다 루프로 돌아가지 않는다. 작업 내부의 순서는 각 `switch` 분기에 직접 쓴다.
+다음 상태는 그 작업이 끝난 뒤 현재 피드백으로 판단한다.
+
+| 유닛 | 상태 수 변경 | 묶은 동작 |
+| --- | --- | --- |
+| PCB Supply | 13 → 8 | 픽업 복귀·회전, PCB 고정·회전·인계 이동 |
+| PCB Placement | 21 → 9 | 인계 준비, 수취, 안착·압착·기록·복귀, Repeat 픽업 |
+| Bolt Fastening | 23 → 7 | 볼트 하나의 공급·이동·체결·복귀 |
+| Inspection | 21 → 11 | 포인트 이동·촬영, 검사 완료 복귀, NG 표시 상태 통합 |
+| NG Transfer | 16 → 13 | 접근·하강·집기·상승, 목적지 이동·하강, 닫기·집힘 확인 |
+| Main Conveyor | 18 → 16 | S1/S2 동시 착좌, S3 상승 중복 제거 |
+| NG Conveyor | 14 → 13 | 배출 확인 입력 처리를 확인 대기에 포함 |
+
+다른 유닛·설비·작업자를 기다리는 경계는 남긴다. 메인 컨베이어의 이송 상태는
+출발지 하강부터 도착까지 이미 한 동작이므로 목적지와 우선순위를 합치지 않는다.
+NG 셔틀의 6개 상태는 픽업 상승·컨베이어 종료·위치 불명 등 실제 다른 대기 조건이다.
+볼트 피더의 2개 상태와 실린더의 Up/Down/Between 같은 물리 피드백은 유지한다.
+
+작업 결과 소유자(`CurrentJob`, 미수집 체결 결과), 반복 운전의 현재 목적지,
+압착 전후처럼 센서만으로 구분되지 않는 실행 이력도 유지한다. 연속 동작 중 정지·캐리어
+교체·착좌 이탈을 확인하며, 완료 피드백 없이 다음 명령이나 완료 기록으로 넘어가지 않는다.
+`PlaceAsync`와 NG `ExecuteAsync`의 `false`는 외부 조건 대기를 뜻한다.
+
 ## 참조 방향과 상태의 소유자
 
 - `IBTM`은 화면·운전 시작/정지·DI 구성을 맡고, 각 Station은 자기 작업 순서를 맡는다.
@@ -108,7 +134,7 @@ PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 �
 ## 화면과 ViewModel 경계
 
 모든 화면의 명령과 편집값은 XAML에서 해당 ViewModel에 바인딩한다. ADC 진단도 창 객체가 아니라
-`AdcProtocolViewModel`이 포트·슬레이브·레지스터·프리셋 입력과 통신 작업을 소유한다.
+`AdcProtocolViewModel`이 포트·슬레이브·레지스터 입력과 통신 작업을 소유한다. 프리셋 선택은 1번 고정이다.
 `BeginAdcProtocol`에서 실행권을 얻은 뒤 ViewModel의 명령 본문이 통신과 헤드 동작을 직접 호출한다.
 체결 테스트의 시작 조건은 `EnsureBoltTestAvailable`에서 확인하고, 실행과 결과 처리는 명령 본문에 둔다.
 ADC는 별도 busy 플래그 없이 현재 작업의 취소 소스로 실행 중 여부를 판단한다.
@@ -143,6 +169,7 @@ Supply의 `PCB Give Position`은 XYZ를 티칭한다. 픽업은 Rotated, 인계�
 `Rotation Z`에서 Unrotated로 전환한 뒤 인계 Z → 인계 XY 순서로 이동한다.
 대기는 PCB 1 X·공통 Pickup Y·Rotation Z에서 Rotated 상태다.
 Placement는 핸들러 상승 → 인계 Z → 인계 XY에서 대기하고, 인계 후 Heat Sink 1/2에 차례로 안착한다.
+Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 동작에서 회전하거나 회전 피드백을 기다리지 않는다. 티칭·OUTPUTS에서도 ON으로 전환할 수 없다.
 체결의 `Safe Z (Travel)`은 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
 `Pickup Head Fastening Z`는 픽업 볼트의 체결 높이다. 볼트마다 한 번만 체결한다.
 자동 동작은 양쪽 헤드 상승 → Safe Z에서 XY 이동 → 선택 헤드의 체결 Z 이동 → 체결 START → 즉시 해당 헤드 하강 순서다.
@@ -151,17 +178,16 @@ Placement는 핸들러 상승 → 인계 Z → 인계 XY에서 대기하고, 인
 모든 Heat Sink의 슈팅 체결이 끝날 때까지 픽업 테이블을 상승 상태로 유지한다.
 슈팅 완료 후 헤드 상승 → Safe Z → 픽업 테이블 하강 확인 → Pickup XY → Pickup Z → 볼트 취득 →
 Safe Z → 헤드 상승 → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다.
-별도의 가체결·본체결 패스는 없다. `PickupPreset`은 기존 레시피의 본체결 프리셋 값을 이어받는다.
+별도의 가체결·본체결 패스는 없다. 슈팅·픽업 모두 프리셋 1번으로 고정하며, 레시피에는 프리셋 속성이 없다.
 
 | 체결 상태 | 동작 / 완료 기준 |
 | --- | --- |
-| `MovingToStandby` → `Waiting` | PCB 1 첫 슈팅 볼트 XY·이동 Z에서 캐리어 착좌 대기 |
-| `RaisingPickupTable` | 양쪽 헤드 상승·이동 Z 확보 후 테이블 상승 피드백 확인 |
-| `MovingToPcbBolt` → `FasteningPcb` | 슈팅 볼트를 Heat Sink / 번호 순으로 각각 체결. 체결 중 테이블 상승 피드백 이탈 시 중지 |
-| `ClearingShootingHead` → `LoweringPickupTable` | 슈팅 완료 후 이동 Z 복귀, 테이블 하강 피드백 확인 |
-| `MovingToPickupXY` → `MovingToPickupZ` → `PickingUpBolt` | 픽업 위치에서 볼트 취득 |
-| `RaisingPickedBolt` → `RaisingPickupHead` → `MovingToPickupBolt` → `FasteningPickup` | 이동 Z·헤드 상승 후 대상 XY와 체결 Z로 이동해 한 번 체결 |
-| `CompletingCarrier` | 모든 볼트 결과와 헤드·Z 복귀 확인 후 이송 가능. 첫 슈팅 위치로 돌아가 다음 캐리어 대기 |
+| `MovingToStandby` → `Waiting` | 헤드 상승 → 첫 슈팅 볼트 XY·이동 Z → 픽업 테이블 상승 후 착좌 대기 |
+| `FasteningPcb` | 테이블 상승 확인 → 볼트 위치 → 공급·튜브 통과 확인 → 체결 → 헤드·이동 Z 복귀 |
+| `FasteningPickup` | 이동 Z → 테이블 하강 → Pickup XY/Z → 볼트 취득 → 이동 Z·헤드 상승 → 체결 위치 → 체결·복귀 |
+| `WaitingForShootingFeeder` / `WaitingForPickupFeeder` | 해당 공급기의 실제 볼트 준비 또는 헤드 감지 변경 대기 |
+| `CompletingCarrier` | 모든 결과와 헤드·Z 복귀 확인 후 작업 완료 |
+
 
 `Bolt Pickup`의 Z는 별도 픽업 높이로 유지한다. 체결의 B1/B2는 헤드별 계산 XY 위치이며
 Move To는 Safe Z에서 위치만 확인한다. 각 Z 티칭값은 설비 설정에 독립적으로 자동 저장된다.
@@ -231,7 +257,7 @@ HOME·START 선상승과 HOME 순서(2026-09-19):
 - `HOME ALL`은 운전 화면에 항상 표시한다. 별도 `RAISE CYLINDERS`와 `STOP HOME` 버튼은 제거했다.
   모든 HOME은 해당 실린더의 상승·완료 피드백 확인부터 시작하며, 이 준비부터 종료까지 장비 상태는 `Homing`이다.
   공통 STOP으로 준비·원점복귀를 취소할 수 있고, 취소 후 다음 단계로 넘어가지 않는다.
-- 전체 HOME은 `RaiseCylindersAsync` → `HomeVerticalAxesAsync` → `HomeHorizontalAxesAsync`다.
+- 전체 HOME은 `HomeAllAxesAsync`에서 실린더 상승 → Z축 HOME 병렬 완료 → 수평축 HOME 병렬 완료를 순서대로 실행한다.
   공급·안착·체결은 Z HOME 완료 뒤 X/Y 동시 HOME을 수행한다. 티칭 유닛 HOME도 같은 순서다.
   공급기 전용 회전·Z 상한 이동·X→Y→Z 순서와 해당 전용 모션 API를 제거했다.
   티칭·모션 창의 개별 HOME도 해당 유닛의 실린더를 먼저 올린다. 축별 HOME은 지정 축만 실행한다.
@@ -333,20 +359,20 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 | 자동운전 중 알람 발생 | `RunAutomaticUnitAsync`의 `catch (Exception exception)` | `alarm`은 발생 유닛, `exception`은 원본 오류, `_state.Alarm`은 먼저 발생한 알람 |
 | Repeat 메인 복귀가 취소됨 | `MachineController.Repeat.cs`의 `GetMainConveyorReturnBlock`, `ReturnMainCarrierAsync`의 `CheckPath` | 핸들러 상승·안전 Z, NG 픽업 상승·캐리어 센서; 현재 피드백으로 차단 이유를 반환 |
 | 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.RunAsync`, `GetState`, `TransferAsync` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
-| PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)`, `PickPcbAsync` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
-| PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceStepAsync`의 `switch (state)` | `heatSink`, `state`, `action`; `action == null`이면 피드백 대기 |
+| PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
+| PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceAsync`의 `switch (state)` | `heatSink`, `state`; 반환값 `false`이면 피드백 대기 |
 | 공급 진입 또는 안착 인수 실린더가 대기함 | `BufferStage.CanEnterSupply`, `CanEnterPlacement`, `HasConflict` | 도착 순서는 무관; Placement Handler Up/Down 입력, 양쪽 현재 위치·Home·정지 피드백, Supply `PcbSecured`, 인계 좌표 |
-| 인수 후 실린더 상승 또는 Supply 복귀가 대기함 | `BufferStage.CanRaisePlacement`, `CanExitSupply`, `PcbSupplier.State` | Supply `PcbReleased`는 그리퍼·IPM 고정 실린더 모두 후퇴 확인; Placement 상승 확인 후 `MovingFromHandoff`에서 다음 PCB 픽업 XY로 복귀 |
+| 인수 후 실린더 상승 또는 Supply 복귀가 대기함 | `BufferStage.IsPlacementRaiseAllowed`, `IsSupplyExitAllowed`, `PcbSupplier.State` | Supply `PcbReleased`는 그리퍼·IPM 고정 실린더 모두 후퇴 확인; Placement 상승 확인 후 `MovingToPickup`에서 다음 PCB 픽업 XY로 복귀 |
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.ExecuteAsync` | `waitingForBolt`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
-| Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `transfer == null`이면 이송 명령 없이 피드백을 기다림 |
-| NG 이송의 정방향·복귀 순서가 예상과 다름 | `NgCarrierMove.State`, `ExecuteAsync`, `MoveToCarrierAsync` | `destination`, `state`, 현재 픽업 상승·그립·캐리어 감지, Safe X |
+| Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `ExecuteAsync`가 `false`를 반환하면 피드백 대기 |
+| NG 이송의 정방향·복귀 순서가 예상과 다름 | `NgCarrierMove.GetState`, `ExecuteAsync`, `MoveToCarrierAsync` | `destination`, `state`, 현재 픽업 상승·그립·캐리어 감지, Safe X |
 | NG 셔틀이 대기하거나 Repeat 상승하지 않음 | `NgShuttle.ExecuteAsync`, `CycleAsync` | `state`, 실제 Up/Down·캐리어·픽업 상승 피드백 |
-| NG 컨베이어 적재·배출이 막힘 | `NgCarrierConveyor.ExecuteAsync`, `MoveCarrierAsync`, `ReadState` | `state`, `destination` 입력, `_movement`, `_ejectionPhase`, 현재 위치 센서 |
+| NG 컨베이어 적재·배출이 막힘 | `NgCarrierConveyor.ExecuteAsync`, `MoveCarrierAsync`, `GetState` | `state`, `destination` 입력, `_movement`, `_ejectionPhase`, 현재 위치 센서 |
 | 실린더 타임아웃 | `IIoService.SetOutputAndWaitAsync`, `WaitForInputAsync` | 출력 `output`/`value`, 기다리는 입력 `input`/`value`, 제한시간 |
 
 예를 들어 공급의 `switch (state)`에 조건부 중단점
-`state == PcbSupplyState.WaitingForHandoff`를 걸면 해당 대기로 들어가는 판단을 볼 수 있다.
+`state == PcbSupplyState.WaitingForPlacement`를 걸면 해당 대기로 들어가는 판단을 볼 수 있다.
 이벤트 대기 중에는 새 피드백이 와야 다음 판단으로 들어간다. `state`, `transferState`,
 `inspectionState`는 그 회차에 선택한 분기이며, 장비 위치를 저장하는 별도 상태가 아니다.
 
@@ -370,7 +396,7 @@ OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류�
 초기화·티칭 진입 시 기존 STOP 경로로 외부 SMEMA를 OFF한다. OUTPUTS 창은 원래 `SetOutput`을
 직접 사용하므로 티칭에서도 수동 ON/OFF가 가능하다. 이 창의 기존 조작 조건에 새 제한을 넣지 않았다.
 `SupplySlotProgressDoesNotSurviveTheRun`이 STOP 후 슬롯 진행을 유지하지 않는지 확인한다.
-`PickPcbAsync`는 픽업 중 전단 캐리어 이탈을 받으면 그 픽업을 취소한다. 늦게 끝난 이전 픽업은
+`PickingPcb` 분기는 픽업 중 전단 캐리어 이탈을 받으면 그 픽업을 취소한다. 늦게 끝난 이전 픽업은
 새 캐리어의 슬롯 이력을 넘기지 않으며 `SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes`로 확인한다.
 수동 한 축 이동은 `TeachingViewModel.StepAsync` → `PcbSupplyHandler.MoveAxisAsync` →
 `MotionService` 순서다. 모션 계층에서 축 속도·범위·이동 높이·취소를 처리한다. 자동/수동 인계 진입은

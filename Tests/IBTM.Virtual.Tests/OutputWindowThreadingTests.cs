@@ -903,12 +903,10 @@ public sealed class OutputWindowThreadingTests
         var presetBus = new AdcProtocolTests.ControllerBus { IgnorePresetWrites = true };
         var presetModel = new AdcProtocolViewModel(presetBus, new HantasSettings(), machine, state);
         var presetWindow = new AdcProtocolWindow(presetModel);
-        var presetBox = (TextBox)presetWindow.FindName("PresetBox");
-        var selectPreset = ((Grid)presetBox.Parent).Children.OfType<Button>().Single();
+        var selectPreset = (Button)presetWindow.FindName("SelectPresetButton");
         await presetWindow.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
         try
         {
-            presetBox.SetCurrentValue(TextBox.TextProperty, "7");
             selectPreset.Command.Execute(selectPreset.CommandParameter);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => selectPreset.IsEnabled,
@@ -922,8 +920,8 @@ public sealed class OutputWindowThreadingTests
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => selectPreset.IsEnabled,
                 TimeSpan.FromSeconds(2)));
-            Assert.Equal(7, presetBus.CurrentPreset);
-            Assert.Equal("Preset 7 selected", presetModel.ResultMessage);
+            Assert.Equal(1, presetBus.CurrentPreset);
+            Assert.Equal("Preset 1 selected", presetModel.ResultMessage);
             Assert.Equal(0, presetBus.StartWrites);
         }
         finally

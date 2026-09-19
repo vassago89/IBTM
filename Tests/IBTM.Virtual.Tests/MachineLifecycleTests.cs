@@ -449,7 +449,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(
             lift == NgTransferLiftState.Up
                 ? InspectionStationState.Waiting
-                : InspectionStationState.RaisingCarrierTransfer,
+                : InspectionStationState.TransferringNgCarrier,
             station.GetState([]));
 
         using var stop = new CancellationTokenSource();
@@ -466,7 +466,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
-        Assert.Equal(InspectionStationState.OpeningTransferGripper, station.GetState([]));
+        Assert.Equal(InspectionStationState.TransferringNgCarrier, station.GetState([]));
         await VerifyTransferReleaseAsync(NgTransferState.Opening);
 
         async Task VerifyTransferReleaseAsync(NgTransferState expected)
@@ -565,7 +565,7 @@ public sealed partial class MachineLifecycleTests
         assembly.CompleteInspection();
         work.Complete(work.CurrentJob);
 
-        Assert.Equal(expectNg, inspection.GetState([]) == InspectionStationState.LoweringTransferAtCarrier);
+        Assert.Equal(expectNg, inspection.GetState([]) == InspectionStationState.TransferringNgCarrier);
         Assert.Equal(!expectNg, conveyor.State == MainConveyorState.DischargingInspectionCarrier);
         await machine.ShutdownAsync();
     }
@@ -619,7 +619,7 @@ public sealed partial class MachineLifecycleTests
         bus.FrameTransferred += StopWhenStarted;
         try
         {
-            await station.RunAsync(recipe.BoltFastening, stop.Token).WaitAsync(TimeSpan.FromSeconds(2));
+            await station.RunAsync(stop.Token).WaitAsync(TimeSpan.FromSeconds(2));
         }
         finally
         {

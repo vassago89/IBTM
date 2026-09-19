@@ -1,12 +1,12 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using System;
 using IBTM.Core;
-using Shared;
 using Microsoft.Extensions.Logging;
+using Shared;
 
 namespace IBTM.AlphaMotion;
 

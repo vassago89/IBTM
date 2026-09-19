@@ -942,7 +942,7 @@ public sealed class IoStartupTests
         };
         try
         {
-            var failure = await Assert.ThrowsAsync<AggregateException>(() => station.RunAsync(new()));
+            var failure = await Assert.ThrowsAsync<AggregateException>(() => station.RunAsync());
             Assert.Equal(new Exception[] { runError, stopError }, failure.InnerExceptions);
         }
         finally
@@ -1185,7 +1185,6 @@ public sealed class IoStartupTests
         var io = services.GetRequiredService<StartupIo>();
 
         Assert.False(state.IsRunning);
-        Assert.False(state.ConveyorRunning);
         Assert.False(machine.IsStartAllowed);
         Assert.False(machine.IsHomeAllowed);
         _ = machine.IsResetAllowed;

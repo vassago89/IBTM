@@ -62,24 +62,6 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         }
     }
 
-    public PlacementRotationState Rotation
-    {
-        get
-        {
-            switch ((
-                _io.GetInput(InputIo.PcbPlacementHandlerUnrotated),
-                _io.GetInput(InputIo.PcbPlacementHandlerRotated)))
-            {
-                case (true, false):
-                    return PlacementRotationState.Unrotated;
-                case (false, true):
-                    return PlacementRotationState.Rotated;
-                default:
-                    return PlacementRotationState.Between;
-            }
-        }
-    }
-
     public PlacementGripperState IpmGripper
     {
         get
@@ -255,18 +237,6 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         return _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, down, cancellationToken);
     }
 
-    public Task SetRotatedAsync(bool rotated, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!HandlerRaised || !IsAtHorizontalZ())
-        {
-            throw new MotionInterlockException(
-                "Placement rotation requires the handler lift Up and Z stopped at the travel height.");
-        }
-
-        return _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerRotate, rotated, cancellationToken);
-    }
-
     public Task SetIpmGripperAsync(bool closed, CancellationToken cancellationToken = default)
     {
         return _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmGripperClose, closed, cancellationToken);
@@ -297,8 +267,6 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     {
         if (input is InputIo.PcbPlacementHandlerDown
             or InputIo.PcbPlacementHandlerUp
-            or InputIo.PcbPlacementHandlerRotated
-            or InputIo.PcbPlacementHandlerUnrotated
             or InputIo.PcbPlacementIpmDown
             or InputIo.PcbPlacementIpmUp
             or InputIo.PcbPlacementPcbDetected

@@ -263,9 +263,33 @@ public sealed partial class MachineController
             homingAxes = true;
             StopWhenHomeBecomesUnavailable();
             cancellationToken.ThrowIfCancellationRequested();
-            await HomeVerticalAxesAsync(cancellationToken);
+            await Task.WhenAll(
+                _units.PcbPlacement
+                    ? CheckHomeAsync(
+                        _placementHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                    : Task.CompletedTask,
+                _units.PcbSupply
+                    ? CheckHomeAsync(
+                        _supplyHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                    : Task.CompletedTask,
+                _units.BoltFastening
+                    ? CheckHomeAsync(
+                        _fasteningGantry.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                    : Task.CompletedTask);
             cancellationToken.ThrowIfCancellationRequested();
-            await HomeHorizontalAxesAsync(cancellationToken);
+            await Task.WhenAll(
+                _units.PcbPlacement
+                    ? CheckHomeAsync(_placementHandler.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                    : Task.CompletedTask,
+                _units.PcbSupply
+                    ? CheckHomeAsync(_supplyHandler.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                    : Task.CompletedTask,
+                _units.BoltFastening
+                    ? CheckHomeAsync(_fasteningGantry.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                    : Task.CompletedTask,
+                InspectionGantryEnabled
+                    ? CheckHomeAsync(_inspectionGantry.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                    : Task.CompletedTask);
         }
         catch (OperationCanceledException)
         {
@@ -281,40 +305,6 @@ public sealed partial class MachineController
             _state.IsHoming = false;
             _state.Refresh();
         }
-    }
-
-    private async Task HomeVerticalAxesAsync(CancellationToken cancellationToken)
-    {
-        await Task.WhenAll(
-            _units.PcbPlacement
-                ? CheckHomeAsync(
-                    _placementHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
-                : Task.CompletedTask,
-            _units.PcbSupply
-                ? CheckHomeAsync(
-                    _supplyHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
-                : Task.CompletedTask,
-            _units.BoltFastening
-                ? CheckHomeAsync(
-                    _fasteningGantry.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
-                : Task.CompletedTask);
-    }
-
-    private async Task HomeHorizontalAxesAsync(CancellationToken cancellationToken)
-    {
-        await Task.WhenAll(
-            _units.PcbPlacement
-                ? CheckHomeAsync(_placementHandler.HomeHorizontalAsync(cancellationToken), cancellationToken)
-                : Task.CompletedTask,
-            _units.PcbSupply
-                ? CheckHomeAsync(_supplyHandler.HomeHorizontalAsync(cancellationToken), cancellationToken)
-                : Task.CompletedTask,
-            _units.BoltFastening
-                ? CheckHomeAsync(_fasteningGantry.HomeHorizontalAsync(cancellationToken), cancellationToken)
-                : Task.CompletedTask,
-            InspectionGantryEnabled
-                ? CheckHomeAsync(_inspectionGantry.HomeHorizontalAsync(cancellationToken), cancellationToken)
-                : Task.CompletedTask);
     }
 
     private async Task CheckHomeAsync(Task<bool> homing, CancellationToken cancellationToken)

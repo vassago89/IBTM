@@ -22,10 +22,10 @@ public sealed partial class MainConveyor
             // S1/S2 착좌는 벨트 이송보다 먼저 처리한다.
             case true when _boltFasteningWork.Station.CarrierPresent
                 && !_boltFasteningWork.Station.CarrierSeated:
-                return MainConveyorState.SeatingBoltFasteningCarrier;
+                return MainConveyorState.SeatingCarriers;
             case true when _placementWork.Station.CarrierPresent
                 && !_placementWork.Station.CarrierSeated:
-                return MainConveyorState.SeatingPcbPlacementCarrier;
+                return MainConveyorState.SeatingCarriers;
         }
 
         var transfer = GetNextTransfer(live);
@@ -57,7 +57,7 @@ public sealed partial class MainConveyor
                 if (_inspectionWork.Station.CarrierSeated)
                     return transfer;
                 return _inspectionWork.IsTransferAtWaitingPosition(live)
-                    ? MainConveyorState.RaisingInspectionCarrierForOtherTransfers
+                    ? MainConveyorState.RaisingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
             // 검사 요청 이후에는 검사와 NG 픽업 위치 복귀가 끝날 때까지 벨트를 정지한다.
             case true when _inspectionWork.InspectionRequested && _inspectionWork.AtInspectionPosition:
@@ -195,12 +195,10 @@ public sealed partial class MainConveyor
                                 break;
                             _inspectionWork.RequestInspection(inspectionJob);
                             break;
-                        case MainConveyorState.RaisingInspectionCarrierForOtherTransfers:
                         case MainConveyorState.RaisingInspectionCarrier:
                             await _inspectionWork.Station.SeatAsync(cancellationToken);
                             break;
-                        case MainConveyorState.SeatingBoltFasteningCarrier:
-                        case MainConveyorState.SeatingPcbPlacementCarrier:
+                        case MainConveyorState.SeatingCarriers:
                             // S1/S2 can prepare their work without moving the belt.
                             var seating = new List<Task>(2);
                             if (_boltFasteningWork.Station.CarrierPresent && !_boltFasteningWork.Station.CarrierSeated)

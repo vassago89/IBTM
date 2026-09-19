@@ -1,12 +1,12 @@
-using System;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Core;
+using System.Threading;
+using System;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
@@ -279,8 +279,6 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
     public MachineAlarm Alarm { get; private set; }
     public string? AlarmDetail { get; private set; }
     public string? AlarmMessage { get; private set; }
-
-    public bool ConveyorRunning => _io.IsReady && _conveyor.RunCommandOn;
 
     public bool IsRunning => IsRunningFor();
 

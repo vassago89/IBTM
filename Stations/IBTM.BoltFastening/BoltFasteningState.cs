@@ -22,68 +22,20 @@ public enum BoltFasteningState
     [Description("Waiting")]
     Waiting,
 
-    [Description("Moving to First Shooting Bolt / Travel Z")]
+    [Description("Preparing First Shooting Bolt / Travel Z")]
     MovingToStandby,
 
-    [Description("Raising Pickup Table")]
-    RaisingPickupTable,
-
-    [Description("Lowering Pickup Table")]
-    LoweringPickupTable,
-
-    [Description("Moving to PCB Bolt")]
-    MovingToPcbBolt,
-
-    [Description("Shooting Bolt")]
-    ShootingBolt,
-
-    [Description("Advancing Shooting Escape")]
-    AdvancingShootingEscape,
+    [Description("Feeding and Fastening Shooting Bolt")]
+    FasteningPcb,
 
     [Description("Waiting for Shooting Feeder")]
     WaitingForShootingFeeder,
 
-    [Description("Waiting for Shooting Tube")]
-    WaitingForShootingTubeClear,
-
-    [Description("Retracting Shooting Escape")]
-    RetractingShootingEscape,
-
-    [Description("Fastening PCB Bolt")]
-    FasteningPcb,
-
-    [Description("Clearing Shooting Head")]
-    ClearingShootingHead,
-
-    [Description("Moving to Pickup XY")]
-    MovingToPickupXY,
-
-    [Description("Lowering Head for Bolt Pickup")]
-    LoweringForBoltPickup,
-
-    [Description("Moving to Pickup Z")]
-    MovingToPickupZ,
+    [Description("Picking and Fastening Pickup Bolt")]
+    FasteningPickup,
 
     [Description("Waiting for Pickup Feeder")]
     WaitingForPickupFeeder,
-
-    [Description("Picking Up Bolt")]
-    PickingUpBolt,
-
-    [Description("Raising Picked Bolt")]
-    RaisingPickedBolt,
-
-    [Description("Raising Pickup Head")]
-    RaisingPickupHead,
-
-    [Description("Moving to Pickup Bolt")]
-    MovingToPickupBolt,
-
-    [Description("Fastening Pickup Bolt")]
-    FasteningPickup,
-
-    [Description("Clearing Pickup Head")]
-    ClearingPickupHead,
 
     [Description("Completing Carrier")]
     CompletingCarrier,

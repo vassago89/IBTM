@@ -1,12 +1,12 @@
-using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Windows;
-using CommunityToolkit.Mvvm.Input;
+using System;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;

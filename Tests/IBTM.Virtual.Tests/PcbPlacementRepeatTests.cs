@@ -28,8 +28,10 @@ public sealed class PcbPlacementRepeatTests
         var movedUnsafely = false;
         var supplyOutputs = new List<OutputIo>();
         var supplyHardware = new PcbSupplyHardwareSettings();
-        rig.Io.OutputChanged += (output, _) =>
+        rig.Io.OutputChanged += (output, on) =>
         {
+            if (output == OutputIo.PcbPlacementHandlerRotate)
+                Assert.False(on);
             if (supplyHardware.Outputs.ContainsKey(output))
                 supplyOutputs.Add(output);
         };
@@ -204,7 +206,6 @@ public sealed class PcbPlacementRepeatTests
             Io.SetOutput(OutputIo.MainConveyorRun, false);
             await Work.Station.SeatAsync(CancellationToken.None);
             await Handler.MoveToHorizontalZAsync();
-            await Handler.SetRotatedAsync(true);
         }
 
         public void Dispose()

@@ -291,15 +291,7 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Display.InspectionState is InspectionStationState.MovingTransferToCarrier
-                or InspectionStationState.LoweringTransferAtCarrier
-                or InspectionStationState.ClosingTransferGripper
-                or InspectionStationState.WaitingForCarrierGrip
-                or InspectionStationState.RaisingCarrierTransfer
-                or InspectionStationState.MovingTransferToShuttle
-                or InspectionStationState.LoweringTransferAtShuttle
-                or InspectionStationState.OpeningTransferGripper
-                or InspectionStationState.WaitingForShuttleCarrier;
+            return State.Display.InspectionState == InspectionStationState.TransferringNgCarrier;
         }
     }
 }

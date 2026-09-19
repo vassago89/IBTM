@@ -28,18 +28,6 @@ public enum AppPage
     ManualHardware,
 }
 
-public enum MachineEnvironmentDisplay
-{
-    [Description("Physical")]
-    Physical,
-
-    [Description("Mixed")]
-    Mixed,
-
-    [Description("Virtual")]
-    Virtual,
-}
-
 public partial class MainViewModel : ObservableObject
 {
     private readonly TeachingViewModel _teachingViewModel;
@@ -74,7 +62,6 @@ public partial class MainViewModel : ObservableObject
         ManualHardwareViewModel manualHardwareViewModel,
         RecipeEditor recipeEditor,
         MachineState state,
-        DriverSettings drivers,
         MachineController machine,
         DiagnosticWindows windows,
         ILogger<MainViewModel> log)
@@ -97,15 +84,6 @@ public partial class MainViewModel : ObservableObject
         _machine = machine;
         _windows = windows;
         _log = log;
-        var controlVirtual = drivers.Control == ControlDriver.Virtual;
-        var cameraVirtual = drivers.Camera == CameraDriver.Virtual;
-        var boltVirtual = drivers.Bolt == BoltDriver.Virtual;
-        Environment = (controlVirtual, cameraVirtual, boltVirtual) switch
-        {
-            (true, true, true) => MachineEnvironmentDisplay.Virtual,
-            (false, false, false) => MachineEnvironmentDisplay.Physical,
-            _ => MachineEnvironmentDisplay.Mixed,
-        };
         _recipeEditingCommands = [
             NavigateCommand,
             recipeEditor.SaveCommand,
@@ -132,7 +110,6 @@ public partial class MainViewModel : ObservableObject
 
     public OperationViewModel Operation { get; }
     public RecipeEditor RecipeEditor { get; }
-    public MachineEnvironmentDisplay Environment { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage), nameof(CurrentPageEnabled))]
@@ -323,7 +300,18 @@ public partial class MainViewModel : ObservableObject
         NavigationError = null;
         try
         {
-            await DeactivateCurrentPageAsync();
+            switch (SelectedPage)
+            {
+                case AppPage.Operation:
+                    Operation.Deactivate();
+                    break;
+                case AppPage.Teaching:
+                    await _teachingViewModel.ShutdownAsync();
+                    break;
+                case AppPage.Settings:
+                    await _settingsViewModel.ShutdownAsync();
+                    break;
+            }
             if (_shuttingDown)
                 return;
             // The selector can change while the previous device operation is stopping.
@@ -371,22 +359,6 @@ public partial class MainViewModel : ObservableObject
                 _settingsViewModel.RefreshCommands();
                 break;
         }
-    }
-
-    private Task DeactivateCurrentPageAsync()
-    {
-        switch (SelectedPage)
-        {
-            case AppPage.Operation:
-                Operation.Deactivate();
-                return Task.CompletedTask;
-            case AppPage.Teaching:
-                return _teachingViewModel.ShutdownAsync();
-            case AppPage.Settings:
-                return _settingsViewModel.ShutdownAsync();
-        }
-
-        return Task.CompletedTask;
     }
 
     private void OnRecipeEditingChanged(object? sender, PropertyChangedEventArgs e)

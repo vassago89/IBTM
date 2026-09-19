@@ -2,7 +2,6 @@ using System;
 using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -117,7 +116,6 @@ public partial class SettingsViewModel
     }
 
     public IAsyncRelayCommand TestLightCommand { get; }
-    public ICommand TestLightCancelCommand { get; }
 
     private async Task TestLightAsync(CancellationToken cancellationToken)
     {

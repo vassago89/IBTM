@@ -1,6 +1,6 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
+using System;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
 using IBTM.BoltFastening;
@@ -15,11 +15,11 @@ using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
-using IBTM.Storage;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM;
@@ -152,7 +152,6 @@ public static class DependencyInjection
                         new(OutputIo.PcbPlacementIpmDown, HardwareArea.PcbPlacementHandler),
                         new(OutputIo.PcbPlacementIpmGripperClose, HardwareArea.PcbPlacementHandler),
                         new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler),
-                        new(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler),
                         new(OutputIo.PcbPlacementStopperUp, HardwareArea.MainConveyor),
                         new(OutputIo.PcbPlacementBackupPlateUp, HardwareArea.MainConveyor),
                     ],

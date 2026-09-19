@@ -10,59 +10,30 @@ public enum InspectionStationState
     [Description("Teach Data Matrix Regions")]
     BarcodeTeachingRequired,
 
-    [Description("Moving to Data Matrix")]
-    MovingToBarcode,
-
     [Description("Reading Data Matrix")]
     ReadingBarcode,
-
-    [Description("Moving to Bolt")]
-    MovingToBolt,
 
     [Description("Inspecting Bolt")]
     InspectingBolt,
 
-    [Description("Completing Inspection")]
+    [Description("Returning and Completing Inspection")]
     CompletingInspection,
 
-    [Description("Moving Transfer to Carrier")]
-    MovingTransferToCarrier,
-
-    [Description("Lowering Transfer at Carrier")]
-    LoweringTransferAtCarrier,
-
-    [Description("Closing NG Transfer Gripper")]
-    ClosingTransferGripper,
-
-    [Description("Waiting for Carrier Grip")]
-    WaitingForCarrierGrip,
-
-    [Description("Raising NG Transfer")]
-    RaisingCarrierTransfer,
-
-    [Description("Moving Transfer to Shuttle")]
-    MovingTransferToShuttle,
+    [Description("Transferring NG Carrier")]
+    TransferringNgCarrier,
 
     [Description("Waiting for Shuttle")]
     WaitingForShuttleReady,
 
-    [Description("Lowering Transfer at Shuttle")]
-    LoweringTransferAtShuttle,
-
-    [Description("Opening NG Transfer Gripper")]
-    OpeningTransferGripper,
-
-    [Description("Waiting for Shuttle Carrier")]
-    WaitingForShuttleCarrier,
-
     [Description("Holding Carrier at Shuttle")]
     HoldingCarrierAtShuttle,
-    [Description("Teach inspection FOV / ROI")]
+
+    [Description("Teach Inspection FOV / ROI")]
     FovTeachingRequired,
 
-    [Description("Returning to NG pickup waiting position")]
+    [Description("Returning to NG Pickup Waiting Position")]
     ReturningToNgPickup,
 
-    [Description("Waiting for other carrier transfers before inspection")]
+    [Description("Waiting for Other Carrier Transfers Before Inspection")]
     WaitingForConveyor,
 }

@@ -72,13 +72,13 @@ Repeat는 외부 SMEMA로 새 캐리어를 받지 않고 현재 입구 센서의
 | 상태 | 동작 또는 대기 조건 |
 | --- | --- |
 | `WaitingForFrontCarrier` | 입구 센서 ON 또는 전단 SMEMA Available ON 대기. |
+| `SeatingCarriers` | 재실한 S1·S2 중 착좌되지 않은 곳을 동시에 상승·스토퍼 하강시킨다. |
 | `ReceivingFrontCarrier` | S1 DOWN/스토퍼 UP 준비 → 벨트 구동 → 입구 도착 확인 → S1 HS2 감지 후 추가 구동 → 정지·상승. |
 | `MovingBoltFasteningToInspection` | 목적지 DOWN/스토퍼 UP 준비 → S2 하강 → 벨트 이송 → S3 HS2 감지와 추가 구동 → 결과 인계 → 정지. 그다음 다른 캐리어 이송과 검사 중 우선 동작을 판단한다. |
-| `RaisingInspectionCarrierForOtherTransfers` | 검사 전, 다른 캐리어를 움직이기 위해 S3를 올리고 스토퍼를 내린다. 검사 완료 후의 상승과 별도 상태다. |
+| `RaisingInspectionCarrier` | 검사 전 다른 물류를 우선할 때, 또는 검사 완료 후 즉시 배출할 수 없을 때 S3를 올리고 스토퍼를 내린다. 같은 상승 동작을 공유한다. |
 | `PreparingInspectionCarrier` | 우선할 이송이 없을 때 픽업의 비어 있음·상승을 확인하고, 스토퍼 UP → 플레이트 DOWN 확인 후 해당 캐리어의 검사를 요청한다. 하강 중 새 이송 요청이 들어오면 검사 요청 전에 다시 우선 처리한다. |
 | `WaitingForInspection` | 검사와 NG 픽업 위치 복귀가 끝나기를 기다린다. 메인 벨트는 정지한다. S1·S2의 플레이트 상승 및 개별 스테이션 작업은 가능하다. |
 | `WaitingForInspectionTransfer` | 필요한 픽업 상승·비어 있음 또는 NG 픽업 대기 위치 피드백을 기다린다. |
-| `RaisingInspectionCarrier` | 즉시 후방 배출할 수 없는 검사 완료 캐리어를 올리고 스토퍼를 내린다. OK 대기와 NG 집기에 공통으로 사용한다. |
 | `DischargingInspectionCarrier` | 후방 Ready를 확인한 OK 캐리어의 지지를 해제하고 배출한다. Ready OFF 또는 아래 출구 센서의 구멍 통과 확인으로 정지한다. 이미 출구에 있는 캐리어만 배출할 때 S3의 NG 캐리어를 내리지 않는다. |
 
 상승 대기 상태의 S3는 새 캐리어를 받을 수 없지만, 앞쪽 빈 공간의 이송을 막지 않는다.
@@ -122,16 +122,15 @@ STOP 시 이 배출의 첫 ON/OFF 시간은 버린다. 새 START는 현재 출�
 따라서 S3 도착 때 잠시 벨트가 정지한 것만으로 검사 루프가 먼저 출발하지 않는다.
 메인 컨베이어 비활성 상태의 검사 단독 운전은 현재 물리 조건으로 검사한다.
 
-1. `MovingToBarcode` / `ReadingBarcode`: 필요한 바코드를 읽는다.
-2. `MovingToBolt` / `InspectingBolt`: 해당 캐리어의 볼트를 검사한다.
-3. `ReturningToNgPickup`: 빈 픽업을 NG 픽업 대기 위치로 복귀시킨다.
-4. `CompletingInspection`: 결과와 대기 위치 복귀가 모두 끝난 후 현재 작업을 완료 처리한다.
-5. OK는 대기하거나 후방 배출한다. NG는 메인이 플레이트를 올리고 스토퍼를 내린 뒤
-   `LoweringTransferAtCarrier` 등 기존 NG 이송 상태로 집기를 진행한다.
+1. `ReadingBarcode` (포인트 이동 포함): 필요한 바코드를 읽는다.
+2. `InspectingBolt` (포인트 이동 포함): 해당 캐리어의 볼트를 검사한다.
+3. `CompletingInspection`: NG 픽업 대기 위치 복귀부터 현재 캐리어의 완료 기록까지 한 번에 수행한다.
+4. OK는 대기하거나 후방 배출한다. NG는 메인이 플레이트를 올리고 스토퍼를 내린 뒤
+   `TransferringNgCarrier` 상태로 집기를 진행한다.
 
 검사 중 플레이트·스토퍼·재실 조건이 깨지거나 벨트 Run 출력이 켜지면 진행 중 검사를 취소한다.
 취소된 촬영 결과를 완료로 기록하지 않는다. 이미 수집한 결과의 캐리어별 소유권은 유지한다.
-검사할 캐리어가 없거나 티칭을 기다리는 경우에도, 빈 픽업은 NG 픽업 위치로 돌아가 대기한다.
+검사할 캐리어가 없거나 티칭을 기다리는 경우의 `ReturningToNgPickup`은 빈 픽업을 대기 위치로 복귀시킨다.
 NG 운반 중처럼 캐리어를 잡고 있으면 기존 NG 이송 동작이 우선한다.
 
 ## 책임과 참조 방향

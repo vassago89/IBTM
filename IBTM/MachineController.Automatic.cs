@@ -312,7 +312,7 @@ public sealed partial class MachineController
                     "Shooting Feeder OFF; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.BoltFastening,
-                _fasteningStation.RunAsync(_recipes.Current.BoltFastening, cycle.Token),
+                _fasteningStation.RunAsync(cycle.Token),
                 cycle));
         }
 

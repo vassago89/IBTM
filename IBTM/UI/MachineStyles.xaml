@@ -392,14 +392,20 @@
         <Setter Property="Width" Value="{StaticResource BackupPlateWidth}"/>
         <Setter Property="Height" Value="{StaticResource BackupPlateHeight}"/>
         <Setter Property="Background" Value="{StaticResource BackupPlateBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="4"/>
         <Setter Property="Panel.ZIndex" Value="1"/>
+        <Setter Property="ToolTip" Value="Backup plate position unknown"/>
         <Style.Triggers>
             <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Up}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
+                <Setter Property="ToolTip" Value="Backup plate raised"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Down}">
+                <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+                <Setter Property="ToolTip" Value="Backup plate lowered"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -408,17 +414,65 @@
         <Setter Property="Width" Value="10"/>
         <Setter Property="Height" Value="28"/>
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="1"/>
-        <Setter Property="Opacity" Value="0.3"/>
         <Setter Property="Panel.ZIndex" Value="3"/>
+        <Setter Property="ToolTip" Value="Stopper position unknown"/>
         <Style.Triggers>
             <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Up}">
                 <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
-                <Setter Property="Opacity" Value="1"/>
+                <Setter Property="ToolTip" Value="Stopper raised"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Down}">
+                <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+                <Setter Property="Opacity" Value="0.3"/>
+                <Setter Property="ToolTip" Value="Stopper lowered"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="PlateElevationStyle" TargetType="Path">
+        <Setter Property="Stroke" Value="{StaticResource AccentAmberBrush}"/>
+        <Setter Property="StrokeThickness" Value="2"/>
+        <Setter Property="Fill" Value="Transparent"/>
+        <Setter Property="Data" Value="M 136,16 C 136,5 150,5 150,15 C 150,21 143,20 143,27 M 143,32 V 35"/>
+        <Setter Property="ToolTip" Value="Lift position unknown"/>
+        <Style.Triggers>
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Up}">
+                <Setter Property="Data" Value="M 28,8 H 248 V 15 H 28 Z M 68,15 V 38 M 208,15 V 38"/>
+                <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
+                <Setter Property="Fill" Value="{StaticResource MapActiveBackgroundBrush}"/>
+                <Setter Property="ToolTip" Value="Lift raised"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Down}">
+                <Setter Property="Data" Value="M 28,29 H 248 V 36 H 28 Z M 68,36 V 38 M 208,36 V 38"/>
+                <Setter Property="Stroke" Value="{StaticResource TextMutedBrush}"/>
+                <Setter Property="Fill" Value="{StaticResource BackupPlateBrush}"/>
+                <Setter Property="ToolTip" Value="Lift lowered"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="StopperElevationStyle" TargetType="Path">
+        <Setter Property="Stroke" Value="{StaticResource AccentAmberBrush}"/>
+        <Setter Property="StrokeThickness" Value="2"/>
+        <Setter Property="Fill" Value="Transparent"/>
+        <Setter Property="StrokeDashArray" Value="2,2"/>
+        <Setter Property="Data" Value="M 260,13 H 268 V 38 H 260 Z"/>
+        <Setter Property="ToolTip" Value="Stopper position unknown"/>
+        <Style.Triggers>
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Up}">
+                <Setter Property="StrokeDashArray" Value="{x:Null}"/>
+                <Setter Property="Fill" Value="{StaticResource AccentAmberBrush}"/>
+                <Setter Property="ToolTip" Value="Stopper raised"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Down}">
+                <Setter Property="Data" Value="M 260,38 H 268 V 43 H 260 Z"/>
+                <Setter Property="StrokeDashArray" Value="{x:Null}"/>
+                <Setter Property="Stroke" Value="{StaticResource TextMutedBrush}"/>
+                <Setter Property="ToolTip" Value="Stopper lowered"/>
             </Trigger>
         </Style.Triggers>
     </Style>

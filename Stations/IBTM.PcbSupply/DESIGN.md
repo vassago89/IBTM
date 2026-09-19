@@ -62,9 +62,10 @@ same carrier handshake.
 `SetRotatedAsync` always reaches Rotation Z before commanding rotation IO.
 `MovingToHandoff` reaches give Z before any XY approach. The motion call receives
 this height explicitly, so it cannot first move back to the default Rotation Z.
-`MovingFromHandoff` keeps give Z throughout the XY withdrawal. Only after the
-handler reaches the next pickup XY does `RaisingForPickup` return to Rotation Z for rotation.
-`UnrotatingForHandoff` confirms Unrotated before handoff; `RotatingForPickup` confirms Rotated before pickup.
+`MovingToPickup` also owns withdrawal: give-height XY to the next pickup, then
+Rotation Z and Rotated feedback. `MovingToHandoff` owns PCB securing, rotation and
+handoff approach. An already secured, unrotated PCB keeps the give travel height
+when resuming an interrupted approach; it does not first return to Rotation Z.
 
 ## Direct handoff and live feedback
 

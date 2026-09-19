@@ -99,17 +99,9 @@
                     </Grid>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="OperationPanel" IsEnabled="{Binding ProtocolEnabled}">
-                            <Grid Margin="0,14,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="80"/>
-                                    <ColumnDefinition Width="90"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Preset" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <TextBox x:Name="PresetBox" Grid.Column="1" Text="{Binding PresetText, UpdateSourceTrigger=PropertyChanged}"/>
-                                <Button Grid.Column="2" Margin="10,0,0,0" Content="Select" Padding="14,5"
-                                    Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SelectPresetCommand}"/>
-                            </Grid>
+                            <Button x:Name="SelectPresetButton" Content="Select Preset 1"
+                                Margin="0,14,0,12" HorizontalAlignment="Left" Padding="14,5"
+                                Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SelectPresetCommand}"/>
 
                             <WrapPanel Margin="0,0,0,14">
                                 <Button x:Name="StartButton" Content="Start Fastening" Margin="0,0,8,8"

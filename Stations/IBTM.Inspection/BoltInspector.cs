@@ -1,10 +1,10 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.ExceptionServices;
-using System.Threading;
 using System.Threading.Tasks;
+using System.Threading;
+using System;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
@@ -47,15 +47,8 @@ public sealed class BoltInspector
 
     public event Action<ImageFrame>? FrameReady
     {
-        add
-        {
-            camera.FrameReady += value;
-        }
-
-        remove
-        {
-            camera.FrameReady -= value;
-        }
+        add => camera.FrameReady += value;
+        remove => camera.FrameReady -= value;
     }
 
     public bool IsLiveView => camera.IsLiveView;

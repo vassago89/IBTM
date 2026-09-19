@@ -228,6 +228,8 @@ public sealed partial class MachineController
             stage = "Setting conveyor normal speed outputs";
             _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
             _io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
+            stage = "Setting placement handler rotation OFF";
+            _io.SetOutput(OutputIo.PcbPlacementHandlerRotate, false);
             stage = "Setting main conveyor forward direction";
             _io.SetOutput(OutputIo.MainConveyorForward, true);
             _log?.LogInformation("Control I/O initialization and readiness check completed.");

@@ -167,7 +167,7 @@ public sealed partial class MachineLifecycleTests
             teaching.FilteredPoints.Select(point => point.Position.Target).Order());
         Assert.False(teaching.IsInspectionSelected);
         Assert.False(teaching.BoltPointEditorVisible);
-        Assert.False(teaching.BoltPresetEditorVisible);
+        Assert.False(teaching.IsFasteningSelected);
         Assert.False(teaching.ToggleLiveViewCommand.CanExecute(null));
         Assert.False(teaching.CaptureInspectionCommand.CanExecute(null));
         Assert.False(teaching.AddBoltPointCommand.CanExecute(null));
@@ -876,41 +876,33 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task TeachingRotationRechecksThePlacementLiftBeforeWritingTheOutput()
+    public async Task PlacementRotationStaysOffInInitializationTeachingAndOutputControl()
     {
         await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var state = services.GetRequiredService<MachineState>();
-        var operations = services.GetRequiredService<OperationCancellation>();
+        io.SetOutput(OutputIo.PcbPlacementHandlerRotate, true);
         await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
-        var teaching = services.GetRequiredService<TeachingViewModel>();
-        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-        var rotation = TeachingRows(teaching)[OutputIo.PcbPlacementHandlerRotate];
-        await WaitUntilAsync(() => rotation.ToggleOutputCommand.CanExecute(null));
-        Assert.False(io.GetOutput(rotation.Io.Signal));
-
-        void LoseLiftFeedbackAfterAdmission()
-        {
-            if (!operations.HasActiveOperations)
-                return;
-            operations.ActivityChanged -= LoseLiftFeedbackAfterAdmission;
-            io.SetInput(InputIo.PcbPlacementHandlerUp, false);
-        }
-
-        operations.ActivityChanged += LoseLiftFeedbackAfterAdmission;
         try
         {
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
+            var teaching = services.GetRequiredService<TeachingViewModel>();
+            teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+            var rotation = teaching.TeachingIoGroups.SelectMany(group => group.Outputs)
+                .Single(row => row.Io.Signal == OutputIo.PcbPlacementHandlerRotate);
+            Assert.False(rotation.ToggleOutputCommand.CanExecute(null));
             await rotation.ToggleOutputCommand.ExecuteAsync(null);
-            Assert.False(io.GetOutput(rotation.Io.Signal));
-            Assert.Equal(MachineAlarm.PcbPlacement, state.Alarm);
-            Assert.Contains("rotation", state.AlarmDetail);
-            Assert.False(operations.HasActiveOperations);
+            var output = new OutputWindowRow(rotation.Io, machine);
+            Assert.False(output.ToggleCommand.CanExecute(null));
+            Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.PcbPlacementHandlerRotate));
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
+            io.SetOutput(OutputIo.PcbPlacementHandlerRotate, true);
+            services.GetRequiredService<MachineState>().SetError(MachineAlarm.PcbPlacement, new InvalidOperationException("Reset fixed output"));
+            await machine.ResetAsync();
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
         }
         finally
         {
-            operations.ActivityChanged -= LoseLiftFeedbackAfterAdmission;
             await machine.ShutdownAsync();
         }
     }
@@ -933,8 +925,7 @@ public sealed partial class MachineLifecycleTests
         var lift = TeachingRows(teaching)[OutputIo.PcbPlacementHandlerDown];
         await lift.ToggleOutputCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
-        await WaitUntilAsync(
-            () => !TeachingRows(teaching)[OutputIo.PcbPlacementHandlerRotate].ToggleOutputCommand.CanExecute(null));
+        Assert.DoesNotContain(OutputIo.PcbPlacementHandlerRotate, TeachingRows(teaching).Keys);
         await lift.ToggleOutputCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
         var ipm = TeachingRows(teaching)[OutputIo.PcbPlacementIpmDown];

@@ -4,6 +4,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
     xmlns:ng="clr-namespace:IBTM.NgConveyor;assembly=IBTM.NgConveyor"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
@@ -26,6 +27,30 @@
             <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
             <Setter Property="TextAlignment" Value="Left"/>
             <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style x:Key="NgBeltDirectionStyle" TargetType="Path">
+            <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
+            <Setter Property="StrokeThickness" Value="3"/>
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Setter Property="ToolTip" Value="NG conveyor drive direction"/>
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Signals.Outputs[NgConveyorRun].IsOn}" Value="True"/>
+                        <Condition Binding="{Binding Signals.Outputs[NgConveyorReverse].IsOn}" Value="False"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="Data" Value="M 0,0 L 8,9 L 16,0 M 0,18 L 8,27 L 16,18 M 0,36 L 8,45 L 16,36"/>
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Signals.Outputs[NgConveyorRun].IsOn}" Value="True"/>
+                        <Condition Binding="{Binding Signals.Outputs[NgConveyorReverse].IsOn}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="Data" Value="M 0,9 L 8,0 L 16,9 M 0,27 L 8,18 L 16,27 M 0,45 L 8,36 L 16,45"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
     <Canvas>
@@ -117,107 +142,51 @@
                     Visibility="{Binding Signals.Inputs[NgConveyorPosition1Occupied].IsOn, Converter={StaticResource BoolToVis}}"/>
             </Grid>
             <TextBlock Grid.Row="3" Text="P1 / EJECT" Style="{StaticResource PositionLabelStyle}"/>
+            <Border Grid.Row="3" Width="28" Height="10" VerticalAlignment="Bottom" Margin="0,0,0,-5">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource StopperVisualStyle}">
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Signals.Inputs[NgConveyorStopperUp].IsOn}" Value="True"/>
+                                    <Condition Binding="{Binding Signals.Inputs[NgConveyorStopperDown].IsOn}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Tag" Value="{x:Static device:StationCylinderState.Up}"/>
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Signals.Inputs[NgConveyorStopperUp].IsOn}" Value="False"/>
+                                    <Condition Binding="{Binding Signals.Inputs[NgConveyorStopperDown].IsOn}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Tag" Value="{x:Static device:StationCylinderState.Down}"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
         </Grid>
-        <Border Canvas.Left="{x:Static ui:MachinePlan.NgStatusLeft}" Canvas.Top="132" Width="210" Style="{StaticResource MapIoCardStyle}">
-            <StackPanel>
-                <TextBlock Text="NG · LIVE I/O" Style="{StaticResource MapIoTitleStyle}"/>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Inputs[NgConveyorManualMode].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Tag="{Binding Signals.Inputs[NgConveyorManualMode].IsOn}"
-                        Text="{Binding Signals.Inputs[NgConveyorManualMode].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoInputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorManualMode].Address}"
-                        Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DI Manual input" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Inputs[NgShuttleCarrierDetected].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock
-                        Tag="{Binding Signals.Inputs[NgShuttleCarrierDetected].IsOn}"
-                        Text="{Binding Signals.Inputs[NgShuttleCarrierDetected].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoInputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Inputs[NgShuttleCarrierDetected].Address}"
-                        Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DI P3" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Inputs[NgShuttleUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Tag="{Binding Signals.Inputs[NgShuttleUp].IsOn}"
-                        Text="{Binding Signals.Inputs[NgShuttleUp].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoInputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Inputs[NgShuttleUp].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DI Lift up" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Inputs[NgShuttleDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Tag="{Binding Signals.Inputs[NgShuttleDown].IsOn}"
-                        Text="{Binding Signals.Inputs[NgShuttleDown].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoInputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Inputs[NgShuttleDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DI Lift down" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Inputs[NgConveyorPosition2Occupied].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock
-                        Tag="{Binding Signals.Inputs[NgConveyorPosition2Occupied].IsOn}"
-                        Text="{Binding Signals.Inputs[NgConveyorPosition2Occupied].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoInputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorPosition2Occupied].Address}"
-                        Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DI P2" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Inputs[NgConveyorPosition1Occupied].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock
-                        Tag="{Binding Signals.Inputs[NgConveyorPosition1Occupied].IsOn}"
-                        Text="{Binding Signals.Inputs[NgConveyorPosition1Occupied].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoInputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorPosition1Occupied].Address}"
-                        Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DI P1" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Inputs[NgConveyorStopperDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Tag="{Binding Signals.Inputs[NgConveyorStopperDown].IsOn}"
-                        Text="{Binding Signals.Inputs[NgConveyorStopperDown].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoInputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorStopperDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DI Stopper down" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Inputs[NgConveyorStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Tag="{Binding Signals.Inputs[NgConveyorStopperUp].IsOn}"
-                        Text="{Binding Signals.Inputs[NgConveyorStopperUp].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoInputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorStopperUp].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DI Stopper up" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Outputs[NgConveyorStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Tag="{Binding Signals.Outputs[NgConveyorStopperUp].IsOn}"
-                        Text="{Binding Signals.Outputs[NgConveyorStopperUp].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoOutputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperUp].Address}"
-                        Style="{StaticResource MapIoAddressStyle}" Width="Auto" MinWidth="26" Margin="6,0,0,0"/>
-                    <TextBlock Text="DO Stopper up" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Outputs[NgConveyorRun].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Tag="{Binding Signals.Outputs[NgConveyorRun].IsOn}"
-                        Text="{Binding Signals.Outputs[NgConveyorRun].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoOutputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorRun].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DO Run" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Outputs[NgConveyorReverse].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Tag="{Binding Signals.Outputs[NgConveyorReverse].IsOn}"
-                        Text="{Binding Signals.Outputs[NgConveyorReverse].IsOn, Converter={StaticResource SignalTextConverter}}"
-                        Style="{StaticResource MapIoOutputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorReverse].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DO Reverse" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-            </StackPanel>
-        </Border>
+        <StackPanel Canvas.Left="{x:Static ui:MachinePlan.NgStatusLeft}" Canvas.Top="160">
+            <TextBlock Text="P3 LIFT" Style="{StaticResource EquipmentRoleLabelStyle}" Margin="0,0,0,12"/>
+            <Viewbox Width="150">
+                <Canvas Width="284" Height="48">
+                    <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
+                    <Path>
+                        <Path.Style>
+                            <Style TargetType="Path" BasedOn="{StaticResource PlateElevationStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding NgShuttle.Feedback.Lift}" Value="{x:Static ng:NgShuttleLiftState.Up}">
+                                        <Setter Property="Tag" Value="{x:Static device:StationCylinderState.Up}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding NgShuttle.Feedback.Lift}" Value="{x:Static ng:NgShuttleLiftState.Down}">
+                                        <Setter Property="Tag" Value="{x:Static device:StationCylinderState.Down}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+                </Canvas>
+            </Viewbox>
+        </StackPanel>
+        <Path Canvas.Left="{x:Static ui:MachinePlan.NgStatusLeft}" Canvas.Top="276" Style="{StaticResource NgBeltDirectionStyle}"/>
     </Canvas>
 </UserControl>

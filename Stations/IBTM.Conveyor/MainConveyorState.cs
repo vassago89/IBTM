@@ -13,11 +13,8 @@ public enum MainConveyorState
     [Description("Waiting for downstream")]
     WaitingForRearEquipment,
 
-    [Description("Seating S1 carrier")]
-    SeatingPcbPlacementCarrier,
-
-    [Description("Seating S2 carrier")]
-    SeatingBoltFasteningCarrier,
+    [Description("Seating S1 / S2 carriers")]
+    SeatingCarriers,
 
     [Description("Raising S3 for waiting / NG pickup")]
     RaisingInspectionCarrier,
@@ -54,7 +51,4 @@ public enum MainConveyorState
 
     [Description("Waiting for transfer at NG pickup")]
     WaitingForInspectionTransfer,
-
-    [Description("Raising S3 to move other carriers before inspection")]
-    RaisingInspectionCarrierForOtherTransfers,
 }

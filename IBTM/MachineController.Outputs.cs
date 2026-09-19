@@ -23,8 +23,12 @@ public sealed partial class MachineController
 
         try
         {
-            var value = signal is OutputIo.MainConveyorNormalSpeed or OutputIo.NgConveyorNormalSpeed
-                || !_io.GetOutput(signal);
+            var value = signal switch
+            {
+                OutputIo.MainConveyorNormalSpeed or OutputIo.NgConveyorNormalSpeed => true,
+                OutputIo.PcbPlacementHandlerRotate => false,
+                _ => !_io.GetOutput(signal),
+            };
             _io.SetOutput(signal, value);
             _log?.LogInformation("{Message}", $"Direct output {signal}: {(value ? "ON" : "OFF")}; alarm={_state.Alarm}.");
             _state.RequestDisplayRefresh();
@@ -223,21 +227,9 @@ public sealed partial class MachineController
     internal bool IsSetTeachingOutputAllowed(TeachingOutput output, bool live = true)
     {
         return (live ? _state.ManualSetupEnabled : _state.Display.ManualSetupEnabled)
-            && IsTeachingOutputInterlockReady(output.Signal, live)
+            && output.Signal != OutputIo.PcbPlacementHandlerRotate
             && (output.Signal != OutputIo.PcbSupplyRotate
                 || IsManualMotionReady(MotionGroup.PcbSupply, live));
-    }
-
-    private bool IsTeachingOutputInterlockReady(OutputIo signal, bool live)
-    {
-        switch (signal)
-        {
-            case OutputIo.PcbPlacementHandlerRotate:
-                return _placementHandler.IsAtHorizontalZ(live)
-                    && _placementHandler.HandlerRaised;
-            default:
-                return true;
-        }
     }
 
     internal async Task ToggleTeachingOutputAsync(
@@ -287,9 +279,6 @@ public sealed partial class MachineController
                     break;
                 case OutputIo.PcbPlacementVacuumEjector:
                     await _placementHandler.SetVacuumAsync(value, operation.Token);
-                    break;
-                case OutputIo.PcbPlacementHandlerRotate:
-                    await _placementHandler.SetRotatedAsync(value, operation.Token);
                     break;
                 case OutputIo.PickupHeadDown:
                     await _fasteningGantry.SetHeadDownAsync(FasteningHead.Pickup, value, operation.Token);

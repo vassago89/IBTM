@@ -202,8 +202,6 @@ public partial class TeachingViewModel : ObservableObject
     public FasteningHead[] FasteningHeads { get; }
     public HeatSinkSlot[] HeatSinkSlots { get; }
 
-    public BoltFasteningRecipe BoltRecipe => Recipes.Current.BoltFastening;
-
     public BoltInspectionRecipe InspectionRecipe => Recipes.Current.BoltInspection;
 
     public TeachingSaveBehavior SaveBehavior
@@ -244,9 +242,9 @@ public partial class TeachingViewModel : ObservableObject
 
     public bool IsInspectionSelected => SelectedTeachingUnit == HardwareArea.InspectionGantry;
 
-    public bool BoltPointEditorVisible => BoltPresetEditorVisible || IsInspectionSelected;
+    public bool BoltPointEditorVisible => IsFasteningSelected || IsInspectionSelected;
 
-    public bool BoltPresetEditorVisible => SelectedTeachingUnit == HardwareArea.BoltFastening;
+    public bool IsFasteningSelected => SelectedTeachingUnit == HardwareArea.BoltFastening;
 
     public bool IsBoltSelected => IsInspectionSelected && SelectedPoint?.Position.Bolt is not null;
 
@@ -270,7 +268,7 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(Motion));
         OnPropertyChanged(nameof(HorizontalZName));
         OnPropertyChanged(nameof(BoltPointEditorVisible));
-        OnPropertyChanged(nameof(BoltPresetEditorVisible));
+        OnPropertyChanged(nameof(IsFasteningSelected));
         NotifyManualTeachingCommands();
     }
 
@@ -525,7 +523,6 @@ public partial class TeachingViewModel : ObservableObject
             RefreshTeachingPoints();
         else
             SelectedPcb = HeatSinkSlot.HeatSink1;
-        OnPropertyChanged(nameof(BoltRecipe));
         OnPropertyChanged(nameof(InspectionRecipe));
         MillimetersPerPixel = Recipes.Current.CarrierImageMillimetersPerPixel;
         ShowRecipeImages();

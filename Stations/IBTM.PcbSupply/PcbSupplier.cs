@@ -95,23 +95,58 @@ public sealed class PcbSupplier : AutoUnit
         switch (state)
         {
             case PcbSupplyState.MovingToPickup:
-                await _handler.MoveToPickupAsync(recipe.Pcb1PickPosition, cancellationToken);
+                var nextPick = _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition;
+                if (_buffer.IsSupplyAtHandoff())
+                    await _handler.MoveFromHandoffAsync(nextPick, cancellationToken);
+                await _handler.SetRotatedAsync(true, cancellationToken);
+                if (!_handler.IsAtPickupXY(nextPick))
+                    await _handler.MoveToPickupAsync(nextPick, cancellationToken);
                 break;
             case PcbSupplyState.PickingPcb:
-                await PickPcbAsync(recipe, cancellationToken);
+            {
+                var pickStep = _pickStep;
+                var pickPosition = pickStep == PickStep.Pcb1
+                    ? recipe.Pcb1PickPosition
+                    : recipe.Pcb2PickPosition;
+                using var pickup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var carrierChanged = false;
+                void StopWhenCarrierLeaves()
+                {
+                    if (!_handler.UpstreamCarrierAvailable)
+                    {
+                        carrierChanged = true;
+                        pickup.Cancel();
+                    }
+                }
+
+                _handler.Changed += StopWhenCarrierLeaves;
+                try
+                {
+                    StopWhenCarrierLeaves();
+                    await _handler.PickAsync(pickPosition, pickup.Token);
+                    // Never advance a replacement carrier.
+                    if (!carrierChanged)
+                        _pickStep = pickStep == PickStep.Pcb1 ? PickStep.Pcb2 : PickStep.WaitingForCarrierExit;
+                }
+                catch (OperationCanceledException) when (carrierChanged
+                    && !cancellationToken.IsCancellationRequested)
+                {
+                }
+                finally
+                {
+                    _handler.Changed -= StopWhenCarrierLeaves;
+                }
                 break;
-            case PcbSupplyState.SecuringPcb:
-                await _handler.SetGripperClosedAsync(true, cancellationToken);
-                await _handler.SetIpmFixerAsync(true, cancellationToken);
-                await _handler.MoveToRotationZAsync(cancellationToken);
-                break;
-            case PcbSupplyState.RaisingForPickup:
-                await _handler.MoveToRotationZAsync(cancellationToken);
-                break;
-            case PcbSupplyState.UnrotatingForHandoff:
-                await _handler.SetRotatedAsync(false, cancellationToken);
-                break;
+            }
             case PcbSupplyState.MovingToHandoff:
+                if (_handler.Pcb == PcbSupplyPcbState.Detected)
+                {
+                    await _handler.SetGripperClosedAsync(true, cancellationToken);
+                    await _handler.SetIpmFixerAsync(true, cancellationToken);
+                    await _handler.MoveToRotationZAsync(cancellationToken);
+                }
+                if (_handler.Rotation != PcbSupplyRotationState.Unrotated)
+                    await _handler.SetRotatedAsync(false, cancellationToken);
                 await _handler.MoveToHandoffAsync(cancellationToken);
                 break;
             case PcbSupplyState.ReleasingPcb:
@@ -128,53 +163,9 @@ public sealed class PcbSupplier : AutoUnit
                     await _handler.SetGripperClosedAsync(false, cancellationToken);
                 }
                 break;
-            case PcbSupplyState.MovingFromHandoff:
-                await _handler.MoveFromHandoffAsync(
-                    _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition,
-                    cancellationToken);
-                break;
-            case PcbSupplyState.RotatingForPickup:
-                await _handler.SetRotatedAsync(true, cancellationToken);
-                break;
             default:
                 await WaitForChangeAsync(cancellationToken);
                 break;
-        }
-    }
-
-    private async Task PickPcbAsync(PcbSupplyRecipe recipe, CancellationToken cancellationToken)
-    {
-        var pickStep = _pickStep;
-        var pickPosition = pickStep == PickStep.Pcb1
-            ? recipe.Pcb1PickPosition
-            : recipe.Pcb2PickPosition;
-        using var pickup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var carrierChanged = false;
-        void StopWhenCarrierLeaves()
-        {
-            if (!_handler.UpstreamCarrierAvailable)
-            {
-                carrierChanged = true;
-                pickup.Cancel();
-            }
-        }
-
-        _handler.Changed += StopWhenCarrierLeaves;
-        try
-        {
-            StopWhenCarrierLeaves();
-            await _handler.PickAsync(pickPosition, pickup.Token);
-            // Never advance a replacement carrier.
-            if (!carrierChanged)
-                _pickStep = pickStep == PickStep.Pcb1 ? PickStep.Pcb2 : PickStep.WaitingForCarrierExit;
-        }
-        catch (OperationCanceledException) when (carrierChanged
-            && !cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            _handler.Changed -= StopWhenCarrierLeaves;
         }
     }
 
@@ -198,7 +189,7 @@ public sealed class PcbSupplier : AutoUnit
             {
                 case true when _buffer.IsSupplyAtHandoff() && _handler.PcbReleased:
                     return _buffer.IsSupplyExitAllowed
-                        ? PcbSupplyState.MovingFromHandoff
+                        ? PcbSupplyState.MovingToPickup
                         : PcbSupplyState.WaitingForPlacementLift;
                 case true when _buffer.IsSupplyAtHandoff():
                     return _buffer.IsPlacementSecuredAtHandoff()
@@ -208,19 +199,10 @@ public sealed class PcbSupplier : AutoUnit
 
             switch (true)
             {
-                case true when pcb == PcbSupplyPcbState.Detected:
-                    return PcbSupplyState.SecuringPcb;
-                case true when pcb == PcbSupplyPcbState.Secured:
-                    if (rotation != PcbSupplyRotationState.Unrotated)
-                    {
-                        return PcbSupplyState.UnrotatingForHandoff;
-                    }
-
+                case true when pcb != PcbSupplyPcbState.None:
                     return PcbSupplyState.MovingToHandoff;
-                case true when !_handler.IsAtRotationZ():
-                    return PcbSupplyState.RaisingForPickup;
-                case true when rotation != PcbSupplyRotationState.Rotated:
-                    return PcbSupplyState.RotatingForPickup;
+                case true when !_handler.IsAtRotationZ() || rotation != PcbSupplyRotationState.Rotated:
+                    return PcbSupplyState.MovingToPickup;
                 case true when _pickStep == PickStep.WaitingForCarrierExit:
                     return PcbSupplyState.WaitingForCarrierExit;
                 default:

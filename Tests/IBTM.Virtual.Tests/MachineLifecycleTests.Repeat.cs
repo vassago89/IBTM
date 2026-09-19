@@ -41,8 +41,6 @@ public sealed partial class MachineLifecycleTests
         TeachInspectionFovs(settings, recipe);
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 12 };
         recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 12 };
-        recipe.BoltFastening.PcbPreset = 3;
-        recipe.BoltFastening.PickupPreset = 1;
         settings.BoltFastening.ShootingHead.FasteningZ = 8;
         settings.BoltFastening.PickupHead.FasteningZ = 12;
         var machine = services.GetRequiredService<MachineController>();
@@ -87,8 +85,8 @@ public sealed partial class MachineLifecycleTests
                 if (on)
                 {
                     Assert.True(io.GetInput(InputIo.ShootingHeadUp));
-                    Assert.True(io.GetOutput(OutputIo.ShootingBoltPreset3));
-                    Assert.False(io.GetOutput(OutputIo.ShootingBoltPreset1));
+                    Assert.True(io.GetOutput(OutputIo.ShootingBoltPreset1));
+                    Assert.False(io.GetOutput(OutputIo.ShootingBoltPreset3));
                     Assert.False(io.GetOutput(OutputIo.ShootingBoltPreset2));
                     Interlocked.Increment(ref shootingStarts);
                 }

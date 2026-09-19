@@ -37,9 +37,6 @@ public enum NgConveyorState
     [Description("Remove Carrier · Press EJECT COMPLETE")]
     WaitingForEjectConfirmation,
 
-    [Description("Acknowledging Eject")]
-    AcknowledgingEject,
-
     [Description("Release EJECT / COMPLETE Buttons")]
     WaitingForEjectButtonRelease,
 

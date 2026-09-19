@@ -221,24 +221,6 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </Border>
-                        <Border>
-                            <Border.Style>
-                                <Style TargetType="Border" BasedOn="{StaticResource StateBadgeStyle}">
-                                    <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Environment}"
-                                            Value="{x:Static ui:MachineEnvironmentDisplay.Physical}">
-                                            <Setter Property="Opacity" Value="0.55"/>
-                                            <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <TextBlock
-                                Text="{Binding Environment,
-                                                     Converter={StaticResource EnumDescriptionConverter}}"
-                                Style="{StaticResource MapHintStyle}"/>
-                        </Border>
                         <Border Style="{StaticResource StateBadgeStyle}" Margin="8,0,0,0" BorderBrush="{StaticResource AccentAmberBrush}"
                             Visibility="{Binding Operation.SafetyBypass,
                                                      Converter={StaticResource BoolToVis}}">

@@ -45,7 +45,6 @@ public sealed partial class MachineController
     private readonly InspectionGantry _inspectionGantry;
     private readonly NgCarrierTransfer _ngTransfer;
     private readonly NgCarrierMove _ngMove;
-    private readonly InspectionWork _inspectionWork;
     private readonly BoltInspector _boltInspector;
     private readonly ILogger<MachineController>? _log;
 
@@ -91,7 +90,6 @@ public sealed partial class MachineController
         InspectionGantry inspectionGantry,
         NgCarrierTransfer ngTransfer,
         NgCarrierMove ngMove,
-        InspectionWork inspectionWork,
         BoltInspector boltInspector,
         ILogger<MachineController>? log = null)
     {
@@ -120,7 +118,6 @@ public sealed partial class MachineController
         _inspectionGantry = inspectionGantry;
         _ngTransfer = ngTransfer;
         _ngMove = ngMove;
-        _inspectionWork = inspectionWork;
         _boltInspector = boltInspector;
         _log = log;
         if (log is not null)

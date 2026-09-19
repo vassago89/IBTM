@@ -19,12 +19,8 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <DockPanel Margin="0,0,0,4">
-                        <TextBlock DockPanel.Dock="Right" Text="{Binding Input.Address, StringFormat='DI {0}'}"
-                            Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
-                        <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextSecondaryBrush}"
-                            FontSize="12" FontWeight="SemiBold"/>
-                    </DockPanel>
+                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextSecondaryBrush}"
+                        FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4"/>
                     <TextBlock x:Name="DoorState" Grid.Row="1" Text="UNKNOWN"
                         Foreground="{StaticResource TextMutedBrush}" FontSize="15" FontWeight="SemiBold"/>
                 </Grid>
@@ -97,11 +93,10 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="DOOR SENSORS" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold"/>
-                    <TextBlock Text="ON = Closed" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,4,0,0"/>
+                    <TextBlock Text="DOORS" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold"/>
                 </StackPanel>
                 <ItemsControl Grid.Column="1" ItemsSource="{Binding DoorSensors}" ItemTemplate="{StaticResource DoorSensorTemplate}"
-                    ToolTip="Live door contacts: ON = CLOSED, OFF = OPEN. UNKNOWN means feedback is unavailable.">
+                    ToolTip="Live door positions. UNKNOWN means feedback is unavailable.">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <UniformGrid Columns="6"/>

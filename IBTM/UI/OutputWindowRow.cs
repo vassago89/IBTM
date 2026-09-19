@@ -14,13 +14,15 @@ public sealed partial class OutputWindowRow : ObservableObject
 
     public OutputWindowRow(IoOutputStatus io, MachineController machine)
     {
-        ToggleCommand = new RelayCommand(Toggle);
+        ToggleCommand = new RelayCommand(Toggle, () => IsToggleAllowed);
 
         _machine = machine;
         Io = io;
     }
 
     public IoOutputStatus Io { get; }
+
+    private bool IsToggleAllowed => Io.Signal != OutputIo.PcbPlacementHandlerRotate;
 
     public IRelayCommand ToggleCommand { get; }
 

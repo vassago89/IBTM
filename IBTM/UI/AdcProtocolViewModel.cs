@@ -33,7 +33,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private OperationCancellation.Operation? _operationCancellation;
     private TaskCompletionSource? _operationCompletion;
     private readonly MachineState _state;
-    private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    private readonly Dispatcher _dispatcher;
     private int _refreshQueued;
     private bool _disposed;
     [ObservableProperty]
@@ -46,8 +46,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     public partial int SelectedBaudRate { get; set; }
     [ObservableProperty]
     public partial string SlaveText { get; set; } = "0";
-    [ObservableProperty]
-    public partial string PresetText { get; set; } = "1";
     [ObservableProperty]
     public partial AdcFunctionCode RegisterAccess { get; set; } = AdcFunctionCode.ReadInputRegisters;
     [ObservableProperty]
@@ -83,6 +81,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         MachineState state,
         ILogger<AdcProtocolViewModel>? log = null)
     {
+        _dispatcher = Dispatcher.CurrentDispatcher;
         _frameLogGate = new();
         _frameLog = new();
         AddressText = ((ushort)AdcResultRegister.EventCount).ToString();
@@ -279,9 +278,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         try
         {
             operation = BeginCommand(CancellationToken.None);
-            var preset = ushort.Parse(PresetText);
-            await CreateHead().SelectPresetAsync(preset, operation.Token);
-            ResultMessage = $"Preset {preset} selected";
+            await CreateHead().SelectPresetAsync(1, operation.Token);
+            ResultMessage = "Preset 1 selected";
         }
         catch (Exception exception)
         {
@@ -344,7 +342,14 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             var completion = _operationCompletion!.Task;
             cancellation.Cancel();
-            await ShowResultAsync(completion);
+            try
+            {
+                await completion;
+            }
+            catch (Exception exception)
+            {
+                ShowFailure(exception);
+            }
             return;
         }
 
@@ -383,7 +388,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             },
             SlaveAddress);
     }
-
 
     public IAsyncRelayCommand ReverseCommand { get; }
 
@@ -552,7 +556,11 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             switch (access)
             {
                 case AdcFunctionCode.ReadHoldingRegisters or AdcFunctionCode.ReadInputRegisters:
-                    RegisterResult = FormatRegisters(address, await _bus.ReadRegistersAsync(SlaveAddress, access, address, ushort.Parse(CountText), operation.Token));
+                    var values = await _bus.ReadRegistersAsync(
+                        SlaveAddress, access, address, ushort.Parse(CountText), operation.Token);
+                    RegisterResult = string.Join(
+                        Environment.NewLine,
+                        values.Select((value, index) => $"{address + index} = {value} (0x{value:X4})"));
                     break;
                 case AdcFunctionCode.WriteSingleRegister:
                     var value = ushort.Parse(ValueText);
@@ -702,18 +710,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         AppendLog($"ERROR  {exception.Message}", record: false);
     }
 
-    private async Task ShowResultAsync(Task operation)
-    {
-        try
-        {
-            await operation;
-        }
-        catch (Exception exception)
-        {
-            ShowFailure(exception);
-        }
-    }
-
     private bool IsConnectAllowed
     {
         get
@@ -800,13 +796,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             if (_frameLog.Count > MaximumLogEntries)
                 _frameLog.RemoveAt(_frameLog.Count - 1);
         }
-    }
-
-    private static string FormatRegisters(ushort address, ushort[] values)
-    {
-        return string.Join(
-            Environment.NewLine,
-            values.Select((value, index) => $"{address + index} = {value} (0x{value:X4})"));
     }
 
     private static string ToHex(byte[] data)

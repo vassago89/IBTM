@@ -235,7 +235,16 @@ public partial class TeachingViewModel
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            var (axis, target) = GetStepTarget(direction, Motion.Feedback.GetPosition());
+            var current = Motion.Feedback.GetPosition();
+            var (axis, sign) = Resolve(direction);
+            var position = axis switch
+            {
+                MotionAxis.X => current.X,
+                MotionAxis.Y => current.Y,
+                MotionAxis.Z => current.Z,
+                _ => throw new ArgumentOutOfRangeException(nameof(direction)),
+            };
+            var target = position + sign * StepDistance;
             switch (commandGroup)
             {
                 case MotionGroup.PcbSupply:

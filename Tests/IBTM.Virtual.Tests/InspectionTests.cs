@@ -367,16 +367,16 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionStopperDown, true);
-        Assert.Equal(InspectionStationState.MovingTransferToCarrier, transferStation.GetState([]));
+        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState([]));
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
-        Assert.Equal(InspectionStationState.WaitingForShuttleCarrier, transferStation.GetState([]));
+        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState([]));
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.Equal(InspectionStationState.RaisingCarrierTransfer, transferStation.GetState([]));
+        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState([]));
         Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
 
         io.SetInput(InputIo.NgCarrierGripperOpen, false);

@@ -76,18 +76,19 @@
                     </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
                         <TextBlock Text="Teaching Unit" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,6"/>
-                        <ComboBox ItemsSource="{Binding TeachingUnits}" SelectedItem="{Binding SelectedTeachingUnit}"/>
+                        <ComboBox ItemsSource="{Binding TeachingUnits}"
+                            SelectedItem="{Binding SelectedTeachingUnit, UpdateSourceTrigger=PropertyChanged}"/>
                         <TextBlock
                             Text="{Binding ActiveMotionGroup, Converter={StaticResource EnumDescriptionConverter}, StringFormat=Axes · {0}}"
                             Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                         <ComboBox ItemsSource="{Binding HeatSinkSlots}"
-                            SelectedItem="{Binding SelectedPcb}"
+                            SelectedItem="{Binding SelectedPcb, UpdateSourceTrigger=PropertyChanged}"
                             Margin="0,6,0,0"
                             Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
                     <ui:TeachingPointList x:Name="TeachingPointsList" Grid.Row="1"
                         ItemsSource="{Binding Source={StaticResource TeachingPoints}}"
-                        SelectedItem="{Binding SelectedPoint}"
+                        SelectedItem="{Binding SelectedPoint, UpdateSourceTrigger=PropertyChanged}"
                         Background="{StaticResource EquipBgBrush}" BorderThickness="1" BorderBrush="{StaticResource DividerBrush}"
                         ItemContainerStyle="{StaticResource FlatListItemStyle}">
                         <ListBox.GroupStyle>
@@ -115,7 +116,8 @@
                         Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="Add Bolt → Center in Live → Grab → Resize ROI"
                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
-                        <ComboBox ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" Margin="0,0,0,6"/>
+                        <ComboBox ItemsSource="{Binding FasteningHeads}"
+                            SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
                         <UniformGrid Columns="2">
                             <Button x:Name="AddBoltButton" Content="Add Bolt"
                                 Command="{Binding AddBoltPointCommand}"
@@ -136,7 +138,7 @@
                                 Command="{Binding ReturnFromPickupCommand}"
                                 Margin="0,6,0,0" Style="{StaticResource SecondaryButtonStyle}"
                                 ToolTip="Raise Z to Safe Z, then raise Head 1. XY and vacuum remain unchanged."
-                                Visibility="{Binding BoltPresetEditorVisible, Converter={StaticResource BoolToVis}}"/>
+                                Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -148,7 +150,7 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TabControl SelectedIndex="{Binding SelectedCameraTab}">
+                    <TabControl SelectedIndex="{Binding SelectedCameraTab, UpdateSourceTrigger=PropertyChanged}">
                         <TabItem Header="Teaching / Inspect">
                             <Grid Margin="0,8,0,0">
                                 <Grid.RowDefinitions>
@@ -202,7 +204,7 @@
                                         CommandParameter="{Binding FovRegion}"
                                         Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"
                                         ToolTip="Save the centered square ROI for the selected bolt or Data Matrix. Captured XY does not change."/>
-                                    <ToggleButton Content="Ruler" IsChecked="{Binding IsMeasuring}"
+                                    <ToggleButton Content="Ruler" IsChecked="{Binding IsMeasuring, UpdateSourceTrigger=PropertyChanged}"
                                         Padding="10,6" Margin="6,0,0,6"
                                         ToolTip="Drag between two known points on the saved image to calibrate mm per pixel."/>
                                     <Button x:Name="ReadDataMatrixButton" Content="Read Data Matrix"
@@ -345,26 +347,7 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
-                    <StackPanel Grid.Row="1"
-                        Visibility="{Binding BoltPresetEditorVisible, Converter={StaticResource BoolToVis}}"
-                        IsEnabled="{Binding IsTeachingEditAllowed}">
-                        <TextBlock Text="Bolt presets" FontWeight="SemiBold" Margin="0,12,0,4"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <TextBlock Text="PCB" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
-                            <TextBox Text="{Binding BoltRecipe.PcbPreset, BindingGroupName=RecipeInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                FontSize="11" Width="36" Margin="4,0,10,0"/>
-                            <TextBlock Text="Pickup" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
-                            <TextBox Text="{Binding BoltRecipe.PickupPreset, BindingGroupName=RecipeInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                FontSize="11" Width="36" Margin="4,0,0,0"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Grid>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
             </Border>
         </Grid>
     </Grid>

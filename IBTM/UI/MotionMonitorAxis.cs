@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -26,7 +25,6 @@ public sealed class MotionMonitorAxis : ObservableObject
     {
         ToggleServoCommand = new RelayCommand(ToggleServo, () => IsToggleServoAllowed);
         HomeCommand = new AsyncRelayCommand(HomeAsync, () => IsHomeAllowed);
-        HomeCancelCommand = HomeCommand.CreateCancelCommand();
 
         _machine = machine;
         _state = state;
@@ -64,7 +62,6 @@ public sealed class MotionMonitorAxis : ObservableObject
     }
 
     public IAsyncRelayCommand HomeCommand { get; }
-    public ICommand HomeCancelCommand { get; }
 
     private async Task HomeAsync(CancellationToken cancellationToken)
     {

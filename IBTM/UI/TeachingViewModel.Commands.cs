@@ -301,21 +301,6 @@ public partial class TeachingViewModel
         SelectNextPointCommand.NotifyCanExecuteChanged();
     }
 
-    private (MotionAxis Axis, double Position) GetStepTarget(
-        TeachingDirection direction,
-        (double X, double Y, double Z) current)
-    {
-        var (axis, sign) = Resolve(direction);
-        var position = axis switch
-        {
-            MotionAxis.X => current.X,
-            MotionAxis.Y => current.Y,
-            MotionAxis.Z => current.Z,
-            _ => throw new ArgumentOutOfRangeException(nameof(direction)),
-        };
-        return (axis, position + sign * StepDistance);
-    }
-
     private bool IsStepAllowed(TeachingDirection direction)
     {
         if (!IsMoveDirectionAllowed(direction))

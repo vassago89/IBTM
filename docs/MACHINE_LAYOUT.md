@@ -453,6 +453,13 @@ button; operator confirmation has no automatic timeout.
 - Shared PCB and carrier XAML resources define their display size. Fixed-size
   handler borders must not change thickness while moving; doing so shifts their
   child geometry relative to the taught-position map.
+- Operation shows mechanisms and workpieces, not DI/DO address and ON/OFF tables.
+  Main-station side views show backup-plate height and stopper extension from live
+  cylinder feedback; unknown lift positions use a question mark and unknown stoppers
+  use an outline or dashed side view. NG P3 has its own lift view and the P1 exit shows
+  its stopper. Belt arrows indicate the commanded drive direction, not measured speed.
+  Keep unrepresentable diagnostic signals in the dedicated I/O windows. SMEMA test
+  switches belong to Manual Control, using the existing manual-only test properties.
 - Show the machine as one continuous piece of equipment.
 - Show the machine state and the next operator action at the top of the screen.
 - Read the material flow from left to right as `PCB Supply -> Handoff -> Station 1

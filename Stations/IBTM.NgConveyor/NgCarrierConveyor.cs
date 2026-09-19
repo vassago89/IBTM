@@ -104,9 +104,7 @@ public sealed class NgCarrierConveyor : AutoUnit
                     case true when NeedsCompaction:
                         return NgConveyorState.CompactingCarriers;
                     default:
-                        return EjectConfirmed
-                            ? NgConveyorState.AcknowledgingEject
-                            : NgConveyorState.WaitingForEjectConfirmation;
+                        return NgConveyorState.WaitingForEjectConfirmation;
                 }
             case EjectionPhase.WaitingForButtonRelease:
                 return NgConveyorState.WaitingForEjectButtonRelease;
@@ -215,7 +213,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
     }
 
-
     public async Task ReturnToShuttleAsync(CancellationToken cancellationToken)
     {
         if (CarrierCount != 1)
@@ -255,7 +252,7 @@ public sealed class NgCarrierConveyor : AutoUnit
                 return SetStopperDownAsync(false, cancellationToken);
             case NgConveyorState.CompactingCarriers:
                 return CompactCarriersAsync(cancellationToken);
-            case NgConveyorState.AcknowledgingEject:
+            case NgConveyorState.WaitingForEjectConfirmation when EjectConfirmed:
                 _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
                 _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, false);
                 Changed?.Invoke();
@@ -375,7 +372,7 @@ public sealed class NgCarrierConveyor : AutoUnit
         {
             try
             {
-                StopConveyor();
+                _io.SetOutput(OutputIo.NgConveyorRun, false);
             }
             catch (Exception cleanupFailure) when (failure is not null)
             {
@@ -392,11 +389,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         _io.SetOutput(OutputIo.NgConveyorReverse, reverse);
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.NgConveyorRun, true);
-    }
-
-    private void StopConveyor()
-    {
-        _io.SetOutput(OutputIo.NgConveyorRun, false);
     }
 
     private void NotifyChanged()

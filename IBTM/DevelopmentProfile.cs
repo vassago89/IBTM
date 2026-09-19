@@ -9,17 +9,11 @@ internal static class DevelopmentProfile
 {
     public const string Argument = "--virtual-development";
 
-    public static bool IsEnabled
-    {
-        get
-        {
 #if VIRTUAL_DEVELOPMENT
-            return true;
+    public static bool IsEnabled => true;
 #else
-            return false;
+    public static bool IsEnabled => false;
 #endif
-        }
-    }
 
     public static void UseVirtualHardware(MachineSettings settings)
     {
@@ -36,16 +30,6 @@ internal static class DevelopmentProfile
             return;
         }
 
-        var settings = CreateSettings();
-        var recipe = CreateRecipe();
-        settings.RecipeSelection.LastRecipeName = recipe.Name;
-        await Task.Run(() => database.SaveRecipe(recipe.Name, recipe, []));
-        await settings.SaveAsync(database);
-    }
-
-    // Same synthetic teaching positions as the full-equipment WPF verification.
-    private static MachineSettings CreateSettings()
-    {
         var settings = new MachineSettings();
         UseVirtualHardware(settings);
         foreach (var section in settings.MotionSections)
@@ -85,24 +69,20 @@ internal static class DevelopmentProfile
         settings.NgCarrierTransfer.PickupSafeX = 13.48275862;
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 26.05172414, Y = 55.625 };
         settings.NgCarrierTransfer.Speed = 25;
-        return settings;
-    }
 
-    private static Recipe CreateRecipe()
-    {
         var recipe = new Recipe { Name = "Virtual Development" };
         recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Z = 10 };
         recipe.PcbSupply.Pcb2PickPosition = new() { X = 20, Z = 10 };
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
         recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 10 };
-        recipe.BoltFastening.PcbPreset = 4;
-        recipe.BoltFastening.PickupPreset = 5;
         recipe.Pcb.BoltPoints = [
             new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Shooting, X = 7, Y = 7 },
             new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Pickup, X = 7, Y = 19 },
             new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 25, Y = 7 },
             new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 25, Y = 19 },
         ];
-        return recipe;
+        settings.RecipeSelection.LastRecipeName = recipe.Name;
+        await Task.Run(() => database.SaveRecipe(recipe.Name, recipe, []));
+        await settings.SaveAsync(database);
     }
 }

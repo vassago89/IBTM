@@ -61,7 +61,7 @@ public sealed partial class MachineLifecycleTests
                 // A carrier arriving after inspection was requested must wait for it to finish.
                 io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
             }
-            if (inspected && message.Contains(": ReturningToNgPickup ", StringComparison.Ordinal))
+            if (inspected && message.Contains(": CompletingInspection ", StringComparison.Ordinal))
             {
                 Assert.False(work.Completed);
                 Assert.False(conveyor.RunCommandOn);

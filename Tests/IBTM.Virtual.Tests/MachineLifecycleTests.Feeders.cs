@@ -34,8 +34,6 @@ public sealed partial class MachineLifecycleTests
             new() { Number = 2, Head = FasteningHead.Pickup, X = 20, Y = 10 },
             new() { Number = 3, Head = FasteningHead.Pickup, X = 30, Y = 10 },
         ];
-        recipe.BoltFastening.PcbPreset = 1;
-        recipe.BoltFastening.PickupPreset = 3;
         settings.BoltFastening.ShootingHead.FasteningZ = 8;
         settings.BoltFastening.PickupHead.FasteningZ = 12;
         var machine = services.GetRequiredService<MachineController>();
@@ -76,6 +74,10 @@ public sealed partial class MachineLifecycleTests
             if (on && output is OutputIo.ShootingBoltStart or OutputIo.PickupBoltStart)
             {
                 Assert.True(gantry.IsHorizontalMoveAllowed); // START precedes cylinder descent.
+                var shooting = output == OutputIo.ShootingBoltStart;
+                Assert.True(io.GetOutput(shooting ? OutputIo.ShootingBoltPreset1 : OutputIo.PickupBoltPreset1));
+                Assert.False(io.GetOutput(shooting ? OutputIo.ShootingBoltPreset2 : OutputIo.PickupBoltPreset2));
+                Assert.False(io.GetOutput(shooting ? OutputIo.ShootingBoltPreset3 : OutputIo.PickupBoltPreset3));
                 var position = gantry.Feedback.GetPosition();
                 starts.Enqueue((output == OutputIo.ShootingBoltStart ? FasteningHead.Shooting : FasteningHead.Pickup,
                     position.X, position.Y, position.Z));
@@ -207,7 +209,7 @@ public sealed partial class MachineLifecycleTests
         };
         try
         {
-            var run = station.RunAsync(recipe.BoltFastening, stop.Token);
+            var run = station.RunAsync(stop.Token);
             if (stopDuringDescent)
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
             else
@@ -279,7 +281,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await Assert.ThrowsAsync<IoTimeoutException>(() => station.RunAsync(recipe.BoltFastening, timeout.Token));
+            await Assert.ThrowsAsync<IoTimeoutException>(() => station.RunAsync(timeout.Token));
             Assert.Equal(1, pickups);
             Assert.Equal(0, starts);
             Assert.True(gantry.IsAtPickupXY());
@@ -301,7 +303,7 @@ public sealed partial class MachineLifecycleTests
                 if (work.Completed)
                     stop.Cancel();
             };
-            await station.RunAsync(recipe.BoltFastening, stop.Token);
+            await station.RunAsync(stop.Token);
             Assert.True(work.Completed);
             Assert.Equal(2, pickups);
             Assert.False(gantry.PickupBoltLoaded);

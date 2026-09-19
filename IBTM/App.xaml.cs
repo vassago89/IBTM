@@ -1,14 +1,14 @@
-using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Windows;
-using IBTM.UI;
+using System;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
+using IBTM.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

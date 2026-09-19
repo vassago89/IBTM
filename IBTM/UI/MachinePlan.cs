@@ -27,7 +27,7 @@ public static class MachinePlan
     public const double StatusTop = 52;
     public const double DetailTop = 108;
     public const double InspectionWidth = 498;
-    public const double PlanHeight = 820;
+    public const double PlanHeight = 720;
     public const double NgConveyorTop = 132;
     public const double CarrierBorder = 2;
     public const double CarrierPadding = 9;
@@ -84,7 +84,7 @@ public static class MachinePlan
     public const double NgConveyorWidth = PlateWidth;
     public const double NgPositionHeight = CarrierHeight + NgPositionGap;
     public const double StationLabelTop = PlateTop + PlateHeight + 12;
-    public const double InspectionResultsTop = MainTop + 340;
+    public const double InspectionResultsTop = MainTop + 220;
     public const double InspectionResultsLeft = MainLeft + RearInterfaceLeft - InspectionLeft;
 
     static MachinePlan()

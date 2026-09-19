@@ -1,21 +1,21 @@
-using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
-using System.Threading;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Windows.Data;
+using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
 using IBTM.Virtual;
-using Microsoft.Win32;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 
 namespace IBTM.UI;
 
@@ -60,7 +60,6 @@ public partial class SettingsViewModel : ObservableObject
         ClearVirtualImageCommand = new RelayCommand(ClearVirtualImage, () => IsClearVirtualImageAllowed);
         OffTestLightCommand = new AsyncRelayCommand(OffTestLightAsync, () => IsOffTestLightAllowed);
         TestLightCommand = new AsyncRelayCommand(TestLightAsync, () => IsTestLightAllowed);
-        TestLightCancelCommand = TestLightCommand.CreateCancelCommand();
 
         _state = state;
         _store = store;

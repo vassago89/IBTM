@@ -169,28 +169,28 @@
                                 <TextBlock Text="Main Conveyor" Style="{StaticResource SettingSectionTitle}"/>
                                 <UniformGrid Columns="3">
                                     <StackPanel Margin="0,0,12,0">
-                                        <TextBlock Text="Transfer Timeout (s) · 이송 도착 대기" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBlock Text="Transfer Timeout (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.TransferTimeoutSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                        <TextBlock Text="기본 5초. 입구·목적지 HS2·출구 신호의 각 대기 제한입니다. 초과 시 벨트를 정지하고 알람을 발생시킵니다."
+                                        <TextBlock Text="Wait limit for entry, destination HS2 and exit signals. Default: 5 s. Stops the belt and raises an alarm on timeout."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,12,0">
-                                        <TextBlock Text="Extra Run (s) · 감지 후 추가 구동" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBlock Text="Extra Run (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.CarrierStopDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                        <TextBlock Text="목적지 HS2 감지 후 밀착 구동 시간. S1·S2·S3 공통이며, 0이면 추가 구동하지 않습니다."
+                                        <TextBlock Text="Seating push after destination HS2 detection. Applies to S1, S2 and S3. Set to 0 to disable the extra run."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,0,0">
-                                        <TextBlock Text="Exit Clear Delay (s) · 출구 여유 시간" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBlock Text="Exit Clear Delay (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.ExitSensorClearDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                        <TextBlock Text="출구 감지 후 첫 OFF부터 구멍 통과를 기다리는 시간. 시간이 지난 뒤 센서 OFF이면 배출 완료입니다."
+                                        <TextBlock Text="Filters carrier holes after exit detection. Starts at the first OFF signal; discharge completes when the delay has elapsed and the sensor is OFF."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </UniformGrid>
-                                <TextBlock Text="스테이션 작업 완료·전후단 설비 준비 대기는 이송 타임아웃에 포함하지 않습니다."
+                                <TextBlock Text="Waiting for station work or upstream/downstream readiness does not count toward the transfer timeout."
                                     Style="{StaticResource SettingHelpText}"/>
                             </StackPanel>
                         </Border>
@@ -209,7 +209,7 @@
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Options.TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
                                             Width="180" HorizontalAlignment="Left"/>
-                                        <TextBlock Text="실린더 도착 피드백·정지 확인의 최대 대기 시간입니다. 1,000 ms = 1초."
+                                        <TextBlock Text="Maximum wait for cylinder position feedback or stop confirmation. 1,000 ms = 1 s."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </Border>
@@ -228,7 +228,7 @@
                                                     Text="{Binding Settings.BoltFeeder.ShootingTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                         </UniformGrid>
-                                        <TextBlock Text="각 피더에서 볼트 감지 신호를 기다리는 최대 시간입니다."
+                                        <TextBlock Text="Maximum wait for bolt detection at each feeder."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </Border>
@@ -252,7 +252,7 @@
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.IoBoltHardware.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
                                                 Width="180" HorizontalAlignment="Left"/>
-                                            <TextBlock Text="START 후 FASTEN의 ON → OFF 완료를 기다리는 최대 시간입니다."
+                                            <TextBlock Text="Maximum wait for the FASTEN ON → OFF cycle after START."
                                                 Style="{StaticResource SettingHelpText}"/>
                                         </StackPanel>
                                         <StackPanel>
@@ -269,7 +269,7 @@
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
                                                 Width="180" HorizontalAlignment="Left"/>
-                                            <TextBlock Text="체결 시작 후 컨트롤러의 완료 결과를 기다리는 최대 시간입니다."
+                                            <TextBlock Text="Maximum wait for the controller result after fastening starts."
                                                 Style="{StaticResource SettingHelpText}"/>
                                         </StackPanel>
                                     </StackPanel>
@@ -786,7 +786,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="Save Settings로 변경값을 저장하세요. I/O 주소·장치 연결 변경은 저장 후 재시작해야 적용됩니다."
+                <TextBlock Text="Click Save Settings to save changes. Restart after saving I/O address or device connection changes."
                     Style="{StaticResource SettingHelpText}" Margin="0,0,16,0" VerticalAlignment="Center"/>
                 <Button
                     Grid.Column="1"

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
@@ -16,7 +15,6 @@ public sealed class Recipe
         PcbSupply = new();
         PcbPlacement = new();
         Pcb = new();
-        BoltFastening = new();
         BoltInspection = new();
         CarrierImages = [];
     }
@@ -25,7 +23,6 @@ public sealed class Recipe
     public PcbSupplyRecipe PcbSupply { get; set; }
     public PcbPlacementRecipe PcbPlacement { get; set; }
     public PcbLayout Pcb { get; set; }
-    public BoltFasteningRecipe BoltFastening { get; set; }
     public BoltInspectionRecipe BoltInspection { get; set; }
     public double CarrierImageMillimetersPerPixel { get; set; } = DefaultCarrierImageMillimetersPerPixel;
     public List<CarrierImageTile> CarrierImages { get; set; }
@@ -36,7 +33,6 @@ public sealed class Recipe
         PcbSupply = recipe.PcbSupply;
         PcbPlacement = recipe.PcbPlacement;
         Pcb = recipe.Pcb;
-        BoltFastening = recipe.BoltFastening;
         BoltInspection = recipe.BoltInspection;
         CarrierImageMillimetersPerPixel = recipe.CarrierImageMillimetersPerPixel;
         CarrierImages = recipe.CarrierImages;

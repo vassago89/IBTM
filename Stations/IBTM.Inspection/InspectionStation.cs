@@ -95,18 +95,9 @@ public sealed class InspectionStation : AutoUnit
         var transferState = GetTransferState(repeat, holdAtShuttle);
         if (GetTransferDisplayState(transferState) is not null)
         {
-            var transfer = _move.ExecuteAsync(
-                NgTransferDestination.Shuttle,
-                transferState,
-                cancellationToken);
-            if (transfer is null)
-            {
+            if (!await _move.ExecuteAsync(
+                NgTransferDestination.Shuttle, transferState, cancellationToken, holdAtShuttle))
                 await WaitForChangeAsync(cancellationToken);
-            }
-            else
-            {
-                await transfer;
-            }
 
             return;
         }
@@ -153,33 +144,17 @@ public sealed class InspectionStation : AutoUnit
             live: live);
     }
 
-    // Inspection's display enum describes the same shared transfer states.
     private static InspectionStationState? GetTransferDisplayState(NgTransferState state)
     {
         switch (state)
         {
-            case NgTransferState.MovingToCarrier:
-                return InspectionStationState.MovingTransferToCarrier;
-            case NgTransferState.LoweringToCarrier:
-                return InspectionStationState.LoweringTransferAtCarrier;
-            case NgTransferState.Closing:
-                return InspectionStationState.ClosingTransferGripper;
-            case NgTransferState.WaitingForGrip:
-                return InspectionStationState.WaitingForCarrierGrip;
-            case NgTransferState.Raising:
-                return InspectionStationState.RaisingCarrierTransfer;
-            case NgTransferState.MovingToDestination:
-                return InspectionStationState.MovingTransferToShuttle;
-            case NgTransferState.StationNotReady:
-            case NgTransferState.ShuttleNotReady:
-            case NgTransferState.WaitingForDestination:
+            case NgTransferState.PickingCarrier or NgTransferState.GrippingCarrier
+                or NgTransferState.Raising or NgTransferState.PlacingCarrier
+                or NgTransferState.Opening or NgTransferState.WaitingForPlacement:
+                return InspectionStationState.TransferringNgCarrier;
+            case NgTransferState.StationNotReady or NgTransferState.ShuttleNotReady
+                or NgTransferState.WaitingForDestination:
                 return InspectionStationState.WaitingForShuttleReady;
-            case NgTransferState.LoweringAtDestination:
-                return InspectionStationState.LoweringTransferAtShuttle;
-            case NgTransferState.Opening:
-                return InspectionStationState.OpeningTransferGripper;
-            case NgTransferState.WaitingForPlacement:
-                return InspectionStationState.WaitingForShuttleCarrier;
             case NgTransferState.HoldingAtDestination:
                 return InspectionStationState.HoldingCarrierAtShuttle;
             default:
@@ -222,32 +197,26 @@ public sealed class InspectionStation : AutoUnit
                 TraceStep(inspectionState, bolt?.ToString() ?? NextBarcode?.ToString(), job.Id);
                 switch (inspectionState)
                 {
-                    case InspectionStationState.MovingToBarcode:
-                        await _inspector.MoveToBarcodeAsync(NextBarcode!.Value, operation.Token);
-                        break;
                     case InspectionStationState.ReadingBarcode:
                         var barcodeAssembly = _work.GetAssembly(job, NextBarcode!.Value);
+                        await _inspector.MoveToBarcodeAsync(barcodeAssembly.HeatSink, operation.Token);
                         var barcode = await _inspector.ReadBarcodeAsync(barcodeAssembly.HeatSink, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
                         _work.RequireCurrentJob(job);
                         barcodeAssembly.PcbBarcode = barcode;
                         NotifyChanged();
                         break;
-                    case InspectionStationState.MovingToBolt:
-                        await _inspector.MoveToAsync(bolt!, operation.Token);
-                        break;
                     case InspectionStationState.InspectingBolt:
                         var assembly = _work.GetAssembly(job, bolt!.HeatSink);
+                        await _inspector.MoveToAsync(bolt, operation.Token);
                         var present = await _inspector.InspectAsync(bolt, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
                         _work.RequireCurrentJob(job);
                         assembly.RecordBoltPresence(bolt.Number, present);
                         NotifyChanged();
                         break;
-                    case InspectionStationState.ReturningToNgPickup:
-                        await _move.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
-                        break;
                     case InspectionStationState.CompletingInspection:
+                        await _move.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
                         foreach (var heatSink in targets)
                         {
@@ -289,19 +258,13 @@ public sealed class InspectionStation : AutoUnit
             case true when NextBarcode is { } pcb:
                 if (!_inspector.HasBarcodeRegion(pcb))
                     return WaitAtPickup(InspectionStationState.BarcodeTeachingRequired, live);
-                return _inspector.IsAtBarcode(pcb, live)
-                    ? InspectionStationState.ReadingBarcode
-                    : InspectionStationState.MovingToBarcode;
+                return InspectionStationState.ReadingBarcode;
             case true when bolt is null:
-                return _work.IsTransferAtWaitingPosition(live)
-                    ? InspectionStationState.CompletingInspection
-                    : InspectionStationState.ReturningToNgPickup;
+                return InspectionStationState.CompletingInspection;
             case true when !_inspector.HasPosition(bolt):
                 return WaitAtPickup(InspectionStationState.FovTeachingRequired, live);
             default:
-                return _inspector.IsAt(bolt, live)
-                    ? InspectionStationState.InspectingBolt
-                    : InspectionStationState.MovingToBolt;
+                return InspectionStationState.InspectingBolt;
         }
     }
 

@@ -39,6 +39,21 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,8,0,0">
+                <StackPanel>
+                    <TextBlock Text="SMEMA Test" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,12"/>
+                    <WrapPanel IsEnabled="{Binding Signals.Inputs[AutoMode].IsOn, TargetNullValue=False}">
+                        <CheckBox Content="Front 1 · PCB available" Margin="0,0,24,8"
+                            IsChecked="{Binding Supply.TestUpstreamCarrierAvailable, Mode=TwoWay}"/>
+                        <CheckBox Content="Front 2 · Carrier available" Margin="0,0,24,8"
+                            IsChecked="{Binding Conveyor.TestUpstreamCarrierAvailable, Mode=TwoWay}"/>
+                        <CheckBox Content="Rear · Ready to receive" Margin="0,0,0,8"
+                            IsChecked="{Binding Conveyor.TestDownstreamReady, Mode=TwoWay}"/>
+                    </WrapPanel>
+                    <TextBlock Text="Manual mode only. Auto uses the equipment signals."
+                        Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
