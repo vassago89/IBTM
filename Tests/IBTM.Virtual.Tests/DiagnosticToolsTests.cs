@@ -35,8 +35,8 @@ public sealed class DiagnosticToolsTests
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
             Assert.True(state.IsRunning);
-            Assert.False(settings.CanEditSettings);
-            Assert.False(machine.CanStart);
+            Assert.False(settings.IsSettingsEditAllowed);
+            Assert.False(machine.IsStartAllowed);
             state.SetError(MachineAlarm.MotionUnavailable, new IOException("Unrelated motion alarm."));
             Assert.True(settings.LightTestOn);
             Assert.False(test.IsCompleted);
@@ -246,10 +246,10 @@ public sealed class DiagnosticToolsTests
             diagnostics.InMotion = true;
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => state.IsRunning, TimeSpan.FromSeconds(2)));
-            Assert.False(machine.CanReset);
+            Assert.False(machine.IsResetAllowed);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
             Assert.True(state.SetupEditingEnabled);
-            Assert.True(services.GetRequiredService<SettingsViewModel>().CanEditSettings);
+            Assert.True(services.GetRequiredService<SettingsViewModel>().IsSettingsEditAllowed);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => state.Display.IsRunning && state.Display.SetupEditingEnabled,
                 TimeSpan.FromSeconds(2)));
@@ -263,7 +263,7 @@ public sealed class DiagnosticToolsTests
             using (services.GetRequiredService<OperationCancellation>().TryBegin())
             {
                 Assert.False(state.SetupEditingEnabled);
-                Assert.False(services.GetRequiredService<SettingsViewModel>().CanEditSettings);
+                Assert.False(services.GetRequiredService<SettingsViewModel>().IsSettingsEditAllowed);
             }
             Assert.True(state.SetupEditingEnabled);
 
@@ -305,14 +305,14 @@ public sealed class DiagnosticToolsTests
                 await VirtualTest.WaitUntilAsync(() => !state.Display.Available, TimeSpan.FromSeconds(2)));
             Assert.NotNull(y.Diagnostics.Snapshot.State);
             Assert.NotNull(y.Diagnostics.Snapshot.Position);
-            Assert.True(machine.CanReset);
+            Assert.True(machine.IsResetAllowed);
             Assert.False(y.ToggleServoCommand.CanExecute(null));
             diagnostics.FailControl = false;
             settings.Units.NgCarrierTransfer = false;
             Assert.True(x.Refresh());
             Assert.False(x.Enabled);
             // Control-I/O loss does not stop independent motion diagnostics or allow control.
-            io.SetConnected(false);
+            io.IsReady = false;
             diagnostics.FailX = false;
             diagnostics.Alarmed = false;
             diagnostics.Position = 44;
@@ -450,7 +450,7 @@ public sealed class DiagnosticToolsTests
 
     public class DiagnosticMotionProbe : System.Reflection.DispatchProxy, IMotionDiagnostics
     {
-        private readonly VirtualMotionService _motion = new(new(), new(), hasZ: false);
+        private readonly VirtualMotionService _motion;
         public volatile bool Alarmed;
         public volatile bool FailX;
         public volatile bool FailPosition;
@@ -459,6 +459,11 @@ public sealed class DiagnosticToolsTests
         public int Position;
         public int Reads;
         public int Stops;
+
+        public DiagnosticMotionProbe()
+        {
+            _motion = new(new(), new(), hasZ: false);
+        }
 
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
@@ -492,8 +497,13 @@ public sealed class DiagnosticToolsTests
 
     private sealed class PausedSynchronizationContext : SynchronizationContext
     {
-        private readonly ConcurrentQueue<Action> _pending = new();
+        private readonly ConcurrentQueue<Action> _pending;
         private int _released;
+
+        public PausedSynchronizationContext()
+        {
+            _pending = new();
+        }
 
         public override void Post(SendOrPostCallback callback, object? state)
         {
@@ -517,7 +527,12 @@ public sealed class DiagnosticToolsTests
 
     private sealed class RecordingLight : ILightController
     {
-        public ConcurrentQueue<string> Calls { get; } = new();
+        public RecordingLight()
+        {
+            Calls = new();
+        }
+
+        public ConcurrentQueue<string> Calls { get; }
         public bool FailOn { get; init; }
         public bool FailOff { get; set; }
 

@@ -12,13 +12,7 @@ public sealed class ShootingBoltFeeder : BoltFeeder
         _settings = settings;
     }
 
-    protected override int TimeoutMilliseconds
-    {
-        get
-        {
-            return _settings.ShootingTimeoutMilliseconds;
-        }
-    }
+    protected override int TimeoutMilliseconds => _settings.ShootingTimeoutMilliseconds;
 
     public void Stop()
     {

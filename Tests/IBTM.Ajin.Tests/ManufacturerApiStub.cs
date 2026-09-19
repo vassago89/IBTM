@@ -4,19 +4,33 @@ using System.Collections.Generic;
 // Test assembly only. Production still uses the unchanged manufacturer's declarations.
 internal static class AjinSdk
 {
-    internal static readonly Dictionary<int, MotionAxis> MotionAxes = [];
-    internal static readonly Dictionary<int, HomeMethod> HomeMethods = [];
-    internal static readonly Dictionary<int, double[]> HomeVelocities = [];
-    internal static readonly List<MoveCall> Moves = [];
-    internal static readonly List<Call> Calls = [];
-    internal static readonly Dictionary<Call, uint> Results = [];
-    internal static readonly Dictionary<int, Module> Modules = [];
-    internal static readonly Dictionary<int, uint> Inputs = [];
-    internal static readonly Dictionary<int, uint> Outputs = [];
-    internal static readonly Dictionary<(int Module, int Offset), uint> InputWords = [];
+    internal static readonly Dictionary<int, MotionAxis> MotionAxes;
+    internal static readonly Dictionary<int, HomeMethod> HomeMethods;
+    internal static readonly Dictionary<int, double[]> HomeVelocities;
+    internal static readonly List<MoveCall> Moves;
+    internal static readonly List<Call> Calls;
+    internal static readonly Dictionary<Call, uint> Results;
+    internal static readonly Dictionary<int, Module> Modules;
+    internal static readonly Dictionary<int, uint> Inputs;
+    internal static readonly Dictionary<int, uint> Outputs;
+    internal static readonly Dictionary<(int Module, int Offset), uint> InputWords;
     internal static uint Presence;
     internal static int ModuleCount;
     internal static Action<Call>? BeforeCall;
+
+    static AjinSdk()
+    {
+        MotionAxes = [];
+        HomeMethods = [];
+        HomeVelocities = [];
+        Moves = [];
+        Calls = [];
+        Results = [];
+        Modules = [];
+        Inputs = [];
+        Outputs = [];
+        InputWords = [];
+    }
 
     internal static void Reset()
     {

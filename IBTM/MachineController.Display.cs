@@ -43,10 +43,10 @@ public sealed partial class MachineController
         var servoPower = _state.ServoMainContactorOn && motion.ServosOn;
         var conflict = _state.Buffer.HasConflict(live: false);
         var block = GetStartBlock(motion, conflict);
-        var running = _state.GetIsRunning(mainRunning, ngRunning);
+        var running = _state.IsRunningFor(mainRunning, ngRunning);
         var safetyReady = _state.SafetyReady;
         var teachingReady = TeachingReady;
-        var bolts = _recipe.Pcb.BoltPoints.ToArray();
+        var bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
         var automatic = _state.AutomaticRunning;
         var setupEditing = _state.SetupEditingEnabled;
         var manualSetup = setupEditing && !running && safetyReady;
@@ -69,7 +69,7 @@ public sealed partial class MachineController
             BufferConflict = conflict,
             SupplyInBufferArea = _state.Buffer.IsSupplyInside(live: false),
             SupplyAtHandoff = _state.Buffer.IsSupplyAtHandoff(live: false),
-            CanSupplyEnter = _state.Buffer.CanEnterSupply(live: false),
+            IsSupplyEntryAllowed = _state.Buffer.IsSupplyEntryAllowed(live: false),
             EmergencyStopReleased = _state.EmergencyStopReleased,
             DoorClosed = _state.DoorClosed,
             AirPressureOk = _state.AirPressureOk,
@@ -79,23 +79,23 @@ public sealed partial class MachineController
             AlarmMessage = _state.AlarmMessage,
             ServoPowerOn = servoPower,
             Homed = motion.Homed,
-            CanStart = IsStartAllowed(block, running),
-            CanHome = IsHomeAllowed(motion, running),
-            CanRaiseCylinders = manualSetup
+            IsStartAllowed = IsStartAllowedFor(block, running),
+            IsHomeAllowed = IsHomeAllowedFor(motion, running),
+            IsRaiseCylindersAllowed = manualSetup
                 && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
-                && IsCylinderRaiseClear(),
+                && IsCylinderRaiseClear,
             HomeableAxes = Enum.GetValues<MotionGroup>()
                 .SelectMany(
                     group => _state.GetMotionStatus(group).Feedback.Axes.Select(
                         axis => (
                             group,
                             axis)))
-                .Where(item => !running && AreHomeAxisConditionsReady(item.group, item.axis, live: false))
+                .Where(item => !running && IsHomeAxisReady(item.group, item.axis, live: false))
                 .ToHashSet(),
             ManualBlock = _state.GetManualBlock(motion, conflict, running),
             SetupEditingEnabled = setupEditing,
             PlacementState = _units.PcbPlacement
-                ? _pcbPlacement.GetState(_recipe.PcbPlacement, live: false)
+                ? _pcbPlacement.GetState(_recipes.Current.PcbPlacement, live: false)
                 : PcbPlacementState.WaitingForSupply,
             PlacementTarget = _pcbPlacement.TargetHeatSink,
             FasteningState = fasteningState,
@@ -116,7 +116,7 @@ public sealed partial class MachineController
             InspectionPcb = teachingReady && _units.Inspection && automatic
                 ? _inspectionStation.GetActivePcb(bolts)
                 : null,
-            RepeatPhase = _repeatDisplayPhase,
+            RepeatPhase = RepeatDisplayPhase,
             RepeatCycles = _repeatCycles,
         };
     }

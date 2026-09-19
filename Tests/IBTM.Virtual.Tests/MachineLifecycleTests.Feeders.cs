@@ -10,6 +10,7 @@ using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using IBTM.Storage;
 
 namespace IBTM.Virtual.Tests;
 
@@ -27,7 +28,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units.PickupBoltFeeder = pickupEnabled;
         settings.Units.ShootingBoltFeeder = shootingEnabled;
         await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [
             new() { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10 },
             new() { Number = 2, Head = FasteningHead.Pickup, X = 20, Y = 10 },
@@ -75,7 +76,7 @@ public sealed partial class MachineLifecycleTests
             }
             if (on && output is OutputIo.ShootingBoltStart or OutputIo.PickupBoltStart)
             {
-                Assert.True(gantry.CanMoveHorizontal); // START precedes cylinder descent.
+                Assert.True(gantry.IsHorizontalMoveAllowed); // START precedes cylinder descent.
                 var position = gantry.Feedback.GetPosition();
                 starts.Enqueue((output == OutputIo.ShootingBoltStart ? FasteningHead.Shooting : FasteningHead.Pickup,
                     position.X, position.Y, position.Z));
@@ -107,7 +108,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.False(state.RepeatEnabled);
-            Assert.True(machine.CanStart, machine.StartBlock.ToString());
+            Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(12));
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
@@ -172,7 +173,7 @@ public sealed partial class MachineLifecycleTests
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10 }];
         var machine = services.GetRequiredService<MachineController>();
         var station = services.GetRequiredService<BoltFasteningStation>();
@@ -241,7 +242,7 @@ public sealed partial class MachineLifecycleTests
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Pickup, X = 20, Y = 10 }];
         var machine = services.GetRequiredService<MachineController>();
         var station = services.GetRequiredService<BoltFasteningStation>();
@@ -261,7 +262,7 @@ public sealed partial class MachineLifecycleTests
             {
                 if (on)
                 {
-                    Assert.True(gantry.CanMoveHorizontal);
+                    Assert.True(gantry.IsHorizontalMoveAllowed);
                     starts++;
                 }
                 io.SetInput(InputIo.PickupBoltFasten, on);
@@ -311,7 +312,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(gantry.PickupBoltLoaded);
             Assert.Equal(2, starts);
             Assert.Equal(AssemblyResult.Ok, work.GetAssembly(HeatSinkSlot.HeatSink1).FasteningResult);
-            Assert.True(gantry.CanMoveHorizontal);
+            Assert.True(gantry.IsHorizontalMoveAllowed);
             Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
         }
         finally

@@ -12,6 +12,7 @@ using IBTM.BoltFastening;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using IBTM.Storage;
 
 namespace IBTM.Virtual.Tests;
 
@@ -26,7 +27,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units.PickupBoltFeeder = false;
         settings.Conveyor.CarrierStopDelaySeconds = 0;
         await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         PrepareCarrierTeaching(settings, recipe);
         foreach (var heatSink in Enum.GetValues<HeatSinkSlot>())
             recipe.Pcb.BoltPoints.Add(new()
@@ -103,7 +104,7 @@ public sealed partial class MachineLifecycleTests
             {
                 if (on)
                 {
-                    Assert.True(gantry.CanMoveHorizontal);
+                    Assert.True(gantry.IsHorizontalMoveAllowed);
                     Interlocked.Increment(ref pickupStarts);
                 }
                 io.SetInput(InputIo.PickupBoltFasten, on);
@@ -119,7 +120,7 @@ public sealed partial class MachineLifecycleTests
             }
         };
         state.RepeatEnabled = true;
-        Assert.True(machine.CanStart, machine.StartBlock.ToString());
+        Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var run = machine.StartAsync(timeout.Token);
         try
@@ -237,8 +238,8 @@ public sealed partial class MachineLifecycleTests
             if (output == OutputIo.NgConveyorRun && on)
                 ngConveyorRan = true;
         };
-        Assert.True(machine.CanStart, machine.StartBlock.ToString());
-        await WaitUntilAsync(() => state.Display.CanStart);
+        Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
+        await WaitUntilAsync(() => state.Display.IsStartAllowed);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         var run = machine.StartAsync(timeout.Token);
         try
@@ -305,7 +306,7 @@ public sealed partial class MachineLifecycleTests
             {
                 io.SetInput(InputIo.AutoMode, false);
                 Assert.Equal(StartBlockReason.TeachingMode, machine.StartBlock);
-                Assert.False(machine.CanStart);
+                Assert.False(machine.IsStartAllowed);
                 await machine.StartAsync();
                 Assert.False(state.AutomaticRunning);
                 Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
@@ -317,8 +318,8 @@ public sealed partial class MachineLifecycleTests
                 io.SetInput(InputIo.Door1Open, false);
                 Assert.True(state.DoorInterlockReady);
             }
-            Assert.True(machine.CanStart, machine.StartBlock.ToString());
-            await WaitUntilAsync(() => state.Display.CanStart);
+            Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
+            await WaitUntilAsync(() => state.Display.IsStartAllowed);
             run = machine.StartAsync();
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(3)),
@@ -340,7 +341,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             Assert.Equal(repeat ? StartBlockReason.TeachingMode : StartBlockReason.None, machine.StartBlock);
-            await WaitUntilAsync(() => state.Display.CanStart == !repeat);
+            await WaitUntilAsync(() => state.Display.IsStartAllowed == !repeat);
         }
         finally
         {
@@ -369,7 +370,7 @@ public sealed partial class MachineLifecycleTests
             io.SetInputs(
                 (InputIo.PcbPlacementHeatSink2Present, true),
                 (InputIo.BoltFasteningHeatSink2Present, true));
-            Assert.True(machine.CanStart, machine.StartBlock.ToString());
+            Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(3));
             Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
             Assert.Contains("one carrier", state.AlarmMessage);
@@ -381,7 +382,7 @@ public sealed partial class MachineLifecycleTests
             await machine.ResetAsync();
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
             await services.GetRequiredService<PcbPlacementWork>().Station.SeatAsync(CancellationToken.None);
-            Assert.True(machine.CanStart, machine.StartBlock.ToString());
+            Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             run = machine.StartAsync();
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(3)),
@@ -551,7 +552,7 @@ public sealed partial class MachineLifecycleTests
         state.RepeatEnabled = true;
         Assert.True(state.RepeatEnabled);
         io.SetInput(InputIo.AutoMode, true);
-        Assert.True(machine.CanStart, machine.StartBlock.ToString());
+        Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
         var run = machine.StartAsync(timeout.Token);
         try

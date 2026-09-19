@@ -205,7 +205,7 @@ public sealed class OutputWindowThreadingTests
             io.SetInput(InputIo.EmergencyStop1Pressed, true);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.Buzzer), TimeSpan.FromSeconds(2)));
-            Assert.False(machine.CanReset);
+            Assert.False(machine.IsResetAllowed);
             Assert.True(resetButton.IsEnabled);
             await main.ResetCommand.ExecuteAsync(null);
             Assert.True(await VirtualTest.WaitUntilAsync(
@@ -220,7 +220,7 @@ public sealed class OutputWindowThreadingTests
             io.SetInput(InputIo.ResetButton, false);
             using (services.GetRequiredService<OperationCancellation>().Link())
             {
-                Assert.False(machine.CanReset);
+                Assert.False(machine.IsResetAllowed);
                 Assert.True(resetButton.IsEnabled);
                 await main.ResetCommand.ExecuteAsync(null);
             }
@@ -616,7 +616,7 @@ public sealed class OutputWindowThreadingTests
                     TimeSpan.FromSeconds(2)));
                 Assert.True(light.IsOn);
                 state.SetError(MachineAlarm.Inspection);
-                Assert.True(machine.CanReset);
+                Assert.True(machine.IsResetAllowed);
                 if (hardwareReset)
                     await Task.Run(() => io.SetInput(InputIo.ResetButton, true));
                 else
@@ -697,7 +697,7 @@ public sealed class OutputWindowThreadingTests
             var addBolt = (Button)teachingView.FindName("AddBoltButton");
             page.UpdateLayout();
             Assert.Same(teaching.DrawFovRegionCommand, roiView.RegionCommand);
-            Assert.Empty(teaching.RecipeEditor.Recipe.Pcb.GetBolts(teaching.SelectedPcb));
+            Assert.Empty(teaching.Recipes.Current.Pcb.GetBolts(teaching.SelectedPcb));
             var upperPin = reference.UpperLeftLocatingPin;
             var lowerPin = reference.LowerRightLocatingPin;
             reference.UpperLeftLocatingPin = null;
@@ -742,7 +742,7 @@ public sealed class OutputWindowThreadingTests
             teaching.SelectedPoint = teaching.FilteredPoints.Single(
                 point => point.Position.Target == TeachingTarget.BoltReference);
             teaching.RemoveBoltPointCommand.Execute(null);
-            Assert.Empty(teaching.RecipeEditor.Recipe.Pcb.GetBolts(teaching.SelectedPcb));
+            Assert.Empty(teaching.Recipes.Current.Pcb.GetBolts(teaching.SelectedPcb));
             var gantry = services.GetRequiredService<InspectionGantry>();
             await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
@@ -761,8 +761,7 @@ public sealed class OutputWindowThreadingTests
             Assert.Equal(0, teaching.CarrierImages[0].Metadata.Center.X);
             Assert.Equal(10, teaching.CarrierImages[1].Metadata.Center.X);
             Assert.Equal(10, gantry.Feedback.GetPosition().X);
-            var saved = await services.GetRequiredService<RecipeStore>()
-                .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+            var saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
             Assert.Equal(teaching.CarrierImages.Count, saved.CarrierImages.Count);
             Assert.Equal(
                 saved.Name,
@@ -778,7 +777,7 @@ public sealed class OutputWindowThreadingTests
             Assert.Equal(new PixelRegion(200, 30, 60, 80), teaching.SelectedFov!.Metadata.Region);
             Assert.Same(fov, teaching.SelectedFov);
             Assert.Same(
-                services.GetRequiredService<Recipe>().CarrierImages.Single(tile => tile.Number == fov.Metadata.Number),
+                services.GetRequiredService<RecipeManager>().Current.CarrierImages.Single(tile => tile.Number == fov.Metadata.Number),
                 fov.Metadata);
             Assert.Equal(fov.Metadata.Center.X, roiBolt.X, 6);
             Assert.Equal(fov.Metadata.Center.Y, roiBolt.Y, 6);
@@ -790,8 +789,7 @@ public sealed class OutputWindowThreadingTests
                 () => teaching.TeachFovRegionCommand.CanExecute(teaching.FovRegion!.Value),
                 TimeSpan.FromSeconds(2)));
             await teaching.TeachFovRegionCommand.ExecuteAsync(teaching.FovRegion!.Value);
-            saved = await services.GetRequiredService<RecipeStore>()
-                .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+            saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
             var roiFov = Assert.Single(saved.CarrierImages, image => image.Region is not null);
             Assert.Equal(new PixelRegion(210, 40, 50, 60), roiFov.Region);
             Assert.Equal(roiBolt.BoltNumber, roiFov.BoltNumber);
@@ -851,8 +849,7 @@ public sealed class OutputWindowThreadingTests
             Assert.True(teaching.Inspector.IsLiveView);
             Assert.Equal(fov.Metadata.Center, teaching.Inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1).Center);
             Assert.Equal(new PixelRegion(20, 30, 60, 80), teaching.SelectedFov!.Metadata.Region);
-            saved = await services.GetRequiredService<RecipeStore>()
-                .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+            saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
             var barcode = Assert.Single(saved.CarrierImages, image => image.IsBarcode);
             Assert.Null(barcode.BoltNumber);
             Assert.Equal(HeatSinkSlot.HeatSink1, barcode.HeatSink);
@@ -931,7 +928,7 @@ public sealed class OutputWindowThreadingTests
                 var original = originalFovs[index];
                 var reloaded = teaching.CarrierImages[index];
                 Assert.Equivalent(original.Metadata, reloaded.Metadata);
-                Assert.Same(teaching.RecipeEditor.Recipe.CarrierImages[index], reloaded.Metadata);
+                Assert.Same(teaching.Recipes.Current.CarrierImages[index], reloaded.Metadata);
             }
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             foreach (var closeTeaching in new[] { false, true })
@@ -950,8 +947,7 @@ public sealed class OutputWindowThreadingTests
                     io.SetInput(InputIo.AutoMode, false);
                 releaseStop.Set();
                 await Task.WhenAll(capture, closing).WaitAsync(TimeSpan.FromSeconds(2));
-                saved = await services.GetRequiredService<RecipeStore>()
-                    .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+                saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
                 Assert.Equal(3, saved.CarrierImages.Count);
                 Assert.Null(teaching.CameraError);
                 Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
@@ -962,7 +958,7 @@ public sealed class OutputWindowThreadingTests
                     () => teaching.CarrierImages.Count == 3 && teaching.CaptureCarrierImageCommand.CanExecute(null),
                     TimeSpan.FromSeconds(2)));
             }
-            var originalRecipe = await services.GetRequiredService<RecipeStore>().LoadRecipeAsync(originalName);
+            var originalRecipe = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(originalName);
             Assert.Equal(2, originalRecipe.CarrierImages.Count);
         }
         finally
@@ -1226,12 +1222,17 @@ public sealed class OutputWindowThreadingTests
 
     private sealed class TestLight : ILightController
     {
+        public TestLight()
+        {
+            OffFailure = new("Simulated live light OFF failure.");
+        }
+
         public Action? BeforeOn { get; set; }
         public Action? BeforeOff { get; set; }
         public int OnCalls { get; private set; }
         public bool IsOn { get; private set; }
         public bool FailOff { get; set; }
-        public IOException OffFailure { get; } = new("Simulated live light OFF failure.");
+        public IOException OffFailure { get; }
 
         public void Initialize() { }
 

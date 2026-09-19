@@ -6,6 +6,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
+using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
@@ -114,8 +115,10 @@ public sealed class InspectionTests
             new VirtualLightController(),
             settings,
             new LightingSettings(),
-            () => recipe,
-            () => [fov]);
+            new RecipeManager(OpenMachineStore(), new())
+            {
+                Current = { BoltInspection = recipe, CarrierImages = [fov] },
+            });
         if (live)
             await inspector.StartLiveViewAsync();
 
@@ -207,14 +210,8 @@ public sealed class InspectionTests
         ]),
             motion.GetPosition,
             gantrySettings.GetBoltPosition(bolts[1], carrierReference));
-        var inspector = new BoltInspector(
-            gantry,
-            camera,
-            new VirtualLightController(),
-            gantrySettings,
-            new LightingSettings(),
-            () => new(),
-            () => [.. bolts.Select((bolt, index) => new CarrierImageTile
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.CarrierImages = [.. bolts.Select((bolt, index) => new CarrierImageTile
             {
                 Number = index + 1,
                 Center = gantrySettings.GetBoltPosition(bolt, carrierReference),
@@ -232,7 +229,14 @@ public sealed class InspectionTests
                     Number = 6, Center = new() { X = 28, Y = 17 },
                     IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(180, 40, 80, 80),
                 },
-            ]);
+            ];
+        var inspector = new BoltInspector(
+            gantry,
+            camera,
+            new VirtualLightController(),
+            gantrySettings,
+            new LightingSettings(),
+            recipes);
         var shuttleFeedback = new NgShuttleFeedback(io);
         var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), shuttleFeedback);
         var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, transfer);
@@ -435,13 +439,7 @@ public sealed class InspectionTests
         public bool IsLiveView { get; }
         public Action? AfterCapture { get; set; }
 
-        public (int Width, int Height) FrameSize
-        {
-            get
-            {
-                return _camera.FrameSize;
-            }
-        }
+        public (int Width, int Height) FrameSize => _camera.FrameSize;
 
         public void Initialize()
         {

@@ -36,13 +36,7 @@ public sealed class HikCamera : ICamera, IDisposable
     public event Action<ImageFrame>? FrameReady;
     public event Action<Exception>? LiveViewFailed;
 
-    public bool IsLiveView
-    {
-        get
-        {
-            return _liveView && _liveThread?.IsAlive == true;
-        }
-    }
+    public bool IsLiveView => _liveView && _liveThread?.IsAlive == true;
 
     public (int Width, int Height) FrameSize { get; private set; }
 

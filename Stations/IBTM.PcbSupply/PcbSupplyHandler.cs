@@ -34,13 +34,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
 
     public MotionStatus Motion { get; }
 
-    public IMotionFeedback Feedback
-    {
-        get
-        {
-            return _motion;
-        }
-    }
+    public IMotionFeedback Feedback => _motion;
 
     public bool UpstreamCarrierAvailable
     {
@@ -54,10 +48,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
 
     public bool TestUpstreamCarrierAvailable
     {
-        get
-        {
-            return _testUpstreamCarrierAvailable;
-        }
+        get => _testUpstreamCarrierAvailable;
         set
         {
             // The selector contact is ON in teaching/manual mode.
@@ -73,17 +64,19 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
     {
         get
         {
-            return GetCylinderState(InputIo.PcbSupplyGripperClosed, InputIo.PcbSupplyGripperOpen);
+            switch ((_io.GetInput(InputIo.PcbSupplyGripperOpen), _io.GetInput(InputIo.PcbSupplyGripperClosed)))
+            {
+                case (true, false):
+                    return PcbSupplyCylinderState.Backward;
+                case (false, true):
+                    return PcbSupplyCylinderState.Forward;
+                default:
+                    return PcbSupplyCylinderState.Between;
+            }
         }
     }
 
-    public bool IpmFixed
-    {
-        get
-        {
-            return _io.GetInput(InputIo.PcbSupplyIpmFixerForward);
-        }
-    }
+    public bool IpmFixed => _io.GetInput(InputIo.PcbSupplyIpmFixerForward);
 
     public PcbSupplyPcbState Pcb
     {
@@ -105,22 +98,19 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
     {
         get
         {
-            return (_io.GetInput(InputIo.PcbSupplyUnrotated), _io.GetInput(InputIo.PcbSupplyRotated)) switch
+            switch ((_io.GetInput(InputIo.PcbSupplyUnrotated), _io.GetInput(InputIo.PcbSupplyRotated)))
             {
-                (true, false) => PcbSupplyRotationState.Unrotated,
-                (false, true) => PcbSupplyRotationState.Rotated,
-                _ => PcbSupplyRotationState.Between,
-            };
+                case (true, false):
+                    return PcbSupplyRotationState.Unrotated;
+                case (false, true):
+                    return PcbSupplyRotationState.Rotated;
+                default:
+                    return PcbSupplyRotationState.Between;
+            }
         }
     }
 
-    public bool PcbSecured
-    {
-        get
-        {
-            return Pcb == PcbSupplyPcbState.Secured;
-        }
-    }
+    public bool PcbSecured => Pcb == PcbSupplyPcbState.Secured;
 
     public bool PcbReleased
     {
@@ -197,7 +187,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         }
     }
 
-    public bool CanMoveToTeachingPosition(TeachingPosition point, bool live = true)
+    public bool IsMoveToTeachingPositionAllowed(TeachingPosition point, bool live = true)
     {
         return (IsInsideBuffer(live) == false
             || point.Mode != TeachMode.ZOnly && IsAtRotationZ(live))
@@ -332,15 +322,5 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         {
             Changed?.Invoke();
         }
-    }
-
-    private PcbSupplyCylinderState GetCylinderState(InputIo forwardInput, InputIo backwardInput)
-    {
-        return (_io.GetInput(backwardInput), _io.GetInput(forwardInput)) switch
-        {
-            (true, false) => PcbSupplyCylinderState.Backward,
-            (false, true) => PcbSupplyCylinderState.Forward,
-            _ => PcbSupplyCylinderState.Between,
-        };
     }
 }

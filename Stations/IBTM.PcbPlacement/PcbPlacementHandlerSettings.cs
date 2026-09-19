@@ -5,8 +5,32 @@ namespace IBTM.PcbPlacement;
 
 public sealed class PcbPlacementHandlerSettings : Setting
 {
-    public MotionSettings Motion { get; set; } = new();
-    public AxisPosition BufferHandoffPosition { get; set; } = new();
+    public PcbPlacementHandlerSettings()
+    {
+        Motion = new();
+        BufferHandoffPosition = new();
+    }
+
+    public MotionSettings Motion { get; set; }
+    public AxisPosition BufferHandoffPosition { get; set; }
+
+    public TeachingPosition[] GetTeachingPositions(PcbPlacementRecipe recipe)
+    {
+        return [
+            new(
+                TeachingTarget.HeatSink1PcbPlacement,
+                MotionGroup.PcbPlacementHandler,
+                TeachMode.Full,
+                () => recipe.HeatSink1PcbPlacementPosition,
+                p => recipe.HeatSink1PcbPlacementPosition = p),
+            new(
+                TeachingTarget.HeatSink2PcbPlacement,
+                MotionGroup.PcbPlacementHandler,
+                TeachMode.Full,
+                () => recipe.HeatSink2PcbPlacementPosition,
+                p => recipe.HeatSink2PcbPlacementPosition = p),
+        ];
+    }
 
     public TeachingPosition GetBufferTeachingPosition()
     {

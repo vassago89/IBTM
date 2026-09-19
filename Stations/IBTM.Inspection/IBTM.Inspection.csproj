@@ -4,6 +4,7 @@
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
     <ProjectReference Include="..\..\Shared\IBTM.Core\IBTM.Core.csproj" />
     <ProjectReference Include="..\..\Shared\IBTM.Device\IBTM.Device.csproj" />
+    <ProjectReference Include="..\..\Shared\IBTM.Storage\IBTM.Storage.csproj" />
     <ProjectReference Include="..\IBTM.NgConveyor\IBTM.NgConveyor.csproj" />
   </ItemGroup>
 

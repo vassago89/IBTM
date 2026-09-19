@@ -13,32 +13,20 @@ using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 
 namespace IBTM;
 
 public sealed partial class MachineController
 {
-    private static readonly InputIo[] CarrierInputs = [
-        InputIo.MainConveyorEntryCarrierDetected,
-        InputIo.PcbPlacementHeatSink1Present,
-        InputIo.PcbPlacementHeatSink2Present,
-        InputIo.BoltFasteningHeatSink1Present,
-        InputIo.BoltFasteningHeatSink2Present,
-        InputIo.InspectionHeatSink1Present,
-        InputIo.InspectionHeatSink2Present,
-        InputIo.MainConveyorExitCarrierDetected,
-        InputIo.NgCarrierDetected,
-        InputIo.NgShuttleCarrierDetected,
-        InputIo.NgConveyorPosition1Occupied,
-        InputIo.NgConveyorPosition2Occupied,
-    ];
+    private static readonly InputIo[] CarrierInputs;
 
     private readonly MachineState _state;
     private readonly MachineFeedbackMonitor _feedback;
     private readonly OperationCancellation _operations;
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
-    private readonly Recipe _recipe;
+    private readonly RecipeManager _recipes;
     private readonly CarrierReferenceSettings _carrierReference;
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
@@ -60,13 +48,31 @@ public sealed partial class MachineController
     private readonly BoltInspector _boltInspector;
     private readonly ApplicationLog? _log;
 
+    static MachineController()
+    {
+        CarrierInputs = [
+            InputIo.MainConveyorEntryCarrierDetected,
+            InputIo.PcbPlacementHeatSink1Present,
+            InputIo.PcbPlacementHeatSink2Present,
+            InputIo.BoltFasteningHeatSink1Present,
+            InputIo.BoltFasteningHeatSink2Present,
+            InputIo.InspectionHeatSink1Present,
+            InputIo.InspectionHeatSink2Present,
+            InputIo.MainConveyorExitCarrierDetected,
+            InputIo.NgCarrierDetected,
+            InputIo.NgShuttleCarrierDetected,
+            InputIo.NgConveyorPosition1Occupied,
+            InputIo.NgConveyorPosition2Occupied,
+        ];
+    }
+
     public MachineController(
         MachineState state,
         MachineFeedbackMonitor feedback,
         OperationCancellation operations,
         MachineOptions options,
         UnitSettings units,
-        Recipe recipe,
+        RecipeManager recipes,
         CarrierReferenceSettings carrierReference,
         IIoService io,
         MainConveyor conveyor,
@@ -88,12 +94,14 @@ public sealed partial class MachineController
         BoltInspector boltInspector,
         ApplicationLog? log = null)
     {
+        _resetGate = new();
+
         _state = state;
         _feedback = feedback;
         _operations = operations;
         _options = options;
         _units = units;
-        _recipe = recipe;
+        _recipes = recipes;
         _carrierReference = carrierReference;
         _io = io;
         _conveyor = conveyor;
@@ -135,21 +143,9 @@ public sealed partial class MachineController
         shootingBoltFeeder.Changed += state.RequestDisplayRefresh;
     }
 
-    private bool BufferHandlersEnabled
-    {
-        get
-        {
-            return _units.PcbSupply || _units.PcbPlacement;
-        }
-    }
+    private bool BufferHandlersEnabled => _units.PcbSupply || _units.PcbPlacement;
 
-    private bool InspectionGantryEnabled
-    {
-        get
-        {
-            return _units.IsMotionEnabled(MotionGroup.InspectionGantry);
-        }
-    }
+    private bool InspectionGantryEnabled => _units.IsMotionEnabled(MotionGroup.InspectionGantry);
 
     public async Task InitializeAsync()
     {
@@ -161,7 +157,7 @@ public sealed partial class MachineController
             var (alarm, error) = await InitializeHardwareAsync(operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             if (alarm == MachineAlarm.None)
-                alarm = GetSafetyAlarm();
+                alarm = SafetyAlarm;
 
             if (alarm == MachineAlarm.None)
                 _state.Refresh();
@@ -303,7 +299,7 @@ public sealed partial class MachineController
     {
         if (MachineState.IsSafetyInput(input))
         {
-            var alarm = GetSafetyAlarm();
+            var alarm = SafetyAlarm;
             if (alarm != MachineAlarm.None)
             {
                 StopAndReportFailure(alarm);
@@ -365,7 +361,7 @@ public sealed partial class MachineController
 
         var fasteningBlocked = _units.BoltFastening
             && _fasteningGantry.Feedback.Command != MotionCommand.Adjustment
-            && !_fasteningGantry.CanMoveHorizontal
+            && !_fasteningGantry.IsHorizontalMoveAllowed
             && _fasteningGantry.Feedback.IsMovingHorizontal;
         var alarm = MachineAlarm.None;
         string? interlockDetail = null;
@@ -437,21 +433,22 @@ public sealed partial class MachineController
         _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.StopFailed, failure);
     }
 
-    private MachineAlarm GetSafetyAlarm()
+    private MachineAlarm SafetyAlarm
     {
-        if (_options.UseEmergencyStop && !_state.EmergencyStopReleased)
+        get
         {
-            return MachineAlarm.EmergencyStop;
+            switch (true)
+            {
+                case true when _options.UseEmergencyStop && !_state.EmergencyStopReleased:
+                    return MachineAlarm.EmergencyStop;
+                case true when !_state.DoorInterlockReady:
+                    return MachineAlarm.DoorOpen;
+                default:
+                    return _options.UseAirPressureInterlock && !_state.AirPressureOk
+                        ? MachineAlarm.AirPressureLow
+                        : MachineAlarm.None;
+            }
         }
-
-        if (!_state.DoorInterlockReady)
-        {
-            return MachineAlarm.DoorOpen;
-        }
-
-        return _options.UseAirPressureInterlock && !_state.AirPressureOk
-            ? MachineAlarm.AirPressureLow
-            : MachineAlarm.None;
     }
 
     internal void StopRunOutputs()

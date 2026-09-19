@@ -14,9 +14,9 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
     where TSignal : struct, Enum
 {
     [ObservableProperty]
-    private string _searchText = string.Empty;
+    public partial string SearchText { get; set; } = string.Empty;
     [ObservableProperty]
-    private KeyValuePair<HardwareArea?, string> _selectedArea;
+    public partial KeyValuePair<HardwareArea?, string> SelectedArea { get; set; }
 
     public IoList(TRow[] rows, Func<TRow, IoSignal<TSignal>> signal)
     {
@@ -27,7 +27,6 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
                 .Order()
                 .Select(area => new KeyValuePair<HardwareArea?, string>(area, area.GetDescription())),
         ];
-        _selectedArea = Areas[0];
         FilteredRows = new ListCollectionView(rows
             .OrderBy(row => signal(row).Area)
             .ThenBy(row => signal(row).Section)
@@ -35,6 +34,7 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
             .ToArray());
         FilteredRows.GroupDescriptions.Add(new AreaGroupDescription(signal));
         FilteredRows.GroupDescriptions.Add(new SectionGroupDescription(signal));
+        SelectedArea = Areas[0];
         FilteredRows.Filter = item =>
         {
             var row = signal((TRow)item);

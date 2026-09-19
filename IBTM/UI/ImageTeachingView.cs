@@ -19,65 +19,75 @@ public sealed record CarrierImageTileView(
 
 public sealed record ImageRuler(Point Start, Point End)
 {
-    public double PixelLength
-    {
-        get
-        {
-            return (End - Start).Length;
-        }
-    }
+    public double PixelLength => (End - Start).Length;
 }
 
 // Drawing and measurement coordinates are original-image pixels, independent of display size.
 public sealed class ImageTeachingView : FrameworkElement
 {
-    private static readonly Pen RegionPen = CreateFrozenPen(Color.FromRgb(74, 222, 128), 2.5);
-    private static readonly Pen RulerPen = CreateFrozenPen(Color.FromRgb(56, 189, 248), 2);
-    private static readonly Pen CrosshairOutlinePen = CreateFrozenPen(Colors.Black, 3);
-    private static readonly Pen CrosshairPen = CreateFrozenPen(Color.FromRgb(251, 191, 36), 1);
+    private static readonly Pen RegionPen;
+    private static readonly Pen RulerPen;
+    private static readonly Pen CrosshairOutlinePen;
+    private static readonly Pen CrosshairPen;
 
     private Point? _dragStart;
     private Point? _dragEnd;
 
-    public static readonly DependencyProperty SourceProperty = DependencyProperty.Register(
-        nameof(Source),
-        typeof(BitmapSource),
-        typeof(ImageTeachingView),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnDrawingContextChanged));
+    public static readonly DependencyProperty SourceProperty;
 
-    public static readonly DependencyProperty SourceRegionProperty = DependencyProperty.Register(
-        nameof(SourceRegion),
-        typeof(Rect?),
-        typeof(ImageTeachingView),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty SourceRegionProperty;
 
-    public static readonly DependencyProperty SourceOverlayProperty = DependencyProperty.Register(
-        nameof(SourceOverlay),
-        typeof(BitmapSource),
-        typeof(ImageTeachingView),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty SourceOverlayProperty;
 
-    public static readonly DependencyProperty ShowCrosshairProperty = DependencyProperty.Register(
-        nameof(ShowCrosshair),
-        typeof(bool),
-        typeof(ImageTeachingView),
-        new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty ShowCrosshairProperty;
 
-    public static readonly DependencyProperty RegionCommandProperty = DependencyProperty.Register(
-        nameof(RegionCommand),
-        typeof(ICommand),
-        typeof(ImageTeachingView));
+    public static readonly DependencyProperty RegionCommandProperty;
 
-    public static readonly DependencyProperty IsMeasuringProperty = DependencyProperty.Register(
-        nameof(IsMeasuring), typeof(bool), typeof(ImageTeachingView),
-        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnDrawingContextChanged));
+    public static readonly DependencyProperty IsMeasuringProperty;
 
-    public static readonly DependencyProperty RulerProperty = DependencyProperty.Register(
-        nameof(Ruler), typeof(ImageRuler), typeof(ImageTeachingView),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty RulerProperty;
 
-    public static readonly DependencyProperty MeasureCommandProperty = DependencyProperty.Register(
-        nameof(MeasureCommand), typeof(ICommand), typeof(ImageTeachingView));
+    public static readonly DependencyProperty MeasureCommandProperty;
+
+    static ImageTeachingView()
+    {
+        RegionPen = CreateFrozenPen(Color.FromRgb(74, 222, 128), 2.5);
+        RulerPen = CreateFrozenPen(Color.FromRgb(56, 189, 248), 2);
+        CrosshairOutlinePen = CreateFrozenPen(Colors.Black, 3);
+        CrosshairPen = CreateFrozenPen(Color.FromRgb(251, 191, 36), 1);
+        SourceProperty = DependencyProperty.Register(
+            nameof(Source),
+            typeof(BitmapSource),
+            typeof(ImageTeachingView),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnDrawingContextChanged));
+        SourceRegionProperty = DependencyProperty.Register(
+            nameof(SourceRegion),
+            typeof(Rect?),
+            typeof(ImageTeachingView),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+        SourceOverlayProperty = DependencyProperty.Register(
+            nameof(SourceOverlay),
+            typeof(BitmapSource),
+            typeof(ImageTeachingView),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+        ShowCrosshairProperty = DependencyProperty.Register(
+            nameof(ShowCrosshair),
+            typeof(bool),
+            typeof(ImageTeachingView),
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+        RegionCommandProperty = DependencyProperty.Register(
+            nameof(RegionCommand),
+            typeof(ICommand),
+            typeof(ImageTeachingView));
+        IsMeasuringProperty = DependencyProperty.Register(
+            nameof(IsMeasuring), typeof(bool), typeof(ImageTeachingView),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnDrawingContextChanged));
+        RulerProperty = DependencyProperty.Register(
+            nameof(Ruler), typeof(ImageRuler), typeof(ImageTeachingView),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+        MeasureCommandProperty = DependencyProperty.Register(
+            nameof(MeasureCommand), typeof(ICommand), typeof(ImageTeachingView));
+    }
 
     public ImageTeachingView()
     {
@@ -86,98 +96,50 @@ public sealed class ImageTeachingView : FrameworkElement
 
     public BitmapSource? Source
     {
-        get
-        {
-            return (BitmapSource?)GetValue(SourceProperty);
-        }
-        set
-        {
-            SetValue(SourceProperty, value);
-        }
+        get => (BitmapSource?)GetValue(SourceProperty);
+        set => SetValue(SourceProperty, value);
     }
 
     public Rect? SourceRegion
     {
-        get
-        {
-            return (Rect?)GetValue(SourceRegionProperty);
-        }
-        set
-        {
-            SetValue(SourceRegionProperty, value);
-        }
+        get => (Rect?)GetValue(SourceRegionProperty);
+        set => SetValue(SourceRegionProperty, value);
     }
 
     public BitmapSource? SourceOverlay
     {
-        get
-        {
-            return (BitmapSource?)GetValue(SourceOverlayProperty);
-        }
-        set
-        {
-            SetValue(SourceOverlayProperty, value);
-        }
+        get => (BitmapSource?)GetValue(SourceOverlayProperty);
+        set => SetValue(SourceOverlayProperty, value);
     }
 
     public bool ShowCrosshair
     {
-        get
-        {
-            return (bool)GetValue(ShowCrosshairProperty);
-        }
-        set
-        {
-            SetValue(ShowCrosshairProperty, value);
-        }
+        get => (bool)GetValue(ShowCrosshairProperty);
+        set => SetValue(ShowCrosshairProperty, value);
     }
 
     public ICommand? RegionCommand
     {
-        get
-        {
-            return (ICommand?)GetValue(RegionCommandProperty);
-        }
-        set
-        {
-            SetValue(RegionCommandProperty, value);
-        }
+        get => (ICommand?)GetValue(RegionCommandProperty);
+        set => SetValue(RegionCommandProperty, value);
     }
 
     public bool IsMeasuring
     {
-        get
-        {
-            return (bool)GetValue(IsMeasuringProperty);
-        }
-        set
-        {
-            SetValue(IsMeasuringProperty, value);
-        }
+        get => (bool)GetValue(IsMeasuringProperty);
+        set => SetValue(IsMeasuringProperty, value);
     }
 
     public ImageRuler? Ruler
     {
-        get
-        {
-            return (ImageRuler?)GetValue(RulerProperty);
-        }
-        set
-        {
-            SetValue(RulerProperty, value);
-        }
+        get => (ImageRuler?)GetValue(RulerProperty);
+        set => SetValue(RulerProperty, value);
     }
 
     public ICommand? MeasureCommand
     {
-        get
-        {
-            return (ICommand?)GetValue(MeasureCommandProperty);
-        }
-        set
-        {
-            SetValue(MeasureCommandProperty, value);
-        }
+        get => (ICommand?)GetValue(MeasureCommandProperty);
+        set => SetValue(MeasureCommandProperty, value);
     }
 
     protected override void OnRender(DrawingContext drawing)
@@ -186,7 +148,7 @@ public sealed class ImageTeachingView : FrameworkElement
         if (Source is not { } source || ActualWidth <= 0 || ActualHeight <= 0)
             return;
 
-        var fitted = GetImageBounds();
+        var fitted = ImageBounds;
         var scale = fitted.Width / source.PixelWidth;
         drawing.DrawImage(source, fitted);
         if (SourceRegion is { } region)
@@ -245,7 +207,7 @@ public sealed class ImageTeachingView : FrameworkElement
         var mouse = e.GetPosition(this);
         if (Source is null
             || ActualWidth <= 0 || ActualHeight <= 0
-            || !GetImageBounds().Contains(mouse))
+            || !ImageBounds.Contains(mouse))
             return;
         var point = GetImagePoint(mouse);
         if (IsMeasuring
@@ -320,19 +282,22 @@ public sealed class ImageTeachingView : FrameworkElement
         InvalidateVisual();
     }
 
-    private Rect GetImageBounds()
+    private Rect ImageBounds
     {
-        var source = Source!;
-        var scale = Math.Min(ActualWidth / source.PixelWidth, ActualHeight / source.PixelHeight);
-        var width = source.PixelWidth * scale;
-        var height = source.PixelHeight * scale;
-        return new Rect((ActualWidth - width) / 2, (ActualHeight - height) / 2, width, height);
+        get
+        {
+            var source = Source!;
+            var scale = Math.Min(ActualWidth / source.PixelWidth, ActualHeight / source.PixelHeight);
+            var width = source.PixelWidth * scale;
+            var height = source.PixelHeight * scale;
+            return new Rect((ActualWidth - width) / 2, (ActualHeight - height) / 2, width, height);
+        }
     }
 
     private Point GetImagePoint(Point screen)
     {
         var source = Source!;
-        var fitted = GetImageBounds();
+        var fitted = ImageBounds;
         var scale = fitted.Width / source.PixelWidth;
         return new Point(
             Math.Clamp((screen.X - fitted.X) / scale, 0, source.PixelWidth),

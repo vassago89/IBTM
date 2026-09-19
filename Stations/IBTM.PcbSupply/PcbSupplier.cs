@@ -88,7 +88,7 @@ public sealed class PcbSupplier : AutoUnit
             _handler.SetUpstreamReady(false);
         }
 
-        var state = GetState();
+        var state = State;
         TraceStep(state, _pickStep.ToString());
         switch (state)
         {
@@ -182,65 +182,55 @@ public sealed class PcbSupplier : AutoUnit
         }
     }
 
-    private PcbSupplyState GetState()
+    private PcbSupplyState State
     {
-        var pcb = _handler.Pcb;
-        var rotation = _handler.Rotation;
-
-        if ((_buffer.IsSupplyAtHandoff() || _buffer.IsSupplyInside()) && _handler.PcbReleased)
+        get
         {
-            return _buffer.CanExitSupply()
-                ? PcbSupplyState.MovingFromHandoff
-                : PcbSupplyState.WaitingForPlacementLift;
-        }
+            var pcb = _handler.Pcb;
+            var rotation = _handler.Rotation;
 
-        if (_buffer.IsSupplyAtHandoff())
-        {
-            return _buffer.IsPlacementSecuredAtHandoff()
-                ? PcbSupplyState.ReleasingPcb
-                : PcbSupplyState.WaitingForPlacement;
-        }
-
-        if (_buffer.IsSupplyInside() && pcb != PcbSupplyPcbState.Secured)
-        {
-            throw new InvalidOperationException("Supply PCB holding feedback was lost inside the handoff zone. Clear both handlers manually before RESET.");
-        }
-
-        if (pcb == PcbSupplyPcbState.Detected)
-        {
-            return PcbSupplyState.SecuringPcb;
-        }
-
-        if (pcb == PcbSupplyPcbState.Secured)
-        {
-            if (rotation != PcbSupplyRotationState.Rotated)
+            switch (true)
             {
-                return PcbSupplyState.RotatingForHandoff;
+                case true when (_buffer.IsSupplyAtHandoff() || _buffer.IsSupplyInside()) && _handler.PcbReleased:
+                    return _buffer.IsSupplyExitAllowed()
+                        ? PcbSupplyState.MovingFromHandoff
+                        : PcbSupplyState.WaitingForPlacementLift;
+                case true when _buffer.IsSupplyAtHandoff():
+                    return _buffer.IsPlacementSecuredAtHandoff()
+                        ? PcbSupplyState.ReleasingPcb
+                        : PcbSupplyState.WaitingForPlacement;
             }
 
-            return _buffer.CanEnterSupply()
-                ? PcbSupplyState.MovingToHandoff
-                : PcbSupplyState.WaitingForHandoff;
-        }
+            if (_buffer.IsSupplyInside() && pcb != PcbSupplyPcbState.Secured)
+            {
+                throw new InvalidOperationException("Supply PCB holding feedback was lost inside the handoff zone. Clear both handlers manually before RESET.");
+            }
 
-        if (!_handler.IsAtRotationZ())
-        {
-            return PcbSupplyState.RaisingForPickup;
-        }
+            switch (true)
+            {
+                case true when pcb == PcbSupplyPcbState.Detected:
+                    return PcbSupplyState.SecuringPcb;
+                case true when pcb == PcbSupplyPcbState.Secured:
+                    if (rotation != PcbSupplyRotationState.Rotated)
+                    {
+                        return PcbSupplyState.RotatingForHandoff;
+                    }
 
-        if (rotation != PcbSupplyRotationState.Unrotated)
-        {
-            return PcbSupplyState.UnrotatingForPickup;
+                    return _buffer.IsSupplyEntryAllowed()
+                        ? PcbSupplyState.MovingToHandoff
+                        : PcbSupplyState.WaitingForHandoff;
+                case true when !_handler.IsAtRotationZ():
+                    return PcbSupplyState.RaisingForPickup;
+                case true when rotation != PcbSupplyRotationState.Unrotated:
+                    return PcbSupplyState.UnrotatingForPickup;
+                case true when _pickStep == PickStep.WaitingForCarrierExit:
+                    return PcbSupplyState.WaitingForCarrierExit;
+                default:
+                    return _handler.UpstreamCarrierAvailable
+                        ? PcbSupplyState.PickingPcb
+                        : PcbSupplyState.WaitingForCarrier;
+            }
         }
-
-        if (_pickStep == PickStep.WaitingForCarrierExit)
-        {
-            return PcbSupplyState.WaitingForCarrierExit;
-        }
-
-        return _handler.UpstreamCarrierAvailable
-            ? PcbSupplyState.PickingPcb
-            : PcbSupplyState.WaitingForCarrier;
     }
 
     private enum PickStep

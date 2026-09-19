@@ -29,13 +29,7 @@ public sealed class AdcBoltHead : IBoltHead
         _baudRate = _connection.BaudRate;
     }
 
-    public bool HasPendingResult
-    {
-        get
-        {
-            return _pendingFastening is not null;
-        }
-    }
+    public bool HasPendingResult => _pendingFastening is not null;
 
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
@@ -299,11 +293,14 @@ public sealed class AdcBoltHead : IBoltHead
 
     private bool IsCompleted(AdcFasteningResult result, (ushort EventCount, ushort Preset) pending)
     {
-        if (result.Status == AdcEventStatus.Error)
-            return true;
-        if (result.EventCount == pending.EventCount
-            || result.Status is not (AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg))
-            return false;
+        switch (true)
+        {
+            case true when result.Status == AdcEventStatus.Error:
+                return true;
+            case true when result.EventCount == pending.EventCount
+                || result.Status is not (AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg):
+                return false;
+        }
         if (result.Preset != pending.Preset
             || result.Direction != AdcDirection.Fastening)
             throw new InvalidOperationException(

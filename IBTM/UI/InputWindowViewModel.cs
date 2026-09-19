@@ -19,11 +19,5 @@ public sealed class InputWindowViewModel
     public IoSignals Signals { get; }
     public IoList<InputControlRow, InputIo> Filter { get; }
 
-    public bool IsVirtual
-    {
-        get
-        {
-            return VirtualIo is not null;
-        }
-    }
+    public bool IsVirtual => VirtualIo is not null;
 }

@@ -24,8 +24,8 @@ public sealed class MotionMonitorAxis : ObservableObject
         MachineState state,
         UnitSettings units)
     {
-        ToggleServoCommand = new RelayCommand(ToggleServo, CanToggleServo);
-        HomeCommand = new AsyncRelayCommand(HomeAsync, CanHome);
+        ToggleServoCommand = new RelayCommand(ToggleServo, () => IsToggleServoAllowed);
+        HomeCommand = new AsyncRelayCommand(HomeAsync, () => IsHomeAllowed);
         HomeCancelCommand = HomeCommand.CreateCancelCommand();
 
         _machine = machine;
@@ -43,21 +43,9 @@ public sealed class MotionMonitorAxis : ObservableObject
     public int Number { get; }
     public MotionDiagnostics Diagnostics { get; }
 
-    public string Address
-    {
-        get
-        {
-            return Number.ToString("D3", CultureInfo.InvariantCulture);
-        }
-    }
+    public string Address => Number.ToString("D3", CultureInfo.InvariantCulture);
 
-    public bool Enabled
-    {
-        get
-        {
-            return _units.IsMotionEnabled(Group);
-        }
-    }
+    public bool Enabled => _units.IsMotionEnabled(Group);
 
     public IRelayCommand ToggleServoCommand { get; }
 
@@ -66,10 +54,13 @@ public sealed class MotionMonitorAxis : ObservableObject
         _machine.ToggleServo(Group, Axis);
     }
 
-    private bool CanToggleServo()
+    private bool IsToggleServoAllowed
     {
-        return Diagnostics.Snapshot.State is not null
-            && _machine.CanSetServo(Group, live: false);
+        get
+        {
+            return Diagnostics.Snapshot.State is not null
+                && _machine.IsSetServoAllowed(Group, live: false);
+        }
     }
 
     public IAsyncRelayCommand HomeCommand { get; }
@@ -80,10 +71,7 @@ public sealed class MotionMonitorAxis : ObservableObject
         await _machine.HomeAsync(Group, cancellationToken, Axis);
     }
 
-    private bool CanHome()
-    {
-        return _state.Display.HomeableAxes.Contains((Group, Axis));
-    }
+    private bool IsHomeAllowed => _state.Display.HomeableAxes.Contains((Group, Axis));
 
     internal bool Refresh()
     {

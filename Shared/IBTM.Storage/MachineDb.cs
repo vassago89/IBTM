@@ -11,37 +11,13 @@ internal sealed class MachineDb : DbContext
     {
     }
 
-    internal static string DefaultFile
-    {
-        get
-        {
-            return Path.Combine(AppContext.BaseDirectory, "Data", "Machine.db");
-        }
-    }
+    internal static string DefaultFile => Path.Combine(AppContext.BaseDirectory, "Data", "Machine.db");
 
-    internal DbSet<SettingRow> Settings
-    {
-        get
-        {
-            return Set<SettingRow>();
-        }
-    }
+    internal DbSet<SettingRow> Settings => Set<SettingRow>();
 
-    internal DbSet<RecipeRow> Recipes
-    {
-        get
-        {
-            return Set<RecipeRow>();
-        }
-    }
+    internal DbSet<RecipeRow> Recipes => Set<RecipeRow>();
 
-    internal DbSet<RecipeImageRow> RecipeImages
-    {
-        get
-        {
-            return Set<RecipeImageRow>();
-        }
-    }
+    internal DbSet<RecipeImageRow> RecipeImages => Set<RecipeImageRow>();
 
     internal static DbContextOptions<MachineDb> CreateOptions(string path)
     {
@@ -80,7 +56,12 @@ internal sealed class RecipeRow
 
 internal sealed class RecipeImageRow
 {
+    public RecipeImageRow()
+    {
+        Image = [];
+    }
+
     public string RecipeName { get; set; } = "";
     public int Number { get; set; }
-    public byte[] Image { get; set; } = [];
+    public byte[] Image { get; set; }
 }

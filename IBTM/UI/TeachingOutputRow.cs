@@ -15,7 +15,7 @@ public sealed class TeachingOutputRow : ObservableObject
         TeachingOutput? output,
         MachineController machine)
     {
-        ToggleOutputCommand = new AsyncRelayCommand(ToggleOutputAsync, CanToggleOutput);
+        ToggleOutputCommand = new AsyncRelayCommand(ToggleOutputAsync, () => IsToggleOutputAllowed);
 
         _machine = machine;
         Io = io;
@@ -26,11 +26,14 @@ public sealed class TeachingOutputRow : ObservableObject
     public TeachingOutput? Output { get; }
     internal CancellationToken ViewCancellation { get; set; }
 
-    private bool CanToggleOutput()
+    private bool IsToggleOutputAllowed
     {
-        return !ViewCancellation.IsCancellationRequested
-            && Output is not null
-            && _machine.CanSetTeachingOutput(Output, live: false);
+        get
+        {
+            return !ViewCancellation.IsCancellationRequested
+                && Output is not null
+                && _machine.IsSetTeachingOutputAllowed(Output, live: false);
+        }
     }
 
     public IAsyncRelayCommand ToggleOutputCommand { get; }

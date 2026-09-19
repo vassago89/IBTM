@@ -15,31 +15,37 @@ public partial class SettingsViewModel
     private readonly ILightController _light;
     private readonly ApplicationLog _log;
     [ObservableProperty]
-    private int _lightTestChannel;
+    public partial int LightTestChannel { get; set; }
     [ObservableProperty]
-    private int _lightTestLevel = 80;
+    public partial int LightTestLevel { get; set; } = 80;
     [ObservableProperty]
-    private bool _lightTestOn;
+    public partial bool LightTestOn { get; set; }
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TestLightCommand), nameof(OffTestLightCommand))]
-    private int? _pendingLightOffChannel;
+    public partial int? PendingLightOffChannel { get; set; }
     [ObservableProperty]
-    private string _lightTestMessage = "Test only: does not change recipe brightness.";
+    public partial string LightTestMessage { get; set; } = "Test only: does not change recipe brightness.";
 
     public string ActiveLightConnection { get; }
 
-    private bool CanTestLight()
+    private bool IsTestLightAllowed
     {
-        return CanEditSettings
-            && PendingLightOffChannel is null
-            && !OffTestLightCommand.IsRunning;
+        get
+        {
+            return IsSettingsEditAllowed
+                && PendingLightOffChannel is null
+                && !OffTestLightCommand.IsRunning;
+        }
     }
 
-    private bool CanOffTestLight()
+    private bool IsOffTestLightAllowed
     {
-        return TestLightCommand.IsRunning
-            || PendingLightOffChannel is not null
-            && !_operations.IsShuttingDown;
+        get
+        {
+            return TestLightCommand.IsRunning
+                || PendingLightOffChannel is not null
+                && !_operations.IsShuttingDown;
+        }
     }
 
     private void OnLightCommandChanged(object? sender, PropertyChangedEventArgs e)
@@ -54,28 +60,28 @@ public partial class SettingsViewModel
 
     private async Task OffTestLightAsync()
     {
-        if (TestLightCommand.IsRunning)
+        switch (true)
         {
-            TestLightCommand.Cancel();
-            if (TestLightCommand.ExecutionTask is { } test)
-                await test;
-            return;
-        }
-
-        if (PendingLightOffChannel is not { } channel)
-            return;
-        try
-        {
-            using var operation = _operations.Link();
-            var failure = await TurnTestLightOffAsync(channel);
-            LightTestMessage = failure?.Message ?? $"OFF command sent · channel {channel}.";
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            RefreshCommands();
+            case true when TestLightCommand.IsRunning:
+                TestLightCommand.Cancel();
+                if (TestLightCommand.ExecutionTask is { } test)
+                    await test;
+                return;
+            case true when PendingLightOffChannel is { } channel:
+                try
+                {
+                    using var operation = _operations.Link();
+                    var failure = await TurnTestLightOffAsync(channel);
+                    LightTestMessage = failure?.Message ?? $"OFF command sent · channel {channel}.";
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                finally
+                {
+                    RefreshCommands();
+                }
+                break;
         }
     }
 

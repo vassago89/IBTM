@@ -6,11 +6,19 @@ namespace IBTM.BoltFastening;
 
 public sealed class BoltFasteningSettings : Setting
 {
-    public MotionSettings Motion { get; set; } = new();
+    public BoltFasteningSettings()
+    {
+        Motion = new();
+        PickupPosition = new();
+        ShootingHead = new();
+        PickupHead = new();
+    }
+
+    public MotionSettings Motion { get; set; }
     public double SafeZ { get; set; }
-    public AxisPosition PickupPosition { get; set; } = new();
-    public BoltHeadSettings ShootingHead { get; set; } = new();
-    public BoltHeadSettings PickupHead { get; set; } = new();
+    public AxisPosition PickupPosition { get; set; }
+    public BoltHeadSettings ShootingHead { get; set; }
+    public BoltHeadSettings PickupHead { get; set; }
 
     public TeachingPosition[] GetTeachingPositions(
         PcbLayout pcb,
@@ -109,12 +117,15 @@ public sealed class BoltFasteningSettings : Setting
 
     public BoltHeadSettings GetHead(FasteningHead head)
     {
-        return head switch
+        switch (head)
         {
-            FasteningHead.Shooting => ShootingHead,
-            FasteningHead.Pickup => PickupHead,
-            _ => throw new System.ArgumentOutOfRangeException(nameof(head)),
-        };
+            case FasteningHead.Shooting:
+                return ShootingHead;
+            case FasteningHead.Pickup:
+                return PickupHead;
+            default:
+                throw new System.ArgumentOutOfRangeException(nameof(head));
+        }
     }
 
     public AxisPosition GetBoltPosition(BoltPoint bolt, CarrierReferenceSettings reference)

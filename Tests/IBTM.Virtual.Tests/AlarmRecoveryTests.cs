@@ -43,10 +43,10 @@ public sealed class AlarmRecoveryTests
             }
 
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.True(machine.CanStart);
+            Assert.True(machine.IsStartAllowed);
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.True(machine.CanStart);
+            Assert.True(machine.IsStartAllowed);
 
             Assert.True(io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
             var restarted = machine.StartAsync();
@@ -109,14 +109,14 @@ public sealed class AlarmRecoveryTests
                 () => state.Display.AutoMode,
                 TimeSpan.FromSeconds(2)));
             Assert.False(io.GetOutput(OutputIo.TowerLampYellow));
-            state.SetAutomaticRunning(true);
+            state.AutomaticRunning = true;
             await AssertIndicatorsAsync(OutputIo.TowerLampGreen, false);
 
             state.SetError(MachineAlarm.MotionUnavailable);
             await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
             ngConveyor.Stop();
             Assert.True(io.GetOutput(OutputIo.Buzzer));
-            Assert.False(machine.CanReset); // Auto Run blocks recovery, not acknowledgement.
+            Assert.False(machine.IsResetAllowed); // Auto Run blocks recovery, not acknowledgement.
             await machine.ResetAsync();
             await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
@@ -138,7 +138,7 @@ public sealed class AlarmRecoveryTests
             await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
             io.SetInput(InputIo.ResetButton, false);
             Assert.True(ngConveyor.Full);
-            state.SetAutomaticRunning(false);
+            state.AutomaticRunning = false;
             await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
             io.SetInput(InputIo.NgShuttleCarrierDetected, false);
             await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
@@ -147,7 +147,7 @@ public sealed class AlarmRecoveryTests
         }
         finally
         {
-            state.SetAutomaticRunning(false);
+            state.AutomaticRunning = false;
             await machine.ShutdownAsync();
         }
 
@@ -474,13 +474,13 @@ public sealed class AlarmRecoveryTests
             Assert.True(input.IsOn);
             Assert.True(state.ManualMode);
             Assert.False(state.AutoMode);
-            Assert.True(view.CanEditSettings);
+            Assert.True(view.IsSettingsEditAllowed);
 
             io.SetInput(InputIo.AutoMode, false);
             Assert.False(input.IsOn);
             Assert.True(state.AutoMode);
             Assert.False(state.ManualMode);
-            Assert.False(view.CanEditSettings);
+            Assert.False(view.IsSettingsEditAllowed);
             Assert.False(state.ManualControlsEnabled);
             Assert.False(state.AutomaticRunning);
             Assert.True(
@@ -490,7 +490,7 @@ public sealed class AlarmRecoveryTests
             Assert.True(input.IsOn);
             Assert.False(state.AutoMode);
             Assert.True(state.ManualMode);
-            Assert.True(view.CanEditSettings);
+            Assert.True(view.IsSettingsEditAllowed);
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => !state.Display.AutoMode, TimeSpan.FromSeconds(2)));
         }
@@ -512,21 +512,21 @@ public sealed class AlarmRecoveryTests
         try
         {
             io.SetInput(InputIo.AutoMode, false);
-            Assert.False(view.CanEditSettings);
+            Assert.False(view.IsSettingsEditAllowed);
             SetAlarm(state, MachineAlarm.Inspection);
             Assert.False(state.IsRunning);
             Assert.True(state.AutoMode);
-            Assert.False(view.CanEditSettings);
+            Assert.False(view.IsSettingsEditAllowed);
             Assert.False(view.SaveSettingsCommand.CanExecute(null));
             Assert.False(services.GetRequiredService<MachineStore>().HasData);
 
             io.SetInput(InputIo.AutoMode, true);
-            Assert.True(view.CanEditSettings);
+            Assert.True(view.IsSettingsEditAllowed);
             Assert.True(view.SaveSettingsCommand.CanExecute(null));
             Assert.False(state.ManualControlsEnabled);
             Assert.True(state.ManualSetupEnabled);
-            Assert.False(machine.CanStart);
-            Assert.False(machine.CanHome);
+            Assert.False(machine.IsStartAllowed);
+            Assert.False(machine.IsHomeAllowed);
 
             var output = view.OutputMappings.Single(
                 row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
@@ -548,7 +548,7 @@ public sealed class AlarmRecoveryTests
             await view.SaveSettingsCommand.ExecuteAsync(null);
             Assert.StartsWith("Settings not saved:", view.DatabaseMessage);
             Assert.False(services.GetRequiredService<MachineStore>().HasData);
-            Assert.True(view.CanEditSettings);
+            Assert.True(view.IsSettingsEditAllowed);
 
             motion.HorizontalSpeed = speed;
             await view.SaveSettingsCommand.ExecuteAsync(null);
@@ -605,7 +605,7 @@ public sealed class AlarmRecoveryTests
                 try
                 {
                     Assert.True(view.SaveSettingsCommand.IsRunning);
-                    Assert.False(view.CanEditSettings);
+                    Assert.False(view.IsSettingsEditAllowed);
                     Assert.False(operations.HasActiveOperations);
                     Assert.False(state.IsRunning);
                     operations.Cancel();
@@ -618,7 +618,7 @@ public sealed class AlarmRecoveryTests
 
             await saving.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.StartsWith("Settings saved.", view.DatabaseMessage);
-            Assert.True(view.CanEditSettings);
+            Assert.True(view.IsSettingsEditAllowed);
             var loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
             Assert.Equal(57, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
             Assert.Equal(58, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown]);
@@ -651,13 +651,13 @@ public sealed class AlarmRecoveryTests
         {
             using (services.GetRequiredService<OperationCancellation>().Link())
             {
-                Assert.False(view.CanEditSettings);
+                Assert.False(view.IsSettingsEditAllowed);
                 Assert.False(view.SaveSettingsCommand.CanExecute(null));
                 Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
                 Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
             }
 
-            Assert.True(view.CanEditSettings);
+            Assert.True(view.IsSettingsEditAllowed);
             Assert.True(view.ClearVirtualImageCommand.CanExecute(null));
             view.ClearVirtualImageCommand.Execute(null);
             Assert.Null(camera.SourceImage);
@@ -670,7 +670,7 @@ public sealed class AlarmRecoveryTests
             await machine.ShutdownAsync();
         }
 
-        Assert.False(view.CanEditSettings);
+        Assert.False(view.IsSettingsEditAllowed);
         Assert.False(view.SaveSettingsCommand.CanExecute(null));
         Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
         Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
@@ -692,11 +692,11 @@ public sealed class AlarmRecoveryTests
         {
             io.SetInput(InputIo.AutoMode, false);
             SetAlarm(state, MachineAlarm.Inspection);
-            Assert.False(view.CanEditSettings);
-            Assert.True(machine.CanReset);
+            Assert.False(view.IsSettingsEditAllowed);
+            Assert.True(machine.IsResetAllowed);
             await machine.ResetAsync();
             Assert.Equal(MachineAlarm.None, state.Alarm);
-            Assert.False(view.CanEditSettings);
+            Assert.False(view.IsSettingsEditAllowed);
             Assert.False(io.GetInput(InputIo.ResetButton));
             Assert.False(state.AutomaticRunning);
             Assert.False(state.IsHoming);
@@ -737,7 +737,7 @@ public sealed class AlarmRecoveryTests
             io.SetInput(input, input == InputIo.EmergencyStop1Pressed);
             var alarm = state.Alarm;
             Assert.NotEqual(MachineAlarm.None, alarm);
-            Assert.False(machine.CanReset);
+            Assert.False(machine.IsResetAllowed);
             await machine.ResetAsync();
             Assert.Equal(alarm, state.Alarm);
             Assert.False(state.ManualSetupEnabled);
@@ -750,7 +750,7 @@ public sealed class AlarmRecoveryTests
                 Assert.False(signal.IsOn);
                 Assert.False(state.DoorClosed);
                 Assert.False(state.DoorInterlockReady);
-                Assert.False(machine.CanStart);
+                Assert.False(machine.IsStartAllowed);
                 Assert.True(
                     await VirtualTest.WaitUntilAsync(
                         () => state.Display.Available && !state.Display.DoorClosed,

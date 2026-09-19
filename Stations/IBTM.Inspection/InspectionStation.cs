@@ -52,7 +52,7 @@ public sealed class InspectionStation : AutoUnit
     {
         return _work.Enabled
             && _work.State == InspectionWorkState.ReadyToInspect
-            && GetNextBarcode() is null
+            && NextBarcode is null
             ? GetNextBolt(bolts)
             : null;
     }
@@ -60,7 +60,7 @@ public sealed class InspectionStation : AutoUnit
     public HeatSinkSlot? GetActivePcb(IReadOnlyList<BoltPoint> bolts)
     {
         return _work.Enabled && _work.State == InspectionWorkState.ReadyToInspect
-            ? GetNextBarcode() ?? GetNextBolt(bolts)?.HeatSink
+            ? NextBarcode ?? GetNextBolt(bolts)?.HeatSink
             : null;
     }
 
@@ -118,18 +118,17 @@ public sealed class InspectionStation : AutoUnit
         TraceStep(inspectionState, workId: _work.CurrentJob.Id,
             waitingFor: inspectionState is InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor
                 ? _work.State.ToString() : null);
-        if (inspectionState == InspectionStationState.ReturningToNgPickup)
+        switch (inspectionState)
         {
-            await _move.MoveToCarrierAsync(NgTransferDestination.Station, cancellationToken);
-            return;
-        }
-        if (inspectionState is InspectionStationState.Waiting
-            or InspectionStationState.WaitingForConveyor
-            or InspectionStationState.BarcodeTeachingRequired
-            or InspectionStationState.FovTeachingRequired)
-        {
-            await WaitForChangeAsync(cancellationToken);
-            return;
+            case InspectionStationState.ReturningToNgPickup:
+                await _move.MoveToCarrierAsync(NgTransferDestination.Station, cancellationToken);
+                return;
+            case InspectionStationState.Waiting
+                or InspectionStationState.WaitingForConveyor
+                or InspectionStationState.BarcodeTeachingRequired
+                or InspectionStationState.FovTeachingRequired:
+                await WaitForChangeAsync(cancellationToken);
+                return;
         }
 
         await ExecuteInspectionAsync(bolts, cancellationToken);
@@ -145,7 +144,7 @@ public sealed class InspectionStation : AutoUnit
             return NgTransferState.Idle;
 
         var canReceive = holdAtShuttle
-            || _shuttle.CanReceive(useConveyor: !repeat || _isConveyorEnabled(), conveyorRunning);
+            || _shuttle.IsReceiveAllowed(useConveyor: !repeat || _isConveyorEnabled(), conveyorRunning);
         return _move.GetState(
             NgTransferDestination.Shuttle,
             canPickUp: _work.Station.CarrierSeated
@@ -160,24 +159,35 @@ public sealed class InspectionStation : AutoUnit
     // Inspection's display enum describes the same shared transfer states.
     private static InspectionStationState? GetTransferDisplayState(NgTransferState state)
     {
-        return state switch
+        switch (state)
         {
-            NgTransferState.MovingToCarrier => InspectionStationState.MovingTransferToCarrier,
-            NgTransferState.LoweringToCarrier => InspectionStationState.LoweringTransferAtCarrier,
-            NgTransferState.Closing => InspectionStationState.ClosingTransferGripper,
-            NgTransferState.WaitingForGrip => InspectionStationState.WaitingForCarrierGrip,
-            NgTransferState.Raising => InspectionStationState.RaisingCarrierTransfer,
-            NgTransferState.MovingToDestination => InspectionStationState.MovingTransferToShuttle,
-            NgTransferState.StationNotReady
-                or NgTransferState.ShuttleNotReady
-                or NgTransferState.WaitingForDestination
-                => InspectionStationState.WaitingForShuttleReady,
-            NgTransferState.LoweringAtDestination => InspectionStationState.LoweringTransferAtShuttle,
-            NgTransferState.Opening => InspectionStationState.OpeningTransferGripper,
-            NgTransferState.WaitingForPlacement => InspectionStationState.WaitingForShuttleCarrier,
-            NgTransferState.HoldingAtDestination => InspectionStationState.HoldingCarrierAtShuttle,
-            _ => null,
-        };
+            case NgTransferState.MovingToCarrier:
+                return InspectionStationState.MovingTransferToCarrier;
+            case NgTransferState.LoweringToCarrier:
+                return InspectionStationState.LoweringTransferAtCarrier;
+            case NgTransferState.Closing:
+                return InspectionStationState.ClosingTransferGripper;
+            case NgTransferState.WaitingForGrip:
+                return InspectionStationState.WaitingForCarrierGrip;
+            case NgTransferState.Raising:
+                return InspectionStationState.RaisingCarrierTransfer;
+            case NgTransferState.MovingToDestination:
+                return InspectionStationState.MovingTransferToShuttle;
+            case NgTransferState.StationNotReady:
+            case NgTransferState.ShuttleNotReady:
+            case NgTransferState.WaitingForDestination:
+                return InspectionStationState.WaitingForShuttleReady;
+            case NgTransferState.LoweringAtDestination:
+                return InspectionStationState.LoweringTransferAtShuttle;
+            case NgTransferState.Opening:
+                return InspectionStationState.OpeningTransferGripper;
+            case NgTransferState.WaitingForPlacement:
+                return InspectionStationState.WaitingForShuttleCarrier;
+            case NgTransferState.HoldingAtDestination:
+                return InspectionStationState.HoldingCarrierAtShuttle;
+            default:
+                return null;
+        }
     }
 
     private async Task ExecuteInspectionAsync(
@@ -212,18 +222,18 @@ public sealed class InspectionStation : AutoUnit
             {
                 var bolt = GetNextBolt(bolts);
                 var inspectionState = GetNextInspectionState(bolt);
-                TraceStep(inspectionState, bolt?.ToString() ?? GetNextBarcode()?.ToString(), job.Id);
+                TraceStep(inspectionState, bolt?.ToString() ?? NextBarcode?.ToString(), job.Id);
                 switch (inspectionState)
                 {
                     case InspectionStationState.MovingToBarcode:
-                        await _inspector.MoveToBarcodeAsync(GetNextBarcode()!.Value, operation.Token);
+                        await _inspector.MoveToBarcodeAsync(NextBarcode!.Value, operation.Token);
                         break;
                     case InspectionStationState.ReadingBarcode:
-                        var barcodeAssembly = _work.GetAssembly(job, GetNextBarcode()!.Value);
+                        var barcodeAssembly = _work.GetAssembly(job, NextBarcode!.Value);
                         var barcode = await _inspector.ReadBarcodeAsync(barcodeAssembly.HeatSink, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
                         _work.RequireCurrentJob(job);
-                        barcodeAssembly.RecordBarcode(barcode);
+                        barcodeAssembly.PcbBarcode = barcode;
                         NotifyChanged();
                         break;
                     case InspectionStationState.MovingToBolt:
@@ -270,35 +280,32 @@ public sealed class InspectionStation : AutoUnit
     {
         var enabled = _work.Enabled;
         var workState = _work.State;
-        if (!enabled || workState != InspectionWorkState.ReadyToInspect)
+        switch (true)
         {
-            var waiting = enabled && workState == InspectionWorkState.WaitingForConveyor
-                ? InspectionStationState.WaitingForConveyor
-                : InspectionStationState.Waiting;
-            return WaitAtPickup(waiting, live);
+            case true when !enabled || workState != InspectionWorkState.ReadyToInspect:
+                {
+                    var waiting = enabled && workState == InspectionWorkState.WaitingForConveyor
+                        ? InspectionStationState.WaitingForConveyor
+                        : InspectionStationState.Waiting;
+                    return WaitAtPickup(waiting, live);
+                }
+            case true when NextBarcode is { } pcb:
+                if (!_inspector.HasBarcodeRegion(pcb))
+                    return WaitAtPickup(InspectionStationState.BarcodeTeachingRequired, live);
+                return _inspector.IsAtBarcode(pcb, live)
+                    ? InspectionStationState.ReadingBarcode
+                    : InspectionStationState.MovingToBarcode;
+            case true when bolt is null:
+                return _work.IsTransferAtWaitingPosition(live)
+                    ? InspectionStationState.CompletingInspection
+                    : InspectionStationState.ReturningToNgPickup;
+            case true when !_inspector.HasPosition(bolt):
+                return WaitAtPickup(InspectionStationState.FovTeachingRequired, live);
+            default:
+                return _inspector.IsAt(bolt, live)
+                    ? InspectionStationState.InspectingBolt
+                    : InspectionStationState.MovingToBolt;
         }
-
-        if (GetNextBarcode() is { } pcb)
-        {
-            if (!_inspector.HasBarcodeRegion(pcb))
-                return WaitAtPickup(InspectionStationState.BarcodeTeachingRequired, live);
-            return _inspector.IsAtBarcode(pcb, live)
-                ? InspectionStationState.ReadingBarcode
-                : InspectionStationState.MovingToBarcode;
-        }
-
-        if (bolt is null)
-        {
-            return _work.IsTransferAtWaitingPosition(live)
-                ? InspectionStationState.CompletingInspection
-                : InspectionStationState.ReturningToNgPickup;
-        }
-
-        if (!_inspector.HasPosition(bolt))
-            return WaitAtPickup(InspectionStationState.FovTeachingRequired, live);
-        return _inspector.IsAt(bolt, live)
-            ? InspectionStationState.InspectingBolt
-            : InspectionStationState.MovingToBolt;
     }
 
     private InspectionStationState WaitAtPickup(InspectionStationState waiting, bool live)
@@ -308,14 +315,17 @@ public sealed class InspectionStation : AutoUnit
             : waiting;
     }
 
-    private HeatSinkSlot? GetNextBarcode()
+    private HeatSinkSlot? NextBarcode
     {
-        return Enum.GetValues<HeatSinkSlot>()
-            .Where(pcb => _runTargets?.Contains(pcb) ?? _work.Station.IsHeatSinkPresent(pcb))
-            .Where(pcb =>
-                _work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode is null)
-            .Select(pcb => (HeatSinkSlot?)pcb)
-            .FirstOrDefault();
+        get
+        {
+            return Enum.GetValues<HeatSinkSlot>()
+                .Where(pcb => _runTargets?.Contains(pcb) ?? _work.Station.IsHeatSinkPresent(pcb))
+                .Where(pcb =>
+                    _work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode is null)
+                .Select(pcb => (HeatSinkSlot?)pcb)
+                .FirstOrDefault();
+        }
     }
 
     private BoltPoint? GetNextBolt(IReadOnlyList<BoltPoint> bolts)

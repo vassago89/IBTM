@@ -96,13 +96,11 @@ public enum ManualControlBlock
 
 public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
 {
-    private readonly AsyncAutoResetEvent _displayRequested = new();
-    private readonly CancellationTokenSource _displayLifetime = new();
-    private readonly TaskCompletionSource _firstDisplay = new(
-        TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly AsyncAutoResetEvent _displayRequested;
+    private readonly CancellationTokenSource _displayLifetime;
+    private readonly TaskCompletionSource _firstDisplay;
     private Task? _displayUpdates;
-    private MachineDisplay _display = new();
-    private bool _repeatEnabled;
+    private MachineDisplay _display;
     // Last handled notification, not the physical state of the lamp/buzzer outputs.
     private (MachineAlarm Alarm, bool Running, bool NgAlarm)? _lastIndicatorNotification;
     private readonly MachineFeedbackMonitor _feedback;
@@ -127,6 +125,12 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         InspectionGantry inspectionGantry,
         ApplicationLog? log = null)
     {
+        _displayRequested = new();
+        _displayLifetime = new();
+        _firstDisplay = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _display = new();
+
         _options = options;
         _operations = operations;
         _io = io;
@@ -156,15 +160,12 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
 
     public bool RepeatEnabled
     {
-        get
-        {
-            return _repeatEnabled;
-        }
+        get;
         set
         {
-            if (_repeatEnabled == value || !SetupEditingEnabled)
+            if (field == value || !SetupEditingEnabled)
                 return;
-            _repeatEnabled = value;
+            field = value;
             PropertyChanged?.Invoke(this, new(nameof(RepeatEnabled)));
             RequestDisplayRefresh();
         }
@@ -172,10 +173,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
 
     public MachineDisplay Display
     {
-        get
-        {
-            return Volatile.Read(ref _display);
-        }
+        get => Volatile.Read(ref _display);
 
         private set
         {
@@ -184,53 +182,17 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         }
     }
 
-    internal MotionReadiness MotionReadiness
-    {
-        get
-        {
-            return _feedback.ReadLiveReadiness();
-        }
-    }
+    internal MotionReadiness MotionReadiness => _feedback.ReadLiveReadiness();
 
-    internal MotionReadiness FeedbackReadiness
-    {
-        get
-        {
-            return _feedback.Readiness;
-        }
-    }
+    internal MotionReadiness FeedbackReadiness => _feedback.Readiness;
 
-    public bool Homed
-    {
-        get
-        {
-            return MotionReadiness.Homed;
-        }
-    }
+    public bool Homed => MotionReadiness.Homed;
 
-    public bool ServosOn
-    {
-        get
-        {
-            return MotionReadiness.ServosOn;
-        }
-    }
+    public bool ServosOn => MotionReadiness.ServosOn;
 
-    public bool Faulted
-    {
-        get
-        {
-            return MotionReadiness.Faulted;
-        }
-    }
+    public bool Faulted => MotionReadiness.Faulted;
 
-    public bool Ready
-    {
-        get
-        {
-            return IsMotionReady(MotionReadiness);
-        }
-    }
+    public bool Ready => IsMotionReady(MotionReadiness);
 
     public bool EmergencyStopReleased
     {
@@ -258,47 +220,16 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         }
     }
 
-    public bool AirPressureOk
-    {
-        get
-        {
-            return _io.IsReady && _io.GetInput(InputIo.AirPressureHigh);
-        }
-    }
+    public bool AirPressureOk => _io.IsReady && _io.GetInput(InputIo.AirPressureHigh);
 
-    public bool ServoMainContactorOn
-    {
-        get
-        {
-            return _io.IsReady && _io.GetInput(InputIo.ServoMainContactorOn);
-        }
-    }
+    public bool ServoMainContactorOn => _io.IsReady && _io.GetInput(InputIo.ServoMainContactorOn);
 
-    public bool AutoMode
-    {
-        get
-        {
-            return
-            // The selector contact is energized in MANUAL, open in AUTO.
-            _io.IsReady && !_io.GetInput(InputIo.AutoMode);
-        }
-    }
+    // The selector contact is energized in MANUAL, open in AUTO.
+    public bool AutoMode => _io.IsReady && !_io.GetInput(InputIo.AutoMode);
 
-    public bool ManualMode
-    {
-        get
-        {
-            return !AutoMode;
-        }
-    }
+    public bool ManualMode => !AutoMode;
 
-    public bool DoorInterlockReady
-    {
-        get
-        {
-            return !_options.UseDoorInterlock || ManualMode || DoorClosed;
-        }
-    }
+    public bool DoorInterlockReady => !_options.UseDoorInterlock || ManualMode || DoorClosed;
 
     public bool SafetyReady
     {
@@ -309,52 +240,58 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         }
     }
 
-    public bool IsError
+    public bool IsError => Alarm != MachineAlarm.None;
+
+    public bool AutomaticRunning
     {
-        get
+        get;
+        internal set
         {
-            return Alarm != MachineAlarm.None;
+            if (field == value)
+                return;
+
+            _log?.Write($"Automatic operation {(value ? "started" : "stopped")}.");
+            field = value;
+            UpdateMachineIndicators();
+            NotifyChanged();
         }
     }
 
-    public bool AutomaticRunning { get; private set; }
-    public bool BoltTestRunning { get; private set; }
-    public bool IsHoming { get; private set; }
+    public bool BoltTestRunning
+    {
+        get;
+        internal set
+        {
+            if (field != value)
+                _log?.Write($"Bolt test {(value ? "started" : "stopped")}.");
+            field = value;
+            NotifyChanged();
+        }
+    }
+
+    public bool IsHoming
+    {
+        get;
+        internal set
+        {
+            if (field != value)
+                _log?.Write($"Homing {(value ? "started" : "finished")}.");
+            field = value;
+            NotifyChanged();
+        }
+    }
+
     public MachineAlarm Alarm { get; private set; }
     public string? AlarmDetail { get; private set; }
     public string? AlarmMessage { get; private set; }
 
-    public bool ConveyorRunning
-    {
-        get
-        {
-            return _io.IsReady && _conveyor.RunCommandOn;
-        }
-    }
+    public bool ConveyorRunning => _io.IsReady && _conveyor.RunCommandOn;
 
-    public bool IsRunning
-    {
-        get
-        {
-            return GetIsRunning();
-        }
-    }
+    public bool IsRunning => IsRunningFor();
 
-    public ManualControlBlock ManualBlock
-    {
-        get
-        {
-            return GetManualBlock(MotionReadiness);
-        }
-    }
+    public ManualControlBlock ManualBlock => GetManualBlock(MotionReadiness);
 
-    public bool ManualControlsEnabled
-    {
-        get
-        {
-            return ManualBlock == ManualControlBlock.None;
-        }
-    }
+    public bool ManualControlsEnabled => ManualBlock == ManualControlBlock.None;
 
     // Editing data does not operate a device or require motion readiness.
     public bool SetupEditingEnabled
@@ -535,7 +472,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         return ServoMainContactorOn && motion.Homed && motion.ServosOn && !motion.Faulted;
     }
 
-    internal bool GetIsRunning(bool? mainRunning = null, bool? ngRunning = null)
+    internal bool IsRunningFor(bool? mainRunning = null, bool? ngRunning = null)
     {
         return _operations.HasActiveOperations
             || AutomaticRunning
@@ -553,16 +490,23 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         bool? bufferConflict = null,
         bool? running = null)
     {
-        return this switch
+        switch (this)
         {
-            { IsError: true } => ManualControlBlock.Alarm,
-            _ when !IsMotionReady(motion) => ManualControlBlock.MotionNotReady,
-            { SafetyReady: false } => ManualControlBlock.SafetyNotReady,
-            _ when bufferConflict ?? Buffer.HasConflict() => ManualControlBlock.BufferConflict,
-            { AutoMode: true } => ManualControlBlock.AutoMode,
-            _ when running ?? IsRunning => ManualControlBlock.Busy,
-            _ => ManualControlBlock.None,
-        };
+            case { IsError: true }:
+                return ManualControlBlock.Alarm;
+            case var _ when !IsMotionReady(motion):
+                return ManualControlBlock.MotionNotReady;
+            case { SafetyReady: false }:
+                return ManualControlBlock.SafetyNotReady;
+            case var _ when bufferConflict ?? Buffer.HasConflict():
+                return ManualControlBlock.BufferConflict;
+            case { AutoMode: true }:
+                return ManualControlBlock.AutoMode;
+            case var _ when running ?? IsRunning:
+                return ManualControlBlock.Busy;
+            default:
+                return ManualControlBlock.None;
+        }
     }
 
     public void Refresh()
@@ -585,33 +529,6 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
     private void OnMotionStateChanged()
     {
         Changed?.Invoke();
-    }
-
-    internal void SetHoming(bool value)
-    {
-        if (IsHoming != value)
-            _log?.Write($"Homing {(value ? "started" : "finished")}.");
-        IsHoming = value;
-        NotifyChanged();
-    }
-
-    internal void SetAutomaticRunning(bool value)
-    {
-        if (AutomaticRunning == value)
-            return;
-
-        _log?.Write($"Automatic operation {(value ? "started" : "stopped")}.");
-        AutomaticRunning = value;
-        UpdateMachineIndicators();
-        NotifyChanged();
-    }
-
-    internal void SetBoltTestRunning(bool value)
-    {
-        if (BoltTestRunning != value)
-            _log?.Write($"Bolt test {(value ? "started" : "stopped")}.");
-        BoltTestRunning = value;
-        NotifyChanged();
     }
 
     internal void SetError(MachineAlarm alarm, Exception? exception = null)

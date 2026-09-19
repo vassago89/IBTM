@@ -4,79 +4,58 @@ namespace IBTM.Inspection;
 
 public sealed class BoltInspectionRecipe
 {
-    private double _exposureMicroseconds = 500.0;
-    private double _gain;
-    private int _lightLevel = 255;
-    private int _brightnessThreshold = 128;
-    private double _minimumBrightRatio = 0.01;
-
     public double ExposureMicroseconds
     {
-        get
-        {
-            return _exposureMicroseconds;
-        }
+        get;
         set
         {
             if (!double.IsFinite(value) || value <= 0)
                 throw new ArgumentOutOfRangeException(nameof(value), "Use a finite exposure greater than 0 microseconds.");
-            _exposureMicroseconds = value;
+            field = value;
         }
-    }
+    } = 500.0;
 
     public double Gain
     {
-        get
-        {
-            return _gain;
-        }
+        get;
         set
         {
             if (!double.IsFinite(value))
                 throw new ArgumentOutOfRangeException(nameof(value), "Use a finite gain supported by the camera.");
-            _gain = value;
+            field = value;
         }
     }
 
     public int LightLevel
     {
-        get
-        {
-            return _lightLevel;
-        }
+        get;
         set
         {
             if (value < 0 || value > 255)
                 throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255.");
-            _lightLevel = value;
+            field = value;
         }
-    }
+    } = 255;
 
     public int BrightnessThreshold
     {
-        get
-        {
-            return _brightnessThreshold;
-        }
+        get;
         set
         {
             if (value < 0 || value > 255)
                 throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255.");
-            _brightnessThreshold = value;
+            field = value;
         }
-    }
+    } = 128;
 
     public double MinimumBrightRatio
     {
-        get
-        {
-            return _minimumBrightRatio;
-        }
+        get;
         set
         {
             if (!(value >= 0 && value <= 1))
                 throw new ArgumentOutOfRangeException(nameof(value), "Use a ratio from 0 to 1.");
-            _minimumBrightRatio = value;
+            field = value;
         }
-    }
+    } = 0.01;
 }

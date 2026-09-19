@@ -27,13 +27,7 @@ public abstract class IoSignal<T> : INotifyPropertyChanged
     public IoSection? Section { get; }
     public int? Number { get; }
 
-    public virtual string Address
-    {
-        get
-        {
-            return Number?.ToString("D3") ?? "—";
-        }
-    }
+    public virtual string Address => Number?.ToString("D3") ?? "—";
 
     public abstract bool? IsOn { get; }
 
@@ -63,13 +57,7 @@ public sealed class IoInputStatus : IoSignal<InputIo>
         _io = io;
     }
 
-    public override bool? IsOn
-    {
-        get
-        {
-            return Number is not null && _io.IsReady ? _io.GetInput(Signal) : null;
-        }
-    }
+    public override bool? IsOn => Number is not null && _io.IsReady ? _io.GetInput(Signal) : null;
 }
 
 public sealed class IoOutputStatus : IoSignal<OutputIo>
@@ -110,29 +98,11 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
         }
     }
 
-    public override bool? IsOn
-    {
-        get
-        {
-            return _isOn;
-        }
-    }
+    public override bool? IsOn => _isOn;
 
-    public bool HasFeedback
-    {
-        get
-        {
-            return Feedback.Length > 0;
-        }
-    }
+    public bool HasFeedback => Feedback.Length > 0;
 
-    public bool HasConflict
-    {
-        get
-        {
-            return Feedback.Length == 2 && Feedback[0].IsOn == true && Feedback[1].IsOn == true;
-        }
-    }
+    public bool HasConflict => Feedback.Length == 2 && Feedback[0].IsOn == true && Feedback[1].IsOn == true;
 
     public bool IsMatched
     {

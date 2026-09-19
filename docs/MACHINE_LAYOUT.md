@@ -141,37 +141,42 @@ not a remembered sequence step.
 
 An OK Carrier completed at Inspection turns on `Available To Rear` and remains
 seated while `Ready From Rear` is off. Once rear ready is on, the Inspection backup
-plate and stopper go down before the conveyor starts. The carrier passes the exit
-sensor from ON to OFF before the conveyor stops and `Available To Rear` turns off.
+plate and stopper go down before the conveyor starts. Discharge ends when rear ready
+turns off, or the exit sensor has detected the carrier and is currently OFF after
+the configured margin from its first OFF. Holes do not restart that margin.
 
 Placement, Bolt Fastening, and Inspection report work complete only after every
 detected heat sink finishes. A disabled station process is bypassed by the WPF host so
 Main Conveyor can be validated independently. Inspection moves the camera to every
 recipe Bolt Point belonging to a detected heat sink and records bolt presence without
 stopping at the first missing bolt.
-Station work starts only when either heat sink is detected, the Backup Plate is Up,
-and the Stopper is Down.
-With the belt stopped, detected carriers that are not seated are lifted at their
-current stations. Occupied stations seat concurrently, and each station starts work
+S1/S2 work starts with carrier presence, Backup Plate Up and Stopper Down.
+With the belt stopped, these occupied stations seat concurrently, and each starts work
 as soon as its own seating feedback is complete. Transfer selection then checks
 completed carriers from downstream to upstream: discharge S3, S2 to S3, S1 to S2,
 then new infeed. An occupied destination blocks that transfer; other raised stations
 continue working.
 
+S3 inspects with Backup Plate Down, Stopper Up and the belt stopped. Before inspection,
+runnable transfers (including infeed) take priority: raise S3, finish those transfers,
+then lower S3 for inspection. After inspection the gantry returns to NG pickup.
+An OK carrier discharges immediately if rear ready; otherwise S3 raises for waiting
+or NG pickup. `GetNextTransfer` selects transfers; `GetState` applies these S3 conditions.
+
 Only the backup plates participating in a future transfer are lowered. Before
 lowering the source carrier onto the belt, the destination must have confirmed
 Stopper Up and Backup Plate Down feedback and still be empty. Source release,
 belt movement, arrival and destination seating belong to one transfer command;
-its Moving state remains active until seating finishes, including while the belt
-is stopped for lowering or raising. The destination
-Heat Sink 2 input starts the configured extra belt run to reach the stopper. Only
-after that duration does the belt stop, the Backup Plate rise, and the Stopper return down.
+`TransferAsync` keeps its Moving state until seating finishes. Destination Heat Sink 2
+starts the configured extra belt run to reach the stopper. Then the belt stops and
+S1/S2 seat; S3 remains at inspection height. Empty plates are prepared at START and
+each destination is prepared by its transfer, without a cleanup pass on every loop.
 Stop stops the belt and leaves pneumatic outputs at their current state. A new START
 uses current presence and seating feedback. During an active transfer, destination arrival transfers
 the source job's results; later input changes after cancellation do not transfer results.
 Results remain owned by their original station job; a new carrier does not inherit them.
 
-Front Available is the receive trigger. After it arrives, PCB Placement raises its
+Entry detection OR Front Available triggers receiving. PCB Placement raises its
 Stopper and lowers its Backup Plate before Front Ready is asserted and both conveyors
 run. Front Ready turns off when the entry sensor turns on. The conveyor continues
 until PCB Placement detects Heat Sink 2, runs for the configured extra duration,

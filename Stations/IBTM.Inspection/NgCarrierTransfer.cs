@@ -42,24 +42,21 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
 
     public event Action? Changed;
 
-    public bool CarrierDetected
-    {
-        get
-        {
-            return _io.GetInput(InputIo.NgCarrierDetected);
-        }
-    }
+    public bool CarrierDetected => _io.GetInput(InputIo.NgCarrierDetected);
 
     public NgTransferLiftState Lift
     {
         get
         {
-            return (_io.GetInput(InputIo.NgCarrierPickupUp), _io.GetInput(InputIo.NgCarrierPickupDown)) switch
+            switch ((_io.GetInput(InputIo.NgCarrierPickupUp), _io.GetInput(InputIo.NgCarrierPickupDown)))
             {
-                (true, false) => NgTransferLiftState.Up,
-                (false, true) => NgTransferLiftState.Down,
-                _ => NgTransferLiftState.Between,
-            };
+                case (true, false):
+                    return NgTransferLiftState.Up;
+                case (false, true):
+                    return NgTransferLiftState.Down;
+                default:
+                    return NgTransferLiftState.Between;
+            }
         }
     }
 
@@ -67,32 +64,23 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
     {
         get
         {
-            return (
+            switch ((
                 _io.GetInput(InputIo.NgCarrierGripperOpen),
-                _io.GetInput(InputIo.NgCarrierGripperClosed)) switch
+                _io.GetInput(InputIo.NgCarrierGripperClosed)))
             {
-                (true, false) => NgTransferGripperState.Open,
-                (false, true) => NgTransferGripperState.Closed,
-                _ => NgTransferGripperState.Between,
-            };
+                case (true, false):
+                    return NgTransferGripperState.Open;
+                case (false, true):
+                    return NgTransferGripperState.Closed;
+                default:
+                    return NgTransferGripperState.Between;
+            }
         }
     }
 
-    public bool IsRaised
-    {
-        get
-        {
-            return Lift == NgTransferLiftState.Up;
-        }
-    }
+    public bool IsRaised => Lift == NgTransferLiftState.Up;
 
-    public bool IsClear
-    {
-        get
-        {
-            return IsRaised && !CarrierDetected;
-        }
-    }
+    public bool IsClear => IsRaised && !CarrierDetected;
 
     public Task SetLiftUpAsync(bool up, CancellationToken cancellationToken = default)
     {

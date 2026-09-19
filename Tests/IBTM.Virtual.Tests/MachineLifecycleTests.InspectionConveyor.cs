@@ -12,6 +12,7 @@ using IBTM.PcbPlacement;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using IBTM.Storage;
 
 namespace IBTM.Virtual.Tests;
 
@@ -40,7 +41,7 @@ public sealed partial class MachineLifecycleTests
         // Start with an occupied, raised S3; the main sequence must lower it for inspection.
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
-        work.GetAssembly(HeatSinkSlot.HeatSink1).RecordBarcode("PCB-1");
+        work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode = "PCB-1";
 
         var inspected = false;
         var returned = false;
@@ -163,7 +164,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
         await fastening.Station.SeatAsync(CancellationToken.None);
         var arrivingJob = fastening.CurrentJob;
-        fastening.GetAssembly(HeatSinkSlot.HeatSink2).RecordBarcode("S2-CARRIER");
+        fastening.GetAssembly(HeatSinkSlot.HeatSink2).PcbBarcode = "S2-CARRIER";
         if (carrierWaitingAtS1)
         {
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
@@ -249,7 +250,7 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateInspectionServices(enableConveyor: false);
         var machine = services.GetRequiredService<MachineController>();
-        var bolts = services.GetRequiredService<Recipe>().Pcb.BoltPoints.ToArray();
+        var bolts = services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints.ToArray();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<InspectionWork>();
         var station = services.GetRequiredService<InspectionStation>();
@@ -277,7 +278,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
             var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-            assembly.RecordBarcode("PCB-1");
+            assembly.PcbBarcode = "PCB-1";
             await work.Station.PrepareToReceiveAsync(CancellationToken.None);
             await interrupted.Task.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.True(beltForcedOn);
@@ -300,7 +301,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units.NgCarrierTransfer = enableNgTransfer;
         settings.Conveyor.CarrierStopDelaySeconds = 0;
         var services = CreateServices(settings);
-        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         return services;
     }
 }

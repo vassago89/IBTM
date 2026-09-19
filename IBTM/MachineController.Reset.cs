@@ -9,37 +9,31 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
-    private readonly Lock _resetGate = new();
+    private readonly Lock _resetGate;
     private Task _resetTask = Task.CompletedTask;
 
-    public bool CanReset
+    public bool IsResetAllowed
     {
         get
         {
-            if (_operations.IsShuttingDown
-                || _feedback.Failure is not null
-                || _state.IsRunning)
+            switch (true)
             {
-                return false;
+                case true when _operations.IsShuttingDown
+                    || _feedback.Failure is not null
+                    || _state.IsRunning:
+                    return false;
+                case true when _state.Alarm == MachineAlarm.IoCommunication:
+                    return true;
+                case true when !_state.SafetyReady || !(_state.ManualMode || _state.DoorInterlockReady):
+                    return false;
+                // Hardware recovery admission, not permission to acknowledge the buzzer.
+                // A failed feedback scan must leave recovery usable without another native read.
+                case true when _state.IsError
+                    || _feedback.ReadError is not null
+                    || _fasteningGantry.HasPendingResult
+                    || _fasteningStation.HasPendingResult:
+                    return true;
             }
-
-            if (_state.Alarm == MachineAlarm.IoCommunication)
-            {
-                return true;
-            }
-
-            if (!_state.SafetyReady || !(_state.ManualMode || _state.DoorInterlockReady))
-            {
-                return false;
-            }
-
-            // Hardware recovery admission, not permission to acknowledge the buzzer.
-            // A failed feedback scan must leave recovery usable without another native read.
-            if (_state.IsError
-                || _feedback.ReadError is not null
-                || _fasteningGantry.HasPendingResult
-                || _fasteningStation.HasPendingResult)
-                return true;
             var motion = _state.FeedbackReadiness;
             return motion.Faulted || !motion.ServosOn || !_state.ServoMainContactorOn;
         }
@@ -56,15 +50,16 @@ public sealed partial class MachineController
         lock (_resetGate)
         {
             // Repeated clicks acknowledge the buzzer, but share the current recovery.
-            if (!_resetTask.IsCompleted)
-                return _resetTask;
-            if (!CanReset)
+            switch (true)
             {
-                _log?.Write("Machine RESET: buzzer silenced; hardware recovery conditions are not satisfied.");
-                return Task.CompletedTask;
+                case true when !_resetTask.IsCompleted:
+                    return _resetTask;
+                case true when !IsResetAllowed:
+                    _log?.Write("Machine RESET: buzzer silenced; hardware recovery conditions are not satisfied.");
+                    return Task.CompletedTask;
+                default:
+                    return _resetTask = ResetHardwareAsync();
             }
-
-            return _resetTask = ResetHardwareAsync();
         }
     }
 
@@ -76,15 +71,13 @@ public sealed partial class MachineController
             return;
         var (alarm, error) = await InitializeIoAsync(operation.Token);
         operation.Token.ThrowIfCancellationRequested();
-        if (alarm != MachineAlarm.None)
+        switch (true)
         {
-            _state.SetError(alarm, error);
-            return;
-        }
-
-        if (!_state.SafetyReady || !_state.ManualMode && !_state.DoorInterlockReady)
-        {
-            return;
+            case true when alarm != MachineAlarm.None:
+                _state.SetError(alarm, error);
+                return;
+            case true when !_state.SafetyReady || !_state.ManualMode && !_state.DoorInterlockReady:
+                return;
         }
 
         var failures = new List<Exception>();

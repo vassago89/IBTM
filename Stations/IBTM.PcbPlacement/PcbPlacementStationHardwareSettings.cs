@@ -13,11 +13,5 @@ public sealed class PcbPlacementStationHardwareSettings : InputHardwareSettings
         };
     }
 
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.PcbPlacementStation;
-        }
-    }
+    public override HardwareArea Area => HardwareArea.PcbPlacementStation;
 }

@@ -6,9 +6,14 @@ namespace IBTM.Core;
 // Each heat sink owns its taught bolts; coordinates are relative to the carrier reference pin.
 public sealed class PcbLayout
 {
+    public PcbLayout()
+    {
+        BoltPoints = [];
+    }
+
     // Old shared PCB-local coordinates must not be read as independent carrier coordinates.
     [JsonPropertyName("TaughtBolts")]
-    public List<BoltPoint> BoltPoints { get; set; } = [];
+    public List<BoltPoint> BoltPoints { get; set; }
 
     public IEnumerable<BoltPoint> GetBolts(HeatSinkSlot pcb)
     {

@@ -12,33 +12,21 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
-    public bool CanHome
-    {
-        get
-        {
-            return IsHomeAllowed(_state.MotionReadiness);
-        }
-    }
+    public bool IsHomeAllowed => IsHomeAllowedFor(_state.MotionReadiness);
 
-    public HomeBlockReason HomeBlock
-    {
-        get
-        {
-            return GetHomeBlock();
-        }
-    }
+    public HomeBlockReason HomeBlock => GetHomeBlock();
 
-    public bool CanRaiseCylinders
+    public bool IsRaiseCylindersAllowed
     {
         get
         {
             return _state.ManualSetupEnabled
                 && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
-                && IsCylinderRaiseClear();
+                && IsCylinderRaiseClear;
         }
     }
 
-    private bool IsHomeAllowed(MotionReadiness motion, bool? running = null)
+    private bool IsHomeAllowedFor(MotionReadiness motion, bool? running = null)
     {
         return !_operations.IsShuttingDown
             && _state.SafetyReady
@@ -50,41 +38,45 @@ public sealed partial class MachineController
             && HomeBlock == HomeBlockReason.None;
     }
 
-    private bool IsCylinderRaiseClear()
+    private bool IsCylinderRaiseClear
     {
-        // Keep the IPM down while Placement holds a PCB.
-        return !BufferHandlersEnabled || !_io.GetInput(InputIo.PcbPlacementPcbDetected);
+        get
+        {
+            // Keep the IPM down while Placement holds a PCB.
+            return !BufferHandlersEnabled || !_io.GetInput(InputIo.PcbPlacementPcbDetected);
+        }
     }
 
     internal HomeBlockReason GetHomeBlock(MotionGroup? group = null)
     {
-        if (!_io.IsReady)
-            return HomeBlockReason.IoUnavailable;
-        if (group is { } motionGroup && !_units.IsMotionEnabled(motionGroup))
-            return HomeBlockReason.UnitDisabled;
-        if (!_state.ManualMode && !_state.DoorInterlockReady)
-            return HomeBlockReason.DoorOpen;
-        if ((group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
-            || group is null
-            && BufferHandlersEnabled)
-            && (!_placementHandler.HandlerRaised
-                || _placementHandler.IpmLift != PlacementCylinderState.Up))
-            return HomeBlockReason.PlacementNotRaised;
-
-        if ((group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
-            && !_fasteningGantry.CanMoveHorizontal)
-            return HomeBlockReason.FasteningNotRaised;
-
-        if ((group == MotionGroup.InspectionGantry
-            || group is null
-            && InspectionGantryEnabled)
-            && !_ngTransfer.IsRaised)
-            return HomeBlockReason.NgPickupNotRaised;
-
-        return HomeBlockReason.None;
+        switch (true)
+        {
+            case true when !_io.IsReady:
+                return HomeBlockReason.IoUnavailable;
+            case true when group is { } motionGroup && !_units.IsMotionEnabled(motionGroup):
+                return HomeBlockReason.UnitDisabled;
+            case true when !_state.ManualMode && !_state.DoorInterlockReady:
+                return HomeBlockReason.DoorOpen;
+            case true when (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
+                || group is null
+                && BufferHandlersEnabled)
+                && (!_placementHandler.HandlerRaised
+                    || _placementHandler.IpmLift != PlacementCylinderState.Up):
+                return HomeBlockReason.PlacementNotRaised;
+            case true when (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
+                && !_fasteningGantry.IsHorizontalMoveAllowed:
+                return HomeBlockReason.FasteningNotRaised;
+            case true when (group == MotionGroup.InspectionGantry
+                || group is null
+                && InspectionGantryEnabled)
+                && !_ngTransfer.IsRaised:
+                return HomeBlockReason.NgPickupNotRaised;
+            default:
+                return HomeBlockReason.None;
+        }
     }
 
-    private bool AreHomeAxisConditionsReady(MotionGroup group, MotionAxis? axis = null, bool live = true)
+    private bool IsHomeAxisReady(MotionGroup group, MotionAxis? axis = null, bool live = true)
     {
         if (!_state.ManualMode
             || !_state.SafetyReady
@@ -115,13 +107,13 @@ public sealed partial class MachineController
                 if (_state.IsRunning)
                     return;
                 using var operation = BeginManualOperation(
-                    () => AreHomeAxisConditionsReady(group, axis),
+                    () => IsHomeAxisReady(group, axis),
                     cancellationToken);
                 if (operation is null)
                     return;
                 activeToken = operation.Token;
                 operation.Token.ThrowIfCancellationRequested();
-                _state.SetHoming(true);
+                _state.IsHoming = true;
                 try
                 {
                     bool homed;
@@ -156,7 +148,7 @@ public sealed partial class MachineController
                 }
                 finally
                 {
-                    _state.SetHoming(false);
+                    _state.IsHoming = false;
                     _state.Refresh();
                 }
             }
@@ -180,7 +172,7 @@ public sealed partial class MachineController
     {
         try
         {
-            if (!CanRaiseCylinders)
+            if (!IsRaiseCylindersAllowed)
                 return;
         }
         catch (IOException exception)
@@ -201,7 +193,7 @@ public sealed partial class MachineController
                 if (!_state.ManualMode
                     || !_state.SafetyReady
                     || !_io.IsReady
-                    || !IsCylinderRaiseClear())
+                    || !IsCylinderRaiseClear)
                     operation.Cancel();
             }
             catch (IOException exception)
@@ -262,7 +254,7 @@ public sealed partial class MachineController
     {
         try
         {
-            if (!CanHome)
+            if (!IsHomeAllowed)
                 return;
         }
         catch (Exception exception) when (exception is IOException or MotionException)
@@ -314,7 +306,7 @@ public sealed partial class MachineController
         _state.Changed += StopWhenHomeBecomesUnavailable;
         try
         {
-            _state.SetHoming(true);
+            _state.IsHoming = true;
             await HomeVerticalAxesAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await HomeHorizontalAxesAsync(cancellationToken);
@@ -329,7 +321,7 @@ public sealed partial class MachineController
         finally
         {
             _state.Changed -= StopWhenHomeBecomesUnavailable;
-            _state.SetHoming(false);
+            _state.IsHoming = false;
             _state.Refresh();
         }
     }

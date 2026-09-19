@@ -116,7 +116,7 @@ public sealed class IoTests
             await waiting;
             Assert.True(output.IsMatched);
             Assert.False(output.HasConflict);
-            virtualIo.SetConnected(false);
+            virtualIo.IsReady = false;
             Assert.Null(output.Feedback[0].IsOn);
             Assert.False(output.IsMatched);
         }
@@ -313,14 +313,14 @@ public sealed class IoTests
         probe.Error = null;
         signals.RefreshOutputs();
         Assert.True(output.IsOn);
-        io.SetConnected(false);
+        io.IsReady = false;
         signals.RefreshOutputs();
         Assert.Null(output.IsOn);
         Assert.Null(sensor.IsOn);
         Assert.False(signals.InputsAvailable);
         Assert.Equal(1, availabilityChanges);
         var beforeReconnect = changes;
-        io.SetConnected(true);
+        io.IsReady = true;
         signals.RefreshInputs();
         Assert.False(sensor.IsOn);
         Assert.True(signals.InputsAvailable);

@@ -18,38 +18,49 @@ public sealed class UnitSettings : Setting
 
     public bool IsBoltFeederEnabled(FasteningHead head)
     {
-        return head switch
+        switch (head)
         {
-            FasteningHead.Pickup => PickupBoltFeeder,
-            FasteningHead.Shooting => ShootingBoltFeeder,
-            _ => throw new ArgumentOutOfRangeException(nameof(head)),
-        };
+            case FasteningHead.Pickup:
+                return PickupBoltFeeder;
+            case FasteningHead.Shooting:
+                return ShootingBoltFeeder;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(head));
+        }
     }
 
     internal bool IsMotionEnabled(MotionGroup group)
     {
-        return group switch
+        switch (group)
         {
-            MotionGroup.PcbSupply => PcbSupply,
-            MotionGroup.PcbPlacementHandler => PcbPlacement,
-            MotionGroup.BoltFastening => BoltFastening,
+            case MotionGroup.PcbSupply:
+                return PcbSupply;
+            case MotionGroup.PcbPlacementHandler:
+                return PcbPlacement;
+            case MotionGroup.BoltFastening:
+                return BoltFastening;
             // Inspection and NG transfer use the same physical XY gantry.
-            MotionGroup.InspectionGantry => Inspection || NgCarrierTransfer,
-            _ => false,
-        };
+            case MotionGroup.InspectionGantry:
+                return Inspection || NgCarrierTransfer;
+            default:
+                return false;
+        }
     }
 
-    internal bool HasEnabledUnit()
+    internal bool IsAnyUnitEnabled
     {
-        return MainConveyor
-            || PcbSupply
-            || PcbPlacement
-            || PickupBoltFeeder
-            || ShootingBoltFeeder
-            || BoltFastening
-            || Inspection
-            || NgCarrierTransfer
-            || NgShuttle
-            || NgConveyor;
+        get
+        {
+            return MainConveyor
+                || PcbSupply
+                || PcbPlacement
+                || PickupBoltFeeder
+                || ShootingBoltFeeder
+                || BoltFastening
+                || Inspection
+                || NgCarrierTransfer
+                || NgShuttle
+                || NgConveyor;
+        }
     }
 }

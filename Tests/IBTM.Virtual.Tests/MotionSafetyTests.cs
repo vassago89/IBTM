@@ -224,22 +224,22 @@ public sealed class MotionSafetyTests
             (InputIo.PcbPlacementHandlerUp, true),
             (InputIo.PcbPlacementHandlerDown, false));
         await placement.MoveToAsync(10, 10, 0);
-        Assert.True(buffer.CanEnterSupply());
+        Assert.True(buffer.IsSupplyEntryAllowed());
         await placement.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.True(buffer.CanEnterSupply());
+        Assert.True(buffer.IsSupplyEntryAllowed());
         // Neither an output command nor ambiguous paired inputs prove the lift is Up.
         io.SetInput(InputIo.PcbPlacementHandlerDown, true);
-        Assert.False(buffer.CanEnterSupply());
+        Assert.False(buffer.IsSupplyEntryAllowed());
         io.SetInput(InputIo.PcbPlacementHandlerDown, false);
         await placement.MoveAxisAsync(MotionAxis.Z, 7, settings.ZSpeed);
-        Assert.True(buffer.CanEnterSupply());
+        Assert.True(buffer.IsSupplyEntryAllowed());
         await placement.MoveToAsync(0, 0, 0);
 
         await supply.MoveToAsync(20, 10, 8);
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        Assert.False(buffer.CanEnterPlacement());
+        Assert.False(buffer.IsPlacementEntryAllowed());
 
         await placement.MoveToAsync(15, 10, 8);
         Assert.False(buffer.HasConflict());
@@ -251,9 +251,9 @@ public sealed class MotionSafetyTests
 
         await supply.MoveToAsync(10, 10, 8);
         Assert.False(buffer.IsSupplyAtHandoff());
-        Assert.False(buffer.CanEnterPlacement());
+        Assert.False(buffer.IsPlacementEntryAllowed());
         await supply.MoveAxisAsync(MotionAxis.Z, 0, settings.ZSpeed);
-        Assert.True(buffer.CanEnterPlacement());
+        Assert.True(buffer.IsPlacementEntryAllowed());
 
         await placement.MoveToAsync(10, 10, 8);
         Assert.False(buffer.HasConflict());
@@ -349,7 +349,7 @@ public sealed class MotionSafetyTests
         Assert.Equal((20, 14, settings.RotationZ), motion.GetPosition());
 
         // Normal XY travel may cross the old buffer boundary at transport height.
-        Assert.True(supply.CanMoveToTeachingPosition(handoff));
+        Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
         await supply.MoveToHandoffAsync(default, new() { X = 0, Y = 0 });
         Assert.True(yMovedInsideBuffer);
         Assert.False(movedBelowTransportZ);

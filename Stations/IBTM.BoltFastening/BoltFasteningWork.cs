@@ -14,19 +14,17 @@ public sealed class BoltFasteningWork : StationWork
     {
         get
         {
-            if (!Station.CarrierPresent)
+            switch (true)
             {
-                return BoltFasteningWorkState.WaitingForCarrier;
+                case true when !Station.CarrierPresent:
+                    return BoltFasteningWorkState.WaitingForCarrier;
+                case true when Completed:
+                    return BoltFasteningWorkState.WaitingForTransfer;
+                default:
+                    return Station.CarrierSeated
+                        ? BoltFasteningWorkState.ReadyToFasten
+                        : BoltFasteningWorkState.WaitingForSeat;
             }
-
-            if (Completed)
-            {
-                return BoltFasteningWorkState.WaitingForTransfer;
-            }
-
-            return Station.CarrierSeated
-                ? BoltFasteningWorkState.ReadyToFasten
-                : BoltFasteningWorkState.WaitingForSeat;
         }
     }
 }

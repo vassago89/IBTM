@@ -19,12 +19,12 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
     private long _clearedThroughSequence;
 
     [ObservableProperty]
-    private bool _isPaused;
+    public partial bool IsPaused { get; set; }
     [ObservableProperty]
-    private string _selectedText = "";
+    public partial string SelectedText { get; set; } = "";
 
     [ObservableProperty, NotifyPropertyChangedFor(nameof(Status))]
-    private string? _clipboardError;
+    public partial string? ClipboardError { get; set; }
 
     public LogWindowViewModel(ApplicationLog log)
     {
@@ -54,26 +54,23 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string FilePath
-    {
-        get
-        {
-            return _log.FilePath ?? "File logging is disabled in this session.";
-        }
-    }
+    public string FilePath => _log.FilePath ?? "File logging is disabled in this session.";
 
     public string Status
     {
         get
         {
-            if (ClipboardError is not null)
-                return ClipboardError;
-            if (_log.FileError is { } error)
-                return $"FILE ERROR: {error}";
-            if (_log.FilePath is null)
-                return "Recent messages are shown here; file logging is disabled.";
-
-            return "Recent messages are shown here; the log file contains the full session history.";
+            switch (true)
+            {
+                case true when ClipboardError is not null:
+                    return ClipboardError;
+                case true when _log.FileError is { } error:
+                    return $"FILE ERROR: {error}";
+                case true when _log.FilePath is null:
+                    return "Recent messages are shown here; file logging is disabled.";
+                default:
+                    return "Recent messages are shown here; the log file contains the full session history.";
+            }
         }
     }
 

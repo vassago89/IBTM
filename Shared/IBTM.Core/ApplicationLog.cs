@@ -15,21 +15,14 @@ public sealed record LogEntry(
     string Message,
     string? Detail)
 {
-    public string Text
-    {
-        get
-        {
-            return $"{Time:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] {Message}" + (Detail is null ? "" : Environment.NewLine + Detail);
-        }
-    }
+    public string Text => $"{Time:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] {Message}" + (Detail is null ? "" : Environment.NewLine + Detail);
 }
 
 // Writers never wait for UI dispatch or file I/O from a hardware thread.
 public sealed class ApplicationLog : IDisposable, IAsyncDisposable, INotifyPropertyChanged
 {
     public const int RecentEntryLimit = 2000;
-    private readonly object _gate = new();
-    private readonly ObservableCollection<LogEntry> _entries = new();
+    private readonly ObservableCollection<LogEntry> _entries;
     private readonly Channel<string>? _fileQueue;
     private readonly Task? _fileWriter;
     private long _sequence;
@@ -37,6 +30,9 @@ public sealed class ApplicationLog : IDisposable, IAsyncDisposable, INotifyPrope
 
     public ApplicationLog(string? filePath = null)
     {
+        _entries = new();
+        SyncRoot = new();
+
         Entries = new ReadOnlyObservableCollection<LogEntry>(_entries);
         FilePath = filePath;
         if (filePath is null)
@@ -53,19 +49,13 @@ public sealed class ApplicationLog : IDisposable, IAsyncDisposable, INotifyPrope
     public ReadOnlyObservableCollection<LogEntry> Entries { get; }
 
     // Collection readers, including WPF binding, use the same lock as writers.
-    public object SyncRoot
-    {
-        get
-        {
-            return _gate;
-        }
-    }
+    public object SyncRoot { get; }
 
     public string? FileError
     {
         get
         {
-            lock (_gate)
+            lock (SyncRoot)
                 return _fileError;
         }
     }
@@ -74,7 +64,7 @@ public sealed class ApplicationLog : IDisposable, IAsyncDisposable, INotifyPrope
     {
         get
         {
-            lock (_gate)
+            lock (SyncRoot)
                 return _sequence;
         }
     }
@@ -91,7 +81,7 @@ public sealed class ApplicationLog : IDisposable, IAsyncDisposable, INotifyPrope
 
     private void Add(string level, string message, string? detail)
     {
-        lock (_gate)
+        lock (SyncRoot)
         {
             var entry = new LogEntry(++_sequence, DateTimeOffset.Now, level, message, detail);
             _entries.Add(entry);
@@ -123,7 +113,7 @@ public sealed class ApplicationLog : IDisposable, IAsyncDisposable, INotifyPrope
             or NotSupportedException)
         {
             _fileQueue!.Writer.TryComplete();
-            lock (_gate)
+            lock (SyncRoot)
                 _fileError = exception.Message;
             PropertyChanged?.Invoke(this, new(nameof(FileError)));
             Error(

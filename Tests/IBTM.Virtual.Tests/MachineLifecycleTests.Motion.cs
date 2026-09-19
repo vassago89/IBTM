@@ -291,7 +291,7 @@ public sealed partial class MachineLifecycleTests
         finally
         {
             state.Changed -= FailWhenTestingStarts;
-            state.SetBoltTestRunning(false);
+            state.BoltTestRunning = false;
             await machine.ShutdownAsync();
         }
     }
@@ -309,7 +309,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var source = services.GetRequiredService<PcbSupplyHandler>();
         var recipient = services.GetRequiredService<PcbPlacementHandler>();
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.PcbSupply.Pcb1PickPosition = new() { X = 20, Z = 5 };
         await machine.InitializeAsync();
         await machine.HomeAsync(default);
@@ -322,7 +322,7 @@ public sealed partial class MachineLifecycleTests
             (InputIo.PcbPlacementVacuumDetected, true),
             (InputIo.PcbPlacementIpmGripperOpen, false),
             (InputIo.PcbPlacementIpmGripperClosed, true));
-        Assert.True(state.Buffer.CanExitSupply());
+        Assert.True(state.Buffer.IsSupplyExitAllowed());
 
         var interrupted = false;
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -337,30 +337,30 @@ public sealed partial class MachineLifecycleTests
         source.Feedback.PositionChanged += LoseLiftDuringExit;
         try
         {
-            Assert.True(machine.CanStart);
+            Assert.True(machine.IsStartAllowed);
             await machine.StartAsync(firstStop.Token);
             Assert.True(interrupted);
             Assert.Equal(MachineAlarm.BufferConflict, state.Alarm);
             Assert.True(state.Buffer.IsSupplyInside());
             Assert.False(source.Feedback.IsMoving);
             Assert.True(source.PcbReleased);
-            Assert.False(state.Buffer.CanExitSupply());
+            Assert.False(state.Buffer.IsSupplyExitAllowed());
 
             await machine.ResetAsync();
-            Assert.True(machine.CanStart);
+            Assert.True(machine.IsStartAllowed);
             var stoppedPosition = source.Feedback.GetPosition();
             using var waitingStop = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
             await machine.StartAsync(waitingStop.Token);
             Assert.True(waitingStop.IsCancellationRequested);
-            Assert.False(state.Buffer.CanExitSupply());
+            Assert.False(state.Buffer.IsSupplyExitAllowed());
             Assert.Equal(stoppedPosition, source.Feedback.GetPosition());
             Assert.False(source.Feedback.IsMoving);
 
             io.SetInput(InputIo.PcbPlacementHandlerUp, true);
             await machine.ResetAsync();
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.True(machine.CanStart);
-            Assert.True(state.Buffer.CanExitSupply());
+            Assert.True(machine.IsStartAllowed);
+            Assert.True(state.Buffer.IsSupplyExitAllowed());
             Assert.Equal(stoppedPosition, source.Feedback.GetPosition());
             Assert.False(source.Feedback.IsMoving);
         }
@@ -458,7 +458,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         if (!home)
             await machine.HomeAsync(CancellationToken.None);
-        Assert.True(home ? machine.CanHome : machine.CanStart);
+        Assert.True(home ? machine.IsHomeAllowed : machine.IsStartAllowed);
         var failure = new IOException("Motion feedback failed while admitting the command.");
         feedback.BeforeRead = () =>
         {
@@ -478,7 +478,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(state.AutomaticRunning);
             Assert.False(state.IsRunning);
             Assert.False(feedback.Motion.IsMoving);
-            Assert.True(machine.CanReset);
+            Assert.True(machine.IsResetAllowed);
         }
         finally
         {
@@ -639,7 +639,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         await machine.InitializeAsync();
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
         Assert.False(state.ManualControlsEnabled);
         Assert.True(state.ManualSetupEnabled);
         io.SetInput(InputIo.AutoMode, false);
@@ -665,13 +665,13 @@ public sealed partial class MachineLifecycleTests
         {
             io.SetInput(up, false);
             Assert.Equal(reason, machine.HomeBlock);
-            Assert.False(machine.CanHome);
+            Assert.False(machine.IsHomeAllowed);
             await machine.HomeAsync(CancellationToken.None);
             io.SetInput(down, true);
             io.SetInput(up, true);
             Assert.Equal(reason, machine.HomeBlock);
             io.SetInput(down, false);
-            Assert.True(machine.CanHome);
+            Assert.True(machine.IsHomeAllowed);
         }
 
         Assert.Equal(0, outputsChanged);
@@ -681,7 +681,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.PickupHeadUp, false);
         io.SetInput(InputIo.NgShuttleUp, false);
         io.SetInput(InputIo.NgShuttleDown, true);
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
         services.GetRequiredService<MachineState>().RequestDisplayRefresh();
         await WaitUntilAsync(() => manual.Axes[9].HomeCommand.CanExecute(null));
         Assert.False(manual.Axes[3].HomeCommand.CanExecute(null));
@@ -708,7 +708,7 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
             io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
             Assert.Equal(HomeBlockReason.None, machine.HomeBlock);
-            Assert.True(machine.CanHome);
+            Assert.True(machine.IsHomeAllowed);
             var axis = manual.Axes.Single(
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
             await WaitUntilAsync(() => axis.HomeCommand.CanExecute(null));
@@ -726,7 +726,7 @@ public sealed partial class MachineLifecycleTests
             for (var run = 0; run < 2; run++)
             {
                 moved = false;
-                Assert.True(machine.CanHome);
+                Assert.True(machine.IsHomeAllowed);
                 if (individualAxis)
                     await axis.HomeCommand.ExecuteAsync(null);
                 else
@@ -816,24 +816,24 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += (output, _) => outputChanges.Enqueue(output);
 
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.True(machine.CanRaiseCylinders);
+        Assert.True(machine.IsRaiseCylindersAllowed);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
-        Assert.False(machine.CanRaiseCylinders);
+        Assert.False(machine.IsRaiseCylindersAllowed);
         await machine.RaiseCylindersAsync(CancellationToken.None);
         Assert.Empty(outputChanges);
-        await WaitUntilAsync(() => !state.Display.CanRaiseCylinders);
+        await WaitUntilAsync(() => !state.Display.IsRaiseCylindersAllowed);
         io.SetInput(InputIo.PcbPlacementPcbDetected, false);
-        Assert.True(machine.CanRaiseCylinders);
-        await WaitUntilAsync(() => state.Display.CanRaiseCylinders);
-        Assert.False(machine.CanHome);
+        Assert.True(machine.IsRaiseCylindersAllowed);
+        await WaitUntilAsync(() => state.Display.IsRaiseCylindersAllowed);
+        Assert.False(machine.IsHomeAllowed);
 
         var raising = machine.RaiseCylindersAsync(CancellationToken.None);
         Assert.True(state.IsRunning);
         Assert.False(state.IsHoming);
         Assert.False(state.ManualSetupEnabled);
-        Assert.False(machine.CanHome);
+        Assert.False(machine.IsHomeAllowed);
         await raising;
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
         Assert.False(state.Homed);
         Assert.False(moved);
         Assert.Equal(cylinders.Order(), outputChanges.Order());
@@ -841,7 +841,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmUp));
         Assert.False(io.GetInput(InputIo.PcbPlacementIpmDown));
         await machine.RaiseCylindersAsync(CancellationToken.None);
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
     }
 
     [Fact]
@@ -866,13 +866,13 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += DetectPcb;
         try
         {
-            Assert.True(machine.CanRaiseCylinders);
+            Assert.True(machine.IsRaiseCylindersAllowed);
             await machine.RaiseCylindersAsync(CancellationToken.None);
             Assert.True(io.GetInput(InputIo.PcbPlacementPcbDetected));
             Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmDown));
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.False(state.IsRunning);
-            Assert.False(machine.CanRaiseCylinders);
+            Assert.False(machine.IsRaiseCylindersAllowed);
         }
         finally
         {
@@ -906,7 +906,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.True(io.GetOutput(OutputIo.PcbPlacementHandlerDown));
-        Assert.False(machine.CanHome);
+        Assert.False(machine.IsHomeAllowed);
 
         await machine.RaiseCylindersAsync(CancellationToken.None);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
@@ -943,7 +943,7 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += FailAfterStop;
         try
         {
-            Assert.True(machine.CanRaiseCylinders);
+            Assert.True(machine.IsRaiseCylindersAllowed);
             await machine.RaiseCylindersAsync(CancellationToken.None);
 
             Assert.Equal(
@@ -986,7 +986,7 @@ public sealed partial class MachineLifecycleTests
         await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
-        Assert.False(machine.CanHome);
+        Assert.False(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
         await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.HomeAxisAsync(MotionAxis.X));
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
@@ -997,7 +997,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
 
         await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, false);
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
 
         var unsafeMovement = false;
         gantry.Feedback.MovingChanged += moving =>
@@ -1111,7 +1111,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Homed);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
-        Assert.False(machine.CanHome);
+        Assert.False(machine.IsHomeAllowed);
         Assert.Equal(HomeBlockReason.PlacementNotRaised, machine.HomeBlock);
         Assert.True(placement.HandlerRaised);
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmDown));
@@ -1164,7 +1164,7 @@ public sealed partial class MachineLifecycleTests
         };
         gantry.Feedback.PositionChanged += (_, _, _) =>
             movedXyWithHeadDown |= gantry.Feedback.IsMovingHorizontal
-                && !gantry.CanMoveHorizontal;
+                && !gantry.IsHorizontalMoveAllowed;
 
         var move = teaching.MoveToPointCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => io.GetOutput(OutputIo.PickupHeadDown));
@@ -1210,7 +1210,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.PickupHeadDown, false);
         io.SetInput(InputIo.PickupHeadUp, true);
         await returning.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.True(gantry.CanMoveHorizontal);
+        Assert.True(gantry.IsHorizontalMoveAllowed);
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
         Assert.True(io.GetOutput(OutputIo.PickupHeadVacuumPump));
         Assert.False(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
@@ -1342,13 +1342,13 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.True(state.Display.Available);
         Assert.False(state.Faulted);
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Ready);
         await WaitUntilAsync(() => state.ManualControlsEnabled);
 
         probes[group].Motion.SetServo(MotionAxis.X, false);
-        await WaitUntilAsync(() => machine.CanReset);
+        await WaitUntilAsync(() => machine.IsResetAllowed);
         await machine.ResetAsync();
         Assert.True(state.Ready);
         Assert.Equal(1, probes[group].ResetCalls);
@@ -1367,7 +1367,7 @@ public sealed partial class MachineLifecycleTests
         if (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler)
         {
             var buffer = services.GetRequiredService<BufferStage>();
-            Assert.False(buffer.CanEnterPlacement());
+            Assert.False(buffer.IsPlacementEntryAllowed());
         }
 
         foreach (var row in manual.Axes.Where(row => row.Group != group))
@@ -1455,7 +1455,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(placement.Feedback.IsMoving);
         Assert.False(fastening.Feedback.IsMoving);
         Assert.False(placement.Feedback.GetAxisState(MotionAxis.Z).Homed);
-        Assert.False(machine.CanHome);
+        Assert.False(machine.IsHomeAllowed);
         if (teachingHome)
         {
             Assert.False(teaching.HomeCommand.CanExecute(null));
@@ -1478,20 +1478,20 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
 
         fastening.SetAlarm(MotionAxis.X, true);
-        Assert.False(machine.CanHome);
-        await WaitUntilAsync(() => machine.CanReset);
+        Assert.False(machine.IsHomeAllowed);
+        await WaitUntilAsync(() => machine.IsResetAllowed);
         await machine.ResetAsync();
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
 
         await Task.WhenAll(
             placement.MoveAxisAsync(MotionAxis.Z, 50, 10_000),
             fastening.MoveAxisAsync(MotionAxis.Z, 50, 10_000));
         // The command can finish before the motion scan publishes stopped feedback.
-        await WaitUntilAsync(() => machine.CanHome);
+        await WaitUntilAsync(() => machine.IsHomeAllowed);
         var homing = machine.HomeAsync(CancellationToken.None);
         Assert.True(await VirtualTest.WaitUntilAsync(
             () => placement.IsMoving && fastening.IsMoving, TimeSpan.FromSeconds(2)),
-            $"Home completed={homing.IsCompleted}, CanHome={machine.CanHome}, "
+            $"Home completed={homing.IsCompleted}, IsHomeAllowed={machine.IsHomeAllowed}, "
                 + $"block={machine.HomeBlock}, alarm={state.Alarm}, detail={state.AlarmDetail}");
         fastening.SetAlarm(MotionAxis.X, true);
         await homing.WaitAsync(TimeSpan.FromSeconds(2));

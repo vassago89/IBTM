@@ -25,23 +25,23 @@ public partial class SettingsViewModel : ObservableObject
     private readonly OperationCancellation _operations;
 
     [ObservableProperty]
-    private string? _databaseMessage;
+    public partial string? DatabaseMessage { get; set; }
     private readonly VirtualCamera? _virtualCamera;
     private readonly Dictionary<MotionGroup, (MotionSettings Settings, MotionHardwareSettings Hardware)> _motions;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ClearVirtualImageCommand))]
-    private string? _virtualImageName;
+    public partial string? VirtualImageName { get; set; }
 
     [ObservableProperty]
-    private string? _virtualImageError;
+    public partial string? VirtualImageError { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentMotionSettings))]
     [NotifyPropertyChangedFor(nameof(CurrentMotionHardwareSettings))]
     [NotifyPropertyChangedFor(nameof(CurrentMotionHasZ))]
     [NotifyPropertyChangedFor(nameof(CurrentAxisMappings))]
-    private MotionGroup _selectedMotionGroup = MotionGroup.PcbSupply;
+    public partial MotionGroup SelectedMotionGroup { get; set; } = MotionGroup.PcbSupply;
 
     public SettingsViewModel(
         MachineSettings settings,
@@ -52,11 +52,13 @@ public partial class SettingsViewModel : ObservableObject
         ILightController light,
         ApplicationLog log)
     {
-        SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => CanEditSettings);
-        LoadVirtualImageCommand = new AsyncRelayCommand<string?>(LoadVirtualImageAsync, _ => CanChangeVirtualImage());
-        ClearVirtualImageCommand = new RelayCommand(ClearVirtualImage, CanClearVirtualImage);
-        OffTestLightCommand = new AsyncRelayCommand(OffTestLightAsync, CanOffTestLight);
-        TestLightCommand = new AsyncRelayCommand(TestLightAsync, CanTestLight);
+        LightDrivers = Enum.GetValues<LightDriver>();
+
+        SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => IsSettingsEditAllowed);
+        LoadVirtualImageCommand = new AsyncRelayCommand<string?>(LoadVirtualImageAsync, _ => IsChangeVirtualImageAllowed);
+        ClearVirtualImageCommand = new RelayCommand(ClearVirtualImage, () => IsClearVirtualImageAllowed);
+        OffTestLightCommand = new AsyncRelayCommand(OffTestLightAsync, () => IsOffTestLightAllowed);
+        TestLightCommand = new AsyncRelayCommand(TestLightAsync, () => IsTestLightAllowed);
         TestLightCancelCommand = TestLightCommand.CreateCancelCommand();
 
         _state = state;
@@ -64,7 +66,7 @@ public partial class SettingsViewModel : ObservableObject
         _operations = operations;
         _light = light;
         _log = log;
-        _lightTestChannel = settings.Lighting.InspectionChannel;
+        LightTestChannel = settings.Lighting.InspectionChannel;
         ActiveLightConnection = settings.Drivers.Light == LightDriver.Virtual
             ? "Virtual"
             : settings.Lighting.Connection;
@@ -114,10 +116,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public BoltDriver SelectedBoltDriver
     {
-        get
-        {
-            return Settings.Drivers.Bolt;
-        }
+        get => Settings.Drivers.Bolt;
         set
         {
             if (Settings.Drivers.Bolt == value)
@@ -129,50 +128,20 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
-    public bool ShowIoBoltSettings
-    {
-        get
-        {
-            return SelectedBoltDriver == BoltDriver.Io;
-        }
-    }
+    public bool ShowIoBoltSettings => SelectedBoltDriver == BoltDriver.Io;
 
-    public bool ShowAdcBoltSettings
-    {
-        get
-        {
-            return SelectedBoltDriver != BoltDriver.Io;
-        }
-    }
+    public bool ShowAdcBoltSettings => SelectedBoltDriver != BoltDriver.Io;
 
-    public bool IsVirtualDevelopment
-    {
-        get
-        {
-            return DevelopmentProfile.IsEnabled;
-        }
-    }
+    public bool IsVirtualDevelopment => DevelopmentProfile.IsEnabled;
 
-    public bool CanChangeDrivers
-    {
-        get
-        {
-            return CanEditSettings && !IsVirtualDevelopment;
-        }
-    }
+    public bool IsDriverChangeAllowed => IsSettingsEditAllowed && !IsVirtualDevelopment;
 
     public ControlDriver[] ControlDrivers { get; }
     public CameraDriver[] CameraDrivers { get; }
     public BoltDriver[] BoltDrivers { get; }
-    public LightDriver[] LightDrivers { get; } = Enum.GetValues<LightDriver>();
+    public LightDriver[] LightDrivers { get; }
 
-    public bool IsVirtualCamera
-    {
-        get
-        {
-            return _virtualCamera is not null;
-        }
-    }
+    public bool IsVirtualCamera => _virtualCamera is not null;
 
     public HardwareMappingRow[] InputMappings { get; }
     public HardwareMappingRow[] OutputMappings { get; }
@@ -181,45 +150,15 @@ public partial class SettingsViewModel : ObservableObject
     public ICollectionView OutputMappingView { get; }
     public MotionGroup[] MotionGroups { get; }
 
-    public MotionSettings CurrentMotionSettings
-    {
-        get
-        {
-            return _motions[SelectedMotionGroup].Settings;
-        }
-    }
+    public MotionSettings CurrentMotionSettings => _motions[SelectedMotionGroup].Settings;
 
-    public IEnumerable<HardwareMappingRow> CurrentAxisMappings
-    {
-        get
-        {
-            return AxisMappings.Where(row => row.Area == CurrentMotionHardwareSettings.Area);
-        }
-    }
+    public IEnumerable<HardwareMappingRow> CurrentAxisMappings => AxisMappings.Where(row => row.Area == CurrentMotionHardwareSettings.Area);
 
-    public MotionHardwareSettings CurrentMotionHardwareSettings
-    {
-        get
-        {
-            return _motions[SelectedMotionGroup].Hardware;
-        }
-    }
+    public MotionHardwareSettings CurrentMotionHardwareSettings => _motions[SelectedMotionGroup].Hardware;
 
-    public bool CurrentMotionHasZ
-    {
-        get
-        {
-            return CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
-        }
-    }
+    public bool CurrentMotionHasZ => CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
 
-    public bool CanEditSettings
-    {
-        get
-        {
-            return _state.SetupEditingEnabled && !SaveSettingsCommand.IsRunning;
-        }
-    }
+    public bool IsSettingsEditAllowed => _state.SetupEditingEnabled && !SaveSettingsCommand.IsRunning;
 
     public IAsyncRelayCommand SaveSettingsCommand { get; }
 
@@ -260,8 +199,8 @@ public partial class SettingsViewModel : ObservableObject
         SaveSettingsCommand.NotifyCanExecuteChanged();
         TestLightCommand.NotifyCanExecuteChanged();
         OffTestLightCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(CanEditSettings));
-        OnPropertyChanged(nameof(CanChangeDrivers));
+        OnPropertyChanged(nameof(IsSettingsEditAllowed));
+        OnPropertyChanged(nameof(IsDriverChangeAllowed));
     }
 
     public IAsyncRelayCommand<string?> LoadVirtualImageCommand { get; }
@@ -298,7 +237,7 @@ public partial class SettingsViewModel : ObservableObject
                 },
                 cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (!CanChangeVirtualImage())
+            if (!IsChangeVirtualImageAllowed)
             {
                 VirtualImageError = "Stop the machine before changing the camera image.";
                 return;
@@ -326,15 +265,9 @@ public partial class SettingsViewModel : ObservableObject
         VirtualImageError = null;
     }
 
-    private bool CanChangeVirtualImage()
-    {
-        return IsVirtualCamera && CanEditSettings;
-    }
+    private bool IsChangeVirtualImageAllowed => IsVirtualCamera && IsSettingsEditAllowed;
 
-    private bool CanClearVirtualImage()
-    {
-        return CanChangeVirtualImage() && VirtualImageName is not null;
-    }
+    private bool IsClearVirtualImageAllowed => IsChangeVirtualImageAllowed && VirtualImageName is not null;
 
     public async Task ShutdownAsync()
     {

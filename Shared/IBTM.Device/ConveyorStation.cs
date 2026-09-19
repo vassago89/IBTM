@@ -72,7 +72,15 @@ public sealed class ConveyorStation
     {
         get
         {
-            return GetCylinderState(_backupPlateUp, _backupPlateDown);
+            switch ((_io.GetInput(_backupPlateUp), _io.GetInput(_backupPlateDown)))
+            {
+                case (true, false):
+                    return StationCylinderState.Up;
+                case (false, true):
+                    return StationCylinderState.Down;
+                default:
+                    return StationCylinderState.Between;
+            }
         }
     }
 
@@ -80,7 +88,15 @@ public sealed class ConveyorStation
     {
         get
         {
-            return GetCylinderState(_stopperUp, _stopperDown);
+            switch ((_io.GetInput(_stopperUp), _io.GetInput(_stopperDown)))
+            {
+                case (true, false):
+                    return StationCylinderState.Up;
+                case (false, true):
+                    return StationCylinderState.Down;
+                default:
+                    return StationCylinderState.Between;
+            }
         }
     }
 
@@ -211,16 +227,6 @@ public sealed class ConveyorStation
         {
             CarrierChanged -= OnCarrierChanged;
         }
-    }
-
-    private StationCylinderState GetCylinderState(InputIo up, InputIo down)
-    {
-        return (_io.GetInput(up), _io.GetInput(down)) switch
-        {
-            (true, false) => StationCylinderState.Up,
-            (false, true) => StationCylinderState.Down,
-            _ => StationCylinderState.Between,
-        };
     }
 
     private void OnInputChanged(InputIo input, bool value)

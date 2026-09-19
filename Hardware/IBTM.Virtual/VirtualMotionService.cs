@@ -9,8 +9,8 @@ namespace IBTM.Virtual;
 public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDiagnostics
 {
     private readonly Func<bool>? _servoPowerOn;
-    private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(10);
-    private static readonly int AxisCount = Enum.GetValues<MotionAxis>().Length;
+    private static readonly TimeSpan UpdateInterval;
+    private static readonly int AxisCount;
     private readonly (double X, double Y, double Z) _resolution;
 
     private readonly bool[] _servoOn;
@@ -20,6 +20,12 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
     private double _x;
     private double _y;
     private double _z;
+
+    static VirtualMotionService()
+    {
+        UpdateInterval = TimeSpan.FromMilliseconds(10);
+        AxisCount = Enum.GetValues<MotionAxis>().Length;
+    }
 
     public VirtualMotionService(
         MotionSettings settings,
@@ -45,13 +51,7 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         _alarm = new bool[AxisCount];
     }
 
-    public override bool IsReady
-    {
-        get
-        {
-            return true;
-        }
-    }
+    public override bool IsReady => true;
 
     public override void Initialize()
     {
@@ -78,13 +78,17 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         double velocity,
         CancellationToken cancellationToken)
     {
-        return axis switch
+        switch (axis)
         {
-            MotionAxis.X => SimulateMoveAsync(position, _y, _z, velocity, true, cancellationToken),
-            MotionAxis.Y => SimulateMoveAsync(_x, position, _z, velocity, true, cancellationToken),
-            MotionAxis.Z => SimulateMoveAsync(_x, _y, position, velocity, false, cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-        };
+            case MotionAxis.X:
+                return SimulateMoveAsync(position, _y, _z, velocity, true, cancellationToken);
+            case MotionAxis.Y:
+                return SimulateMoveAsync(_x, position, _z, velocity, true, cancellationToken);
+            case MotionAxis.Z:
+                return SimulateMoveAsync(_x, _y, position, velocity, false, cancellationToken);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(axis));
+        }
     }
 
     public override void SetServo(MotionAxis axis, bool on)
@@ -304,12 +308,16 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
 
     private double GetCoordinate(MotionAxis axis)
     {
-        return axis switch
+        switch (axis)
         {
-            MotionAxis.X => _x,
-            MotionAxis.Y => _y,
-            MotionAxis.Z => _z,
-            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-        };
+            case MotionAxis.X:
+                return _x;
+            case MotionAxis.Y:
+                return _y;
+            case MotionAxis.Z:
+                return _z;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(axis));
+        }
     }
 }

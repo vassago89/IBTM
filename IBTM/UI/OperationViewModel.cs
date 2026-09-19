@@ -17,6 +17,7 @@ using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 
 namespace IBTM.UI;
 
@@ -24,7 +25,7 @@ public partial class OperationViewModel : ObservableObject
 {
     private readonly MachineController _machine;
     private readonly MachineOptions _options;
-    private readonly Recipe _recipe;
+    private readonly RecipeManager _recipes;
     private readonly MachineMap _map;
     private readonly PickupBoltFeeder _pickupFeeder;
     private readonly ShootingBoltFeeder _shootingFeeder;
@@ -39,7 +40,7 @@ public partial class OperationViewModel : ObservableObject
         PcbPlacementWork pcbPlacementWork,
         BoltFasteningWork boltFasteningWork,
         InspectionWork inspectionWork,
-        Recipe recipe,
+        RecipeManager recipes,
         MachineMap map,
         MainConveyor conveyor,
         BufferStage buffer,
@@ -74,7 +75,7 @@ public partial class OperationViewModel : ObservableObject
         PcbPlacementWork = pcbPlacementWork;
         BoltFasteningWork = boltFasteningWork;
         InspectionWork = inspectionWork;
-        _recipe = recipe;
+        _recipes = recipes;
         _map = map;
         NgConveyor = ngConveyor;
         NgShuttle = ngShuttle;
@@ -127,197 +128,53 @@ public partial class OperationViewModel : ObservableObject
     public BoltFasteningGantry Fastening { get; }
     public InspectionGantry InspectionGantry { get; }
 
-    public double? PcbSupplyMapLeft
-    {
-        get
-        {
-            return _map.GetSupplyPosition(Supply.Motion.Position)?.X;
-        }
-    }
+    public double? PcbSupplyMapLeft => _map.GetSupplyPosition(Supply.Motion.Position)?.X;
 
-    public double? PcbSupplyMapTop
-    {
-        get
-        {
-            return _map.GetSupplyPosition(Supply.Motion.Position)?.Y;
-        }
-    }
+    public double? PcbSupplyMapTop => _map.GetSupplyPosition(Supply.Motion.Position)?.Y;
 
-    public double? PcbPlacementMapLeft
-    {
-        get
-        {
-            return _map.GetPlacementPosition(Placement.Motion.Position)?.X;
-        }
-    }
+    public double? PcbPlacementMapLeft => _map.GetPlacementPosition(Placement.Motion.Position)?.X;
 
-    public double? PcbPlacementMapTop
-    {
-        get
-        {
-            return _map.GetPlacementPosition(Placement.Motion.Position)?.Y;
-        }
-    }
+    public double? PcbPlacementMapTop => _map.GetPlacementPosition(Placement.Motion.Position)?.Y;
 
-    public double? BoltFasteningMapLeft
-    {
-        get
-        {
-            return _map.GetFasteningPosition(Fastening.Motion.Position)?.X;
-        }
-    }
+    public double? BoltFasteningMapLeft => _map.GetFasteningPosition(Fastening.Motion.Position)?.X;
 
-    public double? BoltFasteningMapTop
-    {
-        get
-        {
-            return _map.GetFasteningPosition(Fastening.Motion.Position)?.Y;
-        }
-    }
+    public double? BoltFasteningMapTop => _map.GetFasteningPosition(Fastening.Motion.Position)?.Y;
 
-    public double BoltPickupFeederMapLeft
-    {
-        get
-        {
-            return _map.GetPickupFeederPosition().X;
-        }
-    }
+    public double BoltPickupFeederMapLeft => _map.PickupFeederPosition.X;
 
-    public double BoltPickupFeederMapTop
-    {
-        get
-        {
-            return _map.GetPickupFeederPosition().Y;
-        }
-    }
+    public double BoltPickupFeederMapTop => _map.PickupFeederPosition.Y;
 
-    public double? InspectionGantryMapLeft
-    {
-        get
-        {
-            return _map.GetInspectionPosition(InspectionGantry.Motion.Position)?.X;
-        }
-    }
+    public double? InspectionGantryMapLeft => _map.GetInspectionPosition(InspectionGantry.Motion.Position)?.X;
 
-    public double? InspectionGantryMapTop
-    {
-        get
-        {
-            return _map.GetInspectionPosition(InspectionGantry.Motion.Position)?.Y;
-        }
-    }
+    public double? InspectionGantryMapTop => _map.GetInspectionPosition(InspectionGantry.Motion.Position)?.Y;
 
-    public bool PcbSupplyPcbDetected
-    {
-        get
-        {
-            return Supply.Pcb != PcbSupplyPcbState.None;
-        }
-    }
+    public bool PcbSupplyPcbDetected => Supply.Pcb != PcbSupplyPcbState.None;
 
-    public bool PcbSupplyPcbSecured
-    {
-        get
-        {
-            return Supply.Pcb == PcbSupplyPcbState.Secured;
-        }
-    }
+    public bool PcbSupplyPcbSecured => Supply.Pcb == PcbSupplyPcbState.Secured;
 
-    public bool PcbPlacementPcbDetected
-    {
-        get
-        {
-            return Placement.Pcb != PlacementPcbState.None;
-        }
-    }
+    public bool PcbPlacementPcbDetected => Placement.Pcb != PlacementPcbState.None;
 
-    public bool PcbPlacementIpmDown
-    {
-        get
-        {
-            return Placement.IpmLift == PlacementCylinderState.Down;
-        }
-    }
+    public bool PcbPlacementIpmDown => Placement.IpmLift == PlacementCylinderState.Down;
 
-    public bool PcbSupplyGripperClosed
-    {
-        get
-        {
-            return Supply.Gripper == PcbSupplyCylinderState.Forward;
-        }
-    }
+    public bool PcbSupplyGripperClosed => Supply.Gripper == PcbSupplyCylinderState.Forward;
 
-    public bool PcbPlacementIpmGripperClosed
-    {
-        get
-        {
-            return Placement.IpmGripper == PlacementGripperState.Closed;
-        }
-    }
+    public bool PcbPlacementIpmGripperClosed => Placement.IpmGripper == PlacementGripperState.Closed;
 
-    public bool PcbPlacementHeatSink1Present
-    {
-        get
-        {
-            return PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
-        }
-    }
+    public bool PcbPlacementHeatSink1Present => PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
 
-    public bool PcbPlacementHeatSink2Present
-    {
-        get
-        {
-            return PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
-        }
-    }
+    public bool PcbPlacementHeatSink2Present => PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
 
-    public bool BoltFasteningHeatSink1Present
-    {
-        get
-        {
-            return BoltFasteningWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
-        }
-    }
+    public bool BoltFasteningHeatSink1Present => BoltFasteningWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
 
-    public bool BoltFasteningHeatSink2Present
-    {
-        get
-        {
-            return BoltFasteningWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
-        }
-    }
+    public bool BoltFasteningHeatSink2Present => BoltFasteningWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
 
-    public bool InspectionHeatSink1Present
-    {
-        get
-        {
-            return InspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
-        }
-    }
+    public bool InspectionHeatSink1Present => InspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
 
-    public bool InspectionHeatSink2Present
-    {
-        get
-        {
-            return InspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
-        }
-    }
+    public bool InspectionHeatSink2Present => InspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
 
-    public bool PickupFeederBoltDetected
-    {
-        get
-        {
-            return _pickupFeeder.State == BoltFeederState.BoltReady;
-        }
-    }
+    public bool PickupFeederBoltDetected => _pickupFeeder.State == BoltFeederState.BoltReady;
 
-    public bool ShootingFeederBoltDetected
-    {
-        get
-        {
-            return _shootingFeeder.State == BoltFeederState.BoltReady;
-        }
-    }
+    public bool ShootingFeederBoltDetected => _shootingFeeder.State == BoltFeederState.BoltReady;
 
     public bool PcbPlacementHeatSink1Completed
     {
@@ -341,45 +198,15 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public BoltPoint? BoltFasteningActiveBolt
-    {
-        get
-        {
-            return FasteningStateVisible ? State.Display.FasteningBolt : null;
-        }
-    }
+    public BoltPoint? BoltFasteningActiveBolt => FasteningStateVisible ? State.Display.FasteningBolt : null;
 
-    public BoltPoint? InspectionActiveBolt
-    {
-        get
-        {
-            return InspectionStateVisible ? State.Display.InspectionBolt : null;
-        }
-    }
+    public BoltPoint? InspectionActiveBolt => InspectionStateVisible ? State.Display.InspectionBolt : null;
 
-    public HeatSinkSlot? InspectionActivePcb
-    {
-        get
-        {
-            return InspectionStateVisible ? State.Display.InspectionPcb : null;
-        }
-    }
+    public HeatSinkSlot? InspectionActivePcb => InspectionStateVisible ? State.Display.InspectionPcb : null;
 
-    public string? InspectionPcb1Barcode
-    {
-        get
-        {
-            return InspectionBarcode(HeatSinkSlot.HeatSink1);
-        }
-    }
+    public string? InspectionPcb1Barcode => InspectionBarcode(HeatSinkSlot.HeatSink1);
 
-    public string? InspectionPcb2Barcode
-    {
-        get
-        {
-            return InspectionBarcode(HeatSinkSlot.HeatSink2);
-        }
-    }
+    public string? InspectionPcb2Barcode => InspectionBarcode(HeatSinkSlot.HeatSink2);
 
     public IReadOnlyList<BoltTargetView> BoltTargets
     {
@@ -390,7 +217,7 @@ public partial class OperationViewModel : ObservableObject
 
             var active = BoltFasteningActiveBolt;
             var targets = new List<BoltTargetView>();
-            foreach (var bolt in _recipe.Pcb.BoltPoints)
+            foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
                 if (bolt.X is null || bolt.Y is null
                     || !Fastening.HasReference(bolt.Head)
@@ -414,7 +241,7 @@ public partial class OperationViewModel : ObservableObject
 
             var active = InspectionActiveBolt;
             var targets = new List<BoltTargetView>();
-            foreach (var bolt in _recipe.Pcb.BoltPoints)
+            foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
                 if (bolt.X is null || bolt.Y is null
                     || !InspectionWork.Station.IsHeatSinkPresent(bolt.HeatSink))
@@ -428,45 +255,15 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public AssemblyResult BoltFasteningHeatSink1Result
-    {
-        get
-        {
-            return GetAssemblyResult(BoltFasteningWork, HeatSinkSlot.HeatSink1, inspection: false);
-        }
-    }
+    public AssemblyResult BoltFasteningHeatSink1Result => GetAssemblyResult(BoltFasteningWork, HeatSinkSlot.HeatSink1, inspection: false);
 
-    public AssemblyResult BoltFasteningHeatSink2Result
-    {
-        get
-        {
-            return GetAssemblyResult(BoltFasteningWork, HeatSinkSlot.HeatSink2, inspection: false);
-        }
-    }
+    public AssemblyResult BoltFasteningHeatSink2Result => GetAssemblyResult(BoltFasteningWork, HeatSinkSlot.HeatSink2, inspection: false);
 
-    public AssemblyResult InspectionHeatSink1Result
-    {
-        get
-        {
-            return GetAssemblyResult(InspectionWork, HeatSinkSlot.HeatSink1, inspection: true);
-        }
-    }
+    public AssemblyResult InspectionHeatSink1Result => GetAssemblyResult(InspectionWork, HeatSinkSlot.HeatSink1, inspection: true);
 
-    public AssemblyResult InspectionHeatSink2Result
-    {
-        get
-        {
-            return GetAssemblyResult(InspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
-        }
-    }
+    public AssemblyResult InspectionHeatSink2Result => GetAssemblyResult(InspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
 
-    public string ModeText
-    {
-        get
-        {
-            return State.Display.Available ? (State.Display.AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
-        }
-    }
+    public string ModeText => State.Display.Available ? (State.Display.AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
 
     public bool HasAlarm
     {
@@ -487,21 +284,9 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public string? AlarmDetail
-    {
-        get
-        {
-            return State.Display.ReadError?.ToString() ?? State.Display.AlarmDetail;
-        }
-    }
+    public string? AlarmDetail => State.Display.ReadError?.ToString() ?? State.Display.AlarmDetail;
 
-    public string? AlarmMessage
-    {
-        get
-        {
-            return State.Display.ReadError?.Message ?? State.Display.AlarmMessage;
-        }
-    }
+    public string? AlarmMessage => State.Display.ReadError?.Message ?? State.Display.AlarmMessage;
 
     public bool SafetyBypass
     {
@@ -603,31 +388,27 @@ public partial class OperationViewModel : ObservableObject
     private static AssemblyResult GetAssemblyResult(StationWork work, HeatSinkSlot heatSink, bool inspection)
     {
         var assembly = work.Assemblies.FirstOrDefault(item => item.HeatSink == heatSink);
-        if (assembly is null)
+        switch (true)
         {
-            return AssemblyResult.Pending;
+            case true when assembly is null:
+                return AssemblyResult.Pending;
+            case true when inspection:
+                return assembly.InspectionResult;
+            default:
+                return assembly.FasteningResult;
         }
-
-        if (inspection)
-        {
-            return assembly.InspectionResult;
-        }
-
-        return assembly.FasteningResult;
     }
 
     private BoltTargetState GetFasteningTargetState(BoltPoint bolt)
     {
         var assembly = BoltFasteningWork.Assemblies.FirstOrDefault(
             item => item.HeatSink == bolt.HeatSink);
-        if (assembly is null)
+        switch (true)
         {
-            return BoltTargetState.Pending;
-        }
-
-        if (bolt.Head == FasteningHead.Shooting)
-        {
-            return GetResultState(assembly.PcbBoltResults, bolt.Number);
+            case true when assembly is null:
+                return BoltTargetState.Pending;
+            case true when bolt.Head == FasteningHead.Shooting:
+                return GetResultState(assembly.PcbBoltResults, bolt.Number);
         }
 
         var seating = GetResultState(assembly.IpmSeatingResults, bolt.Number);

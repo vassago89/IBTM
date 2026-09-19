@@ -13,6 +13,11 @@ namespace IBTM;
 // A completed display read, never an authorization to operate the equipment.
 public sealed record MachineDisplay
 {
+    public MachineDisplay()
+    {
+        HomeableAxes = new HashSet<(MotionGroup, MotionAxis)>();
+    }
+
     public bool Available { get; init; }
     public Exception? ReadError { get; init; }
     public bool SafetyReady { get; init; }
@@ -27,7 +32,7 @@ public sealed record MachineDisplay
     public bool BufferConflict { get; init; }
     public bool SupplyInBufferArea { get; init; }
     public bool SupplyAtHandoff { get; init; }
-    public bool CanSupplyEnter { get; init; }
+    public bool IsSupplyEntryAllowed { get; init; }
     public bool EmergencyStopReleased { get; init; }
     public bool DoorClosed { get; init; }
     public bool AirPressureOk { get; init; }
@@ -37,27 +42,15 @@ public sealed record MachineDisplay
     public string? AlarmMessage { get; init; }
     public bool ServoPowerOn { get; init; }
     public bool Homed { get; init; }
-    public bool CanStart { get; init; }
-    public bool CanHome { get; init; }
-    public bool CanRaiseCylinders { get; init; }
-    public IReadOnlySet<(MotionGroup Group, MotionAxis Axis)> HomeableAxes { get; init; } = new HashSet<(MotionGroup, MotionAxis)>();
+    public bool IsStartAllowed { get; init; }
+    public bool IsHomeAllowed { get; init; }
+    public bool IsRaiseCylindersAllowed { get; init; }
+    public IReadOnlySet<(MotionGroup Group, MotionAxis Axis)> HomeableAxes { get; init; }
     public ManualControlBlock ManualBlock { get; init; } = ManualControlBlock.MotionNotReady;
 
-    public bool ManualControlsEnabled
-    {
-        get
-        {
-            return Available && ManualBlock == ManualControlBlock.None;
-        }
-    }
+    public bool ManualControlsEnabled => Available && ManualBlock == ManualControlBlock.None;
 
-    public bool ManualSetupEnabled
-    {
-        get
-        {
-            return Available && SetupEditingEnabled && !IsRunning && SafetyReady;
-        }
-    }
+    public bool ManualSetupEnabled => Available && SetupEditingEnabled && !IsRunning && SafetyReady;
 
     public bool SetupEditingEnabled { get; init; }
     public PcbPlacementState PlacementState { get; init; }

@@ -18,13 +18,7 @@ public sealed class InputControlRow
 
     public IoInputStatus Io { get; }
 
-    public bool IsVirtual
-    {
-        get
-        {
-            return _virtualIo is not null;
-        }
-    }
+    public bool IsVirtual => _virtualIo is not null;
 
     public IRelayCommand ToggleCommand { get; }
 

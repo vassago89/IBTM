@@ -5,11 +5,17 @@ namespace IBTM.Inspection;
 
 public sealed class NgCarrierTransferSettings : Setting
 {
+    public NgCarrierTransferSettings()
+    {
+        CarrierPickupPosition = new();
+        ShuttlePlacePosition = new();
+    }
+
     public double Speed { get; set; } = 100.0;
     public double? PickupSafeX { get; set; }
     // Only Y is taught here. The pickup X is always PickupSafeX.
-    public AxisPosition CarrierPickupPosition { get; set; } = new();
-    public AxisPosition ShuttlePlacePosition { get; set; } = new();
+    public AxisPosition CarrierPickupPosition { get; set; }
+    public AxisPosition ShuttlePlacePosition { get; set; }
 
     public AxisPosition? GetCarrierPickupPosition()
     {

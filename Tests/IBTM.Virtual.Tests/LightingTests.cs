@@ -238,13 +238,18 @@ public sealed class LightingTests
 
     private sealed class TestCamera : ICamera
     {
+        public TestCamera()
+        {
+            Failure = new("Camera disconnected.");
+        }
+
         public event Action<ImageFrame>? FrameReady;
         public event Action<Exception>? LiveViewFailed;
 
         public bool IsLiveView { get; private set; }
         public (int Width, int Height) FrameSize { get; } = (1, 1);
         public bool FailInitialize { get; set; }
-        public IOException Failure { get; } = new("Camera disconnected.");
+        public IOException Failure { get; }
 
         public void Initialize()
         {
@@ -279,13 +284,19 @@ public sealed class LightingTests
 
     private sealed class RecordingLight : ILightController
     {
-        public IOException Failure { get; } = new("ON failed after the output was sent.");
+        public RecordingLight()
+        {
+            Failure = new("ON failed after the output was sent.");
+            OffFailure = new("OFF failed.");
+        }
+
+        public IOException Failure { get; }
         public bool IsOn { get; private set; }
         public int OffCalls { get; private set; }
         public int LastOffChannel { get; private set; }
         public bool FailOn { get; set; } = true;
         public bool FailOff { get; set; }
-        public IOException OffFailure { get; } = new("OFF failed.");
+        public IOException OffFailure { get; }
         public Action? OnStarted { get; set; }
         public bool Connected { get; set; } = true;
 

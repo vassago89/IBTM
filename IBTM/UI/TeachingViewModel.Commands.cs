@@ -71,65 +71,51 @@ public partial class TeachingViewModel
     private readonly MachineStore _store;
     private readonly IReadOnlyDictionary<HardwareArea, IoStatus[]> _ioGroups;
     private readonly IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> _teachingOutputs;
-    private CancellationTokenSource _viewCancellation = new();
-    private readonly Dictionary<HardwareArea, TeachingIoGroup[]> _teachingIoGroups = [];
+    private CancellationTokenSource _viewCancellation;
+    private readonly Dictionary<HardwareArea, TeachingIoGroup[]> _teachingIoGroups;
     private int _manualCommandRefreshQueued;
 
     [ObservableProperty]
-    private double _jogSpeed = 10.0;
+    public partial double JogSpeed { get; set; } = 10.0;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StepCommand))]
-    private double _stepDistance = 0.1;
+    public partial double StepDistance { get; set; } = 0.1;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ManualSpeedLabel))]
-    private TeachingMoveMode _moveMode;
+    public partial TeachingMoveMode MoveMode { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
     [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
-    private TeachingPoint? _selectedPoint;
+    public partial TeachingPoint? SelectedPoint { get; set; }
 
     [ObservableProperty]
-    private string? _saveError;
+    public partial string? SaveError { get; set; }
 
-    public TeachingMoveMode[] MoveModes { get; } = Enum.GetValues<TeachingMoveMode>();
+    public TeachingMoveMode[] MoveModes { get; }
 
-    public string ManualSpeedLabel
-    {
-        get
-        {
-            return MoveMode == TeachingMoveMode.Step ? "Step speed" : "Jog speed";
-        }
-    }
+    public string ManualSpeedLabel => MoveMode == TeachingMoveMode.Step ? "Step speed" : "Jog speed";
 
     public ManualControlBlock ManualBlock
     {
         get
         {
-            if (CanEditTeaching)
+            switch (true)
             {
-                return ManualControlBlock.None;
+                case true when IsTeachingEditAllowed:
+                    return ManualControlBlock.None;
+                case true when State.Display.AutoMode:
+                    return ManualControlBlock.AutoMode;
+                default:
+                    return ManualControlBlock.Busy;
             }
-
-            if (State.Display.AutoMode)
-            {
-                return ManualControlBlock.AutoMode;
-            }
-
-            return ManualControlBlock.Busy;
         }
     }
 
-    public bool CanEditTeaching
-    {
-        get
-        {
-            return State.Display.SetupEditingEnabled;
-        }
-    }
+    public bool IsTeachingEditAllowed => State.Display.SetupEditingEnabled;
 
     public IReadOnlyList<TeachingIoGroup> TeachingIoGroups
     {
@@ -164,13 +150,7 @@ public partial class TeachingViewModel
         }
     }
 
-    public MotionStatus Motion
-    {
-        get
-        {
-            return State.GetMotionStatus(ActiveMotionGroup);
-        }
-    }
+    public MotionStatus Motion => State.GetMotionStatus(ActiveMotionGroup);
 
     private MachineController Machine { get; }
     private MachineState State { get; }
@@ -178,13 +158,7 @@ public partial class TeachingViewModel
 
     private bool PositionUpdatesActive { get; set; }
 
-    private CancellationToken ViewCancellation
-    {
-        get
-        {
-            return _viewCancellation.Token;
-        }
-    }
+    private CancellationToken ViewCancellation => _viewCancellation.Token;
 
     private int CurrentPointIndex
     {
@@ -215,26 +189,28 @@ public partial class TeachingViewModel
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            if (SelectedPoint is not { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point)
-                return;
-            if (!Motion.Feedback.IsReady || !CanReadTeachingPosition(point, live: true))
+            switch (SelectedPoint)
             {
-                SaveError = "Home the axes used by this teaching position and wait for them to stop before teaching.";
-                return;
+                case { Position.Mode: not TeachMode.Image, Position.IsTeachAllowed: true } point
+                    when Motion.Feedback.IsReady && IsReadTeachingPositionAllowed(point, live: true):
+                    SaveError = null;
+                    var current = Motion.Feedback.GetPosition();
+                    point.Teach(current.X, current.Y, current.Z);
+                    if (point.Position.Storage == TeachingStorage.Buffer)
+                        return;
+                    point.Apply();
+                    RefreshPointPositions();
+                    if (point.Position.Storage == TeachingStorage.Machine
+                        && !await SaveSettingsAsync(operation.Token, point.Position.Setting!))
+                        return;
+                    operation.Token.ThrowIfCancellationRequested();
+                    OnPointTaught(point);
+                    NotifyManualTeachingCommands();
+                    break;
+                case { Position.Mode: not TeachMode.Image, Position.IsTeachAllowed: true }:
+                    SaveError = "Home the axes used by this teaching position and wait for them to stop before teaching.";
+                    break;
             }
-
-            SaveError = null;
-            var current = Motion.Feedback.GetPosition();
-            point.Teach(current.X, current.Y, current.Z);
-            if (point.Position.Storage == TeachingStorage.Buffer)
-                return;
-            point.Apply();
-            RefreshPointPositions();
-            if (point.Position.Storage == TeachingStorage.Machine && !await SaveSettingsAsync(operation.Token, point.Position.Setting!))
-                return;
-            operation.Token.ThrowIfCancellationRequested();
-            OnPointTaught(point);
-            NotifyManualTeachingCommands();
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
             || viewToken.IsCancellationRequested
@@ -247,14 +223,17 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool CanTeachCurrentPosition()
+    private bool IsTeachCurrentPositionAllowed
     {
-        return SelectedPoint is { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point
-            && CanEditTeaching
-            && CanReadTeachingPosition(point, live: false);
+        get
+        {
+            return SelectedPoint is { Position.Mode: not TeachMode.Image, Position.IsTeachAllowed: true } point
+                && IsTeachingEditAllowed
+                && IsReadTeachingPositionAllowed(point, live: false);
+        }
     }
 
-    private bool CanReadTeachingPosition(TeachingPoint point, bool live)
+    private bool IsReadTeachingPositionAllowed(TeachingPoint point, bool live)
     {
         MotionAxis[] axes = point.Position.Mode switch
         {
@@ -314,15 +293,9 @@ public partial class TeachingViewModel
         SelectedPoint = FilteredPoints[CurrentPointIndex + 1];
     }
 
-    private bool CanSelectPreviousPoint()
-    {
-        return CurrentPointIndex > 0;
-    }
+    private bool IsSelectPreviousPointAllowed => CurrentPointIndex > 0;
 
-    private bool CanSelectNextPoint()
-    {
-        return CurrentPointIndex < FilteredPoints.Count - 1;
-    }
+    private bool IsSelectNextPointAllowed => CurrentPointIndex < FilteredPoints.Count - 1;
 
     private void NotifyPointSelectionCommands()
     {
@@ -345,9 +318,9 @@ public partial class TeachingViewModel
         return (axis, position + sign * StepDistance);
     }
 
-    private bool CanStep(TeachingDirection direction)
+    private bool IsStepAllowed(TeachingDirection direction)
     {
-        if (!CanMoveDirection(direction))
+        if (!IsMoveDirectionAllowed(direction))
             return false;
         var position = Motion.Position;
         var (axis, sign) = Resolve(direction);
@@ -365,21 +338,28 @@ public partial class TeachingViewModel
 
     private static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction)
     {
-        return direction switch
+        switch (direction)
         {
-            TeachingDirection.XMinus => (MotionAxis.X, -1),
-            TeachingDirection.XPlus => (MotionAxis.X, 1),
-            TeachingDirection.YMinus => (MotionAxis.Y, -1),
-            TeachingDirection.YPlus => (MotionAxis.Y, 1),
-            TeachingDirection.ZMinus => (MotionAxis.Z, -1),
-            TeachingDirection.ZPlus => (MotionAxis.Z, 1),
-            _ => throw new ArgumentOutOfRangeException(nameof(direction)),
-        };
+            case TeachingDirection.XMinus:
+                return (MotionAxis.X, -1);
+            case TeachingDirection.XPlus:
+                return (MotionAxis.X, 1);
+            case TeachingDirection.YMinus:
+                return (MotionAxis.Y, -1);
+            case TeachingDirection.YPlus:
+                return (MotionAxis.Y, 1);
+            case TeachingDirection.ZMinus:
+                return (MotionAxis.Z, -1);
+            case TeachingDirection.ZPlus:
+                return (MotionAxis.Z, 1);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(direction));
+        }
     }
 
-    private bool CanMoveDirection(TeachingDirection direction)
+    private bool IsMoveDirectionAllowed(TeachingDirection direction)
     {
-        return CanJog(Resolve(direction).Axis);
+        return IsJogAllowed(Resolve(direction).Axis);
     }
 
     public IRelayCommand JogStopCommand { get; }
@@ -389,10 +369,7 @@ public partial class TeachingViewModel
         CancelTeaching();
     }
 
-    private bool CanJogZ()
-    {
-        return CanJog(MotionAxis.Z);
-    }
+    private bool IsJogZAllowed => IsJogAllowed(MotionAxis.Z);
 
     public IAsyncRelayCommand HomeCommand { get; }
 
@@ -405,10 +382,7 @@ public partial class TeachingViewModel
         await Machine.HomeAsync(group, cancellation.Token);
     }
 
-    private bool CanHome()
-    {
-        return Motion.Feedback.Axes.All(axis => State.Display.HomeableAxes.Contains((ActiveMotionGroup, axis)));
-    }
+    private bool IsHomeAllowed => Motion.Feedback.Axes.All(axis => State.Display.HomeableAxes.Contains((ActiveMotionGroup, axis)));
 
     private void CancelTeaching(bool reportDeviceFailure = true)
     {
@@ -450,7 +424,7 @@ public partial class TeachingViewModel
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(ManualBlock));
-        OnPropertyChanged(nameof(CanEditTeaching));
+        OnPropertyChanged(nameof(IsTeachingEditAllowed));
         OnPropertyChanged(nameof(MotionHint));
     }
 

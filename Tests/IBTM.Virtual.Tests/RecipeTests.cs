@@ -25,10 +25,11 @@ public sealed class RecipeTests
     [Fact]
     public async Task InvalidInspectionRecipeKeepsTheActiveRecipeUntilCorrected()
     {
-        var (database, store) = CreateStore();
-        var recipe = new Recipe { Name = "Active" };
+        var database = VirtualTest.OpenMachineStore();
         var selection = new RecipeSelectionSettings();
-        var editor = new RecipeEditor(store, selection, recipe, new());
+        var recipes = new RecipeManager(database, selection) { Current = { Name = "Active" } };
+        var recipe = recipes.Current;
+        var editor = new RecipeEditor(recipes, new());
         await editor.SaveAsync();
         var currentInspection = recipe.BoltInspection;
         var corrected = new Recipe
@@ -36,7 +37,7 @@ public sealed class RecipeTests
             Name = "Other",
             BoltInspection = new() { ExposureMicroseconds = 750, Gain = 2.5, LightLevel = 192 },
         };
-        await store.SaveRecipeAsync(corrected);
+        database.SaveRecipe(corrected.Name, corrected, []);
         using (var connection = new SqliteConnection($"Data Source={database.DatabaseFile}"))
         {
             connection.Open();
@@ -53,7 +54,7 @@ public sealed class RecipeTests
         Assert.Equal("Active", selection.LastRecipeName);
         Assert.Equal("Active", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
 
-        await store.SaveRecipeAsync(corrected);
+        database.SaveRecipe(corrected.Name, corrected, []);
         await editor.LoadCommand.ExecuteAsync("Other");
         Assert.Null(editor.Error);
         Assert.Equal("Other", selection.LastRecipeName);
@@ -115,10 +116,12 @@ public sealed class RecipeTests
         Assert.Equal(270, secondHead.X, 6);
         Assert.Equal(475, secondHead.Y, 6);
 
-        var (_, store) = CreateStore();
-        var editor = new RecipeEditor(store, new(), recipe, new());
+        var database = VirtualTest.OpenMachineStore();
+        var recipes = new RecipeManager(database, new());
+        recipes.Current.ReplaceWith(recipe);
+        var editor = new RecipeEditor(recipes, new());
         await editor.SaveAsync();
-        var loaded = await store.LoadRecipeAsync(recipe.Name);
+        var loaded = database.LoadRecipe<Recipe>(recipe.Name);
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count);
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count());
         Assert.Equal(13d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().X);
@@ -260,7 +263,7 @@ public sealed class RecipeTests
             fastening.GetTeachingPositions(recipe, HeatSinkSlot.HeatSink1, reference)
                 .Single(p => p.Target == TeachingTarget.BoltPosition));
         Assert.False(position.Position.HasPosition);
-        Assert.False(position.Position.CanTeach);
+        Assert.False(position.Position.IsTeachAllowed);
         Assert.Equal(TeachMode.XYOnly, position.Position.Mode);
         var relative = CarrierCoordinates.FromMachine(new() { X = 110, Y = 220 }, reference.UpperLeftLocatingPin);
         bolt.X = relative.X;
@@ -338,9 +341,12 @@ public sealed class RecipeTests
         };
         var savedName = recipe.Name;
         var operations = new OperationCancellation();
-        var (database, store) = CreateStore();
+        var database = VirtualTest.OpenMachineStore();
         var selection = new RecipeSelectionSettings();
-        var editor = new RecipeEditor(store, selection, recipe, operations);
+        var recipes = new RecipeManager(database, selection);
+        recipes.Current.ReplaceWith(recipe);
+        recipe = recipes.Current;
+        var editor = new RecipeEditor(recipes, operations);
         bool? activeAtChange = null;
         string? selectedAtChange = null;
         editor.PropertyChanged += (_, args) =>
@@ -353,7 +359,7 @@ public sealed class RecipeTests
         };
 
         editor.Name = " ";
-        Assert.False(editor.CanSave);
+        Assert.False(editor.IsSaveAllowed);
         Assert.False(editor.SaveCommand.CanExecute(null));
         await editor.SaveAsync(); // Direct autosave calls use the same name check.
         Assert.NotNull(editor.Error);
@@ -404,7 +410,7 @@ public sealed class RecipeTests
         await editor.SaveAsync();
         editor.NewCommand.Execute(null);
         var changed = false;
-        editor.Changed += () => changed = true;
+        recipes.Changed += () => changed = true;
         using var connection = new SqliteConnection($"Data Source={database.DatabaseFile}");
         connection.Open();
         using var command = connection.CreateCommand();
@@ -436,12 +442,14 @@ public sealed class RecipeTests
     [Fact]
     public async Task RecipeImagesAndSaveAsAreAtomic()
     {
-        var (database, store) = CreateStore();
-        var source = new Recipe { Name = "Source" };
-        var target = new Recipe { Name = "Target" };
-        var sourceEditor = new RecipeEditor(store, new(), source, new());
+        var database = VirtualTest.OpenMachineStore();
+        var sourceRecipes = new RecipeManager(database, new()) { Current = { Name = "Source" } };
+        var source = sourceRecipes.Current;
+        var sourceEditor = new RecipeEditor(sourceRecipes, new());
         var targetSelection = new RecipeSelectionSettings();
-        var targetEditor = new RecipeEditor(store, targetSelection, target, new());
+        var targetRecipes = new RecipeManager(database, targetSelection) { Current = { Name = "Target" } };
+        var target = targetRecipes.Current;
+        var targetEditor = new RecipeEditor(targetRecipes, new());
         CarrierImageTileView[] Images(double x, byte value)
         {
             return [
@@ -483,28 +491,24 @@ public sealed class RecipeTests
         Assert.Same(sourceImages[0].Metadata, source.CarrierImages[0]);
         Assert.Same(sourceImages[1].Metadata, source.CarrierImages[1]);
         var reloaded = await Task.Factory.StartNew(
-            () => Images(1, 10).Select(tile => tile with
-            {
-                Image = store.LoadRecipeImage("Source", tile.Metadata.Number),
-            }).ToArray(),
+            () => sourceEditor.LoadCarrierImagesAsync(),
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
+            TaskScheduler.Default).Unwrap();
         Assert.All(reloaded, tile => Assert.True(tile.Image.IsFrozen));
         Assert.Equal("FOV 1", reloaded[0].ToString());
-        await store.SaveRecipeImagesAsync(
-            source, source.Name, reloaded, new() { LastRecipeName = source.Name });
+        Assert.True(await sourceEditor.SaveCarrierImagesAsync(reloaded));
         var pixels = new byte[3];
-        store.LoadRecipeImage("Source", 1).CopyPixels(pixels, 3, 0);
+        (await sourceEditor.LoadCarrierImagesAsync())[0].Image.CopyPixels(pixels, 3, 0);
         Assert.Equal(new byte[] { 10, 11, 12 }, pixels);
-        var savedFov = (await store.LoadRecipeAsync("Source")).CarrierImages[0];
+        var savedFov = database.LoadRecipe<Recipe>("Source").CarrierImages[0];
         Assert.Equal(new PixelRegion(0, 0, 1, 1), savedFov.Region);
         Assert.Equal(3, savedFov.BoltNumber);
         Assert.Equal(HeatSinkSlot.HeatSink2, savedFov.HeatSink);
         var loadedImages = await sourceEditor.LoadCarrierImagesAsync();
         Assert.Same(source.CarrierImages[0], loadedImages[0].Metadata);
         Assert.Equal(savedFov.Region, loadedImages[0].Metadata.Region);
-        var savedBarcode = (await store.LoadRecipeAsync("Source")).CarrierImages[1];
+        var savedBarcode = database.LoadRecipe<Recipe>("Source").CarrierImages[1];
         Assert.True(savedBarcode.IsBarcode);
         Assert.Null(savedBarcode.BoltNumber);
         Assert.Equal(new PixelRegion(0, 0, 1, 1), savedBarcode.Region);
@@ -537,7 +541,7 @@ public sealed class RecipeTests
         Assert.Equal([10d, 11d], target.CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal(
             [10d, 11d],
-            (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
+            database.LoadRecipe<Recipe>("Target").CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal(original, database.LoadRecipeImage("Target", 1));
         Assert.Equal("Source", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
         command.CommandText = "DROP TRIGGER FailSelection";
@@ -550,7 +554,7 @@ public sealed class RecipeTests
         Assert.Equal([10d, 11d], target.CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal(
             [10d, 11d],
-            (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
+            database.LoadRecipe<Recipe>("Target").CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal(original, database.LoadRecipeImage("Target", 1));
 
         sourceEditor.Name = target.Name;
@@ -565,7 +569,7 @@ public sealed class RecipeTests
         Assert.Equal("Target", sourceEditor.ActiveName);
         Assert.Equal(
             [1d, 2d],
-            (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
+            database.LoadRecipe<Recipe>("Target").CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal(database.LoadRecipeImage("Source", 1), database.LoadRecipeImage("Target", 1));
         Assert.Equal(2, (await sourceEditor.LoadCarrierImagesAsync()).Length);
 
@@ -585,21 +589,16 @@ public sealed class RecipeTests
                 [1, 2],
                 images: CancelAfterFirstImage(),
                 cancellationToken: cancellation.Token));
-        Assert.Equal("Target", (await store.LoadRecipeAsync("Target")).Name);
+        Assert.Equal("Target", database.LoadRecipe<Recipe>("Target").Name);
         Assert.Equal(beforeCancel, database.LoadRecipeImage("Target", 1));
         Assert.False(await sourceEditor.SaveCarrierImagesAsync(Images(30, 200), cancellation.Token));
         Assert.Null(sourceEditor.Error);
         Assert.Equal([1d, 2d], source.CarrierImages.Select(tile => tile.Center.X));
 
         await sourceEditor.SaveCarrierImagesAsync(Images(50, 200).Take(1).ToArray());
-        Assert.Single((await store.LoadRecipeAsync("Target")).CarrierImages);
+        Assert.Single(database.LoadRecipe<Recipe>("Target").CarrierImages);
         Assert.Throws<InvalidOperationException>(() => database.LoadRecipeImage("Target", 2));
-        Assert.Equal(2, (await store.LoadRecipeAsync("Source")).CarrierImages.Count);
+        Assert.Equal(2, database.LoadRecipe<Recipe>("Source").CarrierImages.Count);
     }
 
-    private static (MachineStore Database, RecipeStore Store) CreateStore()
-    {
-        var database = VirtualTest.OpenMachineStore();
-        return (database, new RecipeStore(database));
-    }
 }

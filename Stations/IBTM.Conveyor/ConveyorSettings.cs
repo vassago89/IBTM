@@ -5,15 +5,9 @@ namespace IBTM.Conveyor;
 
 public sealed class ConveyorSettings : Setting
 {
-    private double _carrierStopDelaySeconds = 3.0;
-    private double _exitSensorClearDelaySeconds = 0.3;
-
     public double CarrierStopDelaySeconds
     {
-        get
-        {
-            return _carrierStopDelaySeconds;
-        }
+        get;
         set
         {
             if (!double.IsFinite(value)
@@ -24,16 +18,13 @@ public sealed class ConveyorSettings : Setting
                     "Carrier stop delay must be a finite number of 0 seconds or more.");
             }
 
-            _carrierStopDelaySeconds = value;
+            field = value;
         }
-    }
+    } = 3.0;
 
     public double ExitSensorClearDelaySeconds
     {
-        get
-        {
-            return _exitSensorClearDelaySeconds;
-        }
+        get;
         set
         {
             if (!double.IsFinite(value)
@@ -44,7 +35,7 @@ public sealed class ConveyorSettings : Setting
                     "Exit sensor clear delay must be a finite number of 0 seconds or more.");
             }
 
-            _exitSensorClearDelaySeconds = value;
+            field = value;
         }
-    }
+    } = 0.3;
 }

@@ -5,10 +5,10 @@ namespace Shared;
 // Test assembly only. Production uses the unchanged manufacturer's tmcDApiAed.cs.
 internal static class TMCAEDLL
 {
-    internal static readonly List<Call> Calls = [];
-    internal static readonly Dictionary<string, int> Results = [];
-    internal static readonly Dictionary<string, int> Errors = [];
-    internal static readonly HashSet<string> SkipRefWrites = [];
+    internal static readonly List<Call> Calls;
+    internal static readonly Dictionary<string, int> Results;
+    internal static readonly Dictionary<string, int> Errors;
+    internal static readonly HashSet<string> SkipRefWrites;
     internal static uint Model;
     internal static uint Communication;
     internal static uint InputCount;
@@ -19,6 +19,14 @@ internal static class TMCAEDLL
     internal static bool SuppressOutputWrites;
     internal static int ErrorCode;
     internal static Action<string>? BeforeCall;
+
+    static TMCAEDLL()
+    {
+        Calls = [];
+        Results = [];
+        Errors = [];
+        SkipRefWrites = [];
+    }
 
     internal static void Reset()
     {

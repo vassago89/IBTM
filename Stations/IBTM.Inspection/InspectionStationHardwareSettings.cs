@@ -13,11 +13,5 @@ public sealed class InspectionStationHardwareSettings : InputHardwareSettings
         };
     }
 
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.InspectionStation;
-        }
-    }
+    public override HardwareArea Area => HardwareArea.InspectionStation;
 }

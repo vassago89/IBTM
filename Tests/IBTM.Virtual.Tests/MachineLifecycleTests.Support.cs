@@ -44,7 +44,7 @@ public sealed partial class MachineLifecycleTests
         var probe = (DisplayReadMotion)motion;
         feedback = probe;
         return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(settings ?? FlowSettings(), new Recipe())
+            .AddIbtmApplication(settings ?? FlowSettings())
             .AddSingleton(
                 provider =>
                 {
@@ -68,7 +68,7 @@ public sealed partial class MachineLifecycleTests
     private static ServiceProvider CreateServices(MachineSettings settings)
     {
         return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(settings, new Recipe())
+            .AddIbtmApplication(settings)
             .BuildServiceProvider(
                 new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true, });
     }
@@ -98,7 +98,7 @@ public sealed partial class MachineLifecycleTests
         }
 
         var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(settings, new Recipe())
+            .AddIbtmApplication(settings)
             .AddSingleton(
                 provider =>
                     new PcbSupplyHandler(
@@ -283,13 +283,19 @@ public sealed partial class MachineLifecycleTests
 
     public class HomeResultMotion : DispatchProxy
     {
+        public HomeResultMotion()
+        {
+            Result = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
         public IXyMotion Motion { get; set; } = null!;
-        public TaskCompletionSource<bool> Result { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Result { get; }
         public int HorizontalHomeCalls { get; private set; }
         public bool AwaitCleanupAfterCancellation { get; set; }
         public Exception? StartFailure { get; set; }
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Started { get; }
         public CancellationToken HomeCancellation { get; private set; }
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
@@ -317,20 +323,21 @@ public sealed partial class MachineLifecycleTests
 
     private sealed class StoppingBoltHead : IBoltHead
     {
-        public TaskCompletionSource Started { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Stopping { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Stopped { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public bool HasPendingResult
+        public StoppingBoltHead()
         {
-            get
-            {
-                return false;
-            }
+            Started = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            Stopping = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            Stopped = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
         }
+
+        public TaskCompletionSource Started { get; }
+        public TaskCompletionSource Stopping { get; }
+        public TaskCompletionSource Stopped { get; }
+
+        public bool HasPendingResult => false;
 
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)
         {
@@ -378,20 +385,20 @@ public sealed partial class MachineLifecycleTests
 
     private sealed class WaitingBoltHead : IBoltHead
     {
+        public WaitingBoltHead()
+        {
+            ReadinessEntered = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            ReadinessReleased = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
         public bool WaitForReadiness { get; set; }
         public int ReadinessChecks { get; private set; }
-        public TaskCompletionSource ReadinessEntered { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource ReadinessReleased { get; } = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReadinessEntered { get; }
+        public TaskCompletionSource ReadinessReleased { get; }
 
-        public bool HasPendingResult
-        {
-            get
-            {
-                return false;
-            }
-        }
+        public bool HasPendingResult => false;
 
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)
         {
@@ -440,10 +447,15 @@ public sealed partial class MachineLifecycleTests
         public Exception? DiagnosticReadError;
         public Action<MotionAxis>? AfterDiagnosticStateRead;
 
+        public DisplayReadMotion()
+        {
+            AxisMoves = [];
+        }
+
         public IXyMotion Motion { get; set; } = null!;
         public MotionAxis? LastMovedAxis { get; private set; }
         public double? LastMoveVelocity { get; private set; }
-        public List<(MotionAxis Axis, double Position)> AxisMoves { get; } = [];
+        public List<(MotionAxis Axis, double Position)> AxisMoves { get; }
 
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
@@ -494,36 +506,42 @@ public sealed partial class MachineLifecycleTests
 
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
-            if (DiagnosticReadError is { } error)
-                return (null, error);
-            if (FailHardwareCalls)
-                return (null, new IOException("Unavailable diagnostic state."));
+            switch (true)
+            {
+                case true when DiagnosticReadError is { } error:
+                    return (null, error);
+                case true when FailHardwareCalls:
+                    return (null, new IOException("Unavailable diagnostic state."));
+            }
             var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
             return (read.State is { } state ? OverrideState?.Invoke(state) ?? state : null, read.Error);
         }
 
         public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
         {
-            if (DiagnosticReadError is { } error)
-                return (null, error);
-            if (FailHardwareCalls)
-                return (null, new IOException("Unavailable diagnostic position."));
-            return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
+            switch (true)
+            {
+                case true when DiagnosticReadError is { } error:
+                    return (null, error);
+                case true when FailHardwareCalls:
+                    return (null, new IOException("Unavailable diagnostic position."));
+                default:
+                    return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
+            }
         }
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
             var name = method!.Name;
             // A disabled device may reject acquisition while still accepting an explicit STOP.
-            if (name == nameof(IAxisMotion.Stop) && AllowStop)
+            switch (true)
             {
-                Motion.Stop();
-                return null;
-            }
-            if (name == "get_IsReady")
-            {
-                BeforeHardwareRead?.Invoke();
-                return ReportReady || _initialized;
+                case true when name == nameof(IAxisMotion.Stop) && AllowStop:
+                    Motion.Stop();
+                    return null;
+                case true when name == "get_IsReady":
+                    BeforeHardwareRead?.Invoke();
+                    return ReportReady || _initialized;
             }
             if (!method.IsSpecialName
                 || name is "get_IsAtHorizontalZ" or "get_IsMoving" or "get_IsMovingHorizontal")

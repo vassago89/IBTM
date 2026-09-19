@@ -8,11 +8,5 @@ public sealed class CarrierReferenceSettings : Setting
     public AxisPosition? LowerRightLocatingPin { get; set; }
 
     [JsonIgnore]
-    public bool IsDefined
-    {
-        get
-        {
-            return CarrierCoordinates.IsDefined(UpperLeftLocatingPin, LowerRightLocatingPin);
-        }
-    }
+    public bool IsDefined => CarrierCoordinates.IsDefined(UpperLeftLocatingPin, LowerRightLocatingPin);
 }

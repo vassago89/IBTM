@@ -12,45 +12,33 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
-    public bool CanStart
-    {
-        get
-        {
-            return IsStartAllowed(StartBlock);
-        }
-    }
+    public bool IsStartAllowed => IsStartAllowedFor(StartBlock);
 
-    public StartBlockReason StartBlock
-    {
-        get
-        {
-            return GetStartBlock(_state.MotionReadiness);
-        }
-    }
+    public StartBlockReason StartBlock => GetStartBlock(_state.MotionReadiness);
 
     public bool TeachingReady
     {
         get
         {
-            if ((_units.BoltFastening || _units.Inspection)
-                && _recipe.Pcb.BoltPoints.Count == 0)
-                return false;
-
-            if (_units.BoltFastening
-                && (!_carrierReference.IsDefined
-                    || _recipe.Pcb.BoltPoints.Any(bolt =>
-                        bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))))
+            switch (true)
             {
-                return false;
+                case true when (_units.BoltFastening || _units.Inspection)
+                    && _recipes.Current.Pcb.BoltPoints.Count == 0:
+                    return false;
+                case true when _units.BoltFastening
+                    && (!_carrierReference.IsDefined
+                        || _recipes.Current.Pcb.BoltPoints.Any(bolt =>
+                            bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))):
+                    return false;
+                default:
+                    return !_units.Inspection
+                        || _recipes.Current.Pcb.BoltPoints.All(_boltInspector.HasPosition)
+                            && Enum.GetValues<HeatSinkSlot>().All(_boltInspector.HasBarcodeRegion);
             }
-
-            return !_units.Inspection
-                || _recipe.Pcb.BoltPoints.All(_boltInspector.HasPosition)
-                    && Enum.GetValues<HeatSinkSlot>().All(_boltInspector.HasBarcodeRegion);
         }
     }
 
-    private bool IsStartAllowed(StartBlockReason block, bool? running = null)
+    private bool IsStartAllowedFor(StartBlockReason block, bool? running = null)
     {
         return !_operations.IsShuttingDown
             && !(running ?? _state.IsRunning)
@@ -59,38 +47,42 @@ public sealed partial class MachineController
 
     private StartBlockReason GetStartBlock(MotionReadiness motion, bool? bufferConflict = null)
     {
-        if (_state.Alarm == MachineAlarm.EmergencyStop)
-            return StartBlockReason.EmergencyStop;
-        if (_state.Alarm == MachineAlarm.DoorOpen)
-            return StartBlockReason.DoorOpen;
-        if (_state.Alarm == MachineAlarm.AirPressureLow)
-            return StartBlockReason.AirPressure;
-        if (_state.Alarm == MachineAlarm.BufferConflict || (bufferConflict ?? _state.Buffer.HasConflict()))
-            return StartBlockReason.BufferConflict;
-        if (_state.IsError)
-            return StartBlockReason.Alarm;
-        if (_options.UseEmergencyStop && !_state.EmergencyStopReleased)
-            return StartBlockReason.EmergencyStop;
-        if (_options.UseAirPressureInterlock && !_state.AirPressureOk)
-            return StartBlockReason.AirPressure;
-        if (motion.Faulted)
-            return StartBlockReason.MotionFault;
-        if (!motion.ServosOn || !_state.ServoMainContactorOn)
-            return StartBlockReason.ServoOff;
-        if (!_state.DoorInterlockReady)
-            return StartBlockReason.DoorOpen;
-        if (!motion.Homed)
-            return StartBlockReason.HomeRequired;
-        if (_state.RepeatEnabled && !_state.ManualMode)
-            return StartBlockReason.TeachingMode;
-        if (!TeachingReady)
-            return StartBlockReason.TeachingIncomplete;
-        if (_state.RepeatEnabled
-            && (!_units.MainConveyor
-                || !_units.NgCarrierTransfer
-                || _units.NgConveyor && !_units.NgShuttle))
-            return StartBlockReason.RepeatRouteUnavailable;
-        return _units.HasEnabledUnit() ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
+        switch (true)
+        {
+            case true when _state.Alarm == MachineAlarm.EmergencyStop:
+                return StartBlockReason.EmergencyStop;
+            case true when _state.Alarm == MachineAlarm.DoorOpen:
+                return StartBlockReason.DoorOpen;
+            case true when _state.Alarm == MachineAlarm.AirPressureLow:
+                return StartBlockReason.AirPressure;
+            case true when _state.Alarm == MachineAlarm.BufferConflict || (bufferConflict ?? _state.Buffer.HasConflict()):
+                return StartBlockReason.BufferConflict;
+            case true when _state.IsError:
+                return StartBlockReason.Alarm;
+            case true when _options.UseEmergencyStop && !_state.EmergencyStopReleased:
+                return StartBlockReason.EmergencyStop;
+            case true when _options.UseAirPressureInterlock && !_state.AirPressureOk:
+                return StartBlockReason.AirPressure;
+            case true when motion.Faulted:
+                return StartBlockReason.MotionFault;
+            case true when !motion.ServosOn || !_state.ServoMainContactorOn:
+                return StartBlockReason.ServoOff;
+            case true when !_state.DoorInterlockReady:
+                return StartBlockReason.DoorOpen;
+            case true when !motion.Homed:
+                return StartBlockReason.HomeRequired;
+            case true when _state.RepeatEnabled && !_state.ManualMode:
+                return StartBlockReason.TeachingMode;
+            case true when !TeachingReady:
+                return StartBlockReason.TeachingIncomplete;
+            case true when _state.RepeatEnabled
+                && (!_units.MainConveyor
+                    || !_units.NgCarrierTransfer
+                    || _units.NgConveyor && !_units.NgShuttle):
+                return StartBlockReason.RepeatRouteUnavailable;
+            default:
+                return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
+        }
     }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
@@ -102,7 +94,7 @@ public sealed partial class MachineController
     {
         try
         {
-            if (!IsStartAllowed(StartBlock))
+            if (!IsStartAllowedFor(StartBlock))
                 return;
         }
         catch (Exception exception) when (exception is IOException or MotionException)
@@ -119,12 +111,13 @@ public sealed partial class MachineController
             return;
         void StopWhenOperationBecomesUnavailable()
         {
-            if (operation.IsCancellationRequested)
-                return;
-            if (_state.IsError)
+            switch (true)
             {
-                operation.Cancel();
-                return;
+                case true when operation.IsCancellationRequested:
+                    return;
+                case true when _state.IsError:
+                    operation.Cancel();
+                    return;
             }
 
             try
@@ -167,15 +160,16 @@ public sealed partial class MachineController
         {
             // Live admission already checked the equipment. Do not apply a scan that
             // began before this run (for example, while Home was still completing).
-            if (operation.IsCancellationRequested
-                || sample.StartedAt < feedbackStartedAt
-                || !sample.Enabled
-                || !_units.IsMotionEnabled(group))
-                return;
-            if (_state.IsError)
+            switch (true)
             {
-                operation.Cancel();
-                return;
+                case true when operation.IsCancellationRequested
+                    || sample.StartedAt < feedbackStartedAt
+                    || !sample.Enabled
+                    || !_units.IsMotionEnabled(group):
+                    return;
+                case true when _state.IsError:
+                    operation.Cancel();
+                    return;
             }
 
             var motion = sample.Readiness;
@@ -236,7 +230,7 @@ public sealed partial class MachineController
             }
 
             operation.Token.ThrowIfCancellationRequested();
-            _state.SetAutomaticRunning(true);
+            _state.AutomaticRunning = true;
             if (repeat)
             {
                 await RunRepeatAsync(operation.Token);
@@ -254,7 +248,7 @@ public sealed partial class MachineController
         {
             _state.Changed -= StopWhenOperationBecomesUnavailable;
             _feedback.Sampled -= StopWhenMotionFeedbackBecomesUnavailable;
-            _state.SetAutomaticRunning(false);
+            _state.AutomaticRunning = false;
             StopAndReportFailure();
         }
     }
@@ -275,7 +269,7 @@ public sealed partial class MachineController
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PcbSupply,
-                _pcbSupply.RunAsync(_recipe.PcbSupply, cycle.Token),
+                _pcbSupply.RunAsync(_recipes.Current.PcbSupply, cycle.Token),
                 cycle));
         }
 
@@ -283,7 +277,7 @@ public sealed partial class MachineController
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PcbPlacement,
-                _pcbPlacement.RunAsync(_recipe.PcbPlacement, cycle.Token, repeat),
+                _pcbPlacement.RunAsync(_recipes.Current.PcbPlacement, cycle.Token, repeat),
                 cycle));
         }
 
@@ -311,7 +305,7 @@ public sealed partial class MachineController
                 _log?.Write("Shooting Feeder OFF; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.BoltFastening,
-                _fasteningStation.RunAsync(_recipe.BoltFastening, cycle.Token),
+                _fasteningStation.RunAsync(_recipes.Current.BoltFastening, cycle.Token),
                 cycle));
         }
 
@@ -320,7 +314,7 @@ public sealed partial class MachineController
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 _units.Inspection ? MachineAlarm.Inspection : MachineAlarm.NgCarrierTransfer,
                 _inspectionStation.RunAsync(
-                    _recipe.Pcb.BoltPoints.ToArray(),
+                    _recipes.Current.Pcb.BoltPoints.ToArray(),
                     cycle.Token,
                     repeat,
                     holdAtShuttle: repeat && !_units.NgShuttle),

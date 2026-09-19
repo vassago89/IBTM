@@ -9,14 +9,21 @@ namespace IBTM.Device;
 
 public abstract class StationWork
 {
-    private readonly Func<bool> _isEnabled;
+    private readonly Func<bool>? _isEnabled;
     // Protect only result ownership changes, never device calls or notifications.
-    private static readonly Lock JobGate = new();
-    private volatile Job _job = new();
+    private static readonly Lock JobGate;
+    private volatile Job _job;
+
+    static StationWork()
+    {
+        JobGate = new();
+    }
 
     protected StationWork(ConveyorStation station, Func<bool>? isEnabled = null)
     {
-        _isEnabled = isEnabled ?? IsAlwaysEnabled;
+        _job = new();
+
+        _isEnabled = isEnabled;
         Station = station;
         station.Changed += NotifyChanged;
         station.CarrierChanged += OnCarrierChanged;
@@ -24,21 +31,9 @@ public abstract class StationWork
 
     public event Action? Changed;
 
-    public Job CurrentJob
-    {
-        get
-        {
-            return _job;
-        }
-    }
+    public Job CurrentJob => _job;
 
-    public bool Enabled
-    {
-        get
-        {
-            return _isEnabled();
-        }
-    }
+    public bool Enabled => _isEnabled?.Invoke() ?? true;
 
     public ConveyorStation Station { get; }
 
@@ -52,37 +47,13 @@ public abstract class StationWork
         }
     }
 
-    public IEnumerable<HeatSinkAssembly> Assemblies
-    {
-        get
-        {
-            return _job.Assemblies.Values.ToArray();
-        }
-    }
+    public IEnumerable<HeatSinkAssembly> Assemblies => _job.Assemblies.Values.ToArray();
 
-    public virtual bool CanReceive
-    {
-        get
-        {
-            return !Station.CarrierPresent;
-        }
-    }
+    public virtual bool IsReceiveAllowed => !Station.CarrierPresent;
 
-    public virtual bool HasNg
-    {
-        get
-        {
-            return Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
-        }
-    }
+    public virtual bool HasNg => Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
 
-    public virtual bool CanTransfer
-    {
-        get
-        {
-            return Station.CarrierPresent && Completed && Station.Stopper == StationCylinderState.Down;
-        }
-    }
+    public virtual bool IsTransferAllowed => Station.CarrierPresent && Completed && Station.Stopper == StationCylinderState.Down;
 
     public HeatSinkAssembly GetAssembly(HeatSinkSlot heatSink)
     {
@@ -141,11 +112,6 @@ public abstract class StationWork
         Changed?.Invoke();
     }
 
-    private static bool IsAlwaysEnabled()
-    {
-        return true;
-    }
-
     private void OnCarrierChanged(bool present)
     {
         if (present)
@@ -158,11 +124,13 @@ public abstract class StationWork
     public sealed class Job
     {
         private static long _nextId;
-        internal readonly ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> Assemblies = new();
+        internal readonly ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> Assemblies;
         internal bool Completed;
 
         internal Job(long? id = null)
         {
+            Assemblies = new();
+
             Id = id ?? Interlocked.Increment(ref _nextId);
         }
 

@@ -49,11 +49,5 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
         };
     }
 
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.PcbSupply;
-        }
-    }
+    public override HardwareArea Area => HardwareArea.PcbSupply;
 }

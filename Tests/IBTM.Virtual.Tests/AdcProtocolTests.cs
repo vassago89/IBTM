@@ -186,9 +186,9 @@ public sealed class AdcProtocolTests
         public int StopFeedbackReads { get; private set; }
         public bool IsOpen { get; private set; } = true;
 
-        public string PortName { get { return "Controller test bus"; } }
+        public string PortName => "Controller test bus";
 
-        public int BaudRate { get { return 115200; } }
+        public int BaudRate => 115200;
 
         public string[] GetPortNames() { return []; }
 
@@ -236,27 +236,28 @@ public sealed class AdcProtocolTests
         public Task<ushort[]> ReadRegistersAsync(byte slaveAddress, AdcFunctionCode function, ushort address, ushort count, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (address == (ushort)AdcStatusRegister.Preset)
+            switch (address)
             {
-                if (StopWrites > 0)
-                {
-                    StopFeedbackReads++;
-                    if (StopReadFailure is not null)
-                        throw StopReadFailure;
-                    if (StopPollsRemaining == 0)
-                        Running = false;
-                    else if (StopPollsRemaining > 0)
-                        StopPollsRemaining--;
-                }
-                return Task.FromResult<ushort[]>([
-                    CurrentPreset, 0, 0, (ushort)(Running ? 0 : 1), (ushort)(Running ? 1 : 0), 0, (ushort)CurrentDirection,
-                ]);
+                case (ushort)AdcStatusRegister.Preset:
+                    if (StopWrites > 0)
+                    {
+                        StopFeedbackReads++;
+                        if (StopReadFailure is not null)
+                            throw StopReadFailure;
+                        if (StopPollsRemaining == 0)
+                            Running = false;
+                        else if (StopPollsRemaining > 0)
+                            StopPollsRemaining--;
+                    }
+                    return Task.FromResult<ushort[]>([
+                        CurrentPreset, 0, 0, (ushort)(Running ? 0 : 1), (ushort)(Running ? 1 : 0), 0, (ushort)CurrentDirection,
+                    ]);
+                case (ushort)AdcResultRegister.EventCount:
+                    return Task.FromResult<ushort[]>([
+                        (ushort)StartWrites, 250, ResultPreset ?? CurrentPreset, 100, 100, 1000, 0, 0, 0, (ushort)StartWrites, 0,
+                        (ushort)(ResultDirection ?? CurrentDirection), (ushort)(StartWrites == 0 ? AdcEventStatus.None : AdcEventStatus.FasteningOk), 0,
+                    ]);
             }
-            if (address == (ushort)AdcResultRegister.EventCount)
-                return Task.FromResult<ushort[]>([
-                    (ushort)StartWrites, 250, ResultPreset ?? CurrentPreset, 100, 100, 1000, 0, 0, 0, (ushort)StartWrites, 0,
-                    (ushort)(ResultDirection ?? CurrentDirection), (ushort)(StartWrites == 0 ? AdcEventStatus.None : AdcEventStatus.FasteningOk), 0,
-                ]);
             throw new NotSupportedException();
         }
     }

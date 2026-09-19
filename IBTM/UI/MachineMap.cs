@@ -5,51 +5,66 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 
 namespace IBTM.UI;
 
 public sealed class MachineMap
 {
-    private readonly Recipe _recipe;
+    private readonly RecipeManager _recipes;
     private readonly PcbSupplySettings _supply;
     private readonly PcbPlacementHandlerSettings _placement;
     private readonly BoltFasteningSettings _fastening;
     private readonly CarrierReferenceSettings _carrier;
     private readonly InspectionGantrySettings _inspection;
     private readonly NgCarrierTransferSettings _transfer;
-    private static readonly (double X, double Y) SupplyPcb1 = MachinePlan.Offset(
-        MachinePlan.SupplyPcb1Center,
-        MachinePlan.SupplyToolCenter);
-    private static readonly (double X, double Y) SupplyPcb2 = MachinePlan.Offset(
-        MachinePlan.SupplyPcb2Center,
-        MachinePlan.SupplyToolCenter);
-    private static readonly (double X, double Y) SupplyBuffer = MachinePlan.Offset(
-        MachinePlan.BufferCenter,
-        MachinePlan.SupplyToolCenter);
-    private static readonly (double X, double Y) PlacementBuffer = MachinePlan.Offset(
-        MachinePlan.BufferCenter,
-        MachinePlan.PlacementToolCenter);
-    private static readonly (double X, double Y) PlacementHeatSink1 = MachinePlan.Offset(
-        MachinePlan.PlacementHeatSink1,
-        MachinePlan.PlacementToolCenter);
-    private static readonly (double X, double Y) PlacementHeatSink2 = MachinePlan.Offset(
-        MachinePlan.PlacementHeatSink2,
-        MachinePlan.PlacementToolCenter);
-    private static readonly (double X, double Y) ShootingUpperLeft = MachinePlan.Offset(
-        MachinePlan.FasteningUpperLeft,
-        MachinePlan.ShootingToolCenter);
-    private static readonly (double X, double Y) ShootingLowerRight = MachinePlan.Offset(
-        MachinePlan.FasteningLowerRight,
-        MachinePlan.ShootingToolCenter);
-    private static readonly (double X, double Y) PickupUpperLeft = MachinePlan.Offset(
-        MachinePlan.FasteningUpperLeft,
-        MachinePlan.PickupToolCenter);
-    private static readonly (double X, double Y) PickupFeederOffset = (
-        -MachinePlan.PickupFeederWidth / 2,
-        -MachinePlan.PickupFeederHeight / 2);
+    private static readonly (double X, double Y) SupplyPcb1;
+    private static readonly (double X, double Y) SupplyPcb2;
+    private static readonly (double X, double Y) SupplyBuffer;
+    private static readonly (double X, double Y) PlacementBuffer;
+    private static readonly (double X, double Y) PlacementHeatSink1;
+    private static readonly (double X, double Y) PlacementHeatSink2;
+    private static readonly (double X, double Y) ShootingUpperLeft;
+    private static readonly (double X, double Y) ShootingLowerRight;
+    private static readonly (double X, double Y) PickupUpperLeft;
+    private static readonly (double X, double Y) PickupFeederOffset;
+
+    static MachineMap()
+    {
+        SupplyPcb1 = MachinePlan.Offset(
+            MachinePlan.SupplyPcb1Center,
+            MachinePlan.SupplyToolCenter);
+        SupplyPcb2 = MachinePlan.Offset(
+            MachinePlan.SupplyPcb2Center,
+            MachinePlan.SupplyToolCenter);
+        SupplyBuffer = MachinePlan.Offset(
+            MachinePlan.BufferCenter,
+            MachinePlan.SupplyToolCenter);
+        PlacementBuffer = MachinePlan.Offset(
+            MachinePlan.BufferCenter,
+            MachinePlan.PlacementToolCenter);
+        PlacementHeatSink1 = MachinePlan.Offset(
+            MachinePlan.PlacementHeatSink1,
+            MachinePlan.PlacementToolCenter);
+        PlacementHeatSink2 = MachinePlan.Offset(
+            MachinePlan.PlacementHeatSink2,
+            MachinePlan.PlacementToolCenter);
+        ShootingUpperLeft = MachinePlan.Offset(
+            MachinePlan.FasteningUpperLeft,
+            MachinePlan.ShootingToolCenter);
+        ShootingLowerRight = MachinePlan.Offset(
+            MachinePlan.FasteningLowerRight,
+            MachinePlan.ShootingToolCenter);
+        PickupUpperLeft = MachinePlan.Offset(
+            MachinePlan.FasteningUpperLeft,
+            MachinePlan.PickupToolCenter);
+        PickupFeederOffset = (
+            -MachinePlan.PickupFeederWidth / 2,
+            -MachinePlan.PickupFeederHeight / 2);
+    }
 
     public MachineMap(
-        Recipe recipe,
+        RecipeManager recipes,
         PcbSupplySettings supply,
         PcbPlacementHandlerSettings placement,
         BoltFasteningSettings fastening,
@@ -57,7 +72,7 @@ public sealed class MachineMap
         InspectionGantrySettings inspection,
         NgCarrierTransferSettings transfer)
     {
-        _recipe = recipe;
+        _recipes = recipes;
         _supply = supply;
         _placement = placement;
         _fastening = fastening;
@@ -73,10 +88,10 @@ public sealed class MachineMap
             return MachinePlan.GetSide(
                 (_supply.BufferHandoffPosition.X, _supply.BufferHandoffPosition.Y),
                 (
-                    _recipe.PcbSupply.Pcb1PickPosition.X,
+                    _recipes.Current.PcbSupply.Pcb1PickPosition.X,
                     _supply.CarrierY),
                 (
-                    _recipe.PcbSupply.Pcb2PickPosition.X,
+                    _recipes.Current.PcbSupply.Pcb2PickPosition.X,
                     _supply.CarrierY)) != 0;
         }
     }
@@ -90,11 +105,11 @@ public sealed class MachineMap
                     _placement.BufferHandoffPosition.X,
                     _placement.BufferHandoffPosition.Y),
                 (
-                    _recipe.PcbPlacement.HeatSink1PcbPlacementPosition.X,
-                    _recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
+                    _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.X,
+                    _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
                 (
-                    _recipe.PcbPlacement.HeatSink2PcbPlacementPosition.X,
-                    _recipe.PcbPlacement.HeatSink2PcbPlacementPosition.Y)) != 0;
+                    _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.X,
+                    _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.Y)) != 0;
         }
     }
 
@@ -107,13 +122,7 @@ public sealed class MachineMap
         }
     }
 
-    public bool InspectionDefined
-    {
-        get
-        {
-            return _carrier.IsDefined;
-        }
-    }
+    public bool InspectionDefined => _carrier.IsDefined;
 
     private static bool HasPins(BoltHeadSettings head)
     {
@@ -128,10 +137,10 @@ public sealed class MachineMap
             x,
             y,
             (
-                _recipe.PcbSupply.Pcb1PickPosition.X,
+                _recipes.Current.PcbSupply.Pcb1PickPosition.X,
                 _supply.CarrierY),
             (
-                _recipe.PcbSupply.Pcb2PickPosition.X,
+                _recipes.Current.PcbSupply.Pcb2PickPosition.X,
                 _supply.CarrierY),
             (
                 _supply.BufferHandoffPosition.X,
@@ -152,11 +161,11 @@ public sealed class MachineMap
                 _placement.BufferHandoffPosition.X,
                 _placement.BufferHandoffPosition.Y),
             (
-                _recipe.PcbPlacement.HeatSink1PcbPlacementPosition.X,
-                _recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
+                _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.X,
+                _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
             (
-                _recipe.PcbPlacement.HeatSink2PcbPlacementPosition.X,
-                _recipe.PcbPlacement.HeatSink2PcbPlacementPosition.Y),
+                _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.X,
+                _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.Y),
             PlacementBuffer,
             PlacementHeatSink1,
             PlacementHeatSink2);
@@ -167,13 +176,16 @@ public sealed class MachineMap
         return current is { X: { } x, Y: { } y } ? MapFastening(x, y) : null;
     }
 
-    public (double X, double Y) GetPickupFeederPosition()
+    public (double X, double Y) PickupFeederPosition
     {
-        var point = _fastening.PickupPosition;
-        var mapped = MapFastening(point.X, point.Y);
-        return (
-            mapped.X + MachinePlan.PickupToolCenter.X + PickupFeederOffset.X,
-            mapped.Y + MachinePlan.PickupToolCenter.Y + PickupFeederOffset.Y);
+        get
+        {
+            var point = _fastening.PickupPosition;
+            var mapped = MapFastening(point.X, point.Y);
+            return (
+                mapped.X + MachinePlan.PickupToolCenter.X + PickupFeederOffset.X,
+                mapped.Y + MachinePlan.PickupToolCenter.Y + PickupFeederOffset.Y);
+        }
     }
 
     public (double X, double Y) GetFasteningTargetPosition(BoltPoint bolt)
@@ -204,23 +216,23 @@ public sealed class MachineMap
 
     private (double X, double Y) MapFastening(double x, double y)
     {
-        if (!FasteningDefined)
-            return default;
-
-        if (_fastening.ShootingHead.UpperLeftLocatingPin is { } first
-            && _fastening.ShootingHead.LowerRightLocatingPin is { } second
-            && _fastening.PickupHead.UpperLeftLocatingPin is { } pickup
-            && MachinePlan.GetSide((pickup.X, pickup.Y), (first.X, first.Y), (second.X, second.Y)) != 0)
+        switch (true)
         {
-            return FromThreePoints(
-                x,
-                y,
-                (first.X, first.Y),
-                (second.X, second.Y),
-                (pickup.X, pickup.Y),
-                ShootingUpperLeft,
-                ShootingLowerRight,
-                PickupUpperLeft);
+            case true when !FasteningDefined:
+                return default;
+            case true when _fastening.ShootingHead.UpperLeftLocatingPin is { } first
+                && _fastening.ShootingHead.LowerRightLocatingPin is { } second
+                && _fastening.PickupHead.UpperLeftLocatingPin is { } pickup
+                && MachinePlan.GetSide((pickup.X, pickup.Y), (first.X, first.Y), (second.X, second.Y)) != 0:
+                return FromThreePoints(
+                    x,
+                    y,
+                    (first.X, first.Y),
+                    (second.X, second.Y),
+                    (pickup.X, pickup.Y),
+                    ShootingUpperLeft,
+                    ShootingLowerRight,
+                    PickupUpperLeft);
         }
 
         var shooting = HasPins(_fastening.ShootingHead);

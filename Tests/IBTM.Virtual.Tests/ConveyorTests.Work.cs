@@ -203,14 +203,14 @@ public sealed partial class ConveyorTests
             isEnabled: () => false);
 
         Assert.True(work.Station.CarrierSeated);
-        Assert.True(work.CanTransfer);
+        Assert.True(work.IsTransferAllowed);
         Assert.True(work.RouteToNg);
         Assert.False(work.HasNg);
         work.GetAssembly(HeatSinkSlot.HeatSink1).RecordPcbBolt(1, new BoltResult(false, 1.25));
         Assert.True(work.HasNg);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-        Assert.False(work.CanTransfer);
+        Assert.False(work.IsTransferAllowed);
         Assert.False(work.HasNg);
     }
 }

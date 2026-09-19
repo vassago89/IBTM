@@ -7,7 +7,12 @@ namespace IBTM.Core;
 
 public static class EnumDescription
 {
-    private static readonly ConcurrentDictionary<Enum, string> Descriptions = new();
+    private static readonly ConcurrentDictionary<Enum, string> Descriptions;
+
+    static EnumDescription()
+    {
+        Descriptions = new();
+    }
 
     public static string GetDescription(this Enum value)
     {

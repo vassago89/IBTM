@@ -6,8 +6,14 @@ namespace IBTM.Core;
 
 public sealed class AsyncAutoResetEvent
 {
-    private readonly Lock _lock = new();
-    private readonly SemaphoreSlim _signal = new(0, 1);
+    private readonly Lock _lock;
+    private readonly SemaphoreSlim _signal;
+
+    public AsyncAutoResetEvent()
+    {
+        _lock = new();
+        _signal = new(0, 1);
+    }
 
     public Task WaitAsync(CancellationToken cancellationToken = default)
     {

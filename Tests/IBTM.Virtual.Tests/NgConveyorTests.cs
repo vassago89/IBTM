@@ -17,15 +17,15 @@ public sealed class NgConveyorTests
     {
         var system = CreateSystem();
         system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
-        Assert.False(system.Shuttle.CanReceive(useConveyor: true));
-        Assert.True(system.Shuttle.CanReceive(useConveyor: false));
+        Assert.False(system.Shuttle.IsReceiveAllowed(useConveyor: true));
+        Assert.True(system.Shuttle.IsReceiveAllowed(useConveyor: false));
 
         system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.False(system.Shuttle.CanReceive(useConveyor: false));
+        Assert.False(system.Shuttle.IsReceiveAllowed(useConveyor: false));
         system.Io.SetInput(InputIo.NgShuttleCarrierDetected, false);
         system.Io.SetInput(InputIo.NgShuttleUp, false);
         system.Io.SetInput(InputIo.NgShuttleDown, true);
-        Assert.False(system.Shuttle.CanReceive(useConveyor: false));
+        Assert.False(system.Shuttle.IsReceiveAllowed(useConveyor: false));
     }
 
     [Fact]
@@ -68,12 +68,13 @@ public sealed class NgConveyorTests
         var upCommands = 0;
         void ChangeFeedbackWhileLowering(OutputIo output, bool on)
         {
-            if (output != OutputIo.NgShuttleDown)
-                return;
-            if (!on)
+            switch (true)
             {
-                upCommands++;
-                return;
+                case true when output != OutputIo.NgShuttleDown:
+                    return;
+                case true when !on:
+                    upCommands++;
+                    return;
             }
 
             downCommands++;
@@ -398,13 +399,7 @@ public sealed class NgConveyorTests
             NgShuttle Shuttle,
             NgCarrierTransfer Pickup)
     {
-        public IIoService Signals
-        {
-            get
-            {
-                return Io;
-            }
-        }
+        public IIoService Signals => Io;
 
         public async Task RunAsync(CancellationToken cancellationToken)
         {

@@ -12,11 +12,5 @@ public sealed class PickupBoltFeeder : BoltFeeder
         _settings = settings;
     }
 
-    protected override int TimeoutMilliseconds
-    {
-        get
-        {
-            return _settings.PickupTimeoutMilliseconds;
-        }
-    }
+    protected override int TimeoutMilliseconds => _settings.PickupTimeoutMilliseconds;
 }

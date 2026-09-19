@@ -159,35 +159,21 @@ public sealed class TeachingPosition
     {
         get
         {
-            if (Staged)
+            switch (true)
             {
-                return TeachingStorage.Buffer;
+                case true when Staged:
+                    return TeachingStorage.Buffer;
+                case true when Setting is null:
+                    return TeachingStorage.Recipe;
+                default:
+                    return TeachingStorage.Machine;
             }
-
-            if (Setting is null)
-            {
-                return TeachingStorage.Recipe;
-            }
-
-            return TeachingStorage.Machine;
         }
     }
 
-    public bool HasPosition
-    {
-        get
-        {
-            return _isDefined?.Invoke() ?? true;
-        }
-    }
+    public bool HasPosition => _isDefined?.Invoke() ?? true;
 
-    public bool CanTeach
-    {
-        get
-        {
-            return _apply is not null;
-        }
-    }
+    public bool IsTeachAllowed => _apply is not null;
 
     public AxisPosition Read()
     {

@@ -28,13 +28,7 @@ public sealed class InspectionGantry
 
     public MotionStatus Motion { get; }
 
-    public IMotionFeedback Feedback
-    {
-        get
-        {
-            return _motion;
-        }
-    }
+    public IMotionFeedback Feedback => _motion;
 
     public void InitializeMotion()
     {

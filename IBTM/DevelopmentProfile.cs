@@ -29,7 +29,7 @@ internal static class DevelopmentProfile
         settings.Drivers.Light = LightDriver.Virtual;
     }
 
-    public static async Task PrepareAsync(RecipeStore store, MachineStore database)
+    public static async Task PrepareAsync(MachineStore database)
     {
         if (database.HasData)
         {
@@ -39,7 +39,7 @@ internal static class DevelopmentProfile
         var settings = CreateSettings();
         var recipe = CreateRecipe();
         settings.RecipeSelection.LastRecipeName = recipe.Name;
-        await store.SaveRecipeAsync(recipe);
+        await Task.Run(() => database.SaveRecipe(recipe.Name, recipe, []));
         await settings.SaveAsync(database);
     }
 

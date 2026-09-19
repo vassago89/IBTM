@@ -9,8 +9,13 @@ namespace IBTM.Device;
 public sealed class SignalIdJsonConverter<T> : JsonConverter<T>
     where T : struct, Enum
 {
-    private static readonly JsonConverter<T> Names = (JsonConverter<T>)
-            new JsonStringEnumConverter<T>().CreateConverter(typeof(T), JsonSerializerOptions.Default);
+    private static readonly JsonConverter<T> Names;
+
+    static SignalIdJsonConverter()
+    {
+        Names = (JsonConverter<T>)
+                new JsonStringEnumConverter<T>().CreateConverter(typeof(T), JsonSerializerOptions.Default);
+    }
 
     public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {

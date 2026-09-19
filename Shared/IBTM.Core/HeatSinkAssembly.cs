@@ -34,54 +34,19 @@ public sealed class HeatSinkAssembly
 
     public HeatSinkSlot HeatSink { get; }
 
-    public IReadOnlyDictionary<int, BoltResult> PcbBoltResults
-    {
-        get
-        {
-            return _pcbBoltResults;
-        }
-    }
+    public IReadOnlyDictionary<int, BoltResult> PcbBoltResults => _pcbBoltResults;
 
-    public IReadOnlyDictionary<int, BoltResult> IpmSeatingResults
-    {
-        get
-        {
-            return _ipmSeatingResults;
-        }
-    }
+    public IReadOnlyDictionary<int, BoltResult> IpmSeatingResults => _ipmSeatingResults;
 
-    public IReadOnlyDictionary<int, BoltResult> IpmFinalResults
-    {
-        get
-        {
-            return _ipmFinalResults;
-        }
-    }
+    public IReadOnlyDictionary<int, BoltResult> IpmFinalResults => _ipmFinalResults;
 
-    public IReadOnlyDictionary<int, bool> BoltPresenceResults
-    {
-        get
-        {
-            return _boltPresenceResults;
-        }
-    }
+    public IReadOnlyDictionary<int, bool> BoltPresenceResults => _boltPresenceResults;
 
     public AssemblyResult FasteningResult { get; private set; }
     public AssemblyResult InspectionResult { get; private set; }
-    public string? PcbBarcode { get; private set; }
+    public string? PcbBarcode { get; set; }
 
-    public AssemblyResult Result
-    {
-        get
-        {
-            return FasteningResult == AssemblyResult.Ng ? AssemblyResult.Ng : InspectionResult;
-        }
-    }
-
-    public void RecordBarcode(string barcode)
-    {
-        PcbBarcode = barcode;
-    }
+    public AssemblyResult Result => FasteningResult == AssemblyResult.Ng ? AssemblyResult.Ng : InspectionResult;
 
     public void RecordPcbBolt(int number, BoltResult result)
     {

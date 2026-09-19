@@ -57,14 +57,14 @@ public sealed partial class MachineLifecycleTests
                 fasteningPlate.Enqueue(value);
         };
         Assert.False(fastening.Enabled);
-        Assert.True(machine.CanStart);
+        Assert.True(machine.IsStartAllowed);
         var run = machine.StartAsync();
         try
         {
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => inspection.Station.CarrierSeated, TimeSpan.FromSeconds(5)),
                 $"Conveyor={conveyor.State}, FasteningCompleted={fastening.Completed}, "
-                    + $"FasteningSeated={fastening.Station.CarrierSeated}, InspectionCanReceive={inspection.CanReceive}, "
+                    + $"FasteningSeated={fastening.Station.CarrierSeated}, InspectionCanReceive={inspection.IsReceiveAllowed}, "
                     + $"Alarm={state.AlarmMessage}");
             Assert.Equal(new[] { true, false }, fasteningPlate);
             Assert.False(fastening.Station.CarrierPresent);
@@ -88,7 +88,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         TeachInspectionFovs(settings, recipe);
         var machine = services.GetRequiredService<MachineController>();
         Assert.False(machine.TeachingReady);
@@ -110,7 +110,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(unit);
         settings.Units.ShootingBoltFeeder = unit == MachineUnit.BoltFastening;
         await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         PrepareCarrierTeaching(settings, recipe);
         recipe.Pcb.BoltPoints.RemoveAll(bolt => bolt.HeatSink == HeatSinkSlot.HeatSink2);
         var machine = services.GetRequiredService<MachineController>();
@@ -138,7 +138,7 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(stopper.OnInput, inspecting);
             io.SetInput(stopper.OffInput!.Value, !inspecting);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => machine.CanStart, TimeSpan.FromSeconds(2)),
+                await VirtualTest.WaitUntilAsync(() => machine.IsStartAllowed, TimeSpan.FromSeconds(2)),
                 $"START blocked: {machine.StartBlock}; busy={state.IsRunning}; alarm={state.AlarmDetail}");
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             await machine.StartAsync(stop.Token);
@@ -169,7 +169,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
-        await WaitUntilAsync(() => state.Display.CanStart);
+        await WaitUntilAsync(() => state.Display.IsStartAllowed);
         io.AutoResponseEnabled = false;
         OutputIo[] plates =
         [
@@ -243,7 +243,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { Number = 1, X = 10, Y = 10 }
 
         ];
@@ -291,7 +291,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(work.Station.CarrierSeated);
         await WaitUntilAsync(() => state.Display.Homed);
-        Assert.True(machine.CanStart);
+        Assert.True(machine.IsStartAllowed);
         using var failureStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await machine.StartAsync(failureStop.Token);
         Assert.True(state.Alarm == MachineAlarm.Inspection, $"{state.Alarm}: {state.AlarmDetail} {state.AlarmMessage}");
@@ -493,23 +493,23 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(settings, new Recipe())
+            .AddIbtmApplication(settings)
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        services.GetRequiredService<Recipe>()
+        services.GetRequiredService<RecipeManager>().Current
             .Pcb.BoltPoints.Add(new BoltPoint { Number = 1, X = 10, Y = 10 });
-        TeachInspectionFovs(settings, services.GetRequiredService<Recipe>());
+        TeachInspectionFovs(settings, services.GetRequiredService<RecipeManager>().Current);
 
         await machine.InitializeAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.ManualControlsEnabled);
 
         io.SetInput(InputIo.AutoMode, false);
-        Assert.True(machine.CanStart);
+        Assert.True(machine.IsStartAllowed);
         var run = machine.StartAsync();
         try
         {
@@ -584,7 +584,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var station = services.GetRequiredService<BoltFasteningStation>();
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = selected, X = 0, Y = 0 }];
         var productionHead = services.GetRequiredKeyedService<IBoltHead>(selected);
         var bus = services.GetRequiredService<IAdcBus>();
@@ -642,8 +642,8 @@ public sealed partial class MachineLifecycleTests
         };
         await diagnostics.StartCommand.ExecuteAsync(null);
         Assert.Contains("production fastening result is still pending", diagnostics.ConnectionStatus);
-        Assert.False(machine.CanTestBoltHead);
-        Assert.True(machine.CanUseAdcProtocol);
+        Assert.False(machine.IsTestBoltHeadAllowed);
+        Assert.True(machine.IsUseAdcProtocolAllowed);
         Assert.False(state.IsRunning);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.True(productionHead.HasPendingResult);
@@ -656,7 +656,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(productionHead.HasPendingResult);
         Assert.True(station.HasPendingResult);
         Assert.Equal(StartBlockReason.None, machine.StartBlock);
-        Assert.False(machine.CanTestBoltHead);
+        Assert.False(machine.IsTestBoltHeadAllowed);
         Assert.Equal(interruptedEvent, (await bus.ReadFasteningResultAsync(slave)).EventCount);
 
         // Acknowledgement clears only this fastening operation, not other carriers.
@@ -666,7 +666,7 @@ public sealed partial class MachineLifecycleTests
             (InputIo.PickupHeadVacuumDetected, false),
             (InputIo.ShootingHeadVacuumDetected, false));
         await machine.ResetAsync();
-        Assert.True(machine.CanTestBoltHead);
+        Assert.True(machine.IsTestBoltHeadAllowed);
         Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
         await diagnostics.StartCommand.ExecuteAsync(null);
         Assert.StartsWith("OK", diagnostics.ResultMessage);
@@ -694,16 +694,16 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => bus.StopWrites > 0);
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(state.IsRunning);
-        Assert.False(machine.CanStart);
-        Assert.False(machine.CanHome);
-        Assert.False(machine.CanReset);
+        Assert.False(machine.IsStartAllowed);
+        Assert.False(machine.IsHomeAllowed);
+        Assert.False(machine.IsResetAllowed);
         await machine.StartAsync();
         Assert.False(state.AutomaticRunning);
 
         bus.StopPollsRemaining = 0;
         await testing.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(state.IsRunning);
-        Assert.True(machine.CanStart);
+        Assert.True(machine.IsStartAllowed);
     }
 
     [Fact]
@@ -720,7 +720,7 @@ public sealed partial class MachineLifecycleTests
             .AddIbtmApplication(settings)
             .AddKeyedSingleton<IBoltHead>(FasteningHead.Shooting, head)
             .BuildServiceProvider();
-        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -735,7 +735,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
         io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => state.Display.CanStart);
+        await WaitUntilAsync(() => state.Display.IsStartAllowed);
         Assert.True(services.GetRequiredService<BoltFasteningWork>().Station.CarrierSeated);
 
         var run = machine.StartAsync();
@@ -751,7 +751,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(run.IsCompleted);
             Assert.True(state.AutomaticRunning);
             Assert.True(state.IsRunning);
-            Assert.False(machine.CanReset);
+            Assert.False(machine.IsResetAllowed);
             Assert.Equal(MachineAlarm.AirPressureLow, state.Alarm);
 
             head.Stopped.SetException(new InvalidOperationException("Head stop failed."));
@@ -832,21 +832,21 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         io.SetInput(InputIo.AutoMode, false);
-        Assert.True(machine.CanStart);
+        Assert.True(machine.IsStartAllowed);
 
         using var manual = operations.Link();
         Assert.True(state.IsRunning);
-        Assert.False(machine.CanStart);
+        Assert.False(machine.IsStartAllowed);
         await machine.StartAsync();
         Assert.False(state.AutomaticRunning);
 
         machine.Stop();
         Assert.True(manual.IsCancellationRequested);
         Assert.True(state.IsRunning);
-        Assert.False(machine.CanStart);
+        Assert.False(machine.IsStartAllowed);
         manual.Dispose();
         Assert.False(state.IsRunning);
-        Assert.True(machine.CanStart);
+        Assert.True(machine.IsStartAllowed);
     }
 
     [Fact]
@@ -911,7 +911,7 @@ public sealed partial class MachineLifecycleTests
             .AddKeyedSingleton<IBoltHead>(FasteningHead.Shooting, head)
             .AddKeyedSingleton<IBoltHead>(FasteningHead.Pickup, head)
             .BuildServiceProvider();
-        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -928,8 +928,8 @@ public sealed partial class MachineLifecycleTests
         Assert.True(state.IsRunning);
         await WaitUntilAsync(() => io.GetOutput(OutputIo.TowerLampYellow));
         Assert.False(io.GetOutput(OutputIo.TowerLampGreen));
-        Assert.False(machine.CanStart);
-        Assert.False(machine.CanHome);
+        Assert.False(machine.IsStartAllowed);
+        Assert.False(machine.IsHomeAllowed);
         await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(1));
         Assert.Equal(readinessChecks + 1, head.ReadinessChecks);
 
@@ -1054,23 +1054,23 @@ public sealed partial class MachineLifecycleTests
         };
         FastHomes(settings);
         await using var services = CreateServices(settings);
-        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
 
         await machine.InitializeAsync();
 
-        Assert.False(machine.CanStart);
-        Assert.True(machine.CanHome);
-        Assert.False(machine.CanReset);
+        Assert.False(machine.IsStartAllowed);
+        Assert.True(machine.IsHomeAllowed);
+        Assert.False(machine.IsResetAllowed);
 
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Homed);
 
         io.SetInput(InputIo.AutoMode, false);
-        Assert.True(machine.CanStart);
-        await WaitUntilAsync(() => state.Display.CanStart);
+        Assert.True(machine.IsStartAllowed);
+        await WaitUntilAsync(() => state.Display.IsStartAllowed);
         var firstRun = machine.StartAsync();
         Assert.True(await VirtualTest.WaitUntilAsync(
             () => state.AutomaticRunning, TimeSpan.FromSeconds(2)),
@@ -1093,7 +1093,7 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.Door1Open, true);
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => state.Display.CanStart);
+        await WaitUntilAsync(() => state.Display.IsStartAllowed);
         var secondRun = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
 
@@ -1127,7 +1127,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(io.GetOutput(OutputIo.ShootingFeederRunSignal));
         Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
         Assert.False(state.IsRunning);
-        Assert.True(machine.CanReset);
+        Assert.True(machine.IsResetAllowed);
 
         await machine.ResetAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -1160,7 +1160,7 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
 
-        io.SetConnected(false);
+        io.IsReady = false;
         await run.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
@@ -1168,8 +1168,8 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Contains("disconnected", state.AlarmDetail);
 
-        io.SetConnected(true);
-        Assert.True(machine.CanReset);
+        io.IsReady = true;
+        Assert.True(machine.IsResetAllowed);
         io.SetInput(InputIo.ResetButton, true);
         await WaitUntilAsync(() => state.Alarm == MachineAlarm.None);
         io.SetInput(InputIo.ResetButton, false);
@@ -1192,7 +1192,7 @@ public sealed partial class MachineLifecycleTests
         };
         FastHomes(settings);
         await using var services = CreateServices(settings);
-        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();

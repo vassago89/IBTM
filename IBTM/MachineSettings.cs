@@ -19,41 +19,78 @@ namespace IBTM;
 
 public sealed class MachineSettings
 {
-    public DriverSettings Drivers { get; set; } = new();
-    public UnitSettings Units { get; set; } = new();
-    public MachineOptions Options { get; set; } = new();
-    public RecipeSelectionSettings RecipeSelection { get; set; } = new();
-    public CarrierReferenceSettings CarrierReference { get; set; } = new();
-    public AjinSettings Ajin { get; set; } = new();
-    public AlphaMotionSettings AlphaMotion { get; set; } = new();
-    public HantasSettings Hantas { get; set; } = new();
-    public InspectionCameraSettings InspectionCamera { get; set; } = new();
-    public LightingSettings Lighting { get; set; } = new();
-    public NgCarrierTransferSettings NgCarrierTransfer { get; set; } = new();
-    public NgConveyorSettings NgConveyor { get; set; } = new();
-    public ConveyorSettings Conveyor { get; set; } = new();
+    public MachineSettings()
+    {
+        Drivers = new();
+        Units = new();
+        Options = new();
+        RecipeSelection = new();
+        CarrierReference = new();
+        Ajin = new();
+        AlphaMotion = new();
+        Hantas = new();
+        InspectionCamera = new();
+        Lighting = new();
+        NgCarrierTransfer = new();
+        NgConveyor = new();
+        Conveyor = new();
+        PcbSupply = new();
+        PcbSupplyHardware = new();
+        PcbBuffer = new();
+        PcbPlacementHandler = new();
+        PcbPlacementHandlerHardware = new();
+        PcbPlacementStationHardware = new();
+        BoltFeeder = new();
+        BoltFeederHardware = new();
+        BoltFastening = new();
+        BoltFasteningHardware = new();
+        IoBoltHardware = new();
+        BoltFasteningStationHardware = new();
+        InspectionGantry = new();
+        InspectionGantryHardware = new();
+        InspectionStationHardware = new();
+        MachineHardware = new();
+        ConveyorHardware = new();
+        NgCarrierTransferHardware = new();
+        NgShuttleHardware = new();
+        NgConveyorHardware = new();
+    }
 
-    public PcbSupplySettings PcbSupply { get; set; } = new();
-    public PcbSupplyHardwareSettings PcbSupplyHardware { get; set; } = new();
-    public PcbBufferSettings PcbBuffer { get; set; } = new();
-    public PcbPlacementHandlerSettings PcbPlacementHandler { get; set; } = new();
-    public PcbPlacementHandlerHardwareSettings PcbPlacementHandlerHardware { get; set; } = new();
-    public PcbPlacementStationHardwareSettings PcbPlacementStationHardware { get; set; } = new();
-    public BoltFeederSettings BoltFeeder { get; set; } = new();
-    public BoltFeederHardwareSettings BoltFeederHardware { get; set; } = new();
-    public BoltFasteningSettings BoltFastening { get; set; } = new();
-    public BoltFasteningHardwareSettings BoltFasteningHardware { get; set; } = new();
-    public IoBoltHardwareSettings IoBoltHardware { get; set; } = new();
-    public BoltFasteningStationHardwareSettings BoltFasteningStationHardware { get; set; } = new();
-    public InspectionGantrySettings InspectionGantry { get; set; } = new();
-    public InspectionGantryHardwareSettings InspectionGantryHardware { get; set; } = new();
-    public InspectionStationHardwareSettings InspectionStationHardware { get; set; } = new();
+    public DriverSettings Drivers { get; set; }
+    public UnitSettings Units { get; set; }
+    public MachineOptions Options { get; set; }
+    public RecipeSelectionSettings RecipeSelection { get; set; }
+    public CarrierReferenceSettings CarrierReference { get; set; }
+    public AjinSettings Ajin { get; set; }
+    public AlphaMotionSettings AlphaMotion { get; set; }
+    public HantasSettings Hantas { get; set; }
+    public InspectionCameraSettings InspectionCamera { get; set; }
+    public LightingSettings Lighting { get; set; }
+    public NgCarrierTransferSettings NgCarrierTransfer { get; set; }
+    public NgConveyorSettings NgConveyor { get; set; }
+    public ConveyorSettings Conveyor { get; set; }
 
-    public MachineHardwareSettings MachineHardware { get; set; } = new();
-    public ConveyorHardwareSettings ConveyorHardware { get; set; } = new();
-    public NgCarrierTransferHardwareSettings NgCarrierTransferHardware { get; set; } = new();
-    public NgShuttleHardwareSettings NgShuttleHardware { get; set; } = new();
-    public NgConveyorHardwareSettings NgConveyorHardware { get; set; } = new();
+    public PcbSupplySettings PcbSupply { get; set; }
+    public PcbSupplyHardwareSettings PcbSupplyHardware { get; set; }
+    public PcbBufferSettings PcbBuffer { get; set; }
+    public PcbPlacementHandlerSettings PcbPlacementHandler { get; set; }
+    public PcbPlacementHandlerHardwareSettings PcbPlacementHandlerHardware { get; set; }
+    public PcbPlacementStationHardwareSettings PcbPlacementStationHardware { get; set; }
+    public BoltFeederSettings BoltFeeder { get; set; }
+    public BoltFeederHardwareSettings BoltFeederHardware { get; set; }
+    public BoltFasteningSettings BoltFastening { get; set; }
+    public BoltFasteningHardwareSettings BoltFasteningHardware { get; set; }
+    public IoBoltHardwareSettings IoBoltHardware { get; set; }
+    public BoltFasteningStationHardwareSettings BoltFasteningStationHardware { get; set; }
+    public InspectionGantrySettings InspectionGantry { get; set; }
+    public InspectionGantryHardwareSettings InspectionGantryHardware { get; set; }
+    public InspectionStationHardwareSettings InspectionStationHardware { get; set; }
+
+    public MachineHardwareSettings MachineHardware { get; set; }
+    public ConveyorHardwareSettings ConveyorHardware { get; set; }
+    public NgCarrierTransferHardwareSettings NgCarrierTransferHardware { get; set; }
+    public NgShuttleHardwareSettings NgShuttleHardware { get; set; }
+    public NgConveyorHardwareSettings NgConveyorHardware { get; set; }
 
     internal (MotionSettings Settings, MotionHardwareSettings Hardware)[] MotionSections
     {

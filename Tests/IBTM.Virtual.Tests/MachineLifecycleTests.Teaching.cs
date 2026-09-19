@@ -41,7 +41,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         io.SetInput(InputIo.Door1Open, false);
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Homed);
         io.SetInput(InputIo.Door1Open, true);
@@ -508,7 +508,7 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateServices(FlowSettings());
         await services.GetRequiredService<MachineController>().InitializeAsync();
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         var reference = services.GetRequiredService<CarrierReferenceSettings>();
         reference.UpperLeftLocatingPin = new() { X = 2, Y = 3 };
         reference.LowerRightLocatingPin = new() { X = 32, Y = 23 };
@@ -553,7 +553,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Null(teaching.RecipeEditor.Error);
         Assert.Equal(roi, teaching.FovRegion);
         Assert.Equal(0, moves);
-        var saved = await services.GetRequiredService<RecipeStore>().LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+        var saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
         Assert.Equal(0.1, saved.CarrierImageMillimetersPerPixel);
         Assert.Equal((10d, 14.5), (saved.Pcb.BoltPoints[0].X, saved.Pcb.BoltPoints[0].Y));
         Assert.Equal((24d, 38d), (saved.Pcb.BoltPoints[1].X, saved.Pcb.BoltPoints[1].Y));
@@ -570,10 +570,41 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task LoadedRecipeIsVisibleToExistingConsumers()
+    {
+        await using var services = CreateServices(FlowSettings());
+        var recipes = services.GetRequiredService<RecipeManager>();
+        var inspector = services.GetRequiredService<BoltInspector>();
+        var editor = services.GetRequiredService<RecipeEditor>();
+        var preview = new InspectionPreview(inspector, recipes);
+        var frame = new ImageFrame(1, 1, 3, [160, 160, 160]);
+        var region = new PixelRegion(0, 0, 1, 1);
+        recipes.Current.BoltInspection.BrightnessThreshold = 128;
+        Assert.Equal(1, inspector.Check(frame, region, new()).BrightRatio);
+        Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
+        var saved = new Recipe
+        {
+            Name = "Other",
+            BoltInspection = new() { BrightnessThreshold = 200 },
+            CarrierImages = [new() { Number = 1, IsBarcode = true, Region = region }],
+        };
+        services.GetRequiredService<MachineStore>().SaveRecipe(saved.Name, saved, [1]);
+
+        await recipes.LoadAsync(saved.Name);
+
+        Assert.Equal("Other", editor.ActiveName);
+        Assert.Equal("Other", editor.Name);
+        Assert.Equal(200, preview.BrightnessThreshold);
+        Assert.Equal(0, inspector.Check(frame, region, new()).BrightRatio);
+        Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
+        Assert.Same(recipes.Current.CarrierImages[0], inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1));
+    }
+
+    [Fact]
     public async Task InspectionTargetSelectionOwnsFovRoiAndPerBoltPreview()
     {
         await using var services = CreateServices(FlowSettings());
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.BoltInspection.BrightnessThreshold = 128;
         recipe.BoltInspection.MinimumBrightRatio = 0.5;
         recipe.Pcb.BoltPoints.AddRange([
@@ -734,7 +765,7 @@ public sealed partial class MachineLifecycleTests
         var handoff = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementBufferHandoff);
         teaching.SelectedPoint = handoff;
         await placement.MoveAxisAsync(MotionAxis.Z, 7);
-        await WaitUntilAsync(() => teaching.CanEditTeaching && teaching.Motion.Axes[MotionAxis.Z].State is not null);
+        await WaitUntilAsync(() => teaching.IsTeachingEditAllowed && teaching.Motion.Axes[MotionAxis.Z].State is not null);
         var originalZ = settings.PcbPlacementHandler.BufferHandoffPosition.Z;
         try
         {
@@ -917,11 +948,11 @@ public sealed partial class MachineLifecycleTests
             var head = TeachingRows(teaching)[output];
             await head.ToggleOutputCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(output));
-            Assert.False(services.GetRequiredService<BoltFasteningGantry>().CanMoveHorizontal);
+            Assert.False(services.GetRequiredService<BoltFasteningGantry>().IsHorizontalMoveAllowed);
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
             await head.ToggleOutputCommand.ExecuteAsync(null);
             Assert.False(io.GetOutput(output));
-            Assert.True(services.GetRequiredService<BoltFasteningGantry>().CanMoveHorizontal);
+            Assert.True(services.GetRequiredService<BoltFasteningGantry>().IsHorizontalMoveAllowed);
         }
 
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
@@ -1039,7 +1070,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-            Assert.True(machine.CanHome);
+            Assert.True(machine.IsHomeAllowed);
             await machine.HomeAsync(CancellationToken.None);
             await supply.MoveToHandoffAsync(CancellationToken.None);
             await placement.MoveAboveBufferAsync();
@@ -1135,7 +1166,7 @@ public sealed partial class MachineLifecycleTests
         }
 
         var state = services.GetRequiredService<MachineState>();
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
         var supply = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
         await supply.MoveAxisAsync(MotionAxis.X, settings.PcbSupply.BufferHandoffPosition.X, 1_000);
@@ -1167,11 +1198,9 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.Inspection);
         var capturing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var release = new ManualResetEventSlim();
-        var recipe = new Recipe();
-        TeachInspectionFovs(settings, recipe);
-        await using var services = new ServiceCollection().AddIbtmApplication(
-            settings,
-            recipe)
+        await using var services = new ServiceCollection()
+            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(settings)
             .AddSingleton<ICamera>(
                 new VirtualCamera(
                     () =>
@@ -1184,6 +1213,7 @@ public sealed partial class MachineLifecycleTests
                     },
                     () => []))
             .BuildServiceProvider();
+        TeachInspectionFovs(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
@@ -1193,7 +1223,7 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => teaching.CaptureInspectionCommand.CanExecute(null));
         var next = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
-        var recipeBefore = JsonSerializer.Serialize(teaching.RecipeEditor.Recipe);
+        var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
         var settingsBefore = JsonSerializer.Serialize(settings);
         using var trace = new StringWriter();
         using var listener = new TextWriterTraceListener(trace);
@@ -1225,7 +1255,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(teaching.Preview.HasImage);
         Assert.Null(teaching.Preview.Result);
         Assert.Null(teaching.CameraError);
-        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.RecipeEditor.Recipe));
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
         Assert.Equal(settingsBefore, JsonSerializer.Serialize(settings));
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
     }
@@ -1234,11 +1264,11 @@ public sealed partial class MachineLifecycleTests
     public async Task CancelledInspectionCaptureKeepsPreviewAfterWaitingForLiveStop()
     {
         var settings = FlowSettings();
-        var recipe = new Recipe();
-        TeachInspectionFovs(settings, recipe);
         await using var services = new ServiceCollection()
-            .AddIbtmApplication(settings, recipe)
+            .AddSingleton(_ => VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(settings)
             .BuildServiceProvider();
+        TeachInspectionFovs(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var inspector = services.GetRequiredService<BoltInspector>();
@@ -1283,7 +1313,7 @@ public sealed partial class MachineLifecycleTests
         var store = VirtualTest.OpenMachineStore(
             Path.Combine(Path.GetTempPath(), $"IBTM-buffer-teaching-{Guid.NewGuid():N}.db"));
         await using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings, new Recipe())
+            .AddIbtmApplication(settings)
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();

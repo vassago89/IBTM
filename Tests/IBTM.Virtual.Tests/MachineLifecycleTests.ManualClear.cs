@@ -54,7 +54,7 @@ public sealed partial class MachineLifecycleTests
                 if (output is OutputIo.PcbPlacementBackupPlateUp or OutputIo.PcbPlacementStopperUp)
                     plateWrites++;
             };
-            Assert.True(machine.CanReset);
+            Assert.True(machine.IsResetAllowed);
             await machine.ResetAsync();
 
             Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -68,7 +68,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(state.AutomaticRunning);
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.True(machine.CanStart);
+            Assert.True(machine.IsStartAllowed);
 
             settings.Units.NgCarrierTransfer = false;
             settings.Units.MainConveyor = true;
@@ -102,7 +102,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        Assert.True(machine.CanStart, machine.StartBlock.ToString());
+        Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
         var run = machine.StartAsync();
         try
         {
@@ -120,7 +120,7 @@ public sealed partial class MachineLifecycleTests
                 (InputIo.PcbPlacementPcbDetected, true),
                 (InputIo.PcbPlacementVacuumDetected, true));
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.True(machine.CanStart);
+            Assert.True(machine.IsStartAllowed);
 
             state.SetError(MachineAlarm.NgCarrierTransfer);
             await machine.ResetAsync();
@@ -128,10 +128,10 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
             // A waiting upstream carrier is normal material, not interrupted work.
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
-            Assert.True(machine.CanStart, machine.StartBlock.ToString());
+            Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             Assert.False(state.AutomaticRunning);
-            Assert.True(machine.CanStart, state.AlarmDetail);
+            Assert.True(machine.IsStartAllowed, state.AlarmDetail);
 
             using var nextStop = new CancellationTokenSource();
             run = machine.StartAsync(nextStop.Token);

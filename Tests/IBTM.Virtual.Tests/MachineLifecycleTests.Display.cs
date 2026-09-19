@@ -47,7 +47,7 @@ public sealed partial class MachineLifecycleTests
                 probe.BeforeRead = BeforeHardwareRead;
                 return wrapper;
             }));
-        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -88,7 +88,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(machine.TeachingReady);
             Assert.True(services.GetRequiredService<BoltFasteningWork>().Station.CarrierSeated);
             Assert.True(services.GetRequiredService<InspectionWork>().Station.CarrierSeated);
-            state.SetAutomaticRunning(true);
+            state.AutomaticRunning = true;
             readingDisplay.Value = true;
             var display = machine.ReadDisplay();
             Assert.True(display.Available);
@@ -106,7 +106,7 @@ public sealed partial class MachineLifecycleTests
         finally
         {
             readingDisplay.Value = false;
-            state.SetAutomaticRunning(false);
+            state.AutomaticRunning = false;
             await machine.ShutdownAsync();
         }
     }
@@ -156,7 +156,7 @@ public sealed partial class MachineLifecycleTests
                     }
 
                     _ = motion.Position;
-                    _ = state.Display.CanStart;
+                    _ = state.Display.IsStartAllowed;
                     _ = state.Display.ManualBlock;
 
                     for (var index = 0; index < 1000; index++)
@@ -226,7 +226,7 @@ public sealed partial class MachineLifecycleTests
             await machine.HomeAsync(CancellationToken.None);
             io.SetInput(InputIo.AutoMode, false);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => machine.CanStart, TimeSpan.FromSeconds(2)),
+                await VirtualTest.WaitUntilAsync(() => machine.IsStartAllowed, TimeSpan.FromSeconds(2)),
                 $"START blocked: {machine.StartBlock}; busy={state.IsRunning}; alarm={state.AlarmDetail}");
             run = machine.StartAsync();
             Assert.True(
@@ -317,7 +317,7 @@ public sealed partial class MachineLifecycleTests
             // The X sample says not homed, but its delivery is delayed across Home and Start.
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
             await machine.HomeAsync(CancellationToken.None);
-            await WaitUntilAsync(() => machine.CanStart);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
             run = machine.StartAsync();
             await WaitUntilAsync(() => state.AutomaticRunning);
             released.Set();
@@ -351,15 +351,15 @@ public sealed partial class MachineLifecycleTests
         feedback.BeforeRead = () => throw error;
         feedback.DiagnosticReadError = error;
         // A ready display is not permission to operate when the actual read fails.
-        Assert.Throws<IOException>(() => machine.CanHome);
+        Assert.Throws<IOException>(() => machine.IsHomeAllowed);
         state.RequestDisplayRefresh();
         await WaitUntilAsync(() => !state.Display.Available);
         Assert.Same(error, state.Display.ReadError);
         Assert.Equal(
             MachineDisplayState.Unavailable,
             services.GetRequiredService<OperationViewModel>().ConveyorStatus);
-        Assert.False(state.Display.CanHome);
-        Assert.False(state.Display.CanStart);
+        Assert.False(state.Display.IsHomeAllowed);
+        Assert.False(state.Display.IsStartAllowed);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.All(
             services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,

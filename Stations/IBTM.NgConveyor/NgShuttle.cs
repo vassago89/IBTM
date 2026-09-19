@@ -35,45 +35,41 @@ public sealed class NgShuttle : AutoUnit
     {
         get
         {
-            if (Feedback.Lift == NgShuttleLiftState.Down)
+            switch (true)
             {
-                if (_conveyor.ShuttleCanRaise)
-                {
-                    return NgShuttleState.Raising;
-                }
+                case true when Feedback.Lift == NgShuttleLiftState.Down:
+                    switch (true)
+                    {
+                        case true when _conveyor.IsShuttleRaiseAllowed:
+                            return NgShuttleState.Raising;
+                        case true when _conveyor.Position3Occupied
+                            || _conveyor.RunCommandOn:
+                            return NgShuttleState.WaitingForConveyor;
+                        default:
+                            return NgShuttleState.CarrierPositionUnknown;
+                    }
+                case true when Feedback.CarrierDetected:
+                    if (!_transfer.IsRaised)
+                    {
+                        return NgShuttleState.WaitingForCarrierPickupUp;
+                    }
 
-                if (_conveyor.Position3Occupied
-                    || _conveyor.RunCommandOn)
-                {
-                    return NgShuttleState.WaitingForConveyor;
-                }
-
-                return NgShuttleState.CarrierPositionUnknown;
+                    return _conveyor.IsAcceptCarrierAllowed()
+                        ? NgShuttleState.Lowering
+                        : NgShuttleState.WaitingForConveyor;
+                default:
+                    return Feedback.Lift == NgShuttleLiftState.Up
+                        ? NgShuttleState.WaitingForCarrier
+                        : NgShuttleState.Raising;
             }
-
-            if (Feedback.CarrierDetected)
-            {
-                if (!_transfer.IsRaised)
-                {
-                    return NgShuttleState.WaitingForCarrierPickupUp;
-                }
-
-                return _conveyor.CanAcceptCarrier()
-                    ? NgShuttleState.Lowering
-                    : NgShuttleState.WaitingForConveyor;
-            }
-
-            return Feedback.Lift == NgShuttleLiftState.Up
-                ? NgShuttleState.WaitingForCarrier
-                : NgShuttleState.Raising;
         }
     }
 
-    public bool CanReceive(bool useConveyor, bool? conveyorRunning = null)
+    public bool IsReceiveAllowed(bool useConveyor, bool? conveyorRunning = null)
     {
         return Feedback.Lift == NgShuttleLiftState.Up
             && !Feedback.CarrierDetected
-            && (!useConveyor || _conveyor.CanAcceptCarrier(conveyorRunning));
+            && (!useConveyor || _conveyor.IsAcceptCarrierAllowed(conveyorRunning));
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -99,12 +95,15 @@ public sealed class NgShuttle : AutoUnit
     {
         var state = State;
         TraceStep(state);
-        return state switch
+        switch (state)
         {
-            NgShuttleState.Lowering => SetDownAsync(true, cancellationToken),
-            NgShuttleState.Raising => SetDownAsync(false, cancellationToken),
-            _ => WaitForChangeAsync(cancellationToken),
-        };
+            case NgShuttleState.Lowering:
+                return SetDownAsync(true, cancellationToken);
+            case NgShuttleState.Raising:
+                return SetDownAsync(false, cancellationToken);
+            default:
+                return WaitForChangeAsync(cancellationToken);
+        }
     }
 
     public Task SetDownAsync(bool down, CancellationToken cancellationToken = default)

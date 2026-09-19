@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Storage;
 
 namespace IBTM.Inspection;
 
@@ -19,9 +20,8 @@ public sealed class BoltInspector
     private readonly ILightController light;
     private readonly InspectionGantrySettings gantrySettings;
     private readonly LightingSettings lightingSettings;
-    private readonly Func<BoltInspectionRecipe> getRecipe;
-    private readonly Func<IReadOnlyList<CarrierImageTile>> getFovs;
-    private readonly SemaphoreSlim _visionGate = new(1, 1);
+    private readonly RecipeManager recipes;
+    private readonly SemaphoreSlim _visionGate;
     private int? _lightChannel;
 
     public BoltInspector(
@@ -30,16 +30,16 @@ public sealed class BoltInspector
         ILightController light,
         InspectionGantrySettings gantrySettings,
         LightingSettings lightingSettings,
-        Func<BoltInspectionRecipe> getRecipe,
-        Func<IReadOnlyList<CarrierImageTile>> getFovs)
+        RecipeManager recipes)
     {
+        _visionGate = new(1, 1);
+
         this.gantry = gantry;
         this.camera = camera;
         this.light = light;
         this.gantrySettings = gantrySettings;
         this.lightingSettings = lightingSettings;
-        this.getRecipe = getRecipe;
-        this.getFovs = getFovs;
+        this.recipes = recipes;
         camera.LiveViewFailed += OnCameraLiveViewFailed;
     }
 
@@ -58,13 +58,7 @@ public sealed class BoltInspector
         }
     }
 
-    public bool IsLiveView
-    {
-        get
-        {
-            return camera.IsLiveView;
-        }
-    }
+    public bool IsLiveView => camera.IsLiveView;
 
     public Exception? LiveViewError { get; private set; }
 
@@ -114,13 +108,13 @@ public sealed class BoltInspector
     public BinaryCheckResult Check(ImageFrame image, PixelRegion region, BoltPoint point)
     {
         return BinaryChecker.Check(image, region,
-            point.BrightnessThreshold ?? getRecipe().BrightnessThreshold);
+            point.BrightnessThreshold ?? recipes.Current.BoltInspection.BrightnessThreshold);
     }
 
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
     {
         var size = camera.FrameSize;
-        var fovs = getFovs().Where(fov => fov.IsBarcode && fov.HeatSink == pcb).ToArray();
+        var fovs = recipes.Current.CarrierImages.Where(fov => fov.IsBarcode && fov.HeatSink == pcb).ToArray();
         return fovs.Length == 1
             && fovs[0].Region is { } region
             && region.IsInside(size.Width, size.Height);
@@ -128,7 +122,7 @@ public sealed class BoltInspector
 
     public CarrierImageTile GetBarcodeFov(HeatSinkSlot pcb)
     {
-        var fov = getFovs().SingleOrDefault(item => item.IsBarcode && item.HeatSink == pcb);
+        var fov = recipes.Current.CarrierImages.SingleOrDefault(item => item.IsBarcode && item.HeatSink == pcb);
         var size = camera.FrameSize;
         if (fov?.Region is not { } region || !region.IsInside(size.Width, size.Height))
             throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
@@ -183,7 +177,7 @@ public sealed class BoltInspector
     public bool HasPosition(BoltPoint point)
     {
         var size = camera.FrameSize;
-        var fovs = getFovs().Where(fov =>
+        var fovs = recipes.Current.CarrierImages.Where(fov =>
             !fov.IsBarcode
             && fov.BoltNumber == point.Number
             && fov.HeatSink == point.HeatSink).ToArray();
@@ -194,7 +188,7 @@ public sealed class BoltInspector
 
     public CarrierImageTile GetFov(BoltPoint point)
     {
-        var fov = getFovs().SingleOrDefault(fov =>
+        var fov = recipes.Current.CarrierImages.SingleOrDefault(fov =>
             !fov.IsBarcode
             && fov.BoltNumber == point.Number
             && fov.HeatSink == point.HeatSink);
@@ -253,7 +247,7 @@ public sealed class BoltInspector
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var present = Check(image, region, point).BrightRatio
-                    >= (point.MinimumBrightRatio ?? getRecipe().MinimumBrightRatio);
+                    >= (point.MinimumBrightRatio ?? recipes.Current.BoltInspection.MinimumBrightRatio);
                 cancellationToken.ThrowIfCancellationRequested();
                 return present;
             },
@@ -322,7 +316,7 @@ public sealed class BoltInspector
             cancellationToken.ThrowIfCancellationRequested();
             TurnLightOn(lightingSettings.InspectionChannel);
             cancellationToken.ThrowIfCancellationRequested();
-            var recipe = getRecipe();
+            var recipe = recipes.Current.BoltInspection;
             camera.StartLiveView(recipe.ExposureMicroseconds, recipe.Gain);
             cancellationToken.ThrowIfCancellationRequested();
             if (LiveViewError is { } failure)
@@ -427,13 +421,13 @@ public sealed class BoltInspector
     private void TurnLightOn(int channel)
     {
         _lightChannel = channel;
-        light.SetLevel(channel, getRecipe().LightLevel);
+        light.SetLevel(channel, recipes.Current.BoltInspection.LightLevel);
         light.TurnOn(channel);
     }
 
     private async Task<ImageFrame> CaptureFrameAsync(CancellationToken cancellationToken)
     {
-        var recipe = getRecipe();
+        var recipe = recipes.Current.BoltInspection;
         return await camera.CaptureAsync(
             recipe.ExposureMicroseconds, recipe.Gain, cancellationToken).ConfigureAwait(false);
     }

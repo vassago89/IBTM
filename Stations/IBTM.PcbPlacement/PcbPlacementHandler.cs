@@ -26,35 +26,39 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
 
     public MotionStatus Motion { get; }
 
-    public IMotionFeedback Feedback
-    {
-        get
-        {
-            return _motion;
-        }
-    }
+    public IMotionFeedback Feedback => _motion;
 
     public PlacementCylinderState Lift
     {
         get
         {
-            return GetCylinderState(InputIo.PcbPlacementHandlerUp, InputIo.PcbPlacementHandlerDown);
+            switch ((_io.GetInput(InputIo.PcbPlacementHandlerUp), _io.GetInput(InputIo.PcbPlacementHandlerDown)))
+            {
+                case (true, false):
+                    return PlacementCylinderState.Up;
+                case (false, true):
+                    return PlacementCylinderState.Down;
+                default:
+                    return PlacementCylinderState.Between;
+            }
         }
     }
 
-    public bool HandlerRaised
-    {
-        get
-        {
-            return Lift == PlacementCylinderState.Up;
-        }
-    }
+    public bool HandlerRaised => Lift == PlacementCylinderState.Up;
 
     public PlacementCylinderState IpmLift
     {
         get
         {
-            return GetCylinderState(InputIo.PcbPlacementIpmUp, InputIo.PcbPlacementIpmDown);
+            switch ((_io.GetInput(InputIo.PcbPlacementIpmUp), _io.GetInput(InputIo.PcbPlacementIpmDown)))
+            {
+                case (true, false):
+                    return PlacementCylinderState.Up;
+                case (false, true):
+                    return PlacementCylinderState.Down;
+                default:
+                    return PlacementCylinderState.Between;
+            }
         }
     }
 
@@ -62,14 +66,17 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     {
         get
         {
-            return (
+            switch ((
                 _io.GetInput(InputIo.PcbPlacementHandlerUnrotated),
-                _io.GetInput(InputIo.PcbPlacementHandlerRotated)) switch
+                _io.GetInput(InputIo.PcbPlacementHandlerRotated)))
             {
-                (true, false) => PlacementRotationState.Unrotated,
-                (false, true) => PlacementRotationState.Rotated,
-                _ => PlacementRotationState.Between,
-            };
+                case (true, false):
+                    return PlacementRotationState.Unrotated;
+                case (false, true):
+                    return PlacementRotationState.Rotated;
+                default:
+                    return PlacementRotationState.Between;
+            }
         }
     }
 
@@ -77,14 +84,17 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     {
         get
         {
-            return (
+            switch ((
                 _io.GetInput(InputIo.PcbPlacementIpmGripperOpen),
-                _io.GetInput(InputIo.PcbPlacementIpmGripperClosed)) switch
+                _io.GetInput(InputIo.PcbPlacementIpmGripperClosed)))
             {
-                (true, false) => PlacementGripperState.Open,
-                (false, true) => PlacementGripperState.Closed,
-                _ => PlacementGripperState.Between,
-            };
+                case (true, false):
+                    return PlacementGripperState.Open;
+                case (false, true):
+                    return PlacementGripperState.Closed;
+                default:
+                    return PlacementGripperState.Between;
+            }
         }
     }
 
@@ -103,21 +113,9 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         }
     }
 
-    public bool PcbSecured
-    {
-        get
-        {
-            return Pcb == PlacementPcbState.Secured;
-        }
-    }
+    public bool PcbSecured => Pcb == PlacementPcbState.Secured;
 
-    public bool VacuumDetected
-    {
-        get
-        {
-            return _io.GetInput(InputIo.PcbPlacementVacuumDetected);
-        }
-    }
+    public bool VacuumDetected => _io.GetInput(InputIo.PcbPlacementVacuumDetected);
 
     public bool IsAtHorizontalZ(bool live = true)
     {
@@ -227,13 +225,17 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         AxisPosition position,
         CancellationToken cancellationToken = default)
     {
-        return point.Mode switch
+        switch (point.Mode)
         {
-            TeachMode.ZOnly => MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken),
-            TeachMode.XYOnly => MoveToXYAsync(position, cancellationToken),
-            TeachMode.Full => MoveToAsync(position.X, position.Y, position.Z, cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(point)),
-        };
+            case TeachMode.ZOnly:
+                return MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
+            case TeachMode.XYOnly:
+                return MoveToXYAsync(position, cancellationToken);
+            case TeachMode.Full:
+                return MoveToAsync(position.X, position.Y, position.Z, cancellationToken);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(point));
+        }
     }
 
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
@@ -287,16 +289,6 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     public Task WaitForPcbAsync(CancellationToken cancellationToken = default)
     {
         return _io.WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, cancellationToken);
-    }
-
-    private PlacementCylinderState GetCylinderState(InputIo upInput, InputIo downInput)
-    {
-        return (_io.GetInput(upInput), _io.GetInput(downInput)) switch
-        {
-            (true, false) => PlacementCylinderState.Up,
-            (false, true) => PlacementCylinderState.Down,
-            _ => PlacementCylinderState.Between,
-        };
     }
 
     private void EnsureCanMoveHorizontal(CancellationToken cancellationToken)

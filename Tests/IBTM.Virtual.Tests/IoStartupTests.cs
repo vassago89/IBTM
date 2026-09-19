@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.BoltFastening;
 using IBTM.Device;
+using IBTM.Storage;
 using IBTM.PcbSupply;
 using IBTM.Inspection;
 using IBTM.UI;
@@ -362,7 +363,7 @@ public sealed class IoStartupTests
             io.PendingInput = (input, !value);
             await WaitUntilAsync(() => io.GetInput(input) == !value);
             machine.Stop();
-            Assert.True(machine.CanReset);
+            Assert.True(machine.IsResetAllowed);
             await machine.ResetAsync();
             Assert.False(state.IsError);
         }
@@ -461,7 +462,7 @@ public sealed class IoStartupTests
         io.SetOutput(OutputIo.NgShuttleDown, false);
         state.RepeatEnabled = true;
         // The carrier is already at the forward route's endpoint.
-        Assert.True(machine.CanStart, machine.StartBlock.ToString());
+        Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
         var returning = false;
         var runFailure = new IOException("Shuttle lowering failed during repeat return.");
         var stopFailure = new IOException("NG conveyor STOP failed during return cleanup.");
@@ -917,14 +918,22 @@ public sealed class IoStartupTests
         io.Initialize();
         VirtualTest.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
-        var runError = new InvalidOperationException("Fastening target lookup failed.");
+        var runError = new IOException("Fastening carrier feedback failed.");
         var stopError = new IOException("Shooting output OFF failed.");
         var station = new IBTM.BoltFastening.BoltFasteningStation(
             services.GetRequiredService<IBTM.BoltFastening.BoltFasteningGantry>(),
             work,
             services.GetRequiredService<IBTM.BoltFeeder.PickupBoltFeeder>(),
             services.GetRequiredService<IBTM.BoltFeeder.ShootingBoltFeeder>(),
-            () => throw runError);
+            services.GetRequiredService<RecipeManager>());
+        io.BeforeInputRead = input =>
+        {
+            if (input == InputIo.BoltFasteningHeatSink1Present)
+            {
+                io.BeforeInputRead = null;
+                throw runError;
+            }
+        };
         io.BeforeOutputWrite = (output, _) =>
         {
             if (output == OutputIo.ShootBolt)
@@ -937,6 +946,7 @@ public sealed class IoStartupTests
         }
         finally
         {
+            io.BeforeInputRead = null;
             io.BeforeOutputWrite = null;
         }
     }
@@ -1076,7 +1086,7 @@ public sealed class IoStartupTests
         await machine.InitializeAsync();
         await state.StopDisplayUpdatesAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
-        Assert.True(machine.CanRaiseCylinders);
+        Assert.True(machine.IsRaiseCylindersAllowed);
         var failure = new IOException("PCB input became unavailable before cylinder raise.");
         var readsFailed = 0;
         var cylinderWrites = 0;
@@ -1106,7 +1116,7 @@ public sealed class IoStartupTests
             Assert.Equal(failure.ToString(), state.AlarmDetail);
             Assert.False(operations.HasActiveOperations);
             Assert.False(state.IsRunning);
-            Assert.True(machine.CanReset);
+            Assert.True(machine.IsResetAllowed);
         }
         finally
         {
@@ -1175,13 +1185,13 @@ public sealed class IoStartupTests
 
         Assert.False(state.IsRunning);
         Assert.False(state.ConveyorRunning);
-        Assert.False(machine.CanStart);
-        Assert.False(machine.CanHome);
-        _ = machine.CanReset;
+        Assert.False(machine.IsStartAllowed);
+        Assert.False(machine.IsHomeAllowed);
+        _ = machine.IsResetAllowed;
         using (services.GetRequiredService<OperationCancellation>().Link())
         {
             Assert.True(state.IsRunning);
-            Assert.False(machine.CanReset);
+            Assert.False(machine.IsResetAllowed);
         }
 
         Assert.Equal(0, io.ReadsWhileUnavailable);
@@ -1234,9 +1244,9 @@ public sealed class IoStartupTests
         var stage = failCheckReady ? "Control I/O readiness check" : "Control I/O initialization";
         Assert.Contains(log.Snapshot(), entry => entry.Message == $"{stage} failed. {error.Message}"
             && entry.Detail is null);
-        Assert.True(machine.CanReset);
-        Assert.False(machine.CanStart);
-        Assert.False(machine.CanHome);
+        Assert.True(machine.IsResetAllowed);
+        Assert.False(machine.IsStartAllowed);
+        Assert.False(machine.IsHomeAllowed);
         Assert.False(state.ManualSetupEnabled);
         Assert.All(
             services.GetRequiredService<IoSignals>().Outputs.Values,
@@ -1279,7 +1289,7 @@ public sealed class IoStartupTests
         Assert.Contains(
             services.GetRequiredService<ApplicationLog>().Snapshot(),
             entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
-        Assert.True(machine.CanReset);
+        Assert.True(machine.IsResetAllowed);
         Assert.All(
             services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
@@ -1416,7 +1426,7 @@ public sealed class IoStartupTests
             io.InputScanError = null;
             io.OutputReadError = null;
 
-            Assert.False(machine.CanReset);
+            Assert.False(machine.IsResetAllowed);
             await machine.ResetAsync();
             Assert.Same(error, feedback.ReadError);
             Assert.Equal(MachineAlarm.IoCommunication, services.GetRequiredService<MachineState>().Alarm);
@@ -1446,8 +1456,8 @@ public sealed class IoStartupTests
         Assert.Equal(error.Message, state.Display.AlarmMessage);
         Assert.Contains(error.Message, state.Display.AlarmDetail);
         Assert.Null(state.Display.ReadError);
-        Assert.False(state.Display.CanStart);
-        Assert.False(state.Display.CanHome);
+        Assert.False(state.Display.IsStartAllowed);
+        Assert.False(state.Display.IsHomeAllowed);
         Assert.False(state.Display.ManualControlsEnabled);
         Assert.False(state.Display.ManualSetupEnabled);
     }
@@ -1512,13 +1522,7 @@ public sealed class IoStartupTests
 
         public bool IsReady { get; private set; }
 
-        public int TimeoutMilliseconds
-        {
-            get
-            {
-                return _inner.TimeoutMilliseconds;
-            }
-        }
+        public int TimeoutMilliseconds => _inner.TimeoutMilliseconds;
 
         public Exception? InitializationError { get; set; }
         public Exception? OutputReadError { get; set; }

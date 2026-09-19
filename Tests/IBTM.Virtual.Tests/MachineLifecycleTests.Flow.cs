@@ -57,7 +57,7 @@ public sealed partial class MachineLifecycleTests
         settings.NgCarrierTransfer.Speed = 10_000;
         settings.NgCarrierTransfer.PickupSafeX = 5;
         await using var services = CreateServices(settings);
-        var recipe = services.GetRequiredService<Recipe>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { Number = 1, X = 10, Y = 10 },];
         TeachInspectionFovs(settings, recipe);
         var machine = services.GetRequiredService<MachineController>();
@@ -115,11 +115,11 @@ public sealed partial class MachineLifecycleTests
         }
 
         await machine.InitializeAsync();
-        Assert.True(machine.CanHome);
+        Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.MainConveyorReadyFromRear, false);
         io.SetInput(InputIo.AutoMode, false);
-        Assert.True(machine.CanStart);
+        Assert.True(machine.IsStartAllowed);
         var run = machine.StartAsync();
         try
         {

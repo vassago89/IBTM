@@ -54,19 +54,17 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ControlsEnabled), nameof(OutputsWindowEnabled))]
     [NotifyCanExecuteChangedFor(nameof(OpenOutputsCommand))]
-    private bool _isClosing;
+    public partial bool IsClosing { get; set; }
     [ObservableProperty]
-    private string? _closeError;
+    public partial string? CloseError { get; set; }
     [ObservableProperty]
-    private string? _selectedRecipeFile;
+    public partial string? SelectedRecipeFile { get; set; }
 
     [ObservableProperty]
-    private string? _resetError;
+    public partial string? ResetError { get; set; }
 
     [ObservableProperty]
-    private string? _navigationError;
-
-    private AppPage _selectedPage = AppPage.Operation;
+    public partial string? NavigationError { get; set; }
 
     public MainViewModel(
         OperationViewModel operationViewModel,
@@ -80,14 +78,14 @@ public partial class MainViewModel : ObservableObject
         DiagnosticWindows windows,
         ApplicationLog log)
     {
-        OpenInputsCommand = new RelayCommand(OpenInputs, CanOpenDiagnostic);
+        OpenInputsCommand = new RelayCommand(OpenInputs, () => IsOpenDiagnosticAllowed);
         OpenOutputsCommand = new RelayCommand(OpenOutputs, () => OutputsWindowEnabled);
-        OpenMotionCommand = new RelayCommand(OpenMotion, CanOpenDiagnostic);
+        OpenMotionCommand = new RelayCommand(OpenMotion, () => IsOpenDiagnosticAllowed);
         OpenAdcProtocolCommand = new RelayCommand(OpenAdcProtocol, () => AdcProtocolEnabled);
-        OpenLogsCommand = new RelayCommand(OpenLogs, CanOpenDiagnostic);
+        OpenLogsCommand = new RelayCommand(OpenLogs, () => IsOpenDiagnosticAllowed);
         ResetCommand = new AsyncRelayCommand(
-            ResetAsync, CanReset, AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        NavigateCommand = new AsyncRelayCommand<AppPage>(NavigateAsync, CanNavigate);
+            ResetAsync, () => IsResetAllowed, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        NavigateCommand = new AsyncRelayCommand<AppPage>(NavigateAsync, IsNavigateAllowed);
 
         Operation = operationViewModel;
         _teachingViewModel = teachingViewModel;
@@ -135,21 +133,12 @@ public partial class MainViewModel : ObservableObject
     public RecipeEditor RecipeEditor { get; }
     public MachineEnvironmentDisplay Environment { get; }
 
-    public AppPage SelectedPage
-    {
-        get
-        {
-            return _selectedPage;
-        }
-    }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentPage), nameof(CurrentPageEnabled))]
+    [NotifyPropertyChangedFor(nameof(RecipeToolsVisible), nameof(OperationPageSelected))]
+    public partial AppPage SelectedPage { get; private set; } = AppPage.Operation;
 
-    public bool RecipeToolsVisible
-    {
-        get
-        {
-            return SelectedPage == AppPage.Teaching;
-        }
-    }
+    public bool RecipeToolsVisible => SelectedPage == AppPage.Teaching;
 
     public bool RecipeEditingEnabled
     {
@@ -162,45 +151,32 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    public bool OperationPageSelected
-    {
-        get
-        {
-            return SelectedPage == AppPage.Operation;
-        }
-    }
+    public bool OperationPageSelected => SelectedPage == AppPage.Operation;
 
     public ObservableObject CurrentPage
     {
         get
         {
-            return SelectedPage switch
+            switch (SelectedPage)
             {
-                AppPage.Operation => Operation,
-                AppPage.Teaching => _teachingViewModel,
-                AppPage.Settings => _settingsViewModel,
-                AppPage.ManualHardware => _manualHardwareViewModel,
-                _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
-            };
+                case AppPage.Operation:
+                    return Operation;
+                case AppPage.Teaching:
+                    return _teachingViewModel;
+                case AppPage.Settings:
+                    return _settingsViewModel;
+                case AppPage.ManualHardware:
+                    return _manualHardwareViewModel;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(SelectedPage));
+            }
         }
     }
 
     // Window access follows selector mode only, not alarm/busy output admission.
-    public bool OutputsWindowEnabled
-    {
-        get
-        {
-            return !_shuttingDown && !IsClosing && !_state.Display.AutoMode;
-        }
-    }
+    public bool OutputsWindowEnabled => !_shuttingDown && !IsClosing && !_state.Display.AutoMode;
 
-    public bool AdcProtocolEnabled
-    {
-        get
-        {
-            return !_shuttingDown && _settingsViewModel.ActiveBoltDriver != BoltDriver.Io;
-        }
-    }
+    public bool AdcProtocolEnabled => !_shuttingDown && _settingsViewModel.ActiveBoltDriver != BoltDriver.Io;
 
     public bool CurrentPageEnabled
     {
@@ -212,13 +188,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    public bool ControlsEnabled
-    {
-        get
-        {
-            return !IsClosing;
-        }
-    }
+    public bool ControlsEnabled => !IsClosing;
 
     partial void OnSelectedRecipeFileChanged(string? value)
     {
@@ -265,10 +235,7 @@ public partial class MainViewModel : ObservableObject
         _windows.OpenLogs();
     }
 
-    private bool CanOpenDiagnostic()
-    {
-        return !IsClosing && !_shuttingDown;
-    }
+    private bool IsOpenDiagnosticAllowed => !IsClosing && !_shuttingDown;
 
     public async Task<bool> TryCloseAsync()
     {
@@ -345,10 +312,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanReset()
-    {
-        return !_shuttingDown;
-    }
+    private bool IsResetAllowed => !_shuttingDown;
 
     public IAsyncRelayCommand<AppPage> NavigateCommand { get; }
 
@@ -364,15 +328,10 @@ public partial class MainViewModel : ObservableObject
             if (_shuttingDown)
                 return;
             // The selector can change while the previous device operation is stopping.
-            if (!CanNavigate(page))
+            if (!IsNavigateAllowed(page))
                 page = AppPage.Operation;
 
-            _selectedPage = page;
-            OnPropertyChanged(nameof(SelectedPage));
-            OnPropertyChanged(nameof(CurrentPage));
-            OnPropertyChanged(nameof(CurrentPageEnabled));
-            OnPropertyChanged(nameof(RecipeToolsVisible));
-            OnPropertyChanged(nameof(OperationPageSelected));
+            SelectedPage = page;
             ActivateCurrentPage();
             if (page == AppPage.Operation)
                 _state.Refresh();
@@ -386,7 +345,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanNavigate(AppPage page)
+    private bool IsNavigateAllowed(AppPage page)
     {
         return !_shuttingDown
             && (page == AppPage.Operation

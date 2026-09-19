@@ -59,21 +59,9 @@ public sealed class PhysicalIoService : IIoService, IDisposable
     public event Action<OutputIo, bool>? OutputChanged;
     public event Action<Exception>? Faulted;
 
-    public bool IsReady
-    {
-        get
-        {
-            return _ready;
-        }
-    }
+    public bool IsReady => _ready;
 
-    public int TimeoutMilliseconds
-    {
-        get
-        {
-            return _options.TimeoutMilliseconds;
-        }
-    }
+    public int TimeoutMilliseconds => _options.TimeoutMilliseconds;
 
     public void Initialize()
     {

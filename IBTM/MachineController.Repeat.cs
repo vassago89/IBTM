@@ -31,6 +31,16 @@ public sealed partial class MachineController
     private volatile RepeatPhase _repeatDisplayPhase;
     private int _repeatCycles;
 
+    private RepeatPhase RepeatDisplayPhase
+    {
+        get => _repeatDisplayPhase;
+        set
+        {
+            _repeatDisplayPhase = value;
+            _state.RequestDisplayRefresh();
+        }
+    }
+
     private async Task RunRepeatAsync(CancellationToken cancellationToken)
     {
         try
@@ -45,26 +55,26 @@ public sealed partial class MachineController
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                SetRepeatPhase(RepeatPhase.Automatic);
+                RepeatDisplayPhase = RepeatPhase.Automatic;
                 await RunToRepeatEndAsync(cancellationToken);
                 if (_units.NgConveyor)
                 {
-                    SetRepeatPhase(RepeatPhase.ReturnToShuttle);
+                    RepeatDisplayPhase = RepeatPhase.ReturnToShuttle;
                     await ReturnNgCarrierAsync(cancellationToken);
                 }
                 else if (_units.NgShuttle)
                 {
-                    SetRepeatPhase(RepeatPhase.CycleShuttle);
+                    RepeatDisplayPhase = RepeatPhase.CycleShuttle;
                     await _ngShuttle.CycleAsync(cancellationToken);
                 }
 
-                SetRepeatPhase(RepeatPhase.ReturnToStation3);
+                RepeatDisplayPhase = RepeatPhase.ReturnToStation3;
                 await _ngMove.ReturnToStationAsync(cancellationToken);
-                SetRepeatPhase(RepeatPhase.ClearStation3);
+                RepeatDisplayPhase = RepeatPhase.ClearStation3;
                 await _ngMove.ClearStationAsync(
-                    _recipe.CarrierImages.MinBy(image => image.Number)?.Center,
+                    _recipes.Current.CarrierImages.MinBy(image => image.Number)?.Center,
                     cancellationToken);
-                SetRepeatPhase(RepeatPhase.ReturnToStart);
+                RepeatDisplayPhase = RepeatPhase.ReturnToStart;
                 await ReturnMainCarrierAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 _repeatCycles++;
@@ -79,7 +89,7 @@ public sealed partial class MachineController
         {
             var alarm = IsMotionFailure(exception)
                 ? MachineAlarm.MotionUnavailable
-                : _repeatDisplayPhase switch
+                : RepeatDisplayPhase switch
                 {
                     RepeatPhase.ReturnToShuttle => MachineAlarm.NgConveyor,
                     RepeatPhase.CycleShuttle => MachineAlarm.NgShuttle,
@@ -90,7 +100,7 @@ public sealed partial class MachineController
         }
         finally
         {
-            SetRepeatPhase(RepeatPhase.Automatic);
+            RepeatDisplayPhase = RepeatPhase.Automatic;
         }
     }
 
@@ -183,33 +193,45 @@ public sealed partial class MachineController
         }
     }
 
-    private OutputBlockReason GetMainConveyorReturnBlock()
+    private OutputBlockReason MainConveyorReturnBlock
     {
-        if (_units.PcbPlacement)
+        get
         {
-            if (!_placementHandler.HandlerRaised)
-                return OutputBlockReason.PlacementNotRaised;
-            if (!_placementHandler.IsAtHorizontalZ())
-                return OutputBlockReason.PlacementNotAtSafeZ;
-        }
+            if (_units.PcbPlacement)
+            {
+                switch (true)
+                {
+                    case true when !_placementHandler.HandlerRaised:
+                        return OutputBlockReason.PlacementNotRaised;
+                    case true when !_placementHandler.IsAtHorizontalZ():
+                        return OutputBlockReason.PlacementNotAtSafeZ;
+                }
+            }
 
-        if (_units.BoltFastening)
-        {
-            if (!_fasteningGantry.CanMoveHorizontal)
-                return OutputBlockReason.FasteningNotRaised;
-            if (!_fasteningGantry.IsAtSafeZ())
-                return OutputBlockReason.FasteningNotAtSafeZ;
-        }
+            if (_units.BoltFastening)
+            {
+                switch (true)
+                {
+                    case true when !_fasteningGantry.IsHorizontalMoveAllowed:
+                        return OutputBlockReason.FasteningNotRaised;
+                    case true when !_fasteningGantry.IsAtSafeZ():
+                        return OutputBlockReason.FasteningNotAtSafeZ;
+                }
+            }
 
-        if (_units.Inspection || _units.NgCarrierTransfer)
-        {
-            if (!_ngTransfer.IsRaised)
-                return OutputBlockReason.NgPickupNotRaised;
-            if (_ngTransfer.CarrierDetected)
-                return OutputBlockReason.NgCarrierDetected;
-        }
+            if (_units.Inspection || _units.NgCarrierTransfer)
+            {
+                switch (true)
+                {
+                    case true when !_ngTransfer.IsRaised:
+                        return OutputBlockReason.NgPickupNotRaised;
+                    case true when _ngTransfer.CarrierDetected:
+                        return OutputBlockReason.NgCarrierDetected;
+                }
+            }
 
-        return OutputBlockReason.None;
+            return OutputBlockReason.None;
+        }
     }
 
     private async Task ReturnMainCarrierAsync(CancellationToken cancellationToken)
@@ -217,7 +239,7 @@ public sealed partial class MachineController
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckPath()
         {
-            if (GetMainConveyorReturnBlock() != OutputBlockReason.None)
+            if (MainConveyorReturnBlock != OutputBlockReason.None)
                 operation.Cancel();
         }
 
@@ -241,9 +263,4 @@ public sealed partial class MachineController
         }
     }
 
-    private void SetRepeatPhase(RepeatPhase phase)
-    {
-        _repeatDisplayPhase = phase;
-        _state.RequestDisplayRefresh();
-    }
 }

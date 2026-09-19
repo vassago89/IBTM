@@ -15,6 +15,7 @@ using IBTM.Hantas;
 using IBTM.Virtual;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
+using IBTM.Storage;
 
 namespace IBTM.Virtual.Tests;
 
@@ -614,8 +615,11 @@ public sealed class BoltFasteningTests
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
         var layout = new PcbLayout { BoltPoints = [Bolt(1, selectedHead, 0, 0)] };
         var station = new BoltFasteningStation(
-            gantry, work,
-            new PickupBoltFeeder(io, new()), new ShootingBoltFeeder(io, new()), () => layout);
+            gantry,
+            work,
+            new PickupBoltFeeder(io, new()),
+            new ShootingBoltFeeder(io, new()),
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } });
         io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
         io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
         io.SetInputs(
@@ -654,7 +658,7 @@ public sealed class BoltFasteningTests
                 commands.Add(on ? "START ON" : "START OFF");
                 if (on)
                 {
-                    Assert.True(gantry.CanMoveHorizontal);
+                    Assert.True(gantry.IsHorizontalMoveAllowed);
                     Assert.Equal(settings.GetHead(selectedHead).FasteningZ, motion.GetPosition().Z);
                 }
                 io.SetInput(fasten, on); // STOP-induced OFF must not become a successful result.
@@ -756,8 +760,12 @@ public sealed class BoltFasteningTests
         var layout = new PcbLayout { BoltPoints = [Bolt(1, FasteningHead.Pickup, 0, 0)] };
         var pickupEnabled = true;
         var station = new BoltFasteningStation(
-            gantry, work,
-            new PickupBoltFeeder(io, new()), new ShootingBoltFeeder(io, new()), () => layout, _ => pickupEnabled);
+            gantry,
+            work,
+            new PickupBoltFeeder(io, new()),
+            new ShootingBoltFeeder(io, new()),
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
+            _ => pickupEnabled);
         io.SetInputs(
             (InputIo.BoltFasteningHeatSink1Present, true),
             (InputIo.BoltFasteningBackupPlateUp, true),
@@ -863,7 +871,7 @@ public sealed class BoltFasteningTests
             work,
             new PickupBoltFeeder(io, new()),
             new ShootingBoltFeeder(io, new()),
-            () => layout);
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } });
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
@@ -1033,7 +1041,7 @@ public sealed class BoltFasteningTests
         var feedingHeads = new List<byte>();
         motion.PositionChanged += (_, _, _) =>
             movedWithLoweredCylinder |= motion.IsMovingHorizontal
-                && !gantry.CanMoveHorizontal;
+                && !gantry.IsHorizontalMoveAllowed;
         bus.FrameTransferred += (direction, frame) =>
         {
             if (direction == AdcFrameDirection.Transmit
@@ -1042,7 +1050,7 @@ public sealed class BoltFasteningTests
             {
                 if (BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) != 0)
                 {
-                    Assert.True(gantry.CanMoveHorizontal); // START precedes descent.
+                    Assert.True(gantry.IsHorizontalMoveAllowed); // START precedes descent.
                     runningHeads.Add(frame[0]);
                     fasteningHeights.Add((frame[0], motion.GetPosition().Z));
                 }
@@ -1052,10 +1060,13 @@ public sealed class BoltFasteningTests
         };
         io.OutputChanged += (output, on) =>
         {
-            if (!on || output is not (OutputIo.ShootingHeadDown or OutputIo.PickupHeadDown))
-                return;
-            if (output == OutputIo.PickupHeadDown && motion.GetPosition().X == settings.PickupPosition.X)
-                return; // Bolt pickup uses its own cylinder sequence.
+            switch (true)
+            {
+                case true when !on || output is not (OutputIo.ShootingHeadDown or OutputIo.PickupHeadDown):
+                    return;
+                case true when output == OutputIo.PickupHeadDown && motion.GetPosition().X == settings.PickupPosition.X:
+                    return; // Bolt pickup uses its own cylinder sequence.
+            }
             var address = (byte)(output == OutputIo.PickupHeadDown ? 1 : 2);
             Assert.Contains(address, runningHeads);
             feedingHeads.Add(address);
@@ -1074,7 +1085,12 @@ public sealed class BoltFasteningTests
                 new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 30, Y = 40 },
             ],
         };
-        var station = new BoltFasteningStation(gantry, work, pickupFeeder, shootingFeeder, () => layout);
+        var station = new BoltFasteningStation(
+            gantry,
+            work,
+            pickupFeeder,
+            shootingFeeder,
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } });
         var recipe = new BoltFasteningRecipe { PcbPreset = 4, IpmSeatingPreset = 3, IpmFinalPreset = 5 };
 
         io.Initialize();
@@ -1122,7 +1138,7 @@ public sealed class BoltFasteningTests
                     settings.SafeZ + 0.05,
                     settings.ShootingHead.FasteningZ - 0.05);
                 Assert.Empty(tightenings);
-                Assert.True(gantry.CanMoveHorizontal);
+                Assert.True(gantry.IsHorizontalMoveAllowed);
                 Assert.False(work.Completed);
             }
 
@@ -1187,7 +1203,7 @@ public sealed class BoltFasteningTests
             Assert.All(fasteningHeights, item => Assert.Equal(
                 item.Head == 1 ? settings.PickupHead.FasteningZ : settings.ShootingHead.FasteningZ,
                 item.Z));
-            Assert.True(gantry.CanMoveHorizontal);
+            Assert.True(gantry.IsHorizontalMoveAllowed);
             Assert.True(motion.IsAtHorizontalZ);
             Assert.Equal(
                 new (byte Head, ushort Preset)[] { (2, 4), (2, 4), (1, 3), (1, 3), (1, 5), (
@@ -1264,7 +1280,7 @@ public sealed class BoltFasteningTests
             new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io)),
             new PickupBoltFeeder(io, feederSettings),
             new ShootingBoltFeeder(io, feederSettings),
-            () => layout);
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } });
         io.SetInput(InputIo.PickupHeadUp, true);
         io.SetInput(InputIo.ShootingHeadUp, true);
         io.SetInput(InputIo.ShootingEscapeBackward, true);

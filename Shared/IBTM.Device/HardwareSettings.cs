@@ -39,39 +39,30 @@ public enum HomeDirection
 
 public sealed class AxisHardware
 {
-    private double _moveUnit = 1;
-    private int _movePulse = 1;
-
     public int Number { get; set; }
     public HomeDirection HomeDirection { get; set; } = HomeDirection.Negative;
 
     public double MoveUnit
     {
-        get
-        {
-            return _moveUnit;
-        }
+        get;
         set
         {
             if (!double.IsFinite(value) || value <= 0)
                 throw new ArgumentOutOfRangeException(nameof(value), "SDK Unit must be a positive finite value.");
-            _moveUnit = value;
+            field = value;
         }
-    }
+    } = 1;
 
     public int MovePulse
     {
-        get
-        {
-            return _movePulse;
-        }
+        get;
         set
         {
             if (value <= 0)
                 throw new ArgumentOutOfRangeException(nameof(value), "SDK Pulse must be a positive integer.");
-            _movePulse = value;
+            field = value;
         }
-    }
+    } = 1;
 }
 
 public abstract class HardwareSettings : Setting
@@ -87,7 +78,12 @@ public abstract class HardwareSettings : Setting
 
 public abstract class InputHardwareSettings : HardwareSettings
 {
-    public Dictionary<InputIo, int> Inputs { get; set; } = [];
+    protected InputHardwareSettings()
+    {
+        Inputs = [];
+    }
+
+    public Dictionary<InputIo, int> Inputs { get; set; }
 
     public IoStatus CreateIoStatus(IoSignals io)
     {
@@ -100,14 +96,16 @@ public abstract class InputHardwareSettings : HardwareSettings
 
 public abstract class IoHardwareSettings : InputHardwareSettings
 {
-    private Dictionary<OutputIo, OutputHardware> _outputs = [];
+    private Dictionary<OutputIo, OutputHardware> _outputs;
+
+    protected IoHardwareSettings()
+    {
+        _outputs = [];
+    }
 
     public Dictionary<OutputIo, OutputHardware> Outputs
     {
-        get
-        {
-            return _outputs;
-        }
+        get => _outputs;
         set
         {
             // Loading addresses must retain the station's completion-sensor definition.

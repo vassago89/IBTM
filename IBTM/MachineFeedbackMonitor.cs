@@ -27,19 +27,26 @@ internal sealed record MotionFeedbackSample(
 // Owns device acquisition independently of views and display calculation.
 public sealed class MachineFeedbackMonitor : IAsyncDisposable
 {
-    private static readonly TimeSpan InputPollInterval = TimeSpan.FromMilliseconds(10);
-    private static readonly TimeSpan OutputPollInterval = TimeSpan.FromMilliseconds(250);
-    private static readonly TimeSpan MotionPollInterval = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan InputPollInterval;
+    private static readonly TimeSpan OutputPollInterval;
+    private static readonly TimeSpan MotionPollInterval;
     private readonly UnitSettings _units;
     private readonly IIoService _io;
     private readonly ApplicationLog? _log;
-    private readonly CancellationTokenSource _lifetime = new();
-    private readonly AsyncAutoResetEvent _outputsRequested = new();
-    private readonly ConcurrentDictionary<MotionGroup, MotionFeedbackSample> _samples = new();
+    private readonly CancellationTokenSource _lifetime;
+    private readonly AsyncAutoResetEvent _outputsRequested;
+    private readonly ConcurrentDictionary<MotionGroup, MotionFeedbackSample> _samples;
     private volatile Exception? _outputReadError;
     private volatile Exception? _failure;
     private Task? _completion;
     private Task _firstSamples = Task.CompletedTask;
+
+    static MachineFeedbackMonitor()
+    {
+        InputPollInterval = TimeSpan.FromMilliseconds(10);
+        OutputPollInterval = TimeSpan.FromMilliseconds(250);
+        MotionPollInterval = TimeSpan.FromMilliseconds(250);
+    }
 
     public MachineFeedbackMonitor(
         UnitSettings units,
@@ -51,6 +58,10 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         InspectionGantry inspection,
         ApplicationLog? log = null)
     {
+        _lifetime = new();
+        _outputsRequested = new();
+        _samples = new();
+
         _units = units;
         _io = io;
         Io = ioSignals;
@@ -74,32 +85,23 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
     internal IReadOnlyDictionary<MotionGroup, MotionStatus> Motions { get; }
 
-    internal Exception? Failure
-    {
-        get
-        {
-            return _failure;
-        }
-    }
+    internal Exception? Failure => _failure;
 
-    internal Task Completion
-    {
-        get
-        {
-            return _completion ?? Task.CompletedTask;
-        }
-    }
+    internal Task Completion => _completion ?? Task.CompletedTask;
 
     internal Exception? ReadError
     {
         get
         {
-            if (_failure is { } failure)
-                return failure;
-            if (!_io.IsReady)
-                return null;
-            if (_outputReadError is { } outputError)
-                return outputError;
+            switch (true)
+            {
+                case true when _failure is { } failure:
+                    return failure;
+                case true when !_io.IsReady:
+                    return null;
+                case true when _outputReadError is { } outputError:
+                    return outputError;
+            }
             foreach (var (group, sample) in _samples)
             {
                 if (_units.IsMotionEnabled(group) && sample.ReadError is { } error)
@@ -133,10 +135,13 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
     internal Task StartAsync()
     {
-        if (_failure is { } failure)
-            return Task.FromException(failure);
-        if (_completion is not null)
-            return _firstSamples;
+        switch (true)
+        {
+            case true when _failure is { } failure:
+                return Task.FromException(failure);
+            case true when _completion is not null:
+                return _firstSamples;
+        }
 
         var firstInputs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstOutputs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

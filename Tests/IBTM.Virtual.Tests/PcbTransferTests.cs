@@ -144,6 +144,7 @@ public sealed class PcbTransferTests
         await source.SetGripperClosedAsync(true);
         await source.SetIpmFixerAsync(true);
         await source.SetRotatedAsync(true);
+        await recipient.MoveToHorizontalZAsync();
         Assert.True(recipient.IsAtHorizontalZ());
         await recipient.SetRotatedAsync(true);
         await recipient.SetLiftDownAsync(true);
@@ -156,7 +157,7 @@ public sealed class PcbTransferTests
         if (supplyFirst)
         {
             // Placement is still outside the shared area; Supply may arrive first.
-            Assert.True(buffer.CanEnterSupply());
+            Assert.True(buffer.IsSupplyEntryAllowed());
             await source.MoveToHandoffAsync(timeout.Token);
         }
         Assert.Equal(PcbPlacementState.RaisingHandler, placer.GetState(new(), HeatSinkSlot.HeatSink1));
@@ -179,7 +180,7 @@ public sealed class PcbTransferTests
             // Placement waits at receiving Z without descending its cylinder.
             Assert.Equal(PcbPlacementState.WaitingForSupply, placer.GetState(new(), HeatSinkSlot.HeatSink1));
             Assert.Null(placer.PlaceStepAsync(new(), HeatSinkSlot.HeatSink1, timeout.Token));
-            Assert.True(buffer.CanEnterSupply());
+            Assert.True(buffer.IsSupplyEntryAllowed());
             await source.MoveToHandoffAsync(timeout.Token);
         }
 
@@ -240,9 +241,9 @@ public sealed class PcbTransferTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true);
-        Assert.False(buffer.CanEnterPlacement());
+        Assert.False(buffer.IsPlacementEntryAllowed());
         await supplyMotion.MoveToAsync(50, 10, supplySettings.RotationZ);
-        Assert.True(buffer.CanEnterPlacement());
+        Assert.True(buffer.IsPlacementEntryAllowed());
         await placementMotion.MoveToAsync(50, 10, 8);
         await recipient.SetLiftDownAsync(true);
 
@@ -305,12 +306,12 @@ public sealed class PcbTransferTests
         Assert.False(source.PcbReleased);
         Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.GetState(new(), HeatSinkSlot.HeatSink1));
         io.SetInput(InputIo.PcbSupplyGripperClosed, false);
-        Assert.False(buffer.CanExitSupply());
+        Assert.False(buffer.IsSupplyExitAllowed());
         io.SetInput(InputIo.PcbPlacementHandlerUp, true); // Down still ON is not confirmed Up.
-        Assert.False(buffer.CanExitSupply());
+        Assert.False(buffer.IsSupplyExitAllowed());
         io.SetInput(InputIo.PcbPlacementHandlerUp, false);
         await placer.PlaceStepAsync(new(), HeatSinkSlot.HeatSink1, CancellationToken.None)!;
-        Assert.True(buffer.CanExitSupply());
+        Assert.True(buffer.IsSupplyExitAllowed());
         Assert.Equal(PcbPlacementState.WaitingForSupplyExit, placer.GetState(new(), HeatSinkSlot.HeatSink1));
 
         var exitRecipe = new PcbSupplyRecipe { Pcb1PickPosition = new() { X = 15, Z = 5 } };
@@ -778,7 +779,7 @@ public sealed class PcbTransferTests
 
         await placementHandler.SetIpmLiftDownAsync(true);
         await placementMotion.MoveToAsync(50, 10, 8);
-        Assert.True(buffer.CanEnterSupply());
+        Assert.True(buffer.IsSupplyEntryAllowed());
 
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var interrupted = false;

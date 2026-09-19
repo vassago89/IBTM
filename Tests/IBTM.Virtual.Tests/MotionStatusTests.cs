@@ -164,13 +164,7 @@ public sealed class MotionStatusTests
             Position = (12, 0, 0);
         }
 
-        public override bool IsReady
-        {
-            get
-            {
-                return ReadinessFailure is { } failure ? throw failure : true;
-            }
-        }
+        public override bool IsReady => ReadinessFailure is { } failure ? throw failure : true;
 
         public override (double X, double Y, double Z) GetPosition()
         {

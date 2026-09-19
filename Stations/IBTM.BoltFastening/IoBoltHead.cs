@@ -18,13 +18,15 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
     private readonly InputIo _fasten;
     private readonly OutputIo _start;
     private readonly OutputIo[] _presets;
-    private readonly AsyncAutoResetEvent _changed = new();
+    private readonly AsyncAutoResetEvent _changed;
     // Observed edges for this command and its uncollected result, not motor state.
     private int _pendingPhase;
     private ushort? _requestedPreset;
 
     public IoBoltHead(IIoService io, FasteningHead head, IoBoltHardwareSettings settings)
     {
+        _changed = new();
+
         _io = io;
         _head = head;
         _settings = settings;
@@ -42,13 +44,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         io.Faulted += OnIoFaulted;
     }
 
-    public bool HasPendingResult
-    {
-        get
-        {
-            return Volatile.Read(ref _pendingPhase) != 0;
-        }
-    }
+    public bool HasPendingResult => Volatile.Read(ref _pendingPhase) != 0;
 
     public Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {

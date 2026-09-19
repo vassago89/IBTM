@@ -11,14 +11,24 @@ public sealed class Recipe
 {
     public const double DefaultCarrierImageMillimetersPerPixel = 0.05;
 
+    public Recipe()
+    {
+        PcbSupply = new();
+        PcbPlacement = new();
+        Pcb = new();
+        BoltFastening = new();
+        BoltInspection = new();
+        CarrierImages = [];
+    }
+
     public string Name { get; set; } = "Default";
-    public PcbSupplyRecipe PcbSupply { get; set; } = new();
-    public PcbPlacementRecipe PcbPlacement { get; set; } = new();
-    public PcbLayout Pcb { get; set; } = new();
-    public BoltFasteningRecipe BoltFastening { get; set; } = new();
-    public BoltInspectionRecipe BoltInspection { get; set; } = new();
+    public PcbSupplyRecipe PcbSupply { get; set; }
+    public PcbPlacementRecipe PcbPlacement { get; set; }
+    public PcbLayout Pcb { get; set; }
+    public BoltFasteningRecipe BoltFastening { get; set; }
+    public BoltInspectionRecipe BoltInspection { get; set; }
     public double CarrierImageMillimetersPerPixel { get; set; } = DefaultCarrierImageMillimetersPerPixel;
-    public List<CarrierImageTile> CarrierImages { get; set; } = [];
+    public List<CarrierImageTile> CarrierImages { get; set; }
 
     public void ReplaceWith(Recipe recipe)
     {

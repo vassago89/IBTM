@@ -148,13 +148,7 @@ public sealed class AutoUnitTests
     {
         public override event Action? Changed;
 
-        public bool HasSubscribers
-        {
-            get
-            {
-                return Changed is not null;
-            }
-        }
+        public bool HasSubscribers => Changed is not null;
 
         public void NotifyChanged()
         {

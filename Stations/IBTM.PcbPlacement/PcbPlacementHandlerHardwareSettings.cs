@@ -59,11 +59,5 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
         };
     }
 
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.PcbPlacementHandler;
-        }
-    }
+    public override HardwareArea Area => HardwareArea.PcbPlacementHandler;
 }

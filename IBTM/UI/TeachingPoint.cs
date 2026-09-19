@@ -8,11 +8,11 @@ namespace IBTM.UI;
 public partial class TeachingPoint : ObservableObject
 {
     [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
-    private double _x;
+    public partial double X { get; set; }
     [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
-    private double _y;
+    public partial double Y { get; set; }
     [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
-    private double? _z;
+    public partial double? Z { get; set; }
 
     public TeachingPoint(TeachingPosition position)
     {
@@ -22,13 +22,7 @@ public partial class TeachingPoint : ObservableObject
 
     public TeachingPosition Position { get; }
 
-    public int BoltNumber
-    {
-        get
-        {
-            return Position.Bolt?.Number ?? 0;
-        }
-    }
+    public int BoltNumber => Position.Bolt?.Number ?? 0;
 
     public string Name
     {
@@ -41,12 +35,15 @@ public partial class TeachingPoint : ObservableObject
                     : $"B{bolt.Number} · Inspection FOV";
             }
 
-            return (Position.Target, Position.MotionGroup) switch
+            switch ((Position.Target, Position.MotionGroup))
             {
-                (TeachingTarget.SafeZ, MotionGroup.PcbSupply) => "Transport / Rotation Z",
-                (TeachingTarget.SafeZ, MotionGroup.BoltFastening) => "Safe Z (Travel)",
-                _ => Position.Target.GetDescription(),
-            };
+                case (TeachingTarget.SafeZ, MotionGroup.PcbSupply):
+                    return "Transport / Rotation Z";
+                case (TeachingTarget.SafeZ, MotionGroup.BoltFastening):
+                    return "Safe Z (Travel)";
+                default:
+                    return Position.Target.GetDescription();
+            }
         }
     }
 
@@ -54,21 +51,30 @@ public partial class TeachingPoint : ObservableObject
     {
         get
         {
-            return Position.Target switch
+            switch (Position.Target)
             {
-                TeachingTarget.BoltPosition => TeachingPointGroup.Calculated,
-                TeachingTarget.SupplyBufferBoundary1 or TeachingTarget.SupplyBufferBoundary2
-                    or TeachingTarget.PlacementBufferBoundary1 or TeachingTarget.PlacementBufferBoundary2
-                    => TeachingPointGroup.Interference,
-                TeachingTarget.SafeZ or TeachingTarget.ShootingHeadFasteningZ
-                    or TeachingTarget.PickupHeadFasteningZ or TeachingTarget.SupplyCarrierY
-                    or TeachingTarget.NgPickupSafeX
-                    or TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin
-                    or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
-                    or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin
-                    => TeachingPointGroup.MachineReference,
-                _ => TeachingPointGroup.Work,
-            };
+                case TeachingTarget.BoltPosition:
+                    return TeachingPointGroup.Calculated;
+                case TeachingTarget.SupplyBufferBoundary1:
+                case TeachingTarget.SupplyBufferBoundary2:
+                case TeachingTarget.PlacementBufferBoundary1:
+                case TeachingTarget.PlacementBufferBoundary2:
+                    return TeachingPointGroup.Interference;
+                case TeachingTarget.SafeZ:
+                case TeachingTarget.ShootingHeadFasteningZ:
+                case TeachingTarget.PickupHeadFasteningZ:
+                case TeachingTarget.SupplyCarrierY:
+                case TeachingTarget.NgPickupSafeX:
+                case TeachingTarget.CarrierUpperLeftLocatingPin:
+                case TeachingTarget.CarrierLowerRightLocatingPin:
+                case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
+                case TeachingTarget.ShootingHeadLowerRightLocatingPin:
+                case TeachingTarget.PickupHeadUpperLeftLocatingPin:
+                case TeachingTarget.PickupHeadLowerRightLocatingPin:
+                    return TeachingPointGroup.MachineReference;
+                default:
+                    return TeachingPointGroup.Work;
+            }
         }
     }
 
@@ -78,15 +84,21 @@ public partial class TeachingPoint : ObservableObject
         {
             if (!Position.HasPosition)
                 return "—";
-            return Position.Mode switch
+            switch (Position.Mode)
             {
-                TeachMode.Image or TeachMode.XYOnly => $"X {X:F3}  Y {Y:F3}",
-                TeachMode.XZOnly => $"X {X:F3}  Z {Z:F3}",
-                TeachMode.XOnly => $"X {X:F3}",
-                TeachMode.YOnly => $"Y {Y:F3}",
-                TeachMode.ZOnly => Z is { } z ? $"Z {z:F3}" : "—",
-                _ => $"X {X:F3}  Y {Y:F3}  Z {Z:F3}",
-            };
+                case TeachMode.Image or TeachMode.XYOnly:
+                    return $"X {X:F3}  Y {Y:F3}";
+                case TeachMode.XZOnly:
+                    return $"X {X:F3}  Z {Z:F3}";
+                case TeachMode.XOnly:
+                    return $"X {X:F3}";
+                case TeachMode.YOnly:
+                    return $"Y {Y:F3}";
+                case TeachMode.ZOnly:
+                    return Z is { } z ? $"Z {z:F3}" : "—";
+                default:
+                    return $"X {X:F3}  Y {Y:F3}  Z {Z:F3}";
+            }
         }
     }
 

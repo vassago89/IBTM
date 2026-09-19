@@ -83,7 +83,6 @@ public abstract class MotionService : IXyMotion
 {
     public const double PositionToleranceMillimeters = 0.05;
 
-    private readonly MotionAxis[] _axes;
     private readonly Func<double>? _horizontalZ;
     private int _activeMotions;
     private int _activeHorizontalMotions;
@@ -101,12 +100,12 @@ public abstract class MotionService : IXyMotion
         HasY = hasY;
         HasZ = hasZ;
         _horizontalZ = horizontalZ;
-        _axes = (hasY, hasZ) switch
+        Axes = (hasY, hasZ) switch
         {
-            (true, true) => [MotionAxis.X, MotionAxis.Y, MotionAxis.Z],
-            (true, false) => [MotionAxis.X, MotionAxis.Y],
-            (false, true) => [MotionAxis.X, MotionAxis.Z],
-            _ => [MotionAxis.X],
+            (true, true) => new[] { MotionAxis.X, MotionAxis.Y, MotionAxis.Z },
+            (true, false) => new[] { MotionAxis.X, MotionAxis.Y },
+            (false, true) => new[] { MotionAxis.X, MotionAxis.Z },
+            _ => new[] { MotionAxis.X },
         };
     }
 
@@ -114,13 +113,7 @@ public abstract class MotionService : IXyMotion
     public event Action<bool>? MovingChanged;
     public event Action? StateChanged;
 
-    public IReadOnlyList<MotionAxis> Axes
-    {
-        get
-        {
-            return _axes;
-        }
-    }
+    public IReadOnlyList<MotionAxis> Axes { get; }
 
     public abstract bool IsReady { get; }
 
@@ -129,38 +122,14 @@ public abstract class MotionService : IXyMotion
     protected MotionSettings Settings { get; }
     protected OperationCancellation Operations { get; }
 
-    public virtual bool IsMoving
-    {
-        get
-        {
-            return Volatile.Read(ref _activeMotions) > 0;
-        }
-    }
+    public virtual bool IsMoving => Volatile.Read(ref _activeMotions) > 0;
 
-    public virtual bool IsMovingHorizontal
-    {
-        get
-        {
-            return Volatile.Read(ref _activeHorizontalMotions) > 0;
-        }
-    }
+    public virtual bool IsMovingHorizontal => Volatile.Read(ref _activeHorizontalMotions) > 0;
 
-    public MotionCommand Command
-    {
-        get
-        {
-            // Command ownership is not hardware movement: external moves have no local command.
-            return Volatile.Read(ref _activeMotions) > 0 ? _command : MotionCommand.None;
-        }
-    }
+    // Command ownership is not hardware movement: external moves have no local command.
+    public MotionCommand Command => Volatile.Read(ref _activeMotions) > 0 ? _command : MotionCommand.None;
 
-    private double HorizontalZ
-    {
-        get
-        {
-            return _horizontalZ!();
-        }
-    }
+    private double HorizontalZ => _horizontalZ!();
 
     public bool IsAtHorizontalZ
     {
@@ -323,7 +292,7 @@ public abstract class MotionService : IXyMotion
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
-        if (!_axes.Contains(axis))
+        if (!Axes.Contains(axis))
         {
             throw new InvalidOperationException($"This motion group has no {axis} axis.");
         }
@@ -356,7 +325,7 @@ public abstract class MotionService : IXyMotion
     public void Reset()
     {
         ResetAlarm();
-        foreach (var axis in _axes)
+        foreach (var axis in Axes)
         {
             SetServo(axis, true);
         }
@@ -449,7 +418,7 @@ public abstract class MotionService : IXyMotion
     {
         if (Volatile.Read(ref _activeMotions) > 0
             || IsMoving
-            || _axes.Any(axis => !GetAxisState(axis).InPosition))
+            || Axes.Any(axis => !GetAxisState(axis).InPosition))
         {
             throw new MotionInterlockException("Wait for all axes to stop and confirm InPosition before moving.");
         }

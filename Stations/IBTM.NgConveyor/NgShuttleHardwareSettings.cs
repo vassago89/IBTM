@@ -18,11 +18,5 @@ public sealed class NgShuttleHardwareSettings : IoHardwareSettings
         };
     }
 
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.NgShuttle;
-        }
-    }
+    public override HardwareArea Area => HardwareArea.NgShuttle;
 }

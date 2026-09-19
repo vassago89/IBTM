@@ -10,7 +10,7 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
-    public bool CanTestBoltHead
+    public bool IsTestBoltHeadAllowed
     {
         get
         {
@@ -20,21 +20,9 @@ public sealed partial class MachineController
         }
     }
 
-    public bool CanUseAdcProtocol
-    {
-        get
-        {
-            return AdcProtocolAvailable && !_state.IsRunning;
-        }
-    }
+    public bool IsUseAdcProtocolAllowed => AdcProtocolAvailable && !_state.IsRunning;
 
-    public bool AdcProtocolAvailable
-    {
-        get
-        {
-            return !_operations.IsShuttingDown && _state.ManualMode && _state.SafetyReady;
-        }
-    }
+    public bool AdcProtocolAvailable => !_operations.IsShuttingDown && _state.ManualMode && _state.SafetyReady;
 
     internal bool IsManualMotionReady(MotionGroup group, bool live = true)
     {
@@ -54,16 +42,21 @@ public sealed partial class MachineController
 
     internal MachineAlarm GetMotionAlarm(MotionGroup group)
     {
-        return group switch
+        switch (group)
         {
-            MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
-            MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
-            MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
-            MotionGroup.InspectionGantry => _units.Inspection
-                ? MachineAlarm.Inspection
-                : MachineAlarm.NgCarrierTransfer,
-            _ => throw new ArgumentOutOfRangeException(nameof(group)),
-        };
+            case MotionGroup.PcbSupply:
+                return MachineAlarm.PcbSupply;
+            case MotionGroup.PcbPlacementHandler:
+                return MachineAlarm.PcbPlacement;
+            case MotionGroup.BoltFastening:
+                return MachineAlarm.BoltFastening;
+            case MotionGroup.InspectionGantry:
+                return _units.Inspection
+                    ? MachineAlarm.Inspection
+                    : MachineAlarm.NgCarrierTransfer;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(group));
+        }
     }
 
     // Acquires ownership and watches availability. The caller executes the device command.
@@ -117,7 +110,7 @@ public sealed partial class MachineController
             StopAndReportFailure(alarm, exception);
     }
 
-    internal bool CanSetServo(MotionGroup group, bool live = true)
+    internal bool IsSetServoAllowed(MotionGroup group, bool live = true)
     {
         return _units.IsMotionEnabled(group)
             && (live
@@ -135,7 +128,7 @@ public sealed partial class MachineController
     {
         try
         {
-            if (!CanSetServo(group))
+            if (!IsSetServoAllowed(group))
                 return;
             using var operation = _operations.TryBegin();
             if (operation is null)
@@ -166,7 +159,7 @@ public sealed partial class MachineController
 
     internal OperationCancellation.Operation BeginAdcProtocol(CancellationToken cancellationToken)
     {
-        if (!CanUseAdcProtocol)
+        if (!IsUseAdcProtocolAllowed)
         {
             throw new InvalidOperationException("ADC diagnostics require an idle machine in manual mode.");
         }

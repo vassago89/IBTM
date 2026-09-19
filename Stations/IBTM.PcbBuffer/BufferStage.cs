@@ -108,28 +108,28 @@ public sealed class BufferStage
 
     // Direct handoffs still require both handlers to be enabled and
     // homed; ignoring an unused drive is not permission to enter an unknown zone.
-    public bool CanEnterSupply(bool live = true)
+    public bool IsSupplyEntryAllowed(bool live = true)
     {
         return IsPositionKnown(live)
             && (!IsPlacementInside(live) || _placementState.HandlerRaised);
     }
 
     // Permission to lower the receiving cylinder; approach motion is independent.
-    public bool CanEnterPlacement(bool live = true)
+    public bool IsPlacementEntryAllowed(bool live = true)
     {
         return IsPositionKnown(live)
             && IsSupplyAtHandoff(live)
             && _supplyState.PcbSecured;
     }
 
-    public bool CanRaisePlacement(bool live = true)
+    public bool IsPlacementRaiseAllowed(bool live = true)
     {
         return IsPositionKnown(live)
             && _supplyState.PcbReleased
             && IsPlacementSecuredAtHandoff(live);
     }
 
-    public bool CanExitSupply(bool live = true)
+    public bool IsSupplyExitAllowed(bool live = true)
     {
         return IsPositionKnown(live)
             && _supplyState.PcbReleased
@@ -182,13 +182,9 @@ public sealed class BufferStage
     public async Task WaitForSupplyOutsideAsync(CancellationToken cancellationToken = default)
     {
         var changed = new AsyncAutoResetEvent();
-        void OnStateChanged()
-        {
-            changed.Set();
-        }
 
-        PositionChanged += OnStateChanged;
-        StateChanged += OnStateChanged;
+        PositionChanged += changed.Set;
+        StateChanged += changed.Set;
         try
         {
             while (!IsSupplyOutside())
@@ -198,8 +194,8 @@ public sealed class BufferStage
         }
         finally
         {
-            PositionChanged -= OnStateChanged;
-            StateChanged -= OnStateChanged;
+            PositionChanged -= changed.Set;
+            StateChanged -= changed.Set;
         }
     }
 

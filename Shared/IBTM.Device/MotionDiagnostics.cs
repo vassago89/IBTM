@@ -12,36 +12,23 @@ public interface IMotionDiagnostics
 
 public sealed record MotionDiagnosticSnapshot(AxisState? State, double? Position, Exception? ReadError)
 {
-    public AxisCondition Condition
-    {
-        get
-        {
-            return AxisStatus.GetCondition(State);
-        }
-    }
+    public AxisCondition Condition => AxisStatus.GetCondition(State);
 
-    public bool? Faulted
-    {
-        get
-        {
-            return State is { } state ? state.Alarm || state.Emergency : null;
-        }
-    }
+    public bool? Faulted => State is { } state ? state.Alarm || state.Emergency : null;
 }
 
 public sealed class MotionDiagnostics : INotifyPropertyChanged
 {
-    private MotionDiagnosticSnapshot _snapshot = new(null, null, null);
+    private MotionDiagnosticSnapshot _snapshot;
+
+    public MotionDiagnostics()
+    {
+        _snapshot = new(null, null, null);
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public MotionDiagnosticSnapshot Snapshot
-    {
-        get
-        {
-            return System.Threading.Volatile.Read(ref _snapshot);
-        }
-    }
+    public MotionDiagnosticSnapshot Snapshot => System.Threading.Volatile.Read(ref _snapshot);
 
     internal void Invalidate(Exception error)
     {

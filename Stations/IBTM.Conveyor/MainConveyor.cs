@@ -50,13 +50,7 @@ public sealed partial class MainConveyor : AutoUnit
 
     public override event Action? Changed;
 
-    public MainConveyorState State
-    {
-        get
-        {
-            return GetState(RunCommandOn);
-        }
-    }
+    public MainConveyorState State => GetState(RunCommandOn);
 
     public bool UpstreamCarrierAvailable
     {
@@ -80,10 +74,7 @@ public sealed partial class MainConveyor : AutoUnit
 
     public bool TestUpstreamCarrierAvailable
     {
-        get
-        {
-            return _testUpstreamCarrierAvailable;
-        }
+        get => _testUpstreamCarrierAvailable;
         set
         {
             // The selector contact is ON in teaching/manual mode.
@@ -97,10 +88,7 @@ public sealed partial class MainConveyor : AutoUnit
 
     public bool TestDownstreamReady
     {
-        get
-        {
-            return _testDownstreamReady;
-        }
+        get => _testDownstreamReady;
         set
         {
             value = value && _io.IsReady && _io.GetInput(InputIo.AutoMode);
@@ -111,29 +99,11 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    public bool RunCommandOn
-    {
-        get
-        {
-            return _io.GetOutput(OutputIo.MainConveyorRun);
-        }
-    }
+    public bool RunCommandOn => _io.GetOutput(OutputIo.MainConveyorRun);
 
-    public bool EntryCarrierDetected
-    {
-        get
-        {
-            return _io.GetInput(InputIo.MainConveyorEntryCarrierDetected);
-        }
-    }
+    public bool EntryCarrierDetected => _io.GetInput(InputIo.MainConveyorEntryCarrierDetected);
 
-    public bool ExitCarrierDetected
-    {
-        get
-        {
-            return _io.GetInput(InputIo.MainConveyorExitCarrierDetected);
-        }
-    }
+    public bool ExitCarrierDetected => _io.GetInput(InputIo.MainConveyorExitCarrierDetected);
 
     public int CarrierCount
     {
@@ -167,51 +137,6 @@ public sealed partial class MainConveyor : AutoUnit
         catch (Exception exception)
         {
             motor.Failure = exception;
-        }
-    }
-
-    public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
-    {
-        _repeat = repeat;
-        try
-        {
-            Stop();
-            using var runCancellation = _operations.Link(cancellationToken);
-            _runCancellation = runCancellation;
-            runCancellation.Disposed += () =>
-            {
-                if (ReferenceEquals(_runCancellation, runCancellation))
-                    _runCancellation = null;
-            };
-            cancellationToken = runCancellation.Token;
-            using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
-            try
-            {
-                BeginRun();
-                try
-                {
-                    while (!cancellationToken.IsCancellationRequested)
-                    {
-                        await ExecuteAsync(cancellationToken);
-                    }
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                }
-                finally
-                {
-                    EndRun(cancellationToken);
-                }
-            }
-            catch (Exception exception)
-            {
-                motor.Failure = exception;
-            }
-        }
-        finally
-        {
-            _repeat = false;
-            _inspectionWork.ClearInspectionRequest();
         }
     }
 

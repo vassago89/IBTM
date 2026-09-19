@@ -18,11 +18,5 @@ public sealed class InspectionGantryHardwareSettings : MotionHardwareSettings
     {
     }
 
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.InspectionGantry;
-        }
-    }
+    public override HardwareArea Area => HardwareArea.InspectionGantry;
 }

@@ -86,92 +86,123 @@ public static class MachinePlan
     public const double InspectionResultsTop = MainTop + 340;
     public const double InspectionResultsLeft = MainLeft + RearInterfaceLeft - InspectionLeft;
 
-    public static Thickness CarrierBorderThickness { get; } = new(CarrierBorder);
+    static MachinePlan()
+    {
+        CarrierBorderThickness = new(CarrierBorder);
+        CarrierContentMargin = new(CarrierPadding);
+        HeatSinkGapWidth = new(HeatSinkGap);
+        SupplySlotGapWidth = new(SupplySlotGap);
+        SupplyCarrierMargin = new(SupplyCarrierPadding);
+        PlacementToolMargin = new(0, 0, 0, PlacementBottomMargin);
+        BufferCenter = (BufferLeft + BufferWidth / 2, BufferTop + BufferHeight / 2);
+        SupplyToolCenter = (SupplyWidth / 2, SupplyHeight - 1 - PcbHeight / 2);
+        SupplyPcb1Center = (
+            SupplyRailLeft
+                + (SupplyRailWidth - SupplyCarrierFrameWidth) / 2
+                + CarrierBorder
+                + SupplyCarrierPadding
+                + (SupplyCarrierWidth - (CarrierBorder + SupplyCarrierPadding) * 2 - SupplySlotGap) / 4,
+            SupplyRailTop + SupplyRailHeight / 2);
+        PlacementToolCenter = (
+            PlacementWidth / 2,
+            PlacementHeight - PlacementBottomMargin - PcbHeight / 2);
+        PlacementHeatSink1 = (
+            PlacementCarrierLeft + CarrierContentInset + (CarrierWidth - CarrierContentInset * 2 - HeatSinkGap) / 4,
+            MainTop + CarrierTop + CarrierHeight / 2);
+        PickupToolCenter = (PickupHeadCenterX, HeadCenterY);
+        ShootingToolCenter = (ShootingHeadLeft + HeadSize / 2, HeadCenterY);
+        FasteningUpperLeft = (
+            MainLeft + FasteningCarrierLeft - FasteningLeft + CarrierWorkInset,
+            MainTop + CarrierTop + CarrierWorkInset);
+        FasteningContentOrigin = (
+            MainLeft + FasteningCarrierLeft - FasteningLeft + CarrierContentInset,
+            MainTop + CarrierTop + CarrierContentInset);
+        InspectionCarrierCenter = (
+            HeaderInset + PlateWidth / 2,
+            MainTop + PlateTop + PlateHeight / 2);
+        NgPickerCenter = (CarrierWidth / 2, CarrierHeight / 2);
+        CameraCenter = (
+            CarrierWidth / 2,
+            CarrierHeight + CameraGap + CameraSize / 2);
+        SupplyPcb2Center = (
+            SupplyPcb1Center.X
+                + (SupplyCarrierWidth - (CarrierBorder + SupplyCarrierPadding) * 2 + SupplySlotGap) / 2,
+            SupplyPcb1Center.Y);
+        PlacementHeatSink2 = (
+            PlacementCarrierLeft + CarrierWidth - (PlacementHeatSink1.X - PlacementCarrierLeft),
+            PlacementHeatSink1.Y);
+        FasteningLowerRight = (
+            FasteningUpperLeft.X + CarrierWidth - CarrierWorkInset * 2,
+            FasteningUpperLeft.Y + CarrierHeight - CarrierWorkInset * 2);
+        InspectionContentOrigin = (
+            InspectionCarrierCenter.X - CarrierWidth / 2 + CarrierContentInset,
+            MainTop + CarrierTop + CarrierContentInset);
+        NgConveyorLeft = InspectionCarrierCenter.X - NgConveyorWidth / 2;
+        NgShuttleCenter = (
+            InspectionCarrierCenter.X,
+            NgConveyorTop + PlatePadding + NgPositionHeight / 2);
+        InspectionUpperLeft = (
+            InspectionCarrierCenter.X - CarrierWidth / 2 + CarrierWorkInset,
+            InspectionCarrierCenter.Y - CarrierHeight / 2 + CarrierWorkInset);
+        InspectionLowerRight = (
+            InspectionCarrierCenter.X + CarrierWidth / 2 - CarrierWorkInset,
+            InspectionCarrierCenter.Y + CarrierHeight / 2 - CarrierWorkInset);
+        NgStatusLeft = NgConveyorLeft + NgConveyorWidth + PositionLabelGap;
+    }
 
-    public static Thickness CarrierContentMargin { get; } = new(CarrierPadding);
+    public static Thickness CarrierBorderThickness { get; }
 
-    public static GridLength HeatSinkGapWidth { get; } = new(HeatSinkGap);
+    public static Thickness CarrierContentMargin { get; }
 
-    public static GridLength SupplySlotGapWidth { get; } = new(SupplySlotGap);
+    public static GridLength HeatSinkGapWidth { get; }
 
-    public static Thickness SupplyCarrierMargin { get; } = new(SupplyCarrierPadding);
+    public static GridLength SupplySlotGapWidth { get; }
 
-    public static Thickness PlacementToolMargin { get; } = new(0, 0, 0, PlacementBottomMargin);
+    public static Thickness SupplyCarrierMargin { get; }
 
-    public static (double X, double Y) BufferCenter { get; } = (BufferLeft + BufferWidth / 2, BufferTop + BufferHeight / 2);
+    public static Thickness PlacementToolMargin { get; }
 
-    public static (double X, double Y) SupplyToolCenter { get; } = (SupplyWidth / 2, SupplyHeight - 1 - PcbHeight / 2);
+    public static (double X, double Y) BufferCenter { get; }
 
-    public static (double X, double Y) SupplyPcb1Center { get; } = (
-        SupplyRailLeft
-            + (SupplyRailWidth - SupplyCarrierFrameWidth) / 2
-            + CarrierBorder
-            + SupplyCarrierPadding
-            + (SupplyCarrierWidth - (CarrierBorder + SupplyCarrierPadding) * 2 - SupplySlotGap) / 4,
-        SupplyRailTop + SupplyRailHeight / 2);
+    public static (double X, double Y) SupplyToolCenter { get; }
 
-    public static (double X, double Y) PlacementToolCenter { get; } = (
-        PlacementWidth / 2,
-        PlacementHeight - PlacementBottomMargin - PcbHeight / 2);
+    public static (double X, double Y) SupplyPcb1Center { get; }
 
-    public static (double X, double Y) PlacementHeatSink1 { get; } = (
-        PlacementCarrierLeft + CarrierContentInset + (CarrierWidth - CarrierContentInset * 2 - HeatSinkGap) / 4,
-        MainTop + CarrierTop + CarrierHeight / 2);
+    public static (double X, double Y) PlacementToolCenter { get; }
 
-    public static (double X, double Y) PickupToolCenter { get; } = (PickupHeadCenterX, HeadCenterY);
+    public static (double X, double Y) PlacementHeatSink1 { get; }
 
-    public static (double X, double Y) ShootingToolCenter { get; } = (ShootingHeadLeft + HeadSize / 2, HeadCenterY);
+    public static (double X, double Y) PickupToolCenter { get; }
 
-    public static (double X, double Y) FasteningUpperLeft { get; } = (
-        MainLeft + FasteningCarrierLeft - FasteningLeft + CarrierWorkInset,
-        MainTop + CarrierTop + CarrierWorkInset);
+    public static (double X, double Y) ShootingToolCenter { get; }
 
-    public static (double X, double Y) FasteningContentOrigin { get; } = (
-        MainLeft + FasteningCarrierLeft - FasteningLeft + CarrierContentInset,
-        MainTop + CarrierTop + CarrierContentInset);
+    public static (double X, double Y) FasteningUpperLeft { get; }
 
-    public static (double X, double Y) InspectionCarrierCenter { get; } = (
-        HeaderInset + PlateWidth / 2,
-        MainTop + PlateTop + PlateHeight / 2);
+    public static (double X, double Y) FasteningContentOrigin { get; }
 
-    public static (double X, double Y) NgPickerCenter { get; } = (CarrierWidth / 2, CarrierHeight / 2);
+    public static (double X, double Y) InspectionCarrierCenter { get; }
 
-    public static (double X, double Y) CameraCenter { get; } = (
-        CarrierWidth / 2,
-        CarrierHeight + CameraGap + CameraSize / 2);
+    public static (double X, double Y) NgPickerCenter { get; }
 
-    public static (double X, double Y) SupplyPcb2Center { get; } = (
-        SupplyPcb1Center.X
-            + (SupplyCarrierWidth - (CarrierBorder + SupplyCarrierPadding) * 2 + SupplySlotGap) / 2,
-        SupplyPcb1Center.Y);
+    public static (double X, double Y) CameraCenter { get; }
 
-    public static (double X, double Y) PlacementHeatSink2 { get; } = (
-        PlacementCarrierLeft + CarrierWidth - (PlacementHeatSink1.X - PlacementCarrierLeft),
-        PlacementHeatSink1.Y);
+    public static (double X, double Y) SupplyPcb2Center { get; }
 
-    public static (double X, double Y) FasteningLowerRight { get; } = (
-        FasteningUpperLeft.X + CarrierWidth - CarrierWorkInset * 2,
-        FasteningUpperLeft.Y + CarrierHeight - CarrierWorkInset * 2);
+    public static (double X, double Y) PlacementHeatSink2 { get; }
 
-    public static (double X, double Y) InspectionContentOrigin { get; } = (
-        InspectionCarrierCenter.X - CarrierWidth / 2 + CarrierContentInset,
-        MainTop + CarrierTop + CarrierContentInset);
+    public static (double X, double Y) FasteningLowerRight { get; }
 
-    public static double NgConveyorLeft { get; } = InspectionCarrierCenter.X - NgConveyorWidth / 2;
+    public static (double X, double Y) InspectionContentOrigin { get; }
 
-    public static (double X, double Y) NgShuttleCenter { get; } = (
-        InspectionCarrierCenter.X,
-        NgConveyorTop + PlatePadding + NgPositionHeight / 2);
+    public static double NgConveyorLeft { get; }
 
-    public static (double X, double Y) InspectionUpperLeft { get; } = (
-        InspectionCarrierCenter.X - CarrierWidth / 2 + CarrierWorkInset,
-        InspectionCarrierCenter.Y - CarrierHeight / 2 + CarrierWorkInset);
+    public static (double X, double Y) NgShuttleCenter { get; }
 
-    public static (double X, double Y) InspectionLowerRight { get; } = (
-        InspectionCarrierCenter.X + CarrierWidth / 2 - CarrierWorkInset,
-        InspectionCarrierCenter.Y + CarrierHeight / 2 - CarrierWorkInset);
+    public static (double X, double Y) InspectionUpperLeft { get; }
 
-    public static double NgStatusLeft { get; } = NgConveyorLeft + NgConveyorWidth + PositionLabelGap;
+    public static (double X, double Y) InspectionLowerRight { get; }
+
+    public static double NgStatusLeft { get; }
 
     public static (double X, double Y) Offset((double X, double Y) point, (double X, double Y) origin)
     {

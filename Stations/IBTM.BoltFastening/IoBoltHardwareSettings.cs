@@ -38,29 +38,36 @@ public sealed class IoBoltHardwareSettings : IoHardwareSettings
 
     public int FasteningTimeoutMilliseconds { get; set; } = 15_000;
 
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.BoltFastening;
-        }
-    }
+    public override HardwareArea Area => HardwareArea.BoltFastening;
 
     public override IoSection? GetSection(Enum signal)
     {
-        return signal switch
+        switch (signal)
         {
-            InputIo.PickupBoltReady or InputIo.PickupBoltAlarm or InputIo.PickupBoltFasten
-                or OutputIo.PickupBoltPreset1 or OutputIo.PickupBoltPreset2 or OutputIo.PickupBoltPreset3
-                or OutputIo.PickupBoltStart or OutputIo.PickupBoltDirection
-                or OutputIo.PickupBoltLock or OutputIo.PickupBoltReset
-                => IoSection.BoltPickupController,
-            InputIo.ShootingBoltReady or InputIo.ShootingBoltAlarm or InputIo.ShootingBoltFasten
-                or OutputIo.ShootingBoltPreset1 or OutputIo.ShootingBoltPreset2 or OutputIo.ShootingBoltPreset3
-                or OutputIo.ShootingBoltStart or OutputIo.ShootingBoltDirection
-                or OutputIo.ShootingBoltLock or OutputIo.ShootingBoltReset
-                => IoSection.BoltShootingController,
-            _ => null,
-        };
+            case InputIo.PickupBoltReady:
+            case InputIo.PickupBoltAlarm:
+            case InputIo.PickupBoltFasten:
+            case OutputIo.PickupBoltPreset1:
+            case OutputIo.PickupBoltPreset2:
+            case OutputIo.PickupBoltPreset3:
+            case OutputIo.PickupBoltStart:
+            case OutputIo.PickupBoltDirection:
+            case OutputIo.PickupBoltLock:
+            case OutputIo.PickupBoltReset:
+                return IoSection.BoltPickupController;
+            case InputIo.ShootingBoltReady:
+            case InputIo.ShootingBoltAlarm:
+            case InputIo.ShootingBoltFasten:
+            case OutputIo.ShootingBoltPreset1:
+            case OutputIo.ShootingBoltPreset2:
+            case OutputIo.ShootingBoltPreset3:
+            case OutputIo.ShootingBoltStart:
+            case OutputIo.ShootingBoltDirection:
+            case OutputIo.ShootingBoltLock:
+            case OutputIo.ShootingBoltReset:
+                return IoSection.BoltShootingController;
+            default:
+                return null;
+        }
     }
 }

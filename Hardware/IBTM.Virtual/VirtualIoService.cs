@@ -47,26 +47,23 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
 
     public bool IsReady
     {
-        get
+        get => _connected;
+        set
         {
-            return _connected;
+            if (_connected == value)
+                return;
+
+            _connected = value;
+            if (!value)
+                Faulted?.Invoke(new InvalidOperationException("Virtual control I/O is disconnected."));
         }
     }
 
-    public int TimeoutMilliseconds
-    {
-        get
-        {
-            return _options.TimeoutMilliseconds;
-        }
-    }
+    public int TimeoutMilliseconds => _options.TimeoutMilliseconds;
 
     public bool AutoResponseEnabled
     {
-        get
-        {
-            return Volatile.Read(ref _autoResponseEnabled);
-        }
+        get => Volatile.Read(ref _autoResponseEnabled);
 
         set
         {
@@ -101,13 +98,7 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
         }
     }
 
-    internal int AutoResponseVersion
-    {
-        get
-        {
-            return Volatile.Read(ref _autoResponseVersion);
-        }
-    }
+    internal int AutoResponseVersion => Volatile.Read(ref _autoResponseVersion);
 
     private static bool[] CreateInitialInputs()
     {
@@ -175,20 +166,6 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
         if (!_connected)
         {
             throw new InvalidOperationException("Virtual control I/O is disconnected.");
-        }
-    }
-
-    public void SetConnected(bool connected)
-    {
-        if (_connected == connected)
-        {
-            return;
-        }
-
-        _connected = connected;
-        if (!connected)
-        {
-            Faulted?.Invoke(new InvalidOperationException("Virtual control I/O is disconnected."));
         }
     }
 

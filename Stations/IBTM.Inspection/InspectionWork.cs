@@ -48,53 +48,17 @@ public sealed class InspectionWork : StationWork
         }
     }
 
-    public bool InspectionRequested
-    {
-        get
-        {
-            return ReferenceEquals(_inspectionRequestedJob, CurrentJob);
-        }
-    }
+    public bool InspectionRequested => ReferenceEquals(_inspectionRequestedJob, CurrentJob);
 
-    public bool PickupClear
-    {
-        get
-        {
-            return _transferFeedback.IsClear;
-        }
-    }
+    public bool PickupClear => _transferFeedback.IsClear;
 
-    public override bool Completed
-    {
-        get
-        {
-            return Enabled ? base.Completed : Station.CarrierPresent;
-        }
-    }
+    public override bool Completed => Enabled ? base.Completed : Station.CarrierPresent;
 
-    public override bool CanTransfer
-    {
-        get
-        {
-            return Station.CarrierPresent && Completed && (AtInspectionPosition || Station.CarrierSeated);
-        }
-    }
+    public override bool IsTransferAllowed => Station.CarrierPresent && Completed && (AtInspectionPosition || Station.CarrierSeated);
 
-    public override bool CanReceive
-    {
-        get
-        {
-            return base.CanReceive && !_transferFeedback.CarrierDetected;
-        }
-    }
+    public override bool IsReceiveAllowed => base.IsReceiveAllowed && !_transferFeedback.CarrierDetected;
 
-    public bool RouteToNg
-    {
-        get
-        {
-            return !Enabled || HasNg;
-        }
-    }
+    public bool RouteToNg => !Enabled || HasNg;
 
     public override bool HasNg
     {
@@ -111,27 +75,21 @@ public sealed class InspectionWork : StationWork
     {
         get
         {
-            if (!Station.CarrierPresent)
+            switch (true)
             {
-                return InspectionWorkState.WaitingForCarrier;
+                case true when !Station.CarrierPresent:
+                    return InspectionWorkState.WaitingForCarrier;
+                case true when Completed:
+                    return InspectionWorkState.WaitingForTransfer;
+                case true when (_isConveyorEnabled?.Invoke() ?? false) && !InspectionRequested:
+                    return InspectionWorkState.WaitingForConveyor;
+                case true when !AtInspectionPosition:
+                    return InspectionWorkState.WaitingForInspectionPosition;
+                default:
+                    return !_transferFeedback.IsClear
+                        ? InspectionWorkState.WaitingForGantry
+                        : InspectionWorkState.ReadyToInspect;
             }
-
-            if (Completed)
-            {
-                return InspectionWorkState.WaitingForTransfer;
-            }
-
-            if ((_isConveyorEnabled?.Invoke() ?? false) && !InspectionRequested)
-                return InspectionWorkState.WaitingForConveyor;
-
-            if (!AtInspectionPosition)
-            {
-                return InspectionWorkState.WaitingForInspectionPosition;
-            }
-
-            return !_transferFeedback.IsClear
-                ? InspectionWorkState.WaitingForGantry
-                : InspectionWorkState.ReadyToInspect;
         }
     }
 

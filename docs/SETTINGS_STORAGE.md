@@ -5,8 +5,11 @@
 | 데이터 | 위치 | 구현 |
 | --- | --- | --- |
 | 장비 설정, 레시피, 촬영 이미지 | 실행 폴더의 `Data/Machine.db` | `Shared/IBTM.Storage/MachineStore.cs` |
-| BitmapSource ↔ PNG | Machine.db 이미지 경계 | `IBTM/RecipeStore.cs` |
-| 레시피 선택·저장·이미지 교체 | UI와 저장소 경계 | `IBTM/UI/RecipeEditor.cs` |
+| 현재 레시피·불러오기·저장·이미지 교체 | 레시피 관리 | `Shared/IBTM.Storage/RecipeManager.cs` |
+| 화면 명령·오류 표시·BitmapSource ↔ PNG | UI와 이미지 경계 | `IBTM/UI/RecipeEditor.cs` |
+
+레시피를 사용하는 클래스에는 `RecipeManager` 싱글턴을 DI로 주입하고 `Current`에서 값을 읽는다.
+레시피 데이터와 조회용 `Func`를 별도로 등록하지 않는다. 레시피 모델은 `Shared/IBTM.Storage/Recipes`에 모았다.
 
 장치 루프는 DB를 조회하지 않는다. 호스트가 읽은 타입 있는 설정을 각 장치에 전달한다.
 축/IO 매핑·속도·간섭 좌표는 장비 설정, 제품별 볼트·Heat Sink·FOV/ROI·촬영 조건은 레시피다.

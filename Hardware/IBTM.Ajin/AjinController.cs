@@ -36,13 +36,7 @@ public sealed class AjinController : IDisposable
         _outputCounts = [];
     }
 
-    public int RtexInputWordCount
-    {
-        get
-        {
-            return _inputModules.Length;
-        }
-    }
+    public int RtexInputWordCount => _inputModules.Length;
 
     public void Initialize()
     {
@@ -186,8 +180,8 @@ public sealed class AjinController : IDisposable
         Check(CAXD.AxdInfoGetModuleCount(ref moduleCount), nameof(CAXD.AxdInfoGetModuleCount));
         _log?.Write(
             $"AJIN DIO module count={moduleCount}; input modules=[{string.Join(",", _inputModules)}], output modules=[{string.Join(
-                ",",
-                _outputModules)}].");
+                    ",",
+                    _outputModules)}].");
         if (moduleCount <= 0)
             throw new IOException($"AJIN reported an invalid DIO module count: {moduleCount}.");
 
@@ -292,8 +286,8 @@ public sealed class AjinController : IDisposable
         {
             throw new IOException(
                 $"{operation}{(module is null
-                    ? ""
-                    : $" (module={module}{(offset is null ? "" : $", offset={offset}")})")} failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
+                        ? ""
+                        : $" (module={module}{(offset is null ? "" : $", offset={offset}")})")} failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
         }
     }
 }

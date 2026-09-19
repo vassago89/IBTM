@@ -194,12 +194,12 @@ public sealed partial class AjinControllerTests
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordPcbBolt(1, new BoltResult(false, 1.25));
         work.Complete(work.CurrentJob);
-        Assert.True(work.CanTransfer);
+        Assert.True(work.IsTransferAllowed);
         var job = work.CurrentJob;
         AjinSdk.Inputs[0] = 0b1110; // Heat Sink 1 -> 2 in one complete physical scan.
         io.RefreshInputs();
         Assert.Same(job, work.CurrentJob);
-        Assert.True(work.CanTransfer);
+        Assert.True(work.IsTransferAllowed);
         Assert.Equal(0, arrivals);
         AjinSdk.Inputs[0] = 0b110;
         io.RefreshInputs();
@@ -213,7 +213,7 @@ public sealed partial class AjinControllerTests
 
         Assert.True(work.Station.CarrierSeated);
         Assert.False(work.Completed);
-        Assert.False(work.CanTransfer);
+        Assert.False(work.IsTransferAllowed);
         Assert.Empty(work.Assemblies);
         Assert.Equal(1, arrivals);
         io.RefreshInputs();

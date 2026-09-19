@@ -20,8 +20,8 @@ namespace IBTM.UI;
 public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 {
     private const int MaximumLogEntries = 1000;
-    private readonly object _frameLogGate = new();
-    private readonly ObservableCollection<string> _frameLog = new();
+    private readonly object _frameLogGate;
+    private readonly ObservableCollection<string> _frameLog;
     private readonly ListCollectionView _frameLogView;
     private string _pausedFrameLogText = "";
 
@@ -36,44 +36,44 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private int _refreshQueued;
     private bool _disposed;
     [ObservableProperty]
-    private bool _isClosing;
+    public partial bool IsClosing { get; set; }
     [ObservableProperty]
-    private string? _closeError;
+    public partial string? CloseError { get; set; }
     [ObservableProperty]
-    private string? _selectedPort;
+    public partial string? SelectedPort { get; set; }
     [ObservableProperty]
-    private int _selectedBaudRate;
+    public partial int SelectedBaudRate { get; set; }
     [ObservableProperty]
-    private string _slaveText = "0";
+    public partial string SlaveText { get; set; } = "0";
     [ObservableProperty]
-    private string _presetText = "1";
+    public partial string PresetText { get; set; } = "1";
     [ObservableProperty]
-    private AdcFunctionCode _registerAccess = AdcFunctionCode.ReadInputRegisters;
+    public partial AdcFunctionCode RegisterAccess { get; set; } = AdcFunctionCode.ReadInputRegisters;
     [ObservableProperty]
-    private string _addressText = ((ushort)AdcResultRegister.EventCount).ToString();
+    public partial string AddressText { get; set; }
     [ObservableProperty]
-    private string _countText = AdcFasteningResult.RegisterCount.ToString();
+    public partial string CountText { get; set; }
     [ObservableProperty]
-    private string _valueText = "0";
+    public partial string ValueText { get; set; } = "0";
     [ObservableProperty]
-    private AdcEventStatus _nextResult = AdcEventStatus.FasteningOk;
+    public partial AdcEventStatus NextResult { get; set; } = AdcEventStatus.FasteningOk;
     [ObservableProperty]
-    private string _selectedLogText = "";
+    public partial string SelectedLogText { get; set; } = "";
 
     [ObservableProperty]
-    private string _connectionStatus = "Disconnected";
+    public partial string ConnectionStatus { get; set; } = "Disconnected";
     [ObservableProperty]
-    private string _connectionAction = "Connect";
+    public partial string ConnectionAction { get; set; } = "Connect";
     [ObservableProperty]
-    private string _resultMessage = "No result read";
+    public partial string ResultMessage { get; set; } = "No result read";
     [ObservableProperty]
-    private string _registerResult = "-";
+    public partial string RegisterResult { get; set; } = "-";
     [ObservableProperty]
-    private string[] _portNames = [];
+    public partial string[] PortNames { get; set; }
     [ObservableProperty]
-    private bool _isLogPaused;
+    public partial bool IsLogPaused { get; set; }
     [ObservableProperty]
-    private string? _clipboardError;
+    public partial string? ClipboardError { get; set; }
 
     public AdcProtocolViewModel(
         IAdcBus bus,
@@ -82,13 +82,26 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         MachineState state,
         ApplicationLog? log = null)
     {
+        _frameLogGate = new();
+        _frameLog = new();
+        AddressText = ((ushort)AdcResultRegister.EventCount).ToString();
+        CountText = AdcFasteningResult.RegisterCount.ToString();
+        PortNames = [];
+        BaudRates = [9600, 19200, 38400, 57600, 115200];
+        RegisterAccesses = [
+            AdcFunctionCode.ReadHoldingRegisters,
+            AdcFunctionCode.ReadInputRegisters,
+            AdcFunctionCode.WriteSingleRegister,
+        ];
+        FasteningResults = [AdcEventStatus.FasteningOk, AdcEventStatus.FasteningNg, AdcEventStatus.Error,];
+
         QueueResultCommand = new RelayCommand(QueueResult);
-        ToggleConnectionCommand = new AsyncRelayCommand(ToggleConnectionAsync, CanConnect);
+        ToggleConnectionCommand = new AsyncRelayCommand(ToggleConnectionAsync, () => IsConnectAllowed);
         SelectPresetCommand = new AsyncRelayCommand(SelectPresetAsync, () => ProtocolEnabled);
-        StartCommand = new AsyncRelayCommand(StartAsync, CanTestBoltHead);
+        StartCommand = new AsyncRelayCommand(StartAsync, () => IsTestBoltHeadAllowed);
         StopCommand = new AsyncRelayCommand(
-            StopAsync, CanStop, AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        ReverseCommand = new AsyncRelayCommand(ReverseAsync, CanTestBoltHead);
+            StopAsync, () => IsStopAllowed, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        ReverseCommand = new AsyncRelayCommand(ReverseAsync, () => IsTestBoltHeadAllowed);
         ReleaseReverseCommand = new RelayCommand(ReleaseReverse);
         ResetAlarmCommand = new AsyncRelayCommand(ResetAlarmAsync, () => ProtocolEnabled);
         ReadResultCommand = new AsyncRelayCommand(ReadResultAsync, () => ProtocolEnabled);
@@ -124,7 +137,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         RefreshControls();
     }
 
-    public int[] BaudRates { get; } = [9600, 19200, 38400, 57600, 115200];
+    public int[] BaudRates { get; }
 
     public string FrameLogText
     {
@@ -136,88 +149,39 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    public AdcFunctionCode[] RegisterAccesses { get; } = [
-        AdcFunctionCode.ReadHoldingRegisters,
-        AdcFunctionCode.ReadInputRegisters,
-        AdcFunctionCode.WriteSingleRegister,
-    ];
+    public AdcFunctionCode[] RegisterAccesses { get; }
 
-    public bool IsVirtual
-    {
-        get
-        {
-            return _bus is VirtualAdcBus;
-        }
-    }
+    public bool IsVirtual => _bus is VirtualAdcBus;
 
-    public AdcEventStatus[] FasteningResults { get; } = [AdcEventStatus.FasteningOk, AdcEventStatus.FasteningNg, AdcEventStatus.Error,];
+    public AdcEventStatus[] FasteningResults { get; }
 
-    public bool ConnectionControlsEnabled
-    {
-        get
-        {
-            return !_disposed && !IsClosing && _operationCancellation is null;
-        }
-    }
+    public bool ConnectionControlsEnabled => !_disposed && !IsClosing && _operationCancellation is null;
 
-    public bool PortSelectionEnabled
-    {
-        get
-        {
-            return ConnectionControlsEnabled && _machine.CanUseAdcProtocol && !_bus.IsOpen;
-        }
-    }
+    public bool PortSelectionEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && !_bus.IsOpen;
 
-    public bool SlaveSelectionEnabled
-    {
-        get
-        {
-            return ConnectionControlsEnabled && (IsVirtual || _machine.CanUseAdcProtocol);
-        }
-    }
+    public bool SlaveSelectionEnabled => ConnectionControlsEnabled && (IsVirtual || _machine.IsUseAdcProtocolAllowed);
 
-    public bool ProtocolEnabled
-    {
-        get
-        {
-            return ConnectionControlsEnabled && _machine.CanUseAdcProtocol && _bus.IsOpen;
-        }
-    }
+    public bool ProtocolEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && _bus.IsOpen;
 
-    public bool VirtualResultEnabled
-    {
-        get
-        {
-            return !IsClosing;
-        }
-    }
+    public bool VirtualResultEnabled => !IsClosing;
 
-    private byte SlaveAddress
-    {
-        get
-        {
-            return byte.Parse(SlaveText);
-        }
-    }
+    private byte SlaveAddress => byte.Parse(SlaveText);
 
     public IRelayCommand QueueResultCommand { get; }
 
     private void QueueResult()
     {
-        if (_bus is not VirtualAdcBus virtualBus)
+        switch (_bus)
         {
-            return;
+            case VirtualAdcBus virtualBus when byte.TryParse(SlaveText, out var slave):
+                var result = NextResult;
+                virtualBus.SetNextFasteningResult(slave, result);
+                AppendLog($"VIRTUAL  Slave {slave}: {result.GetDescription()} set for one fastening");
+                break;
+            case VirtualAdcBus:
+                ConnectionStatus = "Enter a valid slave address";
+                break;
         }
-
-        if (!byte.TryParse(SlaveText, out var slave))
-        {
-            ConnectionStatus = "Enter a valid slave address";
-            return;
-        }
-
-        var result = NextResult;
-        virtualBus.SetNextFasteningResult(slave, result);
-        AppendLog($"VIRTUAL  Slave {slave}: {result.GetDescription()} set for one fastening");
     }
 
     public async Task<bool> TryCloseAsync()
@@ -342,7 +306,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             _machine.EnsureBoltTestAvailable();
             try
             {
-                _state.SetBoltTestRunning(true);
+                _state.BoltTestRunning = true;
                 var head = CreateHead();
                 await head.CheckReadyAsync(operation.Token);
                 ResultMessage = "Fastening...";
@@ -356,7 +320,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             }
             finally
             {
-                _state.SetBoltTestRunning(false);
+                _state.BoltTestRunning = false;
             }
         }
         catch (Exception exception)
@@ -405,7 +369,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-
     private AdcBoltHead CreateHead()
     {
         return new(
@@ -421,7 +384,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     }
 
 
-
     public IAsyncRelayCommand ReverseCommand { get; }
 
     private async Task ReverseAsync(CancellationToken cancellationToken)
@@ -434,7 +396,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             _machine.EnsureBoltTestAvailable();
             try
             {
-                _state.SetBoltTestRunning(true);
+                _state.BoltTestRunning = true;
                 ResultMessage = "Loosening — hold to run; release to stop. No automatic completion judgement.";
                 await CreateHead().RunReverseAsync(operation.Token);
             }
@@ -445,7 +407,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             }
             finally
             {
-                _state.SetBoltTestRunning(false);
+                _state.BoltTestRunning = false;
             }
         }
         catch (Exception exception)
@@ -467,10 +429,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         ReverseCommand.Cancel();
     }
 
-    private bool CanTestBoltHead()
-    {
-        return ProtocolEnabled && _machine.CanTestBoltHead;
-    }
+    private bool IsTestBoltHeadAllowed => ProtocolEnabled && _machine.IsTestBoltHeadAllowed;
 
     public IAsyncRelayCommand ResetAlarmCommand { get; }
 
@@ -591,8 +550,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var address = ushort.Parse(AddressText);
             switch (access)
             {
-                case AdcFunctionCode.ReadHoldingRegisters:
-                case AdcFunctionCode.ReadInputRegisters:
+                case AdcFunctionCode.ReadHoldingRegisters or AdcFunctionCode.ReadInputRegisters:
                     RegisterResult = FormatRegisters(address, await _bus.ReadRegistersAsync(SlaveAddress, access, address, ushort.Parse(CountText), operation.Token));
                     break;
                 case AdcFunctionCode.WriteSingleRegister:
@@ -675,7 +633,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-
     private OperationCancellation.Operation BeginCommand(CancellationToken cancellationToken)
     {
         var operation = _machine.BeginAdcProtocol(cancellationToken);
@@ -756,16 +713,22 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    private bool CanConnect()
+    private bool IsConnectAllowed
     {
-        return ConnectionControlsEnabled && _machine.CanUseAdcProtocol
-            && (_bus.IsOpen || SelectedPort is not null);
+        get
+        {
+            return ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed
+                && (_bus.IsOpen || SelectedPort is not null);
+        }
     }
 
-    private bool CanStop()
+    private bool IsStopAllowed
     {
-        return !_disposed && !IsClosing
-            && (_operationCancellation is not null || _bus.IsOpen && _machine.CanUseAdcProtocol);
+        get
+        {
+            return !_disposed && !IsClosing
+                && (_operationCancellation is not null || _bus.IsOpen && _machine.IsUseAdcProtocolAllowed);
+        }
     }
 
     public void RefreshControls()

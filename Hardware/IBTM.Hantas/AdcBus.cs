@@ -25,29 +25,11 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
-    public bool IsOpen
-    {
-        get
-        {
-            return _port?.IsOpen == true;
-        }
-    }
+    public bool IsOpen => _port?.IsOpen == true;
 
-    public string PortName
-    {
-        get
-        {
-            return _port?.PortName ?? string.Empty;
-        }
-    }
+    public string PortName => _port?.PortName ?? string.Empty;
 
-    public int BaudRate
-    {
-        get
-        {
-            return _port?.BaudRate ?? 0;
-        }
-    }
+    public int BaudRate => _port?.BaudRate ?? 0;
 
     public string[] GetPortNames()
     {

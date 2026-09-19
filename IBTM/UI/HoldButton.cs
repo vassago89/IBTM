@@ -6,43 +6,35 @@ namespace IBTM.UI;
 
 public sealed class HoldButton : Button
 {
-    public static readonly DependencyProperty PressCommandProperty = DependencyProperty.Register(
-        nameof(PressCommand),
-        typeof(ICommand),
-        typeof(HoldButton),
-        new PropertyMetadata(null, OnPressCommandChanged));
+    public static readonly DependencyProperty PressCommandProperty;
 
-    public static readonly DependencyProperty ReleaseCommandProperty = DependencyProperty.Register(
-        nameof(ReleaseCommand),
-        typeof(ICommand),
-        typeof(HoldButton));
+    public static readonly DependencyProperty ReleaseCommandProperty;
 
     private bool _holding;
 
+    static HoldButton()
+    {
+        PressCommandProperty = DependencyProperty.Register(
+            nameof(PressCommand),
+            typeof(ICommand),
+            typeof(HoldButton),
+            new PropertyMetadata(null, OnPressCommandChanged));
+        ReleaseCommandProperty = DependencyProperty.Register(
+            nameof(ReleaseCommand),
+            typeof(ICommand),
+            typeof(HoldButton));
+    }
+
     public ICommand? PressCommand
     {
-        get
-        {
-            return (ICommand?)GetValue(PressCommandProperty);
-        }
-
-        set
-        {
-            SetValue(PressCommandProperty, value);
-        }
+        get => (ICommand?)GetValue(PressCommandProperty);
+        set => SetValue(PressCommandProperty, value);
     }
 
     public ICommand? ReleaseCommand
     {
-        get
-        {
-            return (ICommand?)GetValue(ReleaseCommandProperty);
-        }
-
-        set
-        {
-            SetValue(ReleaseCommandProperty, value);
-        }
+        get => (ICommand?)GetValue(ReleaseCommandProperty);
+        set => SetValue(ReleaseCommandProperty, value);
     }
 
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)

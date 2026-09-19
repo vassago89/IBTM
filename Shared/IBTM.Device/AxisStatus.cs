@@ -33,37 +33,35 @@ public sealed class AxisStatus : INotifyPropertyChanged
 
     public AxisState? State { get; private set; }
 
-    public bool ServoOn
-    {
-        get
-        {
-            return State is { ServoOn: true };
-        }
-    }
+    public bool ServoOn => State is { ServoOn: true };
 
-    public AxisCondition Condition
-    {
-        get
-        {
-            return GetCondition(State);
-        }
-    }
+    public AxisCondition Condition => GetCondition(State);
 
     public static AxisCondition GetCondition(AxisState? state)
     {
-        return state switch
+        switch (state)
         {
-            null => AxisCondition.Unavailable,
-            { Emergency: true } => AxisCondition.Emergency,
-            { Alarm: true } => AxisCondition.Alarm,
-            { NegativeLimit: true } => AxisCondition.NegativeLimit,
-            { PositiveLimit: true } => AxisCondition.PositiveLimit,
-            { ServoOn: false } => AxisCondition.ServoOff,
-            { Homed: false } => AxisCondition.HomeRequired,
-            { InMotion: true } => AxisCondition.Moving,
-            { InPosition: false } => AxisCondition.NotInPosition,
-            _ => AxisCondition.Ready,
-        };
+            case null:
+                return AxisCondition.Unavailable;
+            case { Emergency: true }:
+                return AxisCondition.Emergency;
+            case { Alarm: true }:
+                return AxisCondition.Alarm;
+            case { NegativeLimit: true }:
+                return AxisCondition.NegativeLimit;
+            case { PositiveLimit: true }:
+                return AxisCondition.PositiveLimit;
+            case { ServoOn: false }:
+                return AxisCondition.ServoOff;
+            case { Homed: false }:
+                return AxisCondition.HomeRequired;
+            case { InMotion: true }:
+                return AxisCondition.Moving;
+            case { InPosition: false }:
+                return AxisCondition.NotInPosition;
+            default:
+                return AxisCondition.Ready;
+        }
     }
 
     internal void Update(AxisState? state)

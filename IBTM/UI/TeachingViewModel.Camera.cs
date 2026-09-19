@@ -22,33 +22,33 @@ public partial class TeachingViewModel
     [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
     [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
-    private bool _isMeasuring;
+    public partial bool IsMeasuring { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RulerResolution))]
     [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
-    private ImageRuler? _ruler;
+    public partial ImageRuler? Ruler { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RulerResolution))]
     [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
-    private double? _rulerMillimeters;
+    public partial double? RulerMillimeters { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
     [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
     [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
-    private CarrierImageTileView? _selectedFov;
+    public partial CarrierImageTileView? SelectedFov { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FovRoiLabel))]
     [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
-    private Rect? _fovRegion;
+    public partial Rect? FovRegion { get; set; }
 
     [ObservableProperty]
-    private string? _dataMatrixResult;
+    public partial string? DataMatrixResult { get; set; }
 
-    private readonly object _liveImageGate = new();
+    private readonly object _liveImageGate;
     private ImageFrame? _pendingLiveFrame;
     private bool _liveImageUpdateQueued;
     private Task _liveImageUpdate = Task.CompletedTask;
@@ -73,17 +73,19 @@ public partial class TeachingViewModel
             var saved = metadata?.Region is { } region
                 ? new Rect(region.X, region.Y, region.Width, region.Height)
                 : (Rect?)null;
-            if (FovRegion is not null && FovRegion != saved)
+            switch (true)
             {
-                if (SelectedBarcode is null && SelectedPoint?.Position.Bolt is null)
-                    return "ROI not saved · Add/select a bolt or select Data Matrix, then Apply ROI.";
-                return "ROI not saved · Set the resolution and Apply ROI.";
+                case true when FovRegion is not null && FovRegion != saved:
+                    if (SelectedBarcode is null && SelectedPoint?.Position.Bolt is null)
+                        return "ROI not saved · Add/select a bolt or select Data Matrix, then Apply ROI.";
+                    return "ROI not saved · Set the resolution and Apply ROI.";
+                case true when metadata is { IsBarcode: true } barcode:
+                    return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to replace ROI";
+                default:
+                    return metadata?.BoltNumber is { } number
+                        ? $"{metadata.HeatSink.GetDescription()} · Bolt {number} · Drag to replace ROI"
+                        : "Drag one ROI. Select a bolt or Data Matrix to save it.";
             }
-            if (metadata is { IsBarcode: true } barcode)
-                return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to replace ROI";
-            return metadata?.BoltNumber is { } number
-                ? $"{metadata.HeatSink.GetDescription()} · Bolt {number} · Drag to replace ROI"
-                : "Drag one ROI. Select a bolt or Data Matrix to save it.";
         }
     }
 
@@ -95,7 +97,7 @@ public partial class TeachingViewModel
             Ruler = ruler;
     }
 
-    private bool CanMeasureImage(ImageRuler? ruler)
+    private bool IsMeasureImageAllowed(ImageRuler? ruler)
     {
         if (ruler is null
             || !IsInspectionSelected
@@ -129,7 +131,7 @@ public partial class TeachingViewModel
                 activeToken = operation.Token;
                 operation.Token.ThrowIfCancellationRequested();
                 var positions = new List<(BoltPoint Bolt, AxisPosition? Position)>();
-                foreach (var bolt in RecipeEditor.Recipe.Pcb.BoltPoints)
+                foreach (var bolt in Recipes.Current.Pcb.BoltPoints)
                 {
                     var fov = CarrierImages.SingleOrDefault(image => !image.Metadata.IsBarcode && image.Metadata.HeatSink == bolt.HeatSink && image.Metadata.BoltNumber == bolt.Number);
                     if (fov?.Metadata.Region is not { } region)
@@ -168,11 +170,14 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool CanApplyRulerResolution()
+    private bool IsApplyRulerResolutionAllowed
     {
-        return CanEditTeaching && IsInspectionSelected && IsMeasuring
-            && SelectedFov is not null && RulerResolution is not null
-            && RecipeEditor.CanSave && CarrierImages.Count == RecipeEditor.Recipe.CarrierImages.Count;
+        get
+        {
+            return IsTeachingEditAllowed && IsInspectionSelected && IsMeasuring
+                && SelectedFov is not null && RulerResolution is not null
+                && RecipeEditor.IsSaveAllowed && CarrierImages.Count == Recipes.Current.CarrierImages.Count;
+        }
     }
 
     partial void OnSelectedFovChanged(CarrierImageTileView? value)
@@ -308,15 +313,18 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool CanReadDataMatrix()
+    private bool IsReadDataMatrixAllowed
     {
-        return IsInspectionSelected
-            && SelectedBarcode is not null
-            && SelectedFov is { } fov
-            && FovRegion is { Width: >= 1, Height: >= 1 } bounds
-            && bounds.Left >= 0 && bounds.Top >= 0
-            && bounds.Right <= fov.Image.PixelWidth
-            && bounds.Bottom <= fov.Image.PixelHeight;
+        get
+        {
+            return IsInspectionSelected
+                && SelectedBarcode is not null
+                && SelectedFov is { } fov
+                && FovRegion is { Width: >= 1, Height: >= 1 } bounds
+                && bounds.Left >= 0 && bounds.Top >= 0
+                && bounds.Right <= fov.Image.PixelWidth
+                && bounds.Bottom <= fov.Image.PixelHeight;
+        }
     }
 
     public IAsyncRelayCommand<Rect> DrawFovRegionCommand { get; }
@@ -324,15 +332,15 @@ public partial class TeachingViewModel
     private async Task DrawFovRegionAsync(Rect bounds)
     {
         FovRegion = bounds;
-        if (CanTeachFovRegion(bounds))
+        if (IsTeachFovRegionAllowed(bounds))
             await TeachFovRegionAsync(bounds);
     }
 
-    private bool CanDrawFovRegion(Rect bounds)
+    private bool IsDrawFovRegionAllowed(Rect bounds)
     {
-        return CanEditTeaching
+        return IsTeachingEditAllowed
             && !IsMeasuring
-            && RecipeEditor.CanSave
+            && RecipeEditor.IsSaveAllowed
             && SelectedFov is not null
             && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
     }
@@ -369,7 +377,7 @@ public partial class TeachingViewModel
                 bolt.Y = position?.Y;
             }
 
-            foreach (var tile in RecipeEditor.Recipe.CarrierImages)
+            foreach (var tile in Recipes.Current.CarrierImages)
             {
                 if (tile == fov.Metadata)
                 {
@@ -405,11 +413,11 @@ public partial class TeachingViewModel
             await ReadDataMatrixCommand.ExecuteAsync(null);
     }
 
-    private bool CanTeachFovRegion(Rect bounds)
+    private bool IsTeachFovRegionAllowed(Rect bounds)
     {
-        return CanEditTeaching
+        return IsTeachingEditAllowed
             && !IsMeasuring
-            && RecipeEditor.CanSave
+            && RecipeEditor.IsSaveAllowed
             && SelectedFov is not null
             && (SelectedBarcode is not null
                 || double.IsFinite(MillimetersPerPixel)
@@ -460,13 +468,16 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool CanToggleLiveView()
+    private bool IsToggleLiveViewAllowed
     {
-        return Inspector.IsLiveView
-            || IsInspectionSelected
-                && State.ManualMode
-                && !CaptureCarrierImageCommand.IsRunning
-                && !CaptureInspectionCommand.IsRunning;
+        get
+        {
+            return Inspector.IsLiveView
+                || IsInspectionSelected
+                    && State.ManualMode
+                    && !CaptureCarrierImageCommand.IsRunning
+                    && !CaptureInspectionCommand.IsRunning;
+        }
     }
 
     private void OnInspectionCommandChanged(object? sender, PropertyChangedEventArgs e)
@@ -497,7 +508,7 @@ public partial class TeachingViewModel
             CameraError = null;
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
-            if (CarrierImages.Count != RecipeEditor.Recipe.CarrierImages.Count)
+            if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
                 throw new InvalidOperationException("Load the saved FOV images before adding another image.");
             var captured = await Inspector.CaptureCarrierImageAsync(operation.Token);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
@@ -531,14 +542,17 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool CanCaptureCarrierImage()
+    private bool IsCaptureCarrierImageAllowed
     {
-        return IsInspectionSelected
-            && !State.Display.IsRunning
-            && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
-            && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
-            && MillimetersPerPixel > 0
-            && RecipeEditor.CanSave;
+        get
+        {
+            return IsInspectionSelected
+                && !State.Display.IsRunning
+                && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
+                && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
+                && MillimetersPerPixel > 0
+                && RecipeEditor.IsSaveAllowed;
+        }
     }
 
     public IAsyncRelayCommand CaptureInspectionCommand { get; }
@@ -589,13 +603,16 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool CanCaptureInspection()
+    private bool IsCaptureInspectionAllowed
     {
-        return IsInspectionSelected
-            && CanMoveToPoint()
-            && (SelectedBarcode is { } pcb
-                ? Inspector.HasBarcodeRegion(pcb)
-                : SelectedPoint?.Position.Bolt is { } bolt && Inspector.HasPosition(bolt));
+        get
+        {
+            return IsInspectionSelected
+                && IsMoveToPointAllowed
+                && (SelectedBarcode is { } pcb
+                    ? Inspector.HasBarcodeRegion(pcb)
+                    : SelectedPoint?.Position.Bolt is { } bolt && Inspector.HasPosition(bolt));
+        }
     }
 
     public IAsyncRelayCommand ReinspectImageCommand { get; }
@@ -641,13 +658,15 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool CanReinspectImage()
+    private bool IsReinspectImageAllowed
     {
-        return CanEditTeaching
-            && (IsBoltSelected || IsDataMatrixSelected)
-            && Preview.HasImage && Preview.Region is not null;
+        get
+        {
+            return IsTeachingEditAllowed
+                && (IsBoltSelected || IsDataMatrixSelected)
+                && Preview.HasImage && Preview.Region is not null;
+        }
     }
-
 
     private Task StopCameraLiveAsync()
     {

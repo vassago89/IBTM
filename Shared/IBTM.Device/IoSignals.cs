@@ -49,13 +49,7 @@ public sealed class IoSignals : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public bool InputsAvailable
-    {
-        get
-        {
-            return _io.IsReady;
-        }
-    }
+    public bool InputsAvailable => _io.IsReady;
 
     public IReadOnlyDictionary<InputIo, IoInputStatus> Inputs { get; }
     public IReadOnlyDictionary<OutputIo, IoOutputStatus> Outputs { get; }

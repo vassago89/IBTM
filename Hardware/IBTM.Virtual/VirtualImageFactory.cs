@@ -67,34 +67,27 @@ internal static class VirtualImageFactory
         double y,
         IReadOnlyList<AxisPosition> boltCentres)
     {
-        if (OnRectangle(x, y, 0, 0, 40, 30, 0.12))
+        switch (true)
         {
-            return (94, 104, 116);
-        }
-
-        if (OnRectangle(x, y, 4, 5, 18, 25, 0.10) || OnRectangle(x, y, 22, 5, 36, 25, 0.10))
-        {
-            return (48, 92, 116);
-        }
-
-        if (IsInsideCircle(x, y, 2, 2, 0.6) || IsInsideCircle(x, y, 38, 28, 0.6))
-        {
-            return (40, 190, 230);
+            case true when OnRectangle(x, y, 0, 0, 40, 30, 0.12):
+                return (94, 104, 116);
+            case true when OnRectangle(x, y, 4, 5, 18, 25, 0.10) || OnRectangle(x, y, 22, 5, 36, 25, 0.10):
+                return (48, 92, 116);
+            case true when IsInsideCircle(x, y, 2, 2, 0.6) || IsInsideCircle(x, y, 38, 28, 0.6):
+                return (40, 190, 230);
         }
 
         foreach (var bolt in boltCentres)
         {
             var offsetX = Math.Abs(x - bolt.X);
             var offsetY = Math.Abs(y - bolt.Y);
-            if ((offsetX <= 0.06 && offsetY <= 0.22)
-                || (offsetX <= 0.22 && offsetY <= 0.06))
+            switch (true)
             {
-                return (BoltRecessIntensity, BoltRecessIntensity, BoltRecessIntensity);
-            }
-
-            if (IsInsideCircle(x, y, bolt.X, bolt.Y, BoltRadius))
-            {
-                return (190, 190, 190);
+                case true when (offsetX <= 0.06 && offsetY <= 0.22)
+                    || (offsetX <= 0.22 && offsetY <= 0.06):
+                    return (BoltRecessIntensity, BoltRecessIntensity, BoltRecessIntensity);
+                case true when IsInsideCircle(x, y, bolt.X, bolt.Y, BoltRadius):
+                    return (190, 190, 190);
             }
         }
 

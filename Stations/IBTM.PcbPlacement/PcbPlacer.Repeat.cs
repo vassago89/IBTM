@@ -84,52 +84,59 @@ public sealed partial class PcbPlacer
     {
         if (trip.Phase == RepeatPcbPhase.ToHandoff)
         {
-            if (_handler.IpmLift != PlacementCylinderState.Down)
-                return PcbPlacementState.LoweringIpm;
-            if (_handler.Lift != PlacementCylinderState.Up)
-                return PcbPlacementState.RaisingHandler;
-            if (!_handler.IsAtHorizontalZ(live))
-                return PcbPlacementState.RaisingZ;
-            if (_handler.Rotation != PlacementRotationState.Unrotated)
-                return PcbPlacementState.UnrotatingForBuffer;
-            return PcbPlacementState.MovingAboveBuffer;
+            switch (true)
+            {
+                case true when _handler.IpmLift != PlacementCylinderState.Down:
+                    return PcbPlacementState.LoweringIpm;
+                case true when _handler.Lift != PlacementCylinderState.Up:
+                    return PcbPlacementState.RaisingHandler;
+                case true when !_handler.IsAtHorizontalZ(live):
+                    return PcbPlacementState.RaisingZ;
+                case true when _handler.Rotation != PlacementRotationState.Unrotated:
+                    return PcbPlacementState.UnrotatingForBuffer;
+                default:
+                    return PcbPlacementState.MovingAboveBuffer;
+            }
         }
 
         var position = GetHeatSinkPosition(recipe, trip.HeatSink);
-        if (!_handler.IsAtXY(position, live)
-            || _handler.Rotation != PlacementRotationState.Rotated
-            || !_handler.IsAtZ(position, live))
+        switch (true)
         {
-            if (_handler.Lift != PlacementCylinderState.Up)
-                return PcbPlacementState.RaisingHandler;
-            if (!_handler.IsAtHorizontalZ(live))
-                return PcbPlacementState.RaisingZ;
-            if (_handler.Rotation != PlacementRotationState.Rotated)
-            {
-                return _handler.IsAtXY(recipe.HeatSink1PcbPlacementPosition, live)
-                    ? PcbPlacementState.RotatingForPlacement
-                    : PcbPlacementState.MovingToWaitPosition;
-            }
-            if (!_handler.IsAtXY(position, live))
-                return PcbPlacementState.MovingAboveHeatSink;
-            if (_handler.IpmGripper != PlacementGripperState.Open)
+            case true when !_handler.IsAtXY(position, live)
+                || _handler.Rotation != PlacementRotationState.Rotated
+                || !_handler.IsAtZ(position, live):
+                switch (true)
+                {
+                    case true when _handler.Lift != PlacementCylinderState.Up:
+                        return PcbPlacementState.RaisingHandler;
+                    case true when !_handler.IsAtHorizontalZ(live):
+                        return PcbPlacementState.RaisingZ;
+                    case true when _handler.Rotation != PlacementRotationState.Rotated:
+                        return _handler.IsAtXY(recipe.HeatSink1PcbPlacementPosition, live)
+                            ? PcbPlacementState.RotatingForPlacement
+                            : PcbPlacementState.MovingToWaitPosition;
+                    case true when !_handler.IsAtXY(position, live):
+                        return PcbPlacementState.MovingAboveHeatSink;
+                    case true when _handler.IpmGripper != PlacementGripperState.Open:
+                        return PcbPlacementState.OpeningGripper;
+                    case true when _handler.IpmLift != PlacementCylinderState.Down:
+                        return PcbPlacementState.LoweringIpm;
+                    default:
+                        return PcbPlacementState.LoweringToHeatSink;
+                }
+            case true when !_handler.VacuumDetected && _handler.IpmGripper != PlacementGripperState.Open:
                 return PcbPlacementState.OpeningGripper;
-            if (_handler.IpmLift != PlacementCylinderState.Down)
+            case true when _handler.IpmLift != PlacementCylinderState.Down:
                 return PcbPlacementState.LoweringIpm;
-            return PcbPlacementState.LoweringToHeatSink;
+            case true when _handler.Lift != PlacementCylinderState.Down:
+                return PcbPlacementState.LoweringHandler;
+            case true when _handler.Pcb == PlacementPcbState.None:
+                return PcbPlacementState.WaitingForPcbDetection;
+            case true when !_handler.VacuumDetected:
+                return PcbPlacementState.ApplyingVacuum;
+            default:
+                return PcbPlacementState.ClosingGripper;
         }
-
-        if (!_handler.VacuumDetected && _handler.IpmGripper != PlacementGripperState.Open)
-            return PcbPlacementState.OpeningGripper;
-        if (_handler.IpmLift != PlacementCylinderState.Down)
-            return PcbPlacementState.LoweringIpm;
-        if (_handler.Lift != PlacementCylinderState.Down)
-            return PcbPlacementState.LoweringHandler;
-        if (_handler.Pcb == PlacementPcbState.None)
-            return PcbPlacementState.WaitingForPcbDetection;
-        if (!_handler.VacuumDetected)
-            return PcbPlacementState.ApplyingVacuum;
-        return PcbPlacementState.ClosingGripper;
     }
 
     private enum RepeatPcbPhase { Picking, ToHandoff, Placing, Releasing }

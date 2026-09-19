@@ -16,29 +16,11 @@ public sealed class HardwareMappingRow
     public HardwareSettings Hardware { get; }
     public Enum Signal { get; }
 
-    public HardwareArea Area
-    {
-        get
-        {
-            return Hardware.Area;
-        }
-    }
+    public HardwareArea Area => Hardware.Area;
 
-    public IoSection? Section
-    {
-        get
-        {
-            return Hardware.GetSection(Signal);
-        }
-    }
+    public IoSection? Section => Hardware.GetSection(Signal);
 
-    public int Order
-    {
-        get
-        {
-            return Convert.ToInt32(Signal);
-        }
-    }
+    public int Order => Convert.ToInt32(Signal);
 
     public int Number { get; set; }
     public OutputHardware? Output { get; init; }

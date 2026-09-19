@@ -14,19 +14,18 @@ public sealed class VirtualAdcBus : IAdcBus
     private const string VirtualPort = "Virtual";
     private const int FasteningMilliseconds = 250;
 
-    private readonly ConcurrentDictionary<byte, Controller> _controllers = [];
+    private readonly ConcurrentDictionary<byte, Controller> _controllers;
+
+    public VirtualAdcBus()
+    {
+        _controllers = [];
+    }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
     public bool IsOpen { get; private set; }
 
-    public string PortName
-    {
-        get
-        {
-            return IsOpen ? VirtualPort : string.Empty;
-        }
-    }
+    public string PortName => IsOpen ? VirtualPort : string.Empty;
 
     public int BaudRate { get; private set; }
 
@@ -211,33 +210,48 @@ public sealed class VirtualAdcBus : IAdcBus
 
     private static ushort ReadStatusRegister(Controller controller, ushort address)
     {
-        return (AdcStatusRegister)address switch
+        switch ((AdcStatusRegister)address)
         {
-            AdcStatusRegister.Preset => controller.Preset,
-            AdcStatusRegister.Ready
-                => (ushort)(!controller.Running && controller.Status != AdcEventStatus.Error ? 1 : 0),
-            AdcStatusRegister.MotorRun => (ushort)(controller.Running ? 1 : 0),
-            AdcStatusRegister.Alarm => (ushort)(controller.Status == AdcEventStatus.Error ? 1 : 0),
-            AdcStatusRegister.Direction => (ushort)controller.Direction,
-            _ => 0,
-        };
+            case AdcStatusRegister.Preset:
+                return controller.Preset;
+            case AdcStatusRegister.Ready:
+                return (ushort)(!controller.Running && controller.Status != AdcEventStatus.Error ? 1 : 0);
+            case AdcStatusRegister.MotorRun:
+                return (ushort)(controller.Running ? 1 : 0);
+            case AdcStatusRegister.Alarm:
+                return (ushort)(controller.Status == AdcEventStatus.Error ? 1 : 0);
+            case AdcStatusRegister.Direction:
+                return (ushort)controller.Direction;
+            default:
+                return 0;
+        }
     }
 
     private static ushort ReadResultRegister(Controller controller, ushort address)
     {
-        return (AdcResultRegister)address switch
+        switch ((AdcResultRegister)address)
         {
-            AdcResultRegister.EventCount => controller.EventCount,
-            AdcResultRegister.FasteningTime => FasteningMilliseconds,
-            AdcResultRegister.Preset => controller.Preset,
-            AdcResultRegister.TargetTorque => 100,
-            AdcResultRegister.ConvertedTorque => 100,
-            AdcResultRegister.TargetSpeed => 1_000,
-            AdcResultRegister.ScrewCount => controller.ScrewCount,
-            AdcResultRegister.Direction => (ushort)controller.Direction,
-            AdcResultRegister.Status => (ushort)controller.Status,
-            _ => 0,
-        };
+            case AdcResultRegister.EventCount:
+                return controller.EventCount;
+            case AdcResultRegister.FasteningTime:
+                return FasteningMilliseconds;
+            case AdcResultRegister.Preset:
+                return controller.Preset;
+            case AdcResultRegister.TargetTorque:
+                return 100;
+            case AdcResultRegister.ConvertedTorque:
+                return 100;
+            case AdcResultRegister.TargetSpeed:
+                return 1_000;
+            case AdcResultRegister.ScrewCount:
+                return controller.ScrewCount;
+            case AdcResultRegister.Direction:
+                return (ushort)controller.Direction;
+            case AdcResultRegister.Status:
+                return (ushort)controller.Status;
+            default:
+                return 0;
+        }
     }
 
     private void Transfer(byte[] request, byte[] response)
@@ -253,7 +267,12 @@ public sealed class VirtualAdcBus : IAdcBus
 
     private sealed class Controller
     {
-        public Dictionary<ushort, ushort> Registers { get; } = [];
+        public Controller()
+        {
+            Registers = [];
+        }
+
+        public Dictionary<ushort, ushort> Registers { get; }
         public ushort EventCount { get; set; }
         public ushort Preset { get; set; } = 1;
         public ushort ScrewCount { get; set; }

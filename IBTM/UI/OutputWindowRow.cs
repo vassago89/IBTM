@@ -10,7 +10,7 @@ public sealed partial class OutputWindowRow : ObservableObject
 {
     private readonly MachineController _machine;
     [ObservableProperty]
-    private string? _actionMessage;
+    public partial string? ActionMessage { get; set; }
 
     public OutputWindowRow(IoOutputStatus io, MachineController machine)
     {

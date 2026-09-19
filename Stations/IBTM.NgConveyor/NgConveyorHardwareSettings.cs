@@ -30,33 +30,28 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
         };
     }
 
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.NgConveyor;
-        }
-    }
+    public override HardwareArea Area => HardwareArea.NgConveyor;
 
     public override IoSection? GetSection(System.Enum signal)
     {
-        return signal switch
+        switch (signal)
         {
-            InputIo.NgConveyorPosition1Occupied
-                or InputIo.NgConveyorPosition2Occupied
-                or InputIo.NgConveyorManualMode
-                or InputIo.NgConveyorStopperUp
-                or InputIo.NgConveyorStopperDown
-                or OutputIo.NgConveyorStopperUp
-                or OutputIo.NgConveyorRun
-                or OutputIo.NgConveyorReverse
-                => IoSection.NgConveyorStorage,
-            InputIo.NgCarrierEjectButton
-                or InputIo.NgCarrierEjectCompleteButton
-                or OutputIo.NgCarrierEjectLamp
-                or OutputIo.NgCarrierEjectCompleteLamp
-                => IoSection.NgConveyorOperatorEject,
-            _ => null,
-        };
+            case InputIo.NgConveyorPosition1Occupied:
+            case InputIo.NgConveyorPosition2Occupied:
+            case InputIo.NgConveyorManualMode:
+            case InputIo.NgConveyorStopperUp:
+            case InputIo.NgConveyorStopperDown:
+            case OutputIo.NgConveyorStopperUp:
+            case OutputIo.NgConveyorRun:
+            case OutputIo.NgConveyorReverse:
+                return IoSection.NgConveyorStorage;
+            case InputIo.NgCarrierEjectButton:
+            case InputIo.NgCarrierEjectCompleteButton:
+            case OutputIo.NgCarrierEjectLamp:
+            case OutputIo.NgCarrierEjectCompleteLamp:
+                return IoSection.NgConveyorOperatorEject;
+            default:
+                return null;
+        }
     }
 }

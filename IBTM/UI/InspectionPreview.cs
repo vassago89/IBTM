@@ -7,49 +7,41 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 using IBTM.Inspection;
+using IBTM.Storage;
 
 namespace IBTM.UI;
 // One captured frame, shared by ROI edits and reinspection. Never moves hardware.
 public partial class InspectionPreview : ObservableObject
 {
     private readonly BoltInspector _inspector;
-    private readonly Recipe _recipe;
+    private readonly RecipeManager _recipes;
     private ImageFrame? _frame;
     private BinaryCheckResult? _check;
     private HeatSinkSlot? _pcb;
     private BoltPoint? _bolt;
     private PixelRegion? _sourceRegion;
     [ObservableProperty]
-    private BitmapSource? _image;
+    public partial BitmapSource? Image { get; set; }
     [ObservableProperty]
-    private BitmapSource? _overlay;
+    public partial BitmapSource? Overlay { get; set; }
     [ObservableProperty]
-    private Rect? _region;
+    public partial Rect? Region { get; set; }
     [ObservableProperty]
-    private string? _result;
+    public partial string? Result { get; set; }
 
     public InspectionPreview(
         BoltInspector inspector,
-        Recipe recipe)
+        RecipeManager recipes)
     {
         _inspector = inspector;
-        _recipe = recipe;
+        _recipes = recipes;
     }
 
-    public bool HasImage
-    {
-        get
-        {
-            return _frame is not null;
-        }
-    }
+    public bool HasImage => _frame is not null;
 
     public int BrightnessThreshold
     {
-        get
-        {
-            return _bolt?.BrightnessThreshold ?? _recipe.BoltInspection.BrightnessThreshold;
-        }
+        get => _bolt?.BrightnessThreshold ?? _recipes.Current.BoltInspection.BrightnessThreshold;
 
         set
         {
@@ -68,10 +60,7 @@ public partial class InspectionPreview : ObservableObject
 
     public double MinimumBrightPercent
     {
-        get
-        {
-            return (_bolt?.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio) * 100;
-        }
+        get => (_bolt?.MinimumBrightRatio ?? _recipes.Current.BoltInspection.MinimumBrightRatio) * 100;
 
         set
         {
@@ -166,7 +155,7 @@ public partial class InspectionPreview : ObservableObject
         if (_check is null)
             return;
         var ratio = _check.BrightRatio;
-        var minimum = _bolt?.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio;
+        var minimum = _bolt?.MinimumBrightRatio ?? _recipes.Current.BoltInspection.MinimumBrightRatio;
         Result = $"{(ratio >= minimum ? "OK" : "NG")} · Bright {ratio * 100:0.###}%";
     }
 

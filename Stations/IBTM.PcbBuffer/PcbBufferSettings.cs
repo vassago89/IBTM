@@ -6,10 +6,16 @@ namespace IBTM.PcbBuffer;
 
 public sealed class PcbBufferSettings : Setting
 {
+    public PcbBufferSettings()
+    {
+        PlacementBoundary1 = new();
+        PlacementBoundary2 = new();
+    }
+
     public double SupplyBoundary1 { get; set; }
     public double SupplyBoundary2 { get; set; }
-    public AxisPosition PlacementBoundary1 { get; set; } = new();
-    public AxisPosition PlacementBoundary2 { get; set; } = new();
+    public AxisPosition PlacementBoundary1 { get; set; }
+    public AxisPosition PlacementBoundary2 { get; set; }
 
     public TeachingPosition[] GetTeachingPositions()
     {

@@ -40,7 +40,7 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 | 동사 + `Async()` | 장치 동작 또는 비동기 대기 | `RunAsync()`, `MoveToCarrierAsync()`, `WaitForChangeAsync()` |
 
 메인 컨베이어는 `MainConveyor.Sequence.cs`의 `GetState()`에서 상태를 선택하고,
-`ExecuteAsync()`에서 분기한다. 실제 이송은 `MainConveyor.Transfer.cs`에서 따라간다.
+`RunAsync()` 루프에서 직접 실행한다. 반입·S1→S2·S2→S3는 `MainConveyor.Transfer.cs`의 `TransferAsync()`에서 따라간다.
 체결·검사·안착도 `GetState()`로 판단을 확인하고 `RunAsync()`와 `ExecuteAsync()`에서 실행을 따라간다.
 PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 두어 F12와 함수 중단점으로 찾을 수 있다.
 
@@ -87,7 +87,7 @@ PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 �
 | IO 번호·축 번호 기본값 | 각 유닛의 `*HardwareSettings.cs` |
 | 설정 구성·편집 화면 | `IBTM/MachineSettings.cs`, `IBTM/UI/SettingsViewModel.cs` |
 | DB JSON 저장 | `Shared/IBTM.Storage/MachineStore.cs` |
-| 레시피 이미지 저장·교체 | `IBTM/RecipeStore.cs`, `IBTM/UI/RecipeEditor.cs` |
+| 현재 레시피·저장·이미지 교체 | `Shared/IBTM.Storage/RecipeManager.cs`, `IBTM/UI/RecipeEditor.cs` |
 
 ## 화면과 ViewModel 경계
 
@@ -166,10 +166,10 @@ ROI·대상·촬영 좌표의 화면용 복사본을 추가하지 않는다.
   START/HOME/수동 이동·컨베이어/ADC/초기화·복구와 설정 저장·조명 테스트가 이 경계를 사용한다.
 - `MachineController.StartAsync.StopWhenOperationBecomesUnavailable`: 정지를 요구하는 DI를 먼저
   확인한 뒤 정상 상태에서만 현재 SDK 준비 상태를 읽는다. SDK 대신 캐시로 운전을 허용하지 않는다.
-- `MainConveyor.PrepareEmptyStationsAsync`: 중단된 이송이 있으면 START 준비를 거부한다. 정상 시작에서는 빈 스테이션만 내린다.
+- `MainConveyor.PrepareEmptyStationsAsync`: START 준비에서 빈 스테이션만 내린다. 루프마다 반복하지 않는다.
   캐리어 또는 NG 픽업의 지지 상태는 유지하고, 실제 이송의 Release 단계가 하강을 소유한다.
 - `StationWork.CurrentJob` / `Complete(job)`: 결과와 완료의 작업 주인이다. 캐리어 교체 후 이전 작업의
-  완료는 거부한다. `MainConveyor._transferJob`은 출발 시 결과를 잡아 새 출발 캐리어와 섞이지 않게 한다.
+  완료는 거부한다. `TransferAsync`의 지역 변수 `departingJob`이 출발 결과를 잡아 새 캐리어와 섞이지 않게 한다.
 - `AutoUnit.TraceStep`: 이미 선택한 실행 단계를 로그에 남긴다. 같은 단계·대상·작업·대기 이유가
   유지되는 동안 로그를 반복하지 않는다. 실제 위치·완료 판단에 이 기록을 사용하지 않는다.
 
@@ -288,7 +288,7 @@ PCB를 들고 있을 때는 IPM을 내린 상태를 유지하며, 버튼 표시�
 | 특정 유닛이 시작하지 않음 | `RunAutomaticUnitsAsync`의 해당 유닛 `if`, `RunAutomaticUnitAsync`의 취소 조건 | `_units`, `repeat`, `alarm`, `cycle.IsCancellationRequested` |
 | 자동운전 중 알람 발생 | `RunAutomaticUnitAsync`의 `catch (Exception exception)` | `alarm`은 발생 유닛, `exception`은 원본 오류, `_state.Alarm`은 먼저 발생한 알람 |
 | Repeat 메인 복귀가 취소됨 | `MachineController.Repeat.cs`의 `GetMainConveyorReturnBlock`, `ReturnMainCarrierAsync`의 `CheckPath` | 핸들러 상승·안전 Z, NG 픽업 상승·캐리어 센서; 현재 피드백으로 차단 이유를 반환 |
-| 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.ExecuteAsync`, `ReadState` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
+| 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.RunAsync`, `GetState`, `TransferAsync` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
 | PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)`, `PickPcbAsync` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceStepAsync`의 `switch (state)` | `heatSink`, `state`, `action`; `action == null`이면 피드백 대기 |
 | 공급 진입 또는 안착 인수 실린더가 대기함 | `BufferStage.CanEnterSupply`, `CanEnterPlacement`, `HasConflict` | 도착 순서는 무관; Placement Handler Up/Down 입력, 양쪽 현재 위치·Home·정지 피드백, Supply `PcbSecured`, 인계 좌표 |
@@ -370,22 +370,16 @@ NG 컨베이어의 목적지와 배출 버튼 확인 단계는 현재 실행에�
 이송·배출 중 중단되면 실행 단계를 버린다. 새 START는 현재 센서로 동작을 선택한다.
 정상 이송의 도착 센서 확인, 셔틀 지지, 배출 확인 버튼 및 모터 OFF 정리는 유지한다.
 메인 컨베이어는 중단 단계의 자동 재개를 하지 않는다. `ConveyorTransfer`와 장기 보관 도착 이력은 없다.
-정상 이송은 출발 시 잡은 `StationWork.Job`을 `MoveCarrierAsync`의 도착 이벤트에서 전달하고,
-이송 종료 시 이벤트를 해제한다. 중단 뒤 들어온 신호로 이전 작업 결과를 다른 캐리어에 붙이지 않는다.
-작업 추적 번호는 유지하며, 도착 스테이션의 완료 주인은 새 객체다. 출발지의 다음 작업과 섞지 않는다.
-`MoveCarrierAsync`는 목적지 스토퍼 상승·백업 플레이트 하강과 빈 상태를 먼저 확인한다.
-그 뒤 출발지를 내려 벨트에 놓고, 이송·도착·목적지 상승까지 한 명령에서 처리한다.
-`_executingTransfer`는 이 명령의 실행 중 상태만 표시한다. 하강 중 착좌 상태로 바꾸거나
-구동 중 단순 `Running`으로 덮지 않으며, 정상 종료·취소·오류 모두에서 즉시 지운다.
-이 값으로 센서 피드백을 대신하거나 중단된 이송을 재개하지 않는다.
-`RunToStationAsync`는 현재 구동의 입구·Heat Sink 2 감지와 추가 밀착 시간을 처리한다.
-모터 정지 후 플레이트를 올리는 것까지 한 실행에 포함한다. 취소/오류 때 모터와 이벤트를 정리하고
-지지 출력은 유지한다. 이송 작업 참조는 실행의 지역 변수이며 재시작 차단에 사용하지 않는다.
-이송 중단 뒤 도착한 캐리어에 이전 결과를 붙이지 않으며, 새 START는 현재 피드백으로 동작한다.
-정상 운전에서는 벨트가 정지한 상태에서 감지된 캐리어를 현재 스테이션에서 올린다.
-여러 스테이션에 캐리어가 있으면 동시에 착좌를 시작하고, 각 작업 유닛은 자기 스테이션의
-상승·스토퍼 하강 피드백이 확인되는 즉시 작업한다. 완료된 캐리어의 이송은
-S3 배출 → S2에서 S3 → S1에서 S2 → 신규 반입 순서이며, 목적지가 비어 있어야 한다.
+`RunAsync` 루프는 `GetState`가 선택한 동작을 끝까지 기다린 뒤 현재 피드백을 다시 읽는다.
+반입·S1→S2·S2→S3는 `TransferAsync` 하나에서 목적지 준비 → 출발지 하강 → 구동 →
+HS2 감지·추가 밀착 → 결과 전달 → 정지 → S1/S2 착좌 순서로 실행한다. 반입의 출발지는 `null`이다.
+지역 변수 `departingJob`의 결과는 모터 OFF 전에 도착지에 전달한다. 취소 시 이벤트를 해제하므로
+늦게 들어온 도착 신호가 이전 결과를 다른 캐리어에 붙이지 않는다. 지지 출력은 유지한다.
+`_executingTransfer`는 실행 중인 명령만 표시하고 종료·취소·오류 시 지운다. 재개 이력이 아니다.
+`GetNextTransfer`의 우선순위는 출구 잔류 → S3 배출 → S2→S3 → S1→S2 → 신규 반입이다.
+S1/S2는 동시에 착좌하고 각 유닛이 작업한다. S3는 검사 전에 다른 이송이 가능하면 올려서
+기다린다. 가능한 이송이 끝나면 내리고 검사하며, 검사 요청 후에는 벨트를 정지한다.
+검사 완료 후 NG 픽업 위치 복귀를 확인하고, OK·후단 준비 시 바로 배출하거나 올려서 기다린다.
 착좌 중 STOP 뒤에도 RESET 없이 현재 상승·하강 피드백으로 새 START를 실행한다.
 집중 검사는 `InterruptedSeatingRestartsFromCurrentPresenceWithoutReset`, `InterruptedPlateRaiseUsesFeedbackOnRestartWithoutLoweringSupport`,
 `InterruptedTransferKeepsPendingResultsWithoutMovingThemOnLaterInput`, `ActiveTransferKeepsOriginalResultsWhenSourceGetsAnotherCarrier`,

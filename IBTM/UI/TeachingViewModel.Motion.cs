@@ -16,12 +16,15 @@ public partial class TeachingViewModel
     {
         get
         {
-            return ActiveMotionGroup switch
+            switch (ActiveMotionGroup)
             {
-                MotionGroup.PcbSupply => "Transport / Rotation Z",
-                MotionGroup.PcbPlacementHandler => "Handoff / Travel Z",
-                _ => "Safe Z",
-            };
+                case MotionGroup.PcbSupply:
+                    return "Transport / Rotation Z";
+                case MotionGroup.PcbPlacementHandler:
+                    return "Handoff / Travel Z";
+                default:
+                    return "Safe Z";
+            }
         }
     }
 
@@ -33,45 +36,44 @@ public partial class TeachingViewModel
                 return IsInspectionSelected ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable;
             if (!IsInspectionSelected)
             {
-                if (HomeBlock == HomeBlockReason.UnitDisabled)
-                    return TeachingMotionHint.UnitDisabled;
-                if (Motion.Axes.Values.Any(axis => axis.State is null))
-                    return TeachingMotionHint.MotionUnavailable;
-                if (Motion.Axes.Values.Any(axis => axis.State is { Alarm: true } or { Emergency: true }))
-                    return TeachingMotionHint.AxisFault;
-                if (Motion.Axes.Values.Any(axis => axis.State is { ServoOn: false }))
-                    return TeachingMotionHint.ServoOff;
-                if (Motion.Axes.Values.Any(axis => axis.State is { Homed: false }))
-                    return TeachingMotionHint.HomeRequired;
+                switch (true)
+                {
+                    case true when HomeBlock == HomeBlockReason.UnitDisabled:
+                        return TeachingMotionHint.UnitDisabled;
+                    case true when Motion.Axes.Values.Any(axis => axis.State is null):
+                        return TeachingMotionHint.MotionUnavailable;
+                    case true when Motion.Axes.Values.Any(axis => axis.State is { Alarm: true } or { Emergency: true }):
+                        return TeachingMotionHint.AxisFault;
+                    case true when Motion.Axes.Values.Any(axis => axis.State is { ServoOn: false }):
+                        return TeachingMotionHint.ServoOff;
+                    case true when Motion.Axes.Values.Any(axis => axis.State is { Homed: false }):
+                        return TeachingMotionHint.HomeRequired;
+                }
             }
             if (SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
                 && _ngTransferSettings.PickupSafeX is null)
                 return TeachingMotionHint.NgPickupSafeXRequired;
-            return ActiveMotionGroup switch
+            switch (ActiveMotionGroup)
             {
-                MotionGroup.PcbSupply when State.Display.SupplyInBufferArea
-                    => TeachingMotionHint.SupplyInBufferRestricted,
-                MotionGroup.PcbSupply when CanEditTeaching && !CanJog(MotionAxis.X)
-                    => TeachingMotionHint.SafeZRequired,
-                MotionGroup.PcbPlacementHandler when !_placementHandler.HandlerRaised
-                    => TeachingMotionHint.RaisePlacementCylinders,
-                MotionGroup.BoltFastening => TeachingMotionHint.BoltAdjustment,
-                MotionGroup.InspectionGantry when !_ngTransfer.IsRaised
-                    => TeachingMotionHint.RaiseNgPickup,
-                MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.BufferHandoffPosition.Z)
-                    => TeachingMotionHint.SafeZRequired,
-                _ => TeachingMotionHint.None,
-            };
+                case MotionGroup.PcbSupply when State.Display.SupplyInBufferArea:
+                    return TeachingMotionHint.SupplyInBufferRestricted;
+                case MotionGroup.PcbSupply when IsTeachingEditAllowed && !IsJogAllowed(MotionAxis.X):
+                    return TeachingMotionHint.SafeZRequired;
+                case MotionGroup.PcbPlacementHandler when !_placementHandler.HandlerRaised:
+                    return TeachingMotionHint.RaisePlacementCylinders;
+                case MotionGroup.BoltFastening:
+                    return TeachingMotionHint.BoltAdjustment;
+                case MotionGroup.InspectionGantry when !_ngTransfer.IsRaised:
+                    return TeachingMotionHint.RaiseNgPickup;
+                case MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.BufferHandoffPosition.Z):
+                    return TeachingMotionHint.SafeZRequired;
+                default:
+                    return TeachingMotionHint.None;
+            }
         }
     }
 
-    public HomeBlockReason HomeBlock
-    {
-        get
-        {
-            return IsInspectionSelected ? HomeBlockReason.None : Machine.GetHomeBlock(ActiveMotionGroup);
-        }
-    }
+    public HomeBlockReason HomeBlock => IsInspectionSelected ? HomeBlockReason.None : Machine.GetHomeBlock(ActiveMotionGroup);
 
     private double TeachingXySpeed
     {
@@ -87,19 +89,23 @@ public partial class TeachingViewModel
     {
         get
         {
-            return SelectedTeachingUnit switch
+            switch (SelectedTeachingUnit)
             {
-                HardwareArea.PcbSupply => MotionGroup.PcbSupply,
-                HardwareArea.PcbPlacementHandler => MotionGroup.PcbPlacementHandler,
-                HardwareArea.BoltFastening => MotionGroup.BoltFastening,
-                HardwareArea.InspectionGantry or HardwareArea.NgCarrierTransfer
-                    => MotionGroup.InspectionGantry,
-                _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
-            };
+                case HardwareArea.PcbSupply:
+                    return MotionGroup.PcbSupply;
+                case HardwareArea.PcbPlacementHandler:
+                    return MotionGroup.PcbPlacementHandler;
+                case HardwareArea.BoltFastening:
+                    return MotionGroup.BoltFastening;
+                case HardwareArea.InspectionGantry or HardwareArea.NgCarrierTransfer:
+                    return MotionGroup.InspectionGantry;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit));
+            }
         }
     }
 
-    private bool CanJog(MotionAxis axis)
+    private bool IsJogAllowed(MotionAxis axis)
     {
         return !State.Display.IsRunning
             && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
@@ -138,14 +144,23 @@ public partial class TeachingViewModel
                 return;
             activeCancellation = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            await (group switch
+            switch (group)
             {
-                MotionGroup.PcbSupply => _supplyHandler.JogAsync(axis, velocity, operation.Token),
-                MotionGroup.PcbPlacementHandler => _placementHandler.JogAsync(axis, velocity, operation.Token),
-                MotionGroup.BoltFastening => _fasteningGantry.JogAsync(axis, velocity, operation.Token),
-                MotionGroup.InspectionGantry => _inspectionGantry.JogAsync(axis, velocity, operation.Token),
-                _ => throw new ArgumentOutOfRangeException(nameof(group)),
-            });
+                case MotionGroup.PcbSupply:
+                    await _supplyHandler.JogAsync(axis, velocity, operation.Token);
+                    break;
+                case MotionGroup.PcbPlacementHandler:
+                    await _placementHandler.JogAsync(axis, velocity, operation.Token);
+                    break;
+                case MotionGroup.BoltFastening:
+                    await _fasteningGantry.JogAsync(axis, velocity, operation.Token);
+                    break;
+                case MotionGroup.InspectionGantry:
+                    await _inspectionGantry.JogAsync(axis, velocity, operation.Token);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(group));
+            }
         }
         catch (OperationCanceledException) when (activeCancellation.IsCancellationRequested
             || viewCancellation.IsCancellationRequested
@@ -177,14 +192,22 @@ public partial class TeachingViewModel
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            await (commandGroup switch
+            switch (commandGroup)
             {
-                MotionGroup.PcbSupply => _supplyHandler.MoveToRotationZAsync(operation.Token),
-                MotionGroup.PcbPlacementHandler => _placementHandler.MoveToHorizontalZAsync(operation.Token),
-                MotionGroup.BoltFastening => _fasteningGantry.MoveToSafeZAsync(operation.Token),
-                MotionGroup.InspectionGantry => Task.CompletedTask,
-                _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
-            });
+                case MotionGroup.PcbSupply:
+                    await _supplyHandler.MoveToRotationZAsync(operation.Token);
+                    break;
+                case MotionGroup.PcbPlacementHandler:
+                    await _placementHandler.MoveToHorizontalZAsync(operation.Token);
+                    break;
+                case MotionGroup.BoltFastening:
+                    await _fasteningGantry.MoveToSafeZAsync(operation.Token);
+                    break;
+                case MotionGroup.InspectionGantry:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup));
+            }
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
             || viewToken.IsCancellationRequested
@@ -217,14 +240,23 @@ public partial class TeachingViewModel
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
             var (axis, target) = GetStepTarget(direction, Motion.Feedback.GetPosition());
-            await (commandGroup switch
+            switch (commandGroup)
             {
-                MotionGroup.PcbSupply => _supplyHandler.MoveAxisAsync(axis, target, operation.Token),
-                MotionGroup.PcbPlacementHandler => _placementHandler.MoveAxisAsync(axis, target, operation.Token),
-                MotionGroup.BoltFastening => _fasteningGantry.AdjustAxisAsync(axis, target, JogSpeed, operation.Token),
-                MotionGroup.InspectionGantry => _inspectionGantry.MoveAxisAsync(axis, target, TeachingXySpeed, operation.Token),
-                _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
-            });
+                case MotionGroup.PcbSupply:
+                    await _supplyHandler.MoveAxisAsync(axis, target, operation.Token);
+                    break;
+                case MotionGroup.PcbPlacementHandler:
+                    await _placementHandler.MoveAxisAsync(axis, target, operation.Token);
+                    break;
+                case MotionGroup.BoltFastening:
+                    await _fasteningGantry.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
+                    break;
+                case MotionGroup.InspectionGantry:
+                    await _inspectionGantry.MoveAxisAsync(axis, target, TeachingXySpeed, operation.Token);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup));
+            }
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
             || viewToken.IsCancellationRequested
@@ -269,11 +301,14 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool CanReturnFromPickup()
+    private bool IsReturnFromPickupAllowed
     {
-        return ActiveMotionGroup == MotionGroup.BoltFastening
-            && !State.Display.IsRunning
-            && Machine.IsManualMotionReady(ActiveMotionGroup, live: false);
+        get
+        {
+            return ActiveMotionGroup == MotionGroup.BoltFastening
+                && !State.Display.IsRunning
+                && Machine.IsManualMotionReady(ActiveMotionGroup, live: false);
+        }
     }
 
     public IAsyncRelayCommand MoveToPointCommand { get; }
@@ -296,18 +331,35 @@ public partial class TeachingViewModel
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            await (point.Position.MotionGroup switch
+            switch (point.Position.MotionGroup)
             {
-                MotionGroup.PcbSupply => _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token),
-                MotionGroup.PcbPlacementHandler => _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token),
-                MotionGroup.BoltFastening => _fasteningGantry.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token),
-                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgPickupSafeX => _inspectionGantry.MoveAxisAsync(MotionAxis.X, point.X, TeachingXySpeed, operation.Token),
-                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup => _ngCarrierMove.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token),
-                MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt => Inspector.MoveToAsync(bolt, operation.Token),
-                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.DataMatrix => Inspector.MoveToBarcodeAsync(SelectedPcb, operation.Token),
-                MotionGroup.InspectionGantry => _inspectionGantry.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, TeachingXySpeed, operation.Token),
-                _ => throw new ArgumentOutOfRangeException(nameof(point)),
-            });
+                case MotionGroup.PcbSupply:
+                    await _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
+                    break;
+                case MotionGroup.PcbPlacementHandler:
+                    await _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
+                    break;
+                case MotionGroup.BoltFastening:
+                    await _fasteningGantry.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
+                    break;
+                case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgPickupSafeX:
+                    await _inspectionGantry.MoveAxisAsync(MotionAxis.X, point.X, TeachingXySpeed, operation.Token);
+                    break;
+                case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup:
+                    await _ngCarrierMove.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
+                    break;
+                case MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt:
+                    await Inspector.MoveToAsync(bolt, operation.Token);
+                    break;
+                case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.DataMatrix:
+                    await Inspector.MoveToBarcodeAsync(SelectedPcb, operation.Token);
+                    break;
+                case MotionGroup.InspectionGantry:
+                    await _inspectionGantry.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, TeachingXySpeed, operation.Token);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(point));
+            }
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
             || viewToken.IsCancellationRequested
@@ -320,33 +372,46 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool CanMoveToPoint()
+    private bool IsMoveToPointAllowed
     {
-        if (SelectedPoint is not { } point
-            || State.Display.IsRunning
-            || !Machine.IsManualMotionReady(ActiveMotionGroup, live: false))
-            return false;
-
-        if (ActiveMotionGroup == MotionGroup.PcbSupply)
-            return _supplyHandler.CanMoveToTeachingPosition(point.Position, live: false);
-
-        return (point.Position.Mode == TeachMode.ZOnly || CanMoveHorizontal())
-            && (point.Position.Target != TeachingTarget.NgCarrierPickup
-                || _ngTransferSettings.PickupSafeX is not null)
-            && (IsInspectionSelected && point.Position.Bolt is { } bolt
-                ? Inspector.HasPosition(bolt)
-                : point.Position.HasPosition);
+        get
+        {
+            switch (SelectedPoint)
+            {
+                case null:
+                    return false;
+                case { } when State.Display.IsRunning
+                    || !Machine.IsManualMotionReady(ActiveMotionGroup, live: false):
+                    return false;
+                case { } point when ActiveMotionGroup == MotionGroup.PcbSupply:
+                    return _supplyHandler.IsMoveToTeachingPositionAllowed(point.Position, live: false);
+                case { } point:
+                    return (point.Position.Mode == TeachMode.ZOnly || IsHorizontalMoveAllowed)
+                        && (point.Position.Target != TeachingTarget.NgCarrierPickup
+                            || _ngTransferSettings.PickupSafeX is not null)
+                        && (IsInspectionSelected && point.Position.Bolt is { } bolt
+                            ? Inspector.HasPosition(bolt)
+                            : point.Position.HasPosition);
+            }
+        }
     }
 
-    private bool CanMoveHorizontal()
+    private bool IsHorizontalMoveAllowed
     {
-        return ActiveMotionGroup switch
+        get
         {
-            MotionGroup.PcbPlacementHandler => _placementHandler.HandlerRaised,
-            MotionGroup.BoltFastening => _fasteningGantry.CanMoveHorizontal,
-            MotionGroup.InspectionGantry => _ngTransfer.IsRaised,
-            _ => false,
-        };
+            switch (ActiveMotionGroup)
+            {
+                case MotionGroup.PcbPlacementHandler:
+                    return _placementHandler.HandlerRaised;
+                case MotionGroup.BoltFastening:
+                    return _fasteningGantry.IsHorizontalMoveAllowed;
+                case MotionGroup.InspectionGantry:
+                    return _ngTransfer.IsRaised;
+                default:
+                    return false;
+            }
+        }
     }
 
     private void NotifyManualTeachingCommands()

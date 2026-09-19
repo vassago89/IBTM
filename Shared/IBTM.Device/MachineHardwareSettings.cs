@@ -29,38 +29,33 @@ public sealed class MachineHardwareSettings : IoHardwareSettings
         };
     }
 
-    public override HardwareArea Area
-    {
-        get
-        {
-            return HardwareArea.Machine;
-        }
-    }
+    public override HardwareArea Area => HardwareArea.Machine;
 
     public override IoSection? GetSection(System.Enum signal)
     {
-        return signal switch
+        switch (signal)
         {
-            InputIo.EmergencyStop1Pressed
-                or InputIo.EmergencyStop2Pressed
-                or InputIo.Door1Open
-                or InputIo.Door2Open
-                or InputIo.Door3Open
-                or InputIo.Door4Open
-                or InputIo.Door5Open
-                or InputIo.Door6Open
-                or InputIo.AirPressureHigh
-                => IoSection.MachineSafety,
-            InputIo.ResetButton
-                or InputIo.AutoMode
-                or InputIo.ServoMainContactorOn
-                or OutputIo.TowerLampGreen
-                or OutputIo.TowerLampYellow
-                or OutputIo.TowerLampRed
-                or OutputIo.Buzzer
-                or OutputIo.MachineLight
-                => IoSection.MachineModeUtility,
-            _ => null,
-        };
+            case InputIo.EmergencyStop1Pressed:
+            case InputIo.EmergencyStop2Pressed:
+            case InputIo.Door1Open:
+            case InputIo.Door2Open:
+            case InputIo.Door3Open:
+            case InputIo.Door4Open:
+            case InputIo.Door5Open:
+            case InputIo.Door6Open:
+            case InputIo.AirPressureHigh:
+                return IoSection.MachineSafety;
+            case InputIo.ResetButton:
+            case InputIo.AutoMode:
+            case InputIo.ServoMainContactorOn:
+            case OutputIo.TowerLampGreen:
+            case OutputIo.TowerLampYellow:
+            case OutputIo.TowerLampRed:
+            case OutputIo.Buzzer:
+            case OutputIo.MachineLight:
+                return IoSection.MachineModeUtility;
+            default:
+                return null;
+        }
     }
 }

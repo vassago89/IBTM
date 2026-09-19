@@ -16,9 +16,6 @@ public enum FasteningHead
 
 public sealed class BoltPoint
 {
-    private int? _brightnessThreshold;
-    private double? _minimumBrightRatio;
-
     public int Number { get; set; }
     public HeatSinkSlot HeatSink { get; set; }
     public FasteningHead Head { get; set; } = FasteningHead.Shooting;
@@ -28,29 +25,23 @@ public sealed class BoltPoint
     // Null retains the inspection defaults of recipes saved before per-bolt settings.
     public int? BrightnessThreshold
     {
-        get
-        {
-            return _brightnessThreshold;
-        }
+        get;
         set
         {
             if (value is < 0 or > 255)
                 throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255.");
-            _brightnessThreshold = value;
+            field = value;
         }
     }
 
     public double? MinimumBrightRatio
     {
-        get
-        {
-            return _minimumBrightRatio;
-        }
+        get;
         set
         {
             if (value is { } ratio && !(ratio >= 0 && ratio <= 1))
                 throw new ArgumentOutOfRangeException(nameof(value), "Use a ratio from 0 to 1.");
-            _minimumBrightRatio = value;
+            field = value;
         }
     }
 }

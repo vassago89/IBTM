@@ -20,6 +20,7 @@ public partial class App : System.Windows.Application
     private ApplicationLog? _log;
     private ApplicationTraceListener? _traceListener;
     private IAdcBus? _adcBus;
+    private object? _displayedError;
     private int _exitCode;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -70,16 +71,14 @@ public partial class App : System.Windows.Application
         base.OnStartup(e);
 
         MachineStore database;
-        RecipeStore store;
+        RecipeManager recipes;
         MachineSettings settings;
-        Recipe recipe;
         try
         {
             database = await Task.Run(() => new MachineStore());
-            store = new RecipeStore(database);
             if (DevelopmentProfile.IsEnabled)
             {
-                await DevelopmentProfile.PrepareAsync(store, database);
+                await DevelopmentProfile.PrepareAsync(database);
             }
 
             settings = await MachineSettings.LoadAsync(database);
@@ -88,17 +87,17 @@ public partial class App : System.Windows.Application
                 DevelopmentProfile.UseVirtualHardware(settings);
             }
 
-            recipe = settings.RecipeSelection.LastRecipeName is { } recipeName
-                ? await store.LoadRecipeAsync(recipeName)
-                : new Recipe();
+            recipes = new RecipeManager(database, settings.RecipeSelection);
+            if (settings.RecipeSelection.LastRecipeName is { } recipeName)
+                await recipes.LoadAsync(recipeName);
             _log.Write(
                 $"Settings loaded: {database.DatabaseFile}. Control={settings.Drivers.Control}, Camera={settings.Drivers.Camera}, Light={settings.Drivers.Light}, Bolt={settings.Drivers.Bolt}.");
             _log.Write(
                 $"Connections: AlphaMotion card={settings.AlphaMotion.ControllerNumber}, DI/DO counts detected during initialization; AJIN AxlOpen, interrupt={settings.Ajin.InterruptNumber}, input modules=[{string.Join(
-                    ",",
-                    settings.Ajin.RtexInputModules ?? [])}], output modules=[{string.Join(
                         ",",
-                        settings.Ajin.RtexOutputModules ?? [])}], no .mot file loaded.");
+                        settings.Ajin.RtexInputModules ?? [])}], output modules=[{string.Join(
+                            ",",
+                            settings.Ajin.RtexOutputModules ?? [])}], no .mot file loaded.");
         }
         catch (System.Exception exception)
         {
@@ -116,8 +115,8 @@ public partial class App : System.Windows.Application
 
         var services = new ServiceCollection().AddSingleton(_log)
             .AddSingleton(database)
-            .AddSingleton(store)
-            .AddIbtmApplication(settings, recipe);
+            .AddSingleton(recipes)
+            .AddIbtmApplication(settings);
         var serviceProvider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, });
         _serviceProvider = serviceProvider;
@@ -144,6 +143,7 @@ public partial class App : System.Windows.Application
             {
                 _log?.Error("Final device STOP failed during application exit.", exception);
                 _exitCode = 1;
+                ShowError("Device STOP failed during application exit.", exception);
             }
 
             try
@@ -158,6 +158,7 @@ public partial class App : System.Windows.Application
             {
                 _log?.Error("Device disposal failed during application exit.", exception);
                 _exitCode = 1;
+                ShowError("Device cleanup failed during application exit.", exception);
             }
 
             _serviceProvider = null;
@@ -191,6 +192,7 @@ public partial class App : System.Windows.Application
         {
             _log?.Error("Final device STOP failed during application exit.", exception);
             _exitCode = 1;
+            ShowError("Device STOP failed during application exit.", exception);
         }
         finally
         {
@@ -206,6 +208,7 @@ public partial class App : System.Windows.Application
         System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
     {
         _log?.Error("Unhandled UI exception.", e.Exception);
+        ShowError("An unhandled UI error occurred.", e.Exception);
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -213,6 +216,11 @@ public partial class App : System.Windows.Application
         _log?.Error(
             $"Unhandled exception. Terminating={e.IsTerminating}.",
             e.ExceptionObject as Exception);
+        ShowError(
+            e.IsTerminating
+                ? "An unhandled error occurred. The application will close."
+                : "An unhandled application error occurred.",
+            e.ExceptionObject);
         if (e.IsTerminating)
             _log?.Dispose();
     }
@@ -220,12 +228,30 @@ public partial class App : System.Windows.Application
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
         _log?.Error("Unobserved background task exception.", e.Exception);
+        _ = Dispatcher.InvokeAsync(
+            () => ShowError("A background task failed.", e.Exception));
+    }
+
+    private void ShowError(string message, object error)
+    {
+        // A fatal UI exception can also reach AppDomain.UnhandledException.
+        if (ReferenceEquals(Interlocked.Exchange(ref _displayedError, error), error))
+            return;
+
+        var detail = error is Exception exception
+            ? exception.GetBaseException().Message
+            : error.ToString();
+        MessageBox.Show(
+            $"{message}\n\n{detail}\n\nSee the application log for details.",
+            "IBTM Error",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
     }
 
     private void OnAdcFrameTransferred(AdcFrameDirection direction, byte[] frame)
     {
         _log?.Write(
             $"ADC {(direction == AdcFrameDirection.Transmit ? "TX" : "RX RAW")} {Convert.ToHexString(
-                frame)}");
+                    frame)}");
     }
 }

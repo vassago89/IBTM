@@ -6,9 +6,14 @@ namespace IBTM.Core;
 
 public abstract class AutoUnit
 {
-    private readonly AsyncAutoResetEvent _stateChanged = new();
+    private readonly AsyncAutoResetEvent _stateChanged;
     private string? _lastStep;
     private bool _waiting;
+
+    protected AutoUnit()
+    {
+        _stateChanged = new();
+    }
 
     public abstract event Action? Changed;
     public event Action<string>? Trace;

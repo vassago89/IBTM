@@ -20,13 +20,13 @@ public partial class MotionWindowViewModel : ObservableObject
     private bool _active;
     private int _refreshQueued;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ControlsEnabled))]
-    private bool _isClosing;
+    public partial bool IsClosing { get; set; }
     [ObservableProperty]
-    private string? _closeError;
+    public partial string? CloseError { get; set; }
     [ObservableProperty]
-    private string _search = string.Empty;
+    public partial string Search { get; set; } = string.Empty;
     [ObservableProperty]
-    private bool _enabledOnly = true;
+    public partial bool EnabledOnly { get; set; } = true;
 
     public MotionWindowViewModel(MachineController machine, MachineState state, MachineSettings settings)
     {
@@ -58,13 +58,7 @@ public partial class MotionWindowViewModel : ObservableObject
                         StringComparison.OrdinalIgnoreCase));
     }
 
-    public bool ControlsEnabled
-    {
-        get
-        {
-            return !IsClosing;
-        }
-    }
+    public bool ControlsEnabled => !IsClosing;
 
     public MotionMonitorAxis[] Axes { get; }
     public ICollectionView View { get; }
@@ -73,22 +67,17 @@ public partial class MotionWindowViewModel : ObservableObject
     {
         get
         {
-            if (!_state.Display.Available)
+            switch (true)
             {
-                return "Read only: machine status is unavailable.";
+                case true when !_state.Display.Available:
+                    return "Read only: machine status is unavailable.";
+                case true when _state.Display.AutoMode:
+                    return "AUTO · monitoring only.";
+                case true when _state.Display.IsRunning:
+                    return "Operation in progress · monitoring remains available.";
+                default:
+                    return "MANUAL";
             }
-
-            if (_state.Display.AutoMode)
-            {
-                return "AUTO · monitoring only.";
-            }
-
-            if (_state.Display.IsRunning)
-            {
-                return "Operation in progress · monitoring remains available.";
-            }
-
-            return "MANUAL";
         }
     }
 

@@ -11,6 +11,7 @@ using IBTM.PcbSupply;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using IBTM.Storage;
 
 namespace IBTM.Virtual.Tests;
 
@@ -92,7 +93,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.ShootingBoltFeeder = true;
         await using var services = CreateServices(settings);
-        services.GetRequiredService<Recipe>().Pcb.BoltPoints =
+        services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints =
             [new() { Number = 1, Head = FasteningHead.Shooting, X = 0, Y = 0 }];
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -361,7 +362,7 @@ public sealed partial class MachineLifecycleTests
         var handler = services.GetRequiredService<PcbPlacementHandler>();
         var placer = services.GetRequiredService<PcbPlacer>();
         var work = services.GetRequiredService<PcbPlacementWork>();
-        var recipe = services.GetRequiredService<Recipe>().PcbPlacement;
+        var recipe = services.GetRequiredService<RecipeManager>().Current.PcbPlacement;
         recipe.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -440,7 +441,7 @@ public sealed partial class MachineLifecycleTests
         var handler = services.GetRequiredService<PcbPlacementHandler>();
         var placer = services.GetRequiredService<PcbPlacer>();
         var work = services.GetRequiredService<PcbPlacementWork>();
-        var recipe = services.GetRequiredService<Recipe>().PcbPlacement;
+        var recipe = services.GetRequiredService<RecipeManager>().Current.PcbPlacement;
         recipe.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);

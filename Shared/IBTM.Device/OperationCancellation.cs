@@ -6,11 +6,17 @@ namespace IBTM.Device;
 
 public sealed class OperationCancellation
 {
-    private readonly Lock _gate = new();
-    private CancellationTokenSource _source = new();
+    private readonly Lock _gate;
+    private CancellationTokenSource _source;
     private int _activeOperations;
     private TaskCompletionSource? _shutdown;
     private TaskCompletionSource? _drained;
+
+    public OperationCancellation()
+    {
+        _gate = new();
+        _source = new();
+    }
 
     public event Action? ActivityChanged;
 
@@ -206,21 +212,9 @@ public sealed class OperationCancellation
             _users = 1;
         }
 
-        public CancellationToken Token
-        {
-            get
-            {
-                return _source.Token;
-            }
-        }
+        public CancellationToken Token => _source.Token;
 
-        public bool IsCancellationRequested
-        {
-            get
-            {
-                return _source.IsCancellationRequested;
-            }
-        }
+        public bool IsCancellationRequested => _source.IsCancellationRequested;
 
         public void Cancel()
         {

@@ -17,7 +17,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     private const int EmergencyBit = 6;
     private const int HomeSensorBit = 7;
     private const uint AccelerationInUnitsPerSecondSquared = 0;
-    private static readonly TimeSpan StatusPollInterval = TimeSpan.FromMilliseconds(10);
+    private static readonly TimeSpan StatusPollInterval;
 
     private readonly AjinController _controller;
     private readonly MachineOptions _options;
@@ -25,6 +25,11 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     private readonly int? _axisY;
     private readonly int? _axisZ;
     private readonly Dictionary<int, AxisHardware> _axisParameters;
+
+    static AjinMotionService()
+    {
+        StatusPollInterval = TimeSpan.FromMilliseconds(10);
+    }
 
     public AjinMotionService(
         AjinController controller,
@@ -52,29 +57,11 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             .ToDictionary(axis => axis.Number);
     }
 
-    public override bool IsReady
-    {
-        get
-        {
-            return _axisParameters.Keys.All(DoAxisParametersMatch);
-        }
-    }
+    public override bool IsReady => _axisParameters.Keys.All(DoAxisParametersMatch);
 
-    public override bool IsMoving
-    {
-        get
-        {
-            return Axes.Any(axis => GetAxisState(axis).InMotion);
-        }
-    }
+    public override bool IsMoving => Axes.Any(axis => GetAxisState(axis).InMotion);
 
-    public override bool IsMovingHorizontal
-    {
-        get
-        {
-            return Axes.Any(axis => axis != MotionAxis.Z && GetAxisState(axis).InMotion);
-        }
-    }
+    public override bool IsMovingHorizontal => Axes.Any(axis => axis != MotionAxis.Z && GetAxisState(axis).InMotion);
 
     public override void Initialize()
     {
@@ -122,21 +109,16 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         var distanceX = Math.Abs(x - position.X);
         var distanceY = Math.Abs(y - position.Y);
 
-        if (distanceX == 0 && distanceY == 0)
+        switch ((distanceX, distanceY))
         {
-            return;
-        }
-
-        if (distanceX == 0)
-        {
-            await MoveAsync(MotionAxis.Y, y, velocity, cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        if (distanceY == 0)
-        {
-            await MoveAsync(MotionAxis.X, x, velocity, cancellationToken).ConfigureAwait(false);
-            return;
+            case (0, 0):
+                return;
+            case (0, _):
+                await MoveAsync(MotionAxis.Y, y, velocity, cancellationToken).ConfigureAwait(false);
+                return;
+            case (_, 0):
+                await MoveAsync(MotionAxis.X, x, velocity, cancellationToken).ConfigureAwait(false);
+                return;
         }
 
         ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
@@ -587,12 +569,13 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         error = ReadError(
             CAXM.AxmMotGetMoveUnitPerPulse(axis, ref unit, ref pulse),
             nameof(CAXM.AxmMotGetMoveUnitPerPulse), axis);
-        if (error is not null)
-            return (null, error);
-        if (!double.IsFinite(unit) || unit <= 0 || pulse <= 0)
+        switch (true)
         {
-            return (null, new System.IO.IOException(
-                $"Invalid AJIN position scale (axis={axis}, unit={unit}, pulse={pulse})."));
+            case true when error is not null:
+                return (null, error);
+            case true when !double.IsFinite(unit) || unit <= 0 || pulse <= 0:
+                return (null, new System.IO.IOException(
+                    $"Invalid AJIN position scale (axis={axis}, unit={unit}, pulse={pulse})."));
         }
 
         var millimeters = FromUnits(axis, position, unit, pulse);
@@ -653,13 +636,17 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
     private int GetAxis(MotionAxis axis)
     {
-        return axis switch
+        switch (axis)
         {
-            MotionAxis.X => _axisX,
-            MotionAxis.Y => _axisY!.Value,
-            MotionAxis.Z => _axisZ!.Value,
-            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-        };
+            case MotionAxis.X:
+                return _axisX;
+            case MotionAxis.Y:
+                return _axisY!.Value;
+            case MotionAxis.Z:
+                return _axisZ!.Value;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(axis));
+        }
     }
 
     private static bool IsBitSet(uint value, int bit)

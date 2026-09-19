@@ -13,7 +13,7 @@ public sealed partial class MachineController
     // it does not start a conveyor sequence, move an axis, or wait for a cylinder.
     internal OutputBlockReason ToggleDiagnosticOutput(OutputIo signal)
     {
-        var block = GetManualOutputSafetyBlock();
+        var block = ManualOutputSafetyBlock;
         if (block != OutputBlockReason.None)
         {
             _log?.Write($"Direct output {signal} ignored: [{block}] {block.GetDescription()}");
@@ -37,17 +37,24 @@ public sealed partial class MachineController
     }
 
     // Shared minimum conditions for direct I/O and manual conveyor runs.
-    private OutputBlockReason GetManualOutputSafetyBlock()
+    private OutputBlockReason ManualOutputSafetyBlock
     {
-        if (_operations.IsShuttingDown)
-            return OutputBlockReason.ShuttingDown;
-        if (!_io.IsReady)
-            return OutputBlockReason.IoUnavailable;
-        if (!_state.ManualMode)
-            return OutputBlockReason.AutoMode;
-        if (!_state.EmergencyStopReleased)
-            return OutputBlockReason.EmergencyStop;
-        return OutputBlockReason.None;
+        get
+        {
+            switch (true)
+            {
+                case true when _operations.IsShuttingDown:
+                    return OutputBlockReason.ShuttingDown;
+                case true when !_io.IsReady:
+                    return OutputBlockReason.IoUnavailable;
+                case true when !_state.ManualMode:
+                    return OutputBlockReason.AutoMode;
+                case true when !_state.EmergencyStopReleased:
+                    return OutputBlockReason.EmergencyStop;
+                default:
+                    return OutputBlockReason.None;
+            }
+        }
     }
 
     internal async Task StopManualConveyorAsync(OutputIo signal)
@@ -79,7 +86,7 @@ public sealed partial class MachineController
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var block = GetManualOutputSafetyBlock();
+            var block = ManualOutputSafetyBlock;
             if (block != OutputBlockReason.None)
             {
                 _log?.Write($"Manual conveyor {signal} ignored: [{block}] {block.GetDescription()}");
@@ -109,7 +116,7 @@ public sealed partial class MachineController
                     return;
                 try
                 {
-                    var reason = GetManualOutputSafetyBlock();
+                    var reason = ManualOutputSafetyBlock;
                     if (reason != OutputBlockReason.None)
                     {
                         stopReason = reason;
@@ -211,7 +218,7 @@ public sealed partial class MachineController
     }
 
     // Teaching may coordinate a handler as well as its cylinder output.
-    internal bool CanSetTeachingOutput(TeachingOutput output, bool live = true)
+    internal bool IsSetTeachingOutputAllowed(TeachingOutput output, bool live = true)
     {
         return (live ? _state.ManualSetupEnabled : _state.Display.ManualSetupEnabled)
             && IsTeachingOutputInterlockReady(output.Signal, live)
@@ -221,14 +228,16 @@ public sealed partial class MachineController
 
     private bool IsTeachingOutputInterlockReady(OutputIo signal, bool live)
     {
-        return signal switch
+        switch (signal)
         {
-            OutputIo.PcbSupplyRotate => _supplyHandler.IsInsideBuffer(live) == false,
-            OutputIo.PcbPlacementHandlerRotate
-                => _placementHandler.IsAtHorizontalZ(live)
-                    && _placementHandler.HandlerRaised,
-            _ => true,
-        };
+            case OutputIo.PcbSupplyRotate:
+                return _supplyHandler.IsInsideBuffer(live) == false;
+            case OutputIo.PcbPlacementHandlerRotate:
+                return _placementHandler.IsAtHorizontalZ(live)
+                    && _placementHandler.HandlerRaised;
+            default:
+                return true;
+        }
     }
 
     internal async Task ToggleTeachingOutputAsync(
@@ -240,7 +249,7 @@ public sealed partial class MachineController
         var activeToken = cancellationToken;
         try
         {
-            if (!CanSetTeachingOutput(output))
+            if (!IsSetTeachingOutputAllowed(output))
                 return;
             using var operation = BeginManualOperation(
                 () => _io.IsReady && _state.ManualMode && _state.SafetyReady,
@@ -256,32 +265,64 @@ public sealed partial class MachineController
                 _io.SetOutput(output.Signal, value);
                 return;
             }
-            await (output.Signal switch
+            switch (output.Signal)
             {
-                OutputIo.PcbSupplyGripperClosed => _supplyHandler.SetGripperClosedAsync(value, operation.Token),
-                OutputIo.PcbSupplyIpmFixerForward => _supplyHandler.SetIpmFixerAsync(value, operation.Token),
-                OutputIo.PcbSupplyRotate => _supplyHandler.SetRotatedAsync(value, operation.Token),
-                OutputIo.PcbPlacementHandlerDown => _placementHandler.SetLiftDownAsync(value, operation.Token),
-                OutputIo.PcbPlacementIpmDown => _placementHandler.SetIpmLiftDownAsync(value, operation.Token),
-                OutputIo.PcbPlacementIpmGripperClose => _placementHandler.SetIpmGripperAsync(value, operation.Token),
-                OutputIo.PcbPlacementVacuumEjector => _placementHandler.SetVacuumAsync(value, operation.Token),
-                OutputIo.PcbPlacementHandlerRotate => _placementHandler.SetRotatedAsync(value, operation.Token),
-                OutputIo.PickupHeadDown => _fasteningGantry.SetHeadDownAsync(FasteningHead.Pickup, value, operation.Token),
-                OutputIo.ShootingHeadDown => _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, value, operation.Token),
-                OutputIo.PickupHeadVacuumPump => _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, operation.Token),
-                OutputIo.ShootingHeadVacuumPump => _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, operation.Token),
-                OutputIo.NgCarrierPickupDown => _ngTransfer.SetLiftUpAsync(!value, operation.Token),
-                OutputIo.NgCarrierGripperClose => _ngTransfer.SetGripperOpenAsync(!value, operation.Token),
-                OutputIo.NgShuttleDown => _ngShuttle.SetDownAsync(value, operation.Token),
-                OutputIo.PcbPlacementBackupPlateUp
-                    or OutputIo.BoltFasteningBackupPlateUp
-                    or OutputIo.InspectionBackupPlateUp
-                    or OutputIo.PcbPlacementStopperUp
-                    or OutputIo.BoltFasteningStopperUp
-                    or OutputIo.InspectionStopperUp
-                    => _io.SetOutputAndWaitAsync(output.Signal, value, operation.Token),
-                _ => throw new ArgumentOutOfRangeException(nameof(output)),
-            });
+                case OutputIo.PcbSupplyGripperClosed:
+                    await _supplyHandler.SetGripperClosedAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbSupplyIpmFixerForward:
+                    await _supplyHandler.SetIpmFixerAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbSupplyRotate:
+                    await _supplyHandler.SetRotatedAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbPlacementHandlerDown:
+                    await _placementHandler.SetLiftDownAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbPlacementIpmDown:
+                    await _placementHandler.SetIpmLiftDownAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbPlacementIpmGripperClose:
+                    await _placementHandler.SetIpmGripperAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbPlacementVacuumEjector:
+                    await _placementHandler.SetVacuumAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbPlacementHandlerRotate:
+                    await _placementHandler.SetRotatedAsync(value, operation.Token);
+                    break;
+                case OutputIo.PickupHeadDown:
+                    await _fasteningGantry.SetHeadDownAsync(FasteningHead.Pickup, value, operation.Token);
+                    break;
+                case OutputIo.ShootingHeadDown:
+                    await _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, value, operation.Token);
+                    break;
+                case OutputIo.PickupHeadVacuumPump:
+                    await _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, operation.Token);
+                    break;
+                case OutputIo.ShootingHeadVacuumPump:
+                    await _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, operation.Token);
+                    break;
+                case OutputIo.NgCarrierPickupDown:
+                    await _ngTransfer.SetLiftUpAsync(!value, operation.Token);
+                    break;
+                case OutputIo.NgCarrierGripperClose:
+                    await _ngTransfer.SetGripperOpenAsync(!value, operation.Token);
+                    break;
+                case OutputIo.NgShuttleDown:
+                    await _ngShuttle.SetDownAsync(value, operation.Token);
+                    break;
+                case OutputIo.PcbPlacementBackupPlateUp:
+                case OutputIo.BoltFasteningBackupPlateUp:
+                case OutputIo.InspectionBackupPlateUp:
+                case OutputIo.PcbPlacementStopperUp:
+                case OutputIo.BoltFasteningStopperUp:
+                case OutputIo.InspectionStopperUp:
+                    await _io.SetOutputAndWaitAsync(output.Signal, value, operation.Token);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(output));
+            }
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
             || viewToken.IsCancellationRequested

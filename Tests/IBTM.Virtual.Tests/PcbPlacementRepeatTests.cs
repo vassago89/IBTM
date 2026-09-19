@@ -149,6 +149,12 @@ public sealed class PcbPlacementRepeatTests
 
         public RepeatRig()
         {
+            Recipe = new()
+            {
+                HeatSink1PcbPlacementPosition = new() { X = 70, Y = 20, Z = 10 },
+                HeatSink2PcbPlacementPosition = new() { X = 80, Y = 20, Z = 10 },
+            };
+
             var motion = new MotionSettings { HorizontalSpeed = 2_000, ZSpeed = 2_000 };
             var settings = new PcbPlacementHandlerSettings
             {
@@ -186,19 +192,9 @@ public sealed class PcbPlacementRepeatTests
         public PcbPlacementHandler Handler { get; }
         public PcbPlacementWork Work { get; }
         public PcbPlacer Placer { get; }
-        public PcbPlacementRecipe Recipe { get; } = new()
-        {
-            HeatSink1PcbPlacementPosition = new() { X = 70, Y = 20, Z = 10 },
-            HeatSink2PcbPlacementPosition = new() { X = 80, Y = 20, Z = 10 },
-        };
+        public PcbPlacementRecipe Recipe { get; }
 
-        public AxisPosition[] Positions
-        {
-            get
-            {
-                return [Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition];
-            }
-        }
+        public AxisPosition[] Positions => [Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition];
 
         public async Task InitializeAsync(bool loadPcbs)
         {

@@ -5,11 +5,17 @@ namespace IBTM.PcbSupply;
 
 public sealed class PcbSupplySettings : Setting
 {
-    public MotionSettings Motion { get; set; } = new();
+    public PcbSupplySettings()
+    {
+        Motion = new();
+        BufferHandoffPosition = new();
+    }
+
+    public MotionSettings Motion { get; set; }
     public double RotationZ { get; set; }
     public double CarrierY { get; set; }
     // Handoff uses RotationZ; older saved handoff Z values are no longer read.
-    public XyPosition BufferHandoffPosition { get; set; } = new();
+    public XyPosition BufferHandoffPosition { get; set; }
 
     public TeachingPosition[] GetTeachingPositions(PcbSupplyRecipe recipe)
     {
@@ -28,7 +34,8 @@ public sealed class PcbSupplySettings : Setting
                 () => new() { Y = CarrierY },
                 p => CarrierY = p.Y,
                 this),
-            .. recipe.GetTeachingPositions(this),
+            Pick(TeachingTarget.SupplyPcb1Pick, recipe.Pcb1PickPosition),
+            Pick(TeachingTarget.SupplyPcb2Pick, recipe.Pcb2PickPosition),
             new(
                 TeachingTarget.SupplyBufferHandoff,
                 MotionGroup.PcbSupply,
@@ -37,5 +44,19 @@ public sealed class PcbSupplySettings : Setting
                 p => (BufferHandoffPosition.X, BufferHandoffPosition.Y) = (p.X, p.Y),
                 this) { Staged = true },
         ];
+    }
+
+    private TeachingPosition Pick(TeachingTarget target, PcbPickPosition pick)
+    {
+        return new(
+            target,
+            MotionGroup.PcbSupply,
+            TeachMode.XZOnly,
+            () => new() { X = pick.X, Y = CarrierY, Z = pick.Z },
+            p =>
+            {
+                pick.X = p.X;
+                pick.Z = p.Z;
+            });
     }
 }

@@ -326,7 +326,7 @@ public sealed class HikCameraTests
 
     private sealed class CameraSdk
     {
-        public readonly ConcurrentQueue<string> Calls = new();
+        public readonly ConcurrentQueue<string> Calls;
         public bool NoData;
         public bool ConversionFails;
         public bool FreeFails;
@@ -337,9 +337,15 @@ public sealed class HikCameraTests
         public int ConnectionChecks;
         public uint Width = 1;
         public uint Height = 1;
-        public byte[] RgbPixels = [0, 0, 0];
+        public byte[] RgbPixels;
         private bool _grabbing;
         private bool _bufferHeld;
+
+        public CameraSdk()
+        {
+            Calls = new();
+            RgbPixels = [0, 0, 0];
+        }
 
         public HikCamera CreateCamera(int frameTimeoutMilliseconds = 1_000)
         {
@@ -424,27 +430,25 @@ public sealed class HikCameraTests
             var device = Stub<IDevice>(
                 (method, _) =>
                 {
-                    if (method.Name == "get_IsConnected")
+                    switch (method.Name)
                     {
-                        ConnectionChecks++;
-                        return true;
+                        case "get_IsConnected":
+                            ConnectionChecks++;
+                            return true;
+                        case "Dispose":
+                            Disposed = true;
+                            if (DisposeFails)
+                                throw new InvalidOperationException("Simulated device dispose failure.");
+                            return null;
+                        case "get_Parameters":
+                            return parameters;
+                        case "get_PixelTypeConverter":
+                            return converter;
+                        case "Close":
+                            return CloseFails ? MvError.MV_E_CALLORDER : MvError.MV_OK;
+                        default:
+                            throw new NotSupportedException(method.Name);
                     }
-
-                    if (method.Name == "Dispose")
-                    {
-                        Disposed = true;
-                        if (DisposeFails)
-                            throw new InvalidOperationException("Simulated device dispose failure.");
-                        return null;
-                    }
-
-                    return method.Name switch
-                    {
-                        "get_Parameters" => parameters,
-                        "get_PixelTypeConverter" => converter,
-                        "Close" => CloseFails ? MvError.MV_E_CALLORDER : MvError.MV_OK,
-                        _ => throw new NotSupportedException(method.Name)
-                    };
                 });
             var camera = new HikCamera(new InspectionCameraSettings
             {
