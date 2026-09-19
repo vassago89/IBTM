@@ -46,14 +46,12 @@ public enum TeachingMotionHint
     UnitDisabled,
     [Description("Raise the NG pickup before moving XY.")]
     RaiseNgPickup,
-    [Description("Raise the placement handler before moving X/Y.")]
+    [Description("Raise the placement handler before moving any axis.")]
     RaisePlacementCylinders,
     [Description("Jog/Step adjust one axis at the current height. Raise both heads before moving to a teaching position.")]
     BoltAdjustment,
     [Description("Move to Safe Z before moving X/Y.")]
     SafeZRequired,
-    [Description("Inside the handoff interference area: X/Y moves require Rotation Z; Z moves and rotation are disabled.")]
-    SupplyInBufferRestricted,
     [Description("Home this unit before jogging or moving to a teaching position.")]
     HomeRequired,
     [Description("Turn on this unit's axis servos before moving.")]

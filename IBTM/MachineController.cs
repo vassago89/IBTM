@@ -368,10 +368,10 @@ public sealed partial class MachineController
         string? interlockDetail = null;
         if (_units.PcbPlacement
             && !_placementHandler.HandlerRaised
-            && _placementHandler.Feedback.IsMovingHorizontal)
+            && _placementHandler.Feedback.IsMoving)
         {
             alarm = MachineAlarm.PcbPlacement;
-            interlockDetail = "PCB placement horizontal movement requires the handler lift Up. "
+            interlockDetail = "PCB placement axis movement requires the handler lift Up. "
                 + $"Current lift: {_placementHandler.Lift}.";
         }
         else if (fasteningBlocked)

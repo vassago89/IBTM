@@ -24,7 +24,7 @@ public sealed class InspectionTests
             () => (10, 17, 0),
             () => [],
             () => [new(new() { X = 13, Y = 15 }, 4, 4, "PCB-000123")]);
-        var image = await camera.CaptureAsync(500, 0);
+        var image = await camera.CaptureAsync();
         var stride = image.Stride + 5;
         var pixels = new byte[stride * image.Height];
         for (var row = 0; row < image.Height; row++)
@@ -445,9 +445,9 @@ public sealed class InspectionTests
             _camera.Initialize();
         }
 
-        public async Task<ImageFrame> CaptureAsync(double exposureMicroseconds, double gain, CancellationToken cancellationToken = default)
+        public async Task<ImageFrame> CaptureAsync(CancellationToken cancellationToken = default)
         {
-            var image = await _camera.CaptureAsync(exposureMicroseconds, gain, cancellationToken);
+            var image = await _camera.CaptureAsync(cancellationToken);
             var current = _position();
             var missing = Math.Abs(current.X - _missingPosition.X) <= MotionService.PositionToleranceMillimeters
                 && Math.Abs(current.Y - _missingPosition.Y) <= MotionService.PositionToleranceMillimeters;
@@ -462,7 +462,7 @@ public sealed class InspectionTests
             return captured;
         }
 
-        public void StartLiveView(double exposureMicroseconds, double gain)
+        public void StartLiveView()
         {
         }
 

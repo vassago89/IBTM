@@ -1211,12 +1211,12 @@ public sealed class IoStartupTests
             Assert.Equal(
                 group == HardwareArea.InspectionGantry ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable,
                 station.MotionHint);
-            Assert.False(station.CaptureCarrierImageCommand.CanExecute(null));
+            Assert.False(station.GrabCommand.CanExecute(null));
             foreach (var point in station.FilteredPoints.Where(point => point.Position.Storage == TeachingStorage.Buffer))
             {
                 station.SelectedPoint = point;
                 Assert.Equal(TeachingMotionHint.MotionUnavailable, station.MotionHint);
-                Assert.False(station.CaptureCarrierImageCommand.CanExecute(null));
+                Assert.False(station.GrabCommand.CanExecute(null));
             }
         }
         Assert.Equal(0, io.ReadsWhileUnavailable);

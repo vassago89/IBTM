@@ -43,9 +43,6 @@ public enum HandlerDisplayState
     [Description("Working")]
     Working,
 
-    [Description("Waiting for Handoff")]
-    WaitingForBuffer,
-
     [Description("Waiting for Placement")]
     WaitingForPlacement,
 
@@ -54,9 +51,6 @@ public enum HandlerDisplayState
 
     [Description("Waiting for Supply Release")]
     WaitingForSupplyRelease,
-
-    [Description("Waiting for Supply Exit")]
-    WaitingForSupplyExit,
 
     [Description("Waiting for Carrier")]
     WaitingForMainCarrier,

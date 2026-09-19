@@ -274,6 +274,8 @@ public sealed partial class MainConveyor
     private void StartMotor(CancellationToken cancellationToken, bool reverse = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
+        cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.MainConveyorForward, !reverse);
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.MainConveyorRun, true);

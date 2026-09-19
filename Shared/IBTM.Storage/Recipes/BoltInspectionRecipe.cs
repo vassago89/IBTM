@@ -4,28 +4,6 @@ namespace IBTM.Inspection;
 
 public sealed class BoltInspectionRecipe
 {
-    public double ExposureMicroseconds
-    {
-        get;
-        set
-        {
-            if (!double.IsFinite(value) || value <= 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite exposure greater than 0 microseconds.");
-            field = value;
-        }
-    } = 500.0;
-
-    public double Gain
-    {
-        get;
-        set
-        {
-            if (!double.IsFinite(value))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite gain supported by the camera.");
-            field = value;
-        }
-    }
-
     public int LightLevel
     {
         get;

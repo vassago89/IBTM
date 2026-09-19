@@ -59,10 +59,6 @@ internal static class DevelopmentProfile
         settings.PcbSupply.BufferHandoffPosition = new() { X = 80, Y = 30 };
         settings.PcbSupply.Motion.HorizontalSpeed = 100;
         settings.PcbSupply.Motion.ZSpeed = 30;
-        settings.PcbBuffer.SupplyBoundary1 = 60;
-        settings.PcbBuffer.SupplyBoundary2 = 100;
-        settings.PcbBuffer.PlacementBoundary1 = new() { X = 60, Y = 20 };
-        settings.PcbBuffer.PlacementBoundary2 = new() { X = 100, Y = 40 };
         settings.PcbPlacementHandler.BufferHandoffPosition = new() { X = 80, Y = 30, Z = 10 };
         settings.PcbPlacementHandler.Motion.HorizontalSpeed = 100;
         settings.PcbPlacementHandler.Motion.ZSpeed = 30;

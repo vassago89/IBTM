@@ -41,8 +41,7 @@ public sealed partial class MachineController
             ?? throw new IOException("NG conveyor output feedback is unavailable.");
         var motion = _state.FeedbackReadiness;
         var servoPower = _state.ServoMainContactorOn && motion.ServosOn;
-        var conflict = _state.Buffer.HasConflict(live: false);
-        var block = GetStartBlock(motion, conflict);
+        var block = GetStartBlock(motion);
         var running = _state.IsRunningFor(mainRunning, ngRunning);
         var safetyReady = _state.SafetyReady;
         var teachingReady = TeachingReady;
@@ -66,10 +65,7 @@ public sealed partial class MachineController
             AutomaticRunning = automatic,
             ConveyorState = _conveyor.GetState(mainRunning, live: false),
             NgConveyorState = _ngConveyor.GetState(ngRunning),
-            BufferConflict = conflict,
-            SupplyInBufferArea = _state.Buffer.IsSupplyInside(live: false),
             SupplyAtHandoff = _state.Buffer.IsSupplyAtHandoff(live: false),
-            IsSupplyEntryAllowed = _state.Buffer.IsSupplyEntryAllowed(live: false),
             EmergencyStopReleased = _state.EmergencyStopReleased,
             DoorClosed = _state.DoorClosed,
             AirPressureOk = _state.AirPressureOk,
@@ -92,7 +88,7 @@ public sealed partial class MachineController
                             axis)))
                 .Where(item => !running && IsHomeAxisReady(item.group, item.axis, live: false))
                 .ToHashSet(),
-            ManualBlock = _state.GetManualBlock(motion, conflict, running),
+            ManualBlock = _state.GetManualBlock(motion, running),
             SetupEditingEnabled = setupEditing,
             PlacementState = _units.PcbPlacement
                 ? _pcbPlacement.GetState(_recipes.Current.PcbPlacement, live: false)

@@ -64,9 +64,6 @@ public enum MachineAlarm
     [Description("NG Shuttle")]
     NgShuttle,
 
-    [Description("PCB Handoff Conflict")]
-    BufferConflict,
-
     [Description("Main Conveyor")]
     MainConveyor,
 
@@ -87,8 +84,6 @@ public enum ManualControlBlock
     MotionNotReady,
     [Description("Check emergency stops and air pressure.")]
     SafetyNotReady,
-    [Description("Clear the PCB Handoff conflict.")]
-    BufferConflict,
     [Description("Switch the machine to Manual mode.")]
     AutoMode,
     [Description("Wait for the current operation to stop.")]
@@ -143,9 +138,8 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
 
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
-        buffer.PositionChanged += OnBufferPositionChanged;
-        pcbSupply.Feedback.StateChanged += OnBufferMotionStateChanged;
-        pcbPlacement.Feedback.StateChanged += OnBufferMotionStateChanged;
+        pcbSupply.Feedback.StateChanged += OnMotionStateChanged;
+        pcbPlacement.Feedback.StateChanged += OnMotionStateChanged;
         boltFastening.Feedback.StateChanged += OnMotionStateChanged;
         inspectionGantry.Feedback.StateChanged += OnMotionStateChanged;
         conveyor.Changed += NotifyChanged;
@@ -488,7 +482,6 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
 
     internal ManualControlBlock GetManualBlock(
         MotionReadiness motion,
-        bool? bufferConflict = null,
         bool? running = null)
     {
         switch (this)
@@ -499,8 +492,6 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
                 return ManualControlBlock.MotionNotReady;
             case { SafetyReady: false }:
                 return ManualControlBlock.SafetyNotReady;
-            case var _ when bufferConflict ?? Buffer.HasConflict():
-                return ManualControlBlock.BufferConflict;
             case { AutoMode: true }:
                 return ManualControlBlock.AutoMode;
             case var _ when running ?? IsRunning:
@@ -512,19 +503,8 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
 
     public void Refresh()
     {
-        OnBufferMotionStateChanged();
-        RequestDisplayRefresh();
-    }
-
-    private void OnBufferMotionStateChanged()
-    {
-        if (Alarm == MachineAlarm.None && Buffer.HasConflict())
-        {
-            SetError(MachineAlarm.BufferConflict);
-            return;
-        }
-
         Changed?.Invoke();
+        RequestDisplayRefresh();
     }
 
     private void OnMotionStateChanged()
@@ -561,14 +541,6 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         AlarmMessage = null;
         UpdateMachineIndicators();
         NotifyChanged();
-    }
-
-    private void OnBufferPositionChanged()
-    {
-        if (Alarm == MachineAlarm.None && Buffer.HasConflict())
-        {
-            SetError(MachineAlarm.BufferConflict);
-        }
     }
 
     private void OnNgConveyorChanged()

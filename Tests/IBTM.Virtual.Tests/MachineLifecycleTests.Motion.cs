@@ -297,76 +297,33 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task SupplyXyExitStopsOnLostPlacementUpAndWaitsForRestoredFeedback()
+    public async Task PlacementZStopsWhenHandlerUpFeedbackIsLost()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.PcbSupply);
-        settings.Units.PcbPlacement = true;
-        settings.PcbSupply.Motion.HorizontalSpeed = 100;
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var source = services.GetRequiredService<PcbSupplyHandler>();
-        var recipient = services.GetRequiredService<PcbPlacementHandler>();
-        var recipe = services.GetRequiredService<RecipeManager>().Current;
-        recipe.PcbSupply.Pcb1PickPosition = new() { X = 20, Z = 5 };
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
         await machine.InitializeAsync();
         await machine.HomeAsync(default);
-        await source.SetRotatedAsync(true);
-        await source.MoveToHandoffAsync(default);
-        await recipient.MoveAboveBufferAsync();
-        io.AutoResponseEnabled = false;
-        io.SetInputs(
-            (InputIo.PcbPlacementPcbDetected, true),
-            (InputIo.PcbPlacementVacuumDetected, true),
-            (InputIo.PcbPlacementIpmGripperOpen, false),
-            (InputIo.PcbPlacementIpmGripperClosed, true));
-        Assert.True(state.Buffer.IsSupplyExitAllowed());
-
-        var interrupted = false;
-        using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        void LoseLiftDuringExit(double x, double y, double z)
-        {
-            if (!interrupted && x < 79 && state.Buffer.IsSupplyInside())
-            {
-                interrupted = true;
-                io.SetInput(InputIo.PcbPlacementHandlerUp, false);
-            }
-        }
-        source.Feedback.PositionChanged += LoseLiftDuringExit;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         try
         {
-            Assert.True(machine.IsStartAllowed);
-            await machine.StartAsync(firstStop.Token);
-            Assert.True(interrupted);
-            Assert.Equal(MachineAlarm.BufferConflict, state.Alarm);
-            Assert.True(state.Buffer.IsSupplyInside());
-            Assert.False(source.Feedback.IsMoving);
-            Assert.True(source.PcbReleased);
-            Assert.False(state.Buffer.IsSupplyExitAllowed());
-
-            await machine.ResetAsync();
-            Assert.True(machine.IsStartAllowed);
-            var stoppedPosition = source.Feedback.GetPosition();
-            using var waitingStop = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
-            await machine.StartAsync(waitingStop.Token);
-            Assert.True(waitingStop.IsCancellationRequested);
-            Assert.False(state.Buffer.IsSupplyExitAllowed());
-            Assert.Equal(stoppedPosition, source.Feedback.GetPosition());
-            Assert.False(source.Feedback.IsMoving);
-
-            io.SetInput(InputIo.PcbPlacementHandlerUp, true);
-            await machine.ResetAsync();
-            Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.True(machine.IsStartAllowed);
-            Assert.True(state.Buffer.IsSupplyExitAllowed());
-            Assert.Equal(stoppedPosition, source.Feedback.GetPosition());
-            Assert.False(source.Feedback.IsMoving);
+            var jog = placement.JogAsync(MotionAxis.Z, 10, stop.Token);
+            await WaitUntilAsync(() => placement.Feedback.IsMoving);
+            io.SetInput(InputIo.PcbPlacementHandlerUp, false);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog);
+            Assert.Equal(MachineAlarm.PcbPlacement, state.Alarm);
+            Assert.False(placement.Feedback.IsMoving);
+            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveAxisAsync(MotionAxis.Z, 10));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.JogAsync(MotionAxis.Z, 10));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveToHorizontalZAsync());
         }
         finally
         {
-            source.Feedback.PositionChanged -= LoseLiftDuringExit;
+            stop.Cancel();
             await machine.ShutdownAsync();
         }
     }

@@ -89,9 +89,14 @@ public sealed class PcbSupplier : AutoUnit
         }
 
         var state = State;
+        if (state == PcbSupplyState.WaitingForCarrier && !_handler.IsAtPickupXY(recipe.Pcb1PickPosition))
+            state = PcbSupplyState.MovingToPickup;
         TraceStep(state, _pickStep.ToString());
         switch (state)
         {
+            case PcbSupplyState.MovingToPickup:
+                await _handler.MoveToPickupAsync(recipe.Pcb1PickPosition, cancellationToken);
+                break;
             case PcbSupplyState.PickingPcb:
                 await PickPcbAsync(recipe, cancellationToken);
                 break;
@@ -191,19 +196,14 @@ public sealed class PcbSupplier : AutoUnit
 
             switch (true)
             {
-                case true when (_buffer.IsSupplyAtHandoff() || _buffer.IsSupplyInside()) && _handler.PcbReleased:
-                    return _buffer.IsSupplyExitAllowed()
+                case true when _buffer.IsSupplyAtHandoff() && _handler.PcbReleased:
+                    return _buffer.IsSupplyExitAllowed
                         ? PcbSupplyState.MovingFromHandoff
                         : PcbSupplyState.WaitingForPlacementLift;
                 case true when _buffer.IsSupplyAtHandoff():
                     return _buffer.IsPlacementSecuredAtHandoff()
                         ? PcbSupplyState.ReleasingPcb
                         : PcbSupplyState.WaitingForPlacement;
-            }
-
-            if (_buffer.IsSupplyInside() && pcb != PcbSupplyPcbState.Secured)
-            {
-                throw new InvalidOperationException("Supply PCB holding feedback was lost inside the handoff zone. Clear both handlers manually before RESET.");
             }
 
             switch (true)
@@ -216,9 +216,7 @@ public sealed class PcbSupplier : AutoUnit
                         return PcbSupplyState.RotatingForHandoff;
                     }
 
-                    return _buffer.IsSupplyEntryAllowed()
-                        ? PcbSupplyState.MovingToHandoff
-                        : PcbSupplyState.WaitingForHandoff;
+                    return PcbSupplyState.MovingToHandoff;
                 case true when !_handler.IsAtRotationZ():
                     return PcbSupplyState.RaisingForPickup;
                 case true when rotation != PcbSupplyRotationState.Unrotated:

@@ -23,7 +23,8 @@ public sealed partial class MachineController
 
         try
         {
-            var value = !_io.GetOutput(signal);
+            var value = signal is OutputIo.MainConveyorNormalSpeed or OutputIo.NgConveyorNormalSpeed
+                || !_io.GetOutput(signal);
             _io.SetOutput(signal, value);
             _log?.LogInformation("{Message}", $"Direct output {signal}: {(value ? "ON" : "OFF")}; alarm={_state.Alarm}.");
             _state.RequestDisplayRefresh();
@@ -231,8 +232,6 @@ public sealed partial class MachineController
     {
         switch (signal)
         {
-            case OutputIo.PcbSupplyRotate:
-                return _supplyHandler.IsInsideBuffer(live) == false;
             case OutputIo.PcbPlacementHandlerRotate:
                 return _placementHandler.IsAtHorizontalZ(live)
                     && _placementHandler.HandlerRaised;

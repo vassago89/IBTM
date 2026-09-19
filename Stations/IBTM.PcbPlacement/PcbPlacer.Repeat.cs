@@ -111,12 +111,10 @@ public sealed partial class PcbPlacer
                         return PcbPlacementState.RaisingHandler;
                     case true when !_handler.IsAtHorizontalZ(live):
                         return PcbPlacementState.RaisingZ;
-                    case true when _handler.Rotation != PlacementRotationState.Rotated:
-                        return _handler.IsAtXY(recipe.HeatSink1PcbPlacementPosition, live)
-                            ? PcbPlacementState.RotatingForPlacement
-                            : PcbPlacementState.MovingToWaitPosition;
                     case true when !_handler.IsAtXY(position, live):
                         return PcbPlacementState.MovingAboveHeatSink;
+                    case true when _handler.Rotation != PlacementRotationState.Rotated:
+                        return PcbPlacementState.RotatingForPlacement;
                     case true when _handler.IpmGripper != PlacementGripperState.Open:
                         return PcbPlacementState.OpeningGripper;
                     case true when _handler.IpmLift != PlacementCylinderState.Down:

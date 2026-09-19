@@ -12,20 +12,17 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
     private readonly IXyMotion _motion;
     private readonly IIoService _io;
     private readonly PcbSupplySettings _settings;
-    private readonly PcbBufferSettings _bufferSettings;
     // Commissioning input, kept only for this application session.
     private volatile bool _testUpstreamCarrierAvailable;
 
     public PcbSupplyHandler(
         IXyMotion motion,
         IIoService io,
-        PcbSupplySettings settings,
-        PcbBufferSettings bufferSettings)
+        PcbSupplySettings settings)
     {
         _motion = motion;
         _io = io;
         _settings = settings;
-        _bufferSettings = bufferSettings;
         Motion = new(motion);
         io.InputChanged += OnInputChanged;
     }
@@ -126,6 +123,38 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         return live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.RotationZ);
     }
 
+    private double? TravelZ
+    {
+        get
+        {
+            switch (Rotation)
+            {
+                case PcbSupplyRotationState.Unrotated:
+                    return _settings.RotationZ;
+                case PcbSupplyRotationState.Rotated:
+                    return _settings.BufferHandoffPosition.Z;
+                default:
+                    return null;
+            }
+        }
+    }
+
+    public bool IsAtTravelZ(bool live = true)
+    {
+        return TravelZ is { } z && (live
+            ? _motion.GetAxisState(MotionAxis.Z).Homed
+                && Math.Abs(_motion.GetPosition().Z - z) <= MotionService.PositionToleranceMillimeters
+            : Motion.IsAtZ(z));
+    }
+
+    public bool IsAtPickupXY(PcbPickPosition position)
+    {
+        var current = _motion.GetPosition();
+        return Motion.IsSettled(true, MotionAxis.X, MotionAxis.Y)
+            && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Y - _settings.CarrierY) <= MotionService.PositionToleranceMillimeters;
+    }
+
     public void InitializeMotion()
     {
         _motion.Initialize();
@@ -159,7 +188,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
             _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, false);
     }
 
-    public async Task MoveToHandoffAsync(CancellationToken cancellationToken, XyPosition? position = null)
+    public async Task MoveToHandoffAsync(CancellationToken cancellationToken, AxisPosition? position = null)
     {
         if (Rotation != PcbSupplyRotationState.Rotated)
             throw new MotionInterlockException("Supply must be rotated before moving to the handoff position.");
@@ -168,18 +197,15 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
             position.X,
             position.Y,
             _settings.Motion.HorizontalSpeed,
-            cancellationToken);
+            cancellationToken,
+            travelZ: position.Z);
     }
 
     internal async Task PickAsync(
         PcbPickPosition position,
         CancellationToken cancellationToken = default)
     {
-        await _motion.MoveToXYAsync(
-            position.X,
-            _settings.CarrierY,
-            _settings.Motion.HorizontalSpeed,
-            cancellationToken);
+        await MoveToPickupAsync(position, cancellationToken);
         await _motion.MoveAxisAsync(MotionAxis.Z, position.Z, _settings.Motion.ZSpeed, cancellationToken);
         if (Pcb == PcbSupplyPcbState.None)
         {
@@ -187,17 +213,24 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         }
     }
 
-    public bool IsMoveToTeachingPositionAllowed(TeachingPosition point, bool live = true)
+    internal Task MoveToPickupAsync(PcbPickPosition position, CancellationToken cancellationToken)
     {
-        return (IsInsideBuffer(live) == false
-            || point.Mode != TeachMode.ZOnly && IsAtRotationZ(live))
-            && point.Target switch
-            {
-                TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
-                TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick
-                    => Rotation == PcbSupplyRotationState.Unrotated,
-                _ => true,
-            };
+        return _motion.MoveToXYAsync(
+            position.X,
+            _settings.CarrierY,
+            _settings.Motion.HorizontalSpeed,
+            cancellationToken);
+    }
+
+    public bool IsMoveToTeachingPositionAllowed(TeachingPosition point)
+    {
+        return point.Target switch
+        {
+            TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
+            TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick
+                => Rotation == PcbSupplyRotationState.Unrotated,
+            _ => true,
+        };
     }
 
     public async Task MoveToTeachingPositionAsync(
@@ -216,8 +249,8 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
             case TeachMode.ZOnly:
                 await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
-            case TeachMode.XYOnly:
-                await MoveToHandoffAsync(cancellationToken, new() { X = position.X, Y = position.Y });
+            case TeachMode.Full or TeachMode.XYOnly:
+                await MoveToHandoffAsync(cancellationToken, position);
                 break;
             case TeachMode.XZOnly:
                 await _motion.MoveToXYAsync(
@@ -238,7 +271,8 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
             nextPick.X,
             _settings.CarrierY,
             _settings.Motion.HorizontalSpeed,
-            cancellationToken);
+            cancellationToken,
+            travelZ: _settings.BufferHandoffPosition.Z);
     }
 
     public Task SetIpmFixerAsync(bool forward, CancellationToken cancellationToken = default)
@@ -268,26 +302,29 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         double position,
         CancellationToken cancellationToken = default)
     {
-        if (axis == MotionAxis.Z
-            && IsInsideBuffer(live: true) == true)
-            throw new MotionInterlockException("Supply Z cannot move inside the handoff area.");
-        var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
-        return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
+        switch (axis)
+        {
+            case MotionAxis.Z:
+                return _motion.MoveAxisAsync(axis, position, _settings.Motion.ZSpeed, cancellationToken);
+            case MotionAxis.X or MotionAxis.Y:
+                var current = _motion.GetPosition();
+                return _motion.MoveToXYAsync(
+                    axis == MotionAxis.X ? position : current.X,
+                    axis == MotionAxis.Y ? position : current.Y,
+                    _settings.Motion.HorizontalSpeed,
+                    cancellationToken,
+                    travelZ: TravelZ ?? throw new MotionInterlockException("Supply rotation position is unknown."));
+            default:
+                throw new ArgumentOutOfRangeException(nameof(axis));
+        }
     }
 
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (axis == MotionAxis.Z
-            && IsInsideBuffer(live: true) == true)
-            throw new MotionInterlockException("Supply Z cannot jog inside the handoff area.");
-        return _motion.JogAsync(axis, velocity, cancellationToken);
-    }
-
-    public bool? IsInsideBuffer(bool live)
-    {
-        var x = live ? _motion.GetPosition().X : Motion.Position.X;
-        return x is { } position ? _bufferSettings.ContainsSupplyX(position) : null;
+        if (axis != MotionAxis.Z && !IsAtTravelZ())
+            throw new MotionInterlockException("Supply XY jog requires the current orientation's travel Z.");
+        return _motion.JogAsync(axis, velocity, cancellationToken, atCurrentHeight: axis != MotionAxis.Z);
     }
 
     public Task MoveToRotationZAsync(CancellationToken cancellationToken = default)
@@ -297,11 +334,6 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
 
     public async Task SetRotatedAsync(bool rotated, CancellationToken cancellationToken = default)
     {
-        if (IsInsideBuffer(live: true) == true)
-        {
-            throw new MotionInterlockException("Supply cannot rotate inside the buffer.");
-        }
-
         await _motion.MoveToHorizontalZAsync(cancellationToken);
         await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, rotated, cancellationToken);
     }

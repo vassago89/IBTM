@@ -70,7 +70,7 @@ public sealed partial class MachineLifecycleTests
         };
         services.GetRequiredService<PcbPlacer>().Trace += message =>
         {
-            if (message.StartsWith("PcbPlacer: MovingToWaitPosition ", StringComparison.Ordinal))
+            if (message.StartsWith("PcbPlacer: MovingAboveBuffer ", StringComparison.Ordinal))
                 Interlocked.Increment(ref handoffTrips);
         };
         io.OutputChanged += (output, on) =>

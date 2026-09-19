@@ -50,8 +50,6 @@ public sealed class VirtualCamera : ICamera
     }
 
     public async Task<ImageFrame> CaptureAsync(
-        double exposureMicroseconds,
-        double gain,
         CancellationToken cancellationToken = default)
     {
         return await Task.Run(CreateFrame, cancellationToken).ConfigureAwait(false);
@@ -65,7 +63,7 @@ public sealed class VirtualCamera : ICamera
             _getDataMatrices?.Invoke() ?? []);
     }
 
-    public void StartLiveView(double exposureMicroseconds, double gain)
+    public void StartLiveView()
     {
         IsLiveView = true;
         try

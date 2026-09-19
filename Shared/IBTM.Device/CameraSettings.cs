@@ -18,5 +18,4 @@ public sealed class InspectionCameraSettings : Setting
 {
     public string DeviceId { get; set; } = string.Empty;
     public int FrameTimeoutMilliseconds { get; set; } = 3_000;
-    public int LiveViewFramesPerSecond { get; set; } = 10;
 }

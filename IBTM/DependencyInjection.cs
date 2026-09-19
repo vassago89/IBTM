@@ -68,7 +68,6 @@ public static class DependencyInjection
             .AddSingleton(settings.Options)
             .AddSingleton(settings.RecipeSelection)
             .AddSingleton(settings.CarrierReference)
-            .AddSingleton(settings.PcbBuffer)
             .AddSingleton(settings.PcbSupply)
             .AddSingleton(settings.PcbPlacementHandler)
             .AddSingleton(settings.BoltFeeder)
@@ -279,8 +278,7 @@ public static class DependencyInjection
                         (
                             recipes.Current.PcbSupply.Pcb2PickPosition.X,
                             recipes.Current.PcbSupply.Pcb2PickPosition.Z),
-                        settings.PcbSupply.BufferHandoffPosition,
-                        settings.PcbSupply.RotationZ);
+                        settings.PcbSupply.BufferHandoffPosition);
                     placement.Feedback.PositionChanged += (x, y, z) => machine.UpdatePlacementPosition(
                         x,
                         y,
@@ -291,14 +289,12 @@ public static class DependencyInjection
                 }
 
                 return new BufferStage(
-                    settings.PcbBuffer,
                     supply,
                     placement,
                     supply.Motion,
                     placement.Motion,
                     settings.PcbSupply.BufferHandoffPosition,
                     settings.PcbPlacementHandler.BufferHandoffPosition,
-                    () => settings.PcbSupply.RotationZ,
                     settings.Units);
             });
 
@@ -377,8 +373,7 @@ public static class DependencyInjection
                     new PcbSupplyHandler(
                         provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply),
                         provider.GetRequiredService<IIoService>(),
-                        settings.PcbSupply,
-                        settings.PcbBuffer))
+                        settings.PcbSupply))
             .AddSingleton(
                 provider =>
                     new PcbPlacementHandler(

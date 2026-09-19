@@ -95,7 +95,7 @@ public sealed partial class MachineLifecycleTests
             Assert.NotEqual(BoltFasteningState.Waiting, display.FasteningState);
             Assert.NotEqual(InspectionStationState.Waiting, display.InspectionState);
             Assert.NotNull(display.FasteningBolt);
-            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => state.Buffer.HasConflict()));
+            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => state.Buffer.IsSupplyAtHandoff()));
             Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(
                 () => services.GetRequiredService<MainConveyor>().RunCommandOn));
 

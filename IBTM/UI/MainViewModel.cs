@@ -114,7 +114,7 @@ public partial class MainViewModel : ObservableObject
             teachingViewModel.TeachCurrentPositionCommand,
             teachingViewModel.MoveToPointCommand,
             teachingViewModel.ReturnFromPickupCommand,
-            teachingViewModel.CaptureCarrierImageCommand,
+            teachingViewModel.GrabCommand,
             teachingViewModel.ApplyRulerResolutionCommand,
             teachingViewModel.CaptureInspectionCommand,
             teachingViewModel.ReinspectImageCommand,
@@ -136,10 +136,8 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage), nameof(CurrentPageEnabled))]
-    [NotifyPropertyChangedFor(nameof(RecipeToolsVisible), nameof(OperationPageSelected))]
+    [NotifyPropertyChangedFor(nameof(OperationPageSelected))]
     public partial AppPage SelectedPage { get; private set; } = AppPage.Operation;
-
-    public bool RecipeToolsVisible => SelectedPage == AppPage.Teaching;
 
     public bool RecipeEditingEnabled
     {

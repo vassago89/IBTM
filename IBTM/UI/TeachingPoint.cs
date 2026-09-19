@@ -38,7 +38,7 @@ public partial class TeachingPoint : ObservableObject
             switch ((Position.Target, Position.MotionGroup))
             {
                 case (TeachingTarget.SafeZ, MotionGroup.PcbSupply):
-                    return "Transport / Rotation Z";
+                    return "Rotation Z";
                 case (TeachingTarget.SafeZ, MotionGroup.BoltFastening):
                     return "Safe Z (Travel)";
                 default:
@@ -55,11 +55,6 @@ public partial class TeachingPoint : ObservableObject
             {
                 case TeachingTarget.BoltPosition:
                     return TeachingPointGroup.Calculated;
-                case TeachingTarget.SupplyBufferBoundary1:
-                case TeachingTarget.SupplyBufferBoundary2:
-                case TeachingTarget.PlacementBufferBoundary1:
-                case TeachingTarget.PlacementBufferBoundary2:
-                    return TeachingPointGroup.Interference;
                 case TeachingTarget.SafeZ:
                 case TeachingTarget.ShootingHeadFasteningZ:
                 case TeachingTarget.PickupHeadFasteningZ:
@@ -157,13 +152,11 @@ public enum TeachingPointGroup
     MachineReference,
     [Description("Calculated positions · Move To for verification")]
     Calculated,
-    [Description("Handoff interference area")]
-    Interference,
 }
 
 public enum TeachingSaveBehavior
 {
-    [Description("Teach give XY. Supply holds the PCB at Transport / Rotation Z until Placement detects the PCB, vacuum and closed gripper. Apply & Save Handoff before leaving Teaching.")]
+    [Description("Teach give XYZ. Supply rotates at Rotation Z, moves to give Z, then moves XY and holds until Placement detects the PCB, vacuum and closed gripper. Apply & Save Handoff before leaving Teaching.")]
     SupplyHandoff,
     [Description("Teach receiving XYZ. This Z is shared by XY travel, rotation and receipt, with clearance while the handler cylinder is Up. Either handler may arrive first; only the cylinder lowers after both arrive. Apply & Save Handoff before leaving Teaching.")]
     PlacementHandoff,
@@ -190,8 +183,8 @@ public enum TeachingSaveBehavior
     Recipe,
     [Description("PCB handoff · Apply & Save Handoff before leaving Teaching; otherwise staged changes are discarded.")]
     Buffer,
-    [Description("Center the bolt in Live, then Add Current Image. Resize the centered square ROI. This heat sink is taught independently. Saves automatically.")]
+    [Description("Center the bolt in Live, then Grab. Resize the centered square ROI. This heat sink is taught independently. Saves automatically.")]
     Image,
-    [Description("Center the Data Matrix in Live, stop, then Add Current Image. Resize the centered square ROI. Reading returns to the captured XY. Saves automatically.")]
+    [Description("Center the Data Matrix in Live, stop, then Grab. Resize the centered square ROI. Reading returns to the captured XY. Saves automatically.")]
     BarcodeFov,
 }

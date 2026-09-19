@@ -335,6 +335,36 @@ public sealed class DiagnosticToolsTests
     }
 
     [Fact]
+    public async Task ConveyorSpeedStaysOnThroughStopResetAndOutputControl()
+    {
+        await using var services = CreateServices(new RecordingLight());
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            foreach (var output in new[] { OutputIo.MainConveyorNormalSpeed, OutputIo.NgConveyorNormalSpeed })
+            {
+                Assert.True(io.GetOutput(output));
+                Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(output));
+                Assert.True(io.GetOutput(output));
+            }
+            await machine.StopAsync();
+            Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+            Assert.True(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
+            await machine.ResetAsync();
+            Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+            Assert.True(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task DirectSmemaOutputRemainsAvailableInTeaching()
     {
         await using var services = CreateServices(new RecordingLight());

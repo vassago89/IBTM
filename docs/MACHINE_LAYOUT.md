@@ -22,7 +22,7 @@ components are intentionally omitted.
 | CAD root assembly | Components | Control responsibility |
 | --- | ---: | --- |
 | PCB PICKUP TRANSFER | 565 | Receives the upstream two-PCB carrier and holds each PCB for direct handoff |
-| PCB BUFFER | 10 | Shared handoff and collision area between supply and placement |
+| PCB BUFFER | 10 | Direct handoff location between supply and placement |
 | PCB HANDLER & PLACE | 335 | Secures the PCB held by Supply and places it into a heat sink |
 | BELT CONVEYOR | 251 | Main production carrier conveyor and station backup plate hardware |
 | Fastening assembly | 279 | One shared motion group carrying two fastening heads |
@@ -62,8 +62,8 @@ Actions run sequentially; passive states wait for relevant change notifications.
 State enums, IO/motion commands, device Stop and cleanup remain unit-owned. Supply
 keeps its PCB 1/2 selection local to each run. Feeders retain their own supply
 timeouts, and fastening/inspection retain their per-carrier cancellation scopes.
-The buffer's one-shot condition waits and hardware communication/monitoring loops
-are not automatic units and do not inherit this base.
+Handoff feedback checks and hardware communication/monitoring loops are not
+automatic units and do not inherit this base.
 
 ## PCB supply and buffer
 
@@ -77,30 +77,34 @@ and sensor hardware. The operator view therefore shows:
 - the shared HANDOFF area, without a physical buffer or locating pins.
 
 PCB 1 and PCB 2 share one carrier Y and differ in X. The Buffer has the second
-Supply Y. Supply moves X/Y together at Rotation Z between those two lines. After release
-and confirmed Placement Handler Up, it returns at the same Z directly to the next PCB
-pickup X and Carrier Y: PCB 2 after PCB 1, and the next carrier's PCB 1 after PCB 2.
+Supply Y. Supply rotates at Rotation Z, reaches give Z, then
+moves X/Y together at give Z between those two lines. After release and confirmed
+Placement Handler Up, it returns at give Z directly to the next PCB pickup X and
+Carrier Y: PCB 2 after PCB 1, and the next carrier's PCB 1 after PCB 2. It then reaches
+Rotation Z and unrotates. Initial standby is PCB 1 XY at Rotation Z.
 
 There is no physical PCB buffer or buffer-present input. The HANDOFF area shows
-handler position and collision conflict. Supply and placement motion remain responsible
-for entering and leaving the configured buffer collision area.
+handler position and PCB presence. There are no collision boundaries or area-based
+entry/exit waits; the confirmed paths provide clearance with Placement Handler Up.
 
 ## PCB placement
 
-PCB Placement Handler owns the moving XYZ handler. Supply and Placement approach their taught handoff positions independently with the Placement handler cylinder Up. Placement waits at receiving XYZ; once both handlers are settled and Supply holds its PCB, only the cylinder lowers to receive it.
-It takes the PCB held by Supply after PCB detection, vacuum and IPM gripper closure,
-keeps the IPM Down, raises the Handler, stays at the common receiving/travel Z, moves above Heat Sink 1,
-rotates, and waits. A confirmed carrier
-and raised Backup Plate allow work only at detected heat sinks. No placement-side
-camera is controlled. At a target heat sink it lowers the Handler, releases vacuum,
-opens the IPM gripper, raises the IPM, closes the gripper, lowers the IPM to press, records that
-heat sink, then raises the IPM, Handler, and Z. The carrier is completed only after
-this final raised state for every detected heat sink.
+Placement raises its handler, moves to receiving Z then receiving XY, and waits
+for Supply. Once both handlers are settled and Supply holds the PCB, Placement
+receives it using its handler, vacuum and IPM gripper. After Supply releases,
+Placement raises its handler and moves to the selected heat sink independently
+of Supply withdrawal. It moves XY, rotates, descends Z, then lowers the handler.
 
-Pressing requires the taught placement XYZ, rotated feedback, and Handler Down.
-The pending press target survives Stop because the initial carrying Down and the
-completed pressing Down have identical feedback. Restart during Close or Down
-continues that press; it does not reopen the gripper or raise the IPM again.
+It releases vacuum, opens the IPM gripper, raises IPM, closes the gripper, lowers
+IPM to press and records the heat sink. It raises IPM, handler and Z before
+returning for the next PCB. Heat Sink 1 and 2 follow the same path; there is no
+intermediate wait at Heat Sink 1 when servicing Heat Sink 2. The carrier completes
+only after all detected heat sinks finish in the raised state.
+
+Every axis movement, including Z and HOME, requires Handler Up. The machine stops
+Placement movement if this feedback is lost. Pressing requires the taught XYZ,
+rotation and Handler Down. The press target belongs only to the current run and
+is discarded on STOP. See [Placement](../Stations/IBTM.PcbPlacement/DESIGN.md).
 
 ## Main carrier conveyor
 

@@ -129,14 +129,15 @@ STOP과 창 닫기는 현재 작업을 취소하고 완료를 기다리며, 모�
 ## 막힌 동작을 따라가는 순서
 
 티칭 메뉴는 `Teaching` 하나다. 유닛 목록에서 Supply, Placement, Fastening,
-Inspection, NG Transfer를 선택한다. 인계 위치·공통 이동 높이·경계는 각각 Supply와 Placement의
+Inspection, NG Transfer를 선택한다. 인계 위치·회전 및 이동 높이는 각각 Supply와 Placement의
 티칭 목록에 포함되며, 축 피드백과 I/O는 선택 유닛을 따른다. 인계값은 Teach로 임시 보관하고
 두 유닛에서 보이는 `Apply & Save Handoff`로 양쪽 값을 묶어서 적용·저장한다. 유닛을 전환해도 임시값은 유지되며,
 Teaching 메뉴를 나갔다 다시 열면 저장·적용된 설정에서 다시 읽는다.
 
-각 유닛 목록은 작업 위치, 설비 기준값, 계산 위치, 인계 간섭 영역으로 구분한다.
-Supply의 `PCB Give Position`은 XY만 티칭하며 `Transport / Rotation Z`에서 그대로 전달한다.
-Placement는 `PCB Receive Position` → Heat Sink 1/2 안착 순서다.
+각 유닛 목록은 작업 위치, 설비 기준값, 계산 위치로 구분한다. 인계 영역 경계값은 사용하지 않는다.
+Supply의 `PCB Give Position`은 XYZ를 티칭한다. `Rotation Z`에서 회전한 뒤 인계 Z로 먼저 이동하고,
+그 높이에서 인계 XY로 이동한다. 대기는 PCB 1 X·공통 Pickup Y·Rotation Z다.
+Placement는 핸들러 상승 → 인계 Z → 인계 XY에서 대기하고, 인계 후 Heat Sink 1/2에 차례로 안착한다.
 체결의 `Safe Z (Travel)`은 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
 `Pickup Head Fastening Z`는 IPM 안착·최종 체결 높이다.
 자동 동작은 양쪽 헤드 상승 → Safe Z에서 XY 이동 → 선택 헤드의 체결 Z 이동 → 체결 START → 즉시 해당 헤드 하강 순서다.
@@ -345,16 +346,20 @@ OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류�
 `PickPcbAsync`는 픽업 중 전단 캐리어 이탈을 받으면 그 픽업을 취소한다. 늦게 끝난 이전 픽업은
 새 캐리어의 슬롯 이력을 넘기지 않으며 `SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes`로 확인한다.
 수동 한 축 이동은 `TeachingViewModel.StepAsync` → `PcbSupplyHandler.MoveAxisAsync` →
-`MotionService.MoveAxisAsync` 순서다. 공급 핸들러에서 인계 구역 내부 Z 이동을 막고,
-모션 계층에서 축 속도·범위·안전 Z·취소를 처리한다. 자동/수동 인계 진입은
-`MoveToHandoffAsync`에서 Rotation Z 확보 → XY 동시 이동 순서로 진행한다. 픽업과 티칭도
-같은 `IXyMotion.MoveToXYAsync`를 사용하며, 픽업은 XY 도착 후 해당 PCB Z로 내려간다.
-인계 구역 안에서도 Rotation Z에서 X/Y 조작을 허용하며 Placement 간섭 조건은 유지한다. 별도 인계 하강은 없으며,
+`MotionService` 순서다. 모션 계층에서 축 속도·범위·이동 높이·취소를 처리한다. 자동/수동 인계 진입은
+`MoveToHandoffAsync`에서 인계 Z 확보 → XY 동시 이동 순서로 진행한다. `MoveToXYAsync`의
+`travelZ` 인자로 인계 높이를 전달하므로 XY 이동 전에 Rotation Z로 되돌아가지 않는다.
+픽업은 Rotation Z에서 XY 도착 후 해당 PCB 픽업 Z로 내려간다.
+회전 IO는 Rotation Z에서만 조작하고, 회전된 핸들러의 수평 이송·조그는 인계 Z를 사용한다.
 해제 후에는 두 Supply 실린더의 후퇴 완료 → Placement Handler Up 확인 → `MoveFromHandoffAsync`의
-XY 동시 복귀 순서다. Rotation Z를 유지하며, PCB1 후에는 PCB2 X와 Carrier Y, PCB2 후에는
-다음 캐리어의 PCB1 X와 Carrier Y로 돌아간다. 별도 Clear Z나 복귀 좌표는 없다.
-Placement는 실린더만 올리고 XYZ를 유지하다가 Supply가 영역 밖으로 나간 뒤 축을 이동한다.
-공유 영역에서 Supply 수평 이동 중 Placement 상승 확인을 잃으면 기존 `HasConflict` 감시가 정지·알람을 처리한다.
+XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2 X와 Carrier Y, PCB2 후에는
+다음 캐리어의 PCB1 X와 Carrier Y로 돌아간다. 픽업 XY에 도착한 뒤 Rotation Z로 이동하고 회전 복귀한다.
+별도 Clear Z나 복귀 좌표는 없다. 시작 시 SMEMA가 없으면 PCB 1 XY·Rotation Z까지 이동해 대기한다.
+기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Give Position`의 XYZ를 확인하고 `Apply & Save Handoff`로 저장한다.
+Placement는 Supply 해제 확인 후 핸들러를 올리고 선택한 히트싱크 XY로 바로 이동한다.
+상대 위치에 따른 진입·이탈·간섭 대기와 경계 티칭은 제거했다. Z와 HOME을 포함한 모든 Placement 축 이동은
+핸들러 상승을 요구하며, 이동 중 상승 피드백을 잃으면 정지한다. 인계 도착·잡힘·해제 확인은 유지한다.
+상세 순서는 [Placement 동작](../Stations/IBTM.PcbPlacement/DESIGN.md)을 따른다.
 
 PCB 안착의 XY 이동은 `PcbPlacementHandler.MoveToXYAsync`, Z 이동은 `MoveAxisAsync`에서
 장치 호출로 이어진다. 같은 Down 센서값으로 압입 전후를 구별할 수 없으므로

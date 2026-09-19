@@ -155,14 +155,13 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
 
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
-        if (axis != MotionAxis.Z)
-            EnsureCanMoveHorizontal(cancellationToken);
+        EnsureHandlerRaised(cancellationToken);
         return await _motion.HomeAsync(axis, _settings.Motion.Home(axis).SearchSpeed, cancellationToken);
     }
 
     public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
     {
-        EnsureCanMoveHorizontal(cancellationToken);
+        EnsureHandlerRaised(cancellationToken);
         return await _motion.HomeHorizontalAsync(
             _settings.Motion.HorizontalHome.SearchSpeed,
             cancellationToken);
@@ -185,6 +184,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
 
     public async Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default)
     {
+        EnsureHandlerRaised(cancellationToken);
         await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
@@ -198,15 +198,14 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         double position,
         CancellationToken cancellationToken = default)
     {
-        if (axis is MotionAxis.X or MotionAxis.Y)
-            EnsureCanMoveHorizontal(cancellationToken);
+        EnsureHandlerRaised(cancellationToken);
         var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
         return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
 
     public Task MoveToXYAsync(AxisPosition position, CancellationToken cancellationToken = default)
     {
-        EnsureCanMoveHorizontal(cancellationToken);
+        EnsureHandlerRaised(cancellationToken);
         return _motion.MoveToXYAsync(
             position.X,
             position.Y,
@@ -216,7 +215,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
 
     public Task MoveToAsync(double x, double y, double z, CancellationToken cancellationToken = default)
     {
-        EnsureCanMoveHorizontal(cancellationToken);
+        EnsureHandlerRaised(cancellationToken);
         return _motion.MoveToAsync(x, y, z, cancellationToken);
     }
 
@@ -240,13 +239,14 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
 
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
-        if (axis is MotionAxis.X or MotionAxis.Y)
-            EnsureCanMoveHorizontal(cancellationToken);
+        EnsureHandlerRaised(cancellationToken);
         return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
     public Task SetLiftDownAsync(bool down, CancellationToken cancellationToken = default)
     {
+        if (down && _motion.IsMoving)
+            throw new MotionInterlockException("Stop the placement axes before lowering the handler.");
         return _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, down, cancellationToken);
     }
 
@@ -291,12 +291,12 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         return _io.WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, cancellationToken);
     }
 
-    private void EnsureCanMoveHorizontal(CancellationToken cancellationToken)
+    private void EnsureHandlerRaised(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!HandlerRaised)
         {
-            throw new MotionInterlockException("Raise the placement handler before moving X/Y.");
+            throw new MotionInterlockException("Raise the placement handler before moving any axis.");
         }
     }
 

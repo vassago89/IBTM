@@ -14,8 +14,7 @@ public sealed class PcbSupplySettings : Setting
     public MotionSettings Motion { get; set; }
     public double RotationZ { get; set; }
     public double CarrierY { get; set; }
-    // Handoff uses RotationZ; older saved handoff Z values are no longer read.
-    public XyPosition BufferHandoffPosition { get; set; }
+    public AxisPosition BufferHandoffPosition { get; set; }
 
     public TeachingPosition[] GetTeachingPositions(PcbSupplyRecipe recipe)
     {
@@ -39,9 +38,9 @@ public sealed class PcbSupplySettings : Setting
             new(
                 TeachingTarget.SupplyBufferHandoff,
                 MotionGroup.PcbSupply,
-                TeachMode.XYOnly,
-                () => new() { X = BufferHandoffPosition.X, Y = BufferHandoffPosition.Y },
-                p => (BufferHandoffPosition.X, BufferHandoffPosition.Y) = (p.X, p.Y),
+                TeachMode.Full,
+                () => BufferHandoffPosition,
+                p => (BufferHandoffPosition.X, BufferHandoffPosition.Y, BufferHandoffPosition.Z) = (p.X, p.Y, p.Z),
                 this) { Staged = true },
         ];
     }

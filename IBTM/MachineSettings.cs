@@ -10,7 +10,6 @@ using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
@@ -36,7 +35,6 @@ public sealed class MachineSettings
         Conveyor = new();
         PcbSupply = new();
         PcbSupplyHardware = new();
-        PcbBuffer = new();
         PcbPlacementHandler = new();
         PcbPlacementHandlerHardware = new();
         PcbPlacementStationHardware = new();
@@ -72,7 +70,6 @@ public sealed class MachineSettings
 
     public PcbSupplySettings PcbSupply { get; set; }
     public PcbSupplyHardwareSettings PcbSupplyHardware { get; set; }
-    public PcbBufferSettings PcbBuffer { get; set; }
     public PcbPlacementHandlerSettings PcbPlacementHandler { get; set; }
     public PcbPlacementHandlerHardwareSettings PcbPlacementHandlerHardware { get; set; }
     public PcbPlacementStationHardwareSettings PcbPlacementStationHardware { get; set; }
@@ -147,7 +144,6 @@ public sealed class MachineSettings
                 NgCarrierTransfer,
                 NgConveyor,
                 Conveyor,
-                PcbBuffer,
                 PcbSupply,
                 PcbPlacementHandler,
                 BoltFeeder,
@@ -188,7 +184,6 @@ public sealed class MachineSettings
             NgCarrierTransfer = values.Get<NgCarrierTransferSettings>(),
             NgConveyor = values.Get<NgConveyorSettings>(),
             Conveyor = values.Get<ConveyorSettings>(),
-            PcbBuffer = values.Get<PcbBufferSettings>(),
             PcbSupply = values.Get<PcbSupplySettings>(),
             PcbSupplyHardware = values.Get<PcbSupplyHardwareSettings>(),
             PcbPlacementHandler = values.Get<PcbPlacementHandlerSettings>(),

@@ -35,8 +35,8 @@ public sealed class PcbPlacementRepeatTests
         };
         rig.Motion.PositionChanged += (x, y, z) =>
         {
-            movedUnsafely |= rig.Motion.IsMovingHorizontal
-                && (rig.Handler.Lift != PlacementCylinderState.Up || Math.Abs(z - 8) > 0.05);
+            movedUnsafely |= (rig.Motion.IsMoving && rig.Handler.Lift != PlacementCylinderState.Up)
+                || (rig.Motion.IsMovingHorizontal && Math.Abs(z - 8) > 0.05);
             var atHandoff = Math.Abs(x - 50) < 0.05 && Math.Abs(y - 10) < 0.05 && Math.Abs(z - 8) < 0.05;
             if (atHandoff && !insideHandoff && rig.Handler.PcbSecured)
                 handoffVisits++;
@@ -162,13 +162,6 @@ public sealed class PcbPlacementRepeatTests
                 BufferHandoffPosition = new() { X = 50, Y = 10, Z = 8 },
             };
             var supplySettings = new PcbSupplySettings { Motion = motion };
-            var bufferSettings = new PcbBufferSettings
-            {
-                SupplyBoundary1 = 40,
-                SupplyBoundary2 = 60,
-                PlacementBoundary1 = new() { X = 40, Y = 0 },
-                PlacementBoundary2 = new() { X = 60, Y = 15 },
-            };
             Io = new(
                 Outputs(new PcbPlacementHandlerHardwareSettings(), new PcbSupplyHardwareSettings(), new ConveyorHardwareSettings()),
                 new MachineOptions { TimeoutMilliseconds = 1_000 });
@@ -179,10 +172,10 @@ public sealed class PcbPlacementRepeatTests
                 x, y, z, settings.BufferHandoffPosition,
                 Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition);
             Handler = new(Motion, Io, settings);
-            var supply = new PcbSupplyHandler(_supplyMotion, Io, supplySettings, bufferSettings);
+            var supply = new PcbSupplyHandler(_supplyMotion, Io, supplySettings);
             var buffer = new BufferStage(
-                bufferSettings, supply, Handler, supply.Motion, Handler.Motion,
-                supplySettings.BufferHandoffPosition, settings.BufferHandoffPosition, () => 0, new());
+                supply, Handler, supply.Motion, Handler.Motion,
+                supplySettings.BufferHandoffPosition, settings.BufferHandoffPosition, new());
             Work = new(ConveyorStation.CreatePcbPlacement(Io), new());
             Placer = new(buffer, Handler, Work);
         }

@@ -29,10 +29,7 @@ public sealed record MachineDisplay
     public bool AutomaticRunning { get; init; }
     public MainConveyorState ConveyorState { get; init; }
     public NgConveyorState NgConveyorState { get; init; }
-    public bool BufferConflict { get; init; }
-    public bool SupplyInBufferArea { get; init; }
     public bool SupplyAtHandoff { get; init; }
-    public bool IsSupplyEntryAllowed { get; init; }
     public bool EmergencyStopReleased { get; init; }
     public bool DoorClosed { get; init; }
     public bool AirPressureOk { get; init; }

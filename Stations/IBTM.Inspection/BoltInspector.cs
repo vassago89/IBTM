@@ -217,7 +217,7 @@ public sealed class BoltInspector
         try
         {
             await Task.Run(() => TurnLightOn(channel), cancellationToken).ConfigureAwait(false);
-            return await CaptureFrameAsync(cancellationToken).ConfigureAwait(false);
+            return await camera.CaptureAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -272,7 +272,7 @@ public sealed class BoltInspector
                     var position = feedback.GetPosition();
                     var center = new AxisPosition { X = position.X, Y = position.Y };
                     var frame = camera.IsLiveView
-                        ? await CaptureFrameAsync(cancellationToken).ConfigureAwait(false)
+                        ? await camera.CaptureAsync(cancellationToken).ConfigureAwait(false)
                         : await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
                     if (!gantry.IsAt(center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
@@ -316,8 +316,7 @@ public sealed class BoltInspector
             cancellationToken.ThrowIfCancellationRequested();
             TurnLightOn(lightingSettings.InspectionChannel);
             cancellationToken.ThrowIfCancellationRequested();
-            var recipe = recipes.Current.BoltInspection;
-            camera.StartLiveView(recipe.ExposureMicroseconds, recipe.Gain);
+            camera.StartLiveView();
             cancellationToken.ThrowIfCancellationRequested();
             if (LiveViewError is { } failure)
                 ExceptionDispatchInfo.Throw(failure);
@@ -424,12 +423,5 @@ public sealed class BoltInspector
         _lightChannel = channel;
         light.SetLevel(channel, recipes.Current.BoltInspection.LightLevel);
         light.TurnOn(channel);
-    }
-
-    private async Task<ImageFrame> CaptureFrameAsync(CancellationToken cancellationToken)
-    {
-        var recipe = recipes.Current.BoltInspection;
-        return await camera.CaptureAsync(
-            recipe.ExposureMicroseconds, recipe.Gain, cancellationToken).ConfigureAwait(false);
     }
 }

@@ -152,12 +152,8 @@ public sealed partial class PcbPlacer : AutoUnit
                 return _handler.SetVacuumAsync(true, cancellationToken);
             case PcbPlacementState.ClosingGripper:
                 return _handler.SetIpmGripperAsync(true, cancellationToken);
-            case PcbPlacementState.WaitingForSupplyExit:
-                return _buffer.WaitForSupplyOutsideAsync(cancellationToken);
             case PcbPlacementState.RaisingIpm:
                 return _handler.SetIpmLiftDownAsync(false, cancellationToken);
-            case PcbPlacementState.MovingToWaitPosition:
-                return _handler.MoveToXYAsync(recipe.HeatSink1PcbPlacementPosition, cancellationToken);
             case PcbPlacementState.RotatingForPlacement:
                 return _handler.SetRotatedAsync(true, cancellationToken);
             case PcbPlacementState.MovingAboveHeatSink:
@@ -234,14 +230,12 @@ public sealed partial class PcbPlacer : AutoUnit
             case true when pcb == PlacementPcbState.Secured:
                 switch (true)
                 {
-                    case true when !_repeat && _buffer.IsPlacementInside(live) && !_buffer.IsSupplyOutside(live):
-                        if (_handler.Lift != PlacementCylinderState.Up)
-                        {
-                            return _buffer.IsPlacementRaiseAllowed(live)
-                                ? PcbPlacementState.RaisingHandler
-                                : PcbPlacementState.WaitingForSupplyRelease;
-                        }
-                        return PcbPlacementState.WaitingForSupplyExit;
+                    case true when !_repeat && _handler.IsAtBufferXY(live)
+                        && _handler.IsAtHorizontalZ(live)
+                        && _handler.Lift != PlacementCylinderState.Up:
+                        return _buffer.IsPlacementRaiseAllowed(live)
+                            ? PcbPlacementState.RaisingHandler
+                            : PcbPlacementState.WaitingForSupplyRelease;
                     case true when _handler.IpmLift != PlacementCylinderState.Down:
                         return PcbPlacementState.LoweringIpm;
                     case true when _work.Station.CarrierSeated
@@ -253,10 +247,6 @@ public sealed partial class PcbPlacer : AutoUnit
                         return PcbPlacementState.RaisingHandler;
                     case true when !_handler.IsAtHorizontalZ(live):
                         return PcbPlacementState.RaisingZ;
-                    case true when _handler.Rotation != PlacementRotationState.Rotated:
-                        return _handler.IsAtXY(recipe.HeatSink1PcbPlacementPosition, live)
-                            ? PcbPlacementState.RotatingForPlacement
-                            : PcbPlacementState.MovingToWaitPosition;
                     case true when !_work.Station.CarrierSeated || _work.Completed:
                         return PcbPlacementState.WaitingForCarrier;
                     default:
@@ -293,7 +283,7 @@ public sealed partial class PcbPlacer : AutoUnit
         {
             case true when atBuffer && atBufferZ
                 && _handler.Lift != PlacementCylinderState.Up
-                && !supplyReady && !_buffer.IsSupplyOutside(live):
+                && !supplyReady && _handler.Pcb != PlacementPcbState.None:
                 // Do not lift away from an interrupted receipt with uncertain holding feedback.
                 return PcbPlacementState.WaitingForSupply;
             case true when _handler.Lift != PlacementCylinderState.Up
@@ -326,8 +316,15 @@ public sealed partial class PcbPlacer : AutoUnit
     {
         switch (true)
         {
+            case true when _handler.Lift != PlacementCylinderState.Up
+                && (!_handler.IsAtXY(position, live) || !_handler.IsAtZ(position, live)):
+                return PcbPlacementState.RaisingHandler;
             case true when !_handler.IsAtXY(position, live):
                 return PcbPlacementState.MovingAboveHeatSink;
+            case true when _handler.Rotation != PlacementRotationState.Rotated:
+                return !_handler.IsAtHorizontalZ(live)
+                    ? PcbPlacementState.RaisingZ
+                    : PcbPlacementState.RotatingForPlacement;
             case true when !_handler.IsAtZ(position, live):
                 return PcbPlacementState.LoweringToHeatSink;
             case true when _handler.Lift != PlacementCylinderState.Down:

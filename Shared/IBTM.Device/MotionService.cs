@@ -52,7 +52,7 @@ public interface IAxisMotion : IMotionFeedback
         double position,
         double velocity,
         CancellationToken cancellationToken = default);
-    Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default);
+    Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default, double? travelZ = null);
     Task<bool> HomeAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default);
     Task JogAsync(
         MotionAxis axis,
@@ -75,7 +75,8 @@ public interface IXyMotion : IAxisMotion
         double x,
         double y,
         double velocity,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        double? travelZ = null);
     Task<bool> HomeHorizontalAsync(double velocity, CancellationToken cancellationToken = default);
 }
 
@@ -220,7 +221,8 @@ public abstract class MotionService : IXyMotion
         double x,
         double y,
         double velocity,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        double? travelZ = null)
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
@@ -230,7 +232,7 @@ public abstract class MotionService : IXyMotion
         ValidateTarget(MotionAxis.Y, y);
         if (HasZ)
         {
-            await MoveToHorizontalZAsync(cancellationToken);
+            await MoveToHorizontalZAsync(cancellationToken, travelZ);
         }
         else
         {
@@ -240,22 +242,23 @@ public abstract class MotionService : IXyMotion
         await MoveXYAsync(x, y, velocity, cancellationToken);
     }
 
-    public async Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default)
+    public async Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default, double? travelZ = null)
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         ValidatePositive(Settings.ZSpeed, nameof(Settings.ZSpeed));
         EnsureHasZ();
-        ValidateTarget(MotionAxis.Z, HorizontalZ);
+        var targetZ = travelZ ?? HorizontalZ;
+        ValidateTarget(MotionAxis.Z, targetZ);
         EnsureStopped();
         if (!GetAxisState(MotionAxis.Z).Homed)
         {
             throw new MotionInterlockException("Z axis must be homed before moving to its reference.");
         }
 
-        if (Math.Abs(GetPosition().Z - HorizontalZ) > PositionToleranceMillimeters)
+        if (Math.Abs(GetPosition().Z - targetZ) > PositionToleranceMillimeters)
         {
-            await MoveAsync(MotionAxis.Z, HorizontalZ, Settings.ZSpeed, cancellationToken);
+            await MoveAsync(MotionAxis.Z, targetZ, Settings.ZSpeed, cancellationToken);
         }
     }
 

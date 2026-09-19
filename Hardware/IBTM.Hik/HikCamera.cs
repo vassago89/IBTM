@@ -107,8 +107,6 @@ public sealed class HikCamera : ICamera, IDisposable
     }
 
     public async Task<ImageFrame> CaptureAsync(
-        double exposureMicroseconds,
-        double gain,
         CancellationToken cancellationToken = default)
     {
         // Single-frame SDK acquisition is synchronous. Live frames arrive through events.
@@ -119,20 +117,19 @@ public sealed class HikCamera : ICamera, IDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 return _liveView
                     ? CaptureLiveFrameAsync(cancellationToken)
-                    : Task.FromResult(CaptureSingleFrame(exposureMicroseconds, gain));
+                    : Task.FromResult(CaptureSingleFrame());
             }
         }, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return frame;
     }
 
-    private ImageFrame CaptureSingleFrame(double exposureMicroseconds, double gain)
+    private ImageFrame CaptureSingleFrame()
     {
         // Teaching may use the camera before machine-wide initialization reaches vision.
         Initialize();
         var device = _device!;
         var stream = _streamGrabber!;
-        ApplyExposureAndGain(device, exposureMicroseconds, gain);
         StartGrabbing();
         ImageFrame? image = null;
         Exception? failure = null;
@@ -191,7 +188,7 @@ public sealed class HikCamera : ICamera, IDisposable
         }
     }
 
-    public void StartLiveView(double exposureMicroseconds, double gain)
+    public void StartLiveView()
     {
         lock (_grabGate)
         {
@@ -201,12 +198,7 @@ public sealed class HikCamera : ICamera, IDisposable
             }
 
             Initialize();
-            var device = _device!;
-            var framesPerSecond = _settings.LiveViewFramesPerSecond;
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(framesPerSecond);
-            ApplyExposureAndGain(device, exposureMicroseconds, gain);
-            var frameInterval = Stopwatch.Frequency / framesPerSecond;
-            var liveThread = new Thread(() => ReceiveLiveFrames(frameInterval))
+            var liveThread = new Thread(ReceiveLiveFrames)
             {
                 IsBackground = true,
                 Name = "Hik live view",
@@ -253,24 +245,20 @@ public sealed class HikCamera : ICamera, IDisposable
         }
     }
 
-    private void ReceiveLiveFrames(long frameInterval)
+    private void ReceiveLiveFrames()
     {
         var device = _device!;
         var stream = _streamGrabber!;
         Exception? failure = null;
         try
         {
-            var nextFrame = 0L;
             while (_liveView)
             {
                 var result = stream.GetImageBuffer(1000, out var frameOut);
                 if (result == MvError.MV_E_NODATA)
                     continue;
                 Check(result, "Get live Hik frame");
-                var now = Stopwatch.GetTimestamp();
-                var image = CopyAndReleaseFrame(device, stream, frameOut, copy: _liveView && now >= nextFrame);
-                if (image is not null)
-                    nextFrame = now + frameInterval;
+                var image = CopyAndReleaseFrame(device, stream, frameOut, copy: _liveView);
 
                 if (image is not null && _liveView)
                     FrameReady?.Invoke(image);
@@ -363,17 +351,6 @@ public sealed class HikCamera : ICamera, IDisposable
         Check(parameters.SetEnumValueByString("AcquisitionMode", "Continuous"), "Set AcquisitionMode");
         // MVS BasicDemo: select continuous acquisition once, while grabbing is stopped.
         Check(parameters.SetEnumValueByString("TriggerMode", "Off"), "Set continuous acquisition");
-    }
-
-    private static void ApplyExposureAndGain(IDevice device, double exposureMicroseconds, double gain)
-    {
-        var parameters = device.Parameters;
-        Check(parameters.SetEnumValueByString("ExposureAuto", "Off"), "Disable ExposureAuto");
-        Check(
-            parameters.SetFloatValue("ExposureTime", checked((float)exposureMicroseconds)),
-            "Set ExposureTime");
-        Check(parameters.SetEnumValueByString("GainAuto", "Off"), "Disable GainAuto");
-        Check(parameters.SetFloatValue("Gain", checked((float)gain)), "Set Gain");
     }
 
     private static void ConfigureGigE(IDevice device)

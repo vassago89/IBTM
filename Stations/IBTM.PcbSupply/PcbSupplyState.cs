@@ -10,6 +10,9 @@ public enum PcbSupplyState
     [Description("Waiting for Carrier Exit")]
     WaitingForCarrierExit,
 
+    [Description("Moving to PCB 1 Standby")]
+    MovingToPickup,
+
     [Description("Picking PCB")]
     PickingPcb,
 
@@ -21,9 +24,6 @@ public enum PcbSupplyState
 
     [Description("Rotating for Handoff")]
     RotatingForHandoff,
-
-    [Description("Waiting for Handoff")]
-    WaitingForHandoff,
 
     [Description("Moving to Handoff")]
     MovingToHandoff,

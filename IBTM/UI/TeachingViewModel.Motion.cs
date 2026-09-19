@@ -19,7 +19,7 @@ public partial class TeachingViewModel
             switch (ActiveMotionGroup)
             {
                 case MotionGroup.PcbSupply:
-                    return "Transport / Rotation Z";
+                    return "Rotation Z";
                 case MotionGroup.PcbPlacementHandler:
                     return "Handoff / Travel Z";
                 default:
@@ -55,8 +55,6 @@ public partial class TeachingViewModel
                 return TeachingMotionHint.NgPickupSafeXRequired;
             switch (ActiveMotionGroup)
             {
-                case MotionGroup.PcbSupply when State.Display.SupplyInBufferArea:
-                    return TeachingMotionHint.SupplyInBufferRestricted;
                 case MotionGroup.PcbSupply when IsTeachingEditAllowed && !IsJogAllowed(MotionAxis.X):
                     return TeachingMotionHint.SafeZRequired;
                 case MotionGroup.PcbPlacementHandler when !_placementHandler.HandlerRaised:
@@ -112,11 +110,9 @@ public partial class TeachingViewModel
             && Motion.Feedback.Axes.Contains(axis)
             && ActiveMotionGroup switch
             {
-                MotionGroup.PcbSupply => axis == MotionAxis.Z
-                    ? _supplyHandler.IsInsideBuffer(live: false) == false
-                    : _supplyHandler.IsAtRotationZ(live: false),
-                MotionGroup.PcbPlacementHandler => axis == MotionAxis.Z
-                    || _placementHandler.HandlerRaised && _placementHandler.IsAtHorizontalZ(live: false),
+                MotionGroup.PcbSupply => axis == MotionAxis.Z || _supplyHandler.IsAtTravelZ(live: false),
+                MotionGroup.PcbPlacementHandler => _placementHandler.HandlerRaised
+                    && (axis == MotionAxis.Z || _placementHandler.IsAtHorizontalZ(live: false)),
                 MotionGroup.BoltFastening => true,
                 MotionGroup.InspectionGantry => _ngTransfer.IsRaised,
                 _ => false,
@@ -384,7 +380,7 @@ public partial class TeachingViewModel
                     || !Machine.IsManualMotionReady(ActiveMotionGroup, live: false):
                     return false;
                 case { } point when ActiveMotionGroup == MotionGroup.PcbSupply:
-                    return _supplyHandler.IsMoveToTeachingPositionAllowed(point.Position, live: false);
+                    return _supplyHandler.IsMoveToTeachingPositionAllowed(point.Position);
                 case { } point:
                     return (point.Position.Mode == TeachMode.ZOnly || IsHorizontalMoveAllowed)
                         && (point.Position.Target != TeachingTarget.NgCarrierPickup
@@ -426,7 +422,7 @@ public partial class TeachingViewModel
         SaveHandoffSetupCommand.NotifyCanExecuteChanged();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        CaptureCarrierImageCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
         ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
         DrawFovRegionCommand.NotifyCanExecuteChanged();
         TeachFovRegionCommand.NotifyCanExecuteChanged();

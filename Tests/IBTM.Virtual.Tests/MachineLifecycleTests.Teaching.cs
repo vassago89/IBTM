@@ -1074,8 +1074,8 @@ public sealed partial class MachineLifecycleTests
             await machine.HomeAsync(CancellationToken.None);
             await supply.MoveToHandoffAsync(CancellationToken.None);
             await placement.MoveAboveBufferAsync();
-            Assert.True(state.Buffer.IsSupplyInside());
-            Assert.True(state.Buffer.IsPlacementInside());
+            Assert.True(state.Buffer.IsSupplyAtHandoff());
+            Assert.True(state.Buffer.IsPlacementAtHandoff());
 
             foreach (var group in new[] { HardwareArea.PcbSupply, HardwareArea.PcbPlacementHandler })
             {
@@ -1171,7 +1171,7 @@ public sealed partial class MachineLifecycleTests
         var supply = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
         await supply.MoveAxisAsync(MotionAxis.X, settings.PcbSupply.BufferHandoffPosition.X, 1_000);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-        Assert.True(state.Buffer.IsSupplyInside());
+        Assert.Equal(settings.PcbSupply.BufferHandoffPosition.X, supply.GetPosition().X);
         await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
         var placementPlate = TeachingRows(teaching)[OutputIo.PcbPlacementBackupPlateUp];
         await WaitUntilAsync(() => placementPlate.ToggleOutputCommand.CanExecute(null));
@@ -1277,7 +1277,7 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.DataMatrix);
         await WaitUntilAsync(() => teaching.CaptureInspectionCommand.CanExecute(null));
-        var frame = await services.GetRequiredService<ICamera>().CaptureAsync(100, 0);
+        var frame = await services.GetRequiredService<ICamera>().CaptureAsync();
         await teaching.Preview.SetImageAsync(frame, CancellationToken.None);
         var image = teaching.Preview.Image;
         var stopped = false;
@@ -1322,26 +1322,26 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
-        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
+        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyBufferHandoff)
             .Teach(70, 0, 0);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementBufferBoundary1)
+        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementBufferHandoff)
             .Teach(75, 25, 0);
 
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Equal(70, teaching.FilteredPoints.Single(
-            point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1).X);
+            point => point.Position.Target == TeachingTarget.SupplyBufferHandoff).X);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         Assert.Equal(75, teaching.FilteredPoints.Single(
-            point => point.Position.Target == TeachingTarget.PlacementBufferBoundary1).X);
-        Assert.Equal(60, settings.PcbBuffer.SupplyBoundary1);
+            point => point.Position.Target == TeachingTarget.PlacementBufferHandoff).X);
+        Assert.Equal(80, settings.PcbSupply.BufferHandoffPosition.X);
 
         using (services.GetRequiredService<OperationCancellation>().Link())
         {
             await WaitUntilAsync(() => !teaching.SaveHandoffSetupCommand.CanExecute(null));
             await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
-            Assert.Equal(60, settings.PcbBuffer.SupplyBoundary1);
+            Assert.Equal(80, settings.PcbSupply.BufferHandoffPosition.X);
         }
 
         await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
@@ -1349,7 +1349,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.AutoMode, false);
         await WaitUntilAsync(() => !teaching.SaveHandoffSetupCommand.CanExecute(null));
         await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
-        Assert.Equal(60, settings.PcbBuffer.SupplyBoundary1);
+        Assert.Equal(80, settings.PcbSupply.BufferHandoffPosition.X);
 
         io.SetInput(InputIo.AutoMode, true);
         await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
@@ -1357,15 +1357,16 @@ public sealed partial class MachineLifecycleTests
         await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
 
         Assert.Null(teaching.SaveError);
-        Assert.Equal(70, settings.PcbBuffer.SupplyBoundary1);
-        Assert.Equal(75, settings.PcbBuffer.PlacementBoundary1.X);
-        var saved = store.LoadSettings().Get<PcbBufferSettings>();
-        Assert.Equal(70, saved.SupplyBoundary1);
-        Assert.Equal(75, saved.PlacementBoundary1.X);
-        Assert.Equal(25, saved.PlacementBoundary1.Y);
+        Assert.Equal(70, settings.PcbSupply.BufferHandoffPosition.X);
+        Assert.Equal(75, settings.PcbPlacementHandler.BufferHandoffPosition.X);
+        var saved = store.LoadSettings().Get<PcbSupplySettings>();
+        var savedPlacement = store.LoadSettings().Get<PcbPlacementHandlerSettings>();
+        Assert.Equal(70, saved.BufferHandoffPosition.X);
+        Assert.Equal(75, savedPlacement.BufferHandoffPosition.X);
+        Assert.Equal(25, savedPlacement.BufferHandoffPosition.Y);
 
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
-        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
+        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyBufferHandoff)
             .Teach(80, 0, 0);
         teaching.SaveError = "Previous save failure";
         void StopBeforeWriting(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
@@ -1384,13 +1385,13 @@ public sealed partial class MachineLifecycleTests
             teaching.PropertyChanged -= StopBeforeWriting;
         }
 
-        Assert.Equal(80, settings.PcbBuffer.SupplyBoundary1);
-        Assert.Equal(70, store.LoadSettings().Get<PcbBufferSettings>().SupplyBoundary1);
+        Assert.Equal(80, settings.PcbSupply.BufferHandoffPosition.X);
+        Assert.Equal(70, store.LoadSettings().Get<PcbSupplySettings>().BufferHandoffPosition.X);
         Assert.Contains("cancelled", teaching.SaveError);
         await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
         await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
         Assert.Null(teaching.SaveError);
-        Assert.Equal(80, store.LoadSettings().Get<PcbBufferSettings>().SupplyBoundary1);
+        Assert.Equal(80, store.LoadSettings().Get<PcbSupplySettings>().BufferHandoffPosition.X);
     }
 
     [Theory]
@@ -1407,7 +1408,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
-        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
+        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyBufferHandoff)
             .Teach(70, 0, 0);
 
         void CancelWhenStarted()
@@ -1424,7 +1425,7 @@ public sealed partial class MachineLifecycleTests
         await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
         operations.ActivityChanged -= CancelWhenStarted;
 
-        Assert.Equal(60, settings.PcbBuffer.SupplyBoundary1);
+        Assert.Equal(80, settings.PcbSupply.BufferHandoffPosition.X);
         Assert.Null(teaching.SaveError);
         Assert.False(operations.HasActiveOperations);
     }

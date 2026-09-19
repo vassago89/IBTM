@@ -527,6 +527,7 @@ public sealed partial class ConveyorTests
         Assert.True(stoppedDuringSetup);
         Assert.False(started);
         Assert.False(conveyor.RunCommandOn);
+        Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
     }
 
     [Fact]

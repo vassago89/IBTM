@@ -22,9 +22,6 @@
     FontFamily="Segoe UI Variable Text, Segoe UI"
     Background="{StaticResource AppBgBrush}"
     Validation.ErrorTemplate="{x:Null}">
-    <Window.BindingGroup>
-        <BindingGroup Name="RecipeInputs"/>
-    </Window.BindingGroup>
     <Window.Resources>
         <DataTemplate DataType="{x:Type ui:OperationViewModel}">
             <ui:OperationView/>
@@ -252,56 +249,12 @@
                     <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="RECIPE" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding RecipeEditor.ActiveName}"
-                            Foreground="{StaticResource TextPrimaryBrush}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
-                            MaxWidth="180" TextTrimming="CharacterEllipsis"
-                            ToolTip="{Binding RecipeEditor.ActiveName}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding RecipeToolsVisible}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <StackPanel Orientation="Horizontal"
-                            IsEnabled="{Binding RecipeEditingEnabled}"
-                            Visibility="{Binding RecipeToolsVisible,
-                                                         Converter={StaticResource BoolToVis}}">
-                            <TextBox
-                                Text="{Binding RecipeEditor.Name,
-                                                   BindingGroupName={x:Null},
-                                                   UpdateSourceTrigger=PropertyChanged}"
-                                Width="200" Margin="0,0,6,0">
-                            </TextBox>
-                            <Button Command="{Binding RecipeEditor.SaveCommand}"
-                                ToolTipService.ShowOnDisabled="True"
-                                Padding="10,5" Margin="0,0,6,0">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                        <Setter Property="Content" Value="Save Recipe"/>
-                                        <Setter Property="ToolTip" Value="Save this recipe, including inspection thresholds."/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding RecipeEditor.SaveCommand.IsRunning}" Value="True">
-                                                <Setter Property="Content" Value="Saving..."/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding ElementName=MainView, Path=(Validation.HasError)}" Value="True">
-                                                <Setter Property="IsEnabled" Value="False"/>
-                                                <Setter Property="ToolTip" Value="Correct the highlighted inspection input before saving the recipe."/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="New"
-                                    Command="{Binding RecipeEditor.NewCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}" Padding="10,5" Margin="0,0,4,0"/>
-                                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" Width="156"
-                                    ToolTip="Load a saved recipe" SelectedItem="{Binding SelectedRecipeFile, Mode=TwoWay}"/>
-                            </StackPanel>
-                        </StackPanel>
+                            Foreground="{StaticResource TextPrimaryBrush}" FontSize="14" FontWeight="SemiBold"
+                            VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding RecipeEditor.ActiveName}"/>
+                        <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" Width="156" Margin="10,0,0,0"
+                            IsEnabled="{Binding RecipeEditingEnabled}" ToolTip="Load a saved recipe"
+                            SelectedItem="{Binding SelectedRecipeFile, Mode=TwoWay}"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">

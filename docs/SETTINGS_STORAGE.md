@@ -12,7 +12,7 @@
 레시피 데이터와 조회용 `Func`를 별도로 등록하지 않는다. 레시피 모델은 `Shared/IBTM.Storage/Recipes`에 모았다.
 
 장치 루프는 DB를 조회하지 않는다. 호스트가 읽은 타입 있는 설정을 각 장치에 전달한다.
-축/IO 매핑·속도·간섭 좌표는 장비 설정, 제품별 볼트·Heat Sink·FOV/ROI·촬영 조건은 레시피다.
+축/IO 매핑·속도·인계 좌표는 장비 설정, 제품별 볼트·Heat Sink·FOV/ROI·촬영 조건은 레시피다.
 설비의 현재 위치나 동작 완료 상태를 설정에 저장하지 않는다.
 
 ## 설정 화면에서 운전 시간 찾기
@@ -47,10 +47,15 @@
 | IO·축 이름 변경 | 고정 숫자 ID로 저장하므로 주소 유지 |
 | 알 수 없는 IO·축 ID / 값 타입이 틀림 | 로드 오류. 임의 기본값 사용 없음 |
 
-Supply의 `BufferHandoffPosition`은 XY만 저장한다. 기존 JSON의 X/Y는 유지하고 Z는 무시한다.
-인계와 다음 픽업 XY 복귀는 모두 `RotationZ`를 사용한다. 옛 `BufferClearZ`는 읽을 때 무시하고
-다음 저장에서 제외한다. 별도 복귀 좌표는 저장하지 않으며 PCB1·PCB2의 픽업 X와 공통 `CarrierY`를 사용한다.
+Supply의 `BufferHandoffPosition`은 인계 XYZ를 저장한다. 회전은 `RotationZ`에서 수행하고,
+인계와 다음 픽업 XY 복귀는 `BufferHandoffPosition.Z`에서 수행한다. 이전 XY 전용 설정에는
+인계 Z가 없으므로 `PCB Give Position`의 XYZ를 티칭하고 `Apply & Save Handoff`로 저장해야 한다.
+옛 `BufferClearZ`는 읽을 때 무시하고 다음 저장에서 제외한다. 별도 복귀 좌표는 저장하지 않으며
+PCB1·PCB2의 픽업 X와 공통 `CarrierY`를 사용한다.
 Placement도 `BufferHandoffPosition.Z`를 인계·회전·XY 이동에 공통으로 사용하고, 옛 `BufferEntryZ`는 무시·제외한다.
+인계 영역 경계 설정 `PcbBufferSettings`는 더 이상 읽거나 저장하지 않는다. 기존 DB 행은 삭제하지 않는다.
+카메라 Live FPS와 레시피의 노출·게인 설정도 읽거나 저장하지 않는다. 카메라에 설정된 값을 그대로 사용한다.
+Recipe의 이름 편집·New·Save는 Teaching 상단에 있으며, 메인 화면에서는 현재 이름과 불러오기만 표시한다.
 
 `InputIo`, `OutputIo`, `MachineAxis`의 명시적 숫자 값은 저장용 ID다. 물리 IO 주소와 별개이며,
 기존 ID를 바꾸거나 재사용하지 않는다. 코드 이름·표시 문구를 바꿔도 저장 ID는 유지한다.
@@ -73,7 +78,7 @@ IO형 주소는 별도 설정 객체로 저장하므로 ADC형으로 전환해�
 체결기 DI/DO는 타입과 관계없이 일반 IO로 등록하며 Input·Output 창에서 항상 표시·조작한다.
 코드의 기본값 수정은 이미 저장된 DB 값을 변경하지 않는다.
 Settings 저장은 설비 STOP 신호로 취소하지 않으며, 실제 저장 실패는 화면과 로그에 표시한다.
-티칭의 저장 메시지와 오류를 확인하고, 일반 카메라 조건 변경은 Save Recipe로 남긴다.
+티칭의 저장 메시지와 오류를 확인하고, 검사 기준·조명 밝기 변경은 Teaching의 Save Recipe로 남긴다.
 티칭값 적용 후 저장 중 STOP으로 취소되면 미저장 안내를 표시한다. 편집값은 메모리에 남지만
 DB에는 이전 값이 유지되므로, 같은 값을 다시 저장해야 재시작 후에도 유지된다.
 FOV/ROI는 Heat Sink별로 독립적이며 캐리어 전체 맵/공유 PCB 영역은 사용하지 않는다.

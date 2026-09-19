@@ -643,7 +643,7 @@ public sealed class AlarmRecoveryTests
         var view = services.GetRequiredService<SettingsViewModel>();
         await machine.InitializeAsync();
         var camera = Assert.IsType<VirtualCamera>(services.GetRequiredService<ICamera>());
-        var sourceImage = await camera.CaptureAsync(1, 1);
+        var sourceImage = await camera.CaptureAsync();
         camera.SourceImage = sourceImage;
         view.VirtualImageName = "locked-input.png";
         SetAlarm(state, MachineAlarm.Inspection);

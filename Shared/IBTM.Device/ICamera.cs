@@ -15,8 +15,8 @@ public interface ICamera
 
     // Connect/recover the device and leave acquisition stopped.
     void Initialize();
-    // During live view, capture a fresh frame without stopping or changing live exposure/gain.
-    Task<ImageFrame> CaptureAsync(double exposureMicroseconds, double gain, CancellationToken cancellationToken = default);
-    void StartLiveView(double exposureMicroseconds, double gain);
+    // During live view, capture a fresh frame without stopping the stream. Camera parameters are not overridden.
+    Task<ImageFrame> CaptureAsync(CancellationToken cancellationToken = default);
+    void StartLiveView();
     void StopLiveView();
 }

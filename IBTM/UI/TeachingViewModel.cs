@@ -12,7 +12,6 @@ using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
@@ -23,7 +22,6 @@ public partial class TeachingViewModel : ObservableObject
 {
     private readonly PcbSupplyHandler _supplyHandler;
     private readonly PcbSupplySettings _supplySettings;
-    private readonly PcbBufferSettings _bufferSettings;
     private IReadOnlyList<TeachingPoint> _handoffPoints;
     private readonly PcbPlacementHandler _placementHandler;
     private readonly BoltFasteningGantry _fasteningGantry;
@@ -43,7 +41,7 @@ public partial class TeachingViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ActiveMotionGroup))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
     [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GrabCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddBoltPointCommand))]
     [NotifyCanExecuteChangedFor(nameof(ReturnFromPickupCommand))]
     public partial HardwareArea SelectedTeachingUnit { get; set; } = HardwareArea.InspectionGantry;
@@ -71,7 +69,6 @@ public partial class TeachingViewModel : ObservableObject
     public TeachingViewModel(
         PcbSupplyHandler supplyHandler,
         PcbSupplySettings supplySettings,
-        PcbBufferSettings bufferSettings,
         PcbPlacementHandler placementHandler,
         BoltFasteningGantry fasteningGantry,
         InspectionGantry inspectionGantry,
@@ -132,7 +129,7 @@ public partial class TeachingViewModel : ObservableObject
         DrawFovRegionCommand = new AsyncRelayCommand<Rect>(DrawFovRegionAsync, IsDrawFovRegionAllowed);
         TeachFovRegionCommand = new AsyncRelayCommand<Rect>(TeachFovRegionAsync, IsTeachFovRegionAllowed);
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, () => IsToggleLiveViewAllowed);
-        CaptureCarrierImageCommand = new AsyncRelayCommand(CaptureCarrierImageAsync, () => IsCaptureCarrierImageAllowed);
+        GrabCommand = new AsyncRelayCommand(GrabAsync, () => IsGrabAllowed);
         CaptureInspectionCommand = new AsyncRelayCommand(CaptureInspectionAsync, () => IsCaptureInspectionAllowed);
         ReinspectImageCommand = new AsyncRelayCommand(ReinspectImageAsync, () => IsReinspectImageAllowed);
         AddBoltPointCommand = new RelayCommand(AddBoltPoint, () => IsAddBoltPointAllowed);
@@ -142,7 +139,6 @@ public partial class TeachingViewModel : ObservableObject
 
         _supplyHandler = supplyHandler;
         _supplySettings = supplySettings;
-        _bufferSettings = bufferSettings;
         _placementHandler = placementHandler;
         _fasteningGantry = fasteningGantry;
         _inspectionGantry = inspectionGantry;
@@ -167,7 +163,7 @@ public partial class TeachingViewModel : ObservableObject
 
         boltInspector.FrameReady += UpdateLiveImage;
         boltInspector.LiveViewChanged += OnLiveViewChanged;
-        CaptureCarrierImageCommand.PropertyChanged += OnInspectionCommandChanged;
+        GrabCommand.PropertyChanged += OnInspectionCommandChanged;
         CaptureInspectionCommand.PropertyChanged += OnInspectionCommandChanged;
         state.DisplayChanged += QueueManualCommandRefresh;
         recipes.Changed += OnRecipeChanged;
@@ -175,7 +171,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             if (e.PropertyName != nameof(RecipeEditor.IsSaveAllowed))
                 return;
-            CaptureCarrierImageCommand.NotifyCanExecuteChanged();
+            GrabCommand.NotifyCanExecuteChanged();
             ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
             DrawFovRegionCommand.NotifyCanExecuteChanged();
             TeachFovRegionCommand.NotifyCanExecuteChanged();
@@ -291,8 +287,6 @@ public partial class TeachingViewModel : ObservableObject
 
     private void AddBoltPoint()
     {
-        var draft = SelectedFov?.Metadata is { IsBarcode: false, BoltNumber: null } ? SelectedFov : null;
-        var draftRegion = FovRegion;
         var number = Recipes.Current.Pcb.GetBolts(SelectedPcb).Select(bolt => bolt.Number).DefaultIfEmpty().Max() + 1;
         var bolt = new BoltPoint
         {
@@ -306,11 +300,6 @@ public partial class TeachingViewModel : ObservableObject
         RefreshTeachingPoints();
         SelectedPoint = FilteredPoints.First(
             point => point.BoltNumber == number && point.Position.Target == TeachingTarget.BoltReference);
-        if (draft is not null)
-        {
-            SelectedFov = draft;
-            FovRegion = draftRegion;
-        }
     }
 
     private bool IsAddBoltPointAllowed => IsTeachingEditAllowed && IsInspectionSelected;
@@ -321,13 +310,10 @@ public partial class TeachingViewModel : ObservableObject
     {
         var number = SelectedPoint!.BoltNumber;
         Recipes.Current.Pcb.BoltPoints.RemoveAll(bolt => bolt.Number == number && bolt.HeatSink == SelectedPcb);
-        foreach (var fov in Recipes.Current.CarrierImages.Where(fov =>
-            !fov.IsBarcode && fov.BoltNumber == number && fov.HeatSink == SelectedPcb))
-        {
-            fov.BoltNumber = null;
-            fov.Region = null;
-        }
-        OnSelectedFovChanged(SelectedFov);
+        Recipes.Current.CarrierImages.RemoveAll(fov =>
+            !fov.IsBarcode && fov.BoltNumber == number && fov.HeatSink == SelectedPcb);
+        CarrierImages = CarrierImages.Where(image =>
+            image.Metadata.IsBarcode || image.Metadata.BoltNumber != number || image.Metadata.HeatSink != SelectedPcb).ToArray();
         RefreshTeachingPoints();
     }
 
@@ -375,7 +361,7 @@ public partial class TeachingViewModel : ObservableObject
             MoveToHorizontalZCommand,
             MoveToPointCommand,
             ReturnFromPickupCommand,
-            CaptureCarrierImageCommand,
+            GrabCommand,
             ApplyRulerResolutionCommand,
             CaptureInspectionCommand,
             ReinspectImageCommand,
@@ -504,8 +490,8 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedBarcode));
         OnPropertyChanged(nameof(IsDataMatrixSelected));
         OnPropertyChanged(nameof(IsBoltSelected));
-        if (!_selectingFovTarget)
-            SelectFovForTeachingPoint();
+        SelectFovForTeachingPoint();
+        GrabCommand.NotifyCanExecuteChanged();
         ReadDataMatrixCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(FovRegion));
         OnPropertyChanged(nameof(FovRoiLabel));
@@ -517,7 +503,7 @@ public partial class TeachingViewModel : ObservableObject
     partial void OnMillimetersPerPixelChanged(double value)
     {
         Recipes.Current.CarrierImageMillimetersPerPixel = value;
-        CaptureCarrierImageCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         TeachFovRegionCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(FovRegion));
@@ -590,7 +576,6 @@ public partial class TeachingViewModel : ObservableObject
             .. _supplySettings.GetTeachingPositions(Recipes.Current.PcbSupply)
                 .Where(position => position.Storage == TeachingStorage.Buffer),
             _placementSettings.GetBufferTeachingPosition(),
-            .. _bufferSettings.GetTeachingPositions(),
         ];
         _handoffPoints = positions.OrderBy(position => position.MotionGroup)
             .Select(position => new TeachingPoint(position)).ToArray();

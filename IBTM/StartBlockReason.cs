@@ -10,9 +10,6 @@ public enum StartBlockReason
     [Description("Clear the cause, then press RESET")]
     Alarm,
 
-    [Description("Resolve PCB buffer interference, then press RESET")]
-    BufferConflict,
-
     [Description("Clear the motion fault, then press RESET")]
     MotionFault,
 

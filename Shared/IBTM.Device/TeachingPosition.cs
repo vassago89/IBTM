@@ -60,18 +60,6 @@ public enum TeachingTarget
     [Description("PCB Receive Position")]
     PlacementBufferHandoff,
 
-    [Description("Interference X Boundary 1")]
-    SupplyBufferBoundary1,
-
-    [Description("Interference X Boundary 2")]
-    SupplyBufferBoundary2,
-
-    [Description("Interference Area Corner 1")]
-    PlacementBufferBoundary1,
-
-    [Description("Interference Area Corner 2")]
-    PlacementBufferBoundary2,
-
     [Description("Heat Sink 1 PCB Placement")]
     HeatSink1PcbPlacement,
 

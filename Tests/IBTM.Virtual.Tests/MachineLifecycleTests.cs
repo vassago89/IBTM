@@ -280,7 +280,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
         Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
 
-        var frame = await camera.CaptureAsync(500, 0);
+        var frame = await camera.CaptureAsync();
         camera.SourceImage = frame with { Pixels = new byte[frame.Pixels.Length] };
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);

@@ -15,8 +15,6 @@ namespace IBTM.UI;
 
 public partial class TeachingViewModel
 {
-    private bool _selectingFovTarget;
-
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MeasureImageCommand))]
     [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
@@ -77,14 +75,14 @@ public partial class TeachingViewModel
             {
                 case true when FovRegion is not null && FovRegion != saved:
                     if (SelectedBarcode is null && SelectedPoint?.Position.Bolt is null)
-                        return "ROI not saved · Add/select a bolt or select Data Matrix, then Apply ROI.";
+                        return "ROI not saved · Select a bolt or Data Matrix, then Grab.";
                     return "ROI not saved · Set the resolution and Apply ROI.";
                 case true when metadata is { IsBarcode: true } barcode:
                     return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to resize the centered square";
                 default:
                     return metadata?.BoltNumber is { } number
                         ? $"{metadata.HeatSink.GetDescription()} · Bolt {number} · Drag to resize the centered square"
-                        : "Resize the centered square. Select a bolt or Data Matrix, then Apply ROI.";
+                        : "Select a bolt or Data Matrix, Grab, then resize the centered square.";
             }
         }
     }
@@ -188,23 +186,6 @@ public partial class TeachingViewModel
         CaptureInspectionCommand.Cancel();
         ReinspectImageCommand.Cancel();
         var metadata = value?.Metadata;
-        if (IsInspectionSelected && metadata is { Region: not null }
-            && (metadata.IsBarcode || metadata.BoltNumber is not null))
-        {
-            _selectingFovTarget = true;
-            try
-            {
-                SelectedPcb = metadata.HeatSink;
-                SelectedPoint = FilteredPoints.FirstOrDefault(point => metadata.IsBarcode
-                    ? point.Position.Target == TeachingTarget.DataMatrix
-                    : point.Position.Bolt?.Number == metadata.BoltNumber);
-            }
-            finally
-            {
-                _selectingFovTarget = false;
-            }
-        }
-
         ReadDataMatrixCommand.Cancel();
         DataMatrixResult = null;
         var region = metadata?.Region;
@@ -244,14 +225,6 @@ public partial class TeachingViewModel
                     : IsBoltSelected && !image.Metadata.IsBarcode
                         && image.Metadata.BoltNumber == SelectedPoint!.BoltNumber))
             : null;
-        if (fov is null && IsInspectionSelected)
-        {
-            // Keep a captured, unassigned image available when adding a new bolt.
-            var drafts = CarrierImages.Where(image =>
-                !image.Metadata.IsBarcode && image.Metadata.BoltNumber is null);
-            fov = drafts.FirstOrDefault(image => image.Metadata.Number == SelectedFov?.Metadata.Number);
-        }
-
         if (SelectedFov != fov)
             SelectedFov = fov;
         else
@@ -365,10 +338,8 @@ public partial class TeachingViewModel
         if (bounds.IsEmpty)
             return;
         var fov = SelectedFov!;
-        var point = SelectedPoint!;
         var barcode = SelectedBarcode;
-        var bolt = point.Position.Bolt;
-        var pcb = SelectedPcb;
+        var bolt = SelectedPoint!.Position.Bolt;
         var region = PixelRegion.CenteredSquare(
             fov.Image.PixelWidth, fov.Image.PixelHeight,
             (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
@@ -390,22 +361,7 @@ public partial class TeachingViewModel
                 bolt.Y = position?.Y;
             }
 
-            foreach (var tile in Recipes.Current.CarrierImages)
-            {
-                if (tile == fov.Metadata)
-                {
-                    tile.Region = region;
-                    tile.BoltNumber = bolt?.Number;
-                    tile.IsBarcode = barcode is not null;
-                    tile.HeatSink = pcb;
-                }
-                else if (tile.HeatSink == pcb && (barcode is not null ? tile.IsBarcode : !tile.IsBarcode && tile.BoltNumber == bolt!.Number))
-                {
-                    tile.Region = null;
-                    tile.BoltNumber = null;
-                    tile.IsBarcode = false;
-                }
-            }
+            fov.Metadata.Region = region;
 
             OnSelectedFovChanged(SelectedFov);
             RefreshPointPositions();
@@ -488,7 +444,7 @@ public partial class TeachingViewModel
             return Inspector.IsLiveView
                 || IsInspectionSelected
                     && State.ManualMode
-                    && !CaptureCarrierImageCommand.IsRunning
+                    && !GrabCommand.IsRunning
                     && !CaptureInspectionCommand.IsRunning;
         }
     }
@@ -499,10 +455,16 @@ public partial class TeachingViewModel
             ToggleLiveViewCommand.NotifyCanExecuteChanged();
     }
 
-    public IAsyncRelayCommand CaptureCarrierImageCommand { get; }
+    public IAsyncRelayCommand GrabCommand { get; }
 
-    private async Task CaptureCarrierImageAsync(CancellationToken cancellationToken)
+    private async Task GrabAsync(CancellationToken cancellationToken)
     {
+        var point = SelectedPoint;
+        var bolt = point?.Position.Bolt;
+        var barcode = SelectedBarcode is not null;
+        if (bolt is null && !barcode)
+            return;
+        var pcb = SelectedPcb;
         var commandGroup = ActiveMotionGroup;
         var viewToken = ViewCancellation;
         var activeToken = cancellationToken;
@@ -522,20 +484,46 @@ public partial class TeachingViewModel
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
-                throw new InvalidOperationException("Load the saved FOV images before adding another image.");
+                throw new InvalidOperationException("Wait for the saved teaching images to load before Grab.");
             var captured = await Inspector.CaptureCarrierImageAsync(operation.Token);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
-            var number = CarrierImages.Count == 0 ? 1 : CarrierImages.Max(tile => tile.Metadata.Number) + 1;
+            var images = CarrierImages.ToList();
+            var index = images.FindIndex(tile => tile.Metadata.HeatSink == pcb
+                && (barcode ? tile.Metadata.IsBarcode : !tile.Metadata.IsBarcode && tile.Metadata.BoltNumber == bolt!.Number));
+            var previous = index >= 0 ? images[index].Metadata : null;
             var metadata = new CarrierImageTile
             {
-                Number = number,
-                Center = captured.Center
+                Number = previous?.Number ?? (images.Count == 0 ? 1 : images.Max(tile => tile.Metadata.Number) + 1),
+                Center = captured.Center,
+                HeatSink = pcb,
+                BoltNumber = bolt?.Number,
+                IsBarcode = barcode,
+                Region = previous?.Region is { } region && region.IsInside(image.PixelWidth, image.PixelHeight)
+                    ? region : null,
             };
-            CarrierImageTileView[] images = [.. CarrierImages, new(metadata, image)];
+            var replacement = new CarrierImageTileView(metadata, image);
+            if (index >= 0)
+                images[index] = replacement;
+            else
+                images.Add(replacement);
+
+            var previousX = bolt?.X;
+            var previousY = bolt?.Y;
+            if (bolt is not null && metadata.Region is { } savedRegion)
+            {
+                var position = GetBoltCoordinates(replacement, savedRegion, MillimetersPerPixel);
+                bolt.X = position?.X;
+                bolt.Y = position?.Y;
+            }
             if (await RecipeEditor.SaveCarrierImagesAsync(images, operation.Token))
             {
                 CarrierImages = images;
-                SelectedFov = images[^1];
+                RefreshPointPositions();
+            }
+            else if (bolt is not null)
+            {
+                bolt.X = previousX;
+                bolt.Y = previousY;
             }
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
@@ -555,11 +543,12 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool IsCaptureCarrierImageAllowed
+    private bool IsGrabAllowed
     {
         get
         {
             return IsInspectionSelected
+                && (IsBoltSelected || IsDataMatrixSelected)
                 && !State.Display.IsRunning
                 && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
                 && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
@@ -730,7 +719,7 @@ public partial class TeachingViewModel
         }
 
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        CaptureCarrierImageCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
     }
 
     private async Task HandlePreviewFailureAsync(Exception exception)

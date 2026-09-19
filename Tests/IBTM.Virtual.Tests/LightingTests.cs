@@ -263,13 +263,13 @@ public sealed class LightingTests
             IsLiveView = false;
         }
 
-        public Task<ImageFrame> CaptureAsync(double exposureMicroseconds, double gain, CancellationToken cancellationToken = default)
+        public Task<ImageFrame> CaptureAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(new ImageFrame(1, 1, 3, [0, 0, 0]));
         }
 
-        public void StartLiveView(double exposureMicroseconds, double gain)
+        public void StartLiveView()
         {
             IsLiveView = true;
             FrameReady?.Invoke(new(1, 1, 3, [0, 0, 0]));

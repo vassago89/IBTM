@@ -106,8 +106,7 @@ public sealed partial class MachineLifecycleTests
                             MotionGroup.PcbSupply,
                             provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply)),
                         provider.GetRequiredService<IIoService>(),
-                        settings.PcbSupply,
-                        settings.PcbBuffer))
+                        settings.PcbSupply))
             .AddSingleton(
                 provider =>
                     new PcbPlacementHandler(
@@ -193,10 +192,6 @@ public sealed partial class MachineLifecycleTests
             X = 80,
             Y = 30,
         };
-        settings.PcbBuffer.SupplyBoundary1 = 60;
-        settings.PcbBuffer.SupplyBoundary2 = 100;
-        settings.PcbBuffer.PlacementBoundary1 = new() { X = 60, Y = 20 };
-        settings.PcbBuffer.PlacementBoundary2 = new() { X = 100, Y = 40 };
         settings.PcbPlacementHandler.Motion = FastMotion();
         settings.PcbPlacementHandler.BufferHandoffPosition = new()
         {

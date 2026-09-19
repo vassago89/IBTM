@@ -440,12 +440,5 @@
 
     <Style x:Key="BufferStyle" TargetType="Border" BasedOn="{StaticResource DeviceBodyStyle}">
         <Setter Property="Background" Value="Transparent"/>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding State.Display.BufferConflict}" Value="True">
-                <Setter Property="Background" Value="{StaticResource AlarmStateBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-                <Setter Property="BorderThickness" Value="2"/>
-            </DataTrigger>
-        </Style.Triggers>
     </Style>
 </ResourceDictionary>

@@ -166,8 +166,6 @@ public partial class OperationViewModel
                     return Supply.PcbReleased
                         ? HandlerDisplayState.WaitingForPlacementLift
                         : HandlerDisplayState.WaitingForPlacement;
-                case true when PcbSupplyPcbSecured && !State.Display.IsSupplyEntryAllowed:
-                    return HandlerDisplayState.WaitingForBuffer;
                 case true when PcbSupplyPcbDetected:
                     return HandlerDisplayState.Working;
                 default:
@@ -203,8 +201,6 @@ public partial class OperationViewModel
                             return HandlerDisplayState.WaitingForSupplyRelease;
                         case PcbPlacementState.WaitingForCarrier:
                             return HandlerDisplayState.WaitingForMainCarrier;
-                        case PcbPlacementState.WaitingForSupplyExit:
-                            return HandlerDisplayState.WaitingForSupplyExit;
                         default:
                             return HandlerDisplayState.Working;
                     }

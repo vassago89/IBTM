@@ -235,6 +235,7 @@ public sealed class NgConveyorTests
         Assert.True(stop.IsCancellationRequested);
         Assert.False(started);
         Assert.False(system.Conveyor.RunCommandOn);
+        Assert.True(system.Io.GetOutput(OutputIo.NgConveyorNormalSpeed));
     }
 
     [Trait("Category", "MachineFlow")]

@@ -201,10 +201,9 @@ public sealed class VirtualMachine
         double carrierY,
         (double X, double Z) pcb1,
         (double X, double Z) pcb2,
-        XyPosition handoff,
-        double handoffZ)
+        AxisPosition handoff)
     {
-        _supplyAtBuffer = IsAt(x, y, z, handoff.X, handoff.Y, handoffZ);
+        _supplyAtBuffer = IsAt(x, y, z, handoff);
         if (!_supplyHoldingPcb)
         {
             _supplyPickupSlot = IsAt(x, y, z, pcb1.X, carrierY, pcb1.Z)

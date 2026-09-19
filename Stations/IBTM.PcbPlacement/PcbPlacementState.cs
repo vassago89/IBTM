@@ -40,14 +40,8 @@ public enum PcbPlacementState
     [Description("Waiting for Supply Release")]
     WaitingForSupplyRelease,
 
-    [Description("Waiting for Supply Exit")]
-    WaitingForSupplyExit,
-
     [Description("Raising IPM")]
     RaisingIpm,
-
-    [Description("Moving to Wait Position")]
-    MovingToWaitPosition,
 
     [Description("Rotating for Placement")]
     RotatingForPlacement,

@@ -46,7 +46,7 @@ public sealed partial class MachineController
             && block == StartBlockReason.None;
     }
 
-    private StartBlockReason GetStartBlock(MotionReadiness motion, bool? bufferConflict = null)
+    private StartBlockReason GetStartBlock(MotionReadiness motion)
     {
         switch (true)
         {
@@ -56,8 +56,6 @@ public sealed partial class MachineController
                 return StartBlockReason.DoorOpen;
             case true when _state.Alarm == MachineAlarm.AirPressureLow:
                 return StartBlockReason.AirPressure;
-            case true when _state.Alarm == MachineAlarm.BufferConflict || (bufferConflict ?? _state.Buffer.HasConflict()):
-                return StartBlockReason.BufferConflict;
             case true when _state.IsError:
                 return StartBlockReason.Alarm;
             case true when _options.UseEmergencyStop && !_state.EmergencyStopReleased:
@@ -145,7 +143,7 @@ public sealed partial class MachineController
                     var motion = _state.MotionReadiness;
                     if (!motion.Homed || !motion.ServosOn || motion.Faulted)
                         _state.SetError(MachineAlarm.MotionUnavailable);
-                    else if (!_state.Buffer.HasConflict())
+                    else
                         return;
                 }
             }

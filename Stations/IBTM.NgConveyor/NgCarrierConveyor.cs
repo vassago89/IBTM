@@ -387,6 +387,8 @@ public sealed class NgCarrierConveyor : AutoUnit
     private void StartConveyor(CancellationToken cancellationToken, bool reverse = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        _io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
+        cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.NgConveyorReverse, reverse);
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.NgConveyorRun, true);

@@ -289,7 +289,7 @@ public sealed class MachineStoreTests
         var store = new MachineStore(Path.Combine(CreateDirectory(), "Machine.db"));
         var settings = new MachineSettings();
         settings.PcbSupply.RotationZ = 12;
-        settings.PcbBuffer.SupplyBoundary1 = 45;
+        settings.Conveyor.CarrierStopDelaySeconds = 45;
         await settings.SaveAsync(store);
 
         using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
@@ -298,7 +298,7 @@ public sealed class MachineStoreTests
             using var command = connection.CreateCommand();
             command.CommandText = "CREATE TRIGGER FailSetting BEFORE UPDATE ON Settings WHEN NEW.Key = 'PcbSupplySettings' BEGIN SELECT RAISE(ABORT, 'test failure'); END";
             command.ExecuteNonQuery();
-            settings.PcbBuffer.SupplyBoundary1 = 100;
+            settings.Conveyor.CarrierStopDelaySeconds = 100;
             settings.PcbSupply.RotationZ = 30;
             await Assert.ThrowsAsync<DbUpdateException>(() => settings.SaveAsync(store));
             command.CommandText = "DROP TRIGGER FailSetting";
@@ -306,11 +306,11 @@ public sealed class MachineStoreTests
         }
 
         var loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
-        Assert.Equal(45, loaded.PcbBuffer.SupplyBoundary1);
+        Assert.Equal(45, loaded.Conveyor.CarrierStopDelaySeconds);
         Assert.Equal(12, loaded.PcbSupply.RotationZ);
         await settings.SaveAsync(store);
         loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
-        Assert.Equal(100, loaded.PcbBuffer.SupplyBoundary1);
+        Assert.Equal(100, loaded.Conveyor.CarrierStopDelaySeconds);
         Assert.Equal(30, loaded.PcbSupply.RotationZ);
     }
 
