@@ -114,6 +114,7 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
         inputs[(int)InputIo.Door6Open] = true;
         inputs[(int)InputIo.AirPressureHigh] = true;
         // Virtual equipment starts raised with an open NG gripper.
+        inputs[(int)InputIo.PickupTableUp] = true;
         inputs[(int)InputIo.PickupHeadUp] = true;
         inputs[(int)InputIo.ShootingHeadUp] = true;
         inputs[(int)InputIo.NgCarrierPickupUp] = true;

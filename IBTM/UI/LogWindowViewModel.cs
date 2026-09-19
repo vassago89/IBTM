@@ -13,7 +13,6 @@ namespace IBTM.UI;
 
 public partial class LogWindowViewModel : ObservableObject, IDisposable
 {
-    private readonly ApplicationLog _log;
     private readonly ListCollectionView _entries;
     private string _pausedText = "";
     private long _clearedThroughSequence;
@@ -23,7 +22,7 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string SelectedText { get; set; } = "";
 
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(Status))]
+    [ObservableProperty]
     public partial string? ClipboardError { get; set; }
 
     public LogWindowViewModel(ApplicationLog log)
@@ -32,7 +31,7 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
         CopyCommand = new RelayCommand(Copy);
         CopyAllCommand = new RelayCommand(CopyAll);
 
-        _log = log;
+        Log = log;
         // Register on the UI thread before creating the bound collection view.
         BindingOperations.EnableCollectionSynchronization(log.Entries, log.SyncRoot);
         _entries = new ListCollectionView(log.Entries)
@@ -41,7 +40,6 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
             SortDescriptions = { new(nameof(LogEntry.Sequence), ListSortDirection.Descending) },
         };
         ((INotifyCollectionChanged)_entries).CollectionChanged += OnEntriesChanged;
-        log.PropertyChanged += OnLogChanged;
     }
 
     public string Text
@@ -54,35 +52,11 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string FilePath => _log.FilePath ?? "File logging is disabled in this session.";
-
-    public string Status
-    {
-        get
-        {
-            switch (true)
-            {
-                case true when ClipboardError is not null:
-                    return ClipboardError;
-                case true when _log.FileError is { } error:
-                    return $"FILE ERROR: {error}";
-                case true when _log.FilePath is null:
-                    return "Recent messages are shown here; file logging is disabled.";
-                default:
-                    return "Recent messages are shown here; the log file contains the full session history.";
-            }
-        }
-    }
+    public ApplicationLog Log { get; }
 
     private bool IsVisible(object item)
     {
         return ((LogEntry)item).Sequence > _clearedThroughSequence;
-    }
-
-    private void OnLogChanged(object? sender, PropertyChangedEventArgs args)
-    {
-        if (args.PropertyName == nameof(ApplicationLog.FileError))
-            OnPropertyChanged(nameof(Status));
     }
 
     private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs args)
@@ -103,7 +77,7 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
 
     private void Clear()
     {
-        _clearedThroughSequence = _log.LatestSequence;
+        _clearedThroughSequence = Log.LatestSequence;
         _pausedText = "";
         _entries.Refresh();
         ClipboardError = null;
@@ -140,7 +114,6 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        _log.PropertyChanged -= OnLogChanged;
         ((INotifyCollectionChanged)_entries).CollectionChanged -= OnEntriesChanged;
         _entries.DetachFromSourceCollection();
     }

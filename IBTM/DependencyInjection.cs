@@ -20,6 +20,7 @@ using IBTM.Virtual;
 using IBTM.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -30,6 +31,8 @@ public static class DependencyInjection
         MachineSettings settings)
     {
         services.TryAddSingleton<ApplicationLog>();
+        services.TryAddSingleton<ILoggerFactory>(provider => provider.GetRequiredService<ApplicationLog>().CreateLoggerFactory());
+        services.AddLogging();
         services.TryAddSingleton<MachineStore>();
         services.TryAddSingleton<RecipeManager>();
         var hardware = settings.HardwareSections;
@@ -79,7 +82,62 @@ public static class DependencyInjection
             .AddSingleton(settings.Hantas)
             .AddSingleton<OperationCancellation>();
 
-        AddControlHardware(services, settings);
+        if (settings.Drivers.Control == ControlDriver.Virtual)
+        {
+            services
+                .AddSingleton<VirtualIoService>()
+                .AddSingleton(
+                    provider =>
+                        new VirtualMachine(
+                            provider.GetRequiredService<VirtualIoService>(),
+                            [
+                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
+                                    MotionGroup.PcbSupply),
+                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
+                                    MotionGroup.PcbPlacementHandler),
+                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
+                                    MotionGroup.BoltFastening),
+                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
+                                    MotionGroup.InspectionGantry),
+                            ],
+                            () => provider.GetRequiredService<MachineState>().RepeatEnabled))
+                .AddSingleton<IIoService>(
+                    provider => provider.GetRequiredService<VirtualIoService>());
+        }
+        else
+        {
+            services
+                .AddSingleton(settings.Ajin)
+                .AddSingleton(settings.AlphaMotion)
+                .AddSingleton<AjinController>()
+                .AddSingleton<AlphaMotionController>()
+                .AddSingleton<IIoService, PhysicalIoService>();
+        }
+
+        AddXyMotion(
+            services,
+            settings.Drivers.Control,
+            settings.PcbSupply.Motion,
+            () => settings.PcbSupply.RotationZ,
+            settings.PcbSupplyHardware);
+        AddXyMotion(
+            services,
+            settings.Drivers.Control,
+            settings.PcbPlacementHandler.Motion,
+            () => settings.PcbPlacementHandler.BufferHandoffPosition.Z,
+            settings.PcbPlacementHandlerHardware);
+        AddXyMotion(
+            services,
+            settings.Drivers.Control,
+            settings.BoltFastening.Motion,
+            () => settings.BoltFastening.SafeZ,
+            settings.BoltFasteningHardware);
+        AddXyMotion(
+            services,
+            settings.Drivers.Control,
+            settings.InspectionGantry.Motion,
+            null,
+            settings.InspectionGantryHardware);
 
         services
             .AddSingleton<IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>>>(
@@ -158,48 +216,23 @@ public static class DependencyInjection
 
         services
             .AddSingleton(
-                provider =>
-                {
-                    var units = provider.GetRequiredService<UnitSettings>();
-                    return new PcbPlacementWork(
-                        ConveyorStation.CreatePcbPlacement(provider.GetRequiredService<IIoService>()),
-                        () => units.PcbPlacement);
-                })
+                provider => new PcbPlacementWork(
+                    ConveyorStation.CreatePcbPlacement(provider.GetRequiredService<IIoService>()),
+                    provider.GetRequiredService<UnitSettings>()))
             .AddSingleton(
-                provider =>
-                {
-                    var units = provider.GetRequiredService<UnitSettings>();
-                    return new BoltFasteningWork(
-                        ConveyorStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()),
-                        () => units.BoltFastening);
-                })
+                provider => new BoltFasteningWork(
+                    ConveyorStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()),
+                    provider.GetRequiredService<UnitSettings>()))
+            .AddSingleton<InspectionWork>()
             .AddSingleton(
-                provider =>
-                {
-                    var units = provider.GetRequiredService<UnitSettings>();
-                    return new InspectionWork(
-                        provider.GetRequiredService<IIoService>(),
-                        provider.GetRequiredService<INgCarrierTransferFeedback>(),
-                        provider.GetRequiredService<InspectionGantry>(),
-                        settings.NgCarrierTransfer,
-                        () => units.Inspection,
-                        () => units.Inspection || units.NgCarrierTransfer,
-                        () => units.MainConveyor);
-                })
-            .AddSingleton(
-                provider =>
-                {
-                    var units = provider.GetRequiredService<UnitSettings>();
-                    var inspection = provider.GetRequiredService<InspectionWork>();
-                    return new MainConveyor(
-                        provider.GetRequiredService<IIoService>(),
-                        provider.GetRequiredService<ConveyorSettings>(),
-                        provider.GetRequiredService<OperationCancellation>(),
-                        provider.GetRequiredService<PcbPlacementWork>(),
-                        provider.GetRequiredService<BoltFasteningWork>(),
-                        inspection,
-                        routeInspectionToNg: () => units.NgCarrierTransfer && inspection.RouteToNg);
-                });
+                provider => new MainConveyor(
+                    provider.GetRequiredService<IIoService>(),
+                    provider.GetRequiredService<ConveyorSettings>(),
+                    provider.GetRequiredService<OperationCancellation>(),
+                    provider.GetRequiredService<PcbPlacementWork>(),
+                    provider.GetRequiredService<BoltFasteningWork>(),
+                    provider.GetRequiredService<InspectionWork>(),
+                    provider.GetRequiredService<UnitSettings>()));
 
         services
             .AddSingleton<NgCarrierTransfer>()
@@ -266,13 +299,76 @@ public static class DependencyInjection
                     settings.PcbSupply.BufferHandoffPosition,
                     settings.PcbPlacementHandler.BufferHandoffPosition,
                     () => settings.PcbSupply.RotationZ,
-                    () => settings.Units.PcbSupply,
-                    () => settings.Units.PcbPlacement);
+                    settings.Units);
             });
 
-        AddBoltHardware(services, settings);
-        AddCameraHardware(services, settings);
-        AddLightHardware(services, settings);
+        if (settings.Drivers.Bolt == BoltDriver.Io)
+        {
+            services
+                .AddKeyedSingleton<IBoltHead>(
+                    FasteningHead.Pickup,
+                    (provider, _) => new IoBoltHead(
+                        provider.GetRequiredService<IIoService>(), FasteningHead.Pickup, settings.IoBoltHardware))
+                .AddKeyedSingleton<IBoltHead>(
+                    FasteningHead.Shooting,
+                    (provider, _) => new IoBoltHead(
+                        provider.GetRequiredService<IIoService>(), FasteningHead.Shooting, settings.IoBoltHardware));
+        }
+        else
+        {
+            if (settings.Drivers.Bolt == BoltDriver.Virtual)
+                services.AddSingleton<IAdcBus, VirtualAdcBus>();
+            else
+                services.AddSingleton<IAdcBus, AdcBus>();
+
+            services
+                .AddKeyedSingleton<IBoltHead>(
+                    FasteningHead.Shooting,
+                    (provider, _) => new AdcBoltHead(
+                        provider.GetRequiredService<IAdcBus>(),
+                        settings.Hantas,
+                        settings.Hantas.ShootingSlaveAddress))
+                .AddKeyedSingleton<IBoltHead>(
+                    FasteningHead.Pickup,
+                    (provider, _) => new AdcBoltHead(
+                        provider.GetRequiredService<IAdcBus>(),
+                        settings.Hantas,
+                        settings.Hantas.PickupSlaveAddress));
+        }
+
+        if (settings.Drivers.Camera == CameraDriver.Virtual)
+        {
+            services
+                .AddSingleton<VirtualCamera>(
+                    provider =>
+                    {
+                        var recipes = provider.GetRequiredService<RecipeManager>();
+                        return new VirtualCamera(
+                            provider.GetRequiredService<InspectionGantry>().Feedback.GetPosition,
+                            () => recipes.Current.Pcb.BoltPoints
+                                .Where(bolt => settings.CarrierReference.IsDefined
+                                    && bolt.X is not null && bolt.Y is not null)
+                                .Select(
+                                    bolt => settings.InspectionGantry.GetBoltPosition(
+                                        bolt,
+                                        settings.CarrierReference)),
+                            // Fixed virtual labels are independent of taught FOVs and ROIs.
+                            () => [
+                                new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
+                                new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2"),
+                            ]);
+                    })
+                .AddSingleton<ICamera>(provider => provider.GetRequiredService<VirtualCamera>());
+        }
+        else
+        {
+            services.AddSingleton<ICamera, HikCamera>();
+        }
+
+        if (settings.Drivers.Light == LightDriver.Virtual)
+            services.AddSingleton<ILightController, VirtualLightController>();
+        else
+            services.AddSingleton<ILightController, MovsLightController>();
 
         services
             .AddSingleton<BoltInspector>()
@@ -307,25 +403,13 @@ public static class DependencyInjection
             .AddSingleton<PcbPlacer>()
             .AddSingleton<PickupBoltFeeder>()
             .AddSingleton<ShootingBoltFeeder>()
-            .AddSingleton<Func<FasteningHead, bool>>(settings.Units.IsBoltFeederEnabled)
             .AddSingleton<BoltFasteningStation>()
             .AddSingleton<NgShuttleFeedback>()
             .AddSingleton<NgCarrierConveyor>();
 
         services
             .AddSingleton<NgShuttle>()
-            .AddSingleton(
-                provider =>
-                {
-                    var units = provider.GetRequiredService<UnitSettings>();
-                    return new InspectionStation(
-                        provider.GetRequiredService<InspectionWork>(),
-                        provider.GetRequiredService<BoltInspector>(),
-                        provider.GetRequiredService<NgCarrierMove>(),
-                        provider.GetRequiredService<NgShuttle>(),
-                        () => units.NgCarrierTransfer,
-                        () => units.NgConveyor);
-                });
+            .AddSingleton<InspectionStation>();
 
         services
             .AddSingleton<RecipeEditor>()
@@ -342,151 +426,6 @@ public static class DependencyInjection
         return services;
     }
 
-    private static void AddControlHardware(IServiceCollection services, MachineSettings settings)
-    {
-        if (settings.Drivers.Control == ControlDriver.Virtual)
-        {
-            services
-                .AddSingleton<VirtualIoService>()
-                .AddSingleton(
-                    provider =>
-                        new VirtualMachine(
-                            provider.GetRequiredService<VirtualIoService>(),
-                            [
-                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                                    MotionGroup.PcbSupply),
-                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                                    MotionGroup.PcbPlacementHandler),
-                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                                    MotionGroup.BoltFastening),
-                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                                    MotionGroup.InspectionGantry),
-                            ],
-                            () => provider.GetRequiredService<MachineState>().RepeatEnabled))
-                .AddSingleton<IIoService>(
-                    provider => provider.GetRequiredService<VirtualIoService>());
-        }
-        else
-        {
-            services
-                .AddSingleton(settings.Ajin)
-                .AddSingleton(settings.AlphaMotion)
-                .AddSingleton<AjinController>()
-                .AddSingleton<AlphaMotionController>()
-                .AddSingleton<IIoService, PhysicalIoService>();
-        }
-
-        AddXyMotion(
-            services,
-            settings.Drivers.Control,
-            settings.PcbSupply.Motion,
-            () => settings.PcbSupply.RotationZ,
-            settings.PcbSupplyHardware);
-        AddXyMotion(
-            services,
-            settings.Drivers.Control,
-            settings.PcbPlacementHandler.Motion,
-            () => settings.PcbPlacementHandler.BufferHandoffPosition.Z,
-            settings.PcbPlacementHandlerHardware);
-        AddXyMotion(
-            services,
-            settings.Drivers.Control,
-            settings.BoltFastening.Motion,
-            () => settings.BoltFastening.SafeZ,
-            settings.BoltFasteningHardware);
-        AddXyMotion(
-            services,
-            settings.Drivers.Control,
-            settings.InspectionGantry.Motion,
-            null,
-            settings.InspectionGantryHardware);
-    }
-
-    private static void AddCameraHardware(
-        IServiceCollection services,
-        MachineSettings settings)
-    {
-        if (settings.Drivers.Camera == CameraDriver.Virtual)
-        {
-            services
-                .AddSingleton<VirtualCamera>(
-                    provider =>
-                    {
-                        var recipes = provider.GetRequiredService<RecipeManager>();
-                        return new VirtualCamera(
-                            provider.GetRequiredService<InspectionGantry>().Feedback.GetPosition,
-                            () => recipes.Current.Pcb.BoltPoints
-                                .Where(bolt => settings.CarrierReference.IsDefined
-                                    && bolt.X is not null && bolt.Y is not null)
-                                .Select(
-                                    bolt => settings.InspectionGantry.GetBoltPosition(
-                                        bolt,
-                                        settings.CarrierReference)),
-                            // Fixed virtual labels are independent of taught FOVs and ROIs.
-                            () => [
-                                new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
-                                new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2"),
-                            ]);
-                    })
-                .AddSingleton<ICamera>(provider => provider.GetRequiredService<VirtualCamera>());
-        }
-        else
-        {
-            services.AddSingleton<ICamera, HikCamera>();
-        }
-    }
-
-    private static void AddBoltHardware(IServiceCollection services, MachineSettings settings)
-    {
-        if (settings.Drivers.Bolt == BoltDriver.Io)
-        {
-            services
-                .AddKeyedSingleton<IBoltHead>(
-                    FasteningHead.Pickup,
-                    (provider, _) => new IoBoltHead(
-                        provider.GetRequiredService<IIoService>(), FasteningHead.Pickup, settings.IoBoltHardware))
-                .AddKeyedSingleton<IBoltHead>(
-                    FasteningHead.Shooting,
-                    (provider, _) => new IoBoltHead(
-                        provider.GetRequiredService<IIoService>(), FasteningHead.Shooting, settings.IoBoltHardware));
-            return;
-        }
-
-        if (settings.Drivers.Bolt == BoltDriver.Virtual)
-        {
-            services.AddSingleton<IAdcBus, VirtualAdcBus>();
-        }
-        else
-        {
-            services.AddSingleton<IAdcBus, AdcBus>();
-        }
-
-        services
-            .AddKeyedSingleton<IBoltHead>(
-                FasteningHead.Shooting,
-                (provider, _) => new AdcBoltHead(
-                    provider.GetRequiredService<IAdcBus>(),
-                    settings.Hantas,
-                    settings.Hantas.ShootingSlaveAddress))
-            .AddKeyedSingleton<IBoltHead>(
-                FasteningHead.Pickup,
-                (provider, _) => new AdcBoltHead(
-                    provider.GetRequiredService<IAdcBus>(),
-                    settings.Hantas,
-                    settings.Hantas.PickupSlaveAddress));
-    }
-
-    private static void AddLightHardware(IServiceCollection services, MachineSettings settings)
-    {
-        if (settings.Drivers.Light == LightDriver.Virtual)
-        {
-            services.AddSingleton<ILightController, VirtualLightController>();
-            return;
-        }
-
-        services.AddSingleton<ILightController, MovsLightController>();
-    }
-
     private static void AddXyMotion(
         IServiceCollection services,
         ControlDriver driver,
@@ -496,44 +435,37 @@ public static class DependencyInjection
     {
         services.AddKeyedSingleton<IXyMotion>(
             hardware.Group,
-            (provider, _) => CreateMotion(provider, driver, settings, horizontalZ, hardware));
-    }
+            (provider, _) =>
+            {
+                var x = hardware.GetAxis(MotionAxis.X)!;
+                var y = hardware.GetAxis(MotionAxis.Y);
+                var z = hardware.GetAxis(MotionAxis.Z);
+                var cancellation = provider.GetRequiredService<OperationCancellation>();
+                if (driver == ControlDriver.Physical)
+                {
+                    return new AjinMotionService(
+                        provider.GetRequiredService<AjinController>(),
+                        x,
+                        y,
+                        z,
+                        settings,
+                        provider.GetRequiredService<MachineOptions>(),
+                        cancellation,
+                        horizontalZ);
+                }
 
-    private static IXyMotion CreateMotion(
-        IServiceProvider provider,
-        ControlDriver driver,
-        MotionSettings settings,
-        Func<double>? horizontalZ,
-        MotionHardwareSettings hardware)
-    {
-        var x = hardware.GetAxis(MotionAxis.X)!;
-        var y = hardware.GetAxis(MotionAxis.Y);
-        var z = hardware.GetAxis(MotionAxis.Z);
-        var cancellation = provider.GetRequiredService<OperationCancellation>();
-        if (driver == ControlDriver.Physical)
-        {
-            return new AjinMotionService(
-                provider.GetRequiredService<AjinController>(),
-                x,
-                y,
-                z,
-                settings,
-                provider.GetRequiredService<MachineOptions>(),
-                cancellation,
-                horizontalZ);
-        }
-
-        var io = provider.GetRequiredService<VirtualIoService>();
-        return new VirtualMotionService(
-            settings,
-            cancellation,
-            hasY: y is not null,
-            hasZ: z is not null,
-            horizontalZ: horizontalZ,
-            servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn),
-            axisResolutionMillimeters: (
-                x.MoveUnit / x.MovePulse / 1000,
-                (y?.MoveUnit ?? 1) / (y?.MovePulse ?? 1) / 1000,
-                (z?.MoveUnit ?? 1) / (z?.MovePulse ?? 1) / 1000));
+                var io = provider.GetRequiredService<VirtualIoService>();
+                return new VirtualMotionService(
+                    settings,
+                    cancellation,
+                    hasY: y is not null,
+                    hasZ: z is not null,
+                    horizontalZ: horizontalZ,
+                    servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn),
+                    axisResolutionMillimeters: (
+                        x.MoveUnit / x.MovePulse / 1000,
+                        (y?.MoveUnit ?? 1) / (y?.MovePulse ?? 1) / 1000,
+                        (z?.MoveUnit ?? 1) / (z?.MovePulse ?? 1) / 1000));
+            });
     }
 }

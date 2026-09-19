@@ -6,6 +6,7 @@ using IBTM.Ajin;
 using IBTM.Core;
 using IBTM.Device;
 using Xunit;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.Ajin.Tests;
 
@@ -945,8 +946,9 @@ public sealed partial class AjinControllerTests
     [Fact]
     public void InitializationUsesZeroSuccessAndLogsTheActualFiveModulesWithoutWritingOutputs()
     {
-        using var log = new ApplicationLog();
-        using var controller = new AjinController(new(), log);
+        var log = new ApplicationLog();
+        using var loggerFactory = log.CreateLoggerFactory();
+        using var controller = new AjinController(new(), loggerFactory.CreateLogger<AjinController>());
 
         controller.Initialize();
         controller.Initialize();
@@ -1242,8 +1244,9 @@ public sealed partial class AjinControllerTests
     [Fact]
     public void FailedOpenDoesNotCloseAnUnownedLibraryAndCanBeRetried()
     {
-        using var log = new ApplicationLog();
-        using var controller = new AjinController(new(), log);
+        var log = new ApplicationLog();
+        using var loggerFactory = log.CreateLoggerFactory();
+        using var controller = new AjinController(new(), loggerFactory.CreateLogger<AjinController>());
         AjinSdk.Results[new("AxlOpen", Offset: 7)] = (uint)AXT_FUNC_RESULT.AXT_RT_OPEN_ERROR;
         var error = Assert.Throws<IOException>(controller.Initialize);
         Assert.Contains("AxlOpen", error.Message);
@@ -1261,8 +1264,9 @@ public sealed partial class AjinControllerTests
     [Fact]
     public void ModuleQueryFailureClosesAndPreservesCleanupErrors()
     {
-        using var log = new ApplicationLog();
-        using var controller = new AjinController(new(), log);
+        var log = new ApplicationLog();
+        using var loggerFactory = log.CreateLoggerFactory();
+        using var controller = new AjinController(new(), loggerFactory.CreateLogger<AjinController>());
         AjinSdk.Results[new("AxdInfoIsDIOModule")] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
         AjinSdk.BeforeCall = call =>
         {
@@ -1329,8 +1333,10 @@ public sealed partial class AjinControllerTests
     private sealed class RecoveryWork : StationWork
     {
         public RecoveryWork(ConveyorStation station)
-            : base(station)
+            : base(station, new())
         {
         }
+
+        public override bool Enabled => true;
     }
 }

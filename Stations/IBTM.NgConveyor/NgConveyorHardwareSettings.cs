@@ -1,8 +1,9 @@
+using System.Text.Json.Serialization;
 using IBTM.Device;
 
 namespace IBTM.NgConveyor;
 
-public sealed class NgConveyorHardwareSettings : IoHardwareSettings
+public sealed class NgConveyorHardwareSettings : IoHardwareSettings, IJsonOnDeserialized
 {
     public NgConveyorHardwareSettings()
     {
@@ -25,12 +26,18 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
                 InputIo.NgConveyorStopperDown),
             [OutputIo.NgConveyorRun] = CreateOutput(72),
             [OutputIo.NgConveyorReverse] = CreateOutput(73),
+            [OutputIo.NgConveyorNormalSpeed] = CreateOutput(74),
             [OutputIo.NgCarrierEjectLamp] = CreateOutput(75),
             [OutputIo.NgCarrierEjectCompleteLamp] = CreateOutput(76),
         };
     }
 
     public override HardwareArea Area => HardwareArea.NgConveyor;
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        Outputs.TryAdd(OutputIo.NgConveyorNormalSpeed, CreateOutput(74));
+    }
 
     public override IoSection? GetSection(System.Enum signal)
     {
@@ -44,6 +51,7 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
             case OutputIo.NgConveyorStopperUp:
             case OutputIo.NgConveyorRun:
             case OutputIo.NgConveyorReverse:
+            case OutputIo.NgConveyorNormalSpeed:
                 return IoSection.NgConveyorStorage;
             case InputIo.NgCarrierEjectButton:
             case InputIo.NgCarrierEjectCompleteButton:

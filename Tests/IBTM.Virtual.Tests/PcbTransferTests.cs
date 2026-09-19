@@ -135,7 +135,7 @@ public sealed class PcbTransferTests
             new PcbBufferSettings { SupplyBoundary1 = 40, SupplyBoundary2 = 60 });
         var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
         var buffer = Buffer(source, recipient, supplySettings, placementSettings);
-        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io)));
+        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()));
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -232,7 +232,7 @@ public sealed class PcbTransferTests
         var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
         var buffer = Buffer(source, recipient, supplySettings, placementSettings);
         var supplier = new PcbSupplier(source, buffer);
-        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io)));
+        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()));
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -453,7 +453,7 @@ public sealed class PcbTransferTests
             new PcbBufferSettings { SupplyBoundary1 = 40, SupplyBoundary2 = 60 });
         var buffer = Buffer(supplyHandler, placementHandler, supplySettings, placementSettings);
         var supply = new PcbSupplier(supplyHandler, buffer);
-        var work = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io));
+        var work = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new());
         var placement = new PcbPlacer(buffer, placementHandler, work);
         var returnedPositions = new System.Collections.Generic.List<(double X, double Y, double Z)>();
         supply.Trace += message =>
@@ -839,7 +839,8 @@ public sealed class PcbTransferTests
             placementHandler.Motion,
             supplySettings.BufferHandoffPosition,
             placementSettings.BufferHandoffPosition,
-            () => supplySettings.RotationZ);
+            () => supplySettings.RotationZ,
+            new());
     }
 
     private static MotionSettings FastMotion()

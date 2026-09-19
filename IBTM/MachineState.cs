@@ -13,6 +13,7 @@ using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -109,7 +110,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
     private readonly NgCarrierConveyor _ngConveyor;
-    private readonly ApplicationLog? _log;
+    private readonly ILogger<MachineState>? _log;
 
     public MachineState(
         MachineOptions options,
@@ -123,7 +124,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         PcbPlacementHandler pcbPlacement,
         BoltFasteningGantry boltFastening,
         InspectionGantry inspectionGantry,
-        ApplicationLog? log = null)
+        ILogger<MachineState>? log = null)
     {
         _displayRequested = new();
         _displayLifetime = new();
@@ -250,7 +251,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
             if (field == value)
                 return;
 
-            _log?.Write($"Automatic operation {(value ? "started" : "stopped")}.");
+            _log?.LogInformation("{Message}", $"Automatic operation {(value ? "started" : "stopped")}.");
             field = value;
             UpdateMachineIndicators();
             NotifyChanged();
@@ -263,7 +264,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         internal set
         {
             if (field != value)
-                _log?.Write($"Bolt test {(value ? "started" : "stopped")}.");
+                _log?.LogInformation("{Message}", $"Bolt test {(value ? "started" : "stopped")}.");
             field = value;
             NotifyChanged();
         }
@@ -275,7 +276,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         internal set
         {
             if (field != value)
-                _log?.Write($"Homing {(value ? "started" : "finished")}.");
+                _log?.LogInformation("{Message}", $"Homing {(value ? "started" : "finished")}.");
             field = value;
             NotifyChanged();
         }
@@ -365,7 +366,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         }
         catch (Exception exception)
         {
-            _log?.Error("Display worker stopped by an unexpected error.", exception);
+            _log?.LogError(exception, "Display worker stopped by an unexpected error.");
             Display = new() { ReadError = exception };
             _firstDisplay.TrySetException(exception);
             DisplayChanged?.Invoke();
@@ -388,7 +389,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         }
         catch (IOException exception)
         {
-            _log?.Error("Buzzer OFF failed.", exception);
+            _log?.LogError(exception, "Buzzer OFF failed.");
         }
     }
 
@@ -420,7 +421,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         }
         catch (IOException exception)
         {
-            _log?.Error("Machine indicator output update failed.", exception);
+            _log?.LogError(exception, "Machine indicator output update failed.");
         }
     }
 
@@ -440,7 +441,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         catch (IOException exception)
         {
             if (Display.ReadError is null)
-                _log?.Error("Display refresh failed.", exception);
+                _log?.LogError(exception, "Display refresh failed.");
             if (_io.IsReady)
             {
                 if (!ReferenceEquals(Display.ReadError, exception))
@@ -537,7 +538,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         {
             if (exception is not null)
             {
-                _log?.Error($"Machine alarm remains: {alarm}.", exception);
+                _log?.LogError(exception, "{Message}", $"Machine alarm remains: {alarm}.");
             }
 
             return;
@@ -546,7 +547,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         Alarm = alarm;
         AlarmDetail = exception?.ToString();
         AlarmMessage = exception?.Message;
-        _log?.Error($"Machine alarm: {alarm}.", exception);
+        _log?.LogError(exception, "{Message}", $"Machine alarm: {alarm}.");
         UpdateMachineIndicators();
         NotifyChanged();
     }
@@ -554,7 +555,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
     internal void ClearError()
     {
         if (Alarm != MachineAlarm.None)
-            _log?.Write($"Machine alarm cleared: {Alarm}.");
+            _log?.LogInformation("{Message}", $"Machine alarm cleared: {Alarm}.");
         Alarm = MachineAlarm.None;
         AlarmDetail = null;
         AlarmMessage = null;

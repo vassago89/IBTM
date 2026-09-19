@@ -10,6 +10,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -17,7 +18,8 @@ public partial class App : System.Windows.Application
 {
     private Mutex? _instanceMutex;
     private ServiceProvider? _serviceProvider;
-    private ApplicationLog? _log;
+    private ILogger<App>? _log;
+    private ILoggerFactory? _loggerFactory;
     private ApplicationTraceListener? _traceListener;
     private IAdcBus? _adcBus;
     private object? _displayedError;
@@ -56,55 +58,64 @@ public partial class App : System.Windows.Application
 
         _instanceMutex = instanceMutex;
 
-        _log = new ApplicationLog(
+        var applicationLog = new ApplicationLog(
             Path.Combine(
                 AppContext.BaseDirectory,
                 "Logs",
                 $"IBTM-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Environment.ProcessId}.log"));
-        _traceListener = new ApplicationTraceListener(_log);
+        _loggerFactory = applicationLog.CreateLoggerFactory();
+        _log = _loggerFactory.CreateLogger<App>();
+        _traceListener = new ApplicationTraceListener(_loggerFactory.CreateLogger<ApplicationTraceListener>());
         Trace.Listeners.Add(_traceListener);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-        _log.Write($"Application starting. Base directory: {AppContext.BaseDirectory}");
+        _log.LogInformation("{Message}", $"Application starting. Base directory: {AppContext.BaseDirectory}");
 
         base.OnStartup(e);
 
-        MachineStore database;
-        RecipeManager recipes;
-        MachineSettings settings;
+        var services = new ServiceCollection()
+            .AddSingleton(applicationLog)
+            .AddSingleton(_loggerFactory);
         try
         {
-            database = await Task.Run(() => new MachineStore());
+            var database = await Task.Run(() => new MachineStore());
             if (DevelopmentProfile.IsEnabled)
             {
                 await DevelopmentProfile.PrepareAsync(database);
             }
 
-            settings = await MachineSettings.LoadAsync(database);
+            var settings = await MachineSettings.LoadAsync(database);
             if (DevelopmentProfile.IsEnabled)
             {
                 DevelopmentProfile.UseVirtualHardware(settings);
             }
 
-            recipes = new RecipeManager(database, settings.RecipeSelection);
+            var recipes = new RecipeManager(database, settings.RecipeSelection);
             if (settings.RecipeSelection.LastRecipeName is { } recipeName)
                 await recipes.LoadAsync(recipeName);
-            _log.Write(
+            _log.LogInformation(
+                "{Message}",
                 $"Settings loaded: {database.DatabaseFile}. Control={settings.Drivers.Control}, Camera={settings.Drivers.Camera}, Light={settings.Drivers.Light}, Bolt={settings.Drivers.Bolt}.");
-            _log.Write(
+            _log.LogInformation(
+                "{Message}",
                 $"Connections: AlphaMotion card={settings.AlphaMotion.ControllerNumber}, DI/DO counts detected during initialization; AJIN AxlOpen, interrupt={settings.Ajin.InterruptNumber}, input modules=[{string.Join(
                         ",",
                         settings.Ajin.RtexInputModules ?? [])}], output modules=[{string.Join(
                             ",",
                             settings.Ajin.RtexOutputModules ?? [])}], no .mot file loaded.");
+
+            services
+                .AddSingleton(database)
+                .AddSingleton(recipes)
+                .AddIbtmApplication(settings);
         }
-        catch (System.Exception exception)
+        catch (Exception exception)
         {
-            _log.Error("Database startup failed. Hardware was not initialized.", exception);
+            _log.LogError(exception, "Startup configuration failed. Hardware was not initialized.");
             MessageBox.Show(
-                $"Machine settings or recipes could not be loaded. Hardware was not initialized.\n\n{exception.GetBaseException().Message}",
-                "Database Startup Failed",
+                $"Startup configuration could not be prepared. Hardware was not initialized.\n\n{exception.GetBaseException().Message}",
+                "Startup Configuration Failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             _exitCode = 1;
@@ -113,10 +124,6 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        var services = new ServiceCollection().AddSingleton(_log)
-            .AddSingleton(database)
-            .AddSingleton(recipes)
-            .AddIbtmApplication(settings);
         var serviceProvider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, });
         _serviceProvider = serviceProvider;
@@ -127,7 +134,7 @@ public partial class App : System.Windows.Application
         await serviceProvider.GetRequiredService<MachineController>().InitializeAsync();
         var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
-        _log.Write("Main window opened.");
+        _log.LogInformation("Main window opened.");
     }
 
     internal async Task CompleteExitAsync()
@@ -141,7 +148,7 @@ public partial class App : System.Windows.Application
             }
             catch (Exception exception)
             {
-                _log?.Error("Final device STOP failed during application exit.", exception);
+                _log?.LogError(exception, "Final device STOP failed during application exit.");
                 _exitCode = 1;
                 ShowError("Device STOP failed during application exit.", exception);
             }
@@ -156,13 +163,13 @@ public partial class App : System.Windows.Application
             }
             catch (Exception exception)
             {
-                _log?.Error("Device disposal failed during application exit.", exception);
+                _log?.LogError(exception, "Device disposal failed during application exit.");
                 _exitCode = 1;
                 ShowError("Device cleanup failed during application exit.", exception);
             }
 
             _serviceProvider = null;
-            _log?.Write(_exitCode == 0
+            _log?.LogInformation("{Message}", _exitCode == 0
                 ? "Application stopped."
                 : "Application exited with shutdown errors. See preceding errors for unconfirmed device cleanup.");
         }
@@ -176,8 +183,8 @@ public partial class App : System.Windows.Application
             if (_traceListener is not null)
                 Trace.Listeners.Remove(_traceListener);
             _traceListener?.Dispose();
-            if (_log is not null)
-                await _log.DisposeAsync();
+            if (_loggerFactory is not null)
+                await Task.Run(_loggerFactory.Dispose);
         }
     }
 
@@ -190,7 +197,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception)
         {
-            _log?.Error("Final device STOP failed during application exit.", exception);
+            _log?.LogError(exception, "Final device STOP failed during application exit.");
             _exitCode = 1;
             ShowError("Device STOP failed during application exit.", exception);
         }
@@ -207,27 +214,25 @@ public partial class App : System.Windows.Application
         object sender,
         System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
     {
-        _log?.Error("Unhandled UI exception.", e.Exception);
+        _log?.LogError(e.Exception, "Unhandled UI exception.");
         ShowError("An unhandled UI error occurred.", e.Exception);
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
-        _log?.Error(
-            $"Unhandled exception. Terminating={e.IsTerminating}.",
-            e.ExceptionObject as Exception);
+        _log?.LogError(e.ExceptionObject as Exception, "{Message}", $"Unhandled exception. Terminating={e.IsTerminating}.");
         ShowError(
             e.IsTerminating
                 ? "An unhandled error occurred. The application will close."
                 : "An unhandled application error occurred.",
             e.ExceptionObject);
         if (e.IsTerminating)
-            _log?.Dispose();
+            _loggerFactory?.Dispose();
     }
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        _log?.Error("Unobserved background task exception.", e.Exception);
+        _log?.LogError(e.Exception, "Unobserved background task exception.");
         _ = Dispatcher.InvokeAsync(
             () => ShowError("A background task failed.", e.Exception));
     }
@@ -250,8 +255,7 @@ public partial class App : System.Windows.Application
 
     private void OnAdcFrameTransferred(AdcFrameDirection direction, byte[] frame)
     {
-        _log?.Write(
-            $"ADC {(direction == AdcFrameDirection.Transmit ? "TX" : "RX RAW")} {Convert.ToHexString(
+        _log?.LogInformation("{Message}", $"ADC {(direction == AdcFrameDirection.Transmit ? "TX" : "RX RAW")} {Convert.ToHexString(
                     frame)}");
     }
 }

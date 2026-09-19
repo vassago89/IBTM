@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -78,7 +79,7 @@ public sealed partial class MachineController
                 await ReturnMainCarrierAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 _repeatCycles++;
-                _log?.Write($"Repeat cycle {_repeatCycles} returned to the entry sensor.");
+                _log?.LogInformation("{Message}", $"Repeat cycle {_repeatCycles} returned to the entry sensor.");
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

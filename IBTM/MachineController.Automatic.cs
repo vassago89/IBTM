@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -130,7 +131,7 @@ public sealed partial class MachineController
                     || !_state.SafetyReady
                     || !_state.DoorInterlockReady)
                 {
-                    _log?.Write("Automatic stop: I/O, selector, emergency stop, air or door condition changed.");
+                    _log?.LogInformation("Automatic stop: I/O, selector, emergency stop, air or door condition changed.");
                     operation.Cancel();
                     return;
                 }
@@ -224,7 +225,7 @@ public sealed partial class MachineController
                     if (!_state.IsError)
                         _state.SetError(MachineAlarm.MainConveyor, exception);
                     else
-                        _log?.Error("Main conveyor startup plate lowering failed while stopping.", exception);
+                        _log?.LogError(exception, "Main conveyor startup plate lowering failed while stopping.");
                     return;
                 }
             }
@@ -300,9 +301,11 @@ public sealed partial class MachineController
         if (!cycle.IsCancellationRequested && _units.BoltFastening)
         {
             if (!_units.PickupBoltFeeder)
-                _log?.Write("Pickup Feeder OFF; pickup motion and vacuum remain active without bolt detection waits. Motor START and fastening result collection remain active.");
+                _log?.LogInformation(
+                    "Pickup Feeder OFF; pickup motion and vacuum remain active without bolt detection waits. Motor START and fastening result collection remain active.");
             if (!_units.ShootingBoltFeeder)
-                _log?.Write("Shooting Feeder OFF; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
+                _log?.LogInformation(
+                    "Shooting Feeder OFF; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.BoltFastening,
                 _fasteningStation.RunAsync(_recipes.Current.BoltFastening, cycle.Token),
@@ -364,16 +367,14 @@ public sealed partial class MachineController
             {
                 // Keep the unit name even when the alarm is classified as MotionUnavailable.
                 // SetError records the original exception and its full stack trace.
-                _log?.Error($"Automatic unit {alarm} failed. {exception.Message}");
+                _log?.LogError("{Message}", $"Automatic unit {alarm} failed. {exception.Message}");
                 _state.SetError(
                     IsMotionFailure(exception) ? MachineAlarm.MotionUnavailable : alarm,
                     exception);
             }
             else
             {
-                _log?.Error(
-                    $"Automatic unit {alarm} failed while stopping; existing alarm={_state.Alarm}.",
-                    exception);
+                _log?.LogError(exception, "{Message}", $"Automatic unit {alarm} failed while stopping; existing alarm={_state.Alarm}.");
             }
         }
         finally

@@ -6,6 +6,7 @@ using IBTM.AlphaMotion;
 using IBTM.Core;
 using Shared;
 using Xunit;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.AlphaMotion.Tests;
 
@@ -34,8 +35,9 @@ public sealed class AlphaMotionControllerTests
         TMCAEDLL.Model = model;
         TMCAEDLL.Communication = communication;
         TMCAEDLL.Inputs = 8;
-        using var log = new ApplicationLog();
-        using var controller = new AlphaMotionController(new(), log);
+        var log = new ApplicationLog();
+        using var loggerFactory = log.CreateLoggerFactory();
+        using var controller = new AlphaMotionController(new(), loggerFactory.CreateLogger<AlphaMotionController>());
         controller.Initialize();
         controller.Initialize();
 
@@ -481,8 +483,9 @@ public sealed class AlphaMotionControllerTests
     [Fact]
     public void CleanupFailurePreservesTheOriginalBoardInfoError()
     {
-        using var log = new ApplicationLog();
-        using var controller = new AlphaMotionController(new(), log);
+        var log = new ApplicationLog();
+        using var loggerFactory = log.CreateLoggerFactory();
+        using var controller = new AlphaMotionController(new(), loggerFactory.CreateLogger<AlphaMotionController>());
         TMCAEDLL.Errors["AIO_BoardInfo"] = tmcDef.ERR_INVALID_BOARD_ID;
         TMCAEDLL.Errors["AIO_UnloadDevice"] = tmcDef.ERR_UNKNOWN;
         var error = Assert.Throws<IOException>(controller.Initialize);
@@ -527,8 +530,9 @@ public sealed class AlphaMotionControllerTests
     [Fact]
     public void RepeatedPollingDoesNotFloodTheLog()
     {
-        using var log = new ApplicationLog();
-        using var controller = new AlphaMotionController(new(), log);
+        var log = new ApplicationLog();
+        using var loggerFactory = log.CreateLoggerFactory();
+        using var controller = new AlphaMotionController(new(), loggerFactory.CreateLogger<AlphaMotionController>());
         controller.Initialize();
         var sequence = log.LatestSequence;
         for (var index = 0; index < 100; index++)

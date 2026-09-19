@@ -46,8 +46,23 @@ Virtual은 실린더 동작을 모사하므로 가상 인계 성공이 실제 �
 
 위 주소는 새 설정의 기본값이다. 저장된 DB의 주소·출력 방향·피드백은 자동으로 변경하지 않는다.
 
-추가 확인할 항목은 볼트체결기 `PST1 TABLE`(DI-118/119, DO-115/116)의 실제 용도와 필요 순서다.
-현재 제어·완료 확인이 없으므로 체결용 지지 실린더인지 확인한 후 해당 시퀀스에 넣는다.
+## 컨베이어 Normal Speed / 픽업 체결기 테이블
+
+2026-09-19 추가. 원본 `IO MAP-260913 확인` 시트의 39·40·42·43·64·76행 기준이다.
+
+| 신호 | 엑셀 주소 | 프로그램 채널 | 코드 |
+| --- | --- | --- | --- |
+| 메인 컨베이어 Normal Speed | DO-12E | 62 | `MainConveyorNormalSpeed` |
+| NG 컨베이어 Normal Speed | DO-13A | 74 | `NgConveyorNormalSpeed` |
+| PST1 TABLE 하강 / 상승 출력 | DO-115 / DO-116 | 37 / 38 | `PickupTableDown` ON / OFF |
+| PST1 TABLE 하강 / 상승 감지 | DI-118 / DI-119 | 40 / 41 | `PickupTableDown` / `PickupTableUp` |
+
+INPUTS / OUTPUTS 및 Settings의 I/O Mapping에 표시한다.
+테이블은 기존 복동 실린더와 같이 하강·상승 출력을 한 행으로 묶고 두 감지 입력을 연결한다.
+OUTPUTS의 ON은 하강, OFF는 상승이며 감지 상태는 DI로 표시한다.
+이번 추가는 I/O 등록·수동 조작까지이며, 자동 운전에서 Normal Speed나 테이블을 전환하는 순서는 추가하지 않았다.
+기존 설정을 읽을 때도 이번에 추가한 DI 2개·논리 DO 3개만 없으면 기본 주소로 추가한다.
+이미 저장된 주소는 유지하며 DB 반영은 Save Settings에서 한다.
 
 ## 볼트 체결기 타입
 
@@ -95,7 +110,7 @@ START OFF 확인 전까지 보관하므로 재운전 없이 회수할 수 있다
 - AirPressureHigh 입력 ON은 공압 정상이다. 발생했던 알람의 래치는 별도로 확인한다.
 - 각 스테이션의 BackupPlateUp / StopperUp 출력 ON은 상승 명령이다.
 - MainConveyorForward ON은 메인 벨트 정방향이다. NG는 Reverse 명칭을 쓴다.
-  두 벨트의 Normal Speed 출력은 사용하지 않는다.
+  두 벨트의 Normal Speed 출력은 OUTPUTS에서 직접 ON/OFF한다.
 - NgCarrierPickupDown ON은 픽업 하강, OFF는 상승이다.
 - NgCarrierGripperClose ON은 그리퍼 닫힘, OFF는 열림이다.
 - NgShuttleDown ON은 셔틀 하강, OFF는 상승이다.
@@ -107,5 +122,5 @@ START OFF 확인 전까지 보관하므로 재운전 없이 회수할 수 있다
 Virtual 동작과 해당 회귀 검사를 같이 확인한다.
 일반적인 코드 기본값 변경은 이미 저장된 설정을 덮어쓰지 않는다.
 IO 키 이름이 바뀐 기존 DB는 수동으로 해당 출력 키와 피드백을 수정해야 한다.
-자동 보정·구버전 변환은 없다. [설정과 저장](SETTINGS_STORAGE.md)을 참고한다. 매핑 저장 후 재시작한다.
+위에 명시한 새 신호 추가 외에는 자동 보정하지 않는다. [설정과 저장](SETTINGS_STORAGE.md)을 참고한다. 매핑 저장 후 재시작한다.
 원본 엑셀 파일과 실장비 DB는 이번 문서 정리에서 수정하지 않았다.

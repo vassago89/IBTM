@@ -4,12 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using IBTM.Core;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.Ajin;
 
 public sealed class AjinController : IDisposable
 {
-    private readonly ApplicationLog? _log;
+    private readonly ILogger<AjinController>? _log;
     // Keep the existing logical address slots; a 16-point module uses only bits 0..15.
     private const int RtexChannelCountPerModule = 32;
     private readonly int _interruptNumber;
@@ -20,7 +21,7 @@ public sealed class AjinController : IDisposable
     private int[] _outputCounts;
     private bool _initialized;
 
-    public AjinController(AjinSettings settings, ApplicationLog? log = null)
+    public AjinController(AjinSettings settings, ILogger<AjinController>? log = null)
     {
         _log = log;
         ArgumentOutOfRangeException.ThrowIfNegative(settings.InterruptNumber);
@@ -56,21 +57,20 @@ public sealed class AjinController : IDisposable
                 }
                 catch (IOException exception)
                 {
-                    _log?.Error("AJIN connection probe failed; reopening.", exception);
+                    _log?.LogError(exception, "AJIN connection probe failed; reopening.");
                     Dispose();
                 }
             }
             // Match the manufacturer DIO sample: open AXL, then query the modules.
-            _log?.Write($"AJIN opening with AxlOpen(interrupt={_interruptNumber}).");
+            _log?.LogInformation("{Message}", $"AJIN opening with AxlOpen(interrupt={_interruptNumber}).");
             var openResult = CAXL.AxlOpen(_interruptNumber);
-            _log?.Write(
-                $"AJIN AxlOpen(interrupt={_interruptNumber}) returned {(AXT_FUNC_RESULT)openResult} (0x{openResult:X8}).");
+            _log?.LogInformation("{Message}", $"AJIN AxlOpen(interrupt={_interruptNumber}) returned {(AXT_FUNC_RESULT)openResult} (0x{openResult:X8}).");
             Check(openResult, nameof(CAXL.AxlOpen));
             try
             {
                 ValidateModules();
                 _initialized = true;
-                _log?.Write("AJIN initialized with AxlOpen; DIO mapping validated and no .mot file loaded.");
+                _log?.LogInformation("AJIN initialized with AxlOpen; DIO mapping validated and no .mot file loaded.");
             }
             catch (Exception exception)
             {
@@ -81,7 +81,7 @@ public sealed class AjinController : IDisposable
                 catch (Exception cleanupError)
                 {
                     exception.Data["AjinCloseError"] = cleanupError.ToString();
-                    _log?.Error("AJIN cleanup after initialization failure also failed.", cleanupError);
+                    _log?.LogError(cleanupError, "AJIN cleanup after initialization failure also failed.");
                 }
 
                 throw;
@@ -178,7 +178,8 @@ public sealed class AjinController : IDisposable
 
         var moduleCount = 0;
         Check(CAXD.AxdInfoGetModuleCount(ref moduleCount), nameof(CAXD.AxdInfoGetModuleCount));
-        _log?.Write(
+        _log?.LogInformation(
+            "{Message}",
             $"AJIN DIO module count={moduleCount}; input modules=[{string.Join(",", _inputModules)}], output modules=[{string.Join(
                     ",",
                     _outputModules)}].");
@@ -207,13 +208,14 @@ public sealed class AjinController : IDisposable
                 nameof(CAXD.AxdInfoGetOutputCount),
                 module);
             counts.Add(module, (inputs, outputs));
-            _log?.Write(
+            _log?.LogInformation(
+                "{Message}",
                 $"AJIN DIO module={module}, board={board}, position={position}, type={(AXT_MODULE)type} (0x{type:X}), DI={inputs}, DO={outputs}.");
         }
 
         _inputCounts = GetChannelCounts(_inputModules, counts, input: true);
         _outputCounts = GetChannelCounts(_outputModules, counts, input: false);
-        _log?.Write("AJIN DIO mapping validated. Input scan uses WORD offset 0 for 16 DI and offsets 0/1 for 32 DI.");
+        _log?.LogInformation("AJIN DIO mapping validated. Input scan uses WORD offset 0 for 16 DI and offsets 0/1 for 32 DI.");
     }
 
     private static int[] GetChannelCounts(

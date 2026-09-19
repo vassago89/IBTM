@@ -12,6 +12,7 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -32,7 +33,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
     private static readonly TimeSpan MotionPollInterval;
     private readonly UnitSettings _units;
     private readonly IIoService _io;
-    private readonly ApplicationLog? _log;
+    private readonly ILogger<MachineFeedbackMonitor>? _log;
     private readonly CancellationTokenSource _lifetime;
     private readonly AsyncAutoResetEvent _outputsRequested;
     private readonly ConcurrentDictionary<MotionGroup, MotionFeedbackSample> _samples;
@@ -56,7 +57,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         PcbPlacementHandler placement,
         BoltFasteningGantry fastening,
         InspectionGantry inspection,
-        ApplicationLog? log = null)
+        ILogger<MachineFeedbackMonitor>? log = null)
     {
         _lifetime = new();
         _outputsRequested = new();
@@ -196,7 +197,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         {
             _failure = error;
             first.TrySetException(error);
-            _log?.Error($"{name} monitor stopped by an unexpected error. Restart the application.", error);
+            _log?.LogError(error, "{Message}", $"{name} monitor stopped by an unexpected error. Restart the application.");
             failed(error);
             Changed?.Invoke();
             throw;
@@ -240,7 +241,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
                 _outputReadError = error;
                 if (previous is null)
                 {
-                    _log?.Error("Output monitor: feedback read failed.", error);
+                    _log?.LogError(error, "Output monitor: feedback read failed.");
                     IoFaulted?.Invoke(error);
                 }
             }
@@ -287,8 +288,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         try
         {
             // Raw diagnostics remain available for disabled axes as well.
-            motion.RefreshMonitorFeedback((axis, error) => _log?.Error(
-                $"Motion monitor {group}/{axis}: feedback read failed.", error));
+            motion.RefreshMonitorFeedback((axis, error) => _log?.LogError(error, "{Message}", $"Motion monitor {group}/{axis}: feedback read failed."));
             ioReady = _io.IsReady;
             motion.RefreshControlFeedback(ioReady && enabled);
             var error = enabled && ioReady

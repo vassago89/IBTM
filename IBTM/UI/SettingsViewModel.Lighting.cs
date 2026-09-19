@@ -7,13 +7,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
 public partial class SettingsViewModel
 {
     private readonly ILightController _light;
-    private readonly ApplicationLog _log;
+    private readonly ILogger<SettingsViewModel> _log;
     [ObservableProperty]
     public partial int LightTestChannel { get; set; }
     [ObservableProperty]
@@ -97,7 +98,7 @@ public partial class SettingsViewModel
                     _light.Initialize();
                     _light.TurnOff(channel);
                 });
-            _log.Write($"Lighting test OFF command sent: channel={channel}.");
+            _log.LogInformation("{Message}", $"Lighting test OFF command sent: channel={channel}.");
             PendingLightOffChannel = null;
             return null;
         }
@@ -106,7 +107,7 @@ public partial class SettingsViewModel
             var failure = new InvalidOperationException(
                 $"OFF failed on channel {channel}; light state is unknown. Press OFF to retry. {exception.Message}",
                 exception);
-            _log.Error("Lighting test cleanup failed; light may still be ON.", exception);
+            _log.LogError(exception, "Lighting test cleanup failed; light may still be ON.");
             return failure;
         }
         finally
@@ -161,7 +162,8 @@ public partial class SettingsViewModel
             {
                 StopWhenUnavailable();
                 LightTestMessage = $"Connecting: {ActiveLightConnection}…";
-                _log.Write(
+                _log.LogInformation(
+                    "{Message}",
                     $"Lighting test started: driver={ActiveLightDriver}, connection={ActiveLightConnection}, channel={channel}, level={level}.");
                 await Task.Run(
                     () =>
@@ -179,7 +181,7 @@ public partial class SettingsViewModel
                 PendingLightOffChannel = channel;
                 LightTestOn = true;
                 LightTestMessage = $"ON command sent · channel {channel}, level {level}. Press OFF to finish.";
-                _log.Write($"Lighting test ON command sent: channel={channel}, level={level}.");
+                _log.LogInformation("{Message}", $"Lighting test ON command sent: channel={channel}, level={level}.");
                 // Keep the operation owned while illuminated, including OFF cleanup.
                 // This blocks automatic/motion admission and lets STOP cancel the test.
                 await Task.Delay(Timeout.Infinite, operation.Token);
@@ -190,7 +192,7 @@ public partial class SettingsViewModel
             catch (Exception exception)
             {
                 failure = exception;
-                _log.Error("Lighting test failed.", exception);
+                _log.LogError(exception, "Lighting test failed.");
             }
             finally
             {

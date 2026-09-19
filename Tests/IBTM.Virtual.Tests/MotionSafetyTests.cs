@@ -213,7 +213,8 @@ public sealed class MotionSafetyTests
             placementHandler.Motion,
             new XyPosition { X = handoff.X, Y = handoff.Y },
             handoff,
-            () => 0);
+            () => 0,
+            new());
 
         io.Initialize();
         supply.Initialize();

@@ -1,10 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
-using System.Text;
-using System.Threading.Channels;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Serilog;
+using Serilog.Core;
+using Serilog.Events;
+using Serilog.Extensions.Logging;
+using Serilog.Formatting.Display;
+using Serilog.Parsing;
 
 namespace IBTM.Core;
 
@@ -18,28 +24,22 @@ public sealed record LogEntry(
     public string Text => $"{Time:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] {Message}" + (Detail is null ? "" : Environment.NewLine + Detail);
 }
 
-// Writers never wait for UI dispatch or file I/O from a hardware thread.
-public sealed class ApplicationLog : IDisposable, IAsyncDisposable, INotifyPropertyChanged
+// Screen history is a sink; Serilog owns file writing, queuing and flushing.
+public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INotifyPropertyChanged
 {
     public const int RecentEntryLimit = 2000;
     private readonly ObservableCollection<LogEntry> _entries;
-    private readonly Channel<string>? _fileQueue;
-    private readonly Task? _fileWriter;
+    private readonly MessageTemplateTextFormatter _messageFormatter;
     private long _sequence;
     private string? _fileError;
 
     public ApplicationLog(string? filePath = null)
     {
         _entries = new();
+        _messageFormatter = new("{Message:lj}", CultureInfo.InvariantCulture);
         SyncRoot = new();
-
         Entries = new ReadOnlyObservableCollection<LogEntry>(_entries);
         FilePath = filePath;
-        if (filePath is null)
-            return;
-        _fileQueue = Channel.CreateUnbounded<string>(
-            new UnboundedChannelOptions { SingleReader = true, AllowSynchronousContinuations = false, });
-        _fileWriter = Task.Run(WriteFileAsync);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -69,72 +69,73 @@ public sealed class ApplicationLog : IDisposable, IAsyncDisposable, INotifyPrope
         }
     }
 
-    public void Write(string message)
+    public ILoggerFactory CreateLoggerFactory()
     {
-        Add("INFO", message, null);
+        var configuration = new LoggerConfiguration().MinimumLevel.Verbose().WriteTo.Sink(this);
+        if (FilePath is not null)
+        {
+            try
+            {
+                // AuditTo propagates file failures to the async sink's failure listener.
+                var fileLogger = new LoggerConfiguration().MinimumLevel.Verbose()
+                    .AuditTo.File(
+                        FilePath,
+                        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u}] {Message:lj}{NewLine}{Exception}",
+                        formatProvider: CultureInfo.InvariantCulture)
+                    .CreateLogger();
+                configuration.WriteTo.Fallible(
+                    sink => sink.Async(
+                        file => file.Logger(fileLogger, attemptDispose: true),
+                        bufferSize: int.MaxValue),
+                    this);
+            }
+            catch (Exception exception)
+            {
+                OnLoggingFailed(this, LoggingFailureKind.Final, "Unable to open the log file.", null, exception);
+            }
+        }
+
+        return new SerilogLoggerFactory(configuration.CreateLogger(), dispose: true);
     }
 
-    public void Error(string message, Exception? exception = null)
+    public void Emit(LogEvent logEvent)
     {
-        Add("ERROR", message, exception?.ToString());
+        using var message = new StringWriter(CultureInfo.InvariantCulture);
+        _messageFormatter.Format(logEvent, message);
+        lock (SyncRoot)
+        {
+            _entries.Add(new LogEntry(
+                ++_sequence,
+                logEvent.Timestamp,
+                logEvent.Level.ToString().ToUpperInvariant(),
+                message.ToString(),
+                logEvent.Exception?.ToString()));
+            while (_entries.Count > RecentEntryLimit)
+                _entries.RemoveAt(0);
+        }
     }
 
-    private void Add(string level, string message, string? detail)
+    public void OnLoggingFailed(
+        object sender,
+        LoggingFailureKind kind,
+        string message,
+        IReadOnlyCollection<LogEvent>? events,
+        Exception? exception)
     {
         lock (SyncRoot)
         {
-            var entry = new LogEntry(++_sequence, DateTimeOffset.Now, level, message, detail);
-            _entries.Add(entry);
-            while (_entries.Count > RecentEntryLimit)
-                _entries.RemoveAt(0);
-            _fileQueue?.Writer.TryWrite(entry.Text);
+            if (_fileError is not null)
+                return;
+            _fileError = exception?.Message ?? message;
         }
-    }
 
-    private async Task WriteFileAsync()
-    {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(FilePath!))!);
-            await using var stream = new FileStream(
-                FilePath!,
-                FileMode.Append,
-                FileAccess.Write,
-                FileShare.Read,
-                4096,
-                useAsync: true);
-            await using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
-            await foreach (var text in _fileQueue!.Reader.ReadAllAsync())
-                await writer.WriteLineAsync(text).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is IOException
-            or UnauthorizedAccessException
-            or ArgumentException
-            or NotSupportedException)
-        {
-            _fileQueue!.Writer.TryComplete();
-            lock (SyncRoot)
-                _fileError = exception.Message;
-            PropertyChanged?.Invoke(this, new(nameof(FileError)));
-            Error(
-                "Log file could not be written; recent messages remain available in this window.",
-                exception);
-            while (_fileQueue.Reader.TryRead(out _))
-            {
-            }
-        }
-    }
-
-    public void Dispose()
-    {
-        // Fatal-exit callers can close the queue; normal shutdown awaits DisposeAsync.
-        _fileQueue?.Writer.TryComplete();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        Dispose();
-        if (_fileWriter is not null)
-            await _fileWriter.ConfigureAwait(false);
+        PropertyChanged?.Invoke(this, new(nameof(FileError)));
+        // Report directly to the screen sink so a file error cannot recursively log to the failed file.
+        Emit(new LogEvent(
+            DateTimeOffset.Now,
+            LogEventLevel.Error,
+            exception,
+            new MessageTemplateParser().Parse("Log file could not be written; recent messages remain available in this window."),
+            []));
     }
 }

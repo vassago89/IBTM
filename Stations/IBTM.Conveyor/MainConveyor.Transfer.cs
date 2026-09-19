@@ -199,7 +199,7 @@ public sealed partial class MainConveyor
             if (ExitCarrierDetected)
                 arrived.TrySetResult(Stopwatch.GetTimestamp());
             if (!_repeat
-                && !_routeInspectionToNg()
+                && !IsNgTransferRequired
                 && _inspectionWork.IsTransferAllowed
                 && _inspectionWork.IsTransferAtWaitingPosition())
             {

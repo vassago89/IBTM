@@ -8,6 +8,7 @@ using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
+using IBTM.NgConveyor;
 using IBTM.Storage;
 using IBTM.Virtual;
 using Microsoft.Data.Sqlite;
@@ -22,7 +23,7 @@ public sealed class MachineStoreTests
     public void OldHeadOutputNamesKeepAddressesAndUseDownFeedback()
     {
         var hardware = JsonSerializer.Deserialize<BoltFasteningHardwareSettings>("""
-            {"Outputs":{
+            {"Inputs":{"PickupHeadDown":142,"PickupHeadUp":143},"Outputs":{
                 "PickupHeadUp":{"Number":139,"OffNumber":140,"Feedback":{"OnInput":"PickupHeadUp","OffInput":"PickupHeadDown"}},
                 "ShootingHeadUp":{"Number":141,"OffNumber":142,"Feedback":{"OnInput":"ShootingHeadUp","OffInput":"ShootingHeadDown"}}
             }}
@@ -40,11 +41,28 @@ public sealed class MachineStoreTests
             Assert.Equal(up, head.Feedback.OffInput);
             Assert.Equal(id, JsonSerializer.Serialize(output));
         }
+        Assert.Equal(142, hardware.Inputs[InputIo.PickupHeadDown]);
+        Assert.Equal(4, hardware.Inputs.Count); // Only the two new table inputs are added.
+        Assert.Equal(40, hardware.Inputs[InputIo.PickupTableDown]);
+        Assert.Equal(41, hardware.Inputs[InputIo.PickupTableUp]);
+        var table = hardware.Outputs[OutputIo.PickupTableDown];
+        Assert.Equal(37, table.Number);
+        Assert.Equal(38, table.OffNumber);
+        table.Number = 137;
+        table.OffNumber = 138;
+        hardware.Inputs[InputIo.PickupTableDown] = 140;
+        hardware.Inputs[InputIo.PickupTableUp] = 141;
         var reopened = JsonSerializer.Deserialize<BoltFasteningHardwareSettings>(
             JsonSerializer.Serialize(hardware))!;
         Assert.Equal(139, reopened.Outputs[OutputIo.PickupHeadDown].Number);
         Assert.Equal(InputIo.ShootingHeadDown,
             reopened.Outputs[OutputIo.ShootingHeadDown].Feedback!.OnInput);
+        Assert.Equal(137, reopened.Outputs[OutputIo.PickupTableDown].Number);
+        Assert.Equal(138, reopened.Outputs[OutputIo.PickupTableDown].OffNumber);
+        Assert.Equal(140, reopened.Inputs[InputIo.PickupTableDown]);
+        Assert.Equal(141, reopened.Inputs[InputIo.PickupTableUp]);
+        Assert.Equal(InputIo.PickupTableDown, reopened.Outputs[OutputIo.PickupTableDown].Feedback!.OnInput);
+        Assert.Equal(InputIo.PickupTableUp, reopened.Outputs[OutputIo.PickupTableDown].Feedback!.OffInput);
     }
 
     [Theory]
@@ -133,7 +151,8 @@ public sealed class MachineStoreTests
             }}
             """)!;
         Assert.Equal(153, hardware.Inputs[InputIo.MainConveyorManualMode]);
-        Assert.Equal(2, hardware.Outputs.Count); // Do not add missing addresses.
+        Assert.Equal(3, hardware.Outputs.Count); // Only the new Normal Speed output is added.
+        Assert.Equal(62, hardware.Outputs[OutputIo.MainConveyorNormalSpeed].Number);
         var stopper = hardware.Outputs[OutputIo.PcbPlacementStopperUp];
         Assert.Equal(125, stopper.Number);
         Assert.Equal(126, stopper.OffNumber);
@@ -144,6 +163,19 @@ public sealed class MachineStoreTests
         Assert.Equal(128, plate.OffNumber);
         Assert.Equal(InputIo.PcbPlacementBackupPlateUp, plate.Feedback!.OnInput);
         Assert.Equal(InputIo.PcbPlacementBackupPlateDown, plate.Feedback.OffInput);
+
+        var ng = JsonSerializer.Deserialize<NgConveyorHardwareSettings>("""
+            {"Outputs":{"NgConveyorRun":{"Number":172}}}
+            """)!;
+        Assert.Equal(2, ng.Outputs.Count);
+        Assert.Equal(172, ng.Outputs[OutputIo.NgConveyorRun].Number);
+        Assert.Equal(74, ng.Outputs[OutputIo.NgConveyorNormalSpeed].Number);
+        hardware.Outputs[OutputIo.MainConveyorNormalSpeed].Number = 162;
+        ng.Outputs[OutputIo.NgConveyorNormalSpeed].Number = 174;
+        Assert.Equal(162, JsonSerializer.Deserialize<ConveyorHardwareSettings>(
+            JsonSerializer.Serialize(hardware))!.Outputs[OutputIo.MainConveyorNormalSpeed].Number);
+        Assert.Equal(174, JsonSerializer.Deserialize<NgConveyorHardwareSettings>(
+            JsonSerializer.Serialize(ng))!.Outputs[OutputIo.NgConveyorNormalSpeed].Number);
     }
 
     [Fact]

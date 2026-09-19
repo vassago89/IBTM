@@ -17,7 +17,7 @@ public sealed partial class MainConveyor : AutoUnit
     private readonly StationWork _placementWork;
     private readonly StationWork _boltFasteningWork;
     private readonly InspectionWork _inspectionWork;
-    private readonly Func<bool> _routeInspectionToNg;
+    private readonly UnitSettings _units;
     private OperationCancellation.Operation? _runCancellation;
     // The command currently being awaited, not a physical position or a resumable phase.
     private volatile MainConveyorState _executingTransfer = MainConveyorState.Idle;
@@ -33,7 +33,7 @@ public sealed partial class MainConveyor : AutoUnit
         StationWork placementWork,
         StationWork boltFasteningWork,
         InspectionWork inspectionWork,
-        Func<bool> routeInspectionToNg)
+        UnitSettings units)
     {
         _io = io;
         _settings = settings;
@@ -41,7 +41,7 @@ public sealed partial class MainConveyor : AutoUnit
         _placementWork = placementWork;
         _boltFasteningWork = boltFasteningWork;
         _inspectionWork = inspectionWork;
-        _routeInspectionToNg = routeInspectionToNg;
+        _units = units;
         io.InputChanged += OnInputChanged;
         placementWork.Changed += NotifyChanged;
         boltFasteningWork.Changed += NotifyChanged;
@@ -51,6 +51,8 @@ public sealed partial class MainConveyor : AutoUnit
     public override event Action? Changed;
 
     public MainConveyorState State => GetState(RunCommandOn);
+
+    private bool IsNgTransferRequired => _units.NgCarrierTransfer && _inspectionWork.RouteToNg;
 
     public bool UpstreamCarrierAvailable
     {

@@ -925,7 +925,8 @@ public sealed class IoStartupTests
             work,
             services.GetRequiredService<IBTM.BoltFeeder.PickupBoltFeeder>(),
             services.GetRequiredService<IBTM.BoltFeeder.ShootingBoltFeeder>(),
-            services.GetRequiredService<RecipeManager>());
+            services.GetRequiredService<RecipeManager>(),
+            services.GetRequiredService<UnitSettings>());
         io.BeforeInputRead = input =>
         {
             if (input == InputIo.BoltFasteningHeatSink1Present)

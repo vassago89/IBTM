@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.PcbPlacement;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -217,9 +218,7 @@ public sealed partial class MachineController
                 if (!_state.IsError)
                     _state.SetError(alarm, exception);
                 else
-                    _log?.Error(
-                        $"Cylinder raise {alarm} failed while stopping; existing alarm={_state.Alarm}.",
-                        exception);
+                    _log?.LogError(exception, "{Message}", $"Cylinder raise {alarm} failed while stopping; existing alarm={_state.Alarm}.");
                 operation.Cancel();
             }
         }

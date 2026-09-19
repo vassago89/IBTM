@@ -26,11 +26,11 @@ public sealed class CarrierView : Control
             typeof(CarrierView));
         HeatSink1PresentProperty = DependencyProperty.Register(
             nameof(HeatSink1Present),
-            typeof(bool),
+            typeof(bool?),
             typeof(CarrierView));
         HeatSink2PresentProperty = DependencyProperty.Register(
             nameof(HeatSink2Present),
-            typeof(bool),
+            typeof(bool?),
             typeof(CarrierView));
         Pcb1PlacedProperty = DependencyProperty.Register(
             nameof(Pcb1Placed),
@@ -64,15 +64,15 @@ public sealed class CarrierView : Control
         set => SetValue(BoltTargetsProperty, value);
     }
 
-    public bool HeatSink1Present
+    public bool? HeatSink1Present
     {
-        get => (bool)GetValue(HeatSink1PresentProperty);
+        get => (bool?)GetValue(HeatSink1PresentProperty);
         set => SetValue(HeatSink1PresentProperty, value);
     }
 
-    public bool HeatSink2Present
+    public bool? HeatSink2Present
     {
-        get => (bool)GetValue(HeatSink2PresentProperty);
+        get => (bool?)GetValue(HeatSink2PresentProperty);
         set => SetValue(HeatSink2PresentProperty, value);
     }
 

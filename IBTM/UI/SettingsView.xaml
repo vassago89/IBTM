@@ -261,7 +261,17 @@
                                 <Border Style="{StaticResource SettingCard}">
                                     <StackPanel>
                                         <TextBlock Text="Bolt Fastening · Completion Timeout" Style="{StaticResource SettingSectionTitle}"/>
-                                        <StackPanel Visibility="{Binding ShowIoBoltSettings, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel>
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedBoltDriver}" Value="{x:Static device:BoltDriver.Io}">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
                                             <TextBlock Text="IO · FASTEN ON → OFF Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.IoBoltHardware.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
@@ -269,7 +279,16 @@
                                             <TextBlock Text="START 후 FASTEN의 ON → OFF 완료를 기다리는 최대 시간입니다."
                                                 Style="{StaticResource SettingHelpText}"/>
                                         </StackPanel>
-                                        <StackPanel Visibility="{Binding ShowAdcBoltSettings, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel>
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedBoltDriver}" Value="{x:Static device:BoltDriver.Io}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
                                             <TextBlock Text="ADC · Fastening Result Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
@@ -638,8 +657,16 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12"
-                                    Visibility="{Binding ShowAdcBoltSettings, Converter={StaticResource BoolToVis}}">
+                                <Border Margin="0,0,0,12">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource SettingCard}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedBoltDriver}" Value="{x:Static device:BoltDriver.Io}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <StackPanel>
                                         <TextBlock Text="Bolt Controller · ADC Communication" Style="{StaticResource SettingSectionTitle}"/>
                                         <UniformGrid Columns="2">

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -16,7 +17,7 @@ public sealed partial class MachineController
         var block = ManualOutputSafetyBlock;
         if (block != OutputBlockReason.None)
         {
-            _log?.Write($"Direct output {signal} ignored: [{block}] {block.GetDescription()}");
+            _log?.LogInformation("{Message}", $"Direct output {signal} ignored: [{block}] {block.GetDescription()}");
             return block;
         }
 
@@ -24,7 +25,7 @@ public sealed partial class MachineController
         {
             var value = !_io.GetOutput(signal);
             _io.SetOutput(signal, value);
-            _log?.Write($"Direct output {signal}: {(value ? "ON" : "OFF")}; alarm={_state.Alarm}.");
+            _log?.LogInformation("{Message}", $"Direct output {signal}: {(value ? "ON" : "OFF")}; alarm={_state.Alarm}.");
             _state.RequestDisplayRefresh();
             return OutputBlockReason.None;
         }
@@ -89,7 +90,7 @@ public sealed partial class MachineController
             var block = ManualOutputSafetyBlock;
             if (block != OutputBlockReason.None)
             {
-                _log?.Write($"Manual conveyor {signal} ignored: [{block}] {block.GetDescription()}");
+                _log?.LogInformation("{Message}", $"Manual conveyor {signal} ignored: [{block}] {block.GetDescription()}");
                 return block;
             }
 
@@ -121,13 +122,13 @@ public sealed partial class MachineController
                     {
                         stopReason = reason;
                         operation.Cancel();
-                        _log?.Write($"Manual conveyor {signal} stopped: [{reason}] {reason.GetDescription()}");
+                        _log?.LogInformation("{Message}", $"Manual conveyor {signal} stopped: [{reason}] {reason.GetDescription()}");
                     }
                 }
                 catch (Exception exception)
                 {
                     // This callback runs on the I/O worker. Cancel without stopping its scan.
-                    _log?.Error($"Manual conveyor {signal}: interlock feedback could not be read.", exception);
+                    _log?.LogError(exception, "{Message}", $"Manual conveyor {signal}: interlock feedback could not be read.");
                     operation.Cancel();
                 }
             }
@@ -146,7 +147,7 @@ public sealed partial class MachineController
             {
                 StopWhenUnavailable();
                 operation.Token.ThrowIfCancellationRequested();
-                _log?.Write($"Manual conveyor {signal}: ON, forward; alarm={_state.Alarm}.");
+                _log?.LogInformation("{Message}", $"Manual conveyor {signal}: ON, forward; alarm={_state.Alarm}.");
                 if (signal == OutputIo.MainConveyorRun)
                 {
                     motorRun = _conveyor.RunMotorAsync(operation.Token);
@@ -201,7 +202,7 @@ public sealed partial class MachineController
             }
 
             if (failure is null && outputStarted)
-                _log?.Write($"Manual conveyor {signal}: OFF.");
+                _log?.LogInformation("{Message}", $"Manual conveyor {signal}: OFF.");
         }
 
         if (failure is not null)

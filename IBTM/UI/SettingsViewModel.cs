@@ -15,6 +15,7 @@ using IBTM.Device;
 using IBTM.Storage;
 using IBTM.Virtual;
 using Microsoft.Win32;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -50,7 +51,7 @@ public partial class SettingsViewModel : ObservableObject
         MachineStore store,
         OperationCancellation operations,
         ILightController light,
-        ApplicationLog log)
+        ILogger<SettingsViewModel> log)
     {
         LightDrivers = Enum.GetValues<LightDriver>();
 
@@ -123,14 +124,8 @@ public partial class SettingsViewModel : ObservableObject
                 return;
             Settings.Drivers.Bolt = value;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(ShowIoBoltSettings));
-            OnPropertyChanged(nameof(ShowAdcBoltSettings));
         }
     }
-
-    public bool ShowIoBoltSettings => SelectedBoltDriver == BoltDriver.Io;
-
-    public bool ShowAdcBoltSettings => SelectedBoltDriver != BoltDriver.Io;
 
     public bool IsVirtualDevelopment => DevelopmentProfile.IsEnabled;
 

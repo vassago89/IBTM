@@ -182,6 +182,8 @@ public sealed class IoTests
         Assert.Equal(24, inputs[InputIo.PcbSupplyGripperClosed]); // DI-108
         Assert.Equal(25, inputs[InputIo.PcbSupplyGripperOpen]); // DI-109
         Assert.Equal(28, inputs[InputIo.PcbSupplyIpmFixerForward]); // DI-10C
+        Assert.Equal(40, inputs[InputIo.PickupTableDown]); // DI-118
+        Assert.Equal(41, inputs[InputIo.PickupTableUp]); // DI-119
         Assert.DoesNotContain(InputIo.PcbSupplyIpmFixerBackward, inputs.Keys);
         Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber);
         Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback!.OffInput);
@@ -195,8 +197,11 @@ public sealed class IoTests
                     : new[] { pair.Value.Number })
             .ToArray();
         Assert.Equal(channels.Length, channels.Distinct().Count());
+        Assert.Equal(62, settings.ConveyorHardware.Outputs[OutputIo.MainConveyorNormalSpeed].Number); // DO-12E
+        Assert.Equal(74, settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorNormalSpeed].Number); // DO-13A
         foreach (var (output, down, up, channel) in new[]
         {
+            (OutputIo.PickupTableDown, InputIo.PickupTableDown, InputIo.PickupTableUp, 37),
             (OutputIo.PickupHeadDown, InputIo.PickupHeadDown, InputIo.PickupHeadUp, 39),
             (OutputIo.ShootingHeadDown, InputIo.ShootingHeadDown, InputIo.ShootingHeadUp, 41),
         })
@@ -215,6 +220,18 @@ public sealed class IoTests
         Assert.Equal(InputIo.PcbSupplyIpmFixerForward, Assert.Single(fixer.Feedback).Signal);
         Assert.Equal("024", fixer.Address);
         Assert.False(fixer.IsMatched);
+
+        var allOutputs = outputs.ToDictionary(pair => pair.Key, pair => pair.Value);
+        var allSignals = new IoSignals(hardware, new VirtualIoService(allOutputs, new()));
+        var table = allSignals.Outputs[OutputIo.PickupTableDown];
+        Assert.Equal("037 / 038", table.Address);
+        Assert.Equal(IoSection.BoltFasteningPickupHead, table.Section);
+        Assert.Equal(new[] { InputIo.PickupTableDown, InputIo.PickupTableUp },
+            table.Feedback.Select(row => row.Signal));
+        Assert.Equal(IoSection.MainConveyorInterfaceDrive,
+            allSignals.Outputs[OutputIo.MainConveyorNormalSpeed].Section);
+        Assert.Equal(IoSection.NgConveyorStorage,
+            allSignals.Outputs[OutputIo.NgConveyorNormalSpeed].Section);
     }
 
     [Fact]

@@ -17,7 +17,7 @@ public sealed class BoltFasteningStation : AutoUnit
     private readonly PickupBoltFeeder _pickupFeeder;
     private readonly ShootingBoltFeeder _shootingFeeder;
     private readonly RecipeManager _recipes;
-    private readonly Func<FasteningHead, bool>? _isFeederEnabled;
+    private readonly UnitSettings _units;
     private HeatSinkSlot[]? _runTargets;
     // The result belongs to this bolt/pass until collection or removal of its carrier.
     private PendingFastening? _pendingFastening;
@@ -30,14 +30,14 @@ public sealed class BoltFasteningStation : AutoUnit
         PickupBoltFeeder pickupFeeder,
         ShootingBoltFeeder shootingFeeder,
         RecipeManager recipes,
-        Func<FasteningHead, bool>? isFeederEnabled = null)
+        UnitSettings units)
     {
         _gantry = gantry;
         _work = work;
         _pickupFeeder = pickupFeeder;
         _shootingFeeder = shootingFeeder;
         _recipes = recipes;
-        _isFeederEnabled = isFeederEnabled;
+        _units = units;
     }
 
     public override event Action? Changed
@@ -268,7 +268,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     // A new START may retry the same bolt. Move from current feedback,
                     // without supplying another bolt or changing the result's owner.
                     var shootingFeederEnabled = pending.Pass == FasteningPass.Pcb
-                        && IsFeederEnabled(FasteningHead.Shooting);
+                        && _units.IsBoltFeederEnabled(FasteningHead.Shooting);
                     switch (true)
                     {
                         case true when shootingFeederEnabled && _gantry.ShootingTubeBoltDetected:
@@ -339,7 +339,7 @@ public sealed class BoltFasteningStation : AutoUnit
 
     private BoltFasteningState? GetPcbState(BoltPoint? bolt, bool live = true)
     {
-        var feeding = IsFeederEnabled(FasteningHead.Shooting);
+        var feeding = _units.IsBoltFeederEnabled(FasteningHead.Shooting);
         switch (true)
         {
             case true when (bolt is null || !_gantry.IsAt(bolt, live) || feeding && !_gantry.ShootingBoltLoaded)
@@ -381,7 +381,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 : null;
         }
 
-        var feeding = IsFeederEnabled(FasteningHead.Pickup);
+        var feeding = _units.IsBoltFeederEnabled(FasteningHead.Pickup);
         var pickupAttempted = _pickupAttempt is { } attempt
             && ReferenceEquals(attempt.Job, _work.CurrentJob)
             && attempt.Bolt == bolt;
@@ -448,7 +448,7 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         var job = _work.CurrentJob;
         var bolt = PendingIpmSeatingBolts.First();
-        var feeding = IsFeederEnabled(FasteningHead.Pickup);
+        var feeding = _units.IsBoltFeederEnabled(FasteningHead.Pickup);
         await _gantry.SetVacuumAsync(
             FasteningHead.Pickup, true, cancellationToken, waitForFeedback: feeding);
         cancellationToken.ThrowIfCancellationRequested();
@@ -590,11 +590,6 @@ public sealed class BoltFasteningStation : AutoUnit
                 .OrderBy(bolt => bolt.HeatSink)
                 .ThenBy(bolt => bolt.Number);
         }
-    }
-
-    private bool IsFeederEnabled(FasteningHead head)
-    {
-        return _isFeederEnabled?.Invoke(head) ?? true;
     }
 
     private sealed record PendingFastening(

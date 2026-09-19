@@ -17,8 +17,7 @@ public sealed class BufferStage
     private readonly XyPosition _supplyHandoff;
     private readonly Func<double> _supplyTransportZ;
     private readonly AxisPosition _placementHandoff;
-    private readonly Func<bool> _supplyEnabled;
-    private readonly Func<bool> _placementEnabled;
+    private readonly UnitSettings _units;
 
     public BufferStage(
         PcbBufferSettings settings,
@@ -29,8 +28,7 @@ public sealed class BufferStage
         XyPosition supplyHandoff,
         AxisPosition placementHandoff,
         Func<double> supplyTransportZ,
-        Func<bool>? supplyEnabled = null,
-        Func<bool>? placementEnabled = null)
+        UnitSettings units)
     {
         _settings = settings;
         _supplyState = supplyState;
@@ -40,8 +38,7 @@ public sealed class BufferStage
         _supplyHandoff = supplyHandoff;
         _supplyTransportZ = supplyTransportZ;
         _placementHandoff = placementHandoff;
-        _supplyEnabled = supplyEnabled ?? (() => true);
-        _placementEnabled = placementEnabled ?? (() => true);
+        _units = units;
         supplyMotion.Feedback.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
         placementMotion.Feedback.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
         supplyMotion.Feedback.MovingChanged += _ => StateChanged?.Invoke();
@@ -55,8 +52,8 @@ public sealed class BufferStage
 
     private bool IsPositionKnown(bool live = true)
     {
-        return _supplyEnabled()
-            && _placementEnabled()
+        return _units.PcbSupply
+            && _units.PcbPlacement
             && _supplyMotion.IsReady(live)
             && _placementMotion.IsReady(live)
             && _supplyMotion.ReadAxisState(MotionAxis.X, live).Homed
@@ -67,7 +64,7 @@ public sealed class BufferStage
 
     public bool IsSupplyInside(bool live = true)
     {
-        return _supplyEnabled()
+        return _units.PcbSupply
             && _supplyMotion.IsReady(live)
             && _supplyMotion.ReadAxisState(MotionAxis.X, live).Homed
             && _settings.ContainsSupplyX(_supplyMotion.ReadPosition(live).X);
@@ -75,7 +72,7 @@ public sealed class BufferStage
 
     public bool IsPlacementInside(bool live = true)
     {
-        return _placementEnabled()
+        return _units.PcbPlacement
             && _placementMotion.IsReady(live)
             && _placementMotion.ReadAxisState(MotionAxis.X, live).Homed
             && _placementMotion.ReadAxisState(MotionAxis.Y, live).Homed
@@ -84,7 +81,7 @@ public sealed class BufferStage
 
     public bool IsSupplyAtHandoff(bool live = true)
     {
-        return _supplyEnabled()
+        return _units.PcbSupply
             && _supplyMotion.IsReady(live)
             && _supplyMotion.ReadAxisState(MotionAxis.X, live).Homed
             && _supplyMotion.ReadAxisState(MotionAxis.Y, live).Homed
@@ -100,7 +97,7 @@ public sealed class BufferStage
 
     public bool IsPlacementAtHandoff(bool live = true)
     {
-        return _placementEnabled()
+        return _units.PcbPlacement
             && _placementMotion.IsReady(live)
             && _placementMotion.IsSettled(live, _placementMotion.Feedback.Axes.ToArray())
             && IsAt(_placementMotion.ReadPosition(live), _placementHandoff);
@@ -138,8 +135,8 @@ public sealed class BufferStage
 
     public bool HasConflict(bool live = true)
     {
-        if (!_supplyEnabled()
-            || !_placementEnabled()
+        if (!_units.PcbSupply
+            || !_units.PcbPlacement
             || !_supplyMotion.IsReady(live)
             || !_placementMotion.IsReady(live)
             || !_supplyMotion.ReadAxisState(MotionAxis.X, live).Homed)
@@ -173,7 +170,7 @@ public sealed class BufferStage
 
     public bool IsSupplyOutside(bool live = true)
     {
-        return _supplyEnabled()
+        return _units.PcbSupply
             && _supplyMotion.IsReady(live)
             && _supplyMotion.ReadAxisState(MotionAxis.X, live).Homed
             && !_settings.ContainsSupplyX(_supplyMotion.ReadPosition(live).X);

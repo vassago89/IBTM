@@ -9,7 +9,6 @@ namespace IBTM.Device;
 
 public abstract class StationWork
 {
-    private readonly Func<bool>? _isEnabled;
     // Protect only result ownership changes, never device calls or notifications.
     private static readonly Lock JobGate;
     private volatile Job _job;
@@ -19,11 +18,11 @@ public abstract class StationWork
         JobGate = new();
     }
 
-    protected StationWork(ConveyorStation station, Func<bool>? isEnabled = null)
+    protected StationWork(ConveyorStation station, UnitSettings units)
     {
         _job = new();
 
-        _isEnabled = isEnabled;
+        Units = units;
         Station = station;
         station.Changed += NotifyChanged;
         station.CarrierChanged += OnCarrierChanged;
@@ -33,7 +32,9 @@ public abstract class StationWork
 
     public Job CurrentJob => _job;
 
-    public bool Enabled => _isEnabled?.Invoke() ?? true;
+    protected UnitSettings Units { get; }
+
+    public abstract bool Enabled { get; }
 
     public ConveyorStation Station { get; }
 

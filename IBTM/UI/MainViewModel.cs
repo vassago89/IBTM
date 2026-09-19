@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -50,7 +51,7 @@ public partial class MainViewModel : ObservableObject
     private int _stateRefreshQueued;
     private bool _shuttingDown;
     private readonly DiagnosticWindows _windows;
-    private readonly ApplicationLog _log;
+    private readonly ILogger<MainViewModel> _log;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ControlsEnabled), nameof(OutputsWindowEnabled))]
     [NotifyCanExecuteChangedFor(nameof(OpenOutputsCommand))]
@@ -76,7 +77,7 @@ public partial class MainViewModel : ObservableObject
         DriverSettings drivers,
         MachineController machine,
         DiagnosticWindows windows,
-        ApplicationLog log)
+        ILogger<MainViewModel> log)
     {
         OpenInputsCommand = new RelayCommand(OpenInputs, () => IsOpenDiagnosticAllowed);
         OpenOutputsCommand = new RelayCommand(OpenOutputs, () => OutputsWindowEnabled);
@@ -252,7 +253,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            _log.Error("Main window shutdown failed.", exception);
+            _log.LogError(exception, "Main window shutdown failed.");
             var errors = exception is AggregateException aggregate
                 ? aggregate.Flatten().InnerExceptions.Select(error => error.Message).Distinct()
                 : [exception.Message];
@@ -268,7 +269,7 @@ public partial class MainViewModel : ObservableObject
     public void ApproveUnconfirmedExit()
     {
         IsClosing = true;
-        _log.Write("Operator approved application exit after shutdown failure; device stop is unconfirmed.");
+        _log.LogInformation("Operator approved application exit after shutdown failure; device stop is unconfirmed.");
     }
 
     public Task ShutdownAsync()

@@ -612,14 +612,14 @@ public sealed class BoltFasteningTests
             shooting, pickup, io, motion, settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100 } });
         await gantry.MoveZAsync(settings.GetHead(selectedHead).FasteningZ);
-        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
+        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         var layout = new PcbLayout { BoltPoints = [Bolt(1, selectedHead, 0, 0)] };
         var station = new BoltFasteningStation(
             gantry,
             work,
             new PickupBoltFeeder(io, new()),
             new ShootingBoltFeeder(io, new()),
-            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } });
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, new());
         io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
         io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
         io.SetInputs(
@@ -756,16 +756,16 @@ public sealed class BoltFasteningTests
                 UpperLeftLocatingPin = new(),
                 LowerRightLocatingPin = new() { X = 100 },
             });
-        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
+        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         var layout = new PcbLayout { BoltPoints = [Bolt(1, FasteningHead.Pickup, 0, 0)] };
-        var pickupEnabled = true;
+        var units = new UnitSettings();
         var station = new BoltFasteningStation(
             gantry,
             work,
             new PickupBoltFeeder(io, new()),
             new ShootingBoltFeeder(io, new()),
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
-            _ => pickupEnabled);
+            units);
         io.SetInputs(
             (InputIo.BoltFasteningHeatSink1Present, true),
             (InputIo.BoltFasteningBackupPlateUp, true),
@@ -798,7 +798,7 @@ public sealed class BoltFasteningTests
         Assert.Empty(assembly.IpmFinalResults);
 
         // A new START keeps this carrier/bolt/pass, including with the feeder OFF.
-        pickupEnabled = false;
+        units.PickupBoltFeeder = false;
         Assert.True(station.HasPendingResult);
         Assert.Empty(assembly.IpmFinalResults);
         Assert.True(io.GetOutput(OutputIo.PickupHeadDown));
@@ -861,7 +861,7 @@ public sealed class BoltFasteningTests
                 UpperLeftLocatingPin = new(),
                 LowerRightLocatingPin = new() { X = 100 },
             });
-        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
+        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         var layout = new PcbLayout
         {
             BoltPoints = [Bolt(1, FasteningHead.Pickup, 0, 0)],
@@ -871,7 +871,7 @@ public sealed class BoltFasteningTests
             work,
             new PickupBoltFeeder(io, new()),
             new ShootingBoltFeeder(io, new()),
-            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } });
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, new());
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
@@ -1071,7 +1071,7 @@ public sealed class BoltFasteningTests
             Assert.Contains(address, runningHeads);
             feedingHeads.Add(address);
         };
-        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
+        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         var pickupFeeder = new PickupBoltFeeder(io, new());
         var shootingFeeder = new ShootingBoltFeeder(io, new());
         var layout = new PcbLayout
@@ -1090,7 +1090,7 @@ public sealed class BoltFasteningTests
             work,
             pickupFeeder,
             shootingFeeder,
-            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } });
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, new());
         var recipe = new BoltFasteningRecipe { PcbPreset = 4, IpmSeatingPreset = 3, IpmFinalPreset = 5 };
 
         io.Initialize();
@@ -1277,10 +1277,10 @@ public sealed class BoltFasteningTests
         var feederSettings = new BoltFeederSettings();
         var station = new BoltFasteningStation(
             gantry,
-            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io)),
+            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new()),
             new PickupBoltFeeder(io, feederSettings),
             new ShootingBoltFeeder(io, feederSettings),
-            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } });
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, new());
         io.SetInput(InputIo.PickupHeadUp, true);
         io.SetInput(InputIo.ShootingHeadUp, true);
         io.SetInput(InputIo.ShootingEscapeBackward, true);

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using IBTM.Core;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
@@ -13,7 +14,9 @@ public sealed class ApplicationLogTests
     [Fact]
     public void RetainsFullExceptionDetails()
     {
-        using var log = new ApplicationLog();
+        var log = new ApplicationLog();
+        using var factory = log.CreateLoggerFactory();
+        var logger = factory.CreateLogger<ApplicationLogTests>();
         Exception error;
         try
         {
@@ -24,7 +27,7 @@ public sealed class ApplicationLogTests
             error = exception;
         }
 
-        log.Error("AJIN input read", error);
+        logger.LogError(error, "AJIN input read");
 
         var entry = Assert.Single(log.Snapshot());
         Assert.Equal("ERROR", entry.Level);
@@ -37,8 +40,9 @@ public sealed class ApplicationLogTests
     [Fact]
     public void TraceListenerKeepsEachFormattedEventTogetherWithItsSeverity()
     {
-        using var log = new ApplicationLog();
-        using var listener = new ApplicationTraceListener(log);
+        var log = new ApplicationLog();
+        using var factory = log.CreateLoggerFactory();
+        using var listener = new ApplicationTraceListener(factory.CreateLogger<ApplicationTraceListener>());
 
         listener.TraceEvent(
             null,
@@ -48,21 +52,27 @@ public sealed class ApplicationLogTests
             "Settings failed: {0}",
             "test failure");
         listener.TraceEvent(null, "IBTM", TraceEventType.Information, 0, "Settings saved");
+        listener.TraceEvent(null, "IBTM", TraceEventType.Warning, 0, "Feedback delayed");
+        listener.TraceEvent(null, "IBTM", TraceEventType.Critical, 0, "Control disconnected");
 
         var entries = log.Snapshot();
-        Assert.Equal(2, entries.Length);
+        Assert.Equal(4, entries.Length);
         Assert.Equal("ERROR", entries[0].Level);
         Assert.Equal("Settings failed: test failure", entries[0].Message);
-        Assert.Equal("INFO", entries[1].Level);
+        Assert.Equal("INFORMATION", entries[1].Level);
         Assert.Equal("Settings saved", entries[1].Message);
+        Assert.Equal("WARNING", entries[2].Level);
+        Assert.Equal("FATAL", entries[3].Level);
     }
 
     [Fact]
     public void ConcurrentWritersHaveOrderedSequencesAndBoundedRecentHistory()
     {
-        using var log = new ApplicationLog();
+        var log = new ApplicationLog();
+        using var factory = log.CreateLoggerFactory();
+        var logger = factory.CreateLogger<ApplicationLogTests>();
         const int count = ApplicationLog.RecentEntryLimit + 1000;
-        Parallel.For(0, count, index => log.Write($"Message {index}"));
+        Parallel.For(0, count, index => logger.LogInformation("Message {Index}", index));
 
         var entries = log.Snapshot();
         Assert.Equal(ApplicationLog.RecentEntryLimit, entries.Length);
@@ -73,18 +83,25 @@ public sealed class ApplicationLogTests
     }
 
     [Fact]
-    public async Task FileRetainsFullHistoryAndDisposeAsyncFlushesPendingMessages()
+    public async Task FileRetainsFullHistoryAndFactoryDisposalFlushesPendingMessages()
     {
         var directory = Path.Combine(Path.GetTempPath(), "IBTM-log-test-" + Guid.NewGuid().ToString("N"));
         var path = Path.Combine(directory, "session.log");
         const int count = ApplicationLog.RecentEntryLimit + 10;
         try
         {
-            await using (var log = new ApplicationLog(path))
+            var log = new ApplicationLog(path);
+            var factory = log.CreateLoggerFactory();
+            try
             {
+                var logger = factory.CreateLogger<ApplicationLogTests>();
                 for (var index = 0; index < count; index++)
-                    log.Write($"Message {index}");
+                    logger.LogInformation("Message {Index}", index);
                 Assert.Equal(ApplicationLog.RecentEntryLimit, log.Snapshot().Length);
+            }
+            finally
+            {
+                await Task.Run(factory.Dispose);
             }
 
             var lines = File.ReadAllLines(path);
@@ -108,9 +125,10 @@ public sealed class ApplicationLogTests
         Directory.CreateDirectory(directory);
         try
         {
-            await using var log = new ApplicationLog(directory);
-            log.Write("Original machine error");
-            await log.DisposeAsync();
+            var log = new ApplicationLog(directory);
+            using var factory = log.CreateLoggerFactory();
+            factory.CreateLogger<ApplicationLogTests>().LogError("Original machine error");
+            await Task.Run(factory.Dispose);
             Assert.NotNull(log.FileError);
             Assert.Contains(log.Snapshot(), entry => entry.Message == "Original machine error");
             Assert.Contains(

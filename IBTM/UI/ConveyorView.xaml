@@ -83,8 +83,8 @@
                 ToolTip="Placement backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
             <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.PlacementCarrierLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
                 Panel.ZIndex="2"
-                HeatSink1Present="{Binding PcbPlacementHeatSink1Present}"
-                HeatSink2Present="{Binding PcbPlacementHeatSink2Present}"
+                HeatSink1Present="{Binding Signals.Inputs[PcbPlacementHeatSink1Present].IsOn}"
+                HeatSink2Present="{Binding Signals.Inputs[PcbPlacementHeatSink2Present].IsOn}"
                 Pcb1Placed="{Binding PcbPlacementHeatSink1Completed}"
                 Pcb2Placed="{Binding PcbPlacementHeatSink2Completed}"
                 ShowPcbSlots="True"
@@ -111,8 +111,8 @@
                 ToolTip="Bolt fastening backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
             <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.FasteningCarrierLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
                 Panel.ZIndex="2"
-                HeatSink1Present="{Binding BoltFasteningHeatSink1Present}"
-                HeatSink2Present="{Binding BoltFasteningHeatSink2Present}"
+                HeatSink1Present="{Binding Signals.Inputs[BoltFasteningHeatSink1Present].IsOn}"
+                HeatSink2Present="{Binding Signals.Inputs[BoltFasteningHeatSink2Present].IsOn}"
                 HeatSink1Result="{Binding BoltFasteningHeatSink1Result}"
                 HeatSink2Result="{Binding BoltFasteningHeatSink2Result}"
                 BoltTargets="{Binding BoltTargets}">
@@ -138,8 +138,8 @@
                 ToolTip="Inspection backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
             <ui:CarrierView x:Name="InspectionCarrier" Canvas.Left="{x:Static ui:MachinePlan.InspectionCarrierLeft}"
                 Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}" Panel.ZIndex="2"
-                HeatSink1Present="{Binding InspectionHeatSink1Present}"
-                HeatSink2Present="{Binding InspectionHeatSink2Present}"
+                HeatSink1Present="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn}"
+                HeatSink2Present="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn}"
                 HeatSink1Result="{Binding InspectionHeatSink1Result}"
                 HeatSink2Result="{Binding InspectionHeatSink2Result}"
                 ActiveHeatSink="{Binding InspectionActivePcb}"

@@ -57,7 +57,7 @@
                         </Style>
                     </StackPanel.Style>
                     <Grid x:Name="Pcb1Barcode" Margin="0,0,0,8"
-                        Visibility="{Binding InspectionHeatSink1Present, Converter={StaticResource BoolToVis}}">
+                        Visibility="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn, Converter={StaticResource BoolToVis}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="64"/>
                             <ColumnDefinition Width="*"/>
@@ -69,7 +69,7 @@
                             ToolTip="{Binding InspectionPcb1Barcode}"/>
                     </Grid>
                     <Grid x:Name="Pcb2Barcode" Margin="0,0,0,8"
-                        Visibility="{Binding InspectionHeatSink2Present, Converter={StaticResource BoolToVis}}">
+                        Visibility="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn, Converter={StaticResource BoolToVis}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="64"/>
                             <ColumnDefinition Width="*"/>

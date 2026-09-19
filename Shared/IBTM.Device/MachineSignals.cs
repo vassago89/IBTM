@@ -270,6 +270,12 @@ public enum InputIo
     ShootingBoltAlarm = 87,
     [Description("Shooting Controller FASTEN (Head 2)")]
     ShootingBoltFasten = 88,
+
+    [Description("Pickup Table Down (Head 1)")]
+    PickupTableDown = 89,
+
+    [Description("Pickup Table Up (Head 1)")]
+    PickupTableUp = 90,
 }
 
 // Persisted IDs: never renumber or reuse; these are not hardware channel numbers.
@@ -433,6 +439,15 @@ public enum OutputIo
     ShootingBoltLock = 51,
     [Description("Shooting Controller Reset (Head 2)")]
     ShootingBoltReset = 52,
+
+    [Description("Main Conveyor Normal Speed")]
+    MainConveyorNormalSpeed = 53,
+
+    [Description("NG Conveyor Normal Speed")]
+    NgConveyorNormalSpeed = 54,
+
+    [Description("Pickup Table Down (Head 1)")]
+    PickupTableDown = 55,
 }
 
 // Persisted IDs: never renumber or reuse; these are not hardware channel numbers.

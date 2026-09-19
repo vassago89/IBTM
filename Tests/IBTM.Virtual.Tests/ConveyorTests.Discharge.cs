@@ -21,8 +21,8 @@ public sealed partial class ConveyorTests
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
         _ = new VirtualMachine(virtualIo, []);
-        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io));
-        var boltWork = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
+        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new());
+        var boltWork = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         var inspectionWork = CreateInspectionWork(io);
         var conveyor = new MainConveyor(
             io,
@@ -31,7 +31,7 @@ public sealed partial class ConveyorTests
             placementWork,
             boltWork,
             inspectionWork,
-            routeInspectionToNg: () => inspectionWork.RouteToNg);
+            new UnitSettings());
         using var cancellation = new CancellationTokenSource();
 
         io.Initialize();
@@ -79,16 +79,16 @@ public sealed partial class ConveyorTests
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
         _ = new VirtualMachine(virtualIo, []);
-        var inspectionWork = CreateInspectionWork(io);
-        var ngTransferEnabled = true;
+        var units = new UnitSettings { PcbPlacement = false, BoltFastening = false };
+        var inspectionWork = CreateInspectionWork(io, units);
         var conveyor = new MainConveyor(
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
             new OperationCancellation(),
-            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), isEnabled: () => false),
-            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), isEnabled: () => false),
+            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units),
+            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units),
             inspectionWork,
-            routeInspectionToNg: () => ngTransferEnabled && inspectionWork.RouteToNg);
+            units);
         var discharged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reachedExit = false;
         io.InputChanged += (input, value) =>
@@ -120,7 +120,7 @@ public sealed partial class ConveyorTests
         virtualIo.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         virtualIo.SetInput(InputIo.MainConveyorReadyFromRear, false);
         Assert.NotEqual(MainConveyorState.DischargingInspectionCarrier, conveyor.State);
-        ngTransferEnabled = false;
+        units.NgCarrierTransfer = false;
         Assert.Equal(MainConveyorState.WaitingForRearEquipment, conveyor.State);
 
         using var cancellation = new CancellationTokenSource();

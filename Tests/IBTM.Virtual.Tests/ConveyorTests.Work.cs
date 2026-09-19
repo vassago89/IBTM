@@ -28,7 +28,7 @@ public sealed partial class ConveyorTests
         };
         var edges = new List<bool>();
         station.CarrierChanged += edges.Add;
-        var work = new PcbPlacementWork(station);
+        var work = new PcbPlacementWork(station, new());
         Assert.False(station.CarrierPresent);
         var arrival = station.WaitForCarrierAsync(default);
         io.SetInputs((heatSink1, true), (heatSink2, true));
@@ -60,7 +60,7 @@ public sealed partial class ConveyorTests
     public void DepartedWorkCannotCompleteNewCarrierAndTransferKeepsOriginalLoad()
     {
         var io = CreateIo();
-        var source = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
+        var source = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         var destination = CreateInspectionWork(io);
         io.Initialize();
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
@@ -90,7 +90,7 @@ public sealed partial class ConveyorTests
     public void HeatSinkInputChangesDoNotEraseCompletionOrTransferredNg()
     {
         var io = CreateIo();
-        var source = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
+        var source = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         var destination = CreateInspectionWork(io);
         io.Initialize();
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
@@ -136,8 +136,8 @@ public sealed partial class ConveyorTests
     {
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
-        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io));
-        var boltWork = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io));
+        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new());
+        var boltWork = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         _ = new MainConveyor(
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
@@ -145,7 +145,7 @@ public sealed partial class ConveyorTests
             placementWork,
             boltWork,
             CreateInspectionWork(io),
-            routeInspectionToNg: () => false);
+            new UnitSettings { NgCarrierTransfer = false });
 
         io.Initialize();
         var assembly = placementWork.GetAssembly(HeatSinkSlot.HeatSink1);
@@ -160,8 +160,8 @@ public sealed partial class ConveyorTests
     {
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
-        var enabled = false;
-        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), () => enabled);
+        var units = new UnitSettings { PcbPlacement = false };
+        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units);
 
         io.Initialize();
         Assert.False(placementWork.Completed);
@@ -170,15 +170,15 @@ public sealed partial class ConveyorTests
 
         Assert.False(placementWork.Completed);
         placementWork.Complete(placementWork.CurrentJob); // Skipping a disabled station must not create a production completion.
-        enabled = true;
+        units.PcbPlacement = true;
         Assert.False(placementWork.Completed);
-        enabled = false;
+        units.PcbPlacement = false;
         virtualIo.SetInput(InputIo.PcbPlacementBackupPlateDown, false);
         virtualIo.SetInput(InputIo.PcbPlacementBackupPlateUp, true);
         Assert.True(placementWork.Completed);
-        enabled = true;
+        units.PcbPlacement = true;
         Assert.False(placementWork.Completed);
-        enabled = false;
+        units.PcbPlacement = false;
         Assert.True(placementWork.Completed);
 
         virtualIo.SetInput(InputIo.PcbPlacementBackupPlateDown, true);
@@ -200,7 +200,7 @@ public sealed partial class ConveyorTests
         io.SetInput(InputIo.InspectionStopperDown, true);
 
         var work = CreateInspectionWork(io,
-            isEnabled: () => false);
+            new UnitSettings { Inspection = false, NgCarrierTransfer = false });
 
         Assert.True(work.Station.CarrierSeated);
         Assert.True(work.IsTransferAllowed);

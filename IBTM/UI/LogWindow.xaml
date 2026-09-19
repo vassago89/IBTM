@@ -39,8 +39,34 @@
             SelectionText="{Binding SelectedText, Mode=TwoWay}" IsPaused="{Binding IsPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap" Padding="8"
             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
         <StackPanel Grid.Row="3" Margin="0,12,0,0">
-            <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
-            <TextBox Text="{Binding FilePath, Mode=OneWay}"
+            <TextBlock Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="{Binding ClipboardError}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ClipboardError}" Value="{x:Null}">
+                                <Setter Property="Text" Value="{Binding Log.FileError, StringFormat='FILE ERROR: {0}'}"/>
+                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding ClipboardError}" Value="{x:Null}"/>
+                                    <Condition Binding="{Binding Log.FileError}" Value="{x:Null}"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Text" Value="Recent messages are shown here; the log file contains the full session history."/>
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding ClipboardError}" Value="{x:Null}"/>
+                                    <Condition Binding="{Binding Log.FileError}" Value="{x:Null}"/>
+                                    <Condition Binding="{Binding Log.FilePath}" Value="{x:Null}"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Text" Value="Recent messages are shown here; file logging is disabled."/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <TextBox Text="{Binding Log.FilePath, Mode=OneWay, TargetNullValue='File logging is disabled in this session.'}"
                 IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}"
                 Padding="0,4,0,0"/>
         </StackPanel>

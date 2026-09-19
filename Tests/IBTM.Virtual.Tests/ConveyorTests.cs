@@ -593,18 +593,24 @@ public sealed partial class ConveyorTests
         bool inspectionEnabled = true,
         ConveyorSettings? settings = null)
     {
+        var units = new UnitSettings
+        {
+            PcbPlacement = placementEnabled,
+            BoltFastening = boltFasteningEnabled,
+            Inspection = inspectionEnabled,
+            NgCarrierTransfer = false,
+        };
         return new(
             io,
             settings ?? new ConveyorSettings { CarrierStopDelaySeconds = 0 },
             new OperationCancellation(),
-            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), () => placementEnabled),
-            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), () => boltFasteningEnabled),
-            CreateInspectionWork(io,
-                () => inspectionEnabled),
-            routeInspectionToNg: () => false);
+            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units),
+            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units),
+            CreateInspectionWork(io, units),
+            units);
     }
 
-    private static InspectionWork CreateInspectionWork(IIoService io, Func<bool>? isEnabled = null)
+    private static InspectionWork CreateInspectionWork(IIoService io, UnitSettings? units = null)
     {
         var transfer = new NgCarrierTransfer(io);
         var settings = new InspectionGantrySettings();
@@ -613,7 +619,8 @@ public sealed partial class ConveyorTests
         motion.Initialize();
         var gantry = new InspectionGantry(motion, transfer, operations, settings);
         return new InspectionWork(
-            io, transfer, gantry, new NgCarrierTransferSettings { PickupSafeX = 0 }, isEnabled);
+            io, transfer, gantry, new NgCarrierTransferSettings { PickupSafeX = 0 },
+            units ?? new UnitSettings { MainConveyor = false, NgCarrierTransfer = false });
     }
 
     private static VirtualIoService CreateIo(int timeoutMilliseconds = 3_000)

@@ -29,7 +29,7 @@ public sealed class UnitSettings : Setting
         }
     }
 
-    internal bool IsMotionEnabled(MotionGroup group)
+    public bool IsMotionEnabled(MotionGroup group)
     {
         switch (group)
         {
@@ -47,7 +47,7 @@ public sealed class UnitSettings : Setting
         }
     }
 
-    internal bool IsAnyUnitEnabled
+    public bool IsAnyUnitEnabled
     {
         get
         {

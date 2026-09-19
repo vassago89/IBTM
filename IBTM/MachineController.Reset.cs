@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -55,7 +56,7 @@ public sealed partial class MachineController
                 case true when !_resetTask.IsCompleted:
                     return _resetTask;
                 case true when !IsResetAllowed:
-                    _log?.Write("Machine RESET: buzzer silenced; hardware recovery conditions are not satisfied.");
+                    _log?.LogInformation("Machine RESET: buzzer silenced; hardware recovery conditions are not satisfied.");
                     return Task.CompletedTask;
                 default:
                     return _resetTask = ResetHardwareAsync();
@@ -65,7 +66,7 @@ public sealed partial class MachineController
 
     private async Task ResetHardwareAsync()
     {
-        _log?.Write("Machine RESET started.");
+        _log?.LogInformation("Machine RESET started.");
         using var operation = _operations.TryBegin();
         if (operation is null)
             return;
@@ -83,7 +84,7 @@ public sealed partial class MachineController
         var failures = new List<Exception>();
         void RecordFailure(MachineAlarm deviceAlarm, string device, Exception exception)
         {
-            _log?.Error($"{device} reset failed.", exception);
+            _log?.LogError(exception, "{Message}", $"{device} reset failed.");
             if (alarm == MachineAlarm.None)
             {
                 alarm = deviceAlarm;
@@ -192,14 +193,14 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            _log?.Error("Removed carrier result cleanup failed.", exception);
+            _log?.LogError(exception, "Removed carrier result cleanup failed.");
             _state.SetError(MachineAlarm.BoltFastening, exception);
             return;
         }
 
         _state.ClearError();
         _state.Refresh();
-        _log?.Write("Machine RESET completed.");
+        _log?.LogInformation("Machine RESET completed.");
     }
 
     private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeIoAsync(
@@ -207,7 +208,7 @@ public sealed partial class MachineController
     {
         cancellationToken.ThrowIfCancellationRequested();
         var stage = "Control I/O initialization";
-        _log?.Write(stage + " started.");
+        _log?.LogInformation("{Message}", stage + " started.");
         try
         {
             // Keep SDK initialization off the input notification thread.
@@ -226,7 +227,7 @@ public sealed partial class MachineController
             StopRunOutputs();
             stage = "Setting main conveyor forward direction";
             _io.SetOutput(OutputIo.MainConveyorForward, true);
-            _log?.Write("Control I/O initialization and readiness check completed.");
+            _log?.LogInformation("Control I/O initialization and readiness check completed.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -234,7 +235,7 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            _log?.Error($"{stage} failed. {exception.Message}");
+            _log?.LogError("{Message}", $"{stage} failed. {exception.Message}");
             return (MachineAlarm.IoCommunication, exception);
         }
 
@@ -259,7 +260,7 @@ public sealed partial class MachineController
             if (_units.PcbSupply)
             {
                 stage = "PCB supply motion initialization";
-                _log?.Write(stage + " started.");
+                _log?.LogInformation("{Message}", stage + " started.");
                 _supplyHandler.InitializeMotion();
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -267,7 +268,7 @@ public sealed partial class MachineController
             if (_units.PcbPlacement)
             {
                 stage = "PCB placement motion initialization";
-                _log?.Write(stage + " started.");
+                _log?.LogInformation("{Message}", stage + " started.");
                 _placementHandler.InitializeMotion();
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -275,7 +276,7 @@ public sealed partial class MachineController
             if (_units.BoltFastening)
             {
                 stage = "Bolt fastening motion initialization";
-                _log?.Write(stage + " started.");
+                _log?.LogInformation("{Message}", stage + " started.");
                 _fasteningGantry.InitializeMotion();
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -283,12 +284,12 @@ public sealed partial class MachineController
             if (InspectionGantryEnabled)
             {
                 stage = "Inspection motion initialization";
-                _log?.Write(stage + " started.");
+                _log?.LogInformation("{Message}", stage + " started.");
                 _inspectionGantry.InitializeMotion();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            _log?.Write("Motion initialization completed.");
+            _log?.LogInformation("Motion initialization completed.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -296,7 +297,7 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            _log?.Error($"{stage} failed. {exception.Message}");
+            _log?.LogError("{Message}", $"{stage} failed. {exception.Message}");
             return (MachineAlarm.MotionUnavailable, exception);
         }
 
@@ -305,9 +306,9 @@ public sealed partial class MachineController
         {
             try
             {
-                _log?.Write("Vision / lighting initialization started.");
+                _log?.LogInformation("Vision / lighting initialization started.");
                 await _boltInspector.InitializeVisionAsync(cancellationToken);
-                _log?.Write("Vision / lighting initialization completed.");
+                _log?.LogInformation("Vision / lighting initialization completed.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -315,7 +316,7 @@ public sealed partial class MachineController
             }
             catch (Exception exception)
             {
-                _log?.Error($"Vision / lighting initialization failed. {exception.Message}");
+                _log?.LogError("{Message}", $"Vision / lighting initialization failed. {exception.Message}");
                 return (MachineAlarm.Inspection, exception);
             }
         }
@@ -325,9 +326,9 @@ public sealed partial class MachineController
         {
             try
             {
-                _log?.Write("Bolt controller readiness check started.");
+                _log?.LogInformation("Bolt controller readiness check started.");
                 await _fasteningGantry.CheckReadyAsync(cancellationToken);
-                _log?.Write("Bolt controller readiness check completed.");
+                _log?.LogInformation("Bolt controller readiness check completed.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -335,7 +336,7 @@ public sealed partial class MachineController
             }
             catch (Exception exception)
             {
-                _log?.Error($"Bolt controller readiness check failed. {exception.Message}");
+                _log?.LogError("{Message}", $"Bolt controller readiness check failed. {exception.Message}");
                 return (MachineAlarm.BoltFastening, exception);
             }
         }

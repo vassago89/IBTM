@@ -1,9 +1,10 @@
+using System.Text.Json.Serialization;
 using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.BoltFastening;
 
-public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
+public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings, IJsonOnDeserialized
 {
     public BoltFasteningHardwareSettings() : base(
         MotionGroup.BoltFastening,
@@ -22,6 +23,8 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
     {
         Inputs = new()
         {
+            [InputIo.PickupTableDown] = 40,
+            [InputIo.PickupTableUp] = 41,
             [InputIo.PickupHeadDown] = 42,
             [InputIo.PickupHeadUp] = 43,
             [InputIo.ShootingHeadDown] = 44,
@@ -34,6 +37,7 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
         };
         Outputs = new()
         {
+            [OutputIo.PickupTableDown] = CreateOutput(37, 38, InputIo.PickupTableDown, InputIo.PickupTableUp),
             [OutputIo.PickupHeadDown] = CreateOutput(39, 40, InputIo.PickupHeadDown, InputIo.PickupHeadUp),
             [OutputIo.ShootingHeadDown] = CreateOutput(
                 41,
@@ -52,10 +56,22 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
 
     public override HardwareArea Area => HardwareArea.BoltFastening;
 
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        Inputs.TryAdd(InputIo.PickupTableDown, 40);
+        Inputs.TryAdd(InputIo.PickupTableUp, 41);
+        Outputs.TryAdd(
+            OutputIo.PickupTableDown,
+            CreateOutput(37, 38, InputIo.PickupTableDown, InputIo.PickupTableUp));
+    }
+
     public override IoSection? GetSection(System.Enum signal)
     {
         switch (signal)
         {
+            case InputIo.PickupTableDown:
+            case InputIo.PickupTableUp:
+            case OutputIo.PickupTableDown:
             case InputIo.PickupHeadDown:
             case InputIo.PickupHeadUp:
             case InputIo.PickupHeadVacuumDetected:

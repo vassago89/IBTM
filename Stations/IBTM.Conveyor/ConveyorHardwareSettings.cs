@@ -1,8 +1,9 @@
+using System.Text.Json.Serialization;
 using IBTM.Device;
 
 namespace IBTM.Conveyor;
 
-public sealed class ConveyorHardwareSettings : IoHardwareSettings
+public sealed class ConveyorHardwareSettings : IoHardwareSettings, IJsonOnDeserialized
 {
     public ConveyorHardwareSettings()
     {
@@ -62,10 +63,17 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
                 InputIo.InspectionBackupPlateDown),
             [OutputIo.MainConveyorRun] = CreateOutput(60),
             [OutputIo.MainConveyorForward] = CreateOutput(61),
+            [OutputIo.MainConveyorNormalSpeed] = CreateOutput(62),
         };
     }
 
     public override HardwareArea Area => HardwareArea.MainConveyor;
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        // Add only the newly registered signal; retain all configured addresses.
+        Outputs.TryAdd(OutputIo.MainConveyorNormalSpeed, CreateOutput(62));
+    }
 
     public override IoSection? GetSection(System.Enum signal)
     {
@@ -80,6 +88,7 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
             case OutputIo.MainConveyorAvailableToRear:
             case OutputIo.MainConveyorRun:
             case OutputIo.MainConveyorForward:
+            case OutputIo.MainConveyorNormalSpeed:
                 return IoSection.MainConveyorInterfaceDrive;
             case InputIo.PcbPlacementStopperUp:
             case InputIo.PcbPlacementStopperDown:

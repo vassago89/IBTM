@@ -22,6 +22,7 @@ using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.Virtual.Tests;
 // A plain WPF Application supplies resources/Dispatcher only. Never start IBTM.App.
@@ -1084,8 +1085,10 @@ public sealed class OutputWindowThreadingTests
 
     private static async Task VerifyLogBindingsAsync()
     {
-        using var log = new ApplicationLog();
-        log.Write("Before opening logs");
+        var log = new ApplicationLog();
+        using var loggerFactory = log.CreateLoggerFactory();
+        var logger = loggerFactory.CreateLogger<OutputWindowThreadingTests>();
+        logger.LogInformation("Before opening logs");
         var window = new LogWindow(new LogWindowViewModel(log));
         var model = Assert.IsType<LogWindowViewModel>(window.DataContext);
         var text = (TextBox)window.FindName("LogText");
@@ -1104,7 +1107,7 @@ public sealed class OutputWindowThreadingTests
                 () => text.Text.Contains("Before opening logs"),
                 TimeSpan.FromSeconds(2)));
 
-            await Task.Run(() => log.Write("Newest background entry"));
+            await Task.Run(() => logger.LogInformation("Newest background entry"));
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => text.Text.Contains("Newest background entry"),
                 TimeSpan.FromSeconds(2)));
@@ -1115,7 +1118,7 @@ public sealed class OutputWindowThreadingTests
             text.SelectAll();
             Assert.Equal(paused, text.SelectedText);
             Assert.Contains(Environment.NewLine, text.SelectedText);
-            await Task.Run(() => log.Write("Entry while paused"));
+            await Task.Run(() => logger.LogInformation("Entry while paused"));
             await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             Assert.Equal(paused, text.Text);
             Assert.Equal(paused, text.SelectedText);
@@ -1128,7 +1131,7 @@ public sealed class OutputWindowThreadingTests
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => text.Text.Length == 0,
                 TimeSpan.FromSeconds(2)));
-            await Task.Run(() => log.Write("Entry after clear"));
+            await Task.Run(() => logger.LogInformation("Entry after clear"));
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => text.Text.Contains("Entry after clear"),
                 TimeSpan.FromSeconds(2)));
@@ -1143,7 +1146,7 @@ public sealed class OutputWindowThreadingTests
 
         var notificationsAfterClose = 0;
         model.PropertyChanged += (_, _) => notificationsAfterClose++;
-        await Task.Run(() => log.Write("After closing logs"));
+        await Task.Run(() => logger.LogInformation("After closing logs"));
         Assert.Equal(0, notificationsAfterClose);
         var reopened = new LogWindow(new LogWindowViewModel(log));
         try

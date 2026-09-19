@@ -11,8 +11,6 @@ public sealed class InspectionWork : StationWork
     private readonly INgCarrierTransferFeedback _transferFeedback;
     private readonly InspectionGantry _gantry;
     private readonly NgCarrierTransferSettings _transferSettings;
-    private readonly Func<bool>? _isGantryEnabled;
-    private readonly Func<bool>? _isConveyorEnabled;
     // Scheduling ownership for this job only; never a physical position or restart checkpoint.
     private volatile Job? _inspectionRequestedJob;
 
@@ -21,21 +19,19 @@ public sealed class InspectionWork : StationWork
         INgCarrierTransferFeedback transferFeedback,
         InspectionGantry gantry,
         NgCarrierTransferSettings transferSettings,
-        Func<bool>? isEnabled = null,
-        Func<bool>? isGantryEnabled = null,
-        Func<bool>? isConveyorEnabled = null) : base(ConveyorStation.CreateInspection(io), isEnabled)
+        UnitSettings units) : base(ConveyorStation.CreateInspection(io), units)
     {
         _io = io;
         _transferFeedback = transferFeedback;
         _gantry = gantry;
         _transferSettings = transferSettings;
-        _isGantryEnabled = isGantryEnabled;
-        _isConveyorEnabled = isConveyorEnabled;
         transferFeedback.Changed += NotifyChanged;
         // Conveyor release depends on the transfer's actual waiting position.
         gantry.Feedback.StateChanged += NotifyChanged;
         io.OutputChanged += OnOutputChanged;
     }
+
+    public override bool Enabled => Units.Inspection;
 
     public bool AtInspectionPosition
     {
@@ -81,7 +77,7 @@ public sealed class InspectionWork : StationWork
                     return InspectionWorkState.WaitingForCarrier;
                 case true when Completed:
                     return InspectionWorkState.WaitingForTransfer;
-                case true when (_isConveyorEnabled?.Invoke() ?? false) && !InspectionRequested:
+                case true when Units.MainConveyor && !InspectionRequested:
                     return InspectionWorkState.WaitingForConveyor;
                 case true when !AtInspectionPosition:
                     return InspectionWorkState.WaitingForInspectionPosition;
@@ -95,7 +91,7 @@ public sealed class InspectionWork : StationWork
 
     public bool IsTransferAtWaitingPosition(bool live = true)
     {
-        if (!(_isGantryEnabled?.Invoke() ?? Enabled))
+        if (!Units.IsMotionEnabled(MotionGroup.InspectionGantry))
             return true;
         return _transferFeedback.IsClear
             && _transferSettings.GetCarrierPickupPosition() is { } position

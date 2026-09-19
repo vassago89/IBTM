@@ -6,12 +6,13 @@ using System.Reflection;
 using System.Threading;
 using IBTM.Core;
 using Shared;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.AlphaMotion;
 
 public sealed class AlphaMotionController : IDisposable
 {
-    private readonly ApplicationLog? _log;
+    private readonly ILogger<AlphaMotionController>? _log;
     // Reserved logical address window. AJIN starts at 16; this is not a board-size requirement.
     public const int ChannelCount = 16;
     private const uint MappedPortMask = (1U << ChannelCount) - 1;
@@ -22,7 +23,7 @@ public sealed class AlphaMotionController : IDisposable
     private uint _inputCount;
     private uint _outputCount;
 
-    public AlphaMotionController(AlphaMotionSettings settings, ApplicationLog? log = null)
+    public AlphaMotionController(AlphaMotionSettings settings, ILogger<AlphaMotionController>? log = null)
     {
         _log = log;
         _cardNumber = GetCardNumber(settings.ControllerNumber);
@@ -44,7 +45,7 @@ public sealed class AlphaMotionController : IDisposable
                 }
                 catch (IOException exception)
                 {
-                    _log?.Error("AlphaMotion connection probe failed; reloading the device.", exception);
+                    _log?.LogError(exception, "AlphaMotion connection probe failed; reloading the device.");
                     Dispose();
                 }
             }
@@ -93,7 +94,8 @@ public sealed class AlphaMotionController : IDisposable
                 // Probe each available direction before allowing any output command.
                 var initialInputs = ReadPort(input: true);
                 var initialOutputs = ReadPort(input: false);
-                _log?.Write(
+                _log?.LogInformation(
+                    "{Message}",
                     $"AlphaMotion ready: card={_cardNumber}, DI={inputs}, DO={outputs}, loaded boards={(long)loadResult + 1} (AIO_LoadDevice={loadResult}); initial DI=0x{initialInputs:X8}, DO=0x{initialOutputs:X8}.");
                 _initialized = true;
             }
@@ -106,9 +108,7 @@ public sealed class AlphaMotionController : IDisposable
                 catch (Exception cleanupError)
                 {
                     exception.Data["AlphaMotionUnloadError"] = cleanupError.ToString();
-                    _log?.Error(
-                        "AlphaMotion cleanup after initialization failure also failed.",
-                        cleanupError);
+                    _log?.LogError(cleanupError, "AlphaMotion cleanup after initialization failure also failed.");
                 }
 
                 throw;
@@ -286,7 +286,8 @@ public sealed class AlphaMotionController : IDisposable
     {
         // First result (and status changes) only: no per-poll log flood.
         if (always || _reportedResults.Add((operation, result, error)))
-            _log?.Write(
+            _log?.LogInformation(
+                "{Message}",
                 $"AlphaMotion native {Address(operation, bit)}: result={result}, {GetErrorName(error)} ({error}); {detail}." + (result == 0 && operation != nameof(
                     TMCAEDLL.AIO_LoadDevice)
                     ? " Zero-result compatibility path; hardware verification required."

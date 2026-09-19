@@ -4,6 +4,7 @@ using System.Windows;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -16,7 +17,9 @@ public sealed class DiagnosticWindows
     private readonly MachineController _machine;
     private readonly MachineState _state;
     private readonly MotionWindowViewModel _motionViewModel;
-    private readonly ApplicationLog _log;
+    private readonly ApplicationLog _applicationLog;
+    private readonly ILogger<DiagnosticWindows> _log;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly IAdcBus? _adcBus;
     private InputWindow? _input;
     private OutputWindow? _output;
@@ -32,7 +35,8 @@ public sealed class DiagnosticWindows
         MachineController machine,
         MachineState state,
         MotionWindowViewModel motionViewModel,
-        ApplicationLog log,
+        ApplicationLog applicationLog,
+        ILoggerFactory loggerFactory,
         IAdcBus? adcBus = null)
     {
         _io = io;
@@ -41,7 +45,9 @@ public sealed class DiagnosticWindows
         _machine = machine;
         _state = state;
         _motionViewModel = motionViewModel;
-        _log = log;
+        _applicationLog = applicationLog;
+        _loggerFactory = loggerFactory;
+        _log = loggerFactory.CreateLogger<DiagnosticWindows>();
         _adcBus = adcBus;
     }
 
@@ -87,10 +93,10 @@ public sealed class DiagnosticWindows
         _motion.Closed += (_, _) =>
         {
             _motion = null;
-            _log.Write("Motion monitor closed.");
+            _log.LogInformation("Motion monitor closed.");
         };
         _motion.Show();
-        _log.Write("Motion monitor opened.");
+        _log.LogInformation("Motion monitor opened.");
     }
 
     public void OpenAdcProtocol()
@@ -105,7 +111,7 @@ public sealed class DiagnosticWindows
             _hantasSettings,
             _machine,
             _state,
-            _log);
+            _loggerFactory.CreateLogger<AdcProtocolViewModel>());
         _adc = new(_adcViewModel) { Owner = Owner };
         _adc.Closed += (_, _) =>
         {
@@ -122,7 +128,7 @@ public sealed class DiagnosticWindows
             _logs.Activate();
             return;
         }
-        _logs = new(new LogWindowViewModel(_log)) { Owner = Owner };
+        _logs = new(new LogWindowViewModel(_applicationLog)) { Owner = Owner };
         _logs.Closed += (_, _) => _logs = null;
         _logs.Show();
     }

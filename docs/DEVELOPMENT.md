@@ -1,11 +1,11 @@
 # 직접 개발할 때 보는 안내
 
-기준: 2026-09-18 소스. 목적은 **수정 → 현장 확인 → 원인 확인** 사이클을 짧게 하는 것이다.
+기준: 2026-09-19 소스. 목적은 **수정 → 현장 확인 → 원인 확인** 사이클을 짧게 하는 것이다.
 새 계층보다 실제 호출과 조건이 한눈에 보이는 코드를 우선한다. 상세 작업 규칙은 루트 `AGENTS.md`.
 
 ## 코드 표기와 디버깅 진입점
 
-기존 `C:\git\Plasma`의 일반 생성자, `_필드`, 동사가 있는 함수명을 기준으로 한다.
+기존 `C:\git\MWD100`의 일반 생성자와 명시적인 순차 호출을 참고하고, 오늘 정한 C# 표기 규칙은 `AGENTS.md`를 따른다.
 제어·드라이버·공통 장치·저장소·UI·테스트에 같은 표기를 적용한다. 제조사 SDK와 자동 생성 코드는 제외한다.
 클래스는 필드 → 생성자 → 이벤트·프로퍼티 → 조회·실행 함수 → 내부 보조 타입 순서로 배치한다.
 필드와 자동 프로퍼티의 초기화 순서는 실행 결과에 영향을 줄 수 있으므로 선언을 옮길 때 보존한다.
@@ -21,7 +21,7 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 이미 비동기인 작업을 화면에서 다시 `Task.Run`으로 감싸거나 `Wait`·`Result`·`GetAwaiter().GetResult()`로 기다리지 않는다.
 `Task.Run`은 동기 SDK·DB·이미지 계산과 장치 감시 작업에 한정한다. 취소 후에도 장치 정리 완료를 기다린다.
 카메라 촬영은 `ICamera.CaptureAsync`로 연결하며 라이브 프레임 이벤트는 취소 가능한 비동기 대기로 받는다.
-앱 종료는 명령 취소·장치 정리 뒤 DI의 `DisposeAsync`와 로그의 `DisposeAsync`까지 기다리고 창을 닫는다.
+앱 종료는 명령 취소·장치 정리 뒤 DI의 `DisposeAsync`와 로거 팩터리의 파일 기록 완료까지 기다리고 창을 닫는다.
 실행 중인 피드백·화면 감시의 소유자는 `await using` 또는 `DisposeAsync`를 사용한다.
 
 조명은 `C:\git\AnyWave\AnyWave.Device\Lights\MOVSService.cs` 원본을
@@ -44,6 +44,19 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 체결·검사·안착도 `GetState()`로 판단을 확인하고 `RunAsync()`와 `ExecuteAsync()`에서 실행을 따라간다.
 PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 두어 F12와 함수 중단점으로 찾을 수 있다.
 
+## 참조 방향과 상태의 소유자
+
+- `IBTM`은 화면·운전 시작/정지·DI 구성을 맡고, 각 Station은 자기 작업 순서를 맡는다.
+  유닛 사용 여부는 `Shared/IBTM.Device/UnitSettings.cs`의 같은 설정 객체를 주입해 직접 읽는다.
+  설정 판단을 DI의 `Func<bool>`로 나누거나 각 유닛에 복사하지 않는다.
+- 현재 레시피의 로드·저장은 `RecipeManager`가 맡는다. 소비자는 주입받은 관리자의 `Current`를 읽는다.
+- `MainConveyor`는 이송 우선순위를 결정하고, 하나의 이송 메서드가 출발지 하강부터 목적지 도착까지 맡는다.
+  NG 배출 여부도 컨베이어가 검사 결과와 유닛 설정으로 판단한다. DI에는 객체 연결만 둔다.
+- `StationWork`는 현재 캐리어의 작업·결과 소유권을 관리한다. 위치와 착좌 여부는 `ConveyorStation`의 현재 I/O로 판단한다.
+  사용 설정, 실행 중 명령, 결과 소유권을 물리 위치나 완료 피드백으로 대신하지 않는다.
+- 장비의 동기 SDK 조회·정지는 장비 진입부에서 UI 스레드와 분리한다. 화면에서는 비동기 명령을 그대로 `await`한다.
+  화면 값은 기존 observable 객체에 직접 바인딩하고, 표시를 위한 복사 속성과 알림 중계를 만들지 않는다.
+
 ## 수정할 파일
 
 경로는 저장소 루트 기준이다.
@@ -65,6 +78,7 @@ PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 �
 | 입력·출력 목록과 새로고침 | `IBTM/UI/InputWindowViewModel.cs`, `OutputWindowViewModel.cs` |
 | 모션 진단 구독·축 명령·창 종료 대기 | `IBTM/UI/MotionWindowViewModel.cs` |
 | 로그 표시·복사·일시정지 | `IBTM/UI/LogWindowViewModel.cs`, `LogTextBox.cs` |
+| 표준 로거 연결·파일 저장·최근 로그 수신 | `Shared/IBTM.Core/ApplicationLog.cs`, `IBTM/ApplicationTraceListener.cs` |
 | 메인 컨베이어 이송·감지 후 밀착 시간 | `Stations/IBTM.Conveyor/MainConveyor.cs`, `ConveyorSettings.cs` |
 | 백업 플레이트·스토퍼 | `Shared/IBTM.Device/ConveyorStation.cs` |
 | Station 3 작업/NG 대기 | `Stations/IBTM.Inspection/InspectionStation.cs`, `InspectionWork.cs` |
@@ -473,6 +487,25 @@ NG 셔틀·검사 작업처럼 연결된 객체를 통해 같은 변경 알림�
 `PhysicalInputScanPublishesBothProvidersAndRequiresExplicitRecovery`에서 확인한다.
 `RecoveredCarrierArrivalDoesNotReuseCompletedStationWork`는 통신 단절 전 비어 있던
 스테이션에 복구 시 캐리어가 확인되면 이전 완료 상태로 배출하지 않는지 확인한다.
+
+## 로그 라이브러리와 오프라인 패키지
+
+로그를 남기는 클래스는 `Microsoft.Extensions.Logging.ILogger<T>`를 주입받아 `LogInformation`·`LogError`를 직접 호출한다.
+파일은 Serilog의 File/Async sink가 기록하고, `ApplicationLog`는 화면에 표시할 최근 2,000건과 파일 오류만 보관한다.
+별도의 파일 쓰기 큐나 로그 호출 래퍼를 만들지 않는다. 기존 `Trace` 메시지는 `ApplicationTraceListener`에서 표준 로거로 연결한다.
+파일 저장 실패는 화면 로그와 `FileError`에 남기며, 파일 저장 실패가 장비 호출로 전파되지 않는다.
+종료 시 팩터리의 동기 `Dispose`가 남은 파일 기록을 기다리므로 UI에서는 `Task.Run`으로 실행하고 완료를 기다린다.
+
+로그 관련 패키지와 의존 패키지는 `artifacts/IBTM-logging-packages.zip`에 있다.
+장비 PC에서 압축을 풀고, 기존 패키지 캐시를 유지한 채 저장소 루트에서 다음처럼 복원한다.
+
+```powershell
+dotnet restore IBTM.slnx --source C:\path\logging-packages -p:NuGetAudit=false
+dotnet build IBTM/IBTM.csproj -c Debug --no-restore
+```
+
+`NuGetAudit=false`는 해당 오프라인 복원 명령에만 적용한다. ZIP에는 로그 관련 패키지만 있으므로
+처음 설치하는 PC라면 나머지 프로젝트 패키지도 별도로 옮겨야 한다.
 
 ## 짧게 검증하기
 

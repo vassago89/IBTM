@@ -14,6 +14,7 @@ using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
@@ -46,7 +47,7 @@ public sealed partial class MachineController
     private readonly NgCarrierMove _ngMove;
     private readonly InspectionWork _inspectionWork;
     private readonly BoltInspector _boltInspector;
-    private readonly ApplicationLog? _log;
+    private readonly ILogger<MachineController>? _log;
 
     static MachineController()
     {
@@ -92,7 +93,7 @@ public sealed partial class MachineController
         NgCarrierMove ngMove,
         InspectionWork inspectionWork,
         BoltInspector boltInspector,
-        ApplicationLog? log = null)
+        ILogger<MachineController>? log = null)
     {
         _resetGate = new();
 
@@ -127,7 +128,7 @@ public sealed partial class MachineController
             AutoUnit[] automaticUnits = [conveyor, pcbSupply, pcbPlacement, fasteningStation,
                 inspectionStation, pickupBoltFeeder, shootingBoltFeeder, ngMove, ngConveyor, ngShuttle];
             foreach (var unit in automaticUnits)
-                unit.Trace += log.Write;
+                unit.Trace += message => log.LogInformation("{Message}", message);
         }
         io.InputChanged += OnInputChanged;
         feedback.IoFaulted += OnIoFaulted;
@@ -149,7 +150,7 @@ public sealed partial class MachineController
 
     public async Task InitializeAsync()
     {
-        _log?.Write("Machine initialization started.");
+        _log?.LogInformation("Machine initialization started.");
         using (var operation = _operations.TryBegin())
         {
             if (operation is null)
@@ -167,7 +168,7 @@ public sealed partial class MachineController
 
         _state.UpdateMachineIndicators();
         await _state.StartDisplayUpdatesAsync(ReadDisplay);
-        _log?.Write($"Machine initialization finished. Alarm={_state.Alarm}.");
+        _log?.LogInformation("{Message}", $"Machine initialization finished. Alarm={_state.Alarm}.");
     }
 
     public async Task StopAsync()
@@ -177,7 +178,7 @@ public sealed partial class MachineController
 
     public void Stop()
     {
-        _log?.Write("Machine STOP requested.");
+        _log?.LogInformation("Machine STOP requested.");
         Exception? failure = null;
         try
         {
@@ -228,7 +229,7 @@ public sealed partial class MachineController
 
     private async Task ShutdownHardwareAsync()
     {
-        _log?.Write("Machine shutdown requested.");
+        _log?.LogInformation("Machine shutdown requested.");
         var displayStopped = _state.StopDisplayUpdatesAsync();
         var shutdown = _operations.ShutdownAsync();
         Exception? failure = null;

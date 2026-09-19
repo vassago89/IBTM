@@ -14,8 +14,7 @@ public sealed class InspectionStation : AutoUnit
     private readonly BoltInspector _inspector;
     private readonly NgCarrierMove _move;
     private readonly NgShuttle _shuttle;
-    private readonly Func<bool> _isTransferEnabled;
-    private readonly Func<bool> _isConveyorEnabled;
+    private readonly UnitSettings _units;
     private HeatSinkSlot[]? _runTargets;
 
     public InspectionStation(
@@ -23,15 +22,13 @@ public sealed class InspectionStation : AutoUnit
         BoltInspector inspector,
         NgCarrierMove move,
         NgShuttle shuttle,
-        Func<bool> isTransferEnabled,
-        Func<bool> isConveyorEnabled)
+        UnitSettings units)
     {
         _work = work;
         _inspector = inspector;
         _move = move;
         _shuttle = shuttle;
-        _isTransferEnabled = isTransferEnabled;
-        _isConveyorEnabled = isConveyorEnabled;
+        _units = units;
         move.Changed += NotifyChanged;
     }
 
@@ -140,11 +137,11 @@ public sealed class InspectionStation : AutoUnit
         bool live = true,
         bool? conveyorRunning = null)
     {
-        if (!_isTransferEnabled())
+        if (!_units.NgCarrierTransfer)
             return NgTransferState.Idle;
 
         var canReceive = holdAtShuttle
-            || _shuttle.IsReceiveAllowed(useConveyor: !repeat || _isConveyorEnabled(), conveyorRunning);
+            || _shuttle.IsReceiveAllowed(useConveyor: !repeat || _units.NgConveyor, conveyorRunning);
         return _move.GetState(
             NgTransferDestination.Shuttle,
             canPickUp: _work.Station.CarrierSeated

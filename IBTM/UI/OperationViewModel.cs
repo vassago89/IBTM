@@ -160,18 +160,6 @@ public partial class OperationViewModel : ObservableObject
 
     public bool PcbPlacementIpmGripperClosed => Placement.IpmGripper == PlacementGripperState.Closed;
 
-    public bool PcbPlacementHeatSink1Present => PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
-
-    public bool PcbPlacementHeatSink2Present => PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
-
-    public bool BoltFasteningHeatSink1Present => BoltFasteningWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
-
-    public bool BoltFasteningHeatSink2Present => BoltFasteningWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
-
-    public bool InspectionHeatSink1Present => InspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1);
-
-    public bool InspectionHeatSink2Present => InspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2);
-
     public bool PickupFeederBoltDetected => _pickupFeeder.State == BoltFeederState.BoltReady;
 
     public bool ShootingFeederBoltDetected => _shootingFeeder.State == BoltFeederState.BoltReady;
@@ -182,7 +170,7 @@ public partial class OperationViewModel : ObservableObject
         {
             return Units.PcbPlacement
                 && PcbPlacementWork.Station.CarrierPresent
-                && PcbPlacementHeatSink1Present
+                && PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)
                 && HasAssembly(PcbPlacementWork, HeatSinkSlot.HeatSink1);
         }
     }
@@ -193,7 +181,7 @@ public partial class OperationViewModel : ObservableObject
         {
             return Units.PcbPlacement
                 && PcbPlacementWork.Station.CarrierPresent
-                && PcbPlacementHeatSink2Present
+                && PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)
                 && HasAssembly(PcbPlacementWork, HeatSinkSlot.HeatSink2);
         }
     }
@@ -546,8 +534,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PcbPlacementIpmGripperClosed));
         OnPropertyChanged(nameof(Buffer));
         OnPropertyChanged(nameof(PcbPlacementWork));
-        OnPropertyChanged(nameof(PcbPlacementHeatSink1Present));
-        OnPropertyChanged(nameof(PcbPlacementHeatSink2Present));
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));
         OnPropertyChanged(nameof(PlacementDisplayState));
@@ -570,8 +556,6 @@ public partial class OperationViewModel : ObservableObject
             return;
 
         OnPropertyChanged(nameof(BoltFasteningWork));
-        OnPropertyChanged(nameof(BoltFasteningHeatSink1Present));
-        OnPropertyChanged(nameof(BoltFasteningHeatSink2Present));
         OnPropertyChanged(nameof(Fastening));
         OnPropertyChanged(nameof(PickupFeederBoltDetected));
         OnPropertyChanged(nameof(ShootingFeederBoltDetected));
@@ -589,8 +573,6 @@ public partial class OperationViewModel : ObservableObject
             return;
 
         OnPropertyChanged(nameof(InspectionWork));
-        OnPropertyChanged(nameof(InspectionHeatSink1Present));
-        OnPropertyChanged(nameof(InspectionHeatSink2Present));
         OnPropertyChanged(nameof(InspectionActiveBolt));
         OnPropertyChanged(nameof(InspectionActivePcb));
         OnPropertyChanged(nameof(InspectionPcb1Barcode));

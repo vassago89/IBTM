@@ -14,6 +14,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.Virtual;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -28,7 +29,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private readonly IAdcBus _bus;
     private readonly HantasSettings _settings;
     private readonly MachineController _machine;
-    private readonly ApplicationLog? _log;
+    private readonly ILogger<AdcProtocolViewModel>? _log;
     private OperationCancellation.Operation? _operationCancellation;
     private TaskCompletionSource? _operationCompletion;
     private readonly MachineState _state;
@@ -80,7 +81,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         HantasSettings settings,
         MachineController machine,
         MachineState state,
-        ApplicationLog? log = null)
+        ILogger<AdcProtocolViewModel>? log = null)
     {
         _frameLogGate = new();
         _frameLog = new();
@@ -199,7 +200,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             IsClosing = false;
             RefreshControls();
             CloseError = exception.Message;
-            _log?.Error("ADC diagnostic shutdown failed.", exception);
+            _log?.LogError(exception, "ADC diagnostic shutdown failed.");
             return false;
         }
     }
@@ -697,7 +698,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
         ResultMessage = "Operation failed. Check controller status.";
         ConnectionStatus = exception.Message;
-        _log?.Error("ADC diagnostic operation failed.", exception);
+        _log?.LogError(exception, "ADC diagnostic operation failed.");
         AppendLog($"ERROR  {exception.Message}", record: false);
     }
 
@@ -792,7 +793,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private void AppendLog(string text, bool record = true)
     {
         if (record)
-            _log?.Write($"ADC {text}");
+            _log?.LogInformation("{Message}", $"ADC {text}");
         lock (_frameLogGate)
         {
             _frameLog.Insert(0, $"{DateTime.Now:HH:mm:ss.fff}  {text}");

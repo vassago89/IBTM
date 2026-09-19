@@ -42,7 +42,7 @@ public sealed partial class MainConveyor
                     case true when !_inspectionWork.IsTransferAtWaitingPosition(live):
                         return MainConveyorState.WaitingForInspectionTransfer;
                     case true when !_repeat
-                        && !_routeInspectionToNg()
+                        && !IsNgTransferRequired
                         && _inspectionWork.IsTransferAllowed
                         && DownstreamReady:
                         return MainConveyorState.DischargingInspectionCarrier;
@@ -79,7 +79,7 @@ public sealed partial class MainConveyor
                     ? MainConveyorState.DischargingInspectionCarrier
                     : MainConveyorState.WaitingForRearEquipment;
             case true when !_repeat
-                && !_routeInspectionToNg()
+                && !IsNgTransferRequired
                 && _inspectionWork.IsTransferAllowed
                 && _inspectionWork.IsTransferAtWaitingPosition(live)
                 && DownstreamReady:
@@ -92,7 +92,7 @@ public sealed partial class MainConveyor
                 && (EntryCarrierDetected || !_repeat && UpstreamCarrierAvailable):
                 return MainConveyorState.ReceivingFrontCarrier;
             case true when !_repeat
-                && !_routeInspectionToNg()
+                && !IsNgTransferRequired
                 && _inspectionWork.IsTransferAllowed
                 && _inspectionWork.IsTransferAtWaitingPosition(live):
                 return MainConveyorState.WaitingForRearEquipment;
@@ -255,7 +255,7 @@ public sealed partial class MainConveyor
     {
         var rearAvailable = ExitCarrierDetected
             || !_repeat
-                && !_routeInspectionToNg()
+                && !IsNgTransferRequired
                 && _inspectionWork.IsTransferAllowed
                 && _inspectionWork.IsTransferAtWaitingPosition();
         _io.SetAutomaticSmemaOutput(
