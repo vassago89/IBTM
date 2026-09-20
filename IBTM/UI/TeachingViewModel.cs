@@ -21,10 +21,10 @@ namespace IBTM.UI;
 public partial class TeachingViewModel : ObservableObject
 {
     private readonly IAsyncRelayCommand[] _commands;
-    private readonly PcbSupplier _supplyHandler;
+    private readonly PcbSupplier _pcbSupply;
     private readonly PcbSupplySettings _supplySettings;
-    private readonly PcbPlacer _placementHandler;
-    private readonly BoltFasteningStation _fasteningGantry;
+    private readonly PcbPlacer _pcbPlacement;
+    private readonly BoltFasteningStation _fasteningStation;
     private readonly InspectionGantrySettings _inspectionGantrySettings;
     private readonly CarrierReferenceSettings _carrierReference;
     private readonly PcbPlacementHandlerSettings _placementSettings;
@@ -64,11 +64,11 @@ public partial class TeachingViewModel : ObservableObject
     public partial double MillimetersPerPixel { get; set; }
 
     public TeachingViewModel(
-        PcbSupplier supplyHandler,
+        PcbSupplier pcbSupply,
         PcbSupplySettings supplySettings,
-        PcbPlacer placementHandler,
-        BoltFasteningStation fasteningGantry,
-        InspectionStation boltInspector,
+        PcbPlacer pcbPlacement,
+        BoltFasteningStation fasteningStation,
+        InspectionStation inspectionStation,
         MachineState state,
         MachineController machine,
         OperationCancellation operations,
@@ -150,11 +150,11 @@ public partial class TeachingViewModel : ObservableObject
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
 
-        _supplyHandler = supplyHandler;
+        _pcbSupply = pcbSupply;
         _supplySettings = supplySettings;
-        _placementHandler = placementHandler;
-        _fasteningGantry = fasteningGantry;
-        Inspector = boltInspector;
+        _pcbPlacement = pcbPlacement;
+        _fasteningStation = fasteningStation;
+        Inspection = inspectionStation;
         _inspectionGantrySettings = inspectionGantrySettings;
         _carrierReference = carrierReference;
         _placementSettings = placementSettings;
@@ -163,7 +163,7 @@ public partial class TeachingViewModel : ObservableObject
         _ngTransfer = ngTransfer;
         RecipeEditor = recipeEditor;
         Recipes = recipes;
-        Preview = new(boltInspector, recipes);
+        Preview = new(inspectionStation, recipes);
         CarrierImages = [];
         Preview.PropertyChanged += (_, e) =>
         {
@@ -172,8 +172,8 @@ public partial class TeachingViewModel : ObservableObject
 
         MillimetersPerPixel = Recipes.Current.CarrierImageMillimetersPerPixel;
 
-        boltInspector.FrameReady += UpdateLiveImage;
-        boltInspector.LiveViewChanged += OnLiveViewChanged;
+        inspectionStation.FrameReady += UpdateLiveImage;
+        inspectionStation.LiveViewChanged += OnLiveViewChanged;
         state.PropertyChanged += OnMachineStateChanged;
         recipes.Changed += OnRecipeChanged;
         recipeEditor.PropertyChanged += (_, e) =>
@@ -194,13 +194,13 @@ public partial class TeachingViewModel : ObservableObject
 
     public string? CameraError
     {
-        get => field ?? Inspector.LiveViewError?.Message;
+        get => field ?? Inspection.LiveViewError?.Message;
         private set => SetProperty(ref field, value);
     }
 
     public bool IsBusy => Array.Exists(_commands, static command => command.IsRunning);
 
-    public InspectionStation Inspector { get; }
+    public InspectionStation Inspection { get; }
 
     public RecipeEditor RecipeEditor { get; }
     public RecipeManager Recipes { get; }
@@ -278,7 +278,7 @@ public partial class TeachingViewModel : ObservableObject
             SubscribeMotionChanges();
         CancelTeaching();
 
-        if (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning)
+        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
             _ = RequestCameraStopAsync();
 
         RefreshTeachingPoints();
@@ -430,19 +430,19 @@ public partial class TeachingViewModel : ObservableObject
                         TeachingTarget.DataMatrix,
                         MotionGroup.InspectionGantry,
                         TeachMode.Image,
-                        () => Inspector.HasBarcodeRegion(SelectedPcb)
-                        ? Inspector.GetBarcodeFov(SelectedPcb).Center
+                        () => Inspection.HasBarcodeRegion(SelectedPcb)
+                        ? Inspection.GetBarcodeFov(SelectedPcb).Center
                         : new(),
                         apply: null,
-                        isDefined: () => Inspector.HasBarcodeRegion(SelectedPcb)),
+                        isDefined: () => Inspection.HasBarcodeRegion(SelectedPcb)),
                     .. Recipes.Current.Pcb.GetBolts(SelectedPcb).Select(bolt =>
                     new TeachingPosition(
                         TeachingTarget.BoltReference,
                         MotionGroup.InspectionGantry,
                         TeachMode.Image,
-                        () => Inspector.HasPosition(bolt) ? Inspector.GetFov(bolt).Center : new(),
+                        () => Inspection.HasPosition(bolt) ? Inspection.GetFov(bolt).Center : new(),
                         apply: null,
-                        isDefined: () => Inspector.HasPosition(bolt))
+                        isDefined: () => Inspection.HasPosition(bolt))
                     { Bolt = bolt }),
             ],
             HardwareArea.NgCarrierTransfer => _ngTransferSettings.GetTeachingPositions(),
@@ -466,7 +466,7 @@ public partial class TeachingViewModel : ObservableObject
             {
                 case true when !IsInspectionSelected:
                     return null;
-                case true when !Inspector.HasBarcodeRegion(SelectedPcb):
+                case true when !Inspection.HasBarcodeRegion(SelectedPcb):
                     return FilteredPoints.FirstOrDefault(
                         point => point.Position.Target == TeachingTarget.DataMatrix);
                 default:
@@ -519,7 +519,7 @@ public partial class TeachingViewModel : ObservableObject
     private void OnRecipeChanged()
     {
         CameraError = null;
-        if (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning)
+        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
             _ = RequestCameraStopAsync();
         SelectedPoint = null;
         if (SelectedPcb == HeatSinkSlot.HeatSink1)

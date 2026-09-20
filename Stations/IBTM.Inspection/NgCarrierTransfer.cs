@@ -229,11 +229,12 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
 
     public Task MoveToAsync(
         AxisPosition position,
-        double velocity,
+        double? velocity = null,
         CancellationToken cancellationToken = default)
     {
         EnsureCanMove(cancellationToken);
-        return _motion.MoveToXYAsync(position.X, position.Y, velocity, cancellationToken);
+        return _motion.MoveToXYAsync(
+            position.X, position.Y, velocity ?? _motionSettings.HorizontalSpeed, cancellationToken);
     }
 
     public Task MoveAxisAsync(

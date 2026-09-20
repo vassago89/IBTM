@@ -597,7 +597,7 @@ public sealed class OutputWindowThreadingTests
                 TimeSpan.FromSeconds(2)));
             releaseStop.Set();
             await stopping;
-            Assert.False(teaching.Inspector.IsLiveView);
+            Assert.False(teaching.Inspection.IsLiveView);
             Assert.Equal(AppPage.Teaching, main.SelectedPage);
             Assert.Contains(light.OffFailure.Message, main.NavigationError);
             Assert.True(await VirtualTest.WaitUntilAsync(() => page.IsEnabled, TimeSpan.FromSeconds(2)));
@@ -655,7 +655,7 @@ public sealed class OutputWindowThreadingTests
             var live = new CheckBox();
             live.SetBinding(
                 System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
-                new Binding("Inspector.IsLiveView")
+                new Binding("Inspection.IsLiveView")
                 { Source = teaching, Mode = BindingMode.OneWay });
             var state = services.GetRequiredService<MachineState>();
             foreach (var hardwareReset in new[] { false, true })
@@ -714,7 +714,7 @@ public sealed class OutputWindowThreadingTests
             await scanStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(liveButton.IsEnabled);
             Assert.False(teaching.ToggleLiveViewCommand.CanExecute(null));
-            Assert.False(teaching.Inspector.IsLiveView);
+            Assert.False(teaching.Inspection.IsLiveView);
             teaching.TeachCurrentPositionCommand.Cancel();
             releaseStop.Set();
             await scan.WaitAsync(TimeSpan.FromSeconds(2));
@@ -763,7 +763,7 @@ public sealed class OutputWindowThreadingTests
             var liveLightOnCalls = light.OnCalls;
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Null(teaching.CameraError);
-            Assert.True(teaching.Inspector.IsLiveView);
+            Assert.True(teaching.Inspection.IsLiveView);
             Assert.True(light.IsOn);
             Assert.Equal(liveLightOnCalls, light.OnCalls);
             Assert.Single(teaching.CarrierImages);
@@ -782,8 +782,8 @@ public sealed class OutputWindowThreadingTests
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(40, 60, 60, 60));
             Assert.Equal(2, teaching.CarrierImages.Count);
-            Assert.True(teaching.Inspector.HasPosition(firstBolt.Position.Bolt));
-            Assert.True(teaching.Inspector.HasPosition(secondBolt.Position.Bolt!));
+            Assert.True(teaching.Inspection.HasPosition(firstBolt.Position.Bolt));
+            Assert.True(teaching.Inspection.HasPosition(secondBolt.Position.Bolt!));
             teaching.SelectedPcb = HeatSinkSlot.HeatSink1;
             teaching.SelectedPoint = firstBolt;
             Assert.Same(firstMetadata, teaching.SelectedFov!.Metadata);
@@ -798,10 +798,10 @@ public sealed class OutputWindowThreadingTests
                 await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
                 await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(100, 80, 80, 80));
                 Assert.Equal("Not Read", teaching.DataMatrixResult);
-                Assert.True(teaching.Inspector.HasBarcodeRegion(heatSink));
+                Assert.True(teaching.Inspection.HasBarcodeRegion(heatSink));
             }
             Assert.Equal(4, teaching.CarrierImages.Count);
-            Assert.True(teaching.Inspector.IsLiveView);
+            Assert.True(teaching.Inspection.IsLiveView);
             var readDataMatrix = (Button)teachingView.FindName("ReadDataMatrixButton");
             var dataMatrixResult = (TextBox)teachingView.FindName("DataMatrixResultBox");
             Assert.Same(teaching.ReadDataMatrixCommand, readDataMatrix.Command);

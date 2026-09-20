@@ -1,6 +1,6 @@
 # PCB Supply Handler
 
-This is the behavior contract for `PcbSupplyHandler` and `PcbSupplier`.
+This is the behavior contract for `PcbSupplier`, which owns both motion and the supply sequence.
 The confirmed sequence uses separate rotation and handoff heights.
 
 ## Responsibility

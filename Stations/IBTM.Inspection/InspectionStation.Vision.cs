@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
@@ -16,7 +15,6 @@ public sealed partial class InspectionStation
 {
     private readonly ICamera _camera;
     private readonly ILightController _light;
-    private readonly InspectionGantrySettings _gantrySettings;
     private readonly LightingSettings _lightingSettings;
     private readonly RecipeManager _recipes;
     private readonly SemaphoreSlim _visionGate;
@@ -110,7 +108,7 @@ public sealed partial class InspectionStation
 
     public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
     {
-        return MoveToAsync(GetBarcodeFov(pcb).Center, cancellationToken);
+        return _transfer.MoveToAsync(GetBarcodeFov(pcb).Center, cancellationToken: cancellationToken);
     }
 
     public async Task<ImageFrame> CaptureBarcodeAsync(
@@ -181,7 +179,7 @@ public sealed partial class InspectionStation
 
     public Task MoveToAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
-        return MoveToAsync(GetFov(point).Center, cancellationToken);
+        return _transfer.MoveToAsync(GetFov(point).Center, cancellationToken: cancellationToken);
     }
 
     private async Task<ImageFrame> CaptureWithLightAsync(CancellationToken cancellationToken)
@@ -386,11 +384,6 @@ public sealed partial class InspectionStation
         {
             throw new AggregateException(failure, cleanupFailure);
         }
-    }
-
-    private Task MoveToAsync(AxisPosition position, CancellationToken cancellationToken)
-    {
-        return _transfer.MoveToAsync(position, _gantrySettings.Motion.HorizontalSpeed, cancellationToken);
     }
 
     private void TurnLightOn(int channel)

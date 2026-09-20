@@ -203,7 +203,68 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await ExecuteAsync(cancellationToken);
+                    var alarm = AlarmRequired && _ejectionPhase == EjectionPhase.Idle;
+                    _io.SetOutput(
+                        OutputIo.NgCarrierEjectCompleteLamp,
+                        _ejectionPhase == EjectionPhase.WaitingForConfirmation);
+                    _io.SetOutput(OutputIo.NgCarrierEjectLamp, alarm);
+
+                    var state = State;
+                    TraceStep(state);
+                    switch (state)
+                    {
+                        case NgConveyorState.MovingToPosition1 or NgConveyorState.MovingToPosition2:
+                            var toPosition1 = state == NgConveyorState.MovingToPosition1;
+                            _movement = toPosition1 ? Movement.ToPosition1 : Movement.ToPosition2;
+                            await SetStopperDownAsync(false, cancellationToken);
+                            await RunUntilAsync(
+                                toPosition1 ? InputIo.NgConveyorPosition1Occupied : InputIo.NgConveyorPosition2Occupied,
+                                true, false, cancellationToken);
+                            Changed?.Invoke();
+                            break;
+                        case NgConveyorState.WaitingForShuttleUp:
+                            if (ShuttleLift != NgShuttleLiftState.Up)
+                            {
+                                await WaitForChangeAsync(cancellationToken);
+                                break;
+                            }
+
+                            _movement = Movement.None;
+                            Changed?.Invoke();
+                            break;
+                        case NgConveyorState.EjectingCarrier:
+                            _ejectionPhase = EjectionPhase.Ejecting;
+                            _io.SetOutput(OutputIo.NgCarrierEjectLamp, false);
+                            if (Position1Occupied)
+                            {
+                                await SetStopperDownAsync(true, cancellationToken);
+                                await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, false, false, cancellationToken);
+                            }
+
+                            await SetStopperDownAsync(false, cancellationToken);
+                            _ejectionPhase = EjectionPhase.WaitingForConfirmation;
+                            Changed?.Invoke();
+                            _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, true);
+                            break;
+                        case NgConveyorState.SecuringEjectStopper:
+                            await SetStopperDownAsync(false, cancellationToken);
+                            break;
+                        case NgConveyorState.CompactingCarriers:
+                            _movement = Movement.Compacting;
+                            await SetStopperDownAsync(false, cancellationToken);
+                            await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, true, false, cancellationToken);
+                            _movement = Movement.None;
+                            Changed?.Invoke();
+                            break;
+                        case NgConveyorState.WaitingForEjectConfirmation when EjectConfirmed:
+                            _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
+                            _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, false);
+                            Changed?.Invoke();
+                            break;
+                        default:
+                            await WaitForChangeAsync(cancellationToken);
+                            break;
+                    }
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -224,44 +285,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             _movement = Movement.None;
             _ejectionPhase = EjectionPhase.Idle;
         }
-    }
-
-    private Task ExecuteAsync(CancellationToken cancellationToken)
-    {
-        UpdateOperatorOutputs();
-        var state = State;
-        TraceStep(state);
-        switch (state)
-        {
-            case NgConveyorState.MovingToPosition1:
-                return MoveCarrierAsync(Movement.ToPosition1, cancellationToken);
-            case NgConveyorState.MovingToPosition2:
-                return MoveCarrierAsync(Movement.ToPosition2, cancellationToken);
-            case NgConveyorState.WaitingForShuttleUp:
-                if (ShuttleLift != NgShuttleLiftState.Up)
-                {
-                    return WaitForChangeAsync(cancellationToken);
-                }
-
-                _movement = Movement.None;
-                Changed?.Invoke();
-                break;
-            case NgConveyorState.EjectingCarrier:
-                return EjectCarrierAsync(cancellationToken);
-            case NgConveyorState.SecuringEjectStopper:
-                return SetStopperDownAsync(false, cancellationToken);
-            case NgConveyorState.CompactingCarriers:
-                return CompactCarriersAsync(cancellationToken);
-            case NgConveyorState.WaitingForEjectConfirmation when EjectConfirmed:
-                _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
-                _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, false);
-                Changed?.Invoke();
-                break;
-            default:
-                return WaitForChangeAsync(cancellationToken);
-        }
-
-        return Task.CompletedTask;
     }
 
     public void Stop()
@@ -288,57 +311,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             ExceptionDispatchInfo.Throw(failures[0]);
         if (failures is not null)
             throw new AggregateException("NG conveyor outputs could not all be stopped.", failures);
-    }
-
-    private async Task MoveCarrierAsync(
-        Movement movement,
-        CancellationToken cancellationToken)
-    {
-        var destination = movement switch
-        {
-            Movement.ToPosition1 => InputIo.NgConveyorPosition1Occupied,
-            Movement.ToPosition2 => InputIo.NgConveyorPosition2Occupied,
-            _ => throw new ArgumentOutOfRangeException(nameof(movement)),
-        };
-        _movement = movement;
-        await SetStopperDownAsync(false, cancellationToken);
-        await RunUntilAsync(destination, true, false, cancellationToken);
-
-        Changed?.Invoke();
-    }
-
-    private async Task EjectCarrierAsync(CancellationToken cancellationToken)
-    {
-        _ejectionPhase = EjectionPhase.Ejecting;
-        _io.SetOutput(OutputIo.NgCarrierEjectLamp, false);
-        if (Position1Occupied)
-        {
-            await SetStopperDownAsync(true, cancellationToken);
-            await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, false, false, cancellationToken);
-        }
-
-        await SetStopperDownAsync(false, cancellationToken);
-        _ejectionPhase = EjectionPhase.WaitingForConfirmation;
-        Changed?.Invoke();
-        _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, true);
-    }
-
-    private async Task CompactCarriersAsync(CancellationToken cancellationToken)
-    {
-        _movement = Movement.Compacting;
-        await SetStopperDownAsync(false, cancellationToken);
-        await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, true, false, cancellationToken);
-        _movement = Movement.None;
-        Changed?.Invoke();
-    }
-
-    private void UpdateOperatorOutputs()
-    {
-        var alarm = AlarmRequired && _ejectionPhase == EjectionPhase.Idle;
-        _io.SetOutput(
-            OutputIo.NgCarrierEjectCompleteLamp,
-            _ejectionPhase == EjectionPhase.WaitingForConfirmation);
-        _io.SetOutput(OutputIo.NgCarrierEjectLamp, alarm);
     }
 
     private Task SetStopperDownAsync(bool down, CancellationToken cancellationToken)

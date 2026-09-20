@@ -842,9 +842,11 @@ public sealed class BoltFasteningTests
     {
         var settings = new BoltFasteningSettings
         {
+            SafeZ = 5,
             PickupHead = HeadSettings(),
             ShootingHead = HeadSettings(),
         };
+        settings.PickupHead.FasteningZ = 10;
         var controllerSettings = new IoBoltHardwareSettings();
         var io = new VirtualIoService(
             Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings(), controllerSettings),
@@ -859,7 +861,7 @@ public sealed class BoltFasteningTests
         IBoltHead pickup = useIo ? pickupIo : new AdcBoltHead(bus, new HantasSettings(), 1);
 
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
-        var layout = new PcbLayout { BoltPoints = [Bolt(1, FasteningHead.Pickup, 0, 0)] };
+        var layout = new PcbLayout { BoltPoints = [Bolt(1, FasteningHead.Pickup, 10, 10)] };
         var units = new UnitSettings();
         var station = new BoltFasteningStation(shooting,
             pickup,
@@ -876,7 +878,6 @@ public sealed class BoltFasteningTests
             new BoltFeederUnit(FasteningHead.Shooting, io, new()),
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
             units);
-        var gantry = station;
         io.SetInputs(
             (InputIo.BoltFasteningHeatSink1Present, true),
             (InputIo.BoltFasteningBackupPlateUp, true),
@@ -916,11 +917,19 @@ public sealed class BoltFasteningTests
         if (!useIo)
             Assert.Equal(1, bus.StartWrites);
         var job = work.CurrentJob;
+        var movedBeforeRestart = false;
+        var restarted = false;
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (!restarted)
+                movedBeforeRestart = true;
+        };
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PickupBoltStart && on)
             {
+                restarted = true;
                 io.SetInput(InputIo.PickupBoltFasten, true);
                 io.SetInput(InputIo.PickupBoltFasten, false);
             }
@@ -928,6 +937,7 @@ public sealed class BoltFasteningTests
                 finish.Cancel();
         };
         await station.RunAsync(finish.Token);
+        Assert.False(movedBeforeRestart);
         Assert.Same(job, work.CurrentJob);
         Assert.Same(assembly, Assert.Single(work.Assemblies));
         Assert.True(work.Station.CarrierPresent);

@@ -223,7 +223,16 @@ public sealed partial class MainConveyor
                             await TransferAsync(null, _placementWork, cancellationToken);
                             break;
                         default:
-                            UpdateSmema();
+                            var rearAvailable = ExitCarrierDetected
+                                || !_repeat
+                                    && !IsNgTransferRequired
+                                    && _inspectionWork.IsTransferAllowed
+                                    && _inspectionWork.IsTransferAtWaitingPosition();
+                            _io.SetAutomaticSmemaOutput(
+                                OutputIo.MainConveyorReadyToFront2,
+                                !_repeat && _placementWork.IsReceiveAllowed && !rearAvailable
+                                    && (!_inspectionWork.Station.CarrierPresent || _inspectionWork.Station.CarrierSeated));
+                            _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
                             await WaitForChangeAsync(cancellationToken);
                             break;
                     }
@@ -251,19 +260,5 @@ public sealed partial class MainConveyor
             _inspectionWork.ClearInspectionRequest();
             EndRun(cancellationToken);
         }
-    }
-
-    private void UpdateSmema()
-    {
-        var rearAvailable = ExitCarrierDetected
-            || !_repeat
-                && !IsNgTransferRequired
-                && _inspectionWork.IsTransferAllowed
-                && _inspectionWork.IsTransferAtWaitingPosition();
-        _io.SetAutomaticSmemaOutput(
-            OutputIo.MainConveyorReadyToFront2,
-            !_repeat && _placementWork.IsReceiveAllowed && !rearAvailable
-                && (!_inspectionWork.Station.CarrierPresent || _inspectionWork.Station.CarrierSeated));
-        _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
     }
 }

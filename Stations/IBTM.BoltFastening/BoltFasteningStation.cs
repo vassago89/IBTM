@@ -12,6 +12,12 @@ namespace IBTM.BoltFastening;
 
 public sealed partial class BoltFasteningStation : AutoUnit
 {
+    private readonly IBoltHead _shootingHead;
+    private readonly IBoltHead _pickupHead;
+    private readonly IIoService _io;
+    private readonly IXyMotion _motion;
+    private readonly BoltFasteningSettings _settings;
+    private readonly CarrierReferenceSettings _carrierReference;
     private readonly BoltFasteningWork _work;
     private readonly BoltFeederUnit _pickupFeeder;
     private readonly BoltFeederUnit _shootingFeeder;
@@ -22,13 +28,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
     private PendingFastening? _pendingFastening;
     // Command history when pickup confirmation is disabled, not a loaded-bolt state.
     private PickupAttempt? _pickupAttempt;
-
-    private readonly IBoltHead _shootingHead;
-    private readonly IBoltHead _pickupHead;
-    private readonly IIoService _io;
-    private readonly IXyMotion _motion;
-    private readonly BoltFasteningSettings _settings;
-    private readonly CarrierReferenceSettings _carrierReference;
 
     public BoltFasteningStation(
         IBoltHead shootingHead,
@@ -800,8 +799,10 @@ public sealed partial class BoltFasteningStation : AutoUnit
                 if (feeding && ShootingTubeBoltDetected)
                     await WaitForShootingTubeClearAsync(cancellationToken);
                 if (!IsAt(bolt))
+                {
                     await RaiseCylindersAsync(cancellationToken);
                     await MoveToBoltAsync(bolt, cancellationToken);
+                }
 
                 if (feeding && PendingResult is null && !ShootingBoltLoaded)
                 {
@@ -869,8 +870,10 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     await SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
                 }
                 if (!IsAt(bolt))
+                {
                     await RaiseCylindersAsync(cancellationToken);
                     await MoveToBoltAsync(bolt, cancellationToken);
+                }
                 await FastenAsync(FasteningHead.Pickup, cancellationToken);
                 await ClearHeadAsync(FasteningHead.Pickup, cancellationToken);
                 break;

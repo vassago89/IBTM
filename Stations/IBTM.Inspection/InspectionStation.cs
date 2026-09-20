@@ -25,7 +25,6 @@ public sealed partial class InspectionStation : AutoUnit
         UnitSettings units,
         ICamera camera,
         ILightController light,
-        InspectionGantrySettings gantrySettings,
         LightingSettings lightingSettings,
         RecipeManager recipes)
     {
@@ -35,7 +34,6 @@ public sealed partial class InspectionStation : AutoUnit
         _units = units;
         _camera = camera;
         _light = light;
-        _gantrySettings = gantrySettings;
         _lightingSettings = lightingSettings;
         _recipes = recipes;
         _visionGate = new(1, 1);

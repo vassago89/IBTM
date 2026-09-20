@@ -166,7 +166,7 @@
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                                 <Setter Property="Content" Value="Live"/>
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Inspector.IsLiveView}" Value="True">
+                                                    <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
                                                         <Setter Property="Content" Value="Stop Live"/>
                                                         <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
                                                         <Setter Property="Foreground" Value="{StaticResource EquipBgBrush}"/>

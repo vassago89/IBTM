@@ -56,7 +56,7 @@ public partial class TeachingViewModel
                 return TeachingMotionHint.NgPickupPositionRequired;
             switch (ActiveMotionGroup)
             {
-                case MotionGroup.PcbPlacementHandler when !_placementHandler.HandlerRaised:
+                case MotionGroup.PcbPlacementHandler when !_pcbPlacement.HandlerRaised:
                     return TeachingMotionHint.RaisePlacementCylinders;
                 case MotionGroup.BoltFastening:
                     return TeachingMotionHint.BoltAdjustment;
@@ -108,7 +108,7 @@ public partial class TeachingViewModel
             && ActiveMotionGroup switch
             {
                 MotionGroup.PcbSupply or MotionGroup.BoltFastening => true,
-                MotionGroup.PcbPlacementHandler => axis == MotionAxis.Z || _placementHandler.HandlerRaised,
+                MotionGroup.PcbPlacementHandler => axis == MotionAxis.Z || _pcbPlacement.HandlerRaised,
                 MotionGroup.InspectionGantry => _ngTransfer.IsRaised,
                 _ => false,
             };
@@ -138,13 +138,13 @@ public partial class TeachingViewModel
             switch (group)
             {
                 case MotionGroup.PcbSupply:
-                    await _supplyHandler.JogAsync(axis, velocity, operation.Token);
+                    await _pcbSupply.JogAsync(axis, velocity, operation.Token);
                     break;
                 case MotionGroup.PcbPlacementHandler:
-                    await _placementHandler.JogAsync(axis, velocity, operation.Token);
+                    await _pcbPlacement.JogAsync(axis, velocity, operation.Token);
                     break;
                 case MotionGroup.BoltFastening:
-                    await _fasteningGantry.JogAsync(axis, velocity, operation.Token);
+                    await _fasteningStation.JogAsync(axis, velocity, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
                     await _ngTransfer.JogAsync(axis, velocity, operation.Token);
@@ -186,13 +186,13 @@ public partial class TeachingViewModel
             switch (commandGroup)
             {
                 case MotionGroup.PcbSupply:
-                    await _supplyHandler.MoveToRotationZAsync(operation.Token);
+                    await _pcbSupply.MoveToRotationZAsync(operation.Token);
                     break;
                 case MotionGroup.PcbPlacementHandler:
-                    await _placementHandler.MoveToHorizontalZAsync(operation.Token);
+                    await _pcbPlacement.MoveToHorizontalZAsync(operation.Token);
                     break;
                 case MotionGroup.BoltFastening:
-                    await _fasteningGantry.MoveToSafeZAsync(operation.Token);
+                    await _fasteningStation.MoveToSafeZAsync(operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
                     break;
@@ -243,13 +243,13 @@ public partial class TeachingViewModel
             switch (commandGroup)
             {
                 case MotionGroup.PcbSupply:
-                    await _supplyHandler.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
+                    await _pcbSupply.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.PcbPlacementHandler:
-                    await _placementHandler.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
+                    await _pcbPlacement.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.BoltFastening:
-                    await _fasteningGantry.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
+                    await _fasteningStation.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
                     await _ngTransfer.MoveAxisAsync(axis, target, TeachingXySpeed, operation.Token);
@@ -288,7 +288,7 @@ public partial class TeachingViewModel
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            await _fasteningGantry.ReturnFromPickupAsync(operation.Token);
+            await _fasteningStation.ReturnFromPickupAsync(operation.Token);
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
             || viewToken.IsCancellationRequested
@@ -334,22 +334,22 @@ public partial class TeachingViewModel
             switch (point.Position.MotionGroup)
             {
                 case MotionGroup.PcbSupply:
-                    await _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
+                    await _pcbSupply.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
                     break;
                 case MotionGroup.PcbPlacementHandler:
-                    await _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
+                    await _pcbPlacement.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
                     break;
                 case MotionGroup.BoltFastening:
-                    await _fasteningGantry.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
+                    await _fasteningStation.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup:
                     await _ngTransfer.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt:
-                    await Inspector.MoveToAsync(bolt, operation.Token);
+                    await Inspection.MoveToAsync(bolt, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.DataMatrix:
-                    await Inspector.MoveToBarcodeAsync(SelectedPcb, operation.Token);
+                    await Inspection.MoveToBarcodeAsync(SelectedPcb, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
                     await _ngTransfer.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, TeachingXySpeed, operation.Token);
@@ -381,14 +381,14 @@ public partial class TeachingViewModel
                     || !Machine.IsManualMotionReady(ActiveMotionGroup, live: false):
                     return false;
                 case { } when ActiveMotionGroup == MotionGroup.PcbPlacementHandler
-                    && !_placementHandler.HandlerRaised:
+                    && !_pcbPlacement.HandlerRaised:
                     return false;
                 case { } point when ActiveMotionGroup == MotionGroup.PcbSupply:
-                    return _supplyHandler.IsMoveToTeachingPositionAllowed(point.Position);
+                    return _pcbSupply.IsMoveToTeachingPositionAllowed(point.Position);
                 case { } point:
                     return (point.Position.Mode == TeachMode.ZOnly || IsHorizontalMoveAllowed)
                         && (IsInspectionSelected && point.Position.Bolt is { } bolt
-                            ? Inspector.HasPosition(bolt)
+                            ? Inspection.HasPosition(bolt)
                             : point.Position.HasPosition);
             }
         }
@@ -401,9 +401,9 @@ public partial class TeachingViewModel
             switch (ActiveMotionGroup)
             {
                 case MotionGroup.PcbPlacementHandler:
-                    return _placementHandler.HandlerRaised;
+                    return _pcbPlacement.HandlerRaised;
                 case MotionGroup.BoltFastening:
-                    return _fasteningGantry.IsHorizontalMoveAllowed;
+                    return _fasteningStation.IsHorizontalMoveAllowed;
                 case MotionGroup.InspectionGantry:
                     return _ngTransfer.IsRaised;
                 default:
@@ -415,7 +415,7 @@ public partial class TeachingViewModel
     private void NotifyManualTeachingCommands()
     {
         OnPropertyChanged(nameof(HomeBlock));
-        if (!State.ManualMode && (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning))
+        if (!State.ManualMode && (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning))
         {
             _ = RequestCameraStopAsync();
         }

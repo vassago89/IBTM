@@ -117,7 +117,6 @@ public sealed class InspectionTests
                 () => [],
                 () => [new(new() { X = 15, Y = 7 }, 4, 4, "PCB-000123")]),
             new VirtualLightController(),
-            settings,
             new LightingSettings(),
             new RecipeManager(OpenMachineStore(), new())
             {
@@ -244,7 +243,6 @@ public sealed class InspectionTests
             units,
             camera,
             new VirtualLightController(),
-            gantrySettings,
             new LightingSettings(),
             recipes);
         var inspector = station;
@@ -360,7 +358,6 @@ public sealed class InspectionTests
             transferUnits,
             camera,
             new VirtualLightController(),
-            gantrySettings,
             new LightingSettings(),
             recipes);
         io.SetInput(InputIo.NgShuttleUp, true);

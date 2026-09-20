@@ -376,7 +376,7 @@ public partial class TeachingViewModel
             cancellationToken, ViewCancellation);
         try
         {
-            if (Inspector.IsLiveView)
+            if (Inspection.IsLiveView)
             {
                 await StopCameraLiveAsync();
                 return;
@@ -384,7 +384,7 @@ public partial class TeachingViewModel
 
             CameraError = null;
             SelectedCameraTab = 0;
-            await Inspector.StartLiveViewAsync(cancellation.Token);
+            await Inspection.StartLiveViewAsync(cancellation.Token);
             if (!State.ManualMode || !IsInspectionSelected)
                 await StopCameraLiveAsync();
         }
@@ -401,7 +401,7 @@ public partial class TeachingViewModel
     {
         get
         {
-            return Inspector.IsLiveView
+            return Inspection.IsLiveView
                 || IsInspectionSelected
                     && State.ManualMode
                     && !TeachCurrentPositionCommand.IsRunning
@@ -446,7 +446,7 @@ public partial class TeachingViewModel
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
                 throw new InvalidOperationException("Wait for the saved teaching images to load before recording a position.");
-            var captured = await Inspector.CaptureCarrierImageAsync(operation.Token);
+            var captured = await Inspection.CaptureCarrierImageAsync(operation.Token);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
             var images = CarrierImages.ToList();
             var index = images.FindIndex(tile => tile.Metadata.HeatSink == pcb
@@ -552,9 +552,9 @@ public partial class TeachingViewModel
             CameraError = null;
             var pcb = SelectedBarcode;
             var bolt = SelectedPoint!.Position.Bolt;
-            var region = pcb is { } target ? Inspector.GetBarcodeFov(target).Region : Inspector.GetFov(bolt!).Region;
+            var region = pcb is { } target ? Inspection.GetBarcodeFov(target).Region : Inspection.GetFov(bolt!).Region;
             Preview.Clear(pcb, bolt);
-            var frame = pcb is { } barcode ? await Inspector.CaptureBarcodeAsync(barcode, operation.Token) : await Inspector.CaptureAsync(bolt!, operation.Token);
+            var frame = pcb is { } barcode ? await Inspection.CaptureBarcodeAsync(barcode, operation.Token) : await Inspection.CaptureAsync(bolt!, operation.Token);
             await Preview.SetImageAsync(frame, operation.Token, region);
             await Preview.InspectAsync(operation.Token);
         }
@@ -582,8 +582,8 @@ public partial class TeachingViewModel
             return IsInspectionSelected
                 && IsMoveToPointAllowed
                 && (SelectedBarcode is { } pcb
-                    ? Inspector.HasBarcodeRegion(pcb)
-                    : SelectedPoint?.Position.Bolt is { } bolt && Inspector.HasPosition(bolt));
+                    ? Inspection.HasBarcodeRegion(pcb)
+                    : SelectedPoint?.Position.Bolt is { } bolt && Inspection.HasPosition(bolt));
         }
     }
 
@@ -652,7 +652,7 @@ public partial class TeachingViewModel
             _pendingLiveFrame = null;
         }
 
-        _cameraStop = Inspector.StopLiveViewAsync();
+        _cameraStop = Inspection.StopLiveViewAsync();
         return _cameraStop;
     }
 
@@ -677,9 +677,9 @@ public partial class TeachingViewModel
 
     private void RefreshLiveView()
     {
-        OnPropertyChanged(nameof(Inspector));
+        OnPropertyChanged(nameof(Inspection));
         OnPropertyChanged(nameof(CameraError));
-        if (!Inspector.IsLiveView)
+        if (!Inspection.IsLiveView)
         {
             lock (_liveImageGate)
             {
@@ -706,7 +706,7 @@ public partial class TeachingViewModel
 
     private void UpdateLiveImage(ImageFrame frame)
     {
-        if (!Inspector.IsLiveView)
+        if (!Inspection.IsLiveView)
         {
             return;
         }
@@ -747,7 +747,7 @@ public partial class TeachingViewModel
                 // Frozen frames can cross threads; WPF marshals the scalar binding.
                 lock (_liveImageGate)
                 {
-                    if (Inspector.IsLiveView && IsInspectionSelected)
+                    if (Inspection.IsLiveView && IsInspectionSelected)
                         LiveImage = image;
                 }
             }

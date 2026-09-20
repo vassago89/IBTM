@@ -355,7 +355,7 @@ public partial class TeachingViewModel
     }
 
     private bool IsMoveToHorizontalZAllowed => IsJogAllowed(MotionAxis.Z)
-        && (ActiveMotionGroup != MotionGroup.PcbPlacementHandler || _placementHandler.HandlerRaised);
+        && (ActiveMotionGroup != MotionGroup.PcbPlacementHandler || _pcbPlacement.HandlerRaised);
 
     public IAsyncRelayCommand HomeCommand { get; }
 
