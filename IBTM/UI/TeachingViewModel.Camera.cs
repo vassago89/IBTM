@@ -627,7 +627,7 @@ public partial class TeachingViewModel
                 && IsMoveToPointAllowed
                 && (SelectedBarcode is { } pcb
                     ? Inspection.HasBarcodeRegion(pcb)
-                    : SelectedPoint?.Position.Bolt is { } bolt && Inspection.HasPosition(bolt));
+                    : SelectedPoint?.Position.Bolt is { } bolt && Inspection.HasRegion(bolt));
         }
     }
 

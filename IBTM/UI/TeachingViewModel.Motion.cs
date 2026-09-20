@@ -387,9 +387,7 @@ public partial class TeachingViewModel
                     return _pcbSupply.IsMoveToTeachingPositionAllowed(point.Position);
                 case { } point:
                     return (point.Position.Mode == TeachMode.ZOnly || IsHorizontalMoveAllowed)
-                        && (IsInspectionSelected && point.Position.Bolt is { } bolt
-                            ? Inspection.HasPosition(bolt)
-                            : point.Position.HasPosition);
+                        && point.Position.HasPosition;
             }
         }
     }

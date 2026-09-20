@@ -83,6 +83,11 @@ public sealed partial class InspectionStation
             point.BrightnessThreshold ?? _recipes.Current.BoltInspection.BrightnessThreshold);
     }
 
+    public bool HasBarcodePosition(HeatSinkSlot pcb)
+    {
+        return _recipes.Current.CarrierImages.Count(fov => fov.IsBarcode && fov.HeatSink == pcb) == 1;
+    }
+
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
     {
         var size = _camera.FrameSize;
@@ -95,9 +100,8 @@ public sealed partial class InspectionStation
     public CarrierImageTile GetBarcodeFov(HeatSinkSlot pcb)
     {
         var fov = _recipes.Current.CarrierImages.SingleOrDefault(item => item.IsBarcode && item.HeatSink == pcb);
-        var size = _camera.FrameSize;
-        if (fov?.Region is not { } region || !region.IsInside(size.Width, size.Height))
-            throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
+        if (fov is null)
+            throw new InvalidOperationException($"Record a position for {pcb.GetDescription()} Data Matrix.");
         return fov;
     }
 
@@ -115,6 +119,8 @@ public sealed partial class InspectionStation
         HeatSinkSlot pcb,
         CancellationToken cancellationToken = default)
     {
+        if (!HasBarcodeRegion(pcb))
+            throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
         await MoveToBarcodeAsync(pcb, cancellationToken);
         return await CaptureCurrentAsync(cancellationToken);
     }
@@ -140,6 +146,8 @@ public sealed partial class InspectionStation
 
     internal async Task<string> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
     {
+        if (!HasBarcodeRegion(pcb))
+            throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
         var region = GetBarcodeFov(pcb).Region!;
         var image = await CaptureCurrentAsync(cancellationToken);
         InspectionCaptured?.Invoke(image, pcb, null);
@@ -152,6 +160,14 @@ public sealed partial class InspectionStation
     }
 
     public bool HasPosition(BoltPoint point)
+    {
+        return _recipes.Current.CarrierImages.Count(fov =>
+            !fov.IsBarcode
+            && fov.BoltNumber == point.Number
+            && fov.HeatSink == point.HeatSink) == 1;
+    }
+
+    public bool HasRegion(BoltPoint point)
     {
         var size = _camera.FrameSize;
         var fovs = _recipes.Current.CarrierImages.Where(fov =>
@@ -169,10 +185,9 @@ public sealed partial class InspectionStation
             !fov.IsBarcode
             && fov.BoltNumber == point.Number
             && fov.HeatSink == point.HeatSink);
-        var size = _camera.FrameSize;
-        if (fov?.Region is not { } region || !region.IsInside(size.Width, size.Height))
+        if (fov is null)
             throw new InvalidOperationException(
-                $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
+                $"Record a position for {point.HeatSink.GetDescription()} bolt {point.Number}.");
         return fov;
     }
 
@@ -211,12 +226,18 @@ public sealed partial class InspectionStation
         BoltPoint point,
         CancellationToken cancellationToken = default)
     {
+        if (!HasRegion(point))
+            throw new InvalidOperationException(
+                $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
         await MoveToAsync(point, cancellationToken);
         return await CaptureCurrentAsync(cancellationToken);
     }
 
     internal async Task<bool> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
+        if (!HasRegion(point))
+            throw new InvalidOperationException(
+                $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
         var region = GetFov(point).Region!;
         var image = await CaptureCurrentAsync(cancellationToken).ConfigureAwait(false);
         InspectionCaptured?.Invoke(image, point.HeatSink, point.Number);

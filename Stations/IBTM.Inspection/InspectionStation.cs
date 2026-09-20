@@ -274,7 +274,7 @@ public sealed partial class InspectionStation : AutoUnit
                 return InspectionStationState.ReadingBarcode;
             case true when bolt is null:
                 return InspectionStationState.CompletingInspection;
-            case true when !HasPosition(bolt):
+            case true when !HasRegion(bolt):
                 return WaitAtWaitingPosition(InspectionStationState.FovTeachingRequired, live);
             default:
                 return InspectionStationState.InspectingBolt;

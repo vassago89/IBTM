@@ -428,11 +428,11 @@ public partial class TeachingViewModel : ObservableObject
                         TeachingTarget.DataMatrix,
                         MotionGroup.InspectionGantry,
                         TeachMode.Image,
-                        () => Inspection.HasBarcodeRegion(SelectedPcb)
+                        () => Inspection.HasBarcodePosition(SelectedPcb)
                         ? Inspection.GetBarcodeFov(SelectedPcb).Center
                         : new(),
                         apply: null,
-                        isDefined: () => Inspection.HasBarcodeRegion(SelectedPcb)),
+                        isDefined: () => Inspection.HasBarcodePosition(SelectedPcb)),
                     .. Recipes.Current.Pcb.GetBolts(SelectedPcb).Select(bolt =>
                     new TeachingPosition(
                         TeachingTarget.BoltReference,
@@ -474,7 +474,7 @@ public partial class TeachingViewModel : ObservableObject
                     return Recipes.Current.CarrierImages.Count == 0
                         ? null
                         : FilteredPoints.FirstOrDefault(
-                            point => point.Position.Target == TeachingTarget.BoltReference && !point.Position.HasPosition);
+                            point => point.Position.Bolt is { } bolt && !Inspection.HasRegion(bolt));
             }
         }
     }

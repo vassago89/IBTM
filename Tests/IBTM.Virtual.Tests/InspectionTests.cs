@@ -145,13 +145,16 @@ public sealed class InspectionTests
         Assert.True(gantry.IsAt(fov.Center)); // Never move the camera center to the bolt / ROI center.
         Assert.Equal(fov.Region!.Width, inspector.Check(capturedFov, fov.Region, bolt).Image.Width);
         Assert.True(inspector.HasPosition(bolt));
+        Assert.True(inspector.HasRegion(bolt));
         fov.Region = new(310, 30, 60, 80);
-        Assert.False(inspector.HasPosition(bolt));
+        Assert.True(inspector.HasPosition(bolt));
+        Assert.False(inspector.HasRegion(bolt));
         movements = 0;
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureAsync(bolt));
         Assert.Equal(0, movements);
         fov.Region = null;
-        Assert.False(inspector.HasPosition(bolt));
+        Assert.True(inspector.HasPosition(bolt));
+        Assert.False(inspector.HasRegion(bolt));
         movements = 0;
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureAsync(bolt));
         Assert.Equal(0, movements);
@@ -163,10 +166,13 @@ public sealed class InspectionTests
         Assert.True(gantry.IsAt(fov.Center));
         Assert.Equal("PCB-000123", DataMatrixReader.Read(barcodeImage, fov.Region));
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
+        Assert.True(inspector.HasBarcodePosition(HeatSinkSlot.HeatSink1));
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink2));
+        Assert.False(inspector.HasBarcodePosition(HeatSinkSlot.HeatSink2));
         Assert.Equal(new PixelRegion(180, 40, 80, 80), inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1).Region);
         fov.Region = new(310, 30, 60, 80);
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
+        Assert.True(inspector.HasBarcodePosition(HeatSinkSlot.HeatSink1));
         movements = 0;
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink1));
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2));

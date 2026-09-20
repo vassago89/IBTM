@@ -992,6 +992,75 @@ public sealed partial class MachineLifecycleTests
         Assert.False(teaching.MeasureImageCommand.CanExecute(ruler));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InspectionMoveToUsesRecordedXyWithoutRequiringRoi(bool barcode)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            var recipe = services.GetRequiredService<RecipeManager>().Current;
+            var bolt = new BoltPoint { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 999, Y = 999 };
+            recipe.Pcb.BoltPoints.Add(bolt);
+            recipe.CarrierImages.AddRange([
+                new() { Number = 1, BoltNumber = 1, Center = new() { X = 12, Y = 9 }, Region = new(0, 0, 20, 20) },
+                new() { Number = 2, IsBarcode = true, Center = new() { X = 25, Y = 16 }, Region = new(0, 0, 20, 20) },
+                new() { Number = 3, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(0, 0, 20, 20) },
+            ]);
+            var fov = recipe.CarrierImages.Single(item => item.IsBarcode == barcode && item.HeatSink == HeatSinkSlot.HeatSink1);
+            var teaching = services.GetRequiredService<TeachingViewModel>();
+            var gantry = services.GetRequiredService<NgCarrierTransfer>();
+            teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point =>
+                barcode ? point.Position.Target == TeachingTarget.DataMatrix : point.Position.Bolt == bolt);
+
+            foreach (var region in new PixelRegion?[] { null, new(9999, 0, 20, 20) })
+            {
+                fov.Region = region;
+                var recipeBefore = JsonSerializer.Serialize(recipe);
+                await gantry.MoveToAsync(new() { X = 1, Y = 2 });
+                await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+                Assert.Equal((fov.Center.X, fov.Center.Y), (teaching.SelectedPoint.X, teaching.SelectedPoint.Y));
+                Assert.DoesNotContain("Not taught", teaching.SelectedPoint.PositionLabel);
+                Assert.False(teaching.CaptureInspectionCommand.CanExecute(null));
+                Assert.False(machine.TeachingReady);
+
+                await teaching.MoveToPointCommand.ExecuteAsync(null);
+
+                Assert.True(gantry.IsAt(fov.Center));
+                Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipe));
+            }
+
+            fov.Region = new(0, 0, 20, 20);
+            await WaitUntilAsync(() => teaching.CaptureInspectionCommand.CanExecute(null));
+            Assert.True(machine.TeachingReady);
+
+            await gantry.SetLiftUpAsync(false);
+            Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => barcode
+                ? teaching.Inspection.MoveToBarcodeAsync(HeatSinkSlot.HeatSink1)
+                : teaching.Inspection.MoveToAsync(bolt));
+            await gantry.SetLiftUpAsync(true);
+
+            recipe.CarrierImages.Remove(fov);
+            Assert.False(teaching.SelectedPoint.Position.HasPosition);
+            Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => barcode
+                ? teaching.Inspection.MoveToBarcodeAsync(HeatSinkSlot.HeatSink1)
+                : teaching.Inspection.MoveToAsync(bolt));
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task LoadedRecipeIsVisibleToExistingConsumers()
     {

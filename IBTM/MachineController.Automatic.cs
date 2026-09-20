@@ -33,7 +33,7 @@ public sealed partial class MachineController
                     return false;
                 default:
                     return !_units.Inspection
-                        || _recipes.Current.Pcb.BoltPoints.All(_inspectionStation.HasPosition)
+                        || _recipes.Current.Pcb.BoltPoints.All(_inspectionStation.HasRegion)
                             && Enum.GetValues<HeatSinkSlot>().All(_inspectionStation.HasBarcodeRegion);
             }
         }
