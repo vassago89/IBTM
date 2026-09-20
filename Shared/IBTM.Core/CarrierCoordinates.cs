@@ -6,7 +6,9 @@ public static class CarrierCoordinates
 {
     public static bool IsDefined(AxisPosition? first, AxisPosition? second)
     {
-        return first is not null && second is not null;
+        return first is not null
+            && second is not null
+            && (first.X != second.X || first.Y != second.Y);
     }
 
     public static AxisPosition ToMachine(
@@ -20,17 +22,22 @@ public static class CarrierCoordinates
             || !IsDefined(targetUpperLeftLocatingPin, targetLowerRightLocatingPin))
         {
             throw new InvalidOperationException(
-                "Record the camera and fastening head Upper/Lower reference positions before converting bolt positions.");
+                "Record two distinct Upper/Lower reference positions for the camera and fastening head before converting bolt positions.");
         }
 
-        var sourceCenterX = (sourceUpperLeftLocatingPin.X + sourceLowerRightLocatingPin.X) / 2;
-        var sourceCenterY = (sourceUpperLeftLocatingPin.Y + sourceLowerRightLocatingPin.Y) / 2;
-        var targetCenterX = (targetUpperLeftLocatingPin.X + targetLowerRightLocatingPin.X) / 2;
-        var targetCenterY = (targetUpperLeftLocatingPin.Y + targetLowerRightLocatingPin.Y) / 2;
+        var sourceX = sourceLowerRightLocatingPin.X - sourceUpperLeftLocatingPin.X;
+        var sourceY = sourceLowerRightLocatingPin.Y - sourceUpperLeftLocatingPin.Y;
+        var targetX = targetLowerRightLocatingPin.X - targetUpperLeftLocatingPin.X;
+        var targetY = targetLowerRightLocatingPin.Y - targetUpperLeftLocatingPin.Y;
+        var rotation = Math.Atan2(targetY, targetX) - Math.Atan2(sourceY, sourceX);
+        var cosine = Math.Cos(rotation);
+        var sine = Math.Sin(rotation);
+        var relativeX = cameraPosition.X - sourceUpperLeftLocatingPin.X;
+        var relativeY = cameraPosition.Y - sourceUpperLeftLocatingPin.Y;
         return new AxisPosition
         {
-            X = cameraPosition.X + targetCenterX - sourceCenterX,
-            Y = cameraPosition.Y + sourceCenterY - targetCenterY,
+            X = targetUpperLeftLocatingPin.X + cosine * relativeX - sine * relativeY,
+            Y = targetUpperLeftLocatingPin.Y + sine * relativeX + cosine * relativeY,
             Z = cameraPosition.Z,
         };
     }

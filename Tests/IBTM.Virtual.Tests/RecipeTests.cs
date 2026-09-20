@@ -22,67 +22,56 @@ namespace IBTM.Virtual.Tests;
 public sealed class RecipeTests
 {
     [Theory]
-    [InlineData(100, 200, 350, -200)]
-    [InlineData(200, 400, 450, 0)]
-    [InlineData(150, 300, 400, -100)]
-    [InlineData(110, 200, 360, -200)]
-    [InlineData(110, 220, 360, -180)]
-    public void FasteningCoordinatesAddCenterOffsetWithoutScaling(
-        double cameraX, double cameraY, double expectedX, double expectedY)
+    [InlineData(340, 400, 310, 420)]
+    [InlineData(300, 440, 280, 410)]
+    [InlineData(300, 360, 320, 390)]
+    [InlineData(260, 400, 290, 380)]
+    [InlineData(324, 432, 290, 420)]
+    [InlineData(380, 400, 310, 420)]
+    public void FasteningCoordinatesRotateFromInspectionReferenceWithoutScaling(
+        double lowerX, double lowerY, double expectedX, double expectedY)
     {
         var reference = new CarrierReferenceSettings
         {
             UpperLeftLocatingPin = new() { X = 100, Y = 200 },
-            LowerRightLocatingPin = new() { X = 200, Y = 400 },
+            LowerRightLocatingPin = new() { X = 140, Y = 200 },
         };
         var settings = new BoltFasteningSettings
         {
             ShootingHead = new()
             {
                 UpperLeftLocatingPin = new() { X = 300, Y = 400 },
-                LowerRightLocatingPin = new() { X = 500, Y = 1000 },
+                LowerRightLocatingPin = new() { X = lowerX, Y = lowerY },
                 FasteningZ = 12,
             },
         };
-        var bolt = new BoltPoint { X = cameraX, Y = cameraY };
+        var bolt = new BoltPoint { X = 110, Y = 220 };
 
         var position = settings.GetBoltPosition(bolt, reference);
 
         Assert.Equal(expectedX, position.X, 6);
         Assert.Equal(expectedY, position.Y, 6);
         Assert.Equal(12, position.Z);
-        Assert.Equal((cameraX, cameraY), (bolt.X, bolt.Y));
-    }
-
-    [Theory]
-    [InlineData(0, 100, 27, 419)]
-    [InlineData(100, 0, -23, 369)]
-    [InlineData(0, 0, 27, 369)]
-    public void FasteningCenterOffsetDoesNotRequireReferenceAxisSpans(
-        double spanX, double spanY, double expectedX, double expectedY)
-    {
-        var upper = new AxisPosition { X = 100, Y = 200 };
-        var lower = new AxisPosition { X = upper.X + spanX, Y = upper.Y + spanY };
-
-        Assert.True(CarrierCoordinates.IsDefined(upper, lower));
-        var position = CarrierCoordinates.ToMachine(
-            new() { X = 107, Y = 209, Z = 12 }, upper, lower,
-            new() { X = -20, Y = 30 }, new() { X = 60, Y = 50 });
-        Assert.Equal((expectedX, expectedY, 12d), (position.X, position.Y, position.Z));
+        Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
     }
 
     [Fact]
-    public void FasteningCenterOffsetRequiresRecordedReferences()
+    public void FasteningRotationRequiresDistinctRecordedReferences()
     {
         var upper = new AxisPosition { X = 100, Y = 200 };
         var lower = new AxisPosition { X = 200, Y = 400 };
 
         Assert.False(CarrierCoordinates.IsDefined(null, lower));
         Assert.False(CarrierCoordinates.IsDefined(upper, null));
+        Assert.False(CarrierCoordinates.IsDefined(upper, new() { X = 100, Y = 200 }));
         Assert.Throws<InvalidOperationException>(() =>
             CarrierCoordinates.ToMachine(new(), upper, null!, upper, lower));
         Assert.Throws<InvalidOperationException>(() =>
             CarrierCoordinates.ToMachine(new(), upper, lower, null!, lower));
+        Assert.Throws<InvalidOperationException>(() =>
+            CarrierCoordinates.ToMachine(new(), upper, upper, upper, lower));
+        Assert.Throws<InvalidOperationException>(() =>
+            CarrierCoordinates.ToMachine(new(), upper, lower, lower, lower));
     }
 
     [Fact]
@@ -174,7 +163,7 @@ public sealed class RecipeTests
         var secondHead = fastening.GetBoltPosition(targets[1], pins);
         Assert.Equal((13, 24), (firstCamera.X, firstCamera.Y));
         Assert.Equal(375, secondHead.X, 6);
-        Assert.Equal(30, secondHead.Y, 6);
+        Assert.Equal(430, secondHead.Y, 6);
 
         var database = VirtualTest.OpenMachineStore();
         var recipes = new RecipeManager(database, new());
@@ -366,7 +355,7 @@ public sealed class RecipeTests
         position.Refresh();
         Assert.True(position.Position.HasPosition);
         Assert.Equal(310, position.X, 6);
-        Assert.Equal(20, position.Y, 6);
+        Assert.Equal(420, position.Y, 6);
         Assert.Equal(fastening.ShootingHead.FasteningZ, position.Z);
         fastening.SafeZ = 7;
         position.Refresh();

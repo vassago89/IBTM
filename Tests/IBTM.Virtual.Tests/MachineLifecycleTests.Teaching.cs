@@ -756,19 +756,28 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(FasteningHead.Shooting, HeatSinkSlot.HeatSink1)]
-    [InlineData(FasteningHead.Pickup, HeatSinkSlot.HeatSink2)]
-    public async Task InspectionRecordedBoltAppearsAsReadOnlyFasteningPosition(FasteningHead head, HeatSinkSlot heatSink)
+    [InlineData(FasteningHead.Shooting, HeatSinkSlot.HeatSink1, 280, 410, 12)]
+    [InlineData(FasteningHead.Pickup, HeatSinkSlot.HeatSink2, -30, 240, 16)]
+    public async Task InspectionRecordedBoltAppearsAsReadOnlyFasteningPosition(
+        FasteningHead head, HeatSinkSlot heatSink, double expectedX, double expectedY, double expectedZ)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         settings.Units.BoltFastening = true;
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 100, Y = 200 };
-        settings.CarrierReference.LowerRightLocatingPin = new() { X = 200, Y = 400 };
-        var headSettings = settings.BoltFastening.GetHead(head);
-        headSettings.UpperLeftLocatingPin = new() { X = 300, Y = 400 };
-        headSettings.LowerRightLocatingPin = new() { X = 500, Y = 1000 };
-        headSettings.FasteningZ = head == FasteningHead.Shooting ? 12 : 16;
+        settings.CarrierReference.LowerRightLocatingPin = new() { X = 140, Y = 200 };
+        settings.BoltFastening.ShootingHead = new()
+        {
+            UpperLeftLocatingPin = new() { X = 300, Y = 400 },
+            LowerRightLocatingPin = new() { X = 300, Y = 440 },
+            FasteningZ = 12,
+        };
+        settings.BoltFastening.PickupHead = new()
+        {
+            UpperLeftLocatingPin = new() { X = -50, Y = 250 },
+            LowerRightLocatingPin = new() { X = -50, Y = 210 },
+            FasteningZ = 16,
+        };
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         await machine.InitializeAsync();
@@ -795,7 +804,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(TeachingTarget.BoltPosition, position.Position.Target);
         Assert.Same(bolt, position.Position.Bolt);
         Assert.True(position.Position.HasPosition);
-        Assert.Equal((360d, -180d, (double?)headSettings.FasteningZ), (position.X, position.Y, position.Z));
+        Assert.Equal((expectedX, expectedY, (double?)expectedZ), (position.X, position.Y, position.Z));
         Assert.False(position.Position.IsTeachAllowed);
         Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
@@ -804,10 +813,10 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
         await teaching.MoveToPointCommand.ExecuteAsync(null);
         var fastening = services.GetRequiredService<BoltFasteningStation>();
-        Assert.Equal((360d, -180d, headSettings.FasteningZ), fastening.Feedback.GetPosition());
+        Assert.Equal((expectedX, expectedY, expectedZ), fastening.Feedback.GetPosition());
         await fastening.MoveToXYAsync(250, 390);
         await fastening.MoveToBoltAsync(bolt);
-        Assert.Equal((360d, -180d, headSettings.FasteningZ), fastening.Feedback.GetPosition());
+        Assert.Equal((expectedX, expectedY, expectedZ), fastening.Feedback.GetPosition());
 
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == (head == FasteningHead.Shooting
@@ -826,7 +835,7 @@ public sealed partial class MachineLifecycleTests
         var loaded = teaching.SelectedPoint!;
         Assert.Equal(TeachingTarget.BoltPosition, loaded.Position.Target);
         Assert.Equal(head, loaded.Position.Bolt!.Head);
-        Assert.Equal((360d, -180d, (double?)headSettings.FasteningZ), (loaded.X, loaded.Y, loaded.Z));
+        Assert.Equal((expectedX, expectedY, (double?)expectedZ), (loaded.X, loaded.Y, loaded.Z));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipes.Current));
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
