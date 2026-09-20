@@ -36,7 +36,7 @@
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                             <Setter Property="Content" Value="Save"/>
-                            <Setter Property="ToolTip" Value="Save all edited handoff coordinates and the current product recipe."/>
+                            <Setter Property="ToolTip" Value="Save the recorded handoff coordinates and the current product recipe. This does not record or change any position."/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
                                     <Setter Property="Content" Value="Saving..."/>
@@ -111,7 +111,7 @@
                     </ui:TeachingPointList>
                     <StackPanel Grid.Row="2" Margin="0,8,0,0"
                         Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="Add Bolt → Center in Live → Grab → Resize ROI"
+                        <TextBlock Text="Add Bolt → Center in Live → Record Position → Resize ROI"
                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                         <ComboBox ItemsSource="{Binding FasteningHeads}"
                             SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
@@ -175,10 +175,6 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="Grab"
-                                        Command="{Binding GrabCommand}"
-                                        Margin="0,0,6,6" Style="{StaticResource PrimaryButtonStyle}"
-                                        ToolTip="Grab one teaching image for the selected point. Grabbing again replaces its image and capture XY. Live stays on."/>
                                     <Button Content="Move &amp; Inspect"
                                         Command="{Binding CaptureInspectionCommand}"
                                         Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>

@@ -624,7 +624,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task ImageRulerCalibratesBothHeatSinksWithoutMovingOrChangingRois()
+    public async Task ImageRulerSavesResolutionWithoutChangingRecordedPositionsOrRois()
     {
         await using var services = CreateServices(FlowSettings());
         await services.GetRequiredService<MachineController>().InitializeAsync();
@@ -675,8 +675,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(0, moves);
         var saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
         Assert.Equal(0.1, saved.CarrierImageMillimetersPerPixel);
-        Assert.Equal((10d, 14.5), (saved.Pcb.BoltPoints[0].X, saved.Pcb.BoltPoints[0].Y));
-        Assert.Equal((24d, 38d), (saved.Pcb.BoltPoints[1].X, saved.Pcb.BoltPoints[1].Y));
+        Assert.All(saved.Pcb.BoltPoints, bolt => Assert.Equal((999d, 999d), (bolt.X, bolt.Y)));
         Assert.Equal(metadata.Select(tile => tile.Region), saved.CarrierImages.Select(tile => tile.Region));
         Assert.Equal(metadata.Select(tile => (tile.Center.X, tile.Center.Y)), saved.CarrierImages.Select(tile => (tile.Center.X, tile.Center.Y)));
 
@@ -870,7 +869,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task PlacementTeachingStagesStandbyAndSavesReceiveZSeparately()
+    public async Task PlacementTeachingRecordsStandbyAndSavesReceiveZSeparately()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -919,7 +918,9 @@ public sealed partial class MachineLifecycleTests
             await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(7, handoff.Z);
-            Assert.Equal(originalZ, settings.PcbPlacementHandler.HandoffPosition.Z);
+            Assert.Equal(7, settings.PcbPlacementHandler.HandoffPosition.Z);
+            Assert.Equal(originalZ, services.GetRequiredService<MachineStore>().LoadSettings()
+                .Get<PcbPlacementHandlerSettings>().HandoffPosition.Z);
             await teaching.SaveCommand.ExecuteAsync(null);
             Assert.Equal(7, settings.PcbPlacementHandler.HandoffPosition.Z);
             Assert.True(placement.IsAtHorizontalZ());
@@ -1449,26 +1450,32 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
-        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff)
-            .Teach(70, 20, 4);
+        await services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply).MoveToAsync(70, 20, 4);
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff);
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        Assert.Equal((70, 20, 4), (settings.PcbSupply.HandoffPosition.X,
+            settings.PcbSupply.HandoffPosition.Y, settings.PcbSupply.HandoffPosition.Z));
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementHandoff)
-            .Teach(75, 25, 7);
-        // Leaving and reopening Teaching must not discard pending machine positions.
+        await services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler).MoveToAsync(75, 25, 7);
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementHandoff);
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        teaching.RecipeEditor.Name = "Unsaved product name";
+        // Leaving and reopening Teaching must not replace recorded coordinates or the edited recipe name.
         await teaching.ShutdownAsync();
         teaching.Activate();
         teaching.Deactivate(); // This test verifies data without a WPF display dispatcher.
+        Assert.Equal("Unsaved product name", teaching.RecipeEditor.Name);
         Assert.Equal((75, 25, 7), (
             teaching.SelectedPoint!.X, teaching.SelectedPoint.Y, teaching.SelectedPoint.Z!.Value));
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
-        var pendingHandoff = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff);
-        Assert.Equal((70, 20, 4), (pendingHandoff.X, pendingHandoff.Y, pendingHandoff.Z!.Value));
+        var recordedHandoff = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff);
+        Assert.Equal((70, 20, 4), (recordedHandoff.X, recordedHandoff.Y, recordedHandoff.Z!.Value));
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.BoltInspection.LightLevel = 123;
         teaching.RecipeEditor.Name = " ";
         Assert.False(teaching.SaveCommand.CanExecute(null));
         await teaching.SaveCommand.ExecuteAsync(null);
-        Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
+        Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
         Assert.Empty(store.GetRecipeNames());
         teaching.RecipeEditor.Name = "Unified teaching";
 
@@ -1479,14 +1486,14 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         Assert.Equal(75, teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.PlacementHandoff).X);
-        Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
+        Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
         recipe.PcbSupply.Pcb1PickPosition = new() { X = 12, Y = 34, Z = 56 };
 
         using (services.GetRequiredService<OperationCancellation>().Link())
         {
             await WaitUntilAsync(() => !teaching.SaveCommand.CanExecute(null));
             await teaching.SaveCommand.ExecuteAsync(null);
-            Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
+            Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
         }
 
         await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
@@ -1494,7 +1501,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.AutoMode, false);
         await WaitUntilAsync(() => !teaching.SaveCommand.CanExecute(null));
         await teaching.SaveCommand.ExecuteAsync(null);
-        Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
+        Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
 
         io.SetInput(InputIo.AutoMode, true);
         await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
@@ -1580,7 +1587,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task TeachingSaveCancelledBeforeExecutionDoesNotApply(bool closeTeaching)
+    public async Task TeachingSaveCancelledBeforeExecutionKeepsRecordedCoordinates(bool closeTeaching)
     {
         var settings = FlowSettings();
         await using var services = CreateServices(settings);
@@ -1608,7 +1615,7 @@ public sealed partial class MachineLifecycleTests
         await teaching.SaveCommand.ExecuteAsync(null);
         operations.ActivityChanged -= CancelWhenStarted;
 
-        Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
+        Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
         Assert.Null(teaching.SaveError);
         Assert.False(operations.HasActiveOperations);
     }

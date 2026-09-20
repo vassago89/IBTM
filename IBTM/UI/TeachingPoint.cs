@@ -5,19 +5,15 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public partial class TeachingPoint : ObservableObject
+public class TeachingPoint : ObservableObject
 {
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
-    public partial double X { get; set; }
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
-    public partial double Y { get; set; }
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))]
-    public partial double? Z { get; set; }
+    public double X => Position.Read().X;
+    public double Y => Position.Read().Y;
+    public double? Z => Position.Read().Z;
 
     public TeachingPoint(TeachingPosition position)
     {
         Position = position;
-        Refresh();
     }
 
     public TeachingPosition Position { get; }
@@ -156,46 +152,44 @@ public partial class TeachingPoint : ObservableObject
 
     public void Teach(double x, double y, double z)
     {
+        var position = Read();
         if (Position.Mode is TeachMode.Image
             or TeachMode.XYOnly
             or TeachMode.Full
             or TeachMode.XOnly)
         {
-            X = x;
+            position.X = x;
         }
 
         if (Position.Mode is TeachMode.Image or TeachMode.XYOnly or TeachMode.Full or TeachMode.YOnly)
         {
-            Y = y;
+            position.Y = y;
         }
 
         if (Position.Mode is TeachMode.Full or TeachMode.ZOnly)
         {
-            Z = z;
+            position.Z = z;
         }
+        Position.Apply(position);
+        Refresh();
     }
 
     public AxisPosition Read()
     {
+        var position = Position.Read();
         return new()
         {
-            X = X,
-            Y = Y,
-            Z = Position.Mode == TeachMode.Image ? 0 : Z!.Value,
+            X = position.X,
+            Y = position.Y,
+            Z = Position.Mode == TeachMode.Image ? 0 : position.Z,
         };
-    }
-
-    public void Apply()
-    {
-        Position.Apply(Read());
     }
 
     public void Refresh()
     {
-        var position = Position.Read();
-        X = position.X;
-        Y = position.Y;
-        Z = position.Z;
+        OnPropertyChanged(nameof(X));
+        OnPropertyChanged(nameof(Y));
+        OnPropertyChanged(nameof(Z));
         OnPropertyChanged(nameof(PositionLabel));
     }
 }
@@ -212,9 +206,9 @@ public enum TeachingPointGroup
 
 public enum TeachingSaveBehavior
 {
-    [Description("Record Position updates these handoff coordinates. Move to Position uses them. Press Save to apply and keep them after restart.")]
+    [Description("Only Record Position changes these handoff coordinates. Move to Position uses them. Save keeps them after restart.")]
     SupplyHandoff,
-    [Description("Record Position updates these standby coordinates. Move to Position moves Z first, then X/Y. Press Save to apply and keep them after restart.")]
+    [Description("Only Record Position changes these standby coordinates. Move to Position moves Z first, then X/Y. Save keeps them after restart.")]
     PlacementHandoff,
     [Description("Record Position saves this Z automatically. Move to Position moves only Z at the current X/Y. Select PCB Receive Standby to move X/Y.")]
     PlacementReceiveZ,
@@ -227,7 +221,7 @@ public enum TeachingSaveBehavior
     [Description("Record Position saves this head's Z automatically. Move to Position moves only Z. Automatic fastening reaches this Z before lowering the head.")]
     FasteningZ,
 
-    [Description("Calculated from bolt inspection and reference pins. Move to Position checks XY at Travel Z. Use Grab in Inspection Gantry to teach the bolt.")]
+    [Description("Calculated from the recorded bolt and reference pins. Move to Position checks XY at Travel Z. Use Record Position in Inspection Gantry to record the bolt.")]
     BoltPosition,
 
     [Description("Center this backup plate pin in Live, then press Record Position. Saves automatically.")]
@@ -237,10 +231,10 @@ public enum TeachingSaveBehavior
     Machine,
     [Description("Record Position updates this product's coordinates. Press Save to keep them after restart.")]
     Recipe,
-    [Description("Handoff edits stay when you leave this page. Press Save to apply and keep them after restart.")]
+    [Description("Recorded handoff coordinates stay when you leave this page. Save keeps them after restart.")]
     Handoff,
-    [Description("Center the bolt in Live, then Grab. Resize the centered square ROI. This heat sink is taught independently. Saves automatically.")]
+    [Description("Center the bolt in Live, then Record Position to save its coordinates and image. ROI resizing does not change coordinates. Each heat sink is taught independently.")]
     Image,
-    [Description("Center the Data Matrix in Live, stop the axes, then Grab. Resize the centered square ROI. Move to Position returns to the captured XY. Read Data Matrix reads the saved image. Saves automatically.")]
+    [Description("Center the Data Matrix in Live, stop the axes, then Record Position to save its XY and image. ROI resizing does not change coordinates. Move to Position returns to the recorded XY.")]
     BarcodeFov,
 }

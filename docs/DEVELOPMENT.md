@@ -160,9 +160,10 @@ StopGrabbing → 장치 Close → Dispose → SDK Finalize 순서이며, 연결 
 
 티칭 메뉴는 `Teaching` 하나다. 유닛 목록에서 Supply, Placement, Fastening,
 Inspection, NG Transfer를 선택한다. 인계 위치·회전 및 이동 높이는 각각 Supply와 Placement의
-티칭 목록에 포함되며, 축 피드백과 I/O는 선택 유닛을 따른다. 인계값은 Teach로 임시 보관하고
-상단의 `Save`로 양쪽 인계값을 적용·저장하고 현재 레시피도 저장한다. 유닛을 전환해도 임시값은 유지되며,
-Teaching 메뉴를 나갔다 다시 열면 저장·적용된 설정에서 다시 읽는다.
+티칭 목록에 포함되며, 축 피드백과 I/O는 선택 유닛을 따른다. 좌표는 `Record Position`에서만 변경한다.
+인계값도 원본 설정을 직접 기록하며 화면용 복사본은 없다. 상단의 `Save`는 양쪽 인계값과 현재 레시피를 그대로 저장한다.
+화면 재진입·유닛 전환·이동·Save에서는 좌표를 변경하지 않는다. 검사 촬영 XY와 볼트 좌표도
+`Record Position`으로 기록하며, ROI 크기·해상도 보정은 기존 좌표를 다시 쓰지 않는다.
 
 각 유닛 목록은 작업 위치, 설비 기준값, 계산 위치로 구분한다. 인계 영역 경계값은 사용하지 않는다.
 Supply의 `PCB Handoff`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unrotated 상태다.

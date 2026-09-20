@@ -25,7 +25,8 @@ There is no separate standby, Clear Z, return coordinate, or collision boundary.
 Each pickup XYZ belongs to the recipe; rotation Z and handoff XYZ are machine settings.
 A pickup without a taught Y cannot be moved to; teach XYZ and save the recipe.
 
-`PCB Handoff` is staged in Teaching and committed with `Apply & Save Handoff`.
+Only `Record Position` changes `PCB Handoff`. Teaching reads the owning settings
+directly, and `Save` persists those coordinates without applying a separate copy.
 It now stores Z independently of Rotation Z. Older settings that stored only X/Y
 must have handoff Z taught before equipment operation; do not infer it from Rotation Z.
 
@@ -152,4 +153,4 @@ See the [Repeat instructions](../../docs/STATION3_COMMISSIONING.md#repeat).
 
 Focused regressions cover standby before SMEMA, both pickup slots, rotation at
 Rotation Z, travel at a different handoff Z, interrupted entry at that same height,
-recipient holding feedback, independent departure, and staged XYZ teaching.
+recipient holding feedback, independent departure, and recorded XYZ teaching.

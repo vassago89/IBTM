@@ -35,7 +35,7 @@ public sealed class PcbSupplySettings : Setting
                 TeachMode.Full,
                 () => HandoffPosition,
                 p => (HandoffPosition.X, HandoffPosition.Y, HandoffPosition.Z) = (p.X, p.Y, p.Z),
-                this) { Staged = true },
+                this),
         ];
     }
 

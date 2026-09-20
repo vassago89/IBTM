@@ -240,7 +240,7 @@
             </Grid.ColumnDefinitions>
             <Button Content="Record Position"
                 Command="{Binding TeachCurrentPositionCommand}"
-                ToolTip="Copy the current axis coordinates into the selected teaching position. The axes must be homed and stopped. See the saving instructions below."
+                ToolTip="Record the current coordinates for this point only. Inspection points also record their teaching image. The axes must be homed and stopped. See the saving instructions below."
                 ToolTipService.ShowOnDisabled="True"
                 Style="{StaticResource PrimaryButtonStyle}" Padding="8,7" Margin="0,0,3,0"/>
             <Button Grid.Column="1" Content="Move to Position"
@@ -251,7 +251,7 @@
         <Button Content="{Binding MoveToHorizontalZLabel}"
             Command="{Binding MoveToHorizontalZCommand}" Margin="0,6,0,0"
             Style="{StaticResource SecondaryButtonStyle}"
-            ToolTip="Move Z only to this unit's applied reference height. X/Y and cylinder outputs stay unchanged. Placement uses the last applied PCB Receive Standby Z."
+            ToolTip="Move Z only to this unit's recorded reference height. Placement uses PCB Receive Standby Z. This does not change any taught coordinates."
             Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}"/>
         <TextBlock Text="Position and Z moves use the configured axis speed." Margin="0,4,0,0" TextWrapping="Wrap"
             Foreground="{StaticResource TextMutedBrush}"/>

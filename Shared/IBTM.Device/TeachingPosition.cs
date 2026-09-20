@@ -138,7 +138,6 @@ public sealed class TeachingPosition
     public TeachMode Mode { get; }
     public Setting? Setting { get; }
     public BoltPoint? Bolt { get; init; }
-    public bool Staged { get; init; }
 
     public TeachingStorage Storage
     {
@@ -146,7 +145,7 @@ public sealed class TeachingPosition
         {
             switch (true)
             {
-                case true when Staged:
+                case true when Target is TeachingTarget.SupplyHandoff or TeachingTarget.PlacementHandoff:
                     return TeachingStorage.Handoff;
                 case true when Setting is null:
                     return TeachingStorage.Recipe;

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -75,14 +74,14 @@ public partial class TeachingViewModel
             {
                 case true when FovRegion is not null && FovRegion != saved:
                     if (SelectedBarcode is null && SelectedPoint?.Position.Bolt is null)
-                        return "ROI not saved · Select a bolt or Data Matrix, then Grab.";
+                        return "ROI not saved · Select a bolt or Data Matrix, then Record Position.";
                     return "ROI not saved · Set the resolution and Apply ROI.";
                 case true when metadata is { IsBarcode: true } barcode:
                     return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to resize the centered square";
                 default:
                     return metadata?.BoltNumber is { } number
                         ? $"{metadata.HeatSink.GetDescription()} · Bolt {number} · Drag to resize the centered square"
-                        : "Select a bolt or Data Matrix, Grab, then resize the centered square.";
+                        : "Select a bolt or Data Matrix, Record Position, then resize the centered square.";
             }
         }
     }
@@ -128,25 +127,7 @@ public partial class TeachingViewModel
                     return;
                 activeToken = operation.Token;
                 operation.Token.ThrowIfCancellationRequested();
-                var positions = new List<(BoltPoint Bolt, AxisPosition? Position)>();
-                foreach (var bolt in Recipes.Current.Pcb.BoltPoints)
-                {
-                    var fov = CarrierImages.SingleOrDefault(image => !image.Metadata.IsBarcode && image.Metadata.HeatSink == bolt.HeatSink && image.Metadata.BoltNumber == bolt.Number);
-                    if (fov?.Metadata.Region is not { } region)
-                        continue;
-                    if (!region.IsInside(fov.Image.PixelWidth, fov.Image.PixelHeight))
-                        throw new InvalidOperationException($"Check the ROI of FOV {fov.Metadata.Number} before applying resolution.");
-                    positions.Add((bolt, GetBoltCoordinates(fov, region, resolution)));
-                }
-
                 MillimetersPerPixel = resolution;
-                foreach (var (bolt, position) in positions)
-                {
-                    bolt.X = position?.X;
-                    bolt.Y = position?.Y;
-                }
-
-                RefreshPointPositions();
                 await RecipeEditor.SaveAsync(operation.Token);
             }
             catch (OperationCanceledException) when (activeToken.IsCancellationRequested
@@ -339,7 +320,6 @@ public partial class TeachingViewModel
             return;
         var fov = SelectedFov!;
         var barcode = SelectedBarcode;
-        var bolt = SelectedPoint!.Position.Bolt;
         var region = PixelRegion.CenteredSquare(
             fov.Image.PixelWidth, fov.Image.PixelHeight,
             (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
@@ -354,13 +334,6 @@ public partial class TeachingViewModel
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            if (bolt is not null)
-            {
-                var position = GetBoltCoordinates(fov, region, MillimetersPerPixel);
-                bolt.X = position?.X;
-                bolt.Y = position?.Y;
-            }
-
             fov.Metadata.Region = region;
 
             OnSelectedFovChanged(SelectedFov);
@@ -393,19 +366,6 @@ public partial class TeachingViewModel
                     && MillimetersPerPixel > 0
                     && SelectedPoint?.Position.Bolt is not null)
             && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
-    }
-
-    private AxisPosition? GetBoltCoordinates(CarrierImageTileView fov, PixelRegion region, double resolution)
-    {
-        // Inspection can use capture XY without reference pins; fastening coordinates remain unknown.
-        if (!_carrierReference.IsDefined)
-            return null;
-        var x = fov.Metadata.Center.X
-            + (region.X + region.Width / 2.0 - fov.Image.PixelWidth / 2.0) * resolution;
-        var y = fov.Metadata.Center.Y
-            + (region.Y + region.Height / 2.0 - fov.Image.PixelHeight / 2.0) * resolution;
-        return CarrierCoordinates.FromMachine(
-            new AxisPosition { X = x, Y = y }, _carrierReference.UpperLeftLocatingPin!);
     }
 
     public IAsyncRelayCommand ToggleLiveViewCommand { get; }
@@ -444,7 +404,7 @@ public partial class TeachingViewModel
             return Inspector.IsLiveView
                 || IsInspectionSelected
                     && State.ManualMode
-                    && !GrabCommand.IsRunning
+                    && !TeachCurrentPositionCommand.IsRunning
                     && !CaptureInspectionCommand.IsRunning;
         }
     }
@@ -454,13 +414,11 @@ public partial class TeachingViewModel
         if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
             return;
         OnPropertyChanged(nameof(IsBusy));
-        if (ReferenceEquals(sender, GrabCommand) || ReferenceEquals(sender, CaptureInspectionCommand))
+        if (ReferenceEquals(sender, TeachCurrentPositionCommand) || ReferenceEquals(sender, CaptureInspectionCommand))
             ToggleLiveViewCommand.NotifyCanExecuteChanged();
     }
 
-    public IAsyncRelayCommand GrabCommand { get; }
-
-    private async Task GrabAsync(CancellationToken cancellationToken)
+    private async Task RecordImagePositionAsync(CancellationToken cancellationToken)
     {
         var point = SelectedPoint;
         var bolt = point?.Position.Bolt;
@@ -487,7 +445,7 @@ public partial class TeachingViewModel
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
-                throw new InvalidOperationException("Wait for the saved teaching images to load before Grab.");
+                throw new InvalidOperationException("Wait for the saved teaching images to load before recording a position.");
             var captured = await Inspector.CaptureCarrierImageAsync(operation.Token);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
             var images = CarrierImages.ToList();
@@ -512,9 +470,18 @@ public partial class TeachingViewModel
 
             var previousX = bolt?.X;
             var previousY = bolt?.Y;
-            if (bolt is not null && metadata.Region is { } savedRegion)
+            if (bolt is not null)
             {
-                var position = GetBoltCoordinates(replacement, savedRegion, MillimetersPerPixel);
+                var center = new AxisPosition { X = captured.Center.X, Y = captured.Center.Y };
+                if (metadata.Region is { } savedRegion)
+                {
+                    center.X += (savedRegion.X + savedRegion.Width / 2.0 - image.PixelWidth / 2.0) * MillimetersPerPixel;
+                    center.Y += (savedRegion.Y + savedRegion.Height / 2.0 - image.PixelHeight / 2.0) * MillimetersPerPixel;
+                }
+                // Only an explicit position record changes the fastening coordinates.
+                var position = _carrierReference.IsDefined
+                    ? CarrierCoordinates.FromMachine(center, _carrierReference.UpperLeftLocatingPin!)
+                    : null;
                 bolt.X = position?.X;
                 bolt.Y = position?.Y;
             }
@@ -546,7 +513,7 @@ public partial class TeachingViewModel
         }
     }
 
-    private bool IsGrabAllowed
+    private bool IsRecordImagePositionAllowed
     {
         get
         {
@@ -722,7 +689,7 @@ public partial class TeachingViewModel
         }
 
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        GrabCommand.NotifyCanExecuteChanged();
+        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
     }
 
     private async Task HandlePreviewFailureAsync(Exception exception)

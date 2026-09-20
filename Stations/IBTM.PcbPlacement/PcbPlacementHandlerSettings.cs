@@ -57,7 +57,6 @@ public sealed class PcbPlacementHandlerSettings : Setting
                     p.X,
                     p.Y,
                     p.Z),
-            this)
-        { Staged = true };
+            this);
     }
 }

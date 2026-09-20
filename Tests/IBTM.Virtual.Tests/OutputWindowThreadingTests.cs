@@ -695,7 +695,7 @@ public sealed class OutputWindowThreadingTests
             var firstBolt = teaching.SelectedPoint!;
             // Device failures are reported at the teaching command boundary.
             light.BeforeOn = () => throw new InvalidOperationException("Scan light ON failed.");
-            await teaching.GrabCommand.ExecuteAsync(null);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal("Scan light ON failed.", teaching.CameraError);
             Assert.False(state.IsRunning);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
@@ -710,18 +710,18 @@ public sealed class OutputWindowThreadingTests
                 Assert.True(releaseStop.Wait(TimeSpan.FromSeconds(2)));
             };
             light.BeforeOff = () => Assert.NotEqual(uiThread, Environment.CurrentManagedThreadId);
-            var scan = teaching.GrabCommand.ExecuteAsync(null);
+            var scan = teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             await scanStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(liveButton.IsEnabled);
             Assert.False(teaching.ToggleLiveViewCommand.CanExecute(null));
             Assert.False(teaching.Inspector.IsLiveView);
-            teaching.GrabCommand.Cancel();
+            teaching.TeachCurrentPositionCommand.Cancel();
             releaseStop.Set();
             await scan.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Null(teaching.CameraError);
             Assert.True(liveButton.IsEnabled);
 
-            // A committed Grab stays with its original point even if selection changes during notification.
+            // A committed record stays with its original point even if selection changes during notification.
             light.BeforeOn = null;
             var next = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
             void SelectNextOnSave(object? sender, PropertyChangedEventArgs args)
@@ -730,7 +730,7 @@ public sealed class OutputWindowThreadingTests
                     teaching.SelectedPoint = next;
             }
             teaching.RecipeEditor.PropertyChanged += SelectNextOnSave;
-            await teaching.GrabCommand.ExecuteAsync(null);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             teaching.RecipeEditor.PropertyChanged -= SelectNextOnSave;
             Assert.Same(next, teaching.SelectedPoint);
             Assert.Single(teaching.CarrierImages);
@@ -743,12 +743,12 @@ public sealed class OutputWindowThreadingTests
             Assert.Same(teaching.DrawFovRegionCommand, roiView.RegionCommand);
             var upperPin = reference.UpperLeftLocatingPin;
             var lowerPin = reference.LowerRightLocatingPin;
+            var recordedBolt = (firstBolt.Position.Bolt!.X, firstBolt.Position.Bolt.Y);
             reference.UpperLeftLocatingPin = null;
             reference.LowerRightLocatingPin = null;
             await teaching.DrawFovRegionCommand.ExecuteAsync(new Rect(200, 30, 60, 80));
             Assert.Equal(new PixelRegion(120, 80, 80, 80), teaching.SelectedFov!.Metadata.Region);
-            Assert.Null(firstBolt.Position.Bolt!.X);
-            Assert.Null(firstBolt.Position.Bolt.Y);
+            Assert.Equal(recordedBolt, (firstBolt.Position.Bolt.X, firstBolt.Position.Bolt.Y));
             Assert.True(firstBolt.Position.HasPosition);
             await teaching.ReinspectImageCommand.ExecuteAsync(null);
             Assert.NotNull(teaching.Preview.Result);
@@ -756,12 +756,12 @@ public sealed class OutputWindowThreadingTests
             reference.UpperLeftLocatingPin = upperPin;
             reference.LowerRightLocatingPin = lowerPin;
 
-            // Re-grab replaces the selected point's image, capture XY and derived bolt coordinates.
+            // Only Record Position replaces the selected point's image, capture XY and bolt coordinates.
             var gantry = services.GetRequiredService<InspectionGantry>();
             await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             var liveLightOnCalls = light.OnCalls;
-            await teaching.GrabCommand.ExecuteAsync(null);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Null(teaching.CameraError);
             Assert.True(teaching.Inspector.IsLiveView);
             Assert.True(light.IsOn);
@@ -779,7 +779,7 @@ public sealed class OutputWindowThreadingTests
             teaching.AddBoltPointCommand.Execute(null);
             var secondBolt = teaching.SelectedPoint!;
             Assert.Null(teaching.SelectedFov);
-            await teaching.GrabCommand.ExecuteAsync(null);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(40, 60, 60, 60));
             Assert.Equal(2, teaching.CarrierImages.Count);
             Assert.True(teaching.Inspector.HasPosition(firstBolt.Position.Bolt));
@@ -795,7 +795,7 @@ public sealed class OutputWindowThreadingTests
                 teaching.SelectedPcb = heatSink;
                 teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
                 Assert.Null(teaching.SelectedFov);
-                await teaching.GrabCommand.ExecuteAsync(null);
+                await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
                 await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(100, 80, 80, 80));
                 Assert.Equal("Not Read", teaching.DataMatrixResult);
                 Assert.True(teaching.Inspector.HasBarcodeRegion(heatSink));
@@ -833,7 +833,7 @@ public sealed class OutputWindowThreadingTests
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
             var unchanged = teaching.CarrierImages.Where(image => image != teaching.SelectedFov).ToArray();
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
-            await teaching.GrabCommand.ExecuteAsync(null);
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Null(teaching.CameraError);
             Assert.Null(teaching.RecipeEditor.Error);
             Assert.Equal(4, teaching.CarrierImages.Count);
@@ -849,7 +849,7 @@ public sealed class OutputWindowThreadingTests
                     Assert.True(releaseStop.Wait(TimeSpan.FromSeconds(2)));
                 };
                 var previous = teaching.SelectedFov;
-                var capture = teaching.GrabCommand.ExecuteAsync(null);
+                var capture = teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
                 await captureStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
                 var closing = closeTeaching ? teaching.ShutdownAsync() : Task.CompletedTask;
                 if (!closeTeaching)
@@ -865,7 +865,7 @@ public sealed class OutputWindowThreadingTests
                 io.SetInput(InputIo.AutoMode, true);
                 teaching.Activate();
                 Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => teaching.CarrierImages.Count == 4 && teaching.GrabCommand.CanExecute(null),
+                    () => teaching.CarrierImages.Count == 4 && teaching.TeachCurrentPositionCommand.CanExecute(null),
                     TimeSpan.FromSeconds(2)));
             }
             var originalRecipe = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(originalName);

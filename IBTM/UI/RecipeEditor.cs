@@ -60,7 +60,6 @@ public partial class RecipeEditor : ObservableObject
 
     public void Refresh()
     {
-        Name = _recipes.Current.Name;
         Recipes = _recipes.GetRecipeNames();
     }
 

@@ -171,6 +171,12 @@ public partial class TeachingViewModel
 
     private async Task TeachCurrentPositionAsync(CancellationToken cancellationToken)
     {
+        if (SelectedPoint?.Position.Mode == TeachMode.Image)
+        {
+            if (IsRecordImagePositionAllowed)
+                await RecordImagePositionAsync(cancellationToken);
+            return;
+        }
         var viewToken = ViewCancellation;
         var activeToken = cancellationToken;
         try
@@ -192,9 +198,6 @@ public partial class TeachingViewModel
                     SaveError = null;
                     var current = Motion.Feedback.GetPosition();
                     point.Teach(current.X, current.Y, current.Z);
-                    if (point.Position.Storage == TeachingStorage.Handoff)
-                        return;
-                    point.Apply();
                     RefreshPointPositions();
                     if (point.Position.Storage == TeachingStorage.Machine
                         && !await SaveSettingsAsync(operation.Token, point.Position.Setting!))
@@ -223,6 +226,8 @@ public partial class TeachingViewModel
     {
         get
         {
+            if (SelectedPoint?.Position.Mode == TeachMode.Image)
+                return IsRecordImagePositionAllowed;
             return SelectedPoint is { Position.Mode: not TeachMode.Image, Position.IsTeachAllowed: true } point
                 && IsTeachingEditAllowed
                 && IsReadTeachingPositionAllowed(point, live: false);
