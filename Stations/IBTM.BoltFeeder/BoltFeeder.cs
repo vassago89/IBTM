@@ -42,7 +42,19 @@ public abstract class BoltFeeder : AutoUnit
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await ExecuteAsync(cancellationToken);
+                    var state = State;
+                    TraceStep(state, _boltDetected.ToString());
+                    switch (state)
+                    {
+                        case BoltFeederState.WaitingForBolt:
+                            SetFeeding(true);
+                            await Io.WaitForInputAsync(_boltDetected, true, TimeoutMilliseconds, cancellationToken);
+                            break;
+                        case BoltFeederState.BoltReady:
+                            SetFeeding(false);
+                            await WaitForChangeAsync(cancellationToken);
+                            break;
+                    }
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -69,17 +81,6 @@ public abstract class BoltFeeder : AutoUnit
                 throw new AggregateException(failure, cleanupFailure);
             }
         }
-    }
-
-    private Task ExecuteAsync(CancellationToken cancellationToken)
-    {
-        var state = State;
-        TraceStep(state, _boltDetected.ToString());
-        var waitingForBolt = state == BoltFeederState.WaitingForBolt;
-        SetFeeding(waitingForBolt);
-        return waitingForBolt
-            ? Io.WaitForInputAsync(_boltDetected, true, TimeoutMilliseconds, cancellationToken)
-            : WaitForChangeAsync(cancellationToken);
     }
 
     protected virtual void SetFeeding(bool value)

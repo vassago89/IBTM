@@ -258,6 +258,7 @@ public sealed class MachineStoreTests
         motion.ZHome.SearchAccelerationSeconds = 0.2;
         motion.ZHome.DetectionAccelerationSeconds = 0.5;
         settings.BoltFastening.SafeZ = 7;
+        settings.BoltFastening.ShootingDetectionTimeoutMilliseconds = 1_750;
         settings.BoltFastening.ShootingHead.FasteningZ = 14;
         settings.BoltFastening.PickupHead.FasteningZ = 18;
         settings.Drivers.Bolt = BoltDriver.Io;

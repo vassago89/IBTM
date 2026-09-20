@@ -366,7 +366,7 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceAsync`의 `switch (state)` | `heatSink`, `state`; 반환값 `false`이면 피드백 대기 |
 | 공급 진입 또는 안착 인수 Z 이동이 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacement`이면 수취 Z로 이동, Placement `WaitingForSupplyRelease`이면 해제; 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
 | 인수 후 Z 복귀 또는 Supply 복귀가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacementZ`이면 Placement가 대기 Z로 복귀; Placement의 `Clear` 확인 후 Supply 복귀 |
-| 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.ExecuteAsync` | `waitingForBolt`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
+| 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.RunAsync` | `state`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
 | Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `ExecuteAsync`가 `false`를 반환하면 피드백 대기 |
 | NG 이송의 정방향·복귀 순서가 예상과 다름 | `NgCarrierMove.GetState`, `ExecuteAsync`, `MoveToCarrierAsync` | `destination`, `state`, 현재 픽업 상승·그립·캐리어 감지, Safe X |
@@ -650,6 +650,8 @@ Supply에서 새 PCB를 받지 않으며, Placement가 켜져 있으면 왕복 �
 피더의 볼트 감지와 픽업 진공 ON 확인만 생략한다. 축 위치와 실린더 피드백, 진공 해제 확인은 유지한다.
 집힘 확인을 생략한 픽업 실행 이력은 현재 캐리어와 볼트에만 적용하며, 실제 볼트 보유 상태로 표시하지 않는다.
 Shooting Bolt Feeder OFF는 공급 대기·이스케이프·볼트 발사와 공급 관련 감지 대기를 생략한다.
+슈팅 튜브 ON·헤드 진공 ON·튜브 OFF 대기는 `BoltFasteningSettings.ShootingDetectionTimeoutMilliseconds`를 각각 적용한다.
+기본값은 3,000ms이며 Settings → Operation & Timing → Bolt Shooting · Detection Timeout에서 수정한다. 공통 피드백·정지 및 피더 공급 타임아웃과 별개다.
 피더 ON/OFF와 관계없이 모든 볼트의 XY·헤드별 체결 Z로 이동하고, 프리셋 선택 → START → 실린더 하강 → 체결 결과 수거를 수행한다.
 IO형은 기존 FASTEN ON → OFF를 확인한 뒤 START를 끄고 IO · Assumed OK로 기록한다. 통신형은 체결기의 실제 OK/NG 결과를 기록한다.
 픽업 볼트는 각 위치에서 한 번만 체결한다. 체결기 준비 확인과 검사도 유지한다.

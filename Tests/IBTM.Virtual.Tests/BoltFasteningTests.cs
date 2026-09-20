@@ -526,6 +526,44 @@ public sealed class BoltFasteningTests
         Assert.True((await head.TightenAsync()).Success);
     }
 
+    [Theory]
+    [InlineData(InputIo.ShootingTubeBoltDetected, true)]
+    [InlineData(InputIo.ShootingHeadVacuumDetected, true)]
+    [InlineData(InputIo.ShootingTubeBoltDetected, false)]
+    public async Task ShootingDetectionUsesItsOwnTimeoutAndStopsTheShot(InputIo input, bool value)
+    {
+        var settings = new BoltFasteningSettings { ShootingDetectionTimeoutMilliseconds = 50 };
+        var io = new VirtualIoService(
+            new BoltFasteningHardwareSettings().Outputs,
+            new MachineOptions { TimeoutMilliseconds = 5 })
+        { AutoResponseEnabled = false };
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        var bus = new VirtualAdcBus();
+        var gantry = new BoltFasteningGantry(
+            new AdcBoltHead(bus, new(), 2),
+            new AdcBoltHead(bus, new(), 1),
+            io, motion, settings, new());
+        io.Initialize();
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootBolt && on && input == InputIo.ShootingHeadVacuumDetected)
+            {
+                io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+            }
+        };
+        if (!value)
+            io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+
+        var error = await Assert.ThrowsAsync<IoTimeoutException>(() => value
+            ? gantry.ShootBoltAsync()
+            : gantry.WaitForShootingTubeClearAsync(CancellationToken.None));
+
+        Assert.Contains(input.GetDescription(), error.Message);
+        Assert.Contains("timeout (50 ms)", error.Message);
+        Assert.False(io.GetOutput(OutputIo.ShootBolt));
+    }
+
     [Fact]
     public async Task ShootingFeederKeepsTheNextBoltReady()
     {

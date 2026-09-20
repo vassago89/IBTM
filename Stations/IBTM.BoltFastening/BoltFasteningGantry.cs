@@ -365,14 +365,16 @@ public sealed class BoltFasteningGantry
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
         using var passage = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var boltPassed = _io.WaitForInputAsync(InputIo.ShootingTubeBoltDetected, true, passage.Token);
+        var boltPassed = _io.WaitForInputAsync(
+            InputIo.ShootingTubeBoltDetected, true, _settings.ShootingDetectionTimeoutMilliseconds, passage.Token);
         Exception? failure = null;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             _io.SetOutput(OutputIo.ShootBolt, true);
             await boltPassed;
-            await _io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected, true, cancellationToken);
+            await _io.WaitForInputAsync(
+                InputIo.ShootingHeadVacuumDetected, true, _settings.ShootingDetectionTimeoutMilliseconds, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -395,7 +397,8 @@ public sealed class BoltFasteningGantry
 
     internal Task WaitForShootingTubeClearAsync(CancellationToken cancellationToken = default)
     {
-        return _io.WaitForInputAsync(InputIo.ShootingTubeBoltDetected, false, cancellationToken);
+        return _io.WaitForInputAsync(
+            InputIo.ShootingTubeBoltDetected, false, _settings.ShootingDetectionTimeoutMilliseconds, cancellationToken);
     }
 
     internal async Task WaitForBoltSupplyAsync(FasteningHead head, CancellationToken cancellationToken)

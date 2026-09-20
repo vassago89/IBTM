@@ -15,6 +15,7 @@ public sealed class BoltFasteningSettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
+    public int ShootingDetectionTimeoutMilliseconds { get; set; } = 3_000;
     public double SafeZ { get; set; }
     public AxisPosition PickupPosition { get; set; }
     public BoltHeadSettings ShootingHead { get; set; }
