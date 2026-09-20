@@ -62,7 +62,20 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             .ToDictionary(axis => axis.Number);
     }
 
-    public override bool IsReady => _axisParameters.Keys.All(axis => DoAxisParametersMatch(axis, out _));
+    public override bool IsReady
+    {
+        get
+        {
+            foreach (var axis in _axisParameters.Keys)
+            {
+                var mechanical = 0U;
+                AjinController.Check(
+                    CAXM.AxmStatusReadMechanical(axis, ref mechanical),
+                    $"{nameof(CAXM.AxmStatusReadMechanical)} (axis={axis})");
+            }
+            return true;
+        }
+    }
 
     public override bool IsMoving => Axes.Any(axis => GetAxisState(axis).InMotion);
 
@@ -100,7 +113,14 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             AjinController.Check(
                 CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
                 $"{nameof(CAXM.AxmMotSetAccelUnit)} (axis={axis})");
-            EnsureAxisParameters(axis);
+            if (!DoAxisParametersMatch(axis, out current))
+            {
+                throw new MotionInterlockException(
+                    $"AJIN axis {axis} initialization did not retain motion parameters: "
+                    + $"SDK Unit={current.Unit}, Pulse={current.Pulse}, AccelUnit={current.AccelerationUnit}; "
+                    + $"configured Unit={scale.MoveUnit}, Pulse={scale.MovePulse}, "
+                    + $"AccelUnit={AccelerationInUnitsPerSecondSquared}.");
+            }
             _log?.LogInformation("AJIN axis {Axis} unit settings applied and read back successfully.", axis);
         }
 
@@ -141,8 +161,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         var axes = new[] { _axisX, axisYNumber };
 
         cancellationToken.ThrowIfCancellationRequested();
-        foreach (var axis in axes)
-            EnsureAxisParameters(axis);
 
         try
         {
@@ -191,7 +209,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         var acceleration = Math.Abs(velocityInUnits) / Settings.AccelerationSeconds;
         var deceleration = Math.Abs(velocityInUnits) / Settings.DecelerationSeconds;
         cancellationToken.ThrowIfCancellationRequested();
-        EnsureAxisParameters(axisNumber);
         try
         {
             BeginMotion(axis != MotionAxis.Z, adjustment: true);
@@ -296,9 +313,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         ValidatePositive(home.FineSpeed, nameof(home.FineSpeed));
         ValidatePositive(home.SearchAccelerationSeconds, nameof(home.SearchAccelerationSeconds));
         ValidatePositive(home.DetectionAccelerationSeconds, nameof(home.DetectionAccelerationSeconds));
-        foreach (var axis in axisNumbers)
-            EnsureAxisParameters(axis);
-
         var horizontal = axes.Any(axis => axis != MotionAxis.Z);
         try
         {
@@ -443,7 +457,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
         ValidatePositive(Settings.DecelerationSeconds, nameof(Settings.DecelerationSeconds));
         var axisNumber = GetAxis(axis);
-        EnsureAxisParameters(axisNumber);
         var velocityInUnits = velocity * 1000;
         try
         {
@@ -655,19 +668,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         return unit == expected.MoveUnit
             && pulse == expected.MovePulse
             && accelerationUnit == AccelerationInUnitsPerSecondSquared;
-    }
-
-    private void EnsureAxisParameters(int axis)
-    {
-        if (!DoAxisParametersMatch(axis, out var current))
-        {
-            var expected = _axisParameters[axis];
-            throw new MotionInterlockException(
-                $"AJIN axis {axis} motion parameters do not match: "
-                + $"SDK Unit={current.Unit}, Pulse={current.Pulse}, AccelUnit={current.AccelerationUnit}; "
-                + $"configured Unit={expected.MoveUnit}, Pulse={expected.MovePulse}, "
-                + $"AccelUnit={AccelerationInUnitsPerSecondSquared}. Check motion settings before moving.");
-        }
     }
 
     private static double ToUnits(double millimeters)

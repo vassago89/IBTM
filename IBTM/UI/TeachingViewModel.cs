@@ -407,7 +407,7 @@ public partial class TeachingViewModel : ObservableObject
     private void RefreshTeachingPoints()
     {
         var selectedTarget = SelectedPoint?.Position.Target;
-        var selectedBolt = SelectedPoint?.BoltNumber;
+        var selectedBolt = SelectedPoint?.Position.Bolt;
         TeachingPosition[] positions = SelectedTeachingUnit switch
         {
             HardwareArea.PcbSupply => _supplySettings.GetTeachingPositions(Recipes.Current.PcbSupply),
@@ -447,11 +447,14 @@ public partial class TeachingViewModel : ObservableObject
             _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
         };
         FilteredPoints = positions.Select(position => new TeachingPoint(position))
-            .OrderBy(point => point.Group)
+            .OrderBy(point => point.Position.Target == TeachingTarget.BoltPosition ? 0 : 1)
+            .ThenBy(point => point.Group)
             .ThenBy(point => point.Position.Target == TeachingTarget.PlacementHandoff ? 0 : 1)
             .ToArray();
         SelectedPoint = FilteredPoints.FirstOrDefault(
-            point => point.Position.Target == selectedTarget && point.BoltNumber == selectedBolt)
+            point => selectedBolt is not null
+                ? point.Position.Bolt?.Number == selectedBolt.Number
+                : point.Position.Target == selectedTarget)
             ?? NextTeachingPoint
                 ?? FilteredPoints.FirstOrDefault();
     }

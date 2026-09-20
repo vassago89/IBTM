@@ -173,13 +173,6 @@ public partial class TeachingViewModel
         var metadata = value?.Metadata;
         ReadDataMatrixCommand.Cancel();
         DataMatrixResult = null;
-        if (value is null && IsInspectionSelected)
-        {
-            RefreshPreview();
-            OnPropertyChanged(nameof(FovRoiLabel));
-            NotifyManualTeachingCommands();
-            return;
-        }
         var region = metadata?.Region;
         if (region is null && value is not null)
         {
@@ -437,20 +430,21 @@ public partial class TeachingViewModel
             SelectedCameraTab = 0;
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
-            var frame = await Inspection.CaptureCurrentAsync(operation.Token);
+            var frame = await Inspection.CaptureCurrentAsync(operation.Token, keepLiveView: true);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(frame), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
 
-            var size = FovRegion is { Width: >= 1, Height: >= 1 } bounds
-                ? (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height))
-                : Math.Min(image.PixelWidth, image.PixelHeight) / 4;
-            var region = PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight, size);
             // Grab prepares the image and ROI; only Record Position changes teaching coordinates.
             IsMeasuring = false;
             ReadDataMatrixCommand.Cancel();
             DataMatrixResult = null;
             Preview.Clear(SelectedBarcode, SelectedPoint?.Position.Bolt);
-            FovRegion = new Rect(region.X, region.Y, region.Width, region.Height);
+            if (FovRegion is null)
+            {
+                var region = PixelRegion.CenteredSquare(
+                    image.PixelWidth, image.PixelHeight, Math.Min(image.PixelWidth, image.PixelHeight) / 4);
+                FovRegion = new Rect(region.X, region.Y, region.Width, region.Height);
+            }
             RefreshPreview(image);
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
@@ -495,12 +489,16 @@ public partial class TeachingViewModel
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
             CameraError = null;
+            if (bolt is not null && !_carrierReference.IsDefined)
+                throw new InvalidOperationException("Record the Inspection Gantry Upper/Lower references before recording a bolt position.");
+            var origin = _carrierReference.UpperLeftLocatingPin;
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
                 throw new InvalidOperationException("Wait for the saved teaching images to load before recording a position.");
             var captured = await Inspection.CaptureCarrierImageAsync(operation.Token);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
             var images = CarrierImages.ToList();
             var index = images.FindIndex(tile => tile.Metadata.HeatSink == pcb
                 && (barcode ? tile.Metadata.IsBarcode : !tile.Metadata.IsBarcode && tile.Metadata.BoltNumber == bolt!.Number));
@@ -527,18 +525,10 @@ public partial class TeachingViewModel
             var previousY = bolt?.Y;
             if (bolt is not null)
             {
-                var center = new AxisPosition { X = captured.Center.X, Y = captured.Center.Y };
-                if (metadata.Region is { } savedRegion)
-                {
-                    center.X += (savedRegion.X + savedRegion.Width / 2.0 - image.PixelWidth / 2.0) * MillimetersPerPixel;
-                    center.Y += (savedRegion.Y + savedRegion.Height / 2.0 - image.PixelHeight / 2.0) * MillimetersPerPixel;
-                }
-                // Only an explicit position record changes the fastening coordinates.
-                var position = _carrierReference.IsDefined
-                    ? CarrierCoordinates.FromMachine(center, _carrierReference.UpperLeftLocatingPin!)
-                    : null;
-                bolt.X = position?.X;
-                bolt.Y = position?.Y;
+                // The bolt is centered on the camera crosshair. ROI pixels do not alter its machine XY.
+                var position = CarrierCoordinates.FromMachine(captured.Center, origin!);
+                bolt.X = position.X;
+                bolt.Y = position.Y;
             }
             if (await RecipeEditor.SaveCarrierImagesAsync(images, operation.Token))
             {
@@ -577,7 +567,6 @@ public partial class TeachingViewModel
                 && !State.IsRunning
                 && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
                 && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
-                && MillimetersPerPixel > 0
                 && RecipeEditor.IsSaveAllowed;
         }
     }

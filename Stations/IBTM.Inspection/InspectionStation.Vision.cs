@@ -119,12 +119,16 @@ public sealed partial class InspectionStation
         return await CaptureCurrentAsync(cancellationToken);
     }
 
-    public async Task<ImageFrame> CaptureCurrentAsync(CancellationToken cancellationToken = default)
+    public async Task<ImageFrame> CaptureCurrentAsync(
+        CancellationToken cancellationToken = default,
+        bool keepLiveView = false)
     {
         await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var frame = await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
+            var frame = keepLiveView && _camera.IsLiveView
+                ? await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false)
+                : await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             return frame;
         }

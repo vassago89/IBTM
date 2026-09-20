@@ -96,7 +96,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.PickupHeadFasteningZ:
                     return "Z used for fastening with the pickup head (Head 1).";
                 case TeachingTarget.BoltPosition:
-                    return "Calculated XY for this bolt and the selected head's fastening Z. Move to Position uses Safe Z, sets the table down for pickup or up for shooting, then moves XY and fastening Z.";
+                    return "Bolt recorded in Inspection Gantry. XY is converted using the camera and fastening head Upper/Lower references; Z uses the head's fastening Z. Position recording is available only in Inspection Gantry. Move to Position uses Safe Z, sets the table down for pickup or up for shooting, then moves XY and fastening Z.";
                 case TeachingTarget.BoltReference:
                     return "Camera XY and teaching image for inspecting this bolt.";
                 case TeachingTarget.DataMatrix:
@@ -128,7 +128,13 @@ public class TeachingPoint : ObservableObject
         get
         {
             if (!Position.HasPosition)
+            {
+                if (Position.Target == TeachingTarget.BoltPosition)
+                    return Position.Bolt is { X: not null, Y: not null }
+                        ? "Teach camera and head Upper / Lower references"
+                        : "Record bolt position in Inspection Gantry";
                 return "Not taught";
+            }
             switch (Position.Mode)
             {
                 case TeachMode.Image or TeachMode.XYOnly:
@@ -195,7 +201,7 @@ public enum TeachingPointGroup
     Work,
     [Description("Reference positions")]
     MachineReference,
-    [Description("Calculated fastening positions")]
+    [Description("Bolts from Inspection Gantry")]
     Calculated,
 }
 

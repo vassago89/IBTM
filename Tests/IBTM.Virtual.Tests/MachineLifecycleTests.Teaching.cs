@@ -686,8 +686,10 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(roi, teaching.Preview.Region);
     }
 
-    [Fact]
-    public async Task TeachingGrabAndRoiResizePreserveRecordedImageAndCoordinates()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TeachingGrabAndRoiResizePreserveRecordedImageAndCoordinates(bool live)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -701,7 +703,7 @@ public sealed partial class MachineLifecycleTests
         var metadata = new CarrierImageTile
         {
             Number = 1, BoltNumber = bolt.Number, HeatSink = bolt.HeatSink,
-            Center = new() { X = 100, Y = 200 }, Region = new(20, 20, 20, 20),
+            Center = new() { X = 100, Y = 200 }, Region = new(20, 10, 35, 20),
         };
         var savedImage = await Task.Run(() => InspectionPreview.CreateBitmap(new ImageFrame(100, 80, 300, new byte[24_000])));
         var tile = new CarrierImageTileView(metadata, savedImage);
@@ -712,12 +714,20 @@ public sealed partial class MachineLifecycleTests
         var moves = 0;
         services.GetRequiredService<NgCarrierTransfer>().Feedback.PositionChanged += (_, _, _) => moves++;
 
+        if (live)
+            await teaching.Inspection.StartLiveViewAsync();
+        var liveChanges = 0;
+        teaching.Inspection.LiveViewChanged += () => liveChanges++;
         Assert.True(teaching.GrabCommand.CanExecute(null));
         await teaching.GrabCommand.ExecuteAsync(null);
 
         Assert.Null(teaching.CameraError);
+        Assert.Equal(live, teaching.Inspection.IsLiveView);
+        if (live)
+            Assert.Equal(0, liveChanges);
         Assert.NotSame(savedImage, teaching.Preview.Image);
-        Assert.NotNull(teaching.Preview.Region);
+        Assert.Equal(new System.Windows.Rect(20, 10, 35, 20), teaching.FovRegion);
+        Assert.Equal(teaching.FovRegion, teaching.Preview.Region);
         Assert.Same(tile, teaching.SelectedFov);
         Assert.Same(savedImage, teaching.SelectedFov!.Image);
         Assert.True(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
@@ -742,6 +752,151 @@ public sealed partial class MachineLifecycleTests
         Assert.Same(savedImage, teaching.Preview.Image);
         Assert.NotNull(teaching.Preview.Region);
         Assert.True(teaching.DrawFovRegionCommand.CanExecute(teaching.FovRegion));
+        await teaching.Inspection.StopLiveViewAsync();
+    }
+
+    [Theory]
+    [InlineData(FasteningHead.Shooting, HeatSinkSlot.HeatSink1)]
+    [InlineData(FasteningHead.Pickup, HeatSinkSlot.HeatSink2)]
+    public async Task InspectionRecordedBoltAppearsAsReadOnlyFasteningPosition(FasteningHead head, HeatSinkSlot heatSink)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.Units.BoltFastening = true;
+        settings.CarrierReference.UpperLeftLocatingPin = new() { X = 100, Y = 200 };
+        settings.CarrierReference.LowerRightLocatingPin = new() { X = 200, Y = 200 };
+        var headSettings = settings.BoltFastening.GetHead(head);
+        headSettings.UpperLeftLocatingPin = new() { X = 300, Y = 400 };
+        headSettings.LowerRightLocatingPin = new() { X = 300, Y = 500 };
+        headSettings.FasteningZ = head == FasteningHead.Shooting ? 12 : 16;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        teaching.SelectedPcb = heatSink;
+        teaching.NewFasteningHead = head;
+        teaching.AddBoltPointCommand.Execute(null);
+        var bolt = teaching.SelectedPoint!.Position.Bolt!;
+        teaching.MillimetersPerPixel = 0.5;
+        teaching.FovRegion = new(10, 20, 65, 65);
+        await services.GetRequiredService<NgCarrierTransfer>().MoveToAsync(new() { X = 110, Y = 220 });
+        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        Assert.Null(teaching.CameraError);
+        Assert.Equal((10d, 20d), (bolt.X, bolt.Y));
+        var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
+
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+
+        var position = teaching.SelectedPoint!;
+        Assert.Same(position, teaching.FilteredPoints[0]);
+        Assert.Equal(TeachingTarget.BoltPosition, position.Position.Target);
+        Assert.Same(bolt, position.Position.Bolt);
+        Assert.True(position.Position.HasPosition);
+        Assert.Equal((280d, 410d, (double?)headSettings.FasteningZ), (position.X, position.Y, position.Z));
+        Assert.False(position.Position.IsTeachAllowed);
+        Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
+
+        await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+        await teaching.MoveToPointCommand.ExecuteAsync(null);
+        var fastening = services.GetRequiredService<BoltFasteningStation>();
+        Assert.Equal((280d, 410d, headSettings.FasteningZ), fastening.Feedback.GetPosition());
+        await fastening.MoveToXYAsync(250, 390);
+        await fastening.MoveToBoltAsync(bolt);
+        Assert.Equal((280d, 410d, headSettings.FasteningZ), fastening.Feedback.GetPosition());
+
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Position.Target == (head == FasteningHead.Shooting
+                ? TeachingTarget.ShootingHeadUpperLeftLocatingPin : TeachingTarget.PickupHeadUpperLeftLocatingPin));
+        Assert.True(teaching.SelectedPoint.Position.IsTeachAllowed);
+        teaching.SelectedPoint = position;
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        Assert.Same(bolt, teaching.SelectedPoint!.Position.Bolt);
+        Assert.Equal(TeachingTarget.BoltReference, teaching.SelectedPoint.Position.Target);
+        Assert.Equal((110d, 220d), (teaching.SelectedPoint.X, teaching.SelectedPoint.Y));
+
+        var recipes = services.GetRequiredService<RecipeManager>();
+        await recipes.LoadAsync(teaching.RecipeEditor.ActiveName);
+        teaching.SelectedPcb = heatSink;
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        var loaded = teaching.SelectedPoint!;
+        Assert.Equal(TeachingTarget.BoltPosition, loaded.Position.Target);
+        Assert.Equal(head, loaded.Position.Bolt!.Head);
+        Assert.Equal((280d, 410d, (double?)headSettings.FasteningZ), (loaded.X, loaded.Y, loaded.Z));
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipes.Current));
+
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        teaching.CarrierImages = await teaching.RecipeEditor.LoadCarrierImagesAsync();
+        var previousImage = teaching.SelectedFov;
+        settings.CarrierReference.UpperLeftLocatingPin = null;
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        Assert.Contains("Upper/Lower", teaching.CameraError);
+        Assert.Same(previousImage, teaching.SelectedFov);
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipes.Current));
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(
+            services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName)));
+        await machine.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task FailedOrCancelledBoltRecordingKeepsCoordinatesAndImageTogether()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.AddBoltPointCommand.Execute(null);
+        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        var original = teaching.SelectedFov!;
+        var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
+        var store = services.GetRequiredService<MachineStore>();
+        var imageBefore = store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number);
+        await services.GetRequiredService<NgCarrierTransfer>().MoveToAsync(new() { X = 17, Y = 29 });
+        using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TRIGGER FailBoltImage BEFORE INSERT ON RecipeImages BEGIN SELECT RAISE(ABORT, 'bolt image write failed'); END";
+        command.ExecuteNonQuery();
+
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+
+        Assert.Contains("bolt image write failed", teaching.RecipeEditor.Error);
+        Assert.Same(original, teaching.SelectedFov);
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName)));
+        Assert.Equal(imageBefore, store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number));
+        command.CommandText = "DROP TRIGGER FailBoltImage";
+        command.ExecuteNonQuery();
+
+        var cancelled = false;
+        void CancelRecording()
+        {
+            cancelled = true;
+            teaching.TeachCurrentPositionCommand.Cancel();
+        }
+        teaching.Inspection.LiveViewChanged += CancelRecording;
+        try
+        {
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        }
+        finally
+        {
+            teaching.Inspection.LiveViewChanged -= CancelRecording;
+        }
+        Assert.True(cancelled);
+        Assert.Same(original, teaching.SelectedFov);
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName)));
+        Assert.Equal(imageBefore, store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number));
+        await machine.ShutdownAsync();
     }
 
     [Fact]
@@ -934,10 +1089,16 @@ public sealed partial class MachineLifecycleTests
         Assert.True(teaching.IsDataMatrixSelected);
         Assert.Null(teaching.Preview.Overlay);
         Assert.Null(teaching.Preview.Result);
+        teaching.SelectedPoint = first;
+        Assert.Same(image, teaching.Preview.Image);
+        Assert.Equal(new System.Windows.Rect(0, 0, 2, 1), teaching.FovRegion);
+        teaching.SelectedPoint = barcode;
         teaching.SelectedPoint = untaught;
         Assert.Null(teaching.SelectedFov);
-        Assert.Same(otherImage, teaching.Preview.Image);
-        Assert.Equal(new System.Windows.Rect(0, 0, 1, 1), teaching.FovRegion);
+        Assert.False(teaching.Preview.HasImage);
+        Assert.Null(teaching.Preview.Image);
+        Assert.Null(teaching.FovRegion);
+        Assert.Null(teaching.Preview.Region);
 
         teaching.SelectedPoint = first;
         Assert.Same(image, teaching.Preview.Image);

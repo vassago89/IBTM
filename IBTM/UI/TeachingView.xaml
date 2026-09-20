@@ -178,7 +178,7 @@
                                     <Button Content="Grab"
                                         Command="{Binding GrabCommand}"
                                         Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"
-                                        ToolTip="Capture an image and create its centered ROI. Drag to resize it. Use Record Position to save a teaching image, ROI and current coordinates."/>
+                                        ToolTip="Capture an image without stopping Live. Keep the existing ROI, or create a centered ROI if none exists. Use Record Position to save the image, ROI and current coordinates."/>
                                     <Button Content="Move &amp; Inspect"
                                         Command="{Binding CaptureInspectionCommand}"
                                         Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>

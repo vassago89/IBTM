@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.Core;
@@ -222,7 +223,7 @@ public sealed partial class AjinControllerTests
     }
 
     [Fact]
-    public void MotionUsesLiveMovementPositionAndUnitsWithoutLocalInitializationState()
+    public void MotionUsesLiveFeedbackAndConfiguresUnitsOnlyDuringInitialization()
     {
         using var controller = new AjinController(new());
         controller.Initialize();
@@ -260,7 +261,7 @@ public sealed partial class AjinControllerTests
         Assert.Equal(2.4, motion.GetPosition().X);
 
         AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = 24, Pulse = 100 };
-        Assert.False(motion.IsReady);
+        Assert.True(motion.IsReady);
         Assert.Equal(0.024, motion.GetPosition().X);
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMotSet"));
 
@@ -289,10 +290,14 @@ public sealed partial class AjinControllerTests
         AjinSdk.Results.Clear();
         AjinSdk.Results[new(nameof(CAXM.AxmMotGetAccelUnit), Axis: 9)] =
             (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
-        var error = Assert.Throws<IOException>(() => motion.IsReady);
-        Assert.Contains("AxmMotGetAccelUnit (axis=9)", error.Message);
+        Assert.True(motion.IsReady);
         Assert.Throws<IOException>(motion.Initialize);
         Assert.Equal(writes, AjinSdk.Calls.Count(call => call.Operation.StartsWith("AxmMotSet")));
+
+        AjinSdk.Results[new(nameof(CAXM.AxmStatusReadMechanical), Axis: 9)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        var error = Assert.Throws<IOException>(() => motion.IsReady);
+        Assert.Contains("AxmStatusReadMechanical (axis=9)", error.Message);
     }
 
     [Fact]
@@ -325,38 +330,68 @@ public sealed partial class AjinControllerTests
     }
 
     [Fact]
-    public async Task ChangedUnitsBlockTeachingCommandsWithoutRewritingTheScale()
+    public async Task TeachingMovesJogHomeAndFeedbackDoNotReadOrWriteUnitsAfterInitialization()
     {
         using var controller = new AjinController(new());
-        AjinSdk.MotionAxes[6] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        foreach (var axis in new[] { 9, 10, 11 })
+            AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        var z = new AxisHardware { Number = 11, MoveUnit = 10, MovePulse = 100 };
         var motion = new AjinMotionService(
-            controller, new() { Number = 6, MoveUnit = 10, MovePulse = 100 }, null, null,
+            controller, new() { Number = 9 }, new() { Number = 10 }, z,
             new(), new(), new(), null);
         motion.Initialize();
-        Assert.True(motion.IsReady);
+        Assert.Equal(10, AjinSdk.MotionAxes[11].Unit);
+        Assert.Equal(100, AjinSdk.MotionAxes[11].Pulse);
+        Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMotSetMoveUnitPerPulse));
 
-        // Simulate the SDK scale reverting after initialization, without changing configuration.
-        AjinSdk.MotionAxes[6] = AjinSdk.MotionAxes[6] with { Unit = 1, Pulse = 1 };
-        AjinSdk.Calls.Clear();
-        Assert.False(motion.IsReady);
-
-        var moveError = await Assert.ThrowsAsync<MotionInterlockException>(() =>
-            motion.AdjustAxisAsync(MotionAxis.X, 2.5, 3));
-        var jogError = await Assert.ThrowsAsync<MotionInterlockException>(() =>
-            motion.JogAsync(MotionAxis.X, 3));
-        var homeError = await Assert.ThrowsAsync<MotionInterlockException>(() =>
-            motion.HomeAsync(MotionAxis.X, 3));
-
-        Assert.All(new[] { moveError, jogError, homeError }, error =>
+        // Configuration edits and SDK scale changes are handled only by the next initialization.
+        z.MoveUnit = 2;
+        z.MovePulse = 200;
+        AjinSdk.MotionAxes[11] = AjinSdk.MotionAxes[11] with { Unit = 1, Pulse = 1 };
+        AjinSdk.Results[new(nameof(CAXM.AxmMotGetMoveUnitPerPulse), Axis: 11)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        AjinSdk.Results[new(nameof(CAXM.AxmMotGetAccelUnit), Axis: 11)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 11)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveStartMultiPos))] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveVel), Axis: 11)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 11)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: 11)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: 11)] = 0;
+        using var cancellation = new CancellationTokenSource();
+        AjinSdk.BeforeCall = call =>
         {
-            Assert.Contains("axis 6", error.Message);
-            Assert.Contains("SDK Unit=1, Pulse=1, AccelUnit=0", error.Message);
-            Assert.Contains("configured Unit=10, Pulse=100, AccelUnit=0", error.Message);
-        });
-        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMotSet")
-            || call.Operation.StartsWith("AxmMove") || call.Operation.StartsWith("AxmHomeSet"));
-        Assert.Equal(1, AjinSdk.MotionAxes[6].Unit);
-        Assert.Equal(1, AjinSdk.MotionAxes[6].Pulse);
+            if (call.Operation is nameof(CAXM.AxmMoveStartPos) or nameof(CAXM.AxmMoveStartMultiPos))
+            {
+                var move = AjinSdk.Moves.Last();
+                for (var index = 0; index < move.Axes.Length; index++)
+                {
+                    var axis = move.Axes[index];
+                    AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { Position = move.Positions![index] };
+                }
+            }
+            if (call.Operation == nameof(CAXM.AxmMoveVel))
+                cancellation.Cancel();
+        };
+        AjinSdk.Calls.Clear();
+
+        Assert.True(motion.IsReady);
+        var status = new MotionStatus(motion);
+        status.RefreshMonitorFeedback();
+        status.RefreshControlFeedback();
+        await motion.AdjustAxisAsync(MotionAxis.Z, 2.5, 3);
+        Assert.Equal(2.5, motion.GetPosition().Z);
+        await motion.MoveToXYAsync(2, 3, 3);
+        Assert.Equal((2.0, 3.0, 2.5), motion.GetPosition());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            motion.JogAsync(MotionAxis.Z, 3, cancellation.Token));
+        Assert.True(await motion.HomeAsync(MotionAxis.Z, 3));
+
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is
+            nameof(CAXM.AxmMotGetMoveUnitPerPulse) or nameof(CAXM.AxmMotSetMoveUnitPerPulse)
+            or nameof(CAXM.AxmMotGetAccelUnit) or nameof(CAXM.AxmMotSetAccelUnit));
+        Assert.Equal(1, AjinSdk.MotionAxes[11].Unit);
+        Assert.Equal(1, AjinSdk.MotionAxes[11].Pulse);
     }
 
     [Fact]
@@ -851,7 +886,7 @@ public sealed partial class AjinControllerTests
 
         status.RefreshMonitorFeedback();
 
-        Assert.True(motion.IsReady); // The existing hardware parameters already match; no local init flag is needed.
+        Assert.True(motion.IsReady); // Live SDK communication is available without a local init flag.
         Assert.True(status.MonitorAxes[MotionAxis.X].Snapshot.State!.Value.Alarm);
         Assert.True(status.MonitorAxes[MotionAxis.X].Snapshot.State!.Value.HomeSensor);
         Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Snapshot.Position);
@@ -928,8 +963,6 @@ public sealed partial class AjinControllerTests
                         nameof(CAXM.AxmHomeGetResult),
                         nameof(CAXM.AxmSignalIsServoOn),
                         nameof(CAXM.AxmStatusGetActPos),
-                        nameof(CAXM.AxmMotGetMoveUnitPerPulse),
-                        nameof(CAXM.AxmMotGetAccelUnit),
                         nameof(CAXM.AxmStatusReadInMotion)
                     }));
     }

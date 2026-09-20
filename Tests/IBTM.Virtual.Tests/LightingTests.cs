@@ -104,6 +104,11 @@ public sealed class LightingTests
         var liveChannel = settings.Lighting.InspectionChannel;
         await inspector.StartLiveViewAsync();
         Assert.True(light.IsOn);
+        var offCalls = light.OffCalls;
+        Assert.NotEmpty((await inspector.CaptureCurrentAsync(keepLiveView: true)).Pixels);
+        Assert.True(inspector.IsLiveView);
+        Assert.True(light.IsOn);
+        Assert.Equal(offCalls, light.OffCalls);
         await inspector.StopLiveViewAsync();
         Assert.False(light.IsOn);
         Assert.Equal(liveChannel, light.LastOffChannel);
