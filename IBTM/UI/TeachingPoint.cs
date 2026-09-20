@@ -96,7 +96,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.PickupHeadFasteningZ:
                     return "Z used for fastening with the pickup head (Head 1).";
                 case TeachingTarget.BoltPosition:
-                    return "Bolt recorded in Inspection Gantry. XY rotates around the camera Upper reference to match the selected head's Upper/Lower direction, then translates to that head's Upper reference; Z uses the head's fastening Z. Position recording is available only in Inspection Gantry. Move to Position uses Safe Z, sets the table down for pickup or up for shooting, then moves XY and fastening Z.";
+                    return "Bolt recorded in Inspection Gantry. XY adds the selected head's Upper/Lower midpoint minus the camera midpoint; Z uses the head's fastening Z. Position recording is available only in Inspection Gantry. Move to Position uses Safe Z, sets the table down for pickup or up for shooting, then moves XY and fastening Z.";
                 case TeachingTarget.BoltReference:
                     return "Camera XY and teaching image for inspecting this bolt.";
                 case TeachingTarget.DataMatrix:
