@@ -23,7 +23,7 @@ public partial class TeachingViewModel : ObservableObject
     private readonly IAsyncRelayCommand[] _commands;
     private readonly PcbSupplyHandler _supplyHandler;
     private readonly PcbSupplySettings _supplySettings;
-    private IReadOnlyList<TeachingPoint> _handoffPoints;
+    private readonly IReadOnlyList<TeachingPoint> _handoffPoints;
     private readonly PcbPlacementHandler _placementHandler;
     private readonly BoltFasteningGantry _fasteningGantry;
     private readonly InspectionGantry _inspectionGantry;
@@ -93,7 +93,6 @@ public partial class TeachingViewModel : ObservableObject
         _viewCancellation = new();
         _teachingIoGroups = [];
         MoveModes = Enum.GetValues<TeachingMoveMode>();
-        _handoffPoints = [];
         _recipeImageCancellation = new();
         FilteredPoints = [];
         TeachingUnits = [
@@ -173,6 +172,13 @@ public partial class TeachingViewModel : ObservableObject
         _ngCarrierMove = ngCarrierMove;
         RecipeEditor = recipeEditor;
         Recipes = recipes;
+        TeachingPosition[] handoffPositions = [
+            .. _supplySettings.GetTeachingPositions(Recipes.Current.PcbSupply)
+                .Where(position => position.Storage == TeachingStorage.Handoff),
+            _placementSettings.GetHandoffTeachingPosition(),
+        ];
+        _handoffPoints = handoffPositions.OrderBy(position => position.MotionGroup)
+            .Select(position => new TeachingPoint(position)).ToArray();
         Preview = new(boltInspector, recipes);
         CarrierImages = [];
         Preview.PropertyChanged += (_, e) =>
@@ -198,7 +204,6 @@ public partial class TeachingViewModel : ObservableObject
             TeachFovRegionCommand.NotifyCanExecuteChanged();
         };
 
-        RefreshHandoffPoints();
         RefreshTeachingPoints();
         ShowRecipeImages();
     }
@@ -357,7 +362,6 @@ public partial class TeachingViewModel : ObservableObject
     public void Activate()
     {
         CameraError = null;
-        RefreshHandoffPoints();
         RecipeEditor.Refresh();
         RefreshTeachingPoints();
         if (!PositionUpdatesActive)
@@ -579,17 +583,6 @@ public partial class TeachingViewModel : ObservableObject
         foreach (var point in FilteredPoints.Where(point => point.Position.Storage != TeachingStorage.Handoff))
             point.Refresh();
         OnPropertyChanged(nameof(FovRegion));
-    }
-
-    private void RefreshHandoffPoints()
-    {
-        TeachingPosition[] positions = [
-            .. _supplySettings.GetTeachingPositions(Recipes.Current.PcbSupply)
-                .Where(position => position.Storage == TeachingStorage.Handoff),
-            _placementSettings.GetHandoffTeachingPosition(),
-        ];
-        _handoffPoints = positions.OrderBy(position => position.MotionGroup)
-            .Select(position => new TeachingPoint(position)).ToArray();
     }
 
     public IAsyncRelayCommand SaveCommand { get; }

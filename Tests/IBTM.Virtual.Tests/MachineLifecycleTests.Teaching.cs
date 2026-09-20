@@ -1450,10 +1450,19 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
         teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff)
-            .Teach(70, 0, 0);
+            .Teach(70, 20, 4);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementHandoff)
-            .Teach(75, 25, 0);
+            .Teach(75, 25, 7);
+        // Leaving and reopening Teaching must not discard pending machine positions.
+        await teaching.ShutdownAsync();
+        teaching.Activate();
+        teaching.Deactivate(); // This test verifies data without a WPF display dispatcher.
+        Assert.Equal((75, 25, 7), (
+            teaching.SelectedPoint!.X, teaching.SelectedPoint.Y, teaching.SelectedPoint.Z!.Value));
+        teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
+        var pendingHandoff = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff);
+        Assert.Equal((70, 20, 4), (pendingHandoff.X, pendingHandoff.Y, pendingHandoff.Z!.Value));
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.BoltInspection.LightLevel = 123;
         teaching.RecipeEditor.Name = " ";
@@ -1498,13 +1507,22 @@ public sealed partial class MachineLifecycleTests
         var saved = store.LoadSettings().Get<PcbSupplySettings>();
         var savedPlacement = store.LoadSettings().Get<PcbPlacementHandlerSettings>();
         Assert.Equal(70, saved.HandoffPosition.X);
+        Assert.Equal(20, saved.HandoffPosition.Y);
+        Assert.Equal(4, saved.HandoffPosition.Z);
         Assert.Equal(75, savedPlacement.HandoffPosition.X);
         Assert.Equal(25, savedPlacement.HandoffPosition.Y);
+        Assert.Equal(7, savedPlacement.HandoffPosition.Z);
         var savedRecipe = store.LoadRecipe<Recipe>("Unified teaching");
         Assert.Equal(34, savedRecipe.PcbSupply.Pcb1PickPosition.Y);
         Assert.Equal(123, savedRecipe.BoltInspection.LightLevel);
         Assert.Equal("Unified teaching", teaching.RecipeEditor.ActiveName);
         Assert.Contains("Unified teaching", teaching.RecipeEditor.Recipes);
+
+        await teaching.ShutdownAsync();
+        teaching.Activate();
+        teaching.Deactivate();
+        Assert.Equal((75, 25, 7), (
+            teaching.SelectedPoint!.X, teaching.SelectedPoint.Y, teaching.SelectedPoint.Z!.Value));
 
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff)
