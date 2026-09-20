@@ -11,6 +11,25 @@ namespace IBTM.Ajin.Tests;
 
 public sealed partial class AjinControllerTests
 {
+    [Fact]
+    public void ActualPositionUsesSdkUnitsWithoutRescalingFromStoredAxisSettings()
+    {
+        using var controller = new AjinController(new());
+        var axis = new AxisHardware { Number = 9, MoveUnit = 10, MovePulse = 100 };
+        var motion = new AjinMotionService(controller, axis, null, null, new(), new(), new(), null);
+        AjinSdk.MotionAxes[9] = new(Position: 12340, Unit: 10, Pulse: 100);
+        Assert.Equal(12.34, motion.GetPosition().X);
+
+        // Editing configuration must not change a coordinate already scaled by the SDK.
+        axis.MoveUnit = 1;
+        axis.MovePulse = 1000;
+        Assert.Equal(12.34, motion.GetPosition().X);
+        Assert.Equal(12.34, motion.ReadDiagnosticPosition(MotionAxis.X).Position);
+        AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = -5670, Unit = 0.1, Pulse = 1 };
+        Assert.Equal(-5.67, motion.GetPosition().X);
+        Assert.All(AjinSdk.Calls, call => Assert.Equal(nameof(CAXM.AxmStatusGetActPos), call.Operation));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

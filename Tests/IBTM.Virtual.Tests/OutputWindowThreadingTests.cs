@@ -492,7 +492,7 @@ public sealed class OutputWindowThreadingTests
 
         var bus = new VirtualAdcBus();
         bus.Open("Virtual", 19200);
-        var adcModel = new AdcProtocolViewModel(bus, new HantasSettings(), machine, services.GetRequiredService<MachineState>());
+        var adcModel = new AdcProtocolViewModel(bus, new VirtualAdcBus(), new HantasSettings(), machine, services.GetRequiredService<MachineState>());
         var adc = new AdcProtocolWindow(adcModel);
         var frames = (TextBox)adc.FindName("FrameLogBox");
         var uiThread = Environment.CurrentManagedThreadId;
@@ -888,7 +888,7 @@ public sealed class OutputWindowThreadingTests
             var bus = new AdcProtocolTests.ControllerBus { StopPollsRemaining = -1 };
             await ((IAdcBus)bus).StartAsync(1); // A run started outside this window.
             var adcModel = new AdcProtocolViewModel(
-                bus,
+                bus, new VirtualAdcBus(),
                 new HantasSettings { ResponseTimeoutMilliseconds = 250 },
                 machine,
                 state);
@@ -950,7 +950,7 @@ public sealed class OutputWindowThreadingTests
         }
 
         var presetBus = new AdcProtocolTests.ControllerBus { IgnorePresetWrites = true };
-        var presetModel = new AdcProtocolViewModel(presetBus, new HantasSettings(), machine, state);
+        var presetModel = new AdcProtocolViewModel(presetBus, new VirtualAdcBus(), new HantasSettings(), machine, state);
         var presetWindow = new AdcProtocolWindow(presetModel);
         var selectPreset = (Button)presetWindow.FindName("SelectPresetButton");
         await presetWindow.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);

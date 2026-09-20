@@ -61,7 +61,9 @@ public sealed class IoBoltHeadTests
             else
                 Assert.IsType<AdcBoltHead>(controller);
         }
-        Assert.Equal(driver != BoltDriver.Io, services.GetService<IAdcBus>() is not null);
+        Assert.Equal(driver != BoltDriver.Io, services.GetKeyedService<IAdcBus>(FasteningHead.Pickup) is not null);
+        Assert.Equal(driver != BoltDriver.Io, services.GetKeyedService<IAdcBus>(FasteningHead.Shooting) is not null);
+        Assert.Null(services.GetService<IAdcBus>());
         var io = services.GetRequiredService<IIoService>();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();

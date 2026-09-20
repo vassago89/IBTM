@@ -29,7 +29,7 @@ public sealed class LightingTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
-        var bus = (VirtualAdcBus)services.GetRequiredService<IAdcBus>();
+        var bus = (VirtualAdcBus)services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup);
         var head = services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup);
         await machine.InitializeAsync();
         try

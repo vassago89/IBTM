@@ -261,7 +261,7 @@ public sealed partial class AjinControllerTests
 
         AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = 24, Pulse = 100 };
         Assert.False(motion.IsReady);
-        Assert.Equal(2.4, motion.GetPosition().X);
+        Assert.Equal(0.024, motion.GetPosition().X);
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMotSet"));
 
         AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { InMotion = 1 };
@@ -738,7 +738,7 @@ public sealed partial class AjinControllerTests
 
     [Theory]
     [InlineData(double.NaN)]
-    [InlineData(double.MaxValue)]
+    [InlineData(double.PositiveInfinity)]
     public async Task InvalidPositionFeedbackCannotBeUsedForTeachingOrCoordinatedMotion(double position)
     {
         using var controller = new AjinController(new());
@@ -929,7 +929,7 @@ public sealed partial class AjinControllerTests
         var notificationsBeforeRecovery = notifications;
         status.RefreshMonitorFeedback(ReportError);
         Assert.Equal(notificationsBeforeRecovery + 2, notifications); // Recovery publishes both axes.
-        Assert.Equal(-5.67, status.MonitorAxes[MotionAxis.Y].Snapshot.Position!.Value, 8);
+        Assert.Equal(-0.0567, status.MonitorAxes[MotionAxis.Y].Snapshot.Position!.Value, 8);
         Assert.All(status.MonitorAxes.Values, axis => Assert.Null(axis.Snapshot.ReadError));
         AjinSdk.Results[stateRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
         status.RefreshMonitorFeedback(ReportError);

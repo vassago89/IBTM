@@ -240,7 +240,7 @@ public sealed partial class MachineLifecycleTests
                         io.SetInput(InputIo.EmergencyStop1Pressed, true);
                 },
             };
-            using var diagnostics = new AdcProtocolViewModel(bus, settings.Hantas, machine, state);
+            using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), settings.Hantas, machine, state);
             await diagnostics.StartCommand.ExecuteAsync(null);
             Assert.Contains("failed", diagnostics.ResultMessage);
             Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.BoltFastening, state.Alarm);
@@ -274,7 +274,7 @@ public sealed partial class MachineLifecycleTests
         }
 
         var bus = new AdcProtocolTests.ControllerBus();
-        using var diagnostics = new AdcProtocolViewModel(bus, settings.Hantas, machine, state);
+        using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), settings.Hantas, machine, state);
         state.Changed += FailWhenTestingStarts;
         try
         {

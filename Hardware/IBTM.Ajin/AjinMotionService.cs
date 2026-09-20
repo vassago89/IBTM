@@ -596,21 +596,9 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             nameof(CAXM.AxmStatusGetActPos), axis);
         if (error is not null)
             return (null, error);
-        var unit = 0.0;
-        var pulse = 0;
-        error = ReadError(
-            CAXM.AxmMotGetMoveUnitPerPulse(axis, ref unit, ref pulse),
-            nameof(CAXM.AxmMotGetMoveUnitPerPulse), axis);
-        switch (true)
-        {
-            case true when error is not null:
-                return (null, error);
-            case true when !double.IsFinite(unit) || unit <= 0 || pulse <= 0:
-                return (null, new System.IO.IOException(
-                    $"Invalid AJIN position scale (axis={axis}, unit={unit}, pulse={pulse})."));
-        }
 
-        var millimeters = FromUnits(axis, position, unit, pulse);
+        // The SDK has already applied Unit/Pulse. The application's motion unit is micrometers.
+        var millimeters = position / 1000;
         if (!double.IsFinite(millimeters))
         {
             return (null, new System.IO.IOException(
@@ -664,13 +652,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     private static double ToUnits(double millimeters)
     {
         return millimeters * 1000;
-    }
-
-    private double FromUnits(int axis, double position, double unit, int pulse)
-    {
-        var expected = _axisParameters[axis];
-        // Convert a different live scale through raw pulses before converting micrometers to mm.
-        return position * pulse / unit * expected.MoveUnit / expected.MovePulse / 1000;
     }
 
     private int GetAxis(MotionAxis axis)

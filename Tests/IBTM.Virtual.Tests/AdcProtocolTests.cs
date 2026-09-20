@@ -2,9 +2,12 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.Virtual;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
@@ -12,10 +15,75 @@ namespace IBTM.Virtual.Tests;
 public sealed class AdcProtocolTests
 {
     [Fact]
+    public void SeparateAdcSettingsPreserveTheExistingPortOnlyForPickup()
+    {
+        var settings = JsonSerializer.Deserialize<HantasSettings>(
+            """{"PortName":"COM4","BaudRate":19200,"PickupSlaveAddress":2,"ShootingSlaveAddress":3}""")!;
+        Assert.Equal("COM4", settings.PickupPortName);
+        Assert.Equal(19200, settings.PickupBaudRate);
+        Assert.Empty(settings.ShootingPortName);
+        Assert.Equal((byte)2, settings.PickupSlaveAddress);
+        Assert.Equal((byte)3, settings.ShootingSlaveAddress);
+        settings.ShootingPortName = "COM5";
+        settings.ShootingBaudRate = 38400;
+        settings.ShootingSlaveAddress = 2;
+
+        var reloaded = JsonSerializer.Deserialize<HantasSettings>(JsonSerializer.Serialize(settings))!;
+
+        Assert.Equal("COM4", reloaded.PickupPortName);
+        Assert.Equal(19200, reloaded.PickupBaudRate);
+        Assert.Equal("COM5", reloaded.ShootingPortName);
+        Assert.Equal(38400, reloaded.ShootingBaudRate);
+        Assert.Equal(reloaded.PickupSlaveAddress, reloaded.ShootingSlaveAddress);
+    }
+
+    [Fact]
+    public async Task SeparateAdcPortsKeepSameAddressResultsAndDisconnectionsIndependent()
+    {
+        var settings = new MachineSettings
+        {
+            Hantas = new()
+            {
+                PickupPortName = "COM4", PickupBaudRate = 19200, PickupSlaveAddress = 1,
+                ShootingPortName = "COM5", ShootingBaudRate = 38400, ShootingSlaveAddress = 1,
+            },
+        };
+        await using var services = new ServiceCollection()
+            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(settings)
+            .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
+        var pickupBus = services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup);
+        var shootingBus = services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting);
+        var pickup = services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup);
+        var shooting = services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting);
+        Assert.NotSame(pickupBus, shootingBus);
+        Assert.Null(services.GetService<IAdcBus>());
+
+        await Task.WhenAll(pickup.CheckReadyAsync(), shooting.CheckReadyAsync());
+        Assert.Equal("COM4", pickupBus.PortName);
+        Assert.Equal(19200, pickupBus.BaudRate);
+        Assert.Equal("COM5", shootingBus.PortName);
+        Assert.Equal(38400, shootingBus.BaudRate);
+        await Task.WhenAll(pickup.SelectPresetAsync(2), shooting.SelectPresetAsync(3));
+        ((VirtualAdcBus)pickupBus).SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
+        var results = await Task.WhenAll(pickup.TightenAsync(), shooting.TightenAsync());
+        Assert.False(results[0].Success);
+        Assert.True(results[1].Success);
+        Assert.Equal((ushort)2, (await pickupBus.ReadFasteningResultAsync(1)).Preset);
+        Assert.Equal((ushort)3, (await shootingBus.ReadFasteningResultAsync(1)).Preset);
+
+        pickupBus.Close();
+        Assert.False(pickupBus.IsOpen);
+        Assert.True(shootingBus.IsOpen);
+        await shooting.CheckReadyAsync();
+        Assert.Equal("COM5", shootingBus.PortName);
+    }
+
+    [Fact]
     public async Task FailedFeedRequiresANewConfirmedFeedBeforeRecordingResult()
     {
         var bus = new ControllerBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         var failure = new IoTimeoutException(InputIo.PickupHeadDown, true, 100);
         Task FeedAsync(CancellationToken token)
         {
@@ -48,7 +116,7 @@ public sealed class AdcProtocolTests
     public async Task StopAcknowledgementWaitsForMotorFeedbackBeforeReleasingResult()
     {
         var bus = new ControllerBus { StopPollsRemaining = 2 };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         var tightening = head.TightenAsync();
         Assert.Equal(1, bus.StopWrites);
         Assert.True(bus.Running);
@@ -65,7 +133,7 @@ public sealed class AdcProtocolTests
     public async Task UnconfirmedStopKeepsTheResultPendingAcrossRecoveryReads()
     {
         var bus = new ControllerBus { StopPollsRemaining = -1 };
-        var head = new AdcBoltHead(bus, new HantasSettings { ResponseTimeoutMilliseconds = 40 }, 1);
+        var head = new AdcBoltHead(bus, new HantasSettings { ResponseTimeoutMilliseconds = 40 }, 1, "Virtual", 115200);
         var failure = await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync());
         Assert.Contains("motor stop was not confirmed", failure.Message);
         Assert.True(head.HasPendingResult);
@@ -83,7 +151,7 @@ public sealed class AdcProtocolTests
     public async Task MissingStopFeedbackDoesNotBecomeStopped()
     {
         var bus = new ControllerBus { StopReadFailure = new IOException("RUN feedback unavailable.") };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         var failure = await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
         Assert.Same(bus.StopReadFailure, failure);
         Assert.True(head.HasPendingResult);
@@ -94,7 +162,7 @@ public sealed class AdcProtocolTests
     public async Task InterruptedFasteningRestartsOnlyWithMatchingPreset()
     {
         IAdcBus bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         await head.SelectPresetAsync(3);
         using var stop = new CancellationTokenSource();
         var tightening = head.TightenAsync(stop.Token);
@@ -122,7 +190,7 @@ public sealed class AdcProtocolTests
     public async Task MismatchedResultIsNotRecordedOrDiscarded(ushort preset, AdcDirection direction)
     {
         var bus = new ControllerBus { ResultPreset = preset, ResultDirection = direction };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         await head.SelectPresetAsync(3);
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Contains("does not match this fastening", failure.Message);
@@ -137,7 +205,7 @@ public sealed class AdcProtocolTests
     public async Task PresetRequiresReadbackAndMustStillMatchAtStart()
     {
         var bus = new ControllerBus { CurrentPreset = 1, IgnorePresetWrites = true };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(3));
         Assert.Equal(0, bus.StartWrites);
 
@@ -159,7 +227,7 @@ public sealed class AdcProtocolTests
             CurrentDirection = reverse ? AdcDirection.Fastening : AdcDirection.Loosening,
             IgnoreDirectionWrites = true,
         };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => reverse ? head.RunReverseAsync(CancellationToken.None) : head.TightenAsync());
         Assert.Equal(0, bus.StartWrites);

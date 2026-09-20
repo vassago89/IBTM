@@ -150,6 +150,11 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 
 모든 화면의 명령과 편집값은 XAML에서 해당 ViewModel에 바인딩한다. ADC 진단도 창 객체가 아니라
 `AdcProtocolViewModel`이 포트·슬레이브·레지스터 입력과 통신 작업을 소유한다. 프리셋 선택은 1번 고정이다.
+픽업·슈팅 ADC는 각각 `FasteningHead` 키로 등록한 별도 `IAdcBus`와 SerialPort를 사용한다.
+COM 포트·Baud Rate·Slave ID는 헤드별로 설정하며, 서로 다른 포트에서는 Slave ID가 같아도 된다.
+기존 `HantasSettings`의 JSON `PortName`·`BaudRate`는 픽업 설정으로 유지한다. 슈팅 COM 포트는 별도로 입력한다.
+ADC 진단창의 헤드 선택은 해당 포트에만 연결·해제·명령을 적용한다. 실행 중에는 선택을 바꿀 수 없고,
+프레임 로그는 Pickup/Shooting과 실제 포트를 함께 기록한다.
 `BeginAdcProtocol`에서 실행권을 얻은 뒤 ViewModel의 명령 본문이 통신과 헤드 동작을 직접 호출한다.
 체결 테스트의 시작 조건은 `EnsureBoltTestAvailable`에서 확인하고, 실행과 결과 처리는 명령 본문에 둔다.
 ADC는 별도 busy 플래그 없이 현재 작업의 취소 소스로 실행 중 여부를 판단한다.
@@ -304,6 +309,8 @@ HOME·START 선상승과 HOME 순서(2026-09-19):
   IBTM 연결에 필요한 취소, SDK 오류, 실제 이동·정지 피드백 처리는 유지한다.
   위치 이동 직전 각 축에 절대 좌표 모드를 설정하고 SDK에서 다시 읽어 확인한다.
   이전 이동이나 초기화 당시의 모드를 믿지 않으며, 티칭 좌표·Unit/Pulse를 이동 중 다시 쓰지 않는다.
+  현재 좌표는 SDK가 Unit/Pulse를 반영한 `AxmStatusGetActPos` 값을 1000으로 나눠 mm로 표시한다.
+  저장된 축 설정 비율로 현재 좌표를 다시 보정하지 않는다. 설정 불일치 시 이동 차단은 유지한다.
   위치 명령은 `AxmMoveStartPos` / `AxmMoveStartMultiPos`로 시작한 뒤 실제 피드백으로 완료를 기다린다.
   완료까지 반환하지 않는 SDK 함수를 기다리느라 취소·인터록 정지가 지연되지 않도록 한다.
   축 알람·도착 신호 타임아웃·Unit 불일치는 수동 화면에서 처리하는 모션 오류로 전달한다.

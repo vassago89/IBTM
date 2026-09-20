@@ -25,7 +25,7 @@ public sealed class VirtualAdcBus : IAdcBus
 
     public bool IsOpen { get; private set; }
 
-    public string PortName => IsOpen ? VirtualPort : string.Empty;
+    public string PortName { get; private set; } = string.Empty;
 
     public int BaudRate { get; private set; }
 
@@ -45,6 +45,14 @@ public sealed class VirtualAdcBus : IAdcBus
 
     public void Open(string portName, int baudRate)
     {
+        var selected = string.IsNullOrWhiteSpace(portName) ? VirtualPort : portName;
+        if (IsOpen)
+        {
+            if (!string.Equals(PortName, selected, StringComparison.OrdinalIgnoreCase) || BaudRate != baudRate)
+                throw new InvalidOperationException($"ADC is already connected to {PortName} at {BaudRate} baud.");
+            return;
+        }
+        PortName = selected;
         IsOpen = true;
         BaudRate = baudRate;
     }
@@ -52,6 +60,7 @@ public sealed class VirtualAdcBus : IAdcBus
     public void Close()
     {
         IsOpen = false;
+        PortName = string.Empty;
         BaudRate = 0;
     }
 

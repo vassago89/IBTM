@@ -613,7 +613,7 @@ public sealed partial class MachineLifecycleTests
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = selected, X = 0, Y = 0 }];
         var productionHead = services.GetRequiredKeyedService<IBoltHead>(selected);
-        var bus = services.GetRequiredService<IAdcBus>();
+        var bus = services.GetRequiredKeyedService<IAdcBus>(selected);
         var slave = selected == FasteningHead.Pickup
             ? settings.Hantas.PickupSlaveAddress
             : settings.Hantas.ShootingSlaveAddress;
@@ -631,7 +631,9 @@ public sealed partial class MachineLifecycleTests
             (InputIo.ShootingHeadUp, true),
             (InputIo.ShootingHeadDown, false),
             (InputIo.PickupHeadVacuumDetected, true),
-            (InputIo.ShootingHeadVacuumDetected, true));
+            (InputIo.ShootingHeadVacuumDetected, true),
+            (InputIo.PickupTableDown, selected == FasteningHead.Pickup),
+            (InputIo.PickupTableUp, selected == FasteningHead.Shooting));
         using var stop = new CancellationTokenSource();
         void StopWhenStarted(AdcFrameDirection direction, byte[] frame)
         {
@@ -662,8 +664,11 @@ public sealed partial class MachineLifecycleTests
         Assert.True(productionHead.HasPendingResult);
         Assert.True(station.HasPendingResult);
 
-        using var diagnostics = new AdcProtocolViewModel(bus, settings.Hantas, machine, state)
+        using var diagnostics = new AdcProtocolViewModel(
+            services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup),
+            services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting), settings.Hantas, machine, state)
         {
+            SelectedHead = selected,
             SlaveText = slave.ToString(),
         };
         await diagnostics.StartCommand.ExecuteAsync(null);
@@ -713,9 +718,11 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var bus = new AdcProtocolTests.ControllerBus { StopPollsRemaining = -1 };
         await machine.InitializeAsync();
-        using var diagnostics = new AdcProtocolViewModel(bus, settings.Hantas, machine, state);
+        using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), settings.Hantas, machine, state);
         var testing = diagnostics.StartCommand.ExecuteAsync(null);
         Assert.True(state.IsRunning);
+        Assert.Throws<InvalidOperationException>(() => diagnostics.SelectedHead = FasteningHead.Shooting);
+        Assert.Equal(FasteningHead.Pickup, diagnostics.SelectedHead);
         machine.Stop();
         await WaitUntilAsync(() => bus.StopWrites > 0);
         io.SetInput(InputIo.AutoMode, false);
@@ -730,6 +737,53 @@ public sealed partial class MachineLifecycleTests
         await testing.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(state.IsRunning);
         Assert.True(machine.IsStartAllowed);
+    }
+
+    [Fact]
+    public async Task AdcDiagnosticsSelectsTheMatchingPortAndDisconnectsOnlyThatHead()
+    {
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgConveyor) };
+        settings.Hantas.PickupBaudRate = 19200;
+        settings.Hantas.ShootingBaudRate = 38400;
+        settings.Hantas.PickupSlaveAddress = 1;
+        settings.Hantas.ShootingSlaveAddress = 1;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var pickup = services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup);
+        var shooting = services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting);
+        await machine.InitializeAsync();
+        using var diagnostics = new AdcProtocolViewModel(
+            pickup, shooting, settings.Hantas, machine, services.GetRequiredService<MachineState>());
+        try
+        {
+            diagnostics.SelectedPort = "Virtual";
+            await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
+            Assert.True(pickup.IsOpen);
+            Assert.False(shooting.IsOpen);
+            Assert.Equal(19200, pickup.BaudRate);
+            await pickup.SelectPresetAsync(1, 7);
+            diagnostics.SelectedHead = FasteningHead.Shooting;
+            Assert.Equal("Connect", diagnostics.ConnectionAction);
+            Assert.Equal(38400, diagnostics.SelectedBaudRate);
+            Assert.Equal("1", diagnostics.SlaveText);
+            diagnostics.SelectedPort = "Virtual";
+            await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
+            await diagnostics.SelectPresetCommand.ExecuteAsync(null);
+            Assert.Equal((ushort)1, (await shooting.ReadControllerStatusAsync(1)).Preset);
+            Assert.Equal((ushort)7, (await pickup.ReadControllerStatusAsync(1)).Preset);
+            Assert.True(pickup.IsOpen);
+            Assert.Equal(38400, shooting.BaudRate);
+            await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
+            Assert.False(shooting.IsOpen);
+            Assert.True(pickup.IsOpen);
+            diagnostics.SelectedHead = FasteningHead.Pickup;
+            Assert.Equal("Disconnect", diagnostics.ConnectionAction);
+            Assert.Equal(19200, diagnostics.SelectedBaudRate);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]

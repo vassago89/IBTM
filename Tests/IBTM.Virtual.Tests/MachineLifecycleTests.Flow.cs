@@ -75,8 +75,9 @@ public sealed partial class MachineLifecycleTests
             .ToHashSet();
         var unexpectedOutputs = new ConcurrentBag<OutputIo>();
         var adcFrames = 0;
-        services.GetRequiredService<IAdcBus>().FrameTransferred += (_, _) => Interlocked.Increment(
-            ref adcFrames);
+        foreach (var head in new[] { FasteningHead.Pickup, FasteningHead.Shooting })
+            services.GetRequiredKeyedService<IAdcBus>(head).FrameTransferred += (_, _) => Interlocked.Increment(
+                ref adcFrames);
         io.OutputChanged += (output, value) =>
         {
             if (value && disabledOutputs.Contains(output))
