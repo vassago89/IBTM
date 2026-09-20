@@ -24,6 +24,40 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Fact]
+    public async Task PlacementTeachingHomeReportsHorizontalFailureAfterZHome()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+        await machine.InitializeAsync();
+        try
+        {
+            settings.PcbPlacementHandler.Motion.HorizontalHome.SearchSpeed = 0;
+            await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+
+            await teaching.HomeCommand.ExecuteAsync(null);
+
+            Assert.True(motion.GetAxisState(MotionAxis.Z).Homed);
+            Assert.False(motion.GetAxisState(MotionAxis.X).Homed);
+            Assert.False(motion.GetAxisState(MotionAxis.Y).Homed);
+            Assert.Equal(MachineAlarm.HomeFailed, state.Alarm);
+            Assert.Contains(nameof(ArgumentOutOfRangeException), state.AlarmDetail);
+            Assert.False(state.IsHoming);
+            Assert.False(motion.IsMoving);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task SelectedAxisHomeDoesNotRequireZHomeOrServo()
     {
         var settings = FlowSettings();

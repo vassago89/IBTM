@@ -150,7 +150,7 @@ public sealed partial class MachineController
                 || _operations.IsShuttingDown)
             {
             }
-            catch (Exception exception) when (IsDeviceFailure(exception))
+            catch (Exception exception)
             {
                 ReportManualFailure(MachineAlarm.HomeFailed, exception);
             }
