@@ -207,25 +207,25 @@ public sealed class InspectionTests
         var recipes = new RecipeManager(OpenMachineStore(), new());
         var work = new InspectionWork(io, transfer, transferSettings, recipes, units);
         BoltPoint[] bolts = [
-            Bolt(1, HeatSinkSlot.HeatSink1, 9, 9, carrierReference),
-            Bolt(2, HeatSinkSlot.HeatSink1, 9, 21, carrierReference),
-            Bolt(3, HeatSinkSlot.HeatSink2, 31, 9, carrierReference),
-            Bolt(4, HeatSinkSlot.HeatSink2, 31, 21, carrierReference),
+            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 9 },
+            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 21 },
+            new() { Number = 3, HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 9 },
+            new() { Number = 4, HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 21 },
         ];
         var camera = new MissingBoltCamera(
             new VirtualCamera(
                 motion.GetPosition,
-                () => bolts.Select(bolt => gantrySettings.GetBoltPosition(bolt, carrierReference)),
+                () => bolts.Select(gantrySettings.GetBoltPosition),
                 () => [
                     new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
                     new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2")
         ]),
             motion.GetPosition,
-            gantrySettings.GetBoltPosition(bolts[1], carrierReference));
+            gantrySettings.GetBoltPosition(bolts[1]));
         recipes.Current.CarrierImages = [.. bolts.Select((bolt, index) => new CarrierImageTile
             {
                 Number = index + 1,
-                Center = gantrySettings.GetBoltPosition(bolt, carrierReference),
+                Center = gantrySettings.GetBoltPosition(bolt),
                 Region = new(128, 88, 64, 64),
                 BoltNumber = bolt.Number,
                 HeatSink = bolt.HeatSink,
@@ -273,7 +273,7 @@ public sealed class InspectionTests
         Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
         Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
         var boltImage = await inspector.CaptureAsync(bolts[0]);
-        Assert.True(gantry.IsAt(gantrySettings.GetBoltPosition(bolts[0], carrierReference)));
+        Assert.True(gantry.IsAt(gantrySettings.GetBoltPosition(bolts[0])));
         Assert.NotEmpty(boltImage.Pixels);
         Assert.Empty(work.Assemblies);
 
@@ -392,19 +392,6 @@ public sealed class InspectionTests
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
         Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
-    }
-
-    private static BoltPoint Bolt(
-        int number,
-        HeatSinkSlot heatSink,
-        double x,
-        double y,
-        CarrierReferenceSettings reference)
-    {
-        var position = CarrierCoordinates.FromMachine(
-            new AxisPosition { X = x, Y = y },
-            reference.UpperLeftLocatingPin!);
-        return new BoltPoint { Number = number, HeatSink = heatSink, X = position.X, Y = position.Y };
     }
 
     private sealed class MissingBoltCamera : ICamera

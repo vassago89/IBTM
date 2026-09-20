@@ -489,9 +489,6 @@ public partial class TeachingViewModel
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
             CameraError = null;
-            if (bolt is not null && !_carrierReference.IsDefined)
-                throw new InvalidOperationException("Record the Inspection Gantry Upper/Lower references before recording a bolt position.");
-            var origin = _carrierReference.UpperLeftLocatingPin;
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
@@ -526,9 +523,8 @@ public partial class TeachingViewModel
             if (bolt is not null)
             {
                 // The bolt is centered on the camera crosshair. ROI pixels do not alter its machine XY.
-                var position = CarrierCoordinates.FromMachine(captured.Center, origin!);
-                bolt.X = position.X;
-                bolt.Y = position.Y;
+                bolt.X = captured.Center.X;
+                bolt.Y = captured.Center.Y;
             }
             if (await RecipeEditor.SaveCarrierImagesAsync(images, operation.Token))
             {

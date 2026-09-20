@@ -9,28 +9,8 @@ public static class CarrierCoordinates
         return first is not null && second is not null;
     }
 
-    public static AxisPosition FromMachine(AxisPosition position, AxisPosition origin)
-    {
-        return new()
-        {
-            X = position.X - origin.X,
-            Y = position.Y - origin.Y,
-            Z = position.Z,
-        };
-    }
-
-    public static AxisPosition ToMachine(AxisPosition position, AxisPosition origin)
-    {
-        return new()
-        {
-            X = origin.X + position.X,
-            Y = origin.Y + position.Y,
-            Z = position.Z,
-        };
-    }
-
     public static AxisPosition ToMachine(
-        AxisPosition position,
+        AxisPosition cameraPosition,
         AxisPosition sourceUpperLeftLocatingPin,
         AxisPosition sourceLowerRightLocatingPin,
         AxisPosition targetUpperLeftLocatingPin,
@@ -47,13 +27,11 @@ public static class CarrierCoordinates
         var sourceCenterY = (sourceUpperLeftLocatingPin.Y + sourceLowerRightLocatingPin.Y) / 2;
         var targetCenterX = (targetUpperLeftLocatingPin.X + targetLowerRightLocatingPin.X) / 2;
         var targetCenterY = (targetUpperLeftLocatingPin.Y + targetLowerRightLocatingPin.Y) / 2;
-        // Restore the camera XY from the stored Upper-relative position, then add the center offset.
-        var cameraPosition = ToMachine(position, sourceUpperLeftLocatingPin);
         return new AxisPosition
         {
             X = cameraPosition.X + targetCenterX - sourceCenterX,
             Y = cameraPosition.Y + targetCenterY - sourceCenterY,
-            Z = position.Z,
+            Z = cameraPosition.Z,
         };
     }
 }

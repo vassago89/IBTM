@@ -3,7 +3,7 @@ using System.Linq;
 using System.Text.Json.Serialization;
 
 namespace IBTM.Core;
-// Each heat sink owns its taught bolts; coordinates are relative to the carrier reference pin.
+// Each heat sink owns its taught bolts at actual Inspection Gantry XY coordinates.
 public sealed class PcbLayout
 {
     public PcbLayout()
@@ -11,7 +11,7 @@ public sealed class PcbLayout
         BoltPoints = [];
     }
 
-    // Old shared PCB-local coordinates must not be read as independent carrier coordinates.
+    // Old shared PCB-local coordinates must not be read as independently taught bolts.
     [JsonPropertyName("TaughtBolts")]
     public List<BoltPoint> BoltPoints { get; set; }
 

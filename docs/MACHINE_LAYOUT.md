@@ -220,13 +220,12 @@ shooting head by default; those addresses are independent from mechanical head
 numbering. The operator view shows one moving gantry body with two heads, not two
 independent motion systems.
 
-Bolt X/Y positions are taught with the Station 3 camera and stored in carrier-relative
-millimetres. The upper-left locating pin is (0, 0), and the Station 3 image X/Y
-directions are the carrier X/Y directions. Station 3 teaches both locating pins on the carrier
+Bolt X/Y positions are taught with the Station 3 camera and stored as actual Inspection
+Gantry coordinates in millimetres. Record Position writes the captured axis XY directly;
+it does not subtract a reference pin. Station 3 teaches both locating pins on the carrier
 image; Station 2 teaches the same two pins separately for each fastening head. Each pair's
 midpoint is the average of its two taught coordinates. The Station 3-to-Station 2 conversion
-adds the head midpoint minus the camera midpoint to the camera teaching XY, reconstructed
-from the stored relative XY plus the camera upper-left reference. This is a translation
+adds the head midpoint minus the camera midpoint directly to the recorded camera XY. This is a translation
 without rotation or scaling. Stored bolt coordinates and SDK Unit/Pulse are unchanged. Each bolt
 point identifies Heat Sink 1 or Heat Sink 2 so the station can use its heat sink-present
 inputs as the work mask.
@@ -240,7 +239,7 @@ afterward. Every original camera frame is stored in the recipe's
 at those machine coordinates; no stitched bitmap is created. The operator adjusts
 millimetres per pixel until overlapping frames align, then clicks the carrier locating
 pins and bolt points directly on the map. Clicks therefore produce Station 3 machine
-XY immediately, and bolt points remain stored in carrier-relative millimetres.
+XY immediately, and bolt points remain stored as actual Inspection Gantry coordinates.
 The last successfully saved or loaded recipe is restored at startup. Creating a new
 unsaved recipe does not replace that active selection.
 

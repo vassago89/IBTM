@@ -313,12 +313,8 @@ public static class DependencyInjection
                         return new VirtualCamera(
                             provider.GetRequiredService<NgCarrierTransfer>().Feedback.GetPosition,
                             () => recipes.Current.Pcb.BoltPoints
-                                .Where(bolt => settings.CarrierReference.IsDefined
-                                    && bolt.X is not null && bolt.Y is not null)
-                                .Select(
-                                    bolt => settings.InspectionGantry.GetBoltPosition(
-                                        bolt,
-                                        settings.CarrierReference)),
+                                .Where(bolt => bolt.X is not null && bolt.Y is not null)
+                                .Select(settings.InspectionGantry.GetBoltPosition),
                             // Fixed virtual labels are independent of taught FOVs and ROIs.
                             () => [
                                 new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),

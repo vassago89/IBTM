@@ -274,7 +274,7 @@ public sealed partial class MachineLifecycleTests
         recipe.CarrierImages = recipe.Pcb.BoltPoints.Select((bolt, index) => new CarrierImageTile
         {
             Number = index + 1,
-            Center = settings.InspectionGantry.GetBoltPosition(bolt, settings.CarrierReference),
+            Center = settings.InspectionGantry.GetBoltPosition(bolt),
             Region = new(128, 88, 64, 64),
             BoltNumber = bolt.Number,
             HeatSink = bolt.HeatSink,

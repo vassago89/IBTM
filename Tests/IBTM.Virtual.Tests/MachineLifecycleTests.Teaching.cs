@@ -785,7 +785,7 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
-        Assert.Equal((10d, 20d), (bolt.X, bolt.Y));
+        Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
         var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
 
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
@@ -833,9 +833,11 @@ public sealed partial class MachineLifecycleTests
         teaching.CarrierImages = await teaching.RecipeEditor.LoadCarrierImagesAsync();
         var previousImage = teaching.SelectedFov;
         settings.CarrierReference.UpperLeftLocatingPin = null;
+        settings.CarrierReference.LowerRightLocatingPin = null;
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-        Assert.Contains("Upper/Lower", teaching.CameraError);
-        Assert.Same(previousImage, teaching.SelectedFov);
+        Assert.Null(teaching.CameraError);
+        Assert.NotSame(previousImage, teaching.SelectedFov);
+        Assert.Equal((110d, 220d), (teaching.SelectedPoint!.Position.Bolt!.X, teaching.SelectedPoint.Position.Bolt.Y));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipes.Current));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(
             services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName)));

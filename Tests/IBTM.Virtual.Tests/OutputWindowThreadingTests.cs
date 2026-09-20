@@ -771,7 +771,7 @@ public sealed class OutputWindowThreadingTests
             Assert.Equal(firstImage.Metadata.Number, teaching.SelectedFov.Metadata.Number);
             Assert.Equal(10, teaching.SelectedFov.Metadata.Center.X);
             Assert.Equal(firstImage.Metadata.Region, teaching.SelectedFov.Metadata.Region);
-            Assert.Equal(10 - upperPin!.X, firstBolt.Position.Bolt.X);
+            Assert.Equal(10, firstBolt.Position.Bolt.X);
             var firstMetadata = teaching.SelectedFov.Metadata;
 
             // The other heat sink and Data Matrix each own one independent image.

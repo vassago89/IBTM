@@ -19,6 +19,7 @@ public sealed class BoltPoint
     public int Number { get; set; }
     public HeatSinkSlot HeatSink { get; set; }
     public FasteningHead Head { get; set; } = FasteningHead.Shooting;
+    // Actual Inspection Gantry XY captured by Record Position, in millimetres.
     public double? X { get; set; }
     public double? Y { get; set; }
 

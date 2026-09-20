@@ -22,13 +22,13 @@ namespace IBTM.Virtual.Tests;
 public sealed class RecipeTests
 {
     [Theory]
-    [InlineData(0, 0, 350, 600)]
-    [InlineData(100, 200, 450, 800)]
-    [InlineData(50, 100, 400, 700)]
-    [InlineData(10, 0, 360, 600)]
-    [InlineData(10, 20, 360, 620)]
+    [InlineData(100, 200, 350, 600)]
+    [InlineData(200, 400, 450, 800)]
+    [InlineData(150, 300, 400, 700)]
+    [InlineData(110, 200, 360, 600)]
+    [InlineData(110, 220, 360, 620)]
     public void FasteningCoordinatesAddCenterOffsetWithoutScaling(
-        double relativeX, double relativeY, double expectedX, double expectedY)
+        double cameraX, double cameraY, double expectedX, double expectedY)
     {
         var reference = new CarrierReferenceSettings
         {
@@ -44,14 +44,14 @@ public sealed class RecipeTests
                 FasteningZ = 12,
             },
         };
-        var bolt = new BoltPoint { X = relativeX, Y = relativeY };
+        var bolt = new BoltPoint { X = cameraX, Y = cameraY };
 
         var position = settings.GetBoltPosition(bolt, reference);
 
         Assert.Equal(expectedX, position.X, 6);
         Assert.Equal(expectedY, position.Y, 6);
         Assert.Equal(12, position.Z);
-        Assert.Equal((relativeX, relativeY), (bolt.X, bolt.Y));
+        Assert.Equal((cameraX, cameraY), (bolt.X, bolt.Y));
     }
 
     [Theory]
@@ -66,7 +66,7 @@ public sealed class RecipeTests
 
         Assert.True(CarrierCoordinates.IsDefined(upper, lower));
         var position = CarrierCoordinates.ToMachine(
-            new() { X = 7, Y = 9, Z = 12 }, upper, lower,
+            new() { X = 107, Y = 209, Z = 12 }, upper, lower,
             new() { X = -20, Y = 30 }, new() { X = 60, Y = 50 });
         Assert.Equal((expectedX, expectedY, 12d), (position.X, position.Y, position.Z));
     }
@@ -166,14 +166,13 @@ public sealed class RecipeTests
                 LowerRightLocatingPin = new() { X = 400, Y = 500 },
             },
         };
-        var second = CarrierCoordinates.FromMachine(new() { X = 175, Y = 230 }, pins.UpperLeftLocatingPin);
-        targets[1].X = second.X;
-        targets[1].Y = second.Y;
+        targets[1].X = 175;
+        targets[1].Y = 230;
         Assert.Equal((13d, 24d), (targets[0].X, targets[0].Y));
-        Assert.Equal((75d, 30d), (targets[1].X, targets[1].Y));
-        var firstCamera = inspection.GetBoltPosition(targets[0], pins);
+        Assert.Equal((175d, 230d), (targets[1].X, targets[1].Y));
+        var firstCamera = inspection.GetBoltPosition(targets[0]);
         var secondHead = fastening.GetBoltPosition(targets[1], pins);
-        Assert.Equal((113, 224), (firstCamera.X, firstCamera.Y));
+        Assert.Equal((13, 24), (firstCamera.X, firstCamera.Y));
         Assert.Equal(375, secondHead.X, 6);
         Assert.Equal(430, secondHead.Y, 6);
 
@@ -186,7 +185,7 @@ public sealed class RecipeTests
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count);
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count());
         Assert.Equal(13d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().X);
-        Assert.Equal(75d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().X);
+        Assert.Equal(175d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().X);
         Assert.Equal(140, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().BrightnessThreshold);
         Assert.Equal(0.2, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().MinimumBrightRatio);
         Assert.Equal(210, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().BrightnessThreshold);
@@ -362,10 +361,8 @@ public sealed class RecipeTests
         Assert.False(position.Position.HasPosition);
         Assert.False(position.Position.IsTeachAllowed);
         Assert.Equal(TeachMode.Full, position.Position.Mode);
-        var relative = CarrierCoordinates.FromMachine(new() { X = 110, Y = 220 }, reference.UpperLeftLocatingPin);
-        bolt.X = relative.X;
-        bolt.Y = relative.Y;
-        Assert.Equal((10d, 20d), (bolt.X, bolt.Y));
+        bolt.X = 110;
+        bolt.Y = 220;
         position.Refresh();
         Assert.True(position.Position.HasPosition);
         Assert.Equal(310, position.X, 6);
@@ -392,9 +389,9 @@ public sealed class RecipeTests
             pins.Single(p => p.Target == TeachingTarget.CarrierUpperLeftLocatingPin));
         upperLeft.Teach(105, 205, 0);
         Assert.Same(lowerRight, reference.LowerRightLocatingPin);
-        var camera = inspection.GetBoltPosition(recipe.GetBolts(HeatSinkSlot.HeatSink1).Single(), reference);
-        Assert.Equal((115, 225), (camera.X, camera.Y));
-        Assert.Equal((10d, 20d), (bolt.X, bolt.Y));
+        var camera = inspection.GetBoltPosition(recipe.GetBolts(HeatSinkSlot.HeatSink1).Single());
+        Assert.Equal((110, 220), (camera.X, camera.Y));
+        Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
         Assert.Same(reference, upperLeft.Position.Setting);
         var transfer = new NgCarrierTransferSettings();
         Assert.All(transfer.GetTeachingPositions(), p => Assert.Same(transfer, p.Setting));

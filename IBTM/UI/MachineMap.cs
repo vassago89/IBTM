@@ -212,7 +212,7 @@ public sealed class MachineMap
 
     public (double X, double Y) GetInspectionTargetPosition(BoltPoint bolt)
     {
-        var target = _inspection.GetBoltPosition(bolt, _carrier);
+        var target = _inspection.GetBoltPosition(bolt);
         var mapped = MapInspection(target.X, target.Y);
         return (
             mapped.X + MachinePlan.CameraCenter.X - MachinePlan.InspectionContentOrigin.X,
