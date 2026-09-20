@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Inspection;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM;
@@ -32,20 +31,6 @@ public sealed partial class MachineController
         var independentUnits = new List<Task>();
         try
         {
-            if (_units.MainConveyor || _units.NgCarrierTransfer)
-            {
-                var carriers = (_units.MainConveyor ? _conveyor.CarrierCount
-                        : _ngTransfer.IsCarrierPresent(NgTransferDestination.Station) ? 1 : 0)
-                    + (_units.NgCarrierTransfer && _ngTransfer.IsTransferPending ? 1 : 0)
-                    + (_units.NgCarrierTransfer && _units.NgShuttle && _ngShuttle.CarrierDetected ? 1 : 0)
-                    + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
-                    + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
-                if (carriers > 1
-                    || carriers == 0 && !(_units.NgCarrierTransfer && _ngTransfer.IsEmptyRepeatAllowed)
-                    || _units.MainConveyor && _conveyor.ExitCarrierDetected)
-                    throw new InvalidOperationException("Repeat requires one carrier on the active route; only NG Transfer standalone repeat allows an empty route. Check the enabled supports and any unfinished NG transfer.");
-            }
-
             if (_units.PcbSupply && !_units.PcbPlacement)
                 independentUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.PcbSupply,

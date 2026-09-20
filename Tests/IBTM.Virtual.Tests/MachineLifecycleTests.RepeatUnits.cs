@@ -220,7 +220,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task NgTransferOnlyRepeatRejectsAnAdditionalCarrierWhilePickupIsLoaded()
+    public async Task NgTransferRepeatDoesNotCountPendingPickupAndStationPresenceAtStartup()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
@@ -238,17 +238,23 @@ public sealed partial class MachineLifecycleTests
         await gantry.MoveToAsync(new() { X = 50, Y = 30 }, 10_000);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         var lowered = false;
-        io.OutputChanged += (output, on) => lowered |= output == OutputIo.NgCarrierPickupDown && on;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.NgCarrierPickupDown && on)
+            {
+                lowered = true;
+                stop.Cancel();
+            }
+        };
         state.RepeatEnabled = true;
         try
         {
             await WaitUntilAsync(() => machine.IsStartAllowed);
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await machine.StartAsync(timeout.Token);
-            Assert.True(state.IsError);
-            Assert.Contains("one carrier on the active route", state.AlarmDetail);
-            Assert.False(lowered);
-            Assert.Equal((50, 30, 0), gantry.Feedback.GetPosition());
+            await machine.StartAsync(stop.Token);
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.True(lowered);
+            Assert.True(gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition));
             Assert.True(io.GetInput(InputIo.NgCarrierDetected));
             Assert.True(io.GetInput(InputIo.NgCarrierGripperClosed));
         }

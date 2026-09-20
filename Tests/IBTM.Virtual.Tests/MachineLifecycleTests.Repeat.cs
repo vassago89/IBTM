@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
@@ -392,8 +393,50 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task RepeatRejectsTwoOccupiedStationsAndAcceptsOneWithOnlyHeatSink2()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EmptyMainRepeatWaitsForCarrierWithoutAnAlarm(bool enableNgTransfer)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Units.NgCarrierTransfer = enableNgTransfer;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var conveyor = services.GetRequiredService<MainConveyor>();
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        conveyor.Trace += message =>
+        {
+            if (message.StartsWith("MainConveyor: WaitingForFrontCarrier ", StringComparison.Ordinal))
+                waiting.TrySetResult();
+        };
+        Task run = Task.CompletedTask;
+        try
+        {
+            await machine.InitializeAsync();
+            await machine.HomeAsync(CancellationToken.None);
+            Assert.Equal(0, conveyor.CarrierCount);
+            state.RepeatEnabled = true;
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            run = machine.StartAsync();
+            await waiting.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.True(state.AutomaticRunning);
+            Assert.False(conveyor.RunCommandOn);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RepeatStartsForwardTransferWithOneOrTwoOccupiedStations(bool secondStationOccupied)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
@@ -410,18 +453,7 @@ public sealed partial class MachineLifecycleTests
             state.RepeatEnabled = true;
             io.SetInputs(
                 (InputIo.PcbPlacementHeatSink2Present, true),
-                (InputIo.BoltFasteningHeatSink2Present, true));
-            Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
-            await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(3));
-            Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
-            Assert.Contains("one carrier", state.AlarmMessage);
-            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-
-            io.SetInputs(
-                (InputIo.PcbPlacementHeatSink2Present, false),
-                (InputIo.BoltFasteningHeatSink2Present, false));
-            await machine.ResetAsync();
-            io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+                (InputIo.BoltFasteningHeatSink2Present, secondStationOccupied));
             await services.GetRequiredService<PcbPlacementWork>().Station.SeatAsync(CancellationToken.None);
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             run = machine.StartAsync();
