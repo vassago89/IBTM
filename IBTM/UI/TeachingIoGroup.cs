@@ -13,12 +13,14 @@ public sealed class TeachingIoGroup
     {
         Area = io.Area;
         Sensors = io.Sensors;
-        Outputs = io.Outputs.Select(
-            signal =>
-                new TeachingOutputRow(
-                    signal,
-                    outputs.GetValueOrDefault(signal.Signal),
-                    machine))
+        Outputs = io.Outputs
+            .Where(signal => signal.Signal != OutputIo.PcbPlacementHandlerRotate)
+            .Select(
+                signal =>
+                    new TeachingOutputRow(
+                        signal,
+                        outputs.GetValueOrDefault(signal.Signal),
+                        machine))
             .ToArray();
     }
 

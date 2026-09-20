@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using IBTM.Core;
 using IBTM.Device;
@@ -16,6 +17,19 @@ public sealed class BoltFasteningSettings : Setting
 
     public MotionSettings Motion { get; set; }
     public int ShootingDetectionTimeoutMilliseconds { get; set; } = 3_000;
+    public double ShootingArrivalDelaySeconds
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value) || value < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(value), "Shooting arrival delay must be a finite number of 0 seconds or more.");
+            }
+            field = value;
+        }
+    } = 3.0;
     public double SafeZ { get; set; }
     public AxisPosition PickupPosition { get; set; }
     public BoltHeadSettings ShootingHead { get; set; }

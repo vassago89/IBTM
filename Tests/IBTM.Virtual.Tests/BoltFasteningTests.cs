@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
@@ -528,7 +529,6 @@ public sealed class BoltFasteningTests
 
     [Theory]
     [InlineData(InputIo.ShootingTubeBoltDetected, true)]
-    [InlineData(InputIo.ShootingHeadVacuumDetected, true)]
     [InlineData(InputIo.ShootingTubeBoltDetected, false)]
     public async Task ShootingDetectionUsesItsOwnTimeoutAndStopsTheShot(InputIo input, bool value)
     {
@@ -544,14 +544,6 @@ public sealed class BoltFasteningTests
             new AdcBoltHead(bus, new(), 1),
             io, motion, settings, new());
         io.Initialize();
-        io.OutputChanged += (output, on) =>
-        {
-            if (output == OutputIo.ShootBolt && on && input == InputIo.ShootingHeadVacuumDetected)
-            {
-                io.SetInput(InputIo.ShootingTubeBoltDetected, true);
-                io.SetInput(InputIo.ShootingTubeBoltDetected, false);
-            }
-        };
         if (!value)
             io.SetInput(InputIo.ShootingTubeBoltDetected, true);
 
@@ -562,6 +554,60 @@ public sealed class BoltFasteningTests
         Assert.Contains(input.GetDescription(), error.Message);
         Assert.Contains("timeout (50 ms)", error.Message);
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ShootingArrivalUsesSecondsWithoutVacuumAndStopCancelsDelay(bool stopDuringDelay)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            ShootingArrivalDelaySeconds = 0.2,
+            ShootingDetectionTimeoutMilliseconds = 500,
+        };
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.ShootingArrivalDelaySeconds = -1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.ShootingArrivalDelaySeconds = double.NaN);
+        var io = new VirtualIoService(new BoltFasteningHardwareSettings().Outputs, new())
+        { AutoResponseEnabled = false };
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        var bus = new VirtualAdcBus();
+        var gantry = new BoltFasteningGantry(
+            new AdcBoltHead(bus, new(), 2), new AdcBoltHead(bus, new(), 1),
+            io, motion, settings, new());
+        io.Initialize();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var shot = gantry.ShootBoltAsync(stop.Token);
+        Assert.True(io.GetOutput(OutputIo.ShootBolt));
+        Assert.True(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
+        Assert.False(shot.IsCompleted);
+        var arrival = Stopwatch.StartNew();
+        io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+        io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+        try
+        {
+            if (stopDuringDelay)
+            {
+                // Passage was observed, but the arrival delay has not completed.
+                await Task.Delay(30);
+                Assert.False(shot.IsCompleted);
+                stop.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => shot);
+            }
+            else
+            {
+                await shot.WaitAsync(TimeSpan.FromSeconds(1));
+                Assert.True(arrival.Elapsed >= TimeSpan.FromSeconds(0.18));
+            }
+            Assert.False(io.GetInput(InputIo.ShootingHeadVacuumDetected));
+            Assert.False(io.GetOutput(OutputIo.ShootBolt));
+        }
+        finally
+        {
+            stop.Cancel();
+            await shot.ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
     }
 
     [Fact]
@@ -620,15 +666,18 @@ public sealed class BoltFasteningTests
     [InlineData(FasteningHead.Shooting, true, false)]
     [InlineData(FasteningHead.Pickup, false, true)]
     [InlineData(FasteningHead.Shooting, false, false, true)]
+    [InlineData(FasteningHead.Shooting, false, false, false, true)]
     public async Task IoFasteningStartsBeforeDescentAndStopsAfterCompletionOrFeedFailure(
         FasteningHead selectedHead,
         bool stopDuringDescent,
         bool missingDownFeedback,
-        bool loseTableUp = false)
+        bool loseTableUp = false,
+        bool shootWithoutVacuum = false)
     {
         var settings = new BoltFasteningSettings
         {
             SafeZ = 5,
+            ShootingArrivalDelaySeconds = 0.05,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
             PickupPosition = new() { X = 100, Y = 100, Z = 10 },
             PickupHead = HeadSettings(),
@@ -667,7 +716,8 @@ public sealed class BoltFasteningTests
             (InputIo.PickupTableUp, selectedHead != FasteningHead.Pickup),
             (InputIo.PickupTableDown, selectedHead == FasteningHead.Pickup),
             (InputIo.PickupHeadVacuumDetected, true),
-            (InputIo.ShootingHeadVacuumDetected, true),
+            (InputIo.ShootingHeadVacuumDetected, !shootWithoutVacuum),
+            (InputIo.ShootingFeederBoltDetected, shootWithoutVacuum),
             (InputIo.ShootingEscapeBackward, true));
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         var results = selectedHead == FasteningHead.Shooting ? assembly.PcbBoltResults : assembly.PickupBoltResults;
@@ -678,11 +728,20 @@ public sealed class BoltFasteningTests
             : (OutputIo.ShootingBoltStart, InputIo.ShootingBoltFasten, OutputIo.ShootingHeadDown,
                 InputIo.ShootingHeadUp, InputIo.ShootingHeadDown);
         var commands = new List<string>();
+        var shotElapsed = new Stopwatch();
         var descending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         io.OutputChanged += (output, on) =>
         {
-            if (!on && output == OutputIo.PickupHeadVacuumPump)
+            if (output == OutputIo.ShootingEscapeForward)
+                io.SetInputs((InputIo.ShootingEscapeForward, on), (InputIo.ShootingEscapeBackward, !on));
+            else if (output == OutputIo.ShootBolt && on)
+            {
+                shotElapsed.Restart();
+                io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+            }
+            else if (!on && output == OutputIo.PickupHeadVacuumPump)
                 io.SetInput(InputIo.PickupHeadVacuumDetected, false);
             else if (!on && output == OutputIo.ShootingHeadVacuumPump)
                 io.SetInput(InputIo.ShootingHeadVacuumDetected, false);
@@ -693,6 +752,13 @@ public sealed class BoltFasteningTests
                 {
                     Assert.True(gantry.IsHorizontalMoveAllowed);
                     Assert.Equal(settings.GetHead(selectedHead).FasteningZ, motion.GetPosition().Z);
+                    if (shootWithoutVacuum)
+                    {
+                        Assert.True(shotElapsed.IsRunning);
+                        Assert.True(shotElapsed.Elapsed >= TimeSpan.FromSeconds(0.045));
+                        Assert.False(io.GetInput(InputIo.ShootingHeadVacuumDetected));
+                        Assert.False(io.GetOutput(OutputIo.ShootBolt));
+                    }
                 }
                 io.SetInput(fasten, on); // STOP-induced OFF must not become a successful result.
             }
@@ -1007,6 +1073,7 @@ public sealed class BoltFasteningTests
     {
         var settings = new BoltFasteningSettings
         {
+            ShootingArrivalDelaySeconds = 0.05,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
             SafeZ = 5,
             PickupPosition = new() { X = 100, Y = 50, Z = 10 },
@@ -1130,6 +1197,7 @@ public sealed class BoltFasteningTests
     {
         var settings = new BoltFasteningSettings
         {
+            ShootingArrivalDelaySeconds = 0.05,
             Motion = new MotionSettings { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
             SafeZ = 5,
             PickupPosition = new AxisPosition { X = 10, Y = 10, Z = 10 },

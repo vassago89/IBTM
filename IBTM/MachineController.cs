@@ -403,7 +403,12 @@ public sealed partial class MachineController : INotifyPropertyChanged
         string? interlockDetail = null;
         if (_units.PcbPlacement
             && !_placementHandler.HandlerRaised
-            && _placementHandler.Feedback.IsMoving)
+            && _placementHandler.Feedback.IsMoving
+            && (_placementHandler.Feedback.Command != MotionCommand.Adjustment
+                || _placementHandler.Feedback.IsMovingHorizontal
+                || !IsManualMotionReady(MotionGroup.PcbPlacementHandler)
+                || _state.AutomaticRunning
+                || _state.IsHoming))
         {
             alarm = MachineAlarm.PcbPlacement;
             interlockDetail = "PCB placement axis movement requires the handler lift Up. "

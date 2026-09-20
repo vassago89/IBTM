@@ -46,7 +46,7 @@ public enum TeachingMotionHint
     UnitDisabled,
     [Description("Raise the NG pickup before moving XY.")]
     RaiseNgPickup,
-    [Description("Raise the placement handler before moving any axis.")]
+    [Description("Z Jog/Step is available with the handler lowered. Raise the handler before X/Y or Move To.")]
     RaisePlacementCylinders,
     [Description("Jog/Step adjust one axis at the current height. Raise both heads before moving to a teaching position.")]
     BoltAdjustment,
@@ -349,7 +349,8 @@ public partial class TeachingViewModel
         CancelTeaching();
     }
 
-    private bool IsJogZAllowed => IsJogAllowed(MotionAxis.Z);
+    private bool IsMoveToHorizontalZAllowed => IsJogAllowed(MotionAxis.Z)
+        && (ActiveMotionGroup != MotionGroup.PcbPlacementHandler || _placementHandler.HandlerRaised);
 
     public IAsyncRelayCommand HomeCommand { get; }
 

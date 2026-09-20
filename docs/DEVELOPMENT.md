@@ -161,7 +161,7 @@ StopGrabbing → 장치 Close → Dispose → SDK Finalize 순서이며, 연결 
 티칭 메뉴는 `Teaching` 하나다. 유닛 목록에서 Supply, Placement, Fastening,
 Inspection, NG Transfer를 선택한다. 인계 위치·회전 및 이동 높이는 각각 Supply와 Placement의
 티칭 목록에 포함되며, 축 피드백과 I/O는 선택 유닛을 따른다. 인계값은 Teach로 임시 보관하고
-두 유닛에서 보이는 `Apply & Save Handoff`로 양쪽 값을 묶어서 적용·저장한다. 유닛을 전환해도 임시값은 유지되며,
+상단의 `Save`로 양쪽 인계값을 적용·저장하고 현재 레시피도 저장한다. 유닛을 전환해도 임시값은 유지되며,
 Teaching 메뉴를 나갔다 다시 열면 저장·적용된 설정에서 다시 읽는다.
 
 각 유닛 목록은 작업 위치, 설비 기준값, 계산 위치로 구분한다. 인계 영역 경계값은 사용하지 않는다.
@@ -403,7 +403,8 @@ OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류�
 새 캐리어의 슬롯 이력을 넘기지 않으며 `SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes`로 확인한다.
 수동 스텝 이동은 `TeachingViewModel.StepAsync` → 각 핸들러의 `AdjustAxisAsync` →
 `MotionService.AdjustAxisAsync` 순서다. 공급기·배치기 조그/스텝은 현재 Z에서 선택 축만 움직인다.
-Rotation Z/인계 Z와의 일치 조건 및 선행 Z 이동은 없으며, 배치기 핸들러 상승 확인은 유지한다.
+Rotation Z/인계 Z와의 일치 조건 및 선행 Z 이동은 없다. 배치기 Z 조그/스텝은 핸들러가 내려와 있어도
+조정할 수 있으며, X/Y 조그/스텝과 Move To에는 핸들러 상승 확인을 유지한다.
 모션 계층에서 축 속도·범위·취소를 처리한다. 자동/수동 인계 진입은
 `MoveToHandoffAsync`에서 `MoveToHorizontalZAsync`에 인계 Z를 전달한 뒤 XY를 이동한다.
 XY 이동 전에 Rotation Z로 되돌아가지 않는다.
@@ -414,12 +415,13 @@ Unrotated일 때 인계 Z를 사용한다.
 XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2 X와 Carrier Y, PCB2 후에는
 다음 캐리어의 PCB1 X와 Carrier Y로 돌아간다. 픽업 XY에 도착한 뒤 Rotation Z로 이동하고 Rotated로 전환한다.
 별도 Clear Z나 복귀 좌표는 없다. 시작 시 SMEMA가 없으면 PCB 1 XY·Rotation Z까지 이동해 대기한다.
-기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Handoff`의 XYZ를 확인하고 `Apply & Save Handoff`로 저장한다.
+기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Handoff`의 XYZ를 확인하고 `Save`로 저장한다.
 Placement는 `PCB Receive Standby`에서 기다리다가 실린더 Up 상태로 `PCB Receive Z`까지 내려가
 PCB 감지·진공·그리퍼를 확인한다. Supply 해제 후 대기 Z로 복귀하고 선택한 히트싱크 XY로 이동한다.
 `PCB Receive Z`는 티칭 시 자동 저장되며 기존 대기 XYZ와 별개다. 미티칭이면 수취 Z 이동을 시작하지 않는다.
-상대 위치에 따른 진입·이탈·간섭 대기와 경계 티칭은 제거했다. Z와 HOME을 포함한 모든 Placement 축 이동은
-핸들러 상승을 요구하며, 이동 중 상승 피드백을 잃으면 정지한다. 인계 도착·잡힘·해제 확인은 유지한다.
+상대 위치에 따른 진입·이탈·간섭 대기와 경계 티칭은 제거했다. 수동 Z 조그/스텝을 제외한 Placement 축 이동은
+핸들러 상승을 요구하며, 이동 중 상승 피드백을 잃으면 정지한다. 자동 Z 이동과 HOME도 이 조건을 유지한다.
+인계 도착·잡힘·해제 확인은 유지한다.
 상세 순서는 [Placement 동작](../Stations/IBTM.PcbPlacement/DESIGN.md)을 따른다.
 
 PCB 안착의 XY 이동은 `PcbPlacementHandler.MoveToXYAsync`, Z 이동은 `MoveAxisAsync`에서
@@ -659,8 +661,11 @@ Repeat에서는 Enabled 설정값을 바꾸지 않고 Pickup/Shooting 피더를 
 피더의 볼트 감지와 픽업 진공 ON 확인만 생략한다. 축 위치와 실린더 피드백, 진공 해제 확인은 유지한다.
 집힘 확인을 생략한 픽업 실행 이력은 현재 캐리어와 볼트에만 적용하며, 실제 볼트 보유 상태로 표시하지 않는다.
 Shooting Bolt Feeder OFF 또는 Repeat는 공급 대기·이스케이프·볼트 발사와 공급 관련 감지 대기를 생략한다.
-슈팅 튜브 ON·헤드 진공 ON·튜브 OFF 대기는 `BoltFasteningSettings.ShootingDetectionTimeoutMilliseconds`를 각각 적용한다.
-기본값은 3,000ms이며 Settings → Operation & Timing → Bolt Shooting · Detection Timeout에서 수정한다. 공통 피드백·정지 및 피더 공급 타임아웃과 별개다.
+슈팅 튜브 ON 감지 후 `BoltFasteningSettings.ShootingArrivalDelaySeconds`만큼 기다린 뒤 발사 출력을 끈다.
+헤드 진공 ON은 도착 완료 조건으로 기다리지 않는다. 도착 대기 기본값은 3초이며,
+Settings → Operation & Timing → Bolt Shooting · Arrival Timing → Head Arrival Delay (s)에서 수정한다.
+슈팅 튜브 ON·OFF 감지에는 기존 `ShootingDetectionTimeoutMilliseconds`를 각각 적용한다(기본 3,000ms).
+STOP은 도착 시간 대기를 취소하고 발사 출력을 끈다. 공통 피드백·정지 및 피더 공급 타임아웃과 별개다.
 피더 ON/OFF와 관계없이 모든 볼트의 XY·헤드별 체결 Z로 이동하고, 프리셋 선택 → START → 실린더 하강 → 체결 결과 수거를 수행한다.
 IO형은 기존 FASTEN ON → OFF를 확인한 뒤 START를 끄고 IO · Assumed OK로 기록한다. 통신형은 체결기의 실제 OK/NG 결과를 기록한다.
 픽업 볼트는 각 위치에서 한 번만 체결한다. 체결기 준비 확인과 검사도 유지한다.

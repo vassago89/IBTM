@@ -107,7 +107,7 @@ public partial class TeachingViewModel
             && ActiveMotionGroup switch
             {
                 MotionGroup.PcbSupply or MotionGroup.BoltFastening => true,
-                MotionGroup.PcbPlacementHandler => _placementHandler.HandlerRaised,
+                MotionGroup.PcbPlacementHandler => axis == MotionAxis.Z || _placementHandler.HandlerRaised,
                 MotionGroup.InspectionGantry => _ngTransfer.IsRaised,
                 _ => false,
             };
@@ -382,6 +382,9 @@ public partial class TeachingViewModel
                 case { } when State.IsRunning
                     || !Machine.IsManualMotionReady(ActiveMotionGroup, live: false):
                     return false;
+                case { } when ActiveMotionGroup == MotionGroup.PcbPlacementHandler
+                    && !_placementHandler.HandlerRaised:
+                    return false;
                 case { } point when ActiveMotionGroup == MotionGroup.PcbSupply:
                     return _supplyHandler.IsMoveToTeachingPositionAllowed(point.Position);
                 case { } point:
@@ -422,7 +425,7 @@ public partial class TeachingViewModel
         }
 
         NotifyMotionCommands();
-        SaveHandoffSetupCommand.NotifyCanExecuteChanged();
+        SaveCommand.NotifyCanExecuteChanged();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         GrabCommand.NotifyCanExecuteChanged();

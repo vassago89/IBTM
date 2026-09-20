@@ -19,15 +19,16 @@ position, and `Clear` once Supply may withdraw. Internal placement/press stages
 are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
 documents these conditions and reference direction.
 
-Teaching lists `PCB Receive Standby` (XYZ, Apply & Save Handoff) and
+Teaching lists `PCB Receive Standby` (XYZ, Save) and
 `PCB Receive Z` (Z only, saved automatically). Existing settings retain their
 standby coordinates. Missing `ReceiveZ` remains untaught and cannot start receipt.
 
 Placement reads `RecipeManager.Current.PcbPlacement` for both state selection and
 motion targets; callers do not pass a second recipe into the execution path.
 
-Handler Up is required before and during every axis movement, including Z and
-HOME. The handler cannot be commanded Down while an axis moves. Actual arrival,
+Manual Z Jog/Step can adjust the axis while the handler is lowered. Handler Up is
+required before and during X/Y movement, Move To, automatic Z movement and HOME.
+The handler cannot be commanded Down while an axis moves. Actual arrival,
 seated-carrier and holding/release feedback remain in use. Supply area departure
 and relative handler positions do not gate this sequence.
 

@@ -221,7 +221,7 @@ public sealed class PcbPlacementHandler
         await _motion.MoveToAsync(x, y, z, cancellationToken);
     }
 
-    public Task MoveToTeachingPositionAsync(
+    public async Task MoveToTeachingPositionAsync(
         TeachingPosition point,
         AxisPosition position,
         CancellationToken cancellationToken = default)
@@ -229,11 +229,24 @@ public sealed class PcbPlacementHandler
         switch (point.Mode)
         {
             case TeachMode.ZOnly:
-                return MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
+                await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
+                break;
             case TeachMode.XYOnly:
-                return MoveToXYAsync(position, cancellationToken);
+                await MoveToXYAsync(position, cancellationToken);
+                break;
+            case TeachMode.Full when point.Target == TeachingTarget.PlacementHandoff:
+                EnsureHandlerRaised(cancellationToken);
+                await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: position.Z);
+                EnsureHandlerRaised(cancellationToken);
+                await _motion.MoveToXYAsync(
+                    position.X,
+                    position.Y,
+                    _settings.Motion.HorizontalSpeed,
+                    cancellationToken);
+                break;
             case TeachMode.Full:
-                return MoveToAsync(position.X, position.Y, position.Z, cancellationToken);
+                await MoveToAsync(position.X, position.Y, position.Z, cancellationToken);
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(point));
         }
@@ -241,14 +254,18 @@ public sealed class PcbPlacementHandler
 
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
-        EnsureHandlerRaised(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (axis != MotionAxis.Z)
+            EnsureHandlerRaised(cancellationToken);
         return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
     public Task AdjustAxisAsync(
         MotionAxis axis, double position, double velocity, CancellationToken cancellationToken = default)
     {
-        EnsureHandlerRaised(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (axis != MotionAxis.Z)
+            EnsureHandlerRaised(cancellationToken);
         return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
     }
 

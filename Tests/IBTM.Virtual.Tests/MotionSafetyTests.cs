@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -316,6 +317,65 @@ public sealed class MotionSafetyTests
         io.SetInput(InputIo.PcbSupplyRotated, true); // Both inputs ON is unknown.
         Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));
         Assert.All(pickups, point => Assert.False(supply.IsMoveToTeachingPositionAllowed(point)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementStandbyTeachingUsesPendingZBeforeHorizontalMove(bool cancelAtStandbyZ)
+    {
+        var settings = new PcbPlacementHandlerSettings
+        {
+            Motion = new MotionSettings { HorizontalSpeed = 1_000, ZSpeed = 1_000 },
+            HandoffPosition = new() { X = 20, Y = 15, Z = 3 },
+        };
+        var io = new VirtualIoService(new PcbPlacementHandlerHardwareSettings().Outputs, new MachineOptions());
+        using var motion = new VirtualMotionService(
+            settings.Motion,
+            new OperationCancellation(),
+            horizontalZ: () => settings.HandoffPosition.Z);
+        var placement = new PcbPlacementHandler(motion, io, settings);
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 1_000);
+        io.SetInputs(
+            (InputIo.PcbPlacementHandlerUp, true),
+            (InputIo.PcbPlacementHandlerDown, false));
+        await motion.MoveAxisAsync(MotionAxis.Z, 9, 1_000);
+
+        var standby = settings.GetHandoffTeachingPosition();
+        var pending = new AxisPosition { X = 30, Y = 25, Z = 7 };
+        using var stop = new CancellationTokenSource();
+        var positions = new List<(double X, double Y, double Z)>();
+        motion.PositionChanged += (x, y, z) =>
+        {
+            positions.Add((x, y, z));
+            if (cancelAtStandbyZ && x == 0 && y == 0 && z == pending.Z)
+                stop.Cancel();
+        };
+
+        if (cancelAtStandbyZ)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => placement.MoveToTeachingPositionAsync(standby, pending, stop.Token));
+            Assert.Equal((0, 0, pending.Z), motion.GetPosition());
+        }
+        else
+        {
+            await placement.MoveToTeachingPositionAsync(standby, pending, stop.Token);
+            Assert.Equal((pending.X, pending.Y, pending.Z), motion.GetPosition());
+        }
+
+        Assert.NotEmpty(positions);
+        Assert.All(positions, position =>
+        {
+            Assert.InRange(position.Z, pending.Z, 9);
+            if (position.X != 0 || position.Y != 0)
+                Assert.Equal(pending.Z, position.Z);
+        });
+        Assert.False(motion.IsMoving);
+        Assert.Equal((20, 15, 3),
+            (settings.HandoffPosition.X, settings.HandoffPosition.Y, settings.HandoffPosition.Z));
     }
 
     private static VirtualIoService CreateIo()

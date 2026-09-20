@@ -19,7 +19,7 @@ public sealed partial class MainConveyor
         var receiving = sourceWork is null;
         var timeout = TimeSpan.FromSeconds(_settings.TransferTimeoutSeconds);
         var timeoutMilliseconds = (int)timeout.TotalMilliseconds;
-        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var arrived = new TaskCompletionSource<StationWork.Job>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var carrierLeft = new AsyncAutoResetEvent();
         void ObserveEntry(InputIo input, bool value)
@@ -30,7 +30,7 @@ public sealed partial class MainConveyor
         void ObserveArrival()
         {
             if (destination.IsHeatSinkPresent(HeatSinkSlot.HeatSink2))
-                arrived.TrySetResult();
+                arrived.TrySetResult(destinationWork.CurrentJob);
             if (arrived.Task.IsCompleted && !destination.CarrierPresent)
                 carrierLeft.Set();
         }
@@ -98,10 +98,6 @@ public sealed partial class MainConveyor
             {
                 throw new InvalidOperationException("Carrier presence was lost during the seating push.");
             }
-
-            // 모터 OFF가 S3 검사를 깨우기 전에 출발 작업의 결과를 도착지에 전달한다.
-            if (sourceWork is not null)
-                sourceWork.TransferAssembliesTo(destinationWork, departingJob!);
         }
         catch (Exception exception)
         {
@@ -113,7 +109,23 @@ public sealed partial class MainConveyor
             if (receiving)
                 _io.InputChanged -= ObserveEntry;
             destination.Changed -= ObserveArrival;
-            StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorReadyToFront2);
+            try
+            {
+                // HS2로 도착이 확인된 작업은 밀착 중 STOP해도 체결 결과를 이어받는다.
+                // 감지 후 교체된 캐리어에는 이전 결과를 넘기지 않는다.
+                if (sourceWork is not null
+                    && arrived.Task.IsCompletedSuccessfully
+                    && destination.CarrierPresent
+                    && ReferenceEquals(destinationWork.CurrentJob, await arrived.Task))
+                {
+                    sourceWork.TransferAssembliesTo(destinationWork, departingJob!);
+                }
+            }
+            finally
+            {
+                // 결과 인계 알림이 실패해도 벨트는 반드시 정지시킨다.
+                StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorReadyToFront2);
+            }
         }
 
         // S3는 플레이트 DOWN, 스토퍼 UP 상태에서 검사한다.

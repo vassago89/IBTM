@@ -337,6 +337,69 @@ public sealed partial class ConveyorTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StoppedInspectionArrivalRetainsFasteningNg(bool stopAtArrival)
+    {
+        var io = CreateIo();
+        var source = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
+        var destination = CreateInspectionWork(io);
+        var conveyor = new MainConveyor(
+            io, new ConveyorSettings { CarrierStopDelaySeconds = 30 }, new OperationCancellation(),
+            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), source, destination,
+            new UnitSettings { NgCarrierTransfer = true });
+        io.Initialize();
+        await SetSeatedCarrierAsync(
+            io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
+        var originalJob = source.CurrentJob;
+        var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordPcbBolt(1, new BoltResult(false, 1.25));
+        source.Complete(originalJob);
+        var pushing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        conveyor.Trace += message =>
+        {
+            if (message.Contains("target=seating push", StringComparison.Ordinal))
+                pushing.TrySetResult();
+        };
+        io.InputChanged += (input, value) =>
+        {
+            if (stopAtArrival && input == InputIo.InspectionHeatSink2Present && value)
+                conveyor.Stop();
+        };
+        var run = conveyor.RunAsync();
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            io.SetInputs(
+                (InputIo.InspectionHeatSink1Present, true),
+                (InputIo.InspectionHeatSink2Present, true));
+            if (!stopAtArrival)
+                await pushing.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            conveyor.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        Assert.False(conveyor.RunCommandOn);
+        Assert.Equal(originalJob.Id, destination.CurrentJob.Id);
+        Assert.Same(assembly, Assert.Single(destination.Assemblies));
+        Assert.False(destination.Completed);
+        // Successful visual inspection after START must not erase the fastening NG.
+        foreach (var slot in Enum.GetValues<HeatSinkSlot>().Where(destination.Station.IsHeatSinkPresent))
+        {
+            var inspected = destination.GetAssembly(slot);
+            inspected.RecordBoltPresence(1, true);
+            inspected.CompleteInspection();
+        }
+        destination.Complete(destination.CurrentJob);
+        Assert.True(destination.HasNg);
+        Assert.True(destination.RouteToNg);
+    }
+
     [Fact]
     public async Task ActiveTransferKeepsOriginalResultsWhenSourceGetsAnotherCarrier()
     {

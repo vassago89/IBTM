@@ -373,8 +373,7 @@ public sealed class BoltFasteningGantry
             cancellationToken.ThrowIfCancellationRequested();
             _io.SetOutput(OutputIo.ShootBolt, true);
             await boltPassed;
-            await _io.WaitForInputAsync(
-                InputIo.ShootingHeadVacuumDetected, true, _settings.ShootingDetectionTimeoutMilliseconds, cancellationToken);
+            await Task.Delay(TimeSpan.FromSeconds(_settings.ShootingArrivalDelaySeconds), cancellationToken);
         }
         catch (Exception exception)
         {

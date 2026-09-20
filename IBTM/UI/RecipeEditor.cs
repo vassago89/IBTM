@@ -71,10 +71,10 @@ public partial class RecipeEditor : ObservableObject
 
     public IAsyncRelayCommand SaveCommand { get; }
 
-    public async Task SaveAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> SaveAsync(CancellationToken cancellationToken = default)
     {
         if (!ValidateName())
-            return;
+            return false;
         Error = null;
         var name = Name.Trim();
         try
@@ -82,6 +82,7 @@ public partial class RecipeEditor : ObservableObject
             using var operation = _operations.Link(cancellationToken);
             await _recipes.SaveAsync(name, operation.Token);
             Saved();
+            return true;
         }
         catch (OperationCanceledException)
         {
@@ -90,6 +91,7 @@ public partial class RecipeEditor : ObservableObject
         {
             ReportError(exception);
         }
+        return false;
     }
 
     public IAsyncRelayCommand<string> LoadCommand { get; }

@@ -364,7 +364,7 @@ public sealed class RecipeTests
         editor.Name = " ";
         Assert.False(editor.IsSaveAllowed);
         Assert.False(editor.SaveCommand.CanExecute(null));
-        await editor.SaveAsync(); // Direct autosave calls use the same name check.
+        Assert.False(await editor.SaveAsync()); // Direct autosave calls use the same name check.
         Assert.NotNull(editor.Error);
         Assert.False(await editor.SaveCarrierImagesAsync([]));
         Assert.Empty(database.GetRecipeNames());
@@ -379,7 +379,7 @@ public sealed class RecipeTests
         }
 
         operations.ActivityChanged += CancelWhenStarted;
-        await editor.SaveAsync(cancellation.Token);
+        Assert.False(await editor.SaveAsync(cancellation.Token));
         operations.ActivityChanged -= CancelWhenStarted;
         Assert.Null(editor.Error);
         Assert.Empty(database.GetRecipeNames());
@@ -387,7 +387,7 @@ public sealed class RecipeTests
         Assert.Null(database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
         Assert.False(operations.HasActiveOperations);
 
-        await editor.SaveAsync();
+        Assert.True(await editor.SaveAsync());
         Assert.Null(editor.Error);
         Assert.True(activeAtChange);
         Assert.Equal(savedName, selectedAtChange);

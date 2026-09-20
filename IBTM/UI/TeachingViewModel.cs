@@ -38,7 +38,6 @@ public partial class TeachingViewModel : ObservableObject
     private Task _recipeImageUpdate = Task.CompletedTask;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
-    [NotifyPropertyChangedFor(nameof(HandoffSaveVisible))]
     [NotifyPropertyChangedFor(nameof(ActiveMotionGroup))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
     [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
@@ -115,7 +114,7 @@ public partial class TeachingViewModel : ObservableObject
         StepCommand = new AsyncRelayCommand<TeachingDirection>(StepAsync, IsStepAllowed);
         JogStopCommand = new RelayCommand(JogStop);
         HomeCommand = new AsyncRelayCommand(HomeAsync, () => IsHomeAllowed);
-        MoveToHorizontalZCommand = new AsyncRelayCommand(MoveToHorizontalZAsync, () => IsJogZAllowed);
+        MoveToHorizontalZCommand = new AsyncRelayCommand(MoveToHorizontalZAsync, () => IsMoveToHorizontalZAllowed);
 
         State = state;
         Machine = machine;
@@ -135,7 +134,7 @@ public partial class TeachingViewModel : ObservableObject
         ReinspectImageCommand = new AsyncRelayCommand(ReinspectImageAsync, () => IsReinspectImageAllowed);
         AddBoltPointCommand = new RelayCommand(AddBoltPoint, () => IsAddBoltPointAllowed);
         RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint, () => IsRemoveBoltPointAllowed);
-        SaveHandoffSetupCommand = new AsyncRelayCommand(SaveHandoffSetupAsync, () => IsTeachingEditAllowed);
+        SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsSaveAllowed);
         ReturnFromPickupCommand = new AsyncRelayCommand(ReturnFromPickupAsync, () => IsReturnFromPickupAllowed);
 
         _commands = [
@@ -154,7 +153,7 @@ public partial class TeachingViewModel : ObservableObject
             DrawFovRegionCommand,
             TeachFovRegionCommand,
             TeachCurrentPositionCommand,
-            SaveHandoffSetupCommand,
+            SaveCommand,
         ];
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
@@ -189,6 +188,8 @@ public partial class TeachingViewModel : ObservableObject
         recipes.Changed += OnRecipeChanged;
         recipeEditor.PropertyChanged += (_, e) =>
         {
+            if (e.PropertyName is nameof(RecipeEditor.IsSaveAllowed) or nameof(RecipeEditor.IsBusy))
+                SaveCommand.NotifyCanExecuteChanged();
             if (e.PropertyName != nameof(RecipeEditor.IsSaveAllowed))
                 return;
             GrabCommand.NotifyCanExecuteChanged();
@@ -269,8 +270,6 @@ public partial class TeachingViewModel : ObservableObject
     public bool IsFasteningSelected => SelectedTeachingUnit == HardwareArea.BoltFastening;
 
     public bool IsBoltSelected => IsInspectionSelected && SelectedPoint?.Position.Bolt is not null;
-
-    public bool HandoffSaveVisible => SelectedTeachingUnit is HardwareArea.PcbSupply or HardwareArea.PcbPlacementHandler;
 
     partial void OnSelectedPcbChanged(HeatSinkSlot value)
     {
@@ -593,15 +592,17 @@ public partial class TeachingViewModel : ObservableObject
             .Select(position => new TeachingPoint(position)).ToArray();
     }
 
-    public IAsyncRelayCommand SaveHandoffSetupCommand { get; }
+    public IAsyncRelayCommand SaveCommand { get; }
 
-    private async Task SaveHandoffSetupAsync(CancellationToken cancellationToken)
+    private bool IsSaveAllowed => IsTeachingEditAllowed && RecipeEditor.IsSaveAllowed && !RecipeEditor.IsBusy;
+
+    private async Task SaveAsync(CancellationToken cancellationToken)
     {
         var viewToken = ViewCancellation;
         var activeToken = cancellationToken;
         try
         {
-            if (!(State.SetupEditingEnabled))
+            if (!IsSaveAllowed)
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => State.ManualMode,
@@ -611,9 +612,15 @@ public partial class TeachingViewModel : ObservableObject
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
+            RecipeEditor.Error = null;
             foreach (var point in _handoffPoints)
                 point.Apply();
-            await SaveSettingsAsync(operation.Token, _handoffPoints.Select(point => point.Position.Setting!).Distinct().ToArray());
+            if (await SaveSettingsAsync(operation.Token, _handoffPoints.Select(point => point.Position.Setting!).Distinct().ToArray())
+                && !await RecipeEditor.SaveAsync(operation.Token))
+            {
+                SaveError = "Handoff positions were saved, but the recipe was not saved. "
+                    + (RecipeEditor.Error ?? "Save was cancelled. Save again to finish.");
+            }
             NotifyManualTeachingCommands();
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested

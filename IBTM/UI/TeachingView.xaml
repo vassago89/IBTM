@@ -31,18 +31,18 @@
                 IsEnabled="{Binding IsTeachingEditAllowed}">
                 <TextBox Text="{Binding RecipeEditor.Name, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
                     Width="180" Margin="0,0,6,0" ToolTip="Recipe name"/>
-                <Button Command="{Binding RecipeEditor.SaveCommand}" Margin="0,0,6,0">
+                <Button Command="{Binding SaveCommand}" Margin="0,0,6,0">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                            <Setter Property="Content" Value="Save Recipe"/>
-                            <Setter Property="ToolTip" Value="Save this recipe, including inspection thresholds."/>
+                            <Setter Property="Content" Value="Save"/>
+                            <Setter Property="ToolTip" Value="Apply and save teaching values for Supply and Placement handoff and the current recipe."/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding RecipeEditor.SaveCommand.IsRunning}" Value="True">
+                                <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
                                     <Setter Property="Content" Value="Saving..."/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding ElementName=TeachingRoot, Path=(Validation.HasError)}" Value="True">
                                     <Setter Property="IsEnabled" Value="False"/>
-                                    <Setter Property="ToolTip" Value="Correct the highlighted input before saving the recipe."/>
+                                    <Setter Property="ToolTip" Value="Correct the highlighted input before saving."/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -51,11 +51,6 @@
                 <Button Content="New Recipe" Command="{Binding RecipeEditor.NewCommand}"
                     Style="{StaticResource SecondaryButtonStyle}"/>
             </StackPanel>
-            <Button DockPanel.Dock="Right" Content="Apply &amp; Save Handoff"
-                Command="{Binding SaveHandoffSetupCommand}"
-                Style="{StaticResource PrimaryButtonStyle}"
-                ToolTip="Apply and save staged handoff values for both Supply and Placement."
-                Visibility="{Binding HandoffSaveVisible, Converter={StaticResource BoolToVis}}"/>
             <TextBlock Text="Teaching" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
         <Grid Grid.Row="1">
@@ -247,7 +242,7 @@
                                             <Image Source="{Binding Preview.Overlay}" Height="100" Stretch="Uniform"
                                                 RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                             <TextBlock Text="{Binding Preview.Result}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                            <TextBlock Text="Settings apply to this bolt. Save Recipe to keep changes."
+                                            <TextBlock Text="Settings apply to this bolt. Use Save to keep changes."
                                                 TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
                                         </StackPanel>
                                     </ScrollViewer>
@@ -325,7 +320,7 @@
                                             ToolTip="0 to 255. Applies on the next capture or Live start."/>
                                     </Grid>
                                     <TextBlock
-                                        Text="Light is on during Live or capture. Camera exposure, gain and frame rate use the camera settings. Save Recipe to keep the light level."
+                                        Text="Light is on during Live or capture. Camera exposure, gain and frame rate use the camera settings. Use Save to keep the light level."
                                         TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
                                 </StackPanel>
                             </ScrollViewer>

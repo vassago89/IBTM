@@ -19,6 +19,7 @@ using IBTM.PcbSupply;
 using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -68,6 +69,76 @@ public sealed partial class MachineLifecycleTests
             }
             Assert.False(motion.IsMoving);
             Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task TeachingPlacementZAdjustsWithHandlerDownWhileXyAndMoveToStayBlocked()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+        try
+        {
+            await placement.SetLiftDownAsync(true);
+            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
+            Assert.Equal(PlacementCylinderState.Down, placement.Lift);
+            foreach (var direction in new[] { TeachingDirection.XPlus, TeachingDirection.YPlus })
+            {
+                Assert.False(teaching.JogCommand.CanExecute(direction));
+                Assert.False(teaching.StepCommand.CanExecute(direction));
+            }
+            Assert.False(teaching.MoveToHorizontalZCommand.CanExecute(null));
+            foreach (var target in new[] { TeachingTarget.PlacementHandoff, TeachingTarget.PlacementReceiveZ })
+            {
+                teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == target);
+                Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+            }
+
+            var before = placement.Feedback.GetPosition();
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.ZPlus);
+            Assert.Equal(before.Z + teaching.StepDistance, placement.Feedback.GetPosition().Z, 6);
+            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.ZMinus));
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.ZMinus);
+            Assert.Equal(before, placement.Feedback.GetPosition());
+
+            await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.ZPlus));
+            var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.ZPlus);
+            try
+            {
+                await WaitUntilAsync(() => placement.Feedback.GetPosition().Z > before.Z);
+                Assert.Equal(MotionCommand.Adjustment, placement.Feedback.Command);
+                Assert.Equal(PlacementCylinderState.Down, placement.Lift);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+            }
+            finally
+            {
+                teaching.JogStopCommand.Execute(null);
+                await jog.WaitAsync(TimeSpan.FromSeconds(2));
+            }
+
+            Assert.False(placement.Feedback.IsMoving);
+            Assert.Equal(before.X, placement.Feedback.GetPosition().X);
+            Assert.Equal(before.Y, placement.Feedback.GetPosition().Y);
+            Assert.Equal(PlacementCylinderState.Down, placement.Lift);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            await Assert.ThrowsAsync<MotionInterlockException>(
+                () => placement.MoveToReceiveZAsync());
+            await placement.SetLiftDownAsync(false);
+            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+            Assert.True(teaching.MoveToHorizontalZCommand.CanExecute(null));
+            Assert.True(teaching.MoveToPointCommand.CanExecute(null));
         }
         finally
         {
@@ -849,7 +920,7 @@ public sealed partial class MachineLifecycleTests
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(7, handoff.Z);
             Assert.Equal(originalZ, settings.PcbPlacementHandler.HandoffPosition.Z);
-            await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+            await teaching.SaveCommand.ExecuteAsync(null);
             Assert.Equal(7, settings.PcbPlacementHandler.HandoffPosition.Z);
             Assert.True(placement.IsAtHorizontalZ());
             Assert.Null(teaching.SaveError);
@@ -948,11 +1019,14 @@ public sealed partial class MachineLifecycleTests
             Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
             var teaching = services.GetRequiredService<TeachingViewModel>();
             teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-            var rotation = teaching.TeachingIoGroups.SelectMany(group => group.Outputs)
-                .Single(row => row.Io.Signal == OutputIo.PcbPlacementHandlerRotate);
-            Assert.False(rotation.ToggleOutputCommand.CanExecute(null));
-            await rotation.ToggleOutputCommand.ExecuteAsync(null);
-            var output = new OutputWindowRow(rotation.Io, machine);
+            Assert.DoesNotContain(teaching.TeachingIoGroups.SelectMany(group => group.Outputs),
+                row => row.Io.Signal == OutputIo.PcbPlacementHandlerRotate);
+            var rotation = new TeachingOutput(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler);
+            Assert.False(machine.IsSetTeachingOutputAllowed(rotation));
+            await machine.ToggleTeachingOutputAsync(rotation, CancellationToken.None, CancellationToken.None);
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
+            var output = new OutputWindowRow(
+                services.GetRequiredService<IoSignals>().Outputs[OutputIo.PcbPlacementHandlerRotate], machine);
             Assert.False(output.ToggleCommand.CanExecute(null));
             Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.PcbPlacementHandlerRotate));
             Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
@@ -1360,7 +1434,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task BufferSetupRequiresIdleManualControl()
+    public async Task TeachingSavePersistsHandoffAndRecipeUnderIdleManualControl()
     {
         var settings = FlowSettings();
         var store = VirtualTest.OpenMachineStore(
@@ -1374,12 +1448,20 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
         teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff)
             .Teach(70, 0, 0);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementHandoff)
             .Teach(75, 25, 0);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        recipe.BoltInspection.LightLevel = 123;
+        teaching.RecipeEditor.Name = " ";
+        Assert.False(teaching.SaveCommand.CanExecute(null));
+        await teaching.SaveCommand.ExecuteAsync(null);
+        Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
+        Assert.Empty(store.GetRecipeNames());
+        teaching.RecipeEditor.Name = "Unified teaching";
 
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
@@ -1389,25 +1471,26 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(75, teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.PlacementHandoff).X);
         Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
+        recipe.PcbSupply.Pcb1PickPosition = new() { X = 12, Y = 34, Z = 56 };
 
         using (services.GetRequiredService<OperationCancellation>().Link())
         {
-            await WaitUntilAsync(() => !teaching.SaveHandoffSetupCommand.CanExecute(null));
-            await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+            await WaitUntilAsync(() => !teaching.SaveCommand.CanExecute(null));
+            await teaching.SaveCommand.ExecuteAsync(null);
             Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
         }
 
-        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
 
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => !teaching.SaveHandoffSetupCommand.CanExecute(null));
-        await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => !teaching.SaveCommand.CanExecute(null));
+        await teaching.SaveCommand.ExecuteAsync(null);
         Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
 
         io.SetInput(InputIo.AutoMode, true);
-        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
         settings.Units.PcbSupply = false;
-        await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+        await teaching.SaveCommand.ExecuteAsync(null);
 
         Assert.Null(teaching.SaveError);
         Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
@@ -1417,6 +1500,11 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(70, saved.HandoffPosition.X);
         Assert.Equal(75, savedPlacement.HandoffPosition.X);
         Assert.Equal(25, savedPlacement.HandoffPosition.Y);
+        var savedRecipe = store.LoadRecipe<Recipe>("Unified teaching");
+        Assert.Equal(34, savedRecipe.PcbSupply.Pcb1PickPosition.Y);
+        Assert.Equal(123, savedRecipe.BoltInspection.LightLevel);
+        Assert.Equal("Unified teaching", teaching.RecipeEditor.ActiveName);
+        Assert.Contains("Unified teaching", teaching.RecipeEditor.Recipes);
 
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff)
@@ -1431,7 +1519,7 @@ public sealed partial class MachineLifecycleTests
         teaching.PropertyChanged += StopBeforeWriting;
         try
         {
-            await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+            await teaching.SaveCommand.ExecuteAsync(null);
         }
         finally
         {
@@ -1441,16 +1529,40 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);
         Assert.Equal(70, store.LoadSettings().Get<PcbSupplySettings>().HandoffPosition.X);
         Assert.Contains("cancelled", teaching.SaveError);
-        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
-        await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
+        await teaching.SaveCommand.ExecuteAsync(null);
         Assert.Null(teaching.SaveError);
         Assert.Equal(80, store.LoadSettings().Get<PcbSupplySettings>().HandoffPosition.X);
+
+        // A failed recipe write must report the partial save and remain retryable.
+        using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TRIGGER FailTeachingRecipe BEFORE INSERT ON Recipes BEGIN SELECT RAISE(ABORT, 'recipe write failed'); END";
+        command.ExecuteNonQuery();
+        teaching.RecipeEditor.Name = "Teaching retry";
+        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff)
+            .Teach(90, 0, 0);
+        await teaching.SaveCommand.ExecuteAsync(null);
+        Assert.Contains("recipe was not saved", teaching.SaveError);
+        Assert.Contains("recipe write failed", teaching.SaveError);
+        Assert.Equal(90, store.LoadSettings().Get<PcbSupplySettings>().HandoffPosition.X);
+        Assert.DoesNotContain("Teaching retry", store.GetRecipeNames());
+        Assert.Equal("Unified teaching", teaching.RecipeEditor.ActiveName);
+
+        command.CommandText = "DROP TRIGGER FailTeachingRecipe";
+        command.ExecuteNonQuery();
+        await teaching.SaveCommand.ExecuteAsync(null);
+        Assert.Null(teaching.SaveError);
+        Assert.Null(teaching.RecipeEditor.Error);
+        Assert.Equal("Teaching retry", teaching.RecipeEditor.ActiveName);
+        Assert.Equal(123, store.LoadRecipe<Recipe>("Teaching retry").BoltInspection.LightLevel);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task BufferSetupCancelledBeforeExecutionDoesNotApply(bool closeTeaching)
+    public async Task TeachingSaveCancelledBeforeExecutionDoesNotApply(bool closeTeaching)
     {
         var settings = FlowSettings();
         await using var services = CreateServices(settings);
@@ -1460,7 +1572,7 @@ public sealed partial class MachineLifecycleTests
         var operations = services.GetRequiredService<OperationCancellation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
         teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff)
             .Teach(70, 0, 0);
 
@@ -1475,7 +1587,7 @@ public sealed partial class MachineLifecycleTests
         }
 
         operations.ActivityChanged += CancelWhenStarted;
-        await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+        await teaching.SaveCommand.ExecuteAsync(null);
         operations.ActivityChanged -= CancelWhenStarted;
 
         Assert.Equal(80, settings.PcbSupply.HandoffPosition.X);

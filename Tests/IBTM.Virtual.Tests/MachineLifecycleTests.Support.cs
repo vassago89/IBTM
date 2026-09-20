@@ -202,6 +202,7 @@ public sealed partial class MachineLifecycleTests
             Z = 10,
         };
         settings.BoltFastening.Motion = FastMotion();
+        settings.BoltFastening.ShootingArrivalDelaySeconds = 0.05;
         settings.BoltFastening.SafeZ = 0;
         settings.BoltFastening.PickupPosition = new()
         {

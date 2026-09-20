@@ -23,6 +23,9 @@
   Heat Sink 2만 감지된 상태에서는 이 타이머를 시작하지 않는다.
 - 같은 탭에 공통 피드백·정지 확인, 볼트 공급, 체결 완료 대기 시간을 모았다.
   이 항목들은 최대 대기 시간이며 단위는 ms다. 1,000 ms = 1초.
+- `Bolt Shooting · Arrival Timing → Head Arrival Delay (s)`는 튜브 통과 감지 후
+  슈팅헤드 도착을 기다리는 고정 시간이다. 기본 3초이며 소수 초 입력이 가능하다.
+  진공 ON 대기 대신 사용하고, 튜브 감지 타임아웃(ms)은 별도로 유지한다.
 - 사용 유닛·인터록은 `Units & Safety`, 축 설정은 `Motion`, 입출력 주소는 `I/O Mapping`,
   체결기 타입·통신 연결·카메라·조명은 `Device Connections`에서 설정한다.
 - `Save Settings`로 저장한다. I/O 주소와 장치 연결 변경은 저장 후 재시작해야 적용된다.
@@ -49,12 +52,12 @@
 
 Supply의 `HandoffPosition`은 인계 XYZ를 저장한다. 회전은 `RotationZ`에서 수행하고,
 인계와 다음 픽업 XY 복귀는 `HandoffPosition.Z`에서 수행한다. 이전 XY 전용 설정에는
-인계 Z가 없으므로 `PCB Handoff`의 XYZ를 티칭하고 `Apply & Save Handoff`로 저장해야 한다.
+인계 Z가 없으므로 `PCB Handoff`의 XYZ를 티칭하고 `Save`로 저장해야 한다.
 옛 `BufferClearZ`는 읽을 때 무시하고 다음 저장에서 제외한다. 별도 복귀 좌표는 저장하지 않으며
 PCB1·PCB2 각 픽업의 X/Y를 사용한다. `PCB 1 Pickup`과 `PCB 2 Pickup`은 각각 XYZ를
 레시피에 저장한다. 공통 `CarrierY` 설정은 더 이상 사용하지 않는다.
 기존 레시피에 픽업별 Y가 없으면 미티칭으로 표시하고 해당 픽업 이동을 차단한다.
-각 픽업을 XYZ로 다시 티칭한 뒤 `Save Recipe`로 저장한다.
+각 픽업을 XYZ로 다시 티칭한 뒤 `Save`로 저장한다.
 Placement의 `HandoffPosition`은 인계 대기 XYZ이며 그 Z를 XY 이동 높이로 사용한다.
 실린더 Up 상태에서 PCB를 받는 Z는 별도 `ReceiveZ`로 저장한다. `PCB Receive Z`를 티칭하면
 자동 저장되며, 기존 설정에 없으면 미티칭 상태로 남긴다. 옛 `BufferEntryZ`는 무시·제외한다.
@@ -62,6 +65,10 @@ Placement의 `HandoffPosition`은 인계 대기 XYZ이며 그 Z를 XY 이동 높
 인계 좌표 속성은 `HandoffPosition`이며, 기존 장비 좌표 보존을 위해 JSON 키 `BufferHandoffPosition`은 유지한다.
 카메라 Live FPS와 레시피의 노출·게인 설정도 읽거나 저장하지 않는다. 카메라에 설정된 값을 그대로 사용한다.
 Recipe의 이름 편집·New·Save는 Teaching 상단에 있으며, 메인 화면에서는 현재 이름과 불러오기만 표시한다.
+Teaching의 저장 버튼은 `Save` 하나다. 양쪽 인계 임시값을 적용·저장한 뒤 현재 레시피를 저장한다.
+레시피 이름이 비어 있거나 수동 정지 상태가 아니면 실행하지 않는다.
+인계 저장이 실패하면 레시피 저장을 진행하지 않으며, 인계 저장 후 레시피 저장이 실패·취소되면
+부분 저장 안내를 표시한다. 같은 `Save`로 다시 저장할 수 있다. `New Recipe`는 별도로 유지한다.
 
 `InputIo`, `OutputIo`, `MachineAxis`의 명시적 숫자 값은 저장용 ID다. 물리 IO 주소와 별개이며,
 기존 ID를 바꾸거나 재사용하지 않는다. 코드 이름·표시 문구를 바꿔도 저장 ID는 유지한다.
@@ -84,7 +91,7 @@ IO형 주소는 별도 설정 객체로 저장하므로 ADC형으로 전환해�
 체결기 DI/DO는 타입과 관계없이 일반 IO로 등록하며 Input·Output 창에서 항상 표시·조작한다.
 코드의 기본값 수정은 이미 저장된 DB 값을 변경하지 않는다.
 Settings 저장은 설비 STOP 신호로 취소하지 않으며, 실제 저장 실패는 화면과 로그에 표시한다.
-티칭의 저장 메시지와 오류를 확인하고, 검사 기준·조명 밝기 변경은 Teaching의 Save Recipe로 남긴다.
+티칭의 저장 메시지와 오류를 확인하고, 검사 기준·조명 밝기 변경은 Teaching의 Save로 남긴다.
 티칭값 적용 후 저장 중 STOP으로 취소되면 미저장 안내를 표시한다. 편집값은 메모리에 남지만
 DB에는 이전 값이 유지되므로, 같은 값을 다시 저장해야 재시작 후에도 유지된다.
 FOV/ROI는 Heat Sink별로 독립적이며 캐리어 전체 맵/공유 PCB 영역은 사용하지 않는다.

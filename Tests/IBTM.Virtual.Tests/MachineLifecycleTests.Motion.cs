@@ -302,6 +302,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.PcbPlacementHandler.Motion.ZSpeed = 10;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -312,15 +313,17 @@ public sealed partial class MachineLifecycleTests
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         try
         {
-            var jog = placement.JogAsync(axis, 10, stop.Token);
+            var move = axis == MotionAxis.Z
+                ? placement.MoveAxisAsync(axis, 10, stop.Token)
+                : placement.JogAsync(axis, 10, stop.Token);
             await WaitUntilAsync(() => placement.Feedback.IsMoving);
             io.SetInput(InputIo.PcbPlacementHandlerUp, false);
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => move);
             Assert.Equal(MachineAlarm.PcbPlacement, state.Alarm);
             Assert.False(placement.Feedback.IsMoving);
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveAxisAsync(MotionAxis.Z, 10));
-            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.JogAsync(MotionAxis.Z, 10));
-            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.AdjustAxisAsync(axis, 10, 10));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.JogAsync(MotionAxis.X, 10));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.AdjustAxisAsync(MotionAxis.X, 10, 10));
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveToHorizontalZAsync());
         }
         finally

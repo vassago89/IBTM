@@ -212,9 +212,9 @@ public enum TeachingPointGroup
 
 public enum TeachingSaveBehavior
 {
-    [Description("Teach updates the pending handoff XYZ. Move To uses this pending value. Use Apply & Save Handoff to apply and save.")]
+    [Description("Teach updates the pending handoff XYZ. Move To uses this pending value. Use Save to apply and save.")]
     SupplyHandoff,
-    [Description("Teach updates the pending standby XYZ. Move To uses this pending value. Use Apply & Save Handoff to apply and save.")]
+    [Description("Teach updates the pending standby XYZ. Move To moves to this Z first, then X/Y. Use Save to apply and save.")]
     PlacementHandoff,
     [Description("Teach saves this Z automatically. Move To moves Z only; use PCB Receive Standby for X/Y.")]
     PlacementReceiveZ,
@@ -235,9 +235,9 @@ public enum TeachingSaveBehavior
 
     [Description("Machine setting · Teach saves automatically.")]
     Machine,
-    [Description("Recipe setting · Use Save Recipe after teaching.")]
+    [Description("Recipe setting · Use Save after teaching.")]
     Recipe,
-    [Description("Pending handoff setting · Use Apply & Save Handoff. Unsaved edits are discarded when Teaching closes.")]
+    [Description("Pending handoff setting · Use Save. Unsaved edits are discarded when Teaching closes.")]
     Handoff,
     [Description("Center the bolt in Live, then Grab. Resize the centered square ROI. This heat sink is taught independently. Saves automatically.")]
     Image,
