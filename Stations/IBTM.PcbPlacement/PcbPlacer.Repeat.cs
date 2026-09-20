@@ -23,7 +23,7 @@ public sealed partial class PcbPlacer
         if (_repeatTrip is null)
         {
             if (IsPcbGripUncertain)
-                throw new InvalidOperationException("Placement PCB grip is incomplete away from a confirmed support. Check vacuum and gripper feedback before restarting Repeat.");
+                throw new InvalidOperationException("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before restarting Repeat.");
             if (_work.Station.CarrierSeated && !_work.Completed && heatSink is not null)
             {
                 _repeatTrip = new(_work.CurrentJob, heatSink.Value);
@@ -88,13 +88,11 @@ public sealed partial class PcbPlacer
                 await SetLiftDownAsync(false, operation.Token);
                 await MoveToHorizontalZAsync(operation.Token);
                 await MoveToXYAsync(pickPosition, operation.Token);
-                await SetIpmGripperAsync(false, operation.Token);
                 await SetIpmLiftDownAsync(true, operation.Token);
                 await MoveAxisAsync(MotionAxis.Z, pickPosition.Z, operation.Token);
                 await SetLiftDownAsync(true, operation.Token);
                 await WaitForPcbAsync(operation.Token);
                 await SetVacuumAsync(true, operation.Token);
-                await SetIpmGripperAsync(true, operation.Token);
                 return;
             }
             if (_units.PcbSupply && trip.State == PcbPlacementState.MovingToHandoff
@@ -112,8 +110,7 @@ public sealed partial class PcbPlacer
                 trip.State = PcbPlacementState.WaitingForSupplyRelease;
                 await SetVacuumAsync(false, operation.Token);
                 if (_supply.Handoff != PcbSupplyHandoff.Holding)
-                    throw new InvalidOperationException("Supply lost the returned PCB before placement released its gripper.");
-                await SetIpmGripperAsync(false, operation.Token);
+                    throw new InvalidOperationException("Supply lost the returned PCB while placement released vacuum.");
                 await SetLiftDownAsync(false, operation.Token);
                 await MoveToHorizontalZAsync(operation.Token);
                 await MoveAxisAsync(MotionAxis.Y, GetHeatSinkPosition(trip.HeatSink).Y, operation.Token);
@@ -129,7 +126,6 @@ public sealed partial class PcbPlacer
                 {
                     await SetLiftDownAsync(false, operation.Token);
                     await MoveToHorizontalZAsync(operation.Token);
-                    await SetIpmGripperAsync(false, operation.Token);
                     await SetIpmLiftDownAsync(true, operation.Token);
                     await MoveToHandoffXYAsync(operation.Token);
                     while (_supply.Handoff != PcbSupplyHandoff.Holding)

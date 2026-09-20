@@ -1,9 +1,10 @@
+using System.Text.Json.Serialization;
 using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.PcbPlacement;
 
-public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
+public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings, IJsonOnDeserialized
 {
     public PcbPlacementHandlerHardwareSettings() : base(
         MotionGroup.PcbPlacementHandler,
@@ -28,8 +29,6 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
             [InputIo.PcbPlacementHandlerUnrotated] = 33,
             [InputIo.PcbPlacementIpmDown] = 34,
             [InputIo.PcbPlacementIpmUp] = 35,
-            [InputIo.PcbPlacementIpmGripperClosed] = 36,
-            [InputIo.PcbPlacementIpmGripperOpen] = 37,
             [InputIo.PcbPlacementVacuumDetected] = 38,
             [InputIo.PcbPlacementPcbDetected] = 39,
         };
@@ -50,14 +49,17 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
                 33,
                 InputIo.PcbPlacementIpmDown,
                 InputIo.PcbPlacementIpmUp),
-            [OutputIo.PcbPlacementIpmGripperClose] = CreateOutput(
-                34,
-                35,
-                InputIo.PcbPlacementIpmGripperClosed,
-                InputIo.PcbPlacementIpmGripperOpen),
             [OutputIo.PcbPlacementVacuumEjector] = CreateOutput(36),
         };
     }
 
     public override HardwareArea Area => HardwareArea.PcbPlacementHandler;
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        // Retire the removed gripper without remapping any remaining hardware channels.
+        Inputs.Remove(InputIo.Unused7);
+        Inputs.Remove(InputIo.Unused8);
+        Outputs.Remove(OutputIo.Unused3);
+    }
 }

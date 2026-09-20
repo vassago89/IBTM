@@ -149,7 +149,6 @@ public static class DependencyInjection
                     [HardwareArea.PcbPlacementHandler] = [
                         new(OutputIo.PcbPlacementHandlerDown, HardwareArea.PcbPlacementHandler),
                         new(OutputIo.PcbPlacementIpmDown, HardwareArea.PcbPlacementHandler),
-                        new(OutputIo.PcbPlacementIpmGripperClose, HardwareArea.PcbPlacementHandler),
                         new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler),
                         new(OutputIo.PcbPlacementStopperUp, HardwareArea.MainConveyor),
                         new(OutputIo.PcbPlacementBackupPlateUp, HardwareArea.MainConveyor),

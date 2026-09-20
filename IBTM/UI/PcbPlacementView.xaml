@@ -148,8 +148,6 @@
                         Background="{StaticResource MaterialIpmBrush}" CornerRadius="1"
                         Visibility="{Binding PcbPlacementIpmDown,
                                                  Converter={StaticResource BoolToVis}}"/>
-                    <Border Tag="{Binding PcbPlacementIpmGripperClosed}" Style="{StaticResource LeftGripperJawStyle}"/>
-                    <Border Tag="{Binding PcbPlacementIpmGripperClosed}" Style="{StaticResource RightGripperJawStyle}"/>
                 </Grid>
             </Grid>
 

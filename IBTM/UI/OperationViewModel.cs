@@ -169,7 +169,6 @@ public partial class OperationViewModel : ObservableObject
 
     public bool PcbSupplyGripperClosed => Supply.Gripper == PcbSupplyCylinderState.Forward;
 
-    public bool PcbPlacementIpmGripperClosed => Placement.IpmGripper == PlacementGripperState.Closed;
 
     public bool PickupFeederBoltDetected => _pickupFeeder.State == BoltFeederState.BoltReady;
 
@@ -613,7 +612,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PcbPlacementPcbDetected));
         OnPropertyChanged(nameof(PcbPlacementIpmDown));
         OnPropertyChanged(nameof(Placement));
-        OnPropertyChanged(nameof(PcbPlacementIpmGripperClosed));
         OnPropertyChanged(nameof(PcbPlacementWork));
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));

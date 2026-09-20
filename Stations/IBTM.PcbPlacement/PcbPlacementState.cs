@@ -14,18 +14,6 @@ public enum PlacementCylinderState
     Down,
 }
 
-public enum PlacementGripperState
-{
-    [Description("Open")]
-    Open,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Closed")]
-    Closed,
-}
-
 public enum PlacementPcbState
 {
     [Description("No PCB")]

@@ -29,11 +29,13 @@ public enum InputIo
     [Description("PCB Placement Backup Plate Down")]
     PcbPlacementBackupPlateDown = 6,
 
-    [Description("Placement IPM Gripper Closed")]
-    PcbPlacementIpmGripperClosed = 7,
+    [Description("Unused")]
+    [JsonStringEnumMemberName("PcbPlacementIpmGripperClosed")]
+    Unused7 = 7,
 
-    [Description("Placement IPM Gripper Open")]
-    PcbPlacementIpmGripperOpen = 8,
+    [Description("Unused")]
+    [JsonStringEnumMemberName("PcbPlacementIpmGripperOpen")]
+    Unused8 = 8,
 
     [Description("PCB Placement Heat Sink 2 Present")]
     PcbPlacementHeatSink2Present = 9,
@@ -294,8 +296,9 @@ public enum OutputIo
     [JsonStringEnumMemberName("PcbPlacementBackupPlateDown")]
     PcbPlacementBackupPlateUp = 2,
 
-    [Description("Placement IPM Gripper Close")]
-    PcbPlacementIpmGripperClose = 3,
+    [Description("Unused")]
+    [JsonStringEnumMemberName("PcbPlacementIpmGripperClose")]
+    Unused3 = 3,
 
     [Description("Ready To Front 1 (PCB)")]
     PcbSupplyReadyToFront1 = 4,

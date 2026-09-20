@@ -112,9 +112,7 @@ public sealed class VirtualMachine
                     && _io.GetInput(InputIo.PcbSupplyGripperClosed)
                     && !_io.GetInput(InputIo.PcbSupplyGripperOpen);
                 _placementHoldingPcb = _io.GetInput(InputIo.PcbPlacementPcbDetected)
-                    && _io.GetInput(InputIo.PcbPlacementVacuumDetected)
-                    && _io.GetInput(InputIo.PcbPlacementIpmGripperClosed)
-                    && !_io.GetInput(InputIo.PcbPlacementIpmGripperOpen);
+                    && _io.GetInput(InputIo.PcbPlacementVacuumDetected);
                 _ngCarrierHeld = _io.GetInput(InputIo.NgCarrierDetected)
                     && _io.GetInput(InputIo.NgCarrierGripperClosed)
                     && !_io.GetInput(InputIo.NgCarrierGripperOpen);
@@ -372,9 +370,22 @@ public sealed class VirtualMachine
                     return;
                 }
 
-                _io.SetInput(
-                    InputIo.PcbPlacementVacuumDetected,
-                    value && _io.GetInput(InputIo.PcbPlacementPcbDetected));
+                var holding = value && _io.GetInput(InputIo.PcbPlacementPcbDetected);
+                if (holding)
+                {
+                    _placementHoldingPcb = true;
+                    if (_placementHeatSink is { } slot)
+                        _placedPcbs[slot] = false;
+                }
+                else if (!value && _placementHoldingPcb)
+                {
+                    if (_placementHeatSink is { } slot)
+                        _placedPcbs[slot] = true;
+                    _placementHoldingPcb = false;
+                }
+                _io.SetInput(InputIo.PcbPlacementVacuumDetected, holding);
+                UpdateSupplyDetection();
+                UpdatePlacementDetection();
             });
     }
 
@@ -720,26 +731,6 @@ public sealed class VirtualMachine
                         UpdateSupplyDetection();
                         UpdatePlacementDetection();
                         break;
-                    case OutputIo.PcbPlacementIpmGripperClose:
-                        if (value
-                            && _io.GetInput(InputIo.PcbPlacementPcbDetected)
-                            && _io.GetInput(InputIo.PcbPlacementVacuumDetected))
-                        {
-                            _placementHoldingPcb = true;
-                            if (_placementHeatSink is { } slot)
-                                _placedPcbs[slot] = false;
-                        }
-                        else if (!value && _placementHoldingPcb)
-                        {
-                            if (_placementHeatSink is { } slot)
-                                _placedPcbs[slot] = true;
-
-                            _placementHoldingPcb = false;
-                        }
-                        UpdateSupplyDetection();
-                        UpdatePlacementDetection();
-                        break;
-
                     case OutputIo.PcbPlacementHandlerDown:
                         UpdatePlacementDetection();
                         break;

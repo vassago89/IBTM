@@ -325,9 +325,6 @@ public sealed partial class MachineController
                 case OutputIo.PcbPlacementIpmDown:
                     await _pcbPlacement.SetIpmLiftDownAsync(value, operation.Token);
                     break;
-                case OutputIo.PcbPlacementIpmGripperClose:
-                    await _pcbPlacement.SetIpmGripperAsync(value, operation.Token);
-                    break;
                 case OutputIo.PcbPlacementVacuumEjector:
                     await _pcbPlacement.SetVacuumAsync(value, operation.Token);
                     break;
