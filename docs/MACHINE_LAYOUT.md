@@ -222,13 +222,12 @@ independent motion systems.
 
 Bolt X/Y positions are taught with the Station 3 camera and stored in carrier-relative
 millimetres. The upper-left locating pin is (0, 0), and the Station 3 image X/Y
-directions are the carrier X/Y directions. The lower-right locating pin supplies the
-X and Y reference spans used to map Station 2. Station 3 teaches both pins on the carrier
-image; Station 2 teaches the same two pins separately for each fastening head. The
-Station 3-to-Station 2 conversion maps X and Y independently between the taught
-Upper/Lower ranges. Each axis uses the target span divided by the source span;
-there is no rotation or mixing of X and Y. Both taught pins map to their matching
-head references. Stored bolt coordinates and SDK Unit/Pulse are unchanged. Each bolt
+directions are the carrier X/Y directions. Station 3 teaches both locating pins on the carrier
+image; Station 2 teaches the same two pins separately for each fastening head. Each pair's
+midpoint is the average of its two taught coordinates. The Station 3-to-Station 2 conversion
+adds the head midpoint minus the camera midpoint to the camera teaching XY, reconstructed
+from the stored relative XY plus the camera upper-left reference. This is a translation
+without rotation or scaling. Stored bolt coordinates and SDK Unit/Pulse are unchanged. Each bolt
 point identifies Heat Sink 1 or Heat Sink 2 so the station can use its heat sink-present
 inputs as the work mask.
 

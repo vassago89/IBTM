@@ -22,11 +22,12 @@ namespace IBTM.Virtual.Tests;
 public sealed class RecipeTests
 {
     [Theory]
-    [InlineData(0, 0, 300, 400)]
-    [InlineData(100, 200, 500, 1000)]
-    [InlineData(10, 0, 320, 400)]
-    [InlineData(10, 20, 320, 460)]
-    public void FasteningCoordinatesMapUpperLowerAndBoltPerAxis(
+    [InlineData(0, 0, 350, 600)]
+    [InlineData(100, 200, 450, 800)]
+    [InlineData(50, 100, 400, 700)]
+    [InlineData(10, 0, 360, 600)]
+    [InlineData(10, 20, 360, 620)]
+    public void FasteningCoordinatesAddCenterOffsetWithoutScaling(
         double relativeX, double relativeY, double expectedX, double expectedY)
     {
         var reference = new CarrierReferenceSettings
@@ -54,19 +55,34 @@ public sealed class RecipeTests
     }
 
     [Theory]
-    [InlineData(0, 100)]
-    [InlineData(100, 0)]
-    public void FasteningCoordinatesRequireBothReferenceAxisSpans(double x, double y)
+    [InlineData(0, 100, 27, -1)]
+    [InlineData(100, 0, -23, 49)]
+    [InlineData(0, 0, 27, 49)]
+    public void FasteningCenterOffsetDoesNotRequireReferenceAxisSpans(
+        double spanX, double spanY, double expectedX, double expectedY)
     {
-        var upper = new AxisPosition();
-        var lower = new AxisPosition { X = x, Y = y };
-        var validLower = new AxisPosition { X = 100, Y = 200 };
+        var upper = new AxisPosition { X = 100, Y = 200 };
+        var lower = new AxisPosition { X = upper.X + spanX, Y = upper.Y + spanY };
 
-        Assert.False(CarrierCoordinates.IsDefined(upper, lower));
+        Assert.True(CarrierCoordinates.IsDefined(upper, lower));
+        var position = CarrierCoordinates.ToMachine(
+            new() { X = 7, Y = 9, Z = 12 }, upper, lower,
+            new() { X = -20, Y = 30 }, new() { X = 60, Y = 50 });
+        Assert.Equal((expectedX, expectedY, 12d), (position.X, position.Y, position.Z));
+    }
+
+    [Fact]
+    public void FasteningCenterOffsetRequiresRecordedReferences()
+    {
+        var upper = new AxisPosition { X = 100, Y = 200 };
+        var lower = new AxisPosition { X = 200, Y = 400 };
+
+        Assert.False(CarrierCoordinates.IsDefined(null, lower));
+        Assert.False(CarrierCoordinates.IsDefined(upper, null));
         Assert.Throws<InvalidOperationException>(() =>
-            CarrierCoordinates.ToMachine(new(), upper, lower, upper, validLower));
+            CarrierCoordinates.ToMachine(new(), upper, null!, upper, lower));
         Assert.Throws<InvalidOperationException>(() =>
-            CarrierCoordinates.ToMachine(new(), upper, validLower, upper, lower));
+            CarrierCoordinates.ToMachine(new(), upper, lower, null!, lower));
     }
 
     [Fact]

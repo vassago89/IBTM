@@ -6,10 +6,7 @@ public static class CarrierCoordinates
 {
     public static bool IsDefined(AxisPosition? first, AxisPosition? second)
     {
-        return first is not null
-            && second is not null
-            && first.X != second.X
-            && first.Y != second.Y;
+        return first is not null && second is not null;
     }
 
     public static AxisPosition FromMachine(AxisPosition position, AxisPosition origin)
@@ -43,18 +40,19 @@ public static class CarrierCoordinates
             || !IsDefined(targetUpperLeftLocatingPin, targetLowerRightLocatingPin))
         {
             throw new InvalidOperationException(
-                "Record Upper/Lower reference positions with different X and Y coordinates before converting bolt positions.");
+                "Record the camera and fastening head Upper/Lower reference positions before converting bolt positions.");
         }
 
-        var scaleX = (targetLowerRightLocatingPin.X - targetUpperLeftLocatingPin.X)
-            / (sourceLowerRightLocatingPin.X - sourceUpperLeftLocatingPin.X);
-        var scaleY = (targetLowerRightLocatingPin.Y - targetUpperLeftLocatingPin.Y)
-            / (sourceLowerRightLocatingPin.Y - sourceUpperLeftLocatingPin.Y);
-        // Recorded bolt XY is already relative to the Inspection Upper reference.
+        var sourceCenterX = (sourceUpperLeftLocatingPin.X + sourceLowerRightLocatingPin.X) / 2;
+        var sourceCenterY = (sourceUpperLeftLocatingPin.Y + sourceLowerRightLocatingPin.Y) / 2;
+        var targetCenterX = (targetUpperLeftLocatingPin.X + targetLowerRightLocatingPin.X) / 2;
+        var targetCenterY = (targetUpperLeftLocatingPin.Y + targetLowerRightLocatingPin.Y) / 2;
+        // Restore the camera XY from the stored Upper-relative position, then add the center offset.
+        var cameraPosition = ToMachine(position, sourceUpperLeftLocatingPin);
         return new AxisPosition
         {
-            X = targetUpperLeftLocatingPin.X + position.X * scaleX,
-            Y = targetUpperLeftLocatingPin.Y + position.Y * scaleY,
+            X = cameraPosition.X + targetCenterX - sourceCenterX,
+            Y = cameraPosition.Y + targetCenterY - sourceCenterY,
             Z = position.Z,
         };
     }
