@@ -18,6 +18,30 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbPlacementRepeatTests
 {
     [Fact]
+    public async Task RepeatStillPicksWhenSupplyOnlyDetectsANearbyPcb()
+    {
+        using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
+        await rig.InitializeAsync();
+        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        Assert.False(rig.Handler.PcbSecured);
+        var descendedAtPickup = false;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.PcbPlacementHandlerDown || !on)
+                return;
+            var position = rig.Recipe.HeatSink1PcbPlacementPosition;
+            descendedAtPickup = rig.Handler.IsAtXY(position) && rig.Handler.IsAtZ(position);
+            stop.Cancel();
+        };
+        await rig.Placer.RunAsync(stop.Token, repeat: true);
+        Assert.True(descendedAtPickup);
+        Assert.Empty(rig.Work.Assemblies);
+        Assert.False(rig.Work.Completed);
+    }
+
+    [Fact]
     public async Task RepeatReusesBothPcbsWithoutSupply()
     {
         using var rig = new RepeatRig(loadPcbs: true);
@@ -149,7 +173,7 @@ public sealed class PcbPlacementRepeatTests
     {
         private readonly VirtualMotionService _supplyMotion;
 
-        public RepeatRig(bool loadPcbs)
+        public RepeatRig(bool loadPcbs, bool enableSupply = false)
         {
             Recipe = new()
             {
@@ -176,7 +200,7 @@ public sealed class PcbPlacementRepeatTests
                 Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition);
             Handler = new(Motion, Io, settings);
             var supply = new PcbSupplyHandler(_supplyMotion, Io, supplySettings);
-            var units = new UnitSettings { PcbSupply = false };
+            var units = new UnitSettings { PcbSupply = enableSupply };
             Work = new(ConveyorStation.CreatePcbPlacement(Io), units);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement = Recipe;

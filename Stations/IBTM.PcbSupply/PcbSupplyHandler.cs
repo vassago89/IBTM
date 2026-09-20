@@ -138,6 +138,12 @@ public sealed class PcbSupplyHandler
             && Math.Abs(current.Y - y) <= MotionService.PositionToleranceMillimeters;
     }
 
+    public bool IsAtPickup(PcbPickPosition position)
+    {
+        return position.Y is { } y
+            && Motion.IsAt(new() { X = position.X, Y = y, Z = position.Z }, live: true);
+    }
+
     public void InitializeMotion()
     {
         _motion.Initialize();
@@ -190,12 +196,21 @@ public sealed class PcbSupplyHandler
         PcbPickPosition position,
         CancellationToken cancellationToken = default)
     {
-        await MoveToPickupAsync(position, cancellationToken);
-        await _motion.MoveAxisAsync(MotionAxis.Z, position.Z, _settings.Motion.ZSpeed, cancellationToken);
+        if (!IsAtPickup(position))
+        {
+            await SetIpmFixerAsync(false, cancellationToken);
+            await SetGripperClosedAsync(false, cancellationToken);
+            await MoveToPickupAsync(position, cancellationToken);
+            await _motion.MoveAxisAsync(MotionAxis.Z, position.Z, _settings.Motion.ZSpeed, cancellationToken);
+        }
         if (Pcb == PcbSupplyPcbState.None)
         {
             await _motion.MoveToHorizontalZAsync(cancellationToken);
+            return;
         }
+        // Presence can be ON before reaching the PCB; grip only at the taught pickup XYZ.
+        await SetGripperClosedAsync(true, cancellationToken);
+        await SetIpmFixerAsync(true, cancellationToken);
     }
 
     internal async Task MoveToPickupAsync(PcbPickPosition position, CancellationToken cancellationToken)

@@ -30,7 +30,7 @@ public sealed partial class PcbPlacer
                 if (_handler.PcbSecured)
                     _repeatTrip.State = _units.PcbSupply && _handler.IsAtReceivePosition()
                         ? PcbPlacementState.WaitingForSupply : PcbPlacementState.PlacingPcb;
-                else if (_units.PcbSupply && _supply.PcbDetected)
+                else if (_units.PcbSupply && _supply.PcbSecured)
                     _repeatTrip.State = PcbPlacementState.WaitingForSupply;
                 RepeatChanged?.Invoke();
             }

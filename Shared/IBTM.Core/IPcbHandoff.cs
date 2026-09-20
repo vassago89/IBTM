@@ -10,8 +10,8 @@ public interface IPcbSupplyHandoff
 {
     event Action? Changed;
     PcbSupplyHandoff Handoff { get; }
-    // Live presence, including away from handoff; receipt still requires Holding.
-    bool PcbDetected { get; }
+    // Detected PCB with confirmed grip/fixer, including away from handoff.
+    bool PcbSecured { get; }
 }
 
 public interface IPcbPlacementHandoff

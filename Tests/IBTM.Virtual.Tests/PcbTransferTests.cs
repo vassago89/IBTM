@@ -280,6 +280,11 @@ public sealed class PcbTransferTests
         Assert.False(movedWithCylinderDown);
         Assert.Equal((50, 10, placementSettings.ReceiveZ!.Value), placementMotion.GetPosition());
         Assert.Equal(PcbPlacementHandoff.Holding, placer.Handoff);
+        io.SetInputs((InputIo.PcbPlacementIpmDown, false), (InputIo.PcbPlacementIpmUp, false));
+        Assert.True(recipient.PcbSecured);
+        Assert.Equal(PcbPlacementHandoff.Unavailable, placer.Handoff);
+        io.SetInput(InputIo.PcbPlacementIpmDown, true);
+        Assert.Equal(PcbPlacementHandoff.Holding, placer.Handoff);
     }
 
     [Theory]

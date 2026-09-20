@@ -118,6 +118,21 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
         if (state == PcbSupplyState.WaitingForCarrier && !_handler.IsAtPickupXY(recipe.Pcb1PickPosition))
             state = PcbSupplyState.MovingToPickup;
+        // Resume an interrupted grip at the actual slot without lifting an unsecured PCB.
+        if (!_handler.IsAtHandoff() && _handler.Pcb == PcbSupplyPcbState.Detected
+            && _handler.Rotation == PcbSupplyRotationState.Rotated && _handler.UpstreamCarrierAvailable)
+        {
+            if (_handler.IsAtPickup(recipe.Pcb1PickPosition))
+            {
+                _pickStep = PickStep.Pcb1;
+                state = PcbSupplyState.PickingPcb;
+            }
+            else if (_handler.IsAtPickup(recipe.Pcb2PickPosition))
+            {
+                _pickStep = PickStep.Pcb2;
+                state = PcbSupplyState.PickingPcb;
+            }
+        }
         TraceStep(state, _pickStep.ToString());
         switch (state)
         {
@@ -166,16 +181,32 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 break;
             }
             case PcbSupplyState.MovingToHandoff:
-                if (_handler.Pcb == PcbSupplyPcbState.Detected)
+            {
+                using var handoff = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                void CheckHolding()
                 {
-                    await _handler.SetGripperClosedAsync(true, cancellationToken);
-                    await _handler.SetIpmFixerAsync(true, cancellationToken);
-                    await _handler.MoveToRotationZAsync(cancellationToken);
+                    if (!_handler.PcbSecured)
+                        handoff.Cancel();
                 }
-                if (_handler.Rotation != PcbSupplyRotationState.Unrotated)
-                    await _handler.SetRotatedAsync(false, cancellationToken);
-                await _handler.MoveToHandoffAsync(cancellationToken);
+                _handler.Changed += CheckHolding;
+                try
+                {
+                    CheckHolding();
+                    handoff.Token.ThrowIfCancellationRequested();
+                    if (_handler.Rotation != PcbSupplyRotationState.Unrotated)
+                        await _handler.SetRotatedAsync(false, handoff.Token);
+                    await _handler.MoveToHandoffAsync(handoff.Token);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new InvalidOperationException("Supply lost PCB grip or IPM fixation during forward handoff.");
+                }
+                finally
+                {
+                    _handler.Changed -= CheckHolding;
+                }
                 break;
+            }
             case PcbSupplyState.ReleasingPcb:
                 await ReleasePcbAsync(placement, cancellationToken);
                 break;
@@ -216,7 +247,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
     }
 
-    public bool PcbDetected => _handler.Pcb != PcbSupplyPcbState.None;
+    public bool PcbSecured => _handler.PcbSecured;
 
     public PcbSupplyHandoff Handoff
     {
@@ -267,7 +298,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
             switch (true)
             {
-                case true when pcb != PcbSupplyPcbState.None:
+                case true when pcb == PcbSupplyPcbState.Secured:
                     return PcbSupplyState.MovingToHandoff;
                 case true when !_handler.IsAtRotationZ() || rotation != PcbSupplyRotationState.Rotated:
                     return PcbSupplyState.MovingToPickup;

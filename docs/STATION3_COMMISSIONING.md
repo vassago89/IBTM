@@ -64,6 +64,19 @@
 
 관련 코드: `Stations/IBTM.Inspection/NgCarrierMove.cs`.
 
+## PCB 감지와 고정 판정
+
+- Supply의 `Detected`는 픽업·인계 완료가 아니다. 티칭된 픽업 XYZ에서 그리퍼 닫힘과
+  IPM 고정을 확인한 `Secured`만 인계 이동을 시작한다. 자동·Repeat 모두 적용한다.
+- 픽업 고정 중 STOP 후에는 현재 픽업 XYZ를 확인하고 그 자리에서 고정을 마친다.
+  일반 자동의 인계 이동 중에도 감지·그리퍼·IPM 고정이 풀리면 정지한다.
+- Placement Repeat는 Supply가 감지만 하는 경우 원래 히트싱크에서 픽업을 수행한다.
+  Supply가 실제 고정 중인 경우에만 정방향 수취를 기다린다.
+- Placement 수취 완료는 수취 XYZ, 핸들러 상승, IPM 하강, PCB 감지, 진공,
+  그리퍼 닫힘을 함께 확인한다. 이 조건을 만족해야 Supply가 해제한다.
+- HOME/START 준비에서 소재 감지 시 IPM 상승을 보류하는 보호 조건은 유지한다.
+  이 조건은 주변 소재 보호이며 PCB를 잡았다는 판정이 아니다.
+
 ## Repeat
 
 Repeat는 별도 가상 시퀀스가 아니라 기존 자동 유닛 동작에 반환 구간을 연결한다.

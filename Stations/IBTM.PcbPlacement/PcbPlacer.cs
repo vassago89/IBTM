@@ -62,7 +62,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             if (_repeatTrip is { } trip && _units.PcbSupply)
             {
-                if (_handler.HandlerRaised && _handler.IsAtReceivePosition() && _handler.PcbSecured)
+                if (_handler.HandlerRaised && _handler.IpmLift == PlacementCylinderState.Down
+                    && _handler.IsAtReceivePosition() && _handler.PcbSecured)
                 {
                     return trip.State == PcbPlacementState.ReceivingPcb ? PcbPlacementHandoff.Returning
                         : trip.State == PcbPlacementState.WaitingForSupply ? PcbPlacementHandoff.Holding
@@ -335,7 +336,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 switch (true)
                 {
                     case true when !_repeat && _handler.IsAtReceivePosition(live):
-                        return _handler.HandlerRaised
+                        return _handler.HandlerRaised && _handler.IpmLift == PlacementCylinderState.Down
                             ? PcbPlacementState.WaitingForSupplyRelease
                             : PcbPlacementState.ReceivingPcb;
                     case true when _work.Station.CarrierSeated && heatSink is not null

@@ -337,6 +337,9 @@ public sealed partial class MachineLifecycleTests
         var placement = services.GetRequiredService<PcbPlacementHandler>();
         var supplier = services.GetRequiredService<PcbSupplier>();
         var placer = services.GetRequiredService<PcbPlacer>();
+        var handoffSteps = new ConcurrentQueue<string>();
+        supplier.Trace += handoffSteps.Enqueue;
+        placer.Trace += handoffSteps.Enqueue;
         var returns = 0;
         var reverseHandoffs = 0;
         var mainReturned = false;
@@ -434,7 +437,10 @@ public sealed partial class MachineLifecycleTests
             }
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => mainReturned || state.IsError, TimeSpan.FromSeconds(27)),
-                $"Supply={supplier.State}, Placement={placer.State}, Phase={machine.RepeatDisplayPhase}, {state.AlarmDetail}");
+                $"Supply={supplier.State}/{supplier.Handoff}/{supply.Pcb}/{supply.Rotation}/{supply.Feedback.GetPosition()}, "
+                    + $"Placement={placer.State}/{placer.Handoff}/{placement.Pcb}/{placement.IpmLift}/{placement.Feedback.GetPosition()}, "
+                    + $"Phase={machine.RepeatDisplayPhase}, {state.AlarmDetail}\n"
+                    + string.Join('\n', handoffSteps));
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.Equal(0, returns);
             Assert.False(descendedToSourceSlot);

@@ -12,6 +12,91 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbSupplyRepeatTests
 {
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task PresenceDoesNotSkipPickupAndInterruptedGripResumesAtTheSlot(bool repeat, bool loseGrip)
+    {
+        var settings = new PcbSupplySettings
+        {
+            Motion = new() { HorizontalSpeed = 2_000, ZSpeed = 2_000 },
+            RotationZ = 0,
+            HandoffPosition = new() { X = 80, Y = 30, Z = 2 },
+        };
+        var recipe = new PcbSupplyRecipe
+        {
+            Pcb1PickPosition = new() { X = 10, Y = 10, Z = 5 },
+            Pcb2PickPosition = new() { X = 20, Y = 10, Z = 5 },
+        };
+        var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
+        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
+        var handler = new PcbSupplyHandler(motion, io, settings);
+        var supplier = new PcbSupplier(handler, new() { PcbPlacement = false });
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 2_000);
+        await handler.SetGripperClosedAsync(false);
+        await handler.SetIpmFixerAsync(false);
+        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        Assert.Equal(PcbSupplyPcbState.Detected, handler.Pcb);
+        Assert.False(supplier.PcbSecured);
+        Assert.NotEqual(PcbSupplyState.MovingToHandoff, supplier.State);
+
+        var grippedAtPickup = false;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        void StopAfterGrip(InputIo input, bool on)
+        {
+            if (input != InputIo.PcbSupplyGripperClosed || !on)
+                return;
+            grippedAtPickup = handler.IsAtPickup(recipe.Pcb1PickPosition)
+                && handler.Rotation == PcbSupplyRotationState.Rotated;
+            stop.Cancel();
+        }
+        io.InputChanged += StopAfterGrip;
+        await supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat);
+        io.InputChanged -= StopAfterGrip;
+        Assert.True(grippedAtPickup);
+        Assert.False(handler.IpmFixed);
+
+        var movedBeforeFixing = false;
+        var reachedHandoff = false;
+        var lostGrip = false;
+        using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        motion.MovingChanged += moving => movedBeforeFixing |= moving && !handler.PcbSecured;
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (loseGrip && !lostGrip && handler.PcbSecured && motion.IsMovingHorizontal && x > 30)
+            {
+                lostGrip = true;
+                io.SetInput(InputIo.PcbSupplyIpmFixerForward, false);
+            }
+        };
+        motion.StateChanged += () =>
+        {
+            if (!handler.IsAtHandoff() || !handler.PcbSecured)
+                return;
+            reachedHandoff = true;
+            finish.Cancel();
+        };
+        if (loseGrip)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => supplier.RunAsync(recipe, new NoPlacement(), finish.Token, repeat));
+            Assert.True(lostGrip);
+            Assert.False(motion.IsMoving);
+        }
+        else
+        {
+            await supplier.RunAsync(recipe, new NoPlacement(), finish.Token, repeat);
+        }
+        Assert.Equal(!loseGrip, reachedHandoff);
+        Assert.False(movedBeforeFixing);
+        Assert.Equal(!loseGrip, handler.PcbSecured);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task SupplyRepeatKeepsPcbAboveSlotWithoutUpstreamAndChecksHolding(bool loseHolding)

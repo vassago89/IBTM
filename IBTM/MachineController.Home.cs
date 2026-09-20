@@ -184,11 +184,12 @@ public sealed partial class MachineController
         if (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
             || group is null && PcbHandlersEnabled)
         {
-            // A held PCB needs its IPM support during START. HOME admission checks this separately.
-            var holdingPcb = _io.GetInput(InputIo.PcbPlacementPcbDetected);
+            // Nearby material may still need support. Presence conservatively inhibits IPM lifting;
+            // it does not establish PCB grip or advance the automatic sequence.
+            var pcbDetected = _io.GetInput(InputIo.PcbPlacementPcbDetected);
             await ObserveRaiseAsync(
                 _placementHandler.SetLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
-            if (!holdingPcb && !_io.GetInput(InputIo.PcbPlacementPcbDetected))
+            if (!pcbDetected && !_io.GetInput(InputIo.PcbPlacementPcbDetected))
                 await ObserveRaiseAsync(
                     _placementHandler.SetIpmLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
         }

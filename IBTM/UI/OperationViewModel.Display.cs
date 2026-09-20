@@ -223,7 +223,7 @@ public partial class OperationViewModel
                     return Supply.PcbReleased
                         ? HandlerDisplayState.WaitingForPlacementZ
                         : HandlerDisplayState.WaitingForPlacement;
-                case true when PcbSupplyPcbDetected:
+                case true when Supply.PcbSecured:
                     return HandlerDisplayState.Working;
                 default:
                     return Supply.UpstreamCarrierAvailable
