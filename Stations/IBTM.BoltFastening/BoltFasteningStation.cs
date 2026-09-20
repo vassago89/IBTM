@@ -10,7 +10,7 @@ using IBTM.Storage;
 
 namespace IBTM.BoltFastening;
 
-public sealed class BoltFasteningStation : AutoUnit
+public sealed partial class BoltFasteningStation : AutoUnit
 {
     private readonly BoltFasteningGantry _gantry;
     private readonly BoltFasteningWork _work;
@@ -107,7 +107,7 @@ public sealed class BoltFasteningStation : AutoUnit
         _gantry.DiscardPendingResults();
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
         Exception? failure = null;
         try
@@ -127,7 +127,10 @@ public sealed class BoltFasteningStation : AutoUnit
                         await WaitForChangeAsync(cancellationToken);
                         continue;
                     }
-                    await RunCarrierAsync(cancellationToken);
+                    if (repeat)
+                        await RepeatCarrierAsync(cancellationToken);
+                    else
+                        await RunCarrierAsync(cancellationToken);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

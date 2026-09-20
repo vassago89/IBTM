@@ -6,7 +6,7 @@ using IBTM.Device;
 
 namespace IBTM.NgConveyor;
 
-public sealed class NgShuttle : AutoUnit
+public sealed partial class NgShuttle : AutoUnit
 {
     private readonly IIoService _io;
     private readonly NgCarrierConveyor _conveyor;
@@ -109,24 +109,6 @@ public sealed class NgShuttle : AutoUnit
     public Task SetDownAsync(bool down, CancellationToken cancellationToken = default)
     {
         return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, down, cancellationToken);
-    }
-
-    public async Task CycleAsync(CancellationToken cancellationToken)
-    {
-        if (!Feedback.CarrierDetected || !_transfer.IsRaised)
-        {
-            throw new InvalidOperationException("Shuttle repeat requires a carrier on the shuttle and the NG pickup raised.");
-        }
-
-        await SetDownAsync(true, cancellationToken);
-
-        if (!Feedback.CarrierDetected || !_transfer.IsRaised)
-        {
-            throw new InvalidOperationException("Shuttle repeat lost its carrier or raised pickup feedback before ascent.");
-        }
-
-        await SetDownAsync(false, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
     }
 
     public Task WaitForCarrierAsync(CancellationToken cancellationToken = default)

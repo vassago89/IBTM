@@ -142,39 +142,6 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    public async Task ReturnToStartAsync(CancellationToken cancellationToken)
-    {
-        if (CarrierCount > 1 || ExitCarrierDetected)
-            throw new InvalidOperationException("Main conveyor return requires one carrier and a clear exit.");
-        _repeat = true;
-        try
-        {
-            Stop();
-            using var runCancellation = _operations.Link(cancellationToken);
-            _runCancellation = runCancellation;
-            runCancellation.Disposed += () =>
-            {
-                if (ReferenceEquals(_runCancellation, runCancellation))
-                    _runCancellation = null;
-            };
-            cancellationToken = runCancellation.Token;
-            using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
-            try
-            {
-                await ReturnCarrierAsync(cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                motor.Failure = exception;
-            }
-        }
-        finally
-        {
-            _repeat = false;
-        }
-    }
-
-
     public void Stop()
     {
         var run = _runCancellation;

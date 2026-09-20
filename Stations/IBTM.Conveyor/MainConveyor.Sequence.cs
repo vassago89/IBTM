@@ -84,9 +84,11 @@ public sealed partial class MainConveyor
                 && _inspectionWork.IsTransferAtWaitingPosition(live)
                 && DownstreamReady:
                 return MainConveyorState.DischargingInspectionCarrier;
-            case true when _boltFasteningWork.IsTransferAllowed && _inspectionWork.IsReceiveAllowed:
+            case true when (!_repeat || ReferenceEquals(RepeatEndWork, _inspectionWork))
+                && _boltFasteningWork.IsTransferAllowed && _inspectionWork.IsReceiveAllowed:
                 return MainConveyorState.MovingBoltFasteningToInspection;
-            case true when _placementWork.IsTransferAllowed && _boltFasteningWork.IsReceiveAllowed:
+            case true when (!_repeat || !ReferenceEquals(RepeatEndWork, _placementWork))
+                && _placementWork.IsTransferAllowed && _boltFasteningWork.IsReceiveAllowed:
                 return MainConveyorState.MovingPcbPlacementToBoltFastening;
             case true when _placementWork.IsReceiveAllowed
                 && (EntryCarrierDetected || !_repeat && UpstreamCarrierAvailable):

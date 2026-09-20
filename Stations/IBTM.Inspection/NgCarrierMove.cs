@@ -59,7 +59,7 @@ public enum NgTransferState
 }
 
 // Automatic operation and dry run use the same physical transfer.
-public sealed class NgCarrierMove : AutoUnit
+public sealed partial class NgCarrierMove : AutoUnit
 {
     private readonly InspectionWork _work;
     private readonly NgShuttle _shuttle;
@@ -207,28 +207,6 @@ public sealed class NgCarrierMove : AutoUnit
             EndRun(cancellationToken);
         }
         cancellationToken.ThrowIfCancellationRequested();
-    }
-
-    public async Task ReturnToStationAsync(CancellationToken cancellationToken)
-    {
-        await _work.Station.SeatAsync(cancellationToken);
-        await RunToAsync(NgTransferDestination.Station, cancellationToken);
-    }
-
-    public async Task ClearStationAsync(AxisPosition? firstFov, CancellationToken cancellationToken)
-    {
-        if (firstFov is null)
-            return;
-        if (!_work.Station.CarrierPresent
-            || _pickup.Gripper != NgTransferGripperState.Open
-            || !_pickup.IsRaised)
-            throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the first FOV.");
-
-        var safeX = _settings.PickupSafeX
-            ?? throw new InvalidOperationException("Teach NG Pickup Safe X before leaving Station 3.");
-        await _gantry.MoveAxisAsync(MotionAxis.X, safeX, _settings.Speed, cancellationToken);
-        await _gantry.MoveAxisAsync(MotionAxis.Y, firstFov.Y, _settings.Speed, cancellationToken);
-        await _gantry.MoveAxisAsync(MotionAxis.X, firstFov.X, _settings.Speed, cancellationToken);
     }
 
     // False means the caller can wait or perform inspection while the transfer is idle.

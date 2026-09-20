@@ -370,15 +370,10 @@
                         <StackPanel Orientation="Horizontal"
                             Visibility="{Binding OperationPageSelected,
                                                          Converter={StaticResource BoolToVis}}">
-                            <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
-                                <CheckBox x:Name="RepeatMode" Content="REPEAT"
-                                    ToolTip="Run Repeat in TEACHING (MANUAL) mode. Pickup Feeder OFF keeps pickup motion without bolt confirmation; Shooting Feeder OFF skips supply. Both heads still start the motor and collect fastening results."
-                                    IsChecked="{Binding Operation.State.RepeatEnabled, BindingGroupName={x:Null}}"
-                                    IsEnabled="{Binding Operation.State.SetupEditingEnabled}"/>
-                                <TextBlock Text="{Binding Operation.Machine.RepeatCycles, StringFormat='Cycles: {0}'}"
-                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                    Visibility="{Binding Operation.State.RepeatEnabled, Converter={StaticResource BoolToVis}}"/>
-                            </StackPanel>
+                            <CheckBox x:Name="RepeatMode" Content="REPEAT" Margin="0,0,18,0" VerticalAlignment="Center"
+                                ToolTip="Run Repeat in TEACHING (MANUAL) mode. Pickup Feeder OFF keeps pickup motion without bolt confirmation; Shooting Feeder OFF skips supply. Both heads still start the motor and collect fastening results."
+                                IsChecked="{Binding Operation.State.RepeatEnabled, BindingGroupName={x:Null}}"
+                                IsEnabled="{Binding Operation.State.SetupEditingEnabled}"/>
                             <Button Command="{Binding Operation.HomeCommand}"
                                 IsEnabled="{Binding Operation.Machine.IsHomeAllowed}"
                                 ToolTipService.ShowOnDisabled="True" MinWidth="144" Height="48" Margin="0,0,8,0">

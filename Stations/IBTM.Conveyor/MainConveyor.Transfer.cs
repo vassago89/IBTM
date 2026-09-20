@@ -9,45 +9,6 @@ namespace IBTM.Conveyor;
 
 public sealed partial class MainConveyor
 {
-    private async Task ReturnCarrierAsync(CancellationToken cancellationToken)
-    {
-        if (!EntryCarrierDetected
-            && !_placementWork.Station.CarrierPresent
-            && !_boltFasteningWork.Station.CarrierPresent
-            && !_inspectionWork.Station.CarrierPresent)
-        {
-            throw new InvalidOperationException("Return carrier position is unknown. Restore carrier presence before restarting.");
-        }
-
-        await Task.WhenAll(
-            _placementWork.Station.ReleaseAsync(cancellationToken),
-            _boltFasteningWork.Station.ReleaseAsync(cancellationToken),
-            _inspectionWork.Station.ReleaseAsync(cancellationToken));
-
-        if (EntryCarrierDetected)
-            return;
-
-        Exception? failure = null;
-        try
-        {
-            StartMotor(cancellationToken, reverse: true);
-            await _io.WaitForInputAsync(
-                InputIo.MainConveyorEntryCarrierDetected,
-                true,
-                (int)(_settings.TransferTimeoutSeconds * 1000),
-                cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-            throw;
-        }
-        finally
-        {
-            StopOutputs(failure, OutputIo.MainConveyorRun);
-        }
-    }
-
     private async Task TransferAsync(
         StationWork? sourceWork,
         StationWork destinationWork,

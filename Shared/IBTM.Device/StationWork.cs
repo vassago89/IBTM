@@ -7,7 +7,7 @@ using IBTM.Core;
 
 namespace IBTM.Device;
 
-public abstract class StationWork
+public abstract partial class StationWork
 {
     // Protect only result ownership changes, never device calls or notifications.
     private static readonly Lock s_jobGate;

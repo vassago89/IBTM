@@ -130,8 +130,25 @@ control remains available. TEST OFF followed by ON starts the next carrier.
 
 ## Repeat and verification
 
-Repeat uses PCBs already seated on the main-conveyor carrier. Supply does not
-feed new PCBs during Repeat. See the [Repeat instructions](../../docs/STATION3_COMMISSIONING.md#repeat).
+`PcbSupplier.Repeat.cs` uses the existing `PcbSupplyState` values for the reverse
+operations. With Placement disabled, Supply initially picks one PCB, visits
+handoff, then returns to pickup XY at Rotation Z while retaining its grip and
+fixer. It repeats with that PCB without descending into or releasing at a source
+slot. Upstream availability is required only through the initial pickup lift.
+
+With Placement enabled, Placement returns the PCB from its heat sink at Receive Z.
+Supply confirms its own grip and fixer before Placement releases and rises. Supply
+then travels to pickup XY at Rotation Z with the PCB still secured and performs
+the normal forward handoff. This route does not require an upstream support or
+Available TEST; Repeat does not feed replacement PCBs.
+Both units retain their holding and seating checks in either direction.
+
+STOP discards the current direction. START uses live PCB and position feedback:
+Supply holding resumes forward handoff; Placement holding resumes forward
+placement. When both hold at handoff, Supply releases only after Placement
+confirms holding, and waits for Placement to rise before moving away. Source
+slot identity is not needed for restart because no PCB is placed there.
+See the [Repeat instructions](../../docs/STATION3_COMMISSIONING.md#repeat).
 
 Focused regressions cover standby before SMEMA, both pickup slots, rotation at
 Rotation Z, travel at a different give Z, interrupted entry at that same height,

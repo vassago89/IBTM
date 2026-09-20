@@ -955,7 +955,7 @@ public sealed class PcbTransferTests
     {
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.PcbPlacement = recipe ?? new();
-        return new(supply, handler, work ?? new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), recipes);
+        return new(supply, handler, work ?? new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), recipes, new());
     }
 
     private static MotionSettings FastMotion()

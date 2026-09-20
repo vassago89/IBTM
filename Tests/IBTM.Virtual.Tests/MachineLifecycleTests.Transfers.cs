@@ -230,9 +230,17 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await gantry.MoveToAsync(settings.ShuttlePlacePosition, 10_000);
+        // Seed the shuttle through a real virtual transfer so the carrier retains
+        // its heat-sink payload when it returns to Station 3.
+        io.SetInputs(
+            (InputIo.InspectionHeatSink1Present, true),
+            (InputIo.InspectionHeatSink2Present, true));
+        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await gantry.MoveToAsync(settings.GetCarrierPickupPosition()!, 10_000);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
-        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        using var transferTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await move.RunToAsync(NgTransferDestination.Shuttle, transferTimeout.Token);
+        feedback.AxisMoves.Clear();
         var gripped = false;
         var movedBeforeGrip = false;
         io.InputChanged += (input, value) =>
@@ -246,7 +254,7 @@ public sealed partial class MachineLifecycleTests
                 movedBeforeGrip = true;
         };
 
-        await move.ReturnToStationAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
+        await move.ReturnToStationAsync(transferTimeout.Token).WaitAsync(TimeSpan.FromSeconds(3));
 
         Assert.True(gripped);
         Assert.False(movedBeforeGrip);

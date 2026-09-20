@@ -1,0 +1,66 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using IBTM.BoltFastening;
+using IBTM.Conveyor;
+using IBTM.Core;
+using IBTM.Device;
+using IBTM.PcbPlacement;
+using Xunit;
+using static IBTM.Virtual.Tests.VirtualTest;
+
+namespace IBTM.Virtual.Tests;
+
+public sealed partial class ConveyorTests
+{
+    [Fact]
+    public async Task ReviewProbe_StoppedInspectionArrivalRetainsFasteningNg()
+    {
+        var io = CreateIo();
+        var source = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
+        var destination = CreateInspectionWork(io);
+        var conveyor = new MainConveyor(
+            io, new ConveyorSettings { CarrierStopDelaySeconds = 30 }, new OperationCancellation(),
+            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), source, destination,
+            new UnitSettings { NgCarrierTransfer = true });
+        io.Initialize();
+        await SetSeatedCarrierAsync(
+            io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
+        var originalJob = source.CurrentJob;
+        source.GetAssembly(HeatSinkSlot.HeatSink1).RecordPcbBolt(1, new BoltResult(false, 1.25));
+        source.Complete(originalJob);
+        var pushing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        conveyor.Trace += message =>
+        {
+            if (message.Contains("target=seating push", StringComparison.Ordinal))
+                pushing.TrySetResult();
+        };
+        var run = conveyor.RunAsync();
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            io.SetInputs(
+                (InputIo.InspectionHeatSink1Present, true),
+                (InputIo.InspectionHeatSink2Present, true));
+            await pushing.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            conveyor.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        // Model the ordinary successful visual inspection after START.
+        foreach (var slot in Enum.GetValues<HeatSinkSlot>().Where(destination.Station.IsHeatSinkPresent))
+        {
+            var assembly = destination.GetAssembly(slot);
+            assembly.RecordBoltPresence(1, true);
+            assembly.CompleteInspection();
+        }
+        destination.Complete(destination.CurrentJob);
+        Assert.True(destination.HasNg,
+            $"S2 job {originalJob.Id} was NG; S3 job {destination.CurrentJob.Id} lost that NG and RouteToNg={destination.RouteToNg}.");
+    }
+
+}

@@ -1,5 +1,5 @@
 using System;
-using System.ComponentModel;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,27 +10,10 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
-public enum RepeatPhase
-{
-    [Description("Forward repeat transfer")]
-    Automatic,
-    [Description("NG end → Shuttle")]
-    ReturnToShuttle,
-    [Description("Shuttle → Station 3")]
-    ReturnToStation3,
-    [Description("Returning to entry sensor")]
-    ReturnToStart,
-    [Description("Shuttle down → up")]
-    CycleShuttle,
-    [Description("Station 3 → First inspection FOV")]
-    ClearStation3,
-}
-
 public sealed partial class MachineController
 {
     // Display only. Each invocation executes a new route from its first step.
     private volatile RepeatPhase _repeatDisplayPhase;
-    public int RepeatCycles { get; private set; }
 
     public RepeatPhase RepeatDisplayPhase
     {
@@ -44,43 +27,74 @@ public sealed partial class MachineController
 
     private async Task RunRepeatAsync(CancellationToken cancellationToken)
     {
+        using var repeat = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cancellationToken = repeat.Token;
+        var independentUnits = new List<Task>();
         try
         {
-            var carriers = _conveyor.CarrierCount
-                + (_units.NgShuttle && _ngShuttle.Feedback.CarrierDetected ? 1 : 0)
-                + (_units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
-                + (_units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
-            if (carriers != 1 || _conveyor.ExitCarrierDetected || _ngTransfer.CarrierDetected)
-                throw new InvalidOperationException("Repeat requires one carrier on a support with known presence feedback and an empty NG pickup.");
+            if (_units.MainConveyor || _units.NgCarrierTransfer)
+            {
+                var carriers = (_units.MainConveyor ? _conveyor.CarrierCount
+                        : _ngMove.IsCarrierPresent(NgTransferDestination.Station) ? 1 : 0)
+                    + (_units.NgCarrierTransfer && _units.NgShuttle && _ngShuttle.Feedback.CarrierDetected ? 1 : 0)
+                    + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
+                    + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
+                if (carriers != 1
+                    || _units.MainConveyor && _conveyor.ExitCarrierDetected
+                    || _units.NgCarrierTransfer && _ngTransfer.CarrierDetected)
+                    throw new InvalidOperationException("Repeat requires one carrier on a support with known presence feedback and an empty NG pickup.");
+            }
+
+            if (_units.PcbSupply && !_units.PcbPlacement)
+                independentUnits.Add(ObserveAutomaticUnitAsync(
+                    MachineAlarm.PcbSupply,
+                    _pcbSupply.RunAsync(_recipes.Current.PcbSupply, _pcbPlacement, repeat.Token, repeat: true),
+                    repeat));
+            if (_units.NgShuttle && !_units.NgCarrierTransfer)
+                independentUnits.Add(ObserveAutomaticUnitAsync(
+                    MachineAlarm.NgShuttle,
+                    _ngShuttle.RunRepeatAsync(_units.NgConveyor, repeat.Token),
+                    repeat));
+            if (!_units.MainConveyor && !_units.NgCarrierTransfer)
+            {
+                using var units = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                await RunAutomaticUnitsAsync(units, repeat: true);
+                return;
+            }
 
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 RepeatDisplayPhase = RepeatPhase.Automatic;
                 await RunToRepeatEndAsync(cancellationToken);
-                if (_units.NgConveyor)
+                if (_units.NgCarrierTransfer && _units.NgConveyor)
                 {
                     RepeatDisplayPhase = RepeatPhase.ReturnToShuttle;
-                    await ReturnNgCarrierAsync(cancellationToken);
+                    await _ngTransfer.SetLiftUpAsync(true, cancellationToken);
+                    await _ngShuttle.ReturnFromConveyorAsync(cancellationToken);
                 }
-                else if (_units.NgShuttle)
+                else if (_units.NgCarrierTransfer && _units.NgShuttle)
                 {
                     RepeatDisplayPhase = RepeatPhase.CycleShuttle;
                     await _ngShuttle.CycleAsync(cancellationToken);
                 }
 
-                RepeatDisplayPhase = RepeatPhase.ReturnToStation3;
-                await _ngMove.ReturnToStationAsync(cancellationToken);
-                RepeatDisplayPhase = RepeatPhase.ClearStation3;
-                await _ngMove.ClearStationAsync(
-                    _recipes.Current.CarrierImages.MinBy(image => image.Number)?.Center,
-                    cancellationToken);
-                RepeatDisplayPhase = RepeatPhase.ReturnToStart;
-                await ReturnMainCarrierAsync(cancellationToken);
+                if (_units.NgCarrierTransfer)
+                {
+                    RepeatDisplayPhase = RepeatPhase.ReturnToStation3;
+                    await _ngMove.ReturnToStationAsync(cancellationToken);
+                    RepeatDisplayPhase = RepeatPhase.ClearStation3;
+                    await _ngMove.ClearStationAsync(
+                        _recipes.Current.CarrierImages.MinBy(image => image.Number)?.Center,
+                        cancellationToken);
+                }
+                if (_units.MainConveyor)
+                {
+                    RepeatDisplayPhase = RepeatPhase.ReturnToStart;
+                    await ReturnMainCarrierAsync(cancellationToken);
+                }
                 cancellationToken.ThrowIfCancellationRequested();
-                RepeatCycles++;
-                PropertyChanged?.Invoke(this, new(nameof(RepeatCycles)));
-                _log?.LogInformation("{Message}", $"Repeat cycle {RepeatCycles} returned to the entry sensor.");
+                _log?.LogInformation("Repeat carrier returned to its starting support.");
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -102,6 +116,8 @@ public sealed partial class MachineController
         }
         finally
         {
+            repeat.Cancel();
+            await Task.WhenAll(independentUnits);
             RepeatDisplayPhase = RepeatPhase.Automatic;
         }
     }
@@ -109,90 +125,24 @@ public sealed partial class MachineController
     private async Task RunToRepeatEndAsync(CancellationToken cancellationToken)
     {
         using var cycle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var transferChanged = new AsyncAutoResetEvent();
-        if (_units.NgConveyor)
-            _ngConveyor.Changed += transferChanged.Set;
-        else
-            _ngMove.Changed += transferChanged.Set;
         var automatic = RunAutomaticUnitsAsync(cycle, repeat: true);
         try
         {
-            if (_units.NgConveyor)
-            {
-                await _io.WaitForInputAsync(
-                    InputIo.NgConveyorPosition1Occupied, true, Timeout.Infinite, cycle.Token);
-                while (_ngConveyor.State != NgConveyor.NgConveyorState.ReadyToEject
-                    || _ngConveyor.RunCommandOn)
-                {
-                    await transferChanged.WaitAsync(cycle.Token);
-                }
-            }
+            if (!_units.NgCarrierTransfer)
+                await _conveyor.WaitForRepeatEndAsync(cycle.Token);
+            else if (_units.NgConveyor)
+                await _ngConveyor.WaitForRepeatEndAsync(cycle.Token);
             else
-            {
-                var holdAtShuttle = !_units.NgShuttle;
-                var endState = holdAtShuttle
-                    ? NgTransferState.HoldingAtDestination
-                    : NgTransferState.Completed;
-                while (_ngMove.GetState(
-                    NgTransferDestination.Shuttle,
-                    canPickUp: true,
-                    holdAtDestination: holdAtShuttle) != endState)
-                {
-                    await transferChanged.WaitAsync(cycle.Token);
-                }
-            }
+                await _ngMove.WaitForRepeatEndAsync(!_units.NgShuttle, cycle.Token);
         }
         finally
         {
-            _ngMove.Changed -= transferChanged.Set;
-            _ngConveyor.Changed -= transferChanged.Set;
             cycle.Cancel();
             // Reverse begins only after every forward unit has released its commands.
             await automatic;
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-    }
-
-    private async Task ReturnNgCarrierAsync(CancellationToken cancellationToken)
-    {
-        await _ngTransfer.SetLiftUpAsync(true, cancellationToken);
-        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        void CheckPickup()
-        {
-            if (!_ngTransfer.IsRaised)
-                operation.Cancel();
-        }
-
-        _ngTransfer.Changed += CheckPickup;
-        Exception? failure = null;
-        try
-        {
-            CheckPickup();
-            operation.Token.ThrowIfCancellationRequested();
-            if (!_ngShuttle.Feedback.CarrierDetected)
-                await _ngShuttle.SetDownAsync(true, operation.Token);
-            await _ngConveyor.ReturnToShuttleAsync(operation.Token);
-            await _ngShuttle.SetDownAsync(false, operation.Token);
-            operation.Token.ThrowIfCancellationRequested();
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-            throw;
-        }
-        finally
-        {
-            _ngTransfer.Changed -= CheckPickup;
-            try
-            {
-                _ngConveyor.Stop();
-            }
-            catch (Exception cleanupFailure) when (failure is not null)
-            {
-                throw new AggregateException(failure, cleanupFailure);
-            }
-        }
     }
 
     private OutputBlockReason MainConveyorReturnBlock

@@ -8,7 +8,7 @@ using IBTM.Device;
 
 namespace IBTM.NgConveyor;
 
-public sealed class NgCarrierConveyor : AutoUnit
+public sealed partial class NgCarrierConveyor : AutoUnit
 {
     private readonly IIoService _io;
     private readonly NgConveyorSettings _settings;
@@ -211,19 +211,6 @@ public sealed class NgCarrierConveyor : AutoUnit
             _movement = Movement.None;
             _ejectionPhase = EjectionPhase.Idle;
         }
-    }
-
-    public async Task ReturnToShuttleAsync(CancellationToken cancellationToken)
-    {
-        if (CarrierCount != 1)
-            throw new InvalidOperationException("NG return requires one carrier with known presence feedback.");
-        if (_shuttle.Lift != NgShuttleLiftState.Down && !Position3Occupied)
-            throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
-
-        _movement = Movement.None;
-        _ejectionPhase = EjectionPhase.Idle;
-        await SetStopperDownAsync(true, cancellationToken);
-        await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, true, cancellationToken);
     }
 
     private Task ExecuteAsync(CancellationToken cancellationToken)

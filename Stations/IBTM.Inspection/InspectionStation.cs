@@ -8,7 +8,7 @@ using IBTM.NgConveyor;
 
 namespace IBTM.Inspection;
 
-public sealed class InspectionStation : AutoUnit
+public sealed partial class InspectionStation : AutoUnit
 {
     private readonly InspectionWork _work;
     private readonly BoltInspector _inspector;
@@ -75,6 +75,8 @@ public sealed class InspectionStation : AutoUnit
         {
             while (!cancellationToken.IsCancellationRequested)
             {
+                if (repeat && !_units.MainConveyor)
+                    await PrepareRepeatAsync(cancellationToken);
                 if (!_work.Enabled)
                 {
                     var job = _work.CurrentJob;

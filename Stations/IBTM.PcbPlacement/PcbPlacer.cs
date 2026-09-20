@@ -14,17 +14,24 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private readonly RecipeManager _recipes;
     private readonly PcbPlacementHandler _handler;
     private readonly PcbPlacementWork _work;
+    private readonly UnitSettings _units;
     private HeatSinkSlot[]? _runTargets;
     // Down before release and Down after pressing have identical IO feedback.
     // Keep the press target only while this run owns the operation.
     private HeatSinkSlot? _pressingHeatSink;
 
-    public PcbPlacer(IPcbSupplyHandoff supply, PcbPlacementHandler handler, PcbPlacementWork work, RecipeManager recipes)
+    public PcbPlacer(
+        IPcbSupplyHandoff supply,
+        PcbPlacementHandler handler,
+        PcbPlacementWork work,
+        RecipeManager recipes,
+        UnitSettings units)
     {
         _supply = supply;
         _recipes = recipes;
         _handler = handler;
         _work = work;
+        _units = units;
         _work.Station.CarrierChanged += OnCarrierChanged;
     }
 
@@ -35,6 +42,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             _handler.Feedback.StateChanged += value;
             _handler.Changed += value;
             _work.Changed += value;
+            RepeatChanged += value;
         }
 
         remove
@@ -42,6 +50,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             _handler.Feedback.StateChanged -= value;
             _handler.Changed -= value;
             _work.Changed -= value;
+            RepeatChanged -= value;
         }
     }
 
@@ -51,6 +60,17 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         get
         {
+            if (_repeatTrip is { } trip && _units.PcbSupply)
+            {
+                if (_handler.HandlerRaised && _handler.IsAtReceivePosition() && _handler.PcbSecured)
+                {
+                    return trip.State == PcbPlacementState.ReceivingPcb ? PcbPlacementHandoff.Returning
+                        : trip.State == PcbPlacementState.WaitingForSupply ? PcbPlacementHandoff.Holding
+                        : PcbPlacementHandoff.Unavailable;
+                }
+                return _handler.HandlerRaised && _handler.IsAtHorizontalZ()
+                    ? PcbPlacementHandoff.Clear : PcbPlacementHandoff.Unavailable;
+            }
             switch (State)
             {
                 case PcbPlacementState.WaitingForSupplyRelease:
@@ -112,7 +132,10 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     {
                         _runTargets = null;
                     }
-                    else if (_work.Station.CarrierSeated)
+                    if (_repeat && !_units.MainConveyor && _work.Completed
+                        && _work.Station.CarrierSeated && _handler.HandlerRaised && _handler.IsAtHorizontalZ())
+                        _work.StartRepeat(_work.CurrentJob);
+                    if (_work.Station.CarrierSeated)
                     {
                         _runTargets ??= Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
                     }
@@ -159,13 +182,13 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 state = PcbPlacementState.PreparingPlacement;
                 break;
         }
-        TraceStep(state, _repeatTrip is { } trip ? $"{trip.HeatSink}, Repeat {trip.Phase}" : heatSink?.ToString(), job.Id);
+        TraceStep(state, _repeatTrip is { } trip ? $"{trip.HeatSink}, Repeat {trip.State}" : heatSink?.ToString(), job.Id);
         switch (state)
         {
             case PcbPlacementState.MovingToHandoff:
                 await _handler.SetLiftDownAsync(false, cancellationToken);
                 await _handler.MoveToHorizontalZAsync(cancellationToken);
-                if (_repeatTrip?.Phase != RepeatPcbPhase.ToHandoff)
+                if (_repeatTrip?.State != PcbPlacementState.MovingToHandoff)
                     await _handler.SetIpmGripperAsync(false, cancellationToken);
                 await _handler.SetIpmLiftDownAsync(true, cancellationToken);
                 await _handler.MoveToHandoffXYAsync(cancellationToken);
@@ -188,19 +211,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 await _handler.SetIpmLiftDownAsync(_handler.Pcb == PlacementPcbState.Secured, cancellationToken);
                 await _handler.SetLiftDownAsync(false, cancellationToken);
                 await _handler.MoveToHorizontalZAsync(cancellationToken);
-                break;
-            case PcbPlacementState.PickingPcb:
-                var pickPosition = GetHeatSinkPosition(heatSink!.Value);
-                await _handler.SetLiftDownAsync(false, cancellationToken);
-                await _handler.MoveToHorizontalZAsync(cancellationToken);
-                await _handler.MoveToXYAsync(pickPosition, cancellationToken);
-                await _handler.SetIpmGripperAsync(false, cancellationToken);
-                await _handler.SetIpmLiftDownAsync(true, cancellationToken);
-                await _handler.MoveAxisAsync(MotionAxis.Z, pickPosition.Z, cancellationToken);
-                await _handler.SetLiftDownAsync(true, cancellationToken);
-                await _handler.WaitForPcbAsync(cancellationToken);
-                await _handler.SetVacuumAsync(true, cancellationToken);
-                await _handler.SetIpmGripperAsync(true, cancellationToken);
                 break;
             case PcbPlacementState.PlacingPcb:
             {
@@ -232,7 +242,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         await _handler.SetLiftDownAsync(true, operation.Token);
                         _pressingHeatSink = null;
                         if (_repeatTrip is { } releasing)
-                            releasing.Phase = RepeatPcbPhase.Releasing;
+                            releasing.State = PcbPlacementState.PreparingPlacement;
                         await _handler.SetVacuumAsync(false, operation.Token);
                     }
 
@@ -287,6 +297,9 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         if (!_work.Enabled)
             return PcbPlacementState.Disabled;
+        if (_repeatTrip?.State is PcbPlacementState.ReceivingPcb
+            or PcbPlacementState.WaitingForSupplyRelease or PcbPlacementState.WaitingForSupply)
+            return _repeatTrip.State;
         var pcb = _handler.Pcb;
         var currentHeatSink = GetCurrentHeatSink(live);
         if (currentHeatSink is { } current && _work.Station.CarrierSeated && !_handler.VacuumDetected)
@@ -296,7 +309,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 if (_handler.Lift != PlacementCylinderState.Up || !_handler.IsAtHorizontalZ(live))
                     return PcbPlacementState.PreparingPlacement;
             }
-            else if ((!_repeat || _repeatTrip?.Phase is RepeatPcbPhase.Placing or RepeatPcbPhase.Releasing)
+            else if ((!_repeat || _repeatTrip?.State is PcbPlacementState.PlacingPcb or PcbPlacementState.PreparingPlacement)
                 && !_work.Completed && IsTarget(current) && pcb != PlacementPcbState.None
                 && _handler.IsAtZ(GetHeatSinkPosition(current), live)
                 && _handler.Lift == PlacementCylinderState.Down)
@@ -307,9 +320,9 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
         switch (true)
         {
-            case true when _repeatTrip?.Phase == RepeatPcbPhase.Picking:
+            case true when _repeatTrip?.State == PcbPlacementState.PickingPcb:
                 return PcbPlacementState.PickingPcb;
-            case true when _repeatTrip?.Phase == RepeatPcbPhase.ToHandoff:
+            case true when _repeatTrip?.State == PcbPlacementState.MovingToHandoff:
                 return PcbPlacementState.MovingToHandoff;
             case true when pcb == PlacementPcbState.Secured:
                 switch (true)

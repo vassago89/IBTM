@@ -176,10 +176,11 @@ public sealed class PcbPlacementRepeatTests
                 Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition);
             Handler = new(Motion, Io, settings);
             var supply = new PcbSupplyHandler(_supplyMotion, Io, supplySettings);
-            Work = new(ConveyorStation.CreatePcbPlacement(Io), new());
+            var units = new UnitSettings { PcbSupply = false };
+            Work = new(ConveyorStation.CreatePcbPlacement(Io), units);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement = Recipe;
-            Placer = new(new PcbSupplier(supply, new()), Handler, Work, recipes);
+            Placer = new(new PcbSupplier(supply, units), Handler, Work, recipes, units);
         }
 
         public VirtualIoService Io { get; }

@@ -12,7 +12,7 @@ Handler Rotate output stays OFF during automatic, repeat and manual operation.
 6. Return to receiving XY for the second PCB and repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
 7. Complete the carrier after the final placement is raised, then return to receiving standby.
 
-`State` / `GetState` describe Placement's own feedback only. `PlaceAsync` starts
+`State` / `GetState` describe Placement feedback and its current repeat operation. `PlaceAsync` starts
 receipt when Supply's `Handoff` is `Holding`, and returns Z to standby once it is
 `Released`. Placement publishes `Holding` while securing the PCB at the receiving
 position, and `Clear` once Supply may withdraw. Internal placement/press stages
@@ -32,8 +32,19 @@ seated-carrier and holding/release feedback remain in use. Supply area departure
 and relative handler positions do not gate this sequence.
 
 The press target belongs only to the current run because the Down inputs before
-and after pressing are identical. STOP discards this history. Repeat uses the same
-placement path with PCBs picked from the existing carrier, without Supply.
+and after pressing are identical. STOP discards this history. `PcbPlacer.Repeat.cs`
+uses the existing `PcbPlacementState` values and picks PCBs from the existing carrier.
+With Supply disabled, it visits handoff and places each PCB back on its heat sink.
+With Supply enabled, `ReturningPcb` identifies the original heat sink and `Returning`
+confirms a held PCB at Receive Z. Supply secures it before Placement releases and
+rises. Placement waits for Supply's departure and next forward handoff, then places
+and presses the same PCB. Supply keeps the PCB secured through its reverse travel
+at pickup travel height; it does not put the PCB into an upstream slot.
+After STOP, live holding feedback selects forward continuation: a PCB on Supply
+waits for forward receipt, a PCB held by Placement continues to its heat sink,
+and a shared hold at Receive Z waits for Supply release before Placement rises.
+Main Conveyor OFF repeats the completed seated carrier
+with a new work record; it does not clear incomplete work.
 
 `MovingToHandoff`, `ReceivingPcb`, `PreparingPlacement`, `PlacingPcb` and
 `CompletingCarrier` execute their full actuator/motion sequence before the next

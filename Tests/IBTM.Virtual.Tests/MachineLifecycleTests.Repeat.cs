@@ -23,6 +23,7 @@ public sealed partial class MachineLifecycleTests
     public async Task RepeatWithPickupFeederOffStartsBothIoHeadsAndReturnsBothPcbsTwice()
     {
         var settings = FlowSettings();
+        settings.Units.PcbSupply = false;
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.Units.PickupBoltFeeder = false;
         settings.Conveyor.CarrierStopDelaySeconds = 0;
@@ -55,6 +56,7 @@ public sealed partial class MachineLifecycleTests
         var pickupStarts = 0;
         var pickupAttempts = 0;
         var handoffTrips = 0;
+        var mainReturns = 0;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.PickupFeederBoltDetected, false);
@@ -72,6 +74,10 @@ public sealed partial class MachineLifecycleTests
         };
         io.OutputChanged += (output, on) =>
         {
+            if (!on && output == OutputIo.MainConveyorRun
+                && !io.GetOutput(OutputIo.MainConveyorForward)
+                && io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
+                Interlocked.Increment(ref mainReturns);
             if (on && output is OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyReadyToFront1)
                 forbidden.Enqueue(output);
             if (on && output == OutputIo.PickupHeadVacuumPump)
@@ -123,10 +129,10 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => machine.RepeatCycles >= 2 || state.IsError, TimeSpan.FromSeconds(55)),
-                $"Cycles={machine.RepeatCycles}; Phase={machine.RepeatDisplayPhase}; Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().State}; {state.AlarmDetail}");
+                () => mainReturns >= 2 || state.IsError, TimeSpan.FromSeconds(55)),
+                $"Returns={mainReturns}; Phase={machine.RepeatDisplayPhase}; Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().State}; {state.AlarmDetail}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-            Assert.True(machine.RepeatCycles >= 2);
+            Assert.True(mainReturns >= 2);
             Assert.True(shootingStarts >= 4);
             Assert.True(pickupDescents >= 4);
             Assert.True(pickupStarts >= 4);
@@ -192,6 +198,7 @@ public sealed partial class MachineLifecycleTests
         var loweredWhileHolding = false;
         var openedAtShuttle = false;
         var ngConveyorRan = false;
+        var mainReturned = false;
         var stoppedForConfiguration = false;
         void CheckPickup()
         {
@@ -219,6 +226,10 @@ public sealed partial class MachineLifecycleTests
         pickup.Changed += CheckPickup;
         io.OutputChanged += (output, on) =>
         {
+            if (!on && output == OutputIo.MainConveyorRun
+                && !io.GetOutput(OutputIo.MainConveyorForward)
+                && io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
+                mainReturned = true;
             if (output == OutputIo.NgCarrierGripperClose && !on
                 && gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition))
                 openedAtShuttle = true;
@@ -249,11 +260,11 @@ public sealed partial class MachineLifecycleTests
             }
 
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => machine.RepeatCycles >= 1 || state.IsError,
+                () => mainReturned || state.IsError,
                 TimeSpan.FromSeconds(10)),
                 $"Phase={machine.RepeatDisplayPhase}, Alarm={state.AlarmDetail}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-            Assert.Equal(1, machine.RepeatCycles);
+            Assert.True(mainReturned);
             Assert.True(loweredWhileHolding);
             Assert.Equal(shuttleEnabled, openedAtShuttle);
             Assert.Equal(shuttleEnabled, placedAndReleased);
@@ -266,6 +277,37 @@ public sealed partial class MachineLifecycleTests
             machine.Stop();
             await run.WaitAsync(TimeSpan.FromSeconds(3));
             pickup.Changed -= CheckPickup;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task RepeatStartAllowsSupplyOnlyAndRequiresShuttleForNgConveyor()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        try
+        {
+            await machine.InitializeAsync();
+            await machine.HomeAsync(CancellationToken.None);
+            state.RepeatEnabled = true;
+            Assert.True(state.RepeatEnabled);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+
+            settings.Units.NgConveyor = true;
+            Assert.Equal(StartBlockReason.RepeatRouteUnavailable, machine.StartBlock);
+            Assert.False(machine.IsStartAllowed);
+
+            settings.Units.NgShuttle = true;
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.True(machine.IsStartAllowed);
+        }
+        finally
+        {
             await machine.ShutdownAsync();
         }
     }
@@ -435,7 +477,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
-            Assert.Equal(0, machine.RepeatCycles);
+            Assert.False(io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
         }
         finally
         {
@@ -482,7 +524,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(1));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
-            Assert.Equal(0, machine.RepeatCycles);
+            Assert.False(io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
             Assert.False(state.IsError);
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
@@ -515,6 +557,7 @@ public sealed partial class MachineLifecycleTests
         var forbidden = new ConcurrentQueue<OutputIo>();
         var ngReverse = 0;
         var mainReverse = 0;
+        var mainReturns = 0;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -526,6 +569,10 @@ public sealed partial class MachineLifecycleTests
         };
         io.OutputChanged += (output, on) =>
         {
+            if (!on && output == OutputIo.MainConveyorRun
+                && !io.GetOutput(OutputIo.MainConveyorForward)
+                && io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
+                Interlocked.Increment(ref mainReturns);
             if (!on)
                 return;
             if (output is OutputIo.MainConveyorReadyToFront2
@@ -555,11 +602,11 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.True(
                 await VirtualTest.WaitUntilAsync(
-                    () => machine.RepeatCycles >= 2 || state.IsError,
+                    () => mainReturns >= 2 || state.IsError,
                     TimeSpan.FromSeconds(22)),
-                $"Repeat timed out. Cycles={machine.RepeatCycles}, Phase={machine.RepeatDisplayPhase}, Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().State}, Alarm={state.AlarmMessage}");
+                $"Repeat timed out. Returns={mainReturns}, Phase={machine.RepeatDisplayPhase}, Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().State}, Alarm={state.AlarmMessage}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-            Assert.True(machine.RepeatCycles >= 2, state.AlarmDetail);
+            Assert.True(mainReturns >= 2, state.AlarmDetail);
             Assert.True(ngReverse >= 2);
             Assert.True(mainReverse >= 2);
             Assert.True(visited.GetValueOrDefault(InputIo.NgConveyorPosition1Occupied) >= 2);

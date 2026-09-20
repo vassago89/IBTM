@@ -63,13 +63,22 @@
 ## Repeat
 
 Repeat는 별도 가상 시퀀스가 아니라 기존 자동 유닛 동작에 반환 구간을 연결한다.
-장비 안 캐리어가 하나라는 전제로 Teaching/Manual에서 사용한다.
-최초 시작은 사용할 히트싱크에 PCB를 이미 안착시킨 캐리어 하나를 메인 입구(첫 번째)
+활성 유닛의 정해진 경로를 STOP 또는 알람까지 반복하며, 공통 사이클 횟수는 표시하지 않는다.
+연결된 이송 경로의 캐리어가 하나라는 전제로 Teaching/Manual에서 사용한다.
+START 허용 조건에서 Main Conveyor와 NG Transfer 활성화를 필수로 요구하지 않는다.
+NG Conveyor가 활성화된 경우에는 NG Shuttle 활성화가 필요하다.
+Supply 단독은 최초 PCB를 집은 뒤 인계 위치와 픽업 XY의 Rotation Z 사이를 고정을 유지한 채 왕복한다.
+픽업 슬롯으로 하강하거나 PCB를 놓지 않는다. 상류 Available TEST는 최초 픽업·상승까지 필요하며,
+이후 왕복에는 필요하지 않다. Main Conveyor나 NG 캐리어는 필요하지 않다.
+메인과 Placement를 함께 사용할 때 최초 시작은 사용할 히트싱크에 PCB를 이미 안착시킨 캐리어 하나를 메인 입구(첫 번째)
 센서에 올려놓고 START한다. 첫 Station 1 도착부터 기존 PCB를 집어 왕복하며,
 PCB가 실려 있다는 이유로 Placement 왕복을 완료 처리하지 않는다.
 
 | 마지막 활성 범위 | 반환 전 동작 |
 | --- | --- |
+| Placement까지 | S1 PCB 왕복·압착 완료 후 메인 역회전 |
+| Bolt Fastening까지 | S2 체결·결과 수집·헤드 상승 완료 후 메인 역회전 |
+| Inspection까지 | S3 검사 완료·픽업 복귀·캐리어 상승 후 메인 역회전 |
 | NG Transfer까지 | 셔틀 위치에서 내려가지만 그리퍼를 풀지 않고 다시 올라와 Station 3으로 반환 |
 | NG Shuttle까지 | 셔틀에 놓고 셔틀 하강·상승 후 다시 집어 반환 |
 | NG Conveyor까지 | NG 끝까지 보낸 뒤 셔틀로 역방향 반환하고 Station 3으로 반환 |
@@ -81,12 +90,23 @@ NG Transfer만 사용하는 Repeat에서는 비활성 셔틀의 Up/Down/캐리�
 메인 반환은 입구 전용 센서에서 멈춘다. 다음 전진도 Station 1의 HS2 감지 후 설정 시간만큼
 밀어 넣고 백업 플레이트로 캐리어를 올린다. Placement가 활성화되어 있으면 캐리어에 이미 있는
 PCB를 집어 기존 인계 좌표까지 이동한 뒤 원래 히트싱크에 재안착·압착한다.
-두 히트싱크의 대상 PCB 왕복이 끝나야 Station 2로 보낸다. Supply는 새 PCB를 공급하지 않는다.
-XY 이동·회전은 핸들러 실린더 상승과 공통 이동 Z에서 진행하며, 인계 위치에서 PCB를 놓지 않는다.
-STOP 후에는 PCB 왕복 진행과 전체 Repeat 복귀 단계를 버린다. 새 START는 현재 피드백으로 동작하며, 중단 이력에 따른 수동 정리·RESET 차단은 없다.
+Supply도 활성화하면 인계 위치에서 Supply가 PCB를 고정한 뒤 Placement가 해제한다.
+Supply는 PCB 고정을 유지하면서 픽업 XY의 Rotation Z까지 역이동한 뒤 정방향 인계한다.
+원래 슬롯에 놓거나 다시 집지 않으므로 상류 지지와 Available TEST는 필요하지 않다.
+두 히트싱크의 대상 PCB 왕복이 끝나야 다음 활성 공정으로 보낸다. 새 PCB를 추가 공급하지 않는다.
+XY 이동·회전은 각 유닛의 이동 Z와 실린더 상승 조건을 유지한다.
+
+Main Conveyor OFF에서는 Placement·체결·검사가 각자의 기존 캐리어 작업을 완료한 뒤 반복한다.
+Placement와 체결 캐리어는 착좌 상태로 준비한다. NG Transfer OFF인 셔틀·NG 컨베이어는 자체 왕복한다.
+독립 Supply와 NG 반복은 메인 역회전 때도 계속 동작하며, 설비 STOP 때 함께 정지한다.
+STOP 후에는 진행 단계를 버리고 현재 피드백으로 판단한다. Supply가 잡고 있으면 정방향 인계,
+Placement가 잡고 있으면 캐리어 쪽 정방향 배치를 이어간다. 인계 위치에서 양쪽이 함께 잡고 있으면
+Placement 고정을 확인한 뒤 Supply를 해제하고 Placement가 상승한다. 원래 슬롯 복원은 요구하지 않는다.
+미수집 체결 결과는 지우지 않는다. 체결된 PCB를 풀어 역인계하는 동작은 보류 상태다.
 
 관련 코드: `IBTM/MachineController.Repeat.cs`,
-`Stations/IBTM.Conveyor/MainConveyor.cs`의 `ReturnToStartAsync`.
+각 유닛의 `*.Repeat.cs`. 기존 State를 재사용하며, MachineController는 연결된 유닛의
+종료 대기·실행 취소·복귀 순서와 메인 역회전 경로 인터록을 조정한다.
 
 ## 짧은 현장 확인 순서
 

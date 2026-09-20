@@ -498,6 +498,7 @@ public sealed class IoStartupTests
     {
         await using var services = CreateServices(new MachineSettings
         {
+            NgCarrierTransfer = new() { PickupSafeX = 0 },
             Units = new UnitSettings
             {
                 PcbSupply = false,
@@ -539,7 +540,7 @@ public sealed class IoStartupTests
         {
             await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
-            Assert.True(returning);
+            Assert.True(returning, state.AlarmDetail);
             Assert.Equal(safetyStop ? MachineAlarm.EmergencyStop : MachineAlarm.NgConveyor, state.Alarm);
             Assert.Contains(log.Snapshot(), entry => entry.Detail?.Contains(runFailure.Message) == true);
             Assert.Contains(log.Snapshot(), entry => entry.Detail?.Contains(stopFailure.Message) == true);
