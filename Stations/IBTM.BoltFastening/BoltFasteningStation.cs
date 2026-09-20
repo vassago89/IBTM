@@ -109,6 +109,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
+        _repeat = repeat;
         Exception? failure = null;
         try
         {
@@ -148,6 +149,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         }
         finally
         {
+            _repeat = false;
             _pickupAttempt = null;
             if (_work.Enabled)
                 _gantry.StopShooting(failure);
@@ -245,7 +247,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
             case BoltFasteningState.FasteningPcb:
             {
                 var bolt = PendingResult?.Bolt ?? PendingPcbBolts.First();
-                var feeding = _units.IsBoltFeederEnabled(FasteningHead.Shooting);
+                var feeding = !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Shooting);
                 if (_gantry.PickupTablePosition != BoltCylinderState.Up)
                 {
                     await _gantry.RaiseCylindersAsync(cancellationToken);
@@ -298,7 +300,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     await _gantry.SetPickupTableDownAsync(true, cancellationToken);
                 }
 
-                var feeding = _units.IsBoltFeederEnabled(FasteningHead.Pickup);
+                var feeding = !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Pickup);
                 var pickupAttempted = _pickupAttempt is { } attempt
                     && ReferenceEquals(attempt.Job, _work.CurrentJob)
                     && attempt.Bolt == bolt;
@@ -365,7 +367,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     ? BoltFasteningState.FasteningPcb
                     : BoltFasteningState.FasteningPickup;
             case true when PendingPcbBolts.FirstOrDefault() is { } shooting:
-                return _units.IsBoltFeederEnabled(FasteningHead.Shooting)
+                return !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Shooting)
                     && _gantry.PickupTablePosition == BoltCylinderState.Up
                     && _gantry.IsAt(shooting, live)
                     && _gantry.ShootingHeadPosition == BoltCylinderState.Up
@@ -375,7 +377,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     ? BoltFasteningState.WaitingForShootingFeeder
                     : BoltFasteningState.FasteningPcb;
             case true when PendingPickupBolts.Any():
-                return _units.IsBoltFeederEnabled(FasteningHead.Pickup)
+                return !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Pickup)
                     && _gantry.PickupTablePosition == BoltCylinderState.Down
                     && _gantry.IsAtPickupPosition(live)
                     && _gantry.PickupHeadPosition == BoltCylinderState.Down

@@ -371,7 +371,7 @@
                             Visibility="{Binding OperationPageSelected,
                                                          Converter={StaticResource BoolToVis}}">
                             <CheckBox x:Name="RepeatMode" Content="REPEAT" Margin="0,0,18,0" VerticalAlignment="Center"
-                                ToolTip="Run Repeat in TEACHING (MANUAL) mode. Pickup Feeder OFF keeps pickup motion without bolt confirmation; Shooting Feeder OFF skips supply. Both heads still start the motor and collect fastening results."
+                                ToolTip="Run Repeat in TEACHING (MANUAL) mode. Both bolt feeders are ignored regardless of Enabled settings. Pickup motion and vacuum remain active without bolt confirmation; shooting supply is skipped. Both heads still start the motor and collect fastening results."
                                 IsChecked="{Binding Operation.State.RepeatEnabled, BindingGroupName={x:Null}}"
                                 IsEnabled="{Binding Operation.State.SetupEditingEnabled}"/>
                             <Button Command="{Binding Operation.HomeCommand}"

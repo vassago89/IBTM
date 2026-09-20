@@ -7,6 +7,8 @@ namespace IBTM.BoltFastening;
 
 public sealed partial class BoltFasteningStation
 {
+    private bool _repeat;
+
     private async Task RepeatCarrierAsync(CancellationToken cancellationToken)
     {
         if (!_units.MainConveyor && _work.Completed)

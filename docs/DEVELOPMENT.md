@@ -646,10 +646,11 @@ Repeat는 PCB가 이미 안착된 캐리어 하나를 메인 입구(첫 번째) 
 전진은 Station 1의 HS2 감지 후 설정된 추가 이송 시간과 캐리어 상승을 그대로 거친다.
 Placement는 기존 PCB를 집어 기존 인계 좌표까지 왕복한 뒤 원래 자리에 재안착·압착한다.
 Supply에서 새 PCB를 받지 않으며, Placement가 켜져 있으면 왕복 완료 후 다음 공정으로 보낸다.
-일반 운전과 Repeat 모두 Pickup Feeder OFF에서도 피더 XY 이동·실린더 하강·픽업 Z 이동·진공 ON·Safe Z 복귀·실린더 상승을 수행한다.
+Repeat에서는 Enabled 설정값을 바꾸지 않고 Pickup/Shooting 피더를 모두 OFF로 취급하며 피더 자체를 실행하지 않는다.
+일반 운전은 각 피더 Enabled 설정을 따른다. Pickup Feeder OFF 또는 Repeat에서도 피더 XY 이동·실린더 하강·픽업 Z 이동·진공 ON·Safe Z 복귀·실린더 상승을 수행한다.
 피더의 볼트 감지와 픽업 진공 ON 확인만 생략한다. 축 위치와 실린더 피드백, 진공 해제 확인은 유지한다.
 집힘 확인을 생략한 픽업 실행 이력은 현재 캐리어와 볼트에만 적용하며, 실제 볼트 보유 상태로 표시하지 않는다.
-Shooting Bolt Feeder OFF는 공급 대기·이스케이프·볼트 발사와 공급 관련 감지 대기를 생략한다.
+Shooting Bolt Feeder OFF 또는 Repeat는 공급 대기·이스케이프·볼트 발사와 공급 관련 감지 대기를 생략한다.
 슈팅 튜브 ON·헤드 진공 ON·튜브 OFF 대기는 `BoltFasteningSettings.ShootingDetectionTimeoutMilliseconds`를 각각 적용한다.
 기본값은 3,000ms이며 Settings → Operation & Timing → Bolt Shooting · Detection Timeout에서 수정한다. 공통 피드백·정지 및 피더 공급 타임아웃과 별개다.
 피더 ON/OFF와 관계없이 모든 볼트의 XY·헤드별 체결 Z로 이동하고, 프리셋 선택 → START → 실린더 하강 → 체결 결과 수거를 수행한다.

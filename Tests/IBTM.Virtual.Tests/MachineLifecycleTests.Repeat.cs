@@ -20,12 +20,13 @@ public sealed partial class MachineLifecycleTests
 {
     [Fact]
     [Trait("Category", "MachineFlow")]
-    public async Task RepeatWithPickupFeederOffStartsBothIoHeadsAndReturnsBothPcbsTwice()
+    public async Task RepeatSkipsEnabledFeedersAndReturnsBothPcbsTwice()
     {
         var settings = FlowSettings();
         settings.Units.PcbSupply = false;
         settings.Drivers.Bolt = BoltDriver.Io;
-        settings.Units.PickupBoltFeeder = false;
+        settings.Units.PickupBoltFeeder = true;
+        settings.Units.ShootingBoltFeeder = true;
         settings.Conveyor.CarrierStopDelaySeconds = 0;
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
@@ -60,6 +61,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.PickupFeederBoltDetected, false);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, false);
         io.SetInput(InputIo.AutoMode, true);
         io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
         work.Changed += () =>
@@ -78,7 +80,8 @@ public sealed partial class MachineLifecycleTests
                 && !io.GetOutput(OutputIo.MainConveyorForward)
                 && io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                 Interlocked.Increment(ref mainReturns);
-            if (on && output is OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyReadyToFront1)
+            if (on && output is OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyReadyToFront1
+                or OutputIo.ShootBolt or OutputIo.ShootingEscapeForward or OutputIo.ShootingFeederRunSignal)
                 forbidden.Enqueue(output);
             if (on && output == OutputIo.PickupHeadVacuumPump)
             {

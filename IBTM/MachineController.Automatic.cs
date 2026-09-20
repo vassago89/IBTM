@@ -275,7 +275,7 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        if (!cycle.IsCancellationRequested && _units.PickupBoltFeeder)
+        if (!cycle.IsCancellationRequested && !repeat && _units.PickupBoltFeeder)
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PickupBoltFeeder,
@@ -283,7 +283,7 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        if (!cycle.IsCancellationRequested && _units.ShootingBoltFeeder)
+        if (!cycle.IsCancellationRequested && !repeat && _units.ShootingBoltFeeder)
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.ShootingBoltFeeder,
@@ -293,12 +293,12 @@ public sealed partial class MachineController
 
         if (!cycle.IsCancellationRequested)
         {
-            if (_units.BoltFastening && !_units.PickupBoltFeeder)
+            if (_units.BoltFastening && (repeat || !_units.PickupBoltFeeder))
                 _log?.LogInformation(
-                    "Pickup Feeder OFF; pickup motion and vacuum remain active without bolt detection waits. Motor START and fastening result collection remain active.");
-            if (_units.BoltFastening && !_units.ShootingBoltFeeder)
+                    "Pickup bolt feeding is disabled for this run; pickup motion and vacuum remain active without bolt detection waits. Motor START and fastening result collection remain active.");
+            if (_units.BoltFastening && (repeat || !_units.ShootingBoltFeeder))
                 _log?.LogInformation(
-                    "Shooting Feeder OFF; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
+                    "Shooting bolt feeding is disabled for this run; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.BoltFastening,
                 _fasteningStation.RunAsync(cycle.Token, repeat),

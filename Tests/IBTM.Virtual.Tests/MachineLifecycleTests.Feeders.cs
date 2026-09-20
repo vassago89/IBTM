@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
+using IBTM.BoltFeeder;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.UI;
@@ -17,16 +18,20 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(false, false)]
-    public async Task DisabledFeedersKeepPickupMotionAndStartBothIoHeads(bool pickupEnabled, bool shootingEnabled)
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, false, false)]
+    [InlineData(true, true, true)]
+    public async Task FeedersOffOrRepeatKeepPickupMotionAndStartBothIoHeads(
+        bool pickupEnabled, bool shootingEnabled, bool repeat)
     {
         var settings = FlowSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = pickupEnabled;
         settings.Units.ShootingBoltFeeder = shootingEnabled;
+        var pickupFeeding = pickupEnabled && !repeat;
+        var shootingFeeding = shootingEnabled && !repeat;
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [
@@ -46,13 +51,18 @@ public sealed partial class MachineLifecycleTests
         var descents = new ConcurrentQueue<(FasteningHead Head, double X, double Y, double Z)>();
         var pickups = new ConcurrentQueue<(double X, double Y, double Z)>();
         var visitedPickupFeeder = false;
+        var pickupFeederRan = false;
+        var shootingFeederRan = false;
+        services.GetRequiredService<PickupBoltFeeder>().Trace += message => pickupFeederRan = true;
+        services.GetRequiredService<ShootingBoltFeeder>().Trace += message => shootingFeederRan = true;
         await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(3));
         await machine.HomeAsync(CancellationToken.None);
-        io.SetInput(InputIo.PickupFeederBoltDetected, pickupEnabled);
-        io.SetInput(InputIo.ShootingFeederBoltDetected, shootingEnabled);
-        if (!shootingEnabled)
+        io.SetInput(InputIo.PickupFeederBoltDetected, pickupFeeding);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, shootingFeeding);
+        if (!shootingFeeding)
             io.SetInput(InputIo.ShootingTubeBoltDetected, true); // Disabled supply does not wait for the tube.
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, repeat);
+        state.RepeatEnabled = repeat;
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
         gantry.Feedback.PositionChanged += (x, y, _) =>
@@ -108,7 +118,7 @@ public sealed partial class MachineLifecycleTests
         };
         try
         {
-            Assert.False(state.RepeatEnabled);
+            Assert.Equal(repeat, state.RepeatEnabled);
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(12));
@@ -134,12 +144,16 @@ public sealed partial class MachineLifecycleTests
             Assert.All(operation.BoltTargets, bolt => Assert.Equal(BoltTargetState.Ok, bolt.State));
             Assert.True(visitedPickupFeeder);
             Assert.Equal(new[] { (100d, 50d, 10d), (100d, 50d, 10d) }, pickups.ToArray());
-            if (!pickupEnabled)
+            Assert.Equal(pickupEnabled, settings.Units.PickupBoltFeeder);
+            Assert.Equal(shootingEnabled, settings.Units.ShootingBoltFeeder);
+            Assert.Equal(pickupFeeding, pickupFeederRan);
+            Assert.Equal(shootingFeeding, shootingFeederRan);
+            if (!pickupFeeding)
             {
                 Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));
                 Assert.False(gantry.PickupBoltLoaded);
             }
-            if (!shootingEnabled)
+            if (!shootingFeeding)
                 Assert.DoesNotContain(outputs, command =>
                     command.On && command.Output is OutputIo.ShootingHeadVacuumPump
                         or OutputIo.ShootBolt or OutputIo.ShootingEscapeForward or OutputIo.ShootingFeederRunSignal);
@@ -159,16 +173,20 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    public async Task DisabledFeederStillStopsMotorOnCylinderFailureOrStop(
+    [InlineData(true, false, false)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    public async Task FeedersOffOrRepeatStillStopsMotorOnCylinderFailureOrStop(
         bool stopDuringDescent,
-        bool missingUpFeedback)
+        bool missingUpFeedback,
+        bool repeat)
     {
         var settings = FlowSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Units.PickupBoltFeeder = repeat;
+        settings.Units.ShootingBoltFeeder = repeat;
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10 }];
@@ -209,7 +227,7 @@ public sealed partial class MachineLifecycleTests
         };
         try
         {
-            var run = station.RunAsync(stop.Token);
+            var run = station.RunAsync(stop.Token, repeat: repeat);
             if (stopDuringDescent)
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
             else
