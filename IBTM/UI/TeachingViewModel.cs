@@ -300,7 +300,7 @@ public partial class TeachingViewModel : ObservableObject
         RefreshTeachingPoints();
         ShowRecipeImages();
         OnPropertyChanged(nameof(Motion));
-        OnPropertyChanged(nameof(HorizontalZName));
+        OnPropertyChanged(nameof(MoveToHorizontalZLabel));
         OnPropertyChanged(nameof(BoltPointEditorVisible));
         OnPropertyChanged(nameof(IsFasteningSelected));
         NotifyManualTeachingCommands();

@@ -51,7 +51,7 @@ Data Matrix를 선택하면 볼트 조정 패널이 숨겨지고 바코드 읽�
 - 기준핀이 정의되어 있으면 환산 결과를 볼트 체결 좌표로 저장할 수 있다.
 - 기준핀이 없어도 Inspection FOV/ROI 저장과 검사는 가능하다.
   볼트 체결기의 기준핀·헤드 좌표 준비 조건과 혼동하지 않는다.
-- Inspection용 볼트 포인트는 일반 Teach 버튼 대신 이미지 + ROI로 티칭한다.
+- Inspection용 볼트 포인트는 Record Position 버튼 대신 Grab 이미지 + ROI로 티칭한다.
 
 ## 줄자로 Resolution 보정
 

@@ -116,7 +116,7 @@ NG 셔틀의 6개 상태는 픽업 상승·컨베이어 종료·위치 불명 �
 | 티칭 화면 배치 | `IBTM/UI/TeachingView.xaml` |
 | 공통 티칭 I/O 행·그룹 템플릿 | `IBTM/UI/IoWindowStyles.xaml` |
 | 티칭 포인트·선택 | `IBTM/UI/TeachingViewModel.cs` |
-| 티칭 Home / 조그 / Move To | `IBTM/UI/TeachingViewModel.Motion.cs`, `TeachingViewModel.Commands.cs` |
+| 티칭 Home Axes / 조그 / Move to Position | `IBTM/UI/TeachingViewModel.Motion.cs`, `TeachingViewModel.Commands.cs` |
 | Live / FOV 추가 / ROI 저장 / Data Matrix | `IBTM/UI/TeachingViewModel.Camera.cs` |
 | 이미지 위 ROI·십자선 그리기 | `IBTM/UI/ImageTeachingView.cs` |
 | 실제 검사 이동·촬영·판정 | `Stations/IBTM.Inspection/BoltInspector.cs` |
@@ -191,7 +191,7 @@ Safe Z → 헤드 상승 → 볼트 XY → Pickup Head Fastening Z → 1회 체�
 
 
 `Bolt Pickup`의 Z는 별도 픽업 높이로 유지한다. 체결의 B1/B2는 헤드별 계산 XY 위치이며
-Move To는 Safe Z에서 위치만 확인한다. 각 Z 티칭값은 설비 설정에 독립적으로 자동 저장된다.
+Move to Position은 Travel Z에서 위치만 확인한다. 각 Z 티칭값은 설비 설정에 독립적으로 자동 저장된다.
 기존 공통 체결 Z는 두 헤드 체결 Z의 초기값으로 옮기며, 이후에는 서로 영향을 주지 않는다.
 검사 볼트는 Add Bolt로 생성하고 FOV/ROI를 연결한다. 좌표 없는 안내 항목은 목록에 넣지 않는다.
 
@@ -403,8 +403,12 @@ OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류�
 새 캐리어의 슬롯 이력을 넘기지 않으며 `SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes`로 확인한다.
 수동 스텝 이동은 `TeachingViewModel.StepAsync` → 각 핸들러의 `AdjustAxisAsync` →
 `MotionService.AdjustAxisAsync` 순서다. 공급기·배치기 조그/스텝은 현재 Z에서 선택 축만 움직인다.
+티칭 버튼은 Record Position(현재 좌표 기록), Move to Position(선택 좌표 이동),
+Move Z to … Height(적용된 기준 높이로 Z만 이동)로 구분한다. Z 바로가기는 별도 줄에 표시한다.
+조그/스텝은 해당 모드의 속도를 표시한다. 검사·NG 스텝은 설정된 XY 속도를 사용한다고 안내한다.
+상단 Save는 인계 좌표와 제품 레시피를 함께 저장한다.
 Rotation Z/인계 Z와의 일치 조건 및 선행 Z 이동은 없다. 배치기 Z 조그/스텝은 핸들러가 내려와 있어도
-조정할 수 있으며, X/Y 조그/스텝과 Move To에는 핸들러 상승 확인을 유지한다.
+조정할 수 있으며, X/Y 조그/스텝과 Move to Position에는 핸들러 상승 확인을 유지한다.
 모션 계층에서 축 속도·범위·취소를 처리한다. 자동/수동 인계 진입은
 `MoveToHandoffAsync`에서 `MoveToHorizontalZAsync`에 인계 Z를 전달한 뒤 XY를 이동한다.
 XY 이동 전에 Rotation Z로 되돌아가지 않는다.

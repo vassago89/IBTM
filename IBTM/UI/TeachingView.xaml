@@ -29,13 +29,14 @@
         <DockPanel Margin="0,0,0,10">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0"
                 IsEnabled="{Binding IsTeachingEditAllowed}">
+                <TextBlock Text="Recipe" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <TextBox Text="{Binding RecipeEditor.Name, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
                     Width="180" Margin="0,0,6,0" ToolTip="Recipe name"/>
                 <Button Command="{Binding SaveCommand}" Margin="0,0,6,0">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                             <Setter Property="Content" Value="Save"/>
-                            <Setter Property="ToolTip" Value="Apply and save teaching values for Supply and Placement handoff and the current recipe."/>
+                            <Setter Property="ToolTip" Value="Save all edited handoff coordinates and the current product recipe."/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
                                     <Setter Property="Content" Value="Saving..."/>
@@ -49,7 +50,8 @@
                     </Button.Style>
                 </Button>
                 <Button Content="New Recipe" Command="{Binding RecipeEditor.NewCommand}"
-                    Style="{StaticResource SecondaryButtonStyle}"/>
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    ToolTip="Start a new product recipe. Supply and Placement handoff coordinates are kept."/>
             </StackPanel>
             <TextBlock Text="Teaching" Style="{StaticResource TitleStyle}"/>
         </DockPanel>

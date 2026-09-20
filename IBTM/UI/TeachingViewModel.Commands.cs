@@ -16,9 +16,9 @@ namespace IBTM.UI;
 
 public enum TeachingMoveMode
 {
-    [Description("Hold to jog")]
+    [Description("Jog · hold to move")]
     Jog,
-    [Description("Step")]
+    [Description("Step · move a set distance")]
     Step,
 }
 
@@ -46,7 +46,7 @@ public enum TeachingMotionHint
     UnitDisabled,
     [Description("Raise the NG pickup before moving XY.")]
     RaiseNgPickup,
-    [Description("Z Jog/Step is available with the handler lowered. Raise the handler before X/Y or Move To.")]
+    [Description("Z Jog/Step is available with the handler lowered. Raise the handler before X/Y, Move to Position or Move Z to Standby Height.")]
     RaisePlacementCylinders,
     [Description("Jog/Step adjust one axis at the current height. Raise both heads before moving to a teaching position.")]
     BoltAdjustment,

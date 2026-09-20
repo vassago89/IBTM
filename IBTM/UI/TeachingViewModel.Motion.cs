@@ -12,18 +12,18 @@ namespace IBTM.UI;
 
 public partial class TeachingViewModel
 {
-    public string HorizontalZName
+    public string MoveToHorizontalZLabel
     {
         get
         {
             switch (ActiveMotionGroup)
             {
                 case MotionGroup.PcbSupply:
-                    return "PCB Rotation Z";
+                    return "Move Z to Rotation Height";
                 case MotionGroup.PcbPlacementHandler:
-                    return "Standby Z";
+                    return "Move Z to Standby Height";
                 default:
-                    return "Travel Z";
+                    return "Move Z to Travel Height";
             }
         }
     }

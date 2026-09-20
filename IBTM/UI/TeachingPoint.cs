@@ -79,7 +79,7 @@ public partial class TeachingPoint : ObservableObject
             switch (Position.Target)
             {
                 case TeachingTarget.SafeZ when Position.MotionGroup == MotionGroup.PcbSupply:
-                    return "Z height for PCB rotation and travel above the pickup positions.";
+                    return "Z height used before PCB rotation and for travel above the pickup positions. Moving to this height moves only Z.";
                 case TeachingTarget.SafeZ:
                     return "Z height for horizontal travel with both fastening heads raised.";
                 case TeachingTarget.SupplyPcb1Pick:
@@ -212,35 +212,35 @@ public enum TeachingPointGroup
 
 public enum TeachingSaveBehavior
 {
-    [Description("Teach updates the pending handoff XYZ. Move To uses this pending value. Use Save to apply and save.")]
+    [Description("Record Position updates these handoff coordinates. Move to Position uses them. Press Save to apply and keep them after restart.")]
     SupplyHandoff,
-    [Description("Teach updates the pending standby XYZ. Move To moves to this Z first, then X/Y. Use Save to apply and save.")]
+    [Description("Record Position updates these standby coordinates. Move to Position moves Z first, then X/Y. Press Save to apply and keep them after restart.")]
     PlacementHandoff,
-    [Description("Teach saves this Z automatically. Move To moves Z only; use PCB Receive Standby for X/Y.")]
+    [Description("Record Position saves this Z automatically. Move to Position moves only Z at the current X/Y. Select PCB Receive Standby to move X/Y.")]
     PlacementReceiveZ,
-    [Description("Teach saves this Y automatically. Move To uses Carrier Pickup X (Approach), then this Y.")]
+    [Description("Record Position saves this Y automatically. Move to Position moves to Carrier Pickup X (Approach), then this Y.")]
     NgPickup,
 
-    [Description("Teach with the pickup head (Head 1) down. Saves automatically. Move To travels to pickup XY, lowers the head, then moves to pickup Z. Vacuum is unchanged.")]
+    [Description("Record Position with pickup head (Head 1) down; saves automatically. Move to Position travels to pickup XY, lowers the head, then moves to pickup Z. Vacuum is unchanged.")]
     BoltPickup,
 
-    [Description("Teach saves this head's fastening Z automatically. Move To moves Z only. Automatic fastening uses this Z before lowering the selected head.")]
+    [Description("Record Position saves this head's Z automatically. Move to Position moves only Z. Automatic fastening reaches this Z before lowering the head.")]
     FasteningZ,
 
-    [Description("Calculated from bolt inspection and reference pins. Move To checks XY at Travel Z. Teach the bolt in Inspection Gantry.")]
+    [Description("Calculated from bolt inspection and reference pins. Move to Position checks XY at Travel Z. Use Grab in Inspection Gantry to teach the bolt.")]
     BoltPosition,
 
-    [Description("Center this backup plate pin in Live, then Teach. Saves automatically.")]
+    [Description("Center this backup plate pin in Live, then press Record Position. Saves automatically.")]
     CameraCenter,
 
-    [Description("Machine setting · Teach saves automatically.")]
+    [Description("Record Position saves this machine coordinate automatically.")]
     Machine,
-    [Description("Recipe setting · Use Save after teaching.")]
+    [Description("Record Position updates this product's coordinates. Press Save to keep them after restart.")]
     Recipe,
-    [Description("Pending handoff setting · Use Save. Unsaved edits are discarded when Teaching closes.")]
+    [Description("Handoff edits stay when you leave this page. Press Save to apply and keep them after restart.")]
     Handoff,
     [Description("Center the bolt in Live, then Grab. Resize the centered square ROI. This heat sink is taught independently. Saves automatically.")]
     Image,
-    [Description("Center the Data Matrix in Live, stop the axes, then Grab. Resize the centered square ROI. Move To returns to the captured XY. Read Data Matrix reads the saved image without moving. Saves automatically.")]
+    [Description("Center the Data Matrix in Live, stop the axes, then Grab. Resize the centered square ROI. Move to Position returns to the captured XY. Read Data Matrix reads the saved image. Saves automatically.")]
     BarcodeFov,
 }
