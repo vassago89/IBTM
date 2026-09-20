@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.NgConveyor;
 
 namespace IBTM.Inspection;
 
@@ -71,7 +70,6 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
     private readonly OperationCancellation _operations;
     private readonly MotionSettings _motionSettings;
     private readonly NgCarrierTransferSettings _settings;
-    private readonly NgShuttleFeedback _shuttle;
     private readonly UnitSettings _units;
 
     public NgCarrierTransfer(
@@ -80,7 +78,6 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
         OperationCancellation operations,
         InspectionGantrySettings motionSettings,
         NgCarrierTransferSettings settings,
-        NgShuttleFeedback shuttle,
         UnitSettings units)
     {
         _io = io;
@@ -88,14 +85,12 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
         _operations = operations;
         _motionSettings = motionSettings.Motion;
         _settings = settings;
-        _shuttle = shuttle;
         _units = units;
         Motion = new(motion);
         Station = ConveyorStation.CreateInspection(io);
         io.InputChanged += OnInputChanged;
         motion.StateChanged += NotifyChanged;
         Station.Changed += NotifyChanged;
-        shuttle.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;
@@ -185,7 +180,10 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
             or InputIo.NgCarrierPickupDown
             or InputIo.NgCarrierGripperOpen
             or InputIo.NgCarrierGripperClosed
-            or InputIo.NgCarrierDetected)
+            or InputIo.NgCarrierDetected
+            or InputIo.NgShuttleUp
+            or InputIo.NgShuttleDown
+            or InputIo.NgShuttleCarrierDetected)
         {
             Changed?.Invoke();
         }
@@ -275,7 +273,7 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
     {
         return location == NgTransferDestination.Station
             ? Station.CarrierPresent
-            : _shuttle.CarrierDetected;
+            : _io.GetInput(InputIo.NgShuttleCarrierDetected);
     }
 
     public NgTransferState GetState(
@@ -518,6 +516,6 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
         return location == NgTransferDestination.Station
             ? Station.BackupPlate == StationCylinderState.Up
                 && Station.Stopper == StationCylinderState.Down
-            : _shuttle.Lift == NgShuttleLiftState.Up;
+            : _io.GetInput(InputIo.NgShuttleUp) && !_io.GetInput(InputIo.NgShuttleDown);
     }
 }

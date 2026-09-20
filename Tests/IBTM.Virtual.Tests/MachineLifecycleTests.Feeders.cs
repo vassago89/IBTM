@@ -53,8 +53,8 @@ public sealed partial class MachineLifecycleTests
         var visitedPickupFeeder = false;
         var pickupFeederRan = false;
         var shootingFeederRan = false;
-        services.GetRequiredService<PickupBoltFeeder>().Trace += message => pickupFeederRan = true;
-        services.GetRequiredService<ShootingBoltFeeder>().Trace += message => shootingFeederRan = true;
+        services.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Pickup).Trace += message => pickupFeederRan = true;
+        services.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Shooting).Trace += message => shootingFeederRan = true;
         await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(3));
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.PickupFeederBoltDetected, pickupFeeding);

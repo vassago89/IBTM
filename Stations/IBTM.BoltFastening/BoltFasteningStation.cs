@@ -13,8 +13,8 @@ namespace IBTM.BoltFastening;
 public sealed partial class BoltFasteningStation : AutoUnit
 {
     private readonly BoltFasteningWork _work;
-    private readonly PickupBoltFeeder _pickupFeeder;
-    private readonly ShootingBoltFeeder _shootingFeeder;
+    private readonly BoltFeederUnit _pickupFeeder;
+    private readonly BoltFeederUnit _shootingFeeder;
     private readonly RecipeManager _recipes;
     private readonly UnitSettings _units;
     private HeatSinkSlot[]? _runTargets;
@@ -38,8 +38,8 @@ public sealed partial class BoltFasteningStation : AutoUnit
         BoltFasteningSettings settings,
         CarrierReferenceSettings carrierReference,
         BoltFasteningWork work,
-        PickupBoltFeeder pickupFeeder,
-        ShootingBoltFeeder shootingFeeder,
+        BoltFeederUnit pickupFeeder,
+        BoltFeederUnit shootingFeeder,
         RecipeManager recipes,
         UnitSettings units)
     {
@@ -705,7 +705,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
             DiscardPendingResults();
         }
 
-        if (_work.State != BoltFasteningWorkState.ReadyToFasten)
+        if (!_work.IsReadyToFasten)
         {
             var state = GetState();
             TraceStep(state, GetActiveBolt(state)?.ToString(), _work.CurrentJob.Id);
@@ -732,7 +732,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     throw new InvalidOperationException(
                         $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
             }
-            while (_work.State == BoltFasteningWorkState.ReadyToFasten)
+            while (_work.IsReadyToFasten)
             {
                 carrierOperation.Token.ThrowIfCancellationRequested();
                 if (PendingResult is { } pending)
@@ -897,7 +897,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         {
             case true when !_work.Enabled:
                 return BoltFasteningState.Disabled;
-            case true when _work.State != BoltFasteningWorkState.ReadyToFasten:
+            case true when !_work.IsReadyToFasten:
                 var standby = StandbyBolt;
                 return standby is not null && HasPosition(standby)
                     && (!IsHorizontalMoveAllowed || !IsAt(standby, live, atTravelZ: true)

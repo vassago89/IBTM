@@ -15,6 +15,7 @@ using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM;
@@ -38,10 +39,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly PcbPlacer _pcbPlacement;
     private readonly BoltFasteningStation _fasteningStation;
     private readonly InspectionStation _inspectionStation;
-    private readonly PickupBoltFeeder _pickupBoltFeeder;
-    private readonly ShootingBoltFeeder _shootingBoltFeeder;
+    private readonly BoltFeederUnit _pickupBoltFeeder;
+    private readonly BoltFeederUnit _shootingBoltFeeder;
     private readonly NgCarrierTransfer _ngTransfer;
-    private readonly BoltInspector _boltInspector;
     private readonly ILogger<MachineController>? _log;
 
     static MachineController()
@@ -78,10 +78,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
         PcbPlacer pcbPlacement,
         BoltFasteningStation fasteningStation,
         InspectionStation inspectionStation,
-        PickupBoltFeeder pickupBoltFeeder,
-        ShootingBoltFeeder shootingBoltFeeder,
+        [FromKeyedServices(FasteningHead.Pickup)] BoltFeederUnit pickupBoltFeeder,
+        [FromKeyedServices(FasteningHead.Shooting)] BoltFeederUnit shootingBoltFeeder,
         NgCarrierTransfer ngTransfer,
-        BoltInspector boltInspector,
         ILogger<MachineController>? log = null)
     {
         _resetGate = new();
@@ -104,7 +103,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _pickupBoltFeeder = pickupBoltFeeder;
         _shootingBoltFeeder = shootingBoltFeeder;
         _ngTransfer = ngTransfer;
-        _boltInspector = boltInspector;
         _log = log;
         if (log is not null)
         {
@@ -235,7 +233,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
         // Cleanup may still await cylinder inputs. Keep every monitor alive
         // until command/device cleanup finishes, then stop and join the loops.
-        var cleanup = Task.WhenAll(shutdown, _boltInspector.StopLiveViewAsync());
+        var cleanup = Task.WhenAll(shutdown, _inspectionStation.StopLiveViewAsync());
         try
         {
             await cleanup;

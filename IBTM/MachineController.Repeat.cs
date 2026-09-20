@@ -37,7 +37,7 @@ public sealed partial class MachineController
                 var carriers = (_units.MainConveyor ? _conveyor.CarrierCount
                         : _ngTransfer.IsCarrierPresent(NgTransferDestination.Station) ? 1 : 0)
                     + (_units.NgCarrierTransfer && _ngTransfer.IsTransferPending ? 1 : 0)
-                    + (_units.NgCarrierTransfer && _units.NgShuttle && _ngShuttle.Feedback.CarrierDetected ? 1 : 0)
+                    + (_units.NgCarrierTransfer && _units.NgShuttle && _ngShuttle.CarrierDetected ? 1 : 0)
                     + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
                     + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
                 if (carriers > 1

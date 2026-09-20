@@ -9,6 +9,7 @@ using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
+using IBTM.PcbPlacement;
 using IBTM.Storage;
 using IBTM.Virtual;
 using Microsoft.Data.Sqlite;
@@ -19,6 +20,34 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MachineStoreTests
 {
+    [Theory]
+    [InlineData("PcbPlacementIpmGripperClosed", "PcbPlacementIpmGripperOpen", "PcbPlacementIpmGripperClose")]
+    [InlineData("7", "8", "3")]
+    public void RemovedPlacementGripperDoesNotReturnFromSavedHardware(
+        string closedInput, string openInput, string closeOutput)
+    {
+        var hardware = new PcbPlacementHandlerHardwareSettings();
+        Assert.DoesNotContain(InputIo.Unused7, hardware.Inputs.Keys);
+        Assert.DoesNotContain(InputIo.Unused8, hardware.Inputs.Keys);
+        Assert.DoesNotContain(OutputIo.Unused3, hardware.Outputs.Keys);
+
+        hardware = JsonSerializer.Deserialize<PcbPlacementHandlerHardwareSettings>($$$"""
+            {"Inputs":{"{{{closedInput}}}":36,"{{{openInput}}}":37,"PcbPlacementIpmDown":134,"PcbPlacementIpmUp":135},
+             "Outputs":{"{{{closeOutput}}}":{"Number":34,"OffNumber":35},
+                        "PcbPlacementIpmDown":{"Number":132,"OffNumber":133}}
+            }
+            """)!;
+        Assert.Equal(2, hardware.Inputs.Count);
+        Assert.Equal(134, hardware.Inputs[InputIo.PcbPlacementIpmDown]);
+        Assert.Equal(135, hardware.Inputs[InputIo.PcbPlacementIpmUp]);
+        var press = Assert.Single(hardware.Outputs);
+        Assert.Equal(OutputIo.PcbPlacementIpmDown, press.Key);
+        Assert.Equal(132, press.Value.Number);
+        Assert.Equal(133, press.Value.OffNumber);
+        Assert.Equal(InputIo.PcbPlacementIpmDown, press.Value.Feedback!.OnInput);
+        Assert.Equal(InputIo.PcbPlacementIpmUp, press.Value.Feedback.OffInput);
+    }
+
     [Fact]
     public void OldHeadOutputNamesKeepAddressesAndUseDownFeedback()
     {

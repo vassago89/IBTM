@@ -918,7 +918,7 @@ public sealed class IoStartupTests
                     .ShootBoltAsync(timeout.Token),
                 TransferFailureStep.PcbSupply => services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>()
                     .RunAsync(new(), services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>(), timeout.Token),
-                TransferFailureStep.BoltFeeder => services.GetRequiredService<IBTM.BoltFeeder.ShootingBoltFeeder>()
+                TransferFailureStep.BoltFeeder => services.GetRequiredKeyedService<IBTM.BoltFeeder.BoltFeederUnit>(FasteningHead.Shooting)
                     .RunAsync(timeout.Token),
                 _ => conveyor.RunAsync(timeout.Token),
             };

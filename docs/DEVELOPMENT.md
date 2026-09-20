@@ -118,7 +118,7 @@ NG 셔틀의 6개 상태는 픽업 상승·컨베이어 종료·위치 불명 �
 | 티칭 Home Axes / 조그 / Move to Position | `IBTM/UI/TeachingViewModel.Motion.cs`, `TeachingViewModel.Commands.cs` |
 | Live / FOV 추가 / ROI 저장 / Data Matrix | `IBTM/UI/TeachingViewModel.Camera.cs` |
 | 이미지 위 ROI·십자선 그리기 | `IBTM/UI/ImageTeachingView.cs` |
-| 실제 검사 이동·촬영·판정 | `Stations/IBTM.Inspection/BoltInspector.cs` |
+| 실제 검사 이동·촬영·판정 | `Stations/IBTM.Inspection/InspectionStation.Vision.cs` |
 | 카메라 연결·수신 | `Hardware/IBTM.Hik/HikCamera.cs` |
 | ADC 시리얼·파서 | `Hardware/IBTM.Hantas/` |
 | AJIN 단위·Home·축 이동 | `Hardware/IBTM.Ajin/AjinMotionService.cs` |
@@ -357,6 +357,10 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 `AutoUnit`은 변경 알림과 추적만 관리한다. 자동운전 시작 함수가 각 유닛을 직접 시작하고,
 `ObserveAutomaticUnitAsync`는 이미 시작한 작업의 종료·오류를 확인한다.
 검사와 NG 이송은 갠트리를 공유하므로 `InspectionStation.RunAsync` 한 경로에서 실행한다.
+`InspectionStation.Vision.cs`도 같은 `InspectionStation` 객체의 일부이며 이동·촬영·판정을 직접 실행한다.
+피더는 `BoltFeederUnit` 하나를 픽업·슈팅별로 생성한다. NG 셔틀은 `NgShuttle`에서 동작과 현재 입력을 함께 읽는다.
+`BoltFasteningWork`와 `InspectionWork`는 캐리어별 작업·결과를 공유하기 위한 객체이며 별도 시퀀스 enum을 두지 않는다.
+Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고, Placement 확보 확인과 이탈 대기는 유지한다.
 공급·안착 유닛은 자기 피드백만으로 상태를 계산하며 전체 시퀀스 enum은 각 프로젝트에 둔다. 두 루프는 Core의 `IPcbSupplyHandoff` / `IPcbPlacementHandoff`를 통해 `Handoff`와 변경 알림만 공유한다. 공급은 `Holding`/`Released`, 안착은 `Holding`/`Clear`를 내보내며 그 외에는 `Unavailable`이다. 상대 내부 작업 단계나 핸들러를 참조하지 않는다. Placement는 Supply 인계를 DI로 받고, MachineController는 Supply 실행 시 Placement 인계를 전달한다. 상대 변경은 대기를 깨우기만 하고 다시 전달하지 않는다.
 안착 상태 판단과 실행 좌표는 모두 `RecipeManager.Current.PcbPlacement`에서 읽으며 호출자가 별도 레시피를 넘기지 않는다.
 
@@ -369,30 +373,29 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 | 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.RunAsync`, `GetState`, `TransferAsync` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
 | PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceAsync`의 `switch (state)` | `heatSink`, `state`; 반환값 `false`이면 피드백 대기 |
-| 공급 진입 또는 안착 인수 Z 이동이 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacement`이면 수취 Z로 이동, Placement `WaitingForSupplyRelease`이면 해제; 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
+| 공급 진입 또는 안착 인수 Z 이동이 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `HandingOff`이면 수취 Z로 이동, Placement `WaitingForSupplyRelease`이면 해제; 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
 | 인수 후 Z/Y 이탈 또는 Supply 복귀가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacementZ`이면 Placement가 대기 Z → 히트싱크 Y로 이동; Y 도착 후 `Clear` 확인하고 Supply 복귀 |
-| 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.RunAsync` | `state`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
+| 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeederUnit.RunAsync` | `state`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `BoltFeederUnit.SetFeeding` |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
-| Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `ExecuteAsync`가 `false`를 반환하면 피드백 대기 |
+| Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync` | `transferState`, `inspectionState`, `bolt`; 이송 또는 검사가 준비되지 않으면 피드백 대기 |
 | NG 이송의 정방향·복귀 순서가 예상과 다름 | `NgCarrierTransfer.GetState`, `ExecuteAsync`, `MoveToCarrierAsync` | `destination`, `state`, 현재 픽업 상승·그립·캐리어 감지, 목적지 XY |
-| NG 셔틀이 대기하거나 Repeat 상승하지 않음 | `NgShuttle.ExecuteAsync`, `CycleAsync` | `state`, 실제 Up/Down·캐리어·픽업 상승 피드백 |
+| NG 셔틀이 대기하거나 Repeat 상승하지 않음 | `NgShuttle.RunAsync`, `CycleAsync` | `state`, 실제 Up/Down·캐리어·픽업 상승 피드백 |
 | NG 컨베이어 적재·배출이 막힘 | `NgCarrierConveyor.ExecuteAsync`, `MoveCarrierAsync`, `GetState` | `state`, `destination` 입력, `_movement`, `_ejectionPhase`, 현재 위치 센서 |
 | 실린더 타임아웃 | `IIoService.SetOutputAndWaitAsync`, `WaitForInputAsync` | 출력 `output`/`value`, 기다리는 입력 `input`/`value`, 제한시간 |
 
 예를 들어 공급의 `switch (state)`에 조건부 중단점
-`state == PcbSupplyState.WaitingForPlacement`를 걸면 해당 대기로 들어가는 판단을 볼 수 있다.
+`state == PcbSupplyState.HandingOff`를 걸면 해당 대기로 들어가는 판단을 볼 수 있다.
 이벤트 대기 중에는 새 피드백이 와야 다음 판단으로 들어간다. `state`, `transferState`,
 `inspectionState`는 그 회차에 선택한 분기이며, 장비 위치를 저장하는 별도 상태가 아니다.
 
 PCB 공급의 그립·해제 출력 순서는 `ExecuteAsync`의 해당 `case`에서 바로 확인한다.
-`_pickStep`은 전단 캐리어에서 확인한 PCB 슬롯 이력이며 Stop·재시작 사이에도 유지한다.
-`OnHandlerChanged`가 정지 중에도 전단 캐리어 이탈을 받아 다음 캐리어의 PCB1을 선택한다.
-현재 위치나 PCB 센서값으로 이 슬롯 이력을 대신하지 않는다.
+`_pickStep`은 현재 실행에서 확인한 PCB 슬롯 이력이며 실행 종료 시 PCB1로 초기화한다.
+`OnHandlerChanged`는 전단 캐리어 이탈 시 PCB1을 선택한다. 픽업 중 재시작은 현재 슬롯 좌표·회전·잡힘을 함께 확인한다.
 Front 1 Ready는 캐리어 도착 후에도 유지하고, PCB2까지 확인/확보하여 운반 높이로 복귀한 뒤 OFF한다.
-Available OFF가 들어오면 다음 캐리어의 Ready를 ON한다. `PcbSupplyHandler.StopUpstream`은
+Available OFF가 들어오면 다음 캐리어의 Ready를 ON한다. `PcbSupplier.StopUpstream`은
 현재 Available이 ON이면 Ready를 그대로 두며, OFF일 때만 대기 중 Ready를 끈다.
 입력 읽기 실패도 캐리어 없음으로 취급하지 않는다. 전체 STOP과 공급 루프 종료가 같은 메서드를 사용한다.
-시운전 입력은 `PcbSupplyHandler.TestUpstreamCarrierAvailable`,
+시운전 입력은 `PcbSupplier.TestUpstreamCarrierAvailable`,
 `MainConveyor.TestUpstreamCarrierAvailable`, `MainConveyor.TestDownstreamReady`의 메모리 bool이다.
 티칭에서는 메모리 값만, 자동에서는 실제 SMEMA DI만 판단하며 기존 `Changed`로 변경을 통지한다.
 Operation 화면의 SMEMA 카드에 직접 바인딩하며 저장·새 I/O 주소·별도 감시 루프는 없다.
@@ -435,7 +438,7 @@ Y 도착 후 기존 상태를 전환하고 Supply에 `Clear`를 전달한다. �
 인계 도착·잡힘·해제 확인은 유지한다.
 상세 순서는 [Placement 동작](../Stations/IBTM.PcbPlacement/DESIGN.md)을 따른다.
 
-PCB 안착의 XY 이동은 `PcbPlacementHandler.MoveToXYAsync`, Z 이동은 `MoveAxisAsync`에서
+PCB 안착의 XY 이동은 `PcbPlacer.MoveToXYAsync`, Z 이동은 `MoveAxisAsync`에서
 장치 호출로 이어진다. 같은 Down 센서값으로 압입 전후를 구별할 수 없으므로
 `_pressingHeatSink`는 현재 실행 안에서만 압입 대상을 보관한다. `RunAsync` 종료 시 압입 대상,
 Repeat PCB 왕복 단계와 실행 대상을 버린다. 현재 캐리어·IPM·그리퍼 피드백 확인은 유지한다.

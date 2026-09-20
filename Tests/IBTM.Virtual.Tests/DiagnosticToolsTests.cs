@@ -210,7 +210,6 @@ public sealed class DiagnosticToolsTests
                             provider.GetRequiredService<OperationCancellation>(),
                             provider.GetRequiredService<IBTM.Inspection.InspectionGantrySettings>(),
                             provider.GetRequiredService<IBTM.Inspection.NgCarrierTransferSettings>(),
-                            provider.GetRequiredService<IBTM.NgConveyor.NgShuttleFeedback>(),
                             provider.GetRequiredService<UnitSettings>())));
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();

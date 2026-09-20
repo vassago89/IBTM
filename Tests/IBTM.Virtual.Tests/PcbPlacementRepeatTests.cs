@@ -46,6 +46,7 @@ public sealed class PcbPlacementRepeatTests
     {
         using var rig = new RepeatRig(loadPcbs: true);
         await rig.InitializeAsync();
+        await rig.Handler.SetIpmLiftDownAsync(true);
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         var handoffVisits = 0;
         var insideHandoff = false;
@@ -54,7 +55,7 @@ public sealed class PcbPlacementRepeatTests
         var supplyHardware = new PcbSupplyHardwareSettings();
         rig.Io.OutputChanged += (output, on) =>
         {
-            if (output == OutputIo.PcbPlacementHandlerRotate)
+            if (output is OutputIo.PcbPlacementHandlerRotate or OutputIo.PcbPlacementIpmDown)
                 Assert.False(on);
             if (supplyHardware.Outputs.ContainsKey(output))
                 supplyOutputs.Add(output);
@@ -81,6 +82,7 @@ public sealed class PcbPlacementRepeatTests
         Assert.False(movedUnsafely);
         Assert.Empty(supplyOutputs);
         Assert.Equal(PlacementCylinderState.Up, rig.Handler.Lift);
+        Assert.Equal(PlacementCylinderState.Up, rig.Handler.IpmLift);
         Assert.True(rig.Handler.IsAtHorizontalZ());
         Assert.False(rig.Handler.VacuumDetected);
 
@@ -130,6 +132,11 @@ public sealed class PcbPlacementRepeatTests
     {
         using var rig = new RepeatRig(loadPcbs: true);
         await rig.InitializeAsync();
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PcbPlacementIpmDown)
+                Assert.False(on);
+        };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         void StopWhileHolding(double x, double y, double z)
         {

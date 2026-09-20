@@ -106,8 +106,12 @@ public sealed class InspectionTests
             BoltNumber = 1,
             HeatSink = HeatSinkSlot.HeatSink1,
         };
-        var inspector = new BoltInspector(
+        var units = new UnitSettings();
+        var inspector = new InspectionStation(
+            new InspectionWork(io, gantry, new(), units),
             gantry,
+            new NgShuttle(io, new NgCarrierConveyor(io, new()), gantry),
+            units,
             new VirtualCamera(
                 motion.GetPosition,
                 () => [],
@@ -231,22 +235,19 @@ public sealed class InspectionTests
                     IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(180, 40, 80, 80),
                 },
             ];
-        var inspector = new BoltInspector(
-            gantry,
+        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings());
+        var shuttle = new NgShuttle(io, conveyor, transfer);
+        var station = new InspectionStation(
+            work,
+            transfer,
+            shuttle,
+            units,
             camera,
             new VirtualLightController(),
             gantrySettings,
             new LightingSettings(),
             recipes);
-        var shuttleFeedback = new NgShuttleFeedback(io);
-        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), shuttleFeedback);
-        var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, transfer);
-        var station = new InspectionStation(
-            work,
-            inspector,
-            transfer,
-            shuttle,
-            units);
+        var inspector = station;
 
         io.Initialize();
         motion.Initialize();
@@ -354,10 +355,14 @@ public sealed class InspectionTests
             transferUnits);
         var transferStation = new InspectionStation(
             transferWork,
-            inspector,
             transfer,
             shuttle,
-            transferUnits);
+            transferUnits,
+            camera,
+            new VirtualLightController(),
+            gantrySettings,
+            new LightingSettings(),
+            recipes);
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);

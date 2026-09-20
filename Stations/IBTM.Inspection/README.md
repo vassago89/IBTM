@@ -1,5 +1,10 @@
 # 밝은 면적 비율 검사
 
+`InspectionStation`이 자동 검사 순서와 이동·촬영·판정을 함께 담당한다.
+촬영·조명·Live View 코드는 같은 클래스의 `InspectionStation.Vision.cs`에 둔다.
+`InspectionWork`는 컨베이어와 공유하는 캐리어 작업·검사 결과를 보관하며 별도 시퀀스 enum은 두지 않는다.
+갠트리 이동과 NG 캐리어 집기·놓기는 `NgCarrierTransfer`가 직접 실행한다.
+
 볼트 검사는 `BinaryChecker.Check`에서 저장된 사각형 ROI를 원본 크기로 처리한다.
 
 1. BGR 픽셀을 밝기 `(299R + 587G + 114B + 500) / 1000`으로 변환한다.

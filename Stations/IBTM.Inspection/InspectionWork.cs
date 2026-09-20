@@ -66,25 +66,14 @@ public sealed class InspectionWork : StationWork
         }
     }
 
-    internal InspectionWorkState State => GetState();
+    internal bool IsWaitingForConveyor => Station.CarrierPresent && !Completed
+        && Units.MainConveyor && !InspectionRequested;
 
-    internal InspectionWorkState GetState(bool? conveyorRunning = null)
+    internal bool IsReadyToInspect(bool? conveyorRunning = null)
     {
-        switch (true)
-        {
-            case true when !Station.CarrierPresent:
-                return InspectionWorkState.WaitingForCarrier;
-            case true when Completed:
-                return InspectionWorkState.WaitingForTransfer;
-            case true when Units.MainConveyor && !InspectionRequested:
-                return InspectionWorkState.WaitingForConveyor;
-            case true when !IsAtInspectionPosition(conveyorRunning):
-                return InspectionWorkState.WaitingForInspectionPosition;
-            default:
-                return !_transfer.IsClear
-                    ? InspectionWorkState.WaitingForGantry
-                    : InspectionWorkState.ReadyToInspect;
-        }
+        return Station.CarrierPresent && !Completed
+            && (!Units.MainConveyor || InspectionRequested)
+            && IsAtInspectionPosition(conveyorRunning) && _transfer.IsClear;
     }
 
     public bool IsTransferAtWaitingPosition(bool live = true)

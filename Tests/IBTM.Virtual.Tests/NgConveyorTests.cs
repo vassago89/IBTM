@@ -53,7 +53,7 @@ public sealed class NgConveyorTests
         await Task.Delay(80);
         Assert.Equal(1, downCommands);
         Assert.Equal(1, upCommands);
-        Assert.True(system.Shuttle.Feedback.CarrierDetected);
+        Assert.True(system.Shuttle.CarrierDetected);
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
     }
 
@@ -88,7 +88,7 @@ public sealed class NgConveyorTests
             () => system.Shuttle.CycleAsync(CancellationToken.None));
         Assert.Equal(1, downCommands);
         Assert.Equal(0, upCommands);
-        Assert.Equal(NgShuttleLiftState.Down, system.Shuttle.Feedback.Lift);
+        Assert.Equal(NgShuttleLiftState.Down, system.Shuttle.Lift);
 
         system.Io.SetInput(
             loseCarrier ? InputIo.NgShuttleCarrierDetected : InputIo.NgCarrierPickupUp,
@@ -96,7 +96,7 @@ public sealed class NgConveyorTests
         await system.Shuttle.CycleAsync(CancellationToken.None);
         Assert.Equal(1, downCommands);
         Assert.Equal(1, upCommands);
-        Assert.Equal(NgShuttleLiftState.Up, system.Shuttle.Feedback.Lift);
+        Assert.Equal(NgShuttleLiftState.Up, system.Shuttle.Lift);
     }
 
     [Fact]
@@ -374,13 +374,11 @@ public sealed class NgConveyorTests
                 new MachineHardwareSettings()),
             new MachineOptions());
         _ = new VirtualMachine(io, []);
-        var shuttleFeedback = new NgShuttleFeedback(io);
         var conveyor = new NgCarrierConveyor(
             io,
-            new NgConveyorSettings { AlarmCarrierCount = alarmCarrierCount, },
-            shuttleFeedback);
+            new NgConveyorSettings { AlarmCarrierCount = alarmCarrierCount });
         var pickup = VirtualTest.CreateNgTransfer(io);
-        var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, pickup);
+        var shuttle = new NgShuttle(io, conveyor, pickup);
         io.Initialize();
         return new TestSystem(io, conveyor, shuttle, pickup);
     }

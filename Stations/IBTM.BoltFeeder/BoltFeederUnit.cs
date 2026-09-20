@@ -6,27 +6,37 @@ using IBTM.Device;
 
 namespace IBTM.BoltFeeder;
 
-public abstract class BoltFeeder : AutoUnit
+public sealed class BoltFeederUnit : AutoUnit
 {
+    private readonly IIoService _io;
+    private readonly BoltFeederSettings _settings;
+    private readonly FasteningHead _head;
     private readonly InputIo _boltDetected;
 
-    protected BoltFeeder(IIoService io, InputIo boltDetected)
+    public BoltFeederUnit(FasteningHead head, IIoService io, BoltFeederSettings settings)
     {
-        Io = io;
-        _boltDetected = boltDetected;
+        _io = io;
+        _settings = settings;
+        _head = head;
+        _boltDetected = head switch
+        {
+            FasteningHead.Pickup => InputIo.PickupFeederBoltDetected,
+            FasteningHead.Shooting => InputIo.ShootingFeederBoltDetected,
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
         io.InputChanged += OnInputChanged;
     }
 
     public override event Action? Changed;
 
-    protected IIoService Io { get; }
-    protected abstract int TimeoutMilliseconds { get; }
+    private int TimeoutMilliseconds => _head == FasteningHead.Pickup
+        ? _settings.PickupTimeoutMilliseconds : _settings.ShootingTimeoutMilliseconds;
 
     public BoltFeederState State
     {
         get
         {
-            return Io.GetInput(_boltDetected)
+            return _io.GetInput(_boltDetected)
                 ? BoltFeederState.BoltReady
                 : BoltFeederState.WaitingForBolt;
         }
@@ -48,7 +58,7 @@ public abstract class BoltFeeder : AutoUnit
                     {
                         case BoltFeederState.WaitingForBolt:
                             SetFeeding(true);
-                            await Io.WaitForInputAsync(_boltDetected, true, TimeoutMilliseconds, cancellationToken);
+                            await _io.WaitForInputAsync(_boltDetected, true, TimeoutMilliseconds, cancellationToken);
                             break;
                         case BoltFeederState.BoltReady:
                             SetFeeding(false);
@@ -83,8 +93,15 @@ public abstract class BoltFeeder : AutoUnit
         }
     }
 
-    protected virtual void SetFeeding(bool value)
+    public void Stop()
     {
+        SetFeeding(false);
+    }
+
+    private void SetFeeding(bool value)
+    {
+        if (_head == FasteningHead.Shooting)
+            _io.SetOutput(OutputIo.ShootingFeederRunSignal, value);
     }
 
     private void OnInputChanged(InputIo input, bool value)

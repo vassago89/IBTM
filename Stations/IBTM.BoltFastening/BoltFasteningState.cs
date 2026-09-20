@@ -2,21 +2,6 @@ using System.ComponentModel;
 
 namespace IBTM.BoltFastening;
 
-internal enum BoltFasteningWorkState
-{
-    [Description("Waiting for Carrier")]
-    WaitingForCarrier,
-
-    [Description("Waiting for Carrier Seating")]
-    WaitingForSeat,
-
-    [Description("Ready to Fasten")]
-    ReadyToFasten,
-
-    [Description("Waiting for Transfer")]
-    WaitingForTransfer,
-}
-
 public enum BoltFasteningState
 {
     [Description("Waiting")]

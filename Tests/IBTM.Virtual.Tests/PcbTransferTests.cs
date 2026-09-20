@@ -270,8 +270,6 @@ public sealed class PcbTransferTests
         {
             // An interrupted receipt at Receive Z finishes without raising away from Supply.
             await recipient.MoveToReceiveZAsync(timeout.Token);
-            io.SetOutput(OutputIo.PcbPlacementIpmGripperClose, true);
-            io.SetInputs((InputIo.PcbPlacementIpmGripperOpen, false), (InputIo.PcbPlacementIpmGripperClosed, false));
         }
         var loweredDuringReceipt = false;
         io.OutputChanged += (output, on) => loweredDuringReceipt |= output == OutputIo.PcbPlacementHandlerDown && on;
@@ -355,20 +353,19 @@ public sealed class PcbTransferTests
             (InputIo.PcbPlacementStopperDown, true));
 
         InputIo[] receipt = [InputIo.PcbPlacementPcbDetected,
-            InputIo.PcbPlacementVacuumDetected, InputIo.PcbPlacementIpmGripperClosed];
-        io.SetInput(InputIo.PcbPlacementIpmGripperOpen, false);
+            InputIo.PcbPlacementVacuumDetected];
         foreach (var missing in receipt)
         {
             foreach (var signal in receipt)
                 io.SetInput(signal, signal != missing);
             Assert.False(recipient.IsAtReceivePosition() && recipient.PcbSecured);
-            Assert.Equal(PcbSupplyState.WaitingForPlacement, supplier.State);
+            Assert.Equal(PcbSupplyState.HandingOff, supplier.State);
             Assert.NotEqual(PcbPlacementState.WaitingForSupplyRelease, placer.State);
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             var waited = false;
             void OnTrace(string message)
             {
-                if (message.StartsWith("Waiting for feedback") && message.Contains("WaitingForPlacement"))
+                if (message.StartsWith("Waiting for feedback") && message.Contains(nameof(PcbSupplyState.HandingOff)))
                 {
                     waited = true;
                     stop.Cancel();
@@ -388,7 +385,7 @@ public sealed class PcbTransferTests
         Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.GetState(HeatSinkSlot.HeatSink1));
         units.PcbPlacement = false;
         Assert.Equal(PcbPlacementState.Disabled, placer.State);
-        Assert.Equal(PcbSupplyState.WaitingForPlacement, supplier.State);
+        Assert.Equal(PcbSupplyState.HandingOff, supplier.State);
         units.PcbPlacement = true;
         units.PcbSupply = false;
         Assert.Equal(PcbSupplyState.Disabled, supplier.State);
@@ -508,7 +505,6 @@ public sealed class PcbTransferTests
                 io.SetInput(InputIo.PcbPlacementVacuumDetected, on);
         };
         io.SetOutput(OutputIo.PcbPlacementVacuumEjector, true);
-        io.SetOutput(OutputIo.PcbPlacementIpmGripperClose, true);
         await placer.PlaceAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
         Assert.Equal((70, 20, 8), placementMotion.GetPosition());
         Assert.True(source.IsAtHandoff());
@@ -537,8 +533,10 @@ public sealed class PcbTransferTests
         Assert.False(source.IsAtHandoff(live: false));
     }
 
-    [Fact]
-    public async Task SupplyKeepsGripperClosedWhenPlacementLosesVacuumDuringRelease()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SupplyKeepsGripperClosedWhenPlacementLosesVacuumDuringRelease(bool repeat)
     {
         var operations = new OperationCancellation();
         var supplySettings = new PcbSupplySettings
@@ -577,9 +575,7 @@ public sealed class PcbTransferTests
         await placementMotion.MoveToAsync(50, 10, placementSettings.ReceiveZ!.Value);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
-        io.SetInput(InputIo.PcbPlacementIpmGripperOpen, false);
-        io.SetInput(InputIo.PcbPlacementIpmGripperClosed, true);
-        await recipient.SetIpmLiftDownAsync(true);
+        await recipient.SetIpmLiftDownAsync(!repeat);
         Assert.Equal(PcbPlacementHandoff.Holding, placer.Handoff);
         io.OutputChanged += (output, on) =>
         {
@@ -588,7 +584,8 @@ public sealed class PcbTransferTests
         };
 
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => supplier.RunAsync(new(), placer, stop.Token));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => supplier.RunAsync(new(), placer, stop.Token, repeat));
         Assert.Contains("before supply opened its gripper", error.Message);
         Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
         Assert.True(source.IsAtHandoff());
@@ -681,8 +678,7 @@ public sealed class PcbTransferTests
             if (inside && !wasAtHandoff)
             {
                 handoffEntries++;
-                enteredHandoffPrepared &= placementHandler.IpmGripper == PlacementGripperState.Open
-                    && placementHandler.IpmLift == PlacementCylinderState.Down;
+                enteredHandoffPrepared &= placementHandler.IpmLift == PlacementCylinderState.Down;
             }
 
             wasAtHandoff = inside;
@@ -705,25 +701,13 @@ public sealed class PcbTransferTests
                     placementPhase = 1;
                 }
             }
-            else if (output == OutputIo.PcbPlacementIpmGripperClose
-                && placementPhase == 1
-                && !value)
+            else if (output == OutputIo.PcbPlacementIpmDown && placementPhase == 1 && !value)
             {
                 placementPhase = 2;
             }
-            else if (output == OutputIo.PcbPlacementIpmDown && placementPhase == 2 && !value)
+            else if (output == OutputIo.PcbPlacementIpmDown && placementPhase == 2 && value)
             {
                 placementPhase = 3;
-            }
-            else if (output == OutputIo.PcbPlacementIpmGripperClose
-                && placementPhase == 3
-                && value)
-            {
-                placementPhase = 4;
-            }
-            else if (output == OutputIo.PcbPlacementIpmDown && placementPhase == 4 && value)
-            {
-                placementPhase = 5;
             }
         };
 
@@ -791,7 +775,7 @@ public sealed class PcbTransferTests
         Assert.Equal(PlacementCylinderState.Down, placementHandler.IpmLift);
         Assert.Equal(PlacementCylinderState.Up, placementHandler.Lift);
         Assert.True(placementHandler.IsAtHorizontalZ());
-        Assert.Equal(5, placementPhase);
+        Assert.Equal(3, placementPhase);
         Assert.False(supplyMotion.IsMoving);
         Assert.False(placementMotion.IsMoving);
     }

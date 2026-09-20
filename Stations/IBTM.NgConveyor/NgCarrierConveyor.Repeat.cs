@@ -27,7 +27,7 @@ public sealed partial class NgCarrierConveyor
     {
         if (CarrierCount != 1)
             throw new InvalidOperationException("NG return requires one carrier with known presence feedback.");
-        if (_shuttle.Lift != NgShuttleLiftState.Down && !Position3Occupied)
+        if (ShuttleLift != NgShuttleLiftState.Down && !Position3Occupied)
             throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
 
         _movement = Movement.None;

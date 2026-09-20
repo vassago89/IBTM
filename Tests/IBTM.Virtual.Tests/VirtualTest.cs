@@ -38,18 +38,18 @@ internal static class VirtualTest
         var units = new UnitSettings();
         return new(shooting, pickup, io, motion, settings, reference,
             new(ConveyorStation.CreateBoltFastening(io), units),
-            new(io, new()), new(io, new()), new(OpenMachineStore(), new()), units);
+            new(FasteningHead.Pickup, io, new()), new(FasteningHead.Shooting, io, new()), new(OpenMachineStore(), new()), units);
     }
 
     public static NgCarrierTransfer CreateNgTransfer(
         IIoService io, IXyMotion? motion = null, OperationCancellation? operations = null,
         InspectionGantrySettings? motionSettings = null, NgCarrierTransferSettings? settings = null,
-        UnitSettings? units = null, NgShuttleFeedback? shuttle = null)
+        UnitSettings? units = null)
     {
         operations ??= new();
         motionSettings ??= new();
         motion ??= new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);
-        return new(io, motion, operations, motionSettings, settings ?? new(), shuttle ?? new(io), units ?? new());
+        return new(io, motion, operations, motionSettings, settings ?? new(), units ?? new());
     }
 
     private sealed class UnavailableSupply : IPcbSupplyHandoff

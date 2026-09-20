@@ -453,9 +453,6 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         var state = State;
         switch (state)
         {
-            case PcbSupplyState.WaitingForPlacement when placement.Handoff == PcbPlacementHandoff.Holding:
-                state = PcbSupplyState.ReleasingPcb;
-                break;
             case PcbSupplyState.WaitingForPlacementZ when placement.Handoff == PcbPlacementHandoff.Clear:
                 state = PcbSupplyState.MovingToPickup;
                 break;
@@ -551,8 +548,11 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 }
                 break;
             }
-            case PcbSupplyState.ReleasingPcb:
-                await ReleasePcbAsync(placement, cancellationToken);
+            case PcbSupplyState.HandingOff:
+                if (PcbSecured && placement.Handoff != PcbPlacementHandoff.Holding)
+                    await WaitForChangeAsync(cancellationToken);
+                else
+                    await ReleasePcbAsync(placement, cancellationToken);
                 break;
             default:
                 await WaitForChangeAsync(cancellationToken);
@@ -618,10 +618,8 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             {
                 case true when atHandoff && PcbReleased:
                     return PcbSupplyState.WaitingForPlacementZ;
-                case true when atHandoff && pcb == PcbSupplyPcbState.Secured:
-                    return PcbSupplyState.WaitingForPlacement;
                 case true when atHandoff:
-                    return PcbSupplyState.ReleasingPcb;
+                    return PcbSupplyState.HandingOff;
             }
 
             switch (true)

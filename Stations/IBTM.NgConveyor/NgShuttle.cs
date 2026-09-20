@@ -15,21 +15,35 @@ public sealed partial class NgShuttle : AutoUnit
     public NgShuttle(
         IIoService io,
         NgCarrierConveyor conveyor,
-        NgShuttleFeedback feedback,
         INgCarrierTransferFeedback transfer)
     {
         _io = io;
         _conveyor = conveyor;
         _transfer = transfer;
-        Feedback = feedback;
-        feedback.Changed += NotifyChanged;
+        io.InputChanged += OnInputChanged;
         conveyor.Changed += NotifyChanged;
         transfer.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;
 
-    public NgShuttleFeedback Feedback { get; }
+    public bool CarrierDetected => _io.GetInput(InputIo.NgShuttleCarrierDetected);
+
+    public NgShuttleLiftState Lift
+    {
+        get
+        {
+            switch ((_io.GetInput(InputIo.NgShuttleUp), _io.GetInput(InputIo.NgShuttleDown)))
+            {
+                case (true, false):
+                    return NgShuttleLiftState.Up;
+                case (false, true):
+                    return NgShuttleLiftState.Down;
+                default:
+                    return NgShuttleLiftState.Between;
+            }
+        }
+    }
 
     public NgShuttleState State
     {
@@ -37,7 +51,7 @@ public sealed partial class NgShuttle : AutoUnit
         {
             switch (true)
             {
-                case true when Feedback.Lift == NgShuttleLiftState.Down:
+                case true when Lift == NgShuttleLiftState.Down:
                     switch (true)
                     {
                         case true when _conveyor.IsShuttleRaiseAllowed:
@@ -48,7 +62,7 @@ public sealed partial class NgShuttle : AutoUnit
                         default:
                             return NgShuttleState.CarrierPositionUnknown;
                     }
-                case true when Feedback.CarrierDetected:
+                case true when CarrierDetected:
                     if (!_transfer.IsRaised)
                     {
                         return NgShuttleState.WaitingForCarrierPickupUp;
@@ -58,7 +72,7 @@ public sealed partial class NgShuttle : AutoUnit
                         ? NgShuttleState.Lowering
                         : NgShuttleState.WaitingForConveyor;
                 default:
-                    return Feedback.Lift == NgShuttleLiftState.Up
+                    return Lift == NgShuttleLiftState.Up
                         ? NgShuttleState.WaitingForCarrier
                         : NgShuttleState.Raising;
             }
@@ -67,8 +81,8 @@ public sealed partial class NgShuttle : AutoUnit
 
     public bool IsReceiveAllowed(bool useConveyor, bool? conveyorRunning = null)
     {
-        return Feedback.Lift == NgShuttleLiftState.Up
-            && !Feedback.CarrierDetected
+        return Lift == NgShuttleLiftState.Up
+            && !CarrierDetected
             && (!useConveyor || _conveyor.IsAcceptCarrierAllowed(conveyorRunning));
     }
 
@@ -79,7 +93,20 @@ public sealed partial class NgShuttle : AutoUnit
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await ExecuteAsync(cancellationToken);
+                var state = State;
+                TraceStep(state);
+                switch (state)
+                {
+                    case NgShuttleState.Lowering:
+                        await SetDownAsync(true, cancellationToken);
+                        break;
+                    case NgShuttleState.Raising:
+                        await SetDownAsync(false, cancellationToken);
+                        break;
+                    default:
+                        await WaitForChangeAsync(cancellationToken);
+                        break;
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -88,21 +115,6 @@ public sealed partial class NgShuttle : AutoUnit
         finally
         {
             EndRun(cancellationToken);
-        }
-    }
-
-    private Task ExecuteAsync(CancellationToken cancellationToken)
-    {
-        var state = State;
-        TraceStep(state);
-        switch (state)
-        {
-            case NgShuttleState.Lowering:
-                return SetDownAsync(true, cancellationToken);
-            case NgShuttleState.Raising:
-                return SetDownAsync(false, cancellationToken);
-            default:
-                return WaitForChangeAsync(cancellationToken);
         }
     }
 
@@ -119,5 +131,11 @@ public sealed partial class NgShuttle : AutoUnit
     private void NotifyChanged()
     {
         Changed?.Invoke();
+    }
+
+    private void OnInputChanged(InputIo input, bool value)
+    {
+        if (input is InputIo.NgShuttleUp or InputIo.NgShuttleDown or InputIo.NgShuttleCarrierDetected)
+            Changed?.Invoke();
     }
 }

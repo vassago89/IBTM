@@ -344,7 +344,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             if (_repeatTrip is { } trip && _units.PcbSupply)
             {
-                if (HandlerRaised && IpmLift == PlacementCylinderState.Down
+                if (HandlerRaised && IpmLift == PlacementCylinderState.Up
                     && IsAtReceivePosition() && PcbSecured)
                 {
                     return trip.State == PcbPlacementState.ReceivingPcb ? PcbPlacementHandoff.Returning
@@ -474,7 +474,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             case PcbPlacementState.MovingToHandoff:
                 await SetLiftDownAsync(false, cancellationToken);
                 await MoveToHorizontalZAsync(cancellationToken);
-                await SetIpmLiftDownAsync(true, cancellationToken);
+                await SetIpmLiftDownAsync(!_repeat, cancellationToken);
                 await MoveToHandoffXYAsync(cancellationToken);
                 break;
             case PcbPlacementState.ReceivingPcb:
@@ -506,7 +506,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     if (carryingPcb)
                     {
                         var position = GetHeatSinkPosition(target);
-                        await SetIpmLiftDownAsync(true, operation.Token);
+                        await SetIpmLiftDownAsync(!_repeat, operation.Token);
                         if (!IsAtXY(position) || !IsAtZ(position))
                         {
                             await SetLiftDownAsync(false, operation.Token);
@@ -533,7 +533,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     if (_pressingHeatSink != target || !_work.Station.CarrierSeated
                         || Pcb == PlacementPcbState.None)
                         throw new InvalidOperationException("The placement carrier changed or lost seating before the PCB press.");
-                    await SetIpmLiftDownAsync(true, operation.Token);
+                    if (!_repeat)
+                        await SetIpmLiftDownAsync(true, operation.Token);
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
                     _work.GetAssembly(job, target);
@@ -580,8 +581,9 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             CheckSupplyHolding();
             receipt.Token.ThrowIfCancellationRequested();
-            if (IpmLift != PlacementCylinderState.Down)
-                await SetIpmLiftDownAsync(true, receipt.Token);
+            var ipmDown = !_repeat;
+            if (IpmLift != (ipmDown ? PlacementCylinderState.Down : PlacementCylinderState.Up))
+                await SetIpmLiftDownAsync(ipmDown, receipt.Token);
             await MoveToReceiveZAsync(receipt.Token);
             await WaitForPcbAsync(receipt.Token);
             await SetVacuumAsync(true, receipt.Token);
@@ -613,7 +615,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             CheckHolding();
             preparation.Token.ThrowIfCancellationRequested();
-            await SetIpmLiftDownAsync(carryingPcb, preparation.Token);
+            await SetIpmLiftDownAsync(carryingPcb && !_repeat, preparation.Token);
             await SetLiftDownAsync(false, preparation.Token);
             await MoveToHorizontalZAsync(preparation.Token);
             if (carryingPcb && departure is { } destination)
@@ -669,13 +671,15 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 switch (true)
                 {
                     case true when !_repeat && IsAtReceivePosition(live):
-                        return HandlerRaised && IpmLift == PlacementCylinderState.Down
+                        // A stopped Repeat can still hold the PCB with IPM Up.
+                        // The next operation prepares IPM for the selected mode.
+                        return HandlerRaised && IpmLift is PlacementCylinderState.Up or PlacementCylinderState.Down
                             ? PcbPlacementState.WaitingForSupplyRelease
                             : PcbPlacementState.ReceivingPcb;
                     case true when _work.Station.CarrierSeated && heatSink is not null
                         && IsAtXY(GetHeatSinkPosition(heatSink.Value), live):
                         return PcbPlacementState.PlacingPcb;
-                    case true when IpmLift != PlacementCylinderState.Down
+                    case true when IpmLift != (_repeat ? PlacementCylinderState.Up : PlacementCylinderState.Down)
                         || Lift != PlacementCylinderState.Up || !IsAtHorizontalZ(live):
                         return PcbPlacementState.PreparingPlacement;
                     case true when !IsAtY(GetHeatSinkPosition(heatSink ?? HeatSinkSlot.HeatSink1), live):

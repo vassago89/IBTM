@@ -8,7 +8,7 @@ public sealed partial class NgShuttle
 {
     public async Task RunRepeatAsync(bool useConveyor, CancellationToken cancellationToken)
     {
-        if ((useConveyor ? _conveyor.CarrierCount : Feedback.CarrierDetected ? 1 : 0) != 1)
+        if ((useConveyor ? _conveyor.CarrierCount : CarrierDetected ? 1 : 0) != 1)
             throw new InvalidOperationException("NG repeat requires one carrier on the enabled support.");
         while (true)
         {
@@ -39,14 +39,14 @@ public sealed partial class NgShuttle
 
     public async Task CycleAsync(CancellationToken cancellationToken)
     {
-        if (!Feedback.CarrierDetected || !_transfer.IsRaised)
+        if (!CarrierDetected || !_transfer.IsRaised)
         {
             throw new InvalidOperationException("Shuttle repeat requires a carrier on the shuttle and the NG pickup raised.");
         }
 
         await SetDownAsync(true, cancellationToken);
 
-        if (!Feedback.CarrierDetected || !_transfer.IsRaised)
+        if (!CarrierDetected || !_transfer.IsRaised)
         {
             throw new InvalidOperationException("Shuttle repeat lost its carrier or raised pickup feedback before ascent.");
         }
@@ -72,7 +72,7 @@ public sealed partial class NgShuttle
         {
             CheckPickup();
             operation.Token.ThrowIfCancellationRequested();
-            if (!Feedback.CarrierDetected)
+            if (!CarrierDetected)
                 await SetDownAsync(true, operation.Token);
             await _conveyor.ReturnToShuttleAsync(operation.Token);
             await SetDownAsync(false, operation.Token);

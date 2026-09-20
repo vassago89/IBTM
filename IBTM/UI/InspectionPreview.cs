@@ -13,7 +13,7 @@ namespace IBTM.UI;
 // One captured frame, shared by ROI edits and reinspection. Never moves hardware.
 public partial class InspectionPreview : ObservableObject
 {
-    private readonly BoltInspector _inspector;
+    private readonly InspectionStation _inspector;
     private readonly RecipeManager _recipes;
     private ImageFrame? _frame;
     private BinaryCheckResult? _check;
@@ -30,7 +30,7 @@ public partial class InspectionPreview : ObservableObject
     public partial string? Result { get; set; }
 
     public InspectionPreview(
-        BoltInspector inspector,
+        InspectionStation inspector,
         RecipeManager recipes)
     {
         _inspector = inspector;

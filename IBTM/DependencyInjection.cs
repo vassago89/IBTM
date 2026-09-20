@@ -240,7 +240,6 @@ public static class DependencyInjection
                         provider.GetRequiredService<OperationCancellation>(),
                         settings.InspectionGantry,
                         settings.NgCarrierTransfer,
-                        provider.GetRequiredService<NgShuttleFeedback>(),
                         provider.GetRequiredService<UnitSettings>());
                     if (settings.Drivers.Control == ControlDriver.Virtual)
                     {
@@ -326,7 +325,6 @@ public static class DependencyInjection
             services.AddSingleton<ILightController, MovsLightController>();
 
         services
-            .AddSingleton<BoltInspector>()
             .AddSingleton(
                 provider =>
                 {
@@ -384,8 +382,8 @@ public static class DependencyInjection
                         settings.BoltFastening,
                         settings.CarrierReference,
                         provider.GetRequiredService<BoltFasteningWork>(),
-                        provider.GetRequiredService<PickupBoltFeeder>(),
-                        provider.GetRequiredService<ShootingBoltFeeder>(),
+                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Pickup),
+                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Shooting),
                         provider.GetRequiredService<RecipeManager>(),
                         provider.GetRequiredService<UnitSettings>()));
 
@@ -394,9 +392,12 @@ public static class DependencyInjection
             .AddSingleton<MachineState>()
             .AddSingleton<MachineController>()
             .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
-            .AddSingleton<PickupBoltFeeder>()
-            .AddSingleton<ShootingBoltFeeder>()
-            .AddSingleton<NgShuttleFeedback>()
+            .AddKeyedSingleton<BoltFeederUnit>(FasteningHead.Pickup,
+                (provider, _) => new(FasteningHead.Pickup,
+                    provider.GetRequiredService<IIoService>(), provider.GetRequiredService<BoltFeederSettings>()))
+            .AddKeyedSingleton<BoltFeederUnit>(FasteningHead.Shooting,
+                (provider, _) => new(FasteningHead.Shooting,
+                    provider.GetRequiredService<IIoService>(), provider.GetRequiredService<BoltFeederSettings>()))
             .AddSingleton<NgCarrierConveyor>();
 
         services

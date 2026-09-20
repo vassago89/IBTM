@@ -55,11 +55,8 @@ public enum PcbSupplyState
     [Description("Securing PCB and Moving to Handoff")]
     MovingToHandoff,
 
-    [Description("Waiting for Placement Handler")]
-    WaitingForPlacement,
-
-    [Description("Releasing PCB")]
-    ReleasingPcb,
+    [Description("Handing PCB to Placement")]
+    HandingOff,
 
     [Description("Waiting for Placement Y Departure")]
     WaitingForPlacementZ,

@@ -12,17 +12,14 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 {
     private readonly IIoService _io;
     private readonly NgConveyorSettings _settings;
-    private readonly NgShuttleFeedback _shuttle;
     private volatile Movement _movement;
     private volatile EjectionPhase _ejectionPhase;
     private bool _repeat;
 
-    public NgCarrierConveyor(IIoService io, NgConveyorSettings settings, NgShuttleFeedback shuttle)
+    public NgCarrierConveyor(IIoService io, NgConveyorSettings settings)
     {
         _io = io;
         _settings = settings;
-        _shuttle = shuttle;
-        shuttle.Changed += OnShuttleChanged;
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
     }
@@ -35,7 +32,23 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 
     public bool Position2Occupied => _io.GetInput(InputIo.NgConveyorPosition2Occupied);
 
-    public bool Position3Occupied => _shuttle.CarrierDetected;
+    public bool Position3Occupied => _io.GetInput(InputIo.NgShuttleCarrierDetected);
+
+    private NgShuttleLiftState ShuttleLift
+    {
+        get
+        {
+            switch ((_io.GetInput(InputIo.NgShuttleUp), _io.GetInput(InputIo.NgShuttleDown)))
+            {
+                case (true, false):
+                    return NgShuttleLiftState.Up;
+                case (false, true):
+                    return NgShuttleLiftState.Down;
+                default:
+                    return NgShuttleLiftState.Between;
+            }
+        }
+    }
 
     public int CarrierCount => (Position1Occupied ? 1 : 0) + (Position2Occupied ? 1 : 0) + (Position3Occupied ? 1 : 0);
 
@@ -113,7 +126,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         if (Position1Occupied
             && !_repeat
             && EjectRequested
-            && _shuttle.Lift == NgShuttleLiftState.Up)
+            && ShuttleLift == NgShuttleLiftState.Up)
         {
             return NgConveyorState.EjectingCarrier;
         }
@@ -141,7 +154,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                 {
                     case true when Full:
                         return NgConveyorState.Full;
-                    case true when _shuttle.Lift != NgShuttleLiftState.Down:
+                    case true when ShuttleLift != NgShuttleLiftState.Down:
                         return NgConveyorState.WaitingForShuttleDown;
                     case true when !Position1Occupied:
                         return NgConveyorState.MovingToPosition1;
@@ -225,7 +238,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             case NgConveyorState.MovingToPosition2:
                 return MoveCarrierAsync(Movement.ToPosition2, cancellationToken);
             case NgConveyorState.WaitingForShuttleUp:
-                if (_shuttle.Lift != NgShuttleLiftState.Up)
+                if (ShuttleLift != NgShuttleLiftState.Up)
                 {
                     return WaitForChangeAsync(cancellationToken);
                 }
@@ -390,19 +403,11 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         Changed?.Invoke();
     }
 
-    private void OnShuttleChanged()
-    {
-        if (_shuttle.Lift == NgShuttleLiftState.Up
-            && IsShuttleRaiseAllowed)
-        {
-            _movement = Movement.None;
-        }
-
-        NotifyChanged();
-    }
-
     private void OnInputChanged(InputIo input, bool value)
     {
+        if (input is InputIo.NgShuttleUp or InputIo.NgShuttleDown or InputIo.NgShuttleCarrierDetected
+            && ShuttleLift == NgShuttleLiftState.Up && IsShuttleRaiseAllowed)
+            _movement = Movement.None;
         if (input == InputIo.NgConveyorPosition1Occupied
             && Position1Occupied
             && _movement == Movement.Compacting)
@@ -415,7 +420,10 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             or InputIo.NgConveyorStopperUp
             or InputIo.NgConveyorStopperDown
             or InputIo.NgCarrierEjectButton
-            or InputIo.NgCarrierEjectCompleteButton)
+            or InputIo.NgCarrierEjectCompleteButton
+            or InputIo.NgShuttleUp
+            or InputIo.NgShuttleDown
+            or InputIo.NgShuttleCarrierDetected)
         {
             NotifyChanged();
         }

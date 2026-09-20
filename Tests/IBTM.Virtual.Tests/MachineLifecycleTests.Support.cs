@@ -61,7 +61,6 @@ public sealed partial class MachineLifecycleTests
                         provider.GetRequiredService<OperationCancellation>(),
                         provider.GetRequiredService<InspectionGantrySettings>(),
                         provider.GetRequiredService<NgCarrierTransferSettings>(),
-                        provider.GetRequiredService<IBTM.NgConveyor.NgShuttleFeedback>(),
                         provider.GetRequiredService<UnitSettings>());
                 })
             .BuildServiceProvider();
@@ -131,8 +130,8 @@ public sealed partial class MachineLifecycleTests
                         settings.BoltFastening,
                         settings.CarrierReference,
                         provider.GetRequiredService<BoltFasteningWork>(),
-                        provider.GetRequiredService<PickupBoltFeeder>(),
-                        provider.GetRequiredService<ShootingBoltFeeder>(),
+                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Pickup),
+                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Shooting),
                         provider.GetRequiredService<RecipeManager>(),
                         provider.GetRequiredService<UnitSettings>()))
             .AddSingleton(
@@ -144,7 +143,6 @@ public sealed partial class MachineLifecycleTests
                         provider.GetRequiredService<OperationCancellation>(),
                         settings.InspectionGantry,
                         provider.GetRequiredService<NgCarrierTransferSettings>(),
-                        provider.GetRequiredService<IBTM.NgConveyor.NgShuttleFeedback>(),
                         provider.GetRequiredService<UnitSettings>()));
         configure?.Invoke(services);
         var provider = services.BuildServiceProvider();
@@ -214,7 +212,8 @@ public sealed partial class MachineLifecycleTests
             Z = 10,
         };
         settings.BoltFastening.Motion = FastMotion();
-        settings.BoltFastening.ShootingArrivalDelaySeconds = 0.05;
+        // Virtual tube passage takes 200 ms after detection, while the blow output remains on.
+        settings.BoltFastening.ShootingArrivalDelaySeconds = 0.5;
         settings.BoltFastening.SafeZ = 0;
         settings.BoltFastening.PickupPosition = new()
         {

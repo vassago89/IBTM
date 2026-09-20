@@ -307,6 +307,7 @@ public sealed partial class MachineLifecycleTests
         None,
         SupplyReturning,
         BothHolding,
+        SupplyReleasing,
         PlacementHolding,
     }
 
@@ -314,6 +315,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(PcbRepeatStopPoint.None)]
     [InlineData(PcbRepeatStopPoint.SupplyReturning)]
     [InlineData(PcbRepeatStopPoint.BothHolding)]
+    [InlineData(PcbRepeatStopPoint.SupplyReleasing)]
     [InlineData(PcbRepeatStopPoint.PlacementHolding)]
     public async Task RepeatMainSupplyPlacementKeepsReturnedPcbsAndResumesForward(PcbRepeatStopPoint stopPoint)
     {
@@ -346,6 +348,7 @@ public sealed partial class MachineLifecycleTests
         var enteredDisabledStation = false;
         var unsafeRelease = false;
         var descendedToSourceSlot = false;
+        var loweredPlacementIpm = false;
         var placementDepartedInY = false;
         var stopped = false;
         await machine.InitializeAsync();
@@ -371,6 +374,7 @@ public sealed partial class MachineLifecycleTests
                 reverseHandoffs++;
                 unsafeRelease |= !supply.PcbSecured;
             }
+            loweredPlacementIpm |= output == OutputIo.PcbPlacementIpmDown && on;
         };
         void StopAtHandoff()
         {
@@ -384,6 +388,9 @@ public sealed partial class MachineLifecycleTests
                     && supply.Feedback.GetPosition().X > recipe.PcbSupply.Pcb2PickPosition.X + 1,
                 PcbRepeatStopPoint.BothHolding => supply.PcbSecured && placement.PcbSecured
                     && placement.IsAtReceivePosition(),
+                PcbRepeatStopPoint.SupplyReleasing => reverseHandoffs > 0
+                    && !supply.IpmFixed && supply.Gripper == PcbSupplyCylinderState.Forward
+                    && placement.PcbSecured && placement.IsAtReceivePosition(),
                 PcbRepeatStopPoint.PlacementHolding => reverseHandoffs > 0 && supply.PcbReleased
                     && placement.PcbSecured && placement.IsAtReceivePosition(),
                 _ => false,
@@ -444,6 +451,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.Equal(0, returns);
             Assert.False(descendedToSourceSlot);
+            Assert.False(loweredPlacementIpm);
             Assert.Equal(stopPoint == PcbRepeatStopPoint.BothHolding ? 1 : 2, reverseHandoffs);
             Assert.False(unsafeRelease);
             Assert.True(placementDepartedInY);

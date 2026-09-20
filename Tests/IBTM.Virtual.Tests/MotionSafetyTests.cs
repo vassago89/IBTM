@@ -222,9 +222,7 @@ public sealed class MotionSafetyTests
         Assert.False(placementHandler.IsAtHandoff() && placementHandler.PcbSecured);
         io.SetInputs(
             (InputIo.PcbPlacementPcbDetected, true),
-            (InputIo.PcbPlacementVacuumDetected, true),
-            (InputIo.PcbPlacementIpmGripperOpen, false),
-            (InputIo.PcbPlacementIpmGripperClosed, true));
+            (InputIo.PcbPlacementVacuumDetected, true));
         Assert.True(placementHandler.IsAtHandoff() && placementHandler.PcbSecured);
     }
 

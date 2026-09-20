@@ -81,6 +81,8 @@ public sealed partial class PcbPlacer
         {
             CheckRepeatFeedback();
             operation.Token.ThrowIfCancellationRequested();
+            if (IpmLift != PlacementCylinderState.Up)
+                await SetIpmLiftDownAsync(false, operation.Token);
             if (trip.State == PcbPlacementState.PickingPcb)
             {
                 TraceStep(trip.State, trip.HeatSink.ToString(), trip.Job.Id);
@@ -88,7 +90,6 @@ public sealed partial class PcbPlacer
                 await SetLiftDownAsync(false, operation.Token);
                 await MoveToHorizontalZAsync(operation.Token);
                 await MoveToXYAsync(pickPosition, operation.Token);
-                await SetIpmLiftDownAsync(true, operation.Token);
                 await MoveAxisAsync(MotionAxis.Z, pickPosition.Z, operation.Token);
                 await SetLiftDownAsync(true, operation.Token);
                 await WaitForPcbAsync(operation.Token);
@@ -126,7 +127,6 @@ public sealed partial class PcbPlacer
                 {
                     await SetLiftDownAsync(false, operation.Token);
                     await MoveToHorizontalZAsync(operation.Token);
-                    await SetIpmLiftDownAsync(true, operation.Token);
                     await MoveToHandoffXYAsync(operation.Token);
                     while (_supply.Handoff != PcbSupplyHandoff.Holding)
                         await WaitForChangeAsync(operation.Token);

@@ -118,10 +118,10 @@
                             <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                             <Setter Property="BorderThickness" Value="2"/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding NgShuttle.Feedback.Lift}" Value="{x:Static ng:NgShuttleLiftState.Up}">
+                                <DataTrigger Binding="{Binding NgShuttle.Lift}" Value="{x:Static ng:NgShuttleLiftState.Up}">
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding NgShuttle.Feedback.Lift}" Value="{x:Static ng:NgShuttleLiftState.Down}">
+                                <DataTrigger Binding="{Binding NgShuttle.Lift}" Value="{x:Static ng:NgShuttleLiftState.Down}">
                                     <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>
@@ -174,10 +174,10 @@
                         <Path.Style>
                             <Style TargetType="Path" BasedOn="{StaticResource PlateElevationStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding NgShuttle.Feedback.Lift}" Value="{x:Static ng:NgShuttleLiftState.Up}">
+                                    <DataTrigger Binding="{Binding NgShuttle.Lift}" Value="{x:Static ng:NgShuttleLiftState.Up}">
                                         <Setter Property="Tag" Value="{x:Static device:StationCylinderState.Up}"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding NgShuttle.Feedback.Lift}" Value="{x:Static ng:NgShuttleLiftState.Down}">
+                                    <DataTrigger Binding="{Binding NgShuttle.Lift}" Value="{x:Static ng:NgShuttleLiftState.Down}">
                                         <Setter Property="Tag" Value="{x:Static device:StationCylinderState.Down}"/>
                                     </DataTrigger>
                                 </Style.Triggers>

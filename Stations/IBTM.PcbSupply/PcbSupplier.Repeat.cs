@@ -26,10 +26,13 @@ public sealed partial class PcbSupplier
         IPcbPlacementHandoff placement,
         CancellationToken cancellationToken)
     {
-        if (_units.PcbPlacement && (!PcbSecured
-            || placement.Handoff == PcbPlacementHandoff.Returning))
+        // An interrupted release at handoff continues through ReleasePcbAsync below.
+        // Do not reopen the gripper through reverse-receipt preparation.
+        if (_units.PcbPlacement
+            && (!PcbSecured || placement.Handoff == PcbPlacementHandoff.Returning)
+            && !(IsAtHandoff() && placement.Handoff == PcbPlacementHandoff.Holding))
         {
-            RepeatState = PcbSupplyState.WaitingForPlacement;
+            RepeatState = PcbSupplyState.HandingOff;
             while (placement.ReturningPcb is null && placement.Handoff != PcbPlacementHandoff.Holding)
                 await WaitForChangeAsync(cancellationToken);
 
@@ -49,7 +52,7 @@ public sealed partial class PcbSupplier
                 await SetRotatedAsync(false, cancellationToken);
                 await MoveToHandoffAsync(cancellationToken);
             }
-            RepeatState = PcbSupplyState.WaitingForPlacement;
+            RepeatState = PcbSupplyState.HandingOff;
             while (placement.Handoff is not (PcbPlacementHandoff.Returning or PcbPlacementHandoff.Holding))
                 await WaitForChangeAsync(cancellationToken);
 
@@ -136,7 +139,7 @@ public sealed partial class PcbSupplier
                 await MoveToHandoffAsync(forward.Token);
                 if (_units.PcbPlacement)
                 {
-                    RepeatState = PcbSupplyState.WaitingForPlacement;
+                    RepeatState = PcbSupplyState.HandingOff;
                     while (placement.Handoff != PcbPlacementHandoff.Holding)
                         await WaitForChangeAsync(forward.Token);
                 }
@@ -153,7 +156,7 @@ public sealed partial class PcbSupplier
 
         if (_units.PcbPlacement)
         {
-            RepeatState = PcbSupplyState.ReleasingPcb;
+            RepeatState = PcbSupplyState.HandingOff;
             await ReleasePcbAsync(placement, cancellationToken);
             RepeatState = PcbSupplyState.WaitingForPlacementZ;
             while (placement.Handoff != PcbPlacementHandoff.Clear)

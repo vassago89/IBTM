@@ -87,7 +87,7 @@ FOV 이미지·ROI 티칭은 저장 동작이 완료됐는지 오류 표시까�
 - 화면·버튼: `IBTM/UI/TeachingView.xaml`
 - FOV 선택·ROI·카메라 명령: `IBTM/UI/TeachingViewModel.Camera.cs`
 - 왼쪽 티칭 목록: `IBTM/UI/TeachingViewModel.cs`
-- 검사 위치와 ROI 사용: `Stations/IBTM.Inspection/BoltInspector.cs`
+- 검사 위치와 ROI 사용: `Stations/IBTM.Inspection/InspectionStation.Vision.cs`
 - 픽셀 변환/표시: `IBTM/UI/InspectionPreview.cs`, `ImageTeachingView.cs`
 - DB/이미지: [설정과 저장](SETTINGS_STORAGE.md)
 

@@ -11,21 +11,5 @@ public sealed class BoltFasteningWork : StationWork
 
     public override bool Enabled => Units.BoltFastening;
 
-    internal BoltFasteningWorkState State
-    {
-        get
-        {
-            switch (true)
-            {
-                case true when !Station.CarrierPresent:
-                    return BoltFasteningWorkState.WaitingForCarrier;
-                case true when Completed:
-                    return BoltFasteningWorkState.WaitingForTransfer;
-                default:
-                    return Station.CarrierSeated
-                        ? BoltFasteningWorkState.ReadyToFasten
-                        : BoltFasteningWorkState.WaitingForSeat;
-            }
-        }
-    }
+    internal bool IsReadyToFasten => Station.CarrierSeated && !Completed;
 }

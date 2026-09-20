@@ -69,7 +69,7 @@ public sealed class LightingTests
             .AddIbtmApplication(settings)
             .AddSingleton<ILightController>(light)
             .BuildServiceProvider();
-        var inspector = services.GetRequiredService<BoltInspector>();
+        var inspector = services.GetRequiredService<InspectionStation>();
         var reference = services.GetRequiredService<CarrierReferenceSettings>();
         reference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
         reference.LowerRightLocatingPin = new() { X = 20, Y = 20 };
@@ -145,7 +145,7 @@ public sealed class LightingTests
             .AddSingleton<ILightController>(light)
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
-        var inspector = services.GetRequiredService<BoltInspector>();
+        var inspector = services.GetRequiredService<InspectionStation>();
 
         // Teaching can start while automatic inspection is disabled and startup skipped vision.
         await inspector.StartLiveViewAsync();

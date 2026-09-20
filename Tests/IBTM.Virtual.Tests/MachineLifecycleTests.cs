@@ -291,7 +291,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
 
-        var inspector = services.GetRequiredService<BoltInspector>();
+        var inspector = services.GetRequiredService<InspectionStation>();
         var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
         Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
         Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));

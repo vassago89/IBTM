@@ -68,7 +68,7 @@ public partial class TeachingViewModel : ObservableObject
         PcbSupplySettings supplySettings,
         PcbPlacer placementHandler,
         BoltFasteningStation fasteningGantry,
-        BoltInspector boltInspector,
+        InspectionStation boltInspector,
         MachineState state,
         MachineController machine,
         OperationCancellation operations,
@@ -200,7 +200,7 @@ public partial class TeachingViewModel : ObservableObject
 
     public bool IsBusy => Array.Exists(_commands, static command => command.IsRunning);
 
-    public BoltInspector Inspector { get; }
+    public InspectionStation Inspector { get; }
 
     public RecipeEditor RecipeEditor { get; }
     public RecipeManager Recipes { get; }

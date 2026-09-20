@@ -686,7 +686,7 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateServices(FlowSettings());
         var recipes = services.GetRequiredService<RecipeManager>();
-        var inspector = services.GetRequiredService<BoltInspector>();
+        var inspector = services.GetRequiredService<InspectionStation>();
         var editor = services.GetRequiredService<RecipeEditor>();
         var preview = new InspectionPreview(inspector, recipes);
         var frame = new ImageFrame(1, 1, 3, [160, 160, 160]);
@@ -822,6 +822,7 @@ public sealed partial class MachineLifecycleTests
         var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        await WaitUntilAsync(() => services.GetRequiredService<MachineState>().Homed);
         Assert.True(services.GetRequiredService<MachineState>().Homed,
             services.GetRequiredService<MachineState>().AlarmDetail);
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
@@ -852,7 +853,7 @@ public sealed partial class MachineLifecycleTests
             point => point.Position.Target == TeachingTarget.PlacementHandoff);
         Assert.Equal(HardwareArea.PcbPlacementHandler, teaching.SelectedTeachingUnit);
         Assert.Same(placement.Feedback, teaching.Motion.Feedback);
-        Assert.Contains(OutputIo.PcbPlacementIpmGripperClose, TeachingRows(teaching).Keys);
+        Assert.DoesNotContain(OutputIo.Unused3, TeachingRows(teaching).Keys);
         Assert.DoesNotContain(OutputIo.PcbSupplyGripperClosed, TeachingRows(teaching).Keys);
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
@@ -1392,7 +1393,7 @@ public sealed partial class MachineLifecycleTests
         TeachInspectionFovs(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
-        var inspector = services.GetRequiredService<BoltInspector>();
+        var inspector = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         teaching.SelectedPoint = teaching.FilteredPoints.Single(

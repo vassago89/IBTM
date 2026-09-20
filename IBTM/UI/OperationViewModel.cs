@@ -18,6 +18,7 @@ using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
 
@@ -28,8 +29,8 @@ public partial class OperationViewModel : ObservableObject
     private readonly MachineOptions _options;
     private readonly RecipeManager _recipes;
     private readonly MachineMap _map;
-    private readonly PickupBoltFeeder _pickupFeeder;
-    private readonly ShootingBoltFeeder _shootingFeeder;
+    private readonly BoltFeederUnit _pickupFeeder;
+    private readonly BoltFeederUnit _shootingFeeder;
     private volatile bool _active;
 
     [ObservableProperty]
@@ -50,15 +51,14 @@ public partial class OperationViewModel : ObservableObject
         RecipeManager recipes,
         MachineMap map,
         MainConveyor conveyor,
-        PickupBoltFeeder pickupFeeder,
-        ShootingBoltFeeder shootingFeeder,
+        [FromKeyedServices(FasteningHead.Pickup)] BoltFeederUnit pickupFeeder,
+        [FromKeyedServices(FasteningHead.Shooting)] BoltFeederUnit shootingFeeder,
         NgCarrierConveyor ngConveyor,
         NgShuttle ngShuttle,
         NgCarrierTransfer ngTransfer,
         PcbSupplier supply,
         PcbPlacer placement,
         BoltFasteningStation fastening,
-        BoltInspector inspector,
         InspectionStation inspectionStation)
     {
         StartCommand = new AsyncRelayCommand(StartAsync);
@@ -110,10 +110,10 @@ public partial class OperationViewModel : ObservableObject
         foreach (var axis in ngTransfer.Motion.Axes.Values)
             axis.PropertyChanged += OnInspectionGantryMotionChanged;
         conveyor.Changed += OnMainConveyorChanged;
-        inspector.InspectionCaptured += OnInspectionCaptured;
+        inspectionStation.InspectionCaptured += OnInspectionCaptured;
         ngTransfer.Changed += OnNgConveyorChanged;
         ngConveyor.Changed += OnNgConveyorChanged;
-        ngShuttle.Feedback.Changed += OnNgConveyorChanged;
+        ngShuttle.Changed += OnNgConveyorChanged;
         inspectionStation.Changed += OnInspectionChanged;
         state.PropertyChanged += OnMachineStateChanged;
         machine.PropertyChanged += OnMachinePropertyChanged;

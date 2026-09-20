@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
@@ -13,9 +12,8 @@ namespace IBTM.Inspection;
 
 public sealed record CarrierImage(AxisPosition Center, ImageFrame Frame);
 
-public sealed class BoltInspector
+public sealed partial class InspectionStation
 {
-    private readonly NgCarrierTransfer _gantry;
     private readonly ICamera _camera;
     private readonly ILightController _light;
     private readonly InspectionGantrySettings _gantrySettings;
@@ -23,25 +21,6 @@ public sealed class BoltInspector
     private readonly RecipeManager _recipes;
     private readonly SemaphoreSlim _visionGate;
     private int? _lightChannel;
-
-    public BoltInspector(
-        NgCarrierTransfer gantry,
-        ICamera camera,
-        ILightController light,
-        InspectionGantrySettings gantrySettings,
-        LightingSettings lightingSettings,
-        RecipeManager recipes)
-    {
-        _visionGate = new(1, 1);
-
-        _gantry = gantry;
-        _camera = camera;
-        _light = light;
-        _gantrySettings = gantrySettings;
-        _lightingSettings = lightingSettings;
-        _recipes = recipes;
-        camera.LiveViewFailed += OnCameraLiveViewFailed;
-    }
 
     public event Action? LiveViewChanged;
 
@@ -126,7 +105,7 @@ public sealed class BoltInspector
 
     public bool IsAtBarcode(HeatSinkSlot pcb, bool live = true)
     {
-        return _gantry.IsAt(GetBarcodeFov(pcb).Center, live);
+        return _transfer.IsAt(GetBarcodeFov(pcb).Center, live);
     }
 
     public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
@@ -197,7 +176,7 @@ public sealed class BoltInspector
 
     internal bool IsAt(BoltPoint point, bool live = true)
     {
-        return _gantry.IsAt(GetFov(point).Center, live);
+        return _transfer.IsAt(GetFov(point).Center, live);
     }
 
     public Task MoveToAsync(BoltPoint point, CancellationToken cancellationToken = default)
@@ -260,7 +239,7 @@ public sealed class BoltInspector
             var image = await Task.Run(
                 async () =>
                 {
-                    var feedback = _gantry.Feedback;
+                    var feedback = _transfer.Feedback;
                     if (feedback.IsMoving
                         || !feedback.GetAxisState(MotionAxis.X).InPosition
                         || !feedback.GetAxisState(MotionAxis.Y).InPosition)
@@ -271,7 +250,7 @@ public sealed class BoltInspector
                     var frame = _camera.IsLiveView
                         ? await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false)
                         : await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
-                    if (!_gantry.IsAt(center))
+                    if (!_transfer.IsAt(center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);
                 },
@@ -387,7 +366,7 @@ public sealed class BoltInspector
             failure = cleanupFailure;
         }
         PublishLiveView(failure);
-        Trace.TraceError("Inspection live view failed. {0}", failure);
+        System.Diagnostics.Trace.TraceError("Inspection live view failed. {0}", failure);
     }
 
     private void PublishLiveView(Exception? failure = null)
@@ -411,7 +390,7 @@ public sealed class BoltInspector
 
     private Task MoveToAsync(AxisPosition position, CancellationToken cancellationToken)
     {
-        return _gantry.MoveToAsync(position, _gantrySettings.Motion.HorizontalSpeed, cancellationToken);
+        return _transfer.MoveToAsync(position, _gantrySettings.Motion.HorizontalSpeed, cancellationToken);
     }
 
     private void TurnLightOn(int channel)

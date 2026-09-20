@@ -158,7 +158,7 @@ public sealed partial class MachineController
         {
             try
             {
-                await _boltInspector.InitializeVisionAsync(operation.Token);
+                await _inspectionStation.InitializeVisionAsync(operation.Token);
             }
             catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
             {
@@ -328,7 +328,7 @@ public sealed partial class MachineController
             try
             {
                 _log?.LogInformation("Vision / lighting initialization started.");
-                await _boltInspector.InitializeVisionAsync(cancellationToken);
+                await _inspectionStation.InitializeVisionAsync(cancellationToken);
                 _log?.LogInformation("Vision / lighting initialization completed.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

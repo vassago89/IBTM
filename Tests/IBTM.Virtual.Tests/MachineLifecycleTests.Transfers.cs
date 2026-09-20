@@ -423,7 +423,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PlacementDoesNotPressAfterCarrierChangesDuringGripperClose(bool replaceCarrier)
+    public async Task PlacementDoesNotPressAfterCarrierChangesDuringIpmRetraction(bool replaceCarrier)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -441,6 +441,7 @@ public sealed partial class MachineLifecycleTests
         await handler.MoveToXYAsync(recipe.HeatSink1PcbPlacementPosition);
         await handler.MoveAxisAsync(MotionAxis.Z, 10);
         io.AutoResponseEnabled = false;
+        io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
         foreach (var input in new[]
         {
             InputIo.PcbPlacementHeatSink1Present,
@@ -448,30 +449,27 @@ public sealed partial class MachineLifecycleTests
             InputIo.PcbPlacementStopperDown,
             InputIo.PcbPlacementHeatSink1Present,
             InputIo.PcbPlacementPcbDetected,
-            InputIo.PcbPlacementIpmGripperOpen,
             InputIo.PcbPlacementHandlerUnrotated,
             InputIo.PcbPlacementHandlerDown,
-            InputIo.PcbPlacementIpmUp,
+            InputIo.PcbPlacementIpmDown,
         })
             io.SetInput(input, true);
         foreach (var input in new[]
         {
             InputIo.PcbPlacementBackupPlateDown,
             InputIo.PcbPlacementStopperUp,
-            InputIo.PcbPlacementIpmGripperClosed,
             InputIo.PcbPlacementHandlerRotated,
             InputIo.PcbPlacementHandlerUp,
-            InputIo.PcbPlacementIpmDown,
+            InputIo.PcbPlacementIpmUp,
         })
             io.SetInput(input, false);
         var pressed = false;
-        void ChangeCarrierOnClose(OutputIo output, bool on)
+        void ChangeCarrierOnRetraction(OutputIo output, bool on)
         {
             pressed |= output == OutputIo.PcbPlacementIpmDown && on;
-            if (output != OutputIo.PcbPlacementIpmGripperClose || !on)
+            if (output != OutputIo.PcbPlacementIpmDown || on)
                 return;
-            io.SetInput(InputIo.PcbPlacementIpmGripperOpen, false);
-            io.SetInput(InputIo.PcbPlacementIpmGripperClosed, true);
+            io.SetInputs((InputIo.PcbPlacementIpmDown, false), (InputIo.PcbPlacementIpmUp, true));
             if (replaceCarrier)
             {
                 VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
@@ -481,7 +479,7 @@ public sealed partial class MachineLifecycleTests
                 io.SetInput(InputIo.PcbPlacementBackupPlateUp, false);
         }
 
-        io.OutputChanged += ChangeCarrierOnClose;
+        io.OutputChanged += ChangeCarrierOnRetraction;
         try
         {
             Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
@@ -493,7 +491,7 @@ public sealed partial class MachineLifecycleTests
         }
         finally
         {
-            io.OutputChanged -= ChangeCarrierOnClose;
+            io.OutputChanged -= ChangeCarrierOnRetraction;
             await machine.ShutdownAsync();
         }
     }
@@ -519,7 +517,6 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await handler.MoveToXYAsync(recipe.HeatSink1PcbPlacementPosition);
         io.AutoResponseEnabled = false;
-        io.SetOutput(OutputIo.PcbPlacementIpmGripperClose, true);
         io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
         foreach (var input in new[]
         {
@@ -528,7 +525,6 @@ public sealed partial class MachineLifecycleTests
             InputIo.PcbPlacementStopperDown,
             InputIo.PcbPlacementHeatSink1Present,
             InputIo.PcbPlacementPcbDetected,
-            InputIo.PcbPlacementIpmGripperClosed,
             InputIo.PcbPlacementHandlerUnrotated,
             InputIo.PcbPlacementIpmDown
         })
@@ -537,7 +533,6 @@ public sealed partial class MachineLifecycleTests
         {
             InputIo.PcbPlacementBackupPlateDown,
             InputIo.PcbPlacementStopperUp,
-            InputIo.PcbPlacementIpmGripperOpen,
             InputIo.PcbPlacementHandlerRotated,
             InputIo.PcbPlacementIpmUp
         })
@@ -555,7 +550,7 @@ public sealed partial class MachineLifecycleTests
         io.SetOutput(OutputIo.PcbPlacementHandlerDown, true);
 
         var outputs = new List<(OutputIo, bool)>();
-        using var closing = new CancellationTokenSource();
+        using var preparing = new CancellationTokenSource();
         using var pressing = new CancellationTokenSource();
         io.OutputChanged += (output, on) =>
         {
@@ -564,7 +559,7 @@ public sealed partial class MachineLifecycleTests
                 io.SetInputs((InputIo.PcbPlacementHandlerDown, on), (InputIo.PcbPlacementHandlerUp, !on));
                 return;
             }
-            if (output is not (OutputIo.PcbPlacementIpmDown or OutputIo.PcbPlacementIpmGripperClose))
+            if (output != OutputIo.PcbPlacementIpmDown)
                 return;
             outputs.Add((output, on));
             var feedback = io.GetOutputFeedback(output)!;
@@ -576,14 +571,14 @@ public sealed partial class MachineLifecycleTests
             }
 
             io.SetInput(on ? feedback.OnInput : feedback.OffInput!.Value, true);
-            if (output == OutputIo.PcbPlacementIpmGripperClose && on)
-                closing.Cancel();
+            if (!on)
+                preparing.Cancel();
         };
 
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, closing.Token)!);
-        Assert.Equal(PlacementGripperState.Closed, handler.IpmGripper);
+            () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, preparing.Token)!);
+        Assert.Equal(PlacementCylinderState.Up, handler.IpmLift);
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
         Assert.Empty(work.Assemblies);
 
@@ -611,9 +606,7 @@ public sealed partial class MachineLifecycleTests
         }
         var expected = new List<(OutputIo, bool)>
         {
-            (OutputIo.PcbPlacementIpmGripperClose, false),
             (OutputIo.PcbPlacementIpmDown, false),
-            (OutputIo.PcbPlacementIpmGripperClose, true),
             (OutputIo.PcbPlacementIpmDown, true),
         };
         if (!replaceCarrier)

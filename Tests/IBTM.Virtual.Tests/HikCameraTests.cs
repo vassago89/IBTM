@@ -176,7 +176,7 @@ public sealed class HikCameraTests
             .AddIbtmApplication(new MachineSettings())
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
-        var inspector = services.GetRequiredService<BoltInspector>();
+        var inspector = services.GetRequiredService<InspectionStation>();
         using var received = new ManualResetEventSlim();
         inspector.FrameReady += _ => received.Set();
 
