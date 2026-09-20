@@ -61,8 +61,8 @@ public enum PcbSupplyState
     [Description("Releasing PCB")]
     ReleasingPcb,
 
-    [Description("Waiting for Placement Handler Up")]
-    WaitingForPlacementLift,
+    [Description("Waiting for Placement Z at Standby")]
+    WaitingForPlacementZ,
 
     [Description("Disabled")]
     Disabled,

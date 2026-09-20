@@ -46,8 +46,8 @@ public enum HandlerDisplayState
     [Description("Waiting for Placement")]
     WaitingForPlacement,
 
-    [Description("Waiting for Placement Up")]
-    WaitingForPlacementLift,
+    [Description("Waiting for Placement Z at Standby")]
+    WaitingForPlacementZ,
 
     [Description("Waiting for Supply Release")]
     WaitingForSupplyRelease,

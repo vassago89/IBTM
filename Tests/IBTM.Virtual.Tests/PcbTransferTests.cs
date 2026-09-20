@@ -355,7 +355,7 @@ public sealed class PcbTransferTests
         };
         void StopBeforePlacementLifts(string message)
         {
-            if (message.StartsWith("PcbSupplier: WaitingForPlacementLift ", StringComparison.Ordinal))
+            if (message.StartsWith("PcbSupplier: WaitingForPlacementZ ", StringComparison.Ordinal))
                 released.Cancel();
         }
         supplier.Trace += StopBeforePlacementLifts;
@@ -364,7 +364,7 @@ public sealed class PcbTransferTests
         Assert.Equal(new[] { OutputIo.PcbSupplyIpmFixerForward, OutputIo.PcbSupplyGripperClosed }, order);
         Assert.True(source.PcbReleased);
         Assert.Equal((50, 10, supplySettings.HandoffPosition.Z), supplyMotion.GetPosition());
-        Assert.Equal(PcbSupplyState.WaitingForPlacementLift, supplier.State);
+        Assert.Equal(PcbSupplyState.WaitingForPlacementZ, supplier.State);
         Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.State);
         io.SetInput(InputIo.PcbSupplyGripperClosed, true); // Both endpoints ON is not released.
         Assert.False(source.PcbReleased);
@@ -381,7 +381,38 @@ public sealed class PcbTransferTests
             if (placementMotion.IsMoving && z != placementSettings.HandoffPosition.Z)
                 Assert.NotEqual(PcbPlacementHandoff.Clear, placer.Handoff);
         };
-        await placer.PlaceAsync(HeatSinkSlot.HeatSink1, CancellationToken.None)!;
+        using var returnCheck = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var waitedForZ = false;
+        var returnAllowed = false;
+        void ObserveReturn(string message)
+        {
+            if (message.StartsWith($"PcbSupplier: {nameof(PcbSupplyState.WaitingForPlacementZ)} ", StringComparison.Ordinal))
+                waitedForZ = true;
+            if (message.StartsWith($"PcbSupplier: {nameof(PcbSupplyState.MovingToPickup)} ", StringComparison.Ordinal))
+            {
+                Assert.True(recipient.IsAtHorizontalZ());
+                Assert.True(recipient.HandlerRaised);
+                returnAllowed = true;
+                returnCheck.Cancel(); // Stop before XY so the independent Placement departure is checked below.
+            }
+        }
+        supplier.Trace += ObserveReturn;
+        var returning = supplier.RunAsync(new(), placer, returnCheck.Token);
+        try
+        {
+            Assert.True(waitedForZ);
+            Assert.False(returnAllowed);
+            Assert.False(returning.IsCompleted);
+            await placer.PlaceAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
+            await returning.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(returnAllowed);
+        }
+        finally
+        {
+            returnCheck.Cancel();
+            await returning;
+            supplier.Trace -= ObserveReturn;
+        }
         Assert.True(source.PcbReleased && recipient.HandlerRaised);
         Assert.True(recipient.IsAtHorizontalZ());
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetState(HeatSinkSlot.HeatSink1));

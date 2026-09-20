@@ -101,7 +101,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             case PcbSupplyState.WaitingForPlacement when placement.Handoff == PcbPlacementHandoff.Holding:
                 state = PcbSupplyState.ReleasingPcb;
                 break;
-            case PcbSupplyState.WaitingForPlacementLift when placement.Handoff == PcbPlacementHandoff.Clear:
+            case PcbSupplyState.WaitingForPlacementZ when placement.Handoff == PcbPlacementHandoff.Clear:
                 state = PcbSupplyState.MovingToPickup;
                 break;
         }
@@ -202,7 +202,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             {
                 case PcbSupplyState.WaitingForPlacement:
                     return PcbSupplyHandoff.Holding;
-                case PcbSupplyState.WaitingForPlacementLift:
+                case PcbSupplyState.WaitingForPlacementZ:
                     return PcbSupplyHandoff.Released;
                 default:
                     return PcbSupplyHandoff.Unavailable;
@@ -223,7 +223,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             switch (true)
             {
                 case true when atHandoff && _handler.PcbReleased:
-                    return PcbSupplyState.WaitingForPlacementLift;
+                    return PcbSupplyState.WaitingForPlacementZ;
                 case true when atHandoff && pcb == PcbSupplyPcbState.Secured:
                     return PcbSupplyState.WaitingForPlacement;
                 case true when atHandoff:
