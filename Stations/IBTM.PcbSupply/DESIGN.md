@@ -46,7 +46,7 @@ PCB 1 XY + Rotation Z, rotated
   -> wait for Placement to secure the PCB at its receiving XYZ
   -> retract IPM fixer
   -> open supply gripper
-  -> wait for Placement Handler Up
+  -> wait for Placement Handler Up, standby Z and settled placement Y
   -> next pickup X/Y together, keeping handoff Z
   -> Rotation Z
   -> rotation IO ON and rotated input confirmed
@@ -77,10 +77,10 @@ motion commands, or internal sequence stages, and do not store duplicate state.
 
 | Handoff | Confirmed locally | Peer action |
 | --- | --- | --- |
-| Supply `Holding` | Secured PCB at settled give XYZ | Placement moves Z to its receive height with its cylinder Up |
+| Supply `Holding` | Secured PCB at settled give XYZ with confirmed Unrotated feedback | Placement moves Z to its receive height with its cylinder Up |
 | Placement `Holding` | At receive XY/Z, handler Up, PCB detected, vacuum and gripper confirmed | Supply retracts fixer, then opens gripper |
-| Supply `Released` | At give XYZ, fixer and gripper released | Placement returns Z to standby |
-| Placement `Clear` | Receiving/travel preparation complete, or working at the heat sink | Supply returns to pickup |
+| Supply `Released` | At give XYZ with confirmed Unrotated feedback, fixer and gripper released | Placement returns Z to standby, then departs along Y |
+| Placement `Clear` | Placement has settled at the heat sink Y after receipt, or is already working at the heat sink / empty at receiving standby | Supply returns to pickup |
 | Either unit `Unavailable` | Disabled or not at a confirmed handoff condition | Peer waits |
 
 `MachineController` passes Placement's handoff interface into Supply's run.
@@ -94,8 +94,9 @@ own taught standby/give XYZ before Placement moves Z to `ReceiveZ`.
 Supply releases only while Placement reports handoff `Holding`, which
 requires PCB detection, vacuum detection, and its closed IPM gripper. The state
 is checked again before each release actuator. After release, Placement returns Z
-to standby with its handler cylinder still Up. Supply waits for Placement's `Clear`
-before its XY return. Placement may then leave for the selected heat sink.
+to standby with its handler cylinder still Up, then moves Y to the selected heat sink while retaining handoff X.
+Supply waits for Placement's `Clear` after that Y move before its XY return.
+The existing `WaitingForPlacementZ` state also owns this Y departure wait.
 
 The give position requires settled X/Y/Z feedback at the stored give XYZ;
 matching X/Y at Rotation Z is insufficient when the two heights differ.
@@ -106,6 +107,14 @@ Rotation and gripper positions come from current paired inputs. Both endpoint
 inputs ON or both OFF mean Between. PCB detection alone does not prove holding:
 `Secured` also requires closed-gripper and IPM-fixer feedback. Output commands
 never substitute for endpoint confirmation.
+
+Both normal and Repeat handoff reject Rotated or Between feedback. Normal operation
+stops with an interlock error if this is detected at give XYZ. Release rechecks
+Unrotated feedback before opening the gripper, and withdrawal requires it too.
+Repeat reverse preparation still reaches Rotation Z and confirms Unrotated before
+returning to give XYZ when only the coordinates already match. If Placement is
+already holding or returning the PCB at receive Z, invalid rotation stops the
+operation without automatically rotating Supply.
 
 Manual axis moves and jog retain the current Z. A handoff point
 move requires unrotated feedback. A pickup point move requires rotated feedback.

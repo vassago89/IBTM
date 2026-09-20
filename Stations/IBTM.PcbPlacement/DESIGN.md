@@ -6,16 +6,16 @@ Handler Rotate output stays OFF during automatic, repeat and manual operation.
 
 1. Raise the handler, reach standby Z, prepare the IPM, then move to standby XY.
 2. Wait for Supply at its give XYZ with confirmed holding. Keep the handler cylinder Up, move Z to `ReceiveZ`, detect the PCB, apply vacuum and close the IPM gripper.
-3. After Supply fixer and gripper retract, return Z to standby. Both handlers may then leave independently.
-4. With the carrier seated, move directly to Heat Sink 1 XY, descend to placement Z and lower the handler.
+3. After Supply fixer and gripper retract, return Z to standby and move only Y to the selected heat sink's placement Y. Keep `PreparingPlacement` until Y settles; only then publish `Clear` for Supply withdrawal. A prefetched PCB without a carrier target waits at Heat Sink 1 Y.
+4. With the carrier seated, finish the move to the selected heat sink X, descend to placement Z and lower the handler.
 5. Release vacuum, open the IPM gripper, raise IPM, close the gripper and lower IPM to press. Record the placement, then raise IPM, handler and Z.
 6. Return to receiving XY for the second PCB and repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
 7. Complete the carrier after the final placement is raised, then return to receiving standby.
 
 `State` / `GetState` describe Placement feedback and its current repeat operation. `PlaceAsync` starts
-receipt when Supply's `Handoff` is `Holding`, and returns Z to standby once it is
+receipt when Supply's `Handoff` is `Holding`, and returns Z to standby followed by placement Y once it is
 `Released`. Placement publishes `Holding` while securing the PCB at the receiving
-position, and `Clear` once Supply may withdraw. Internal placement/press stages
+position, and `Clear` after the Y departure settles. Internal placement/press stages
 are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
 documents these conditions and reference direction.
 
@@ -38,12 +38,13 @@ uses the existing `PcbPlacementState` values and picks PCBs from the existing ca
 With Supply disabled, it visits handoff and places each PCB back on its heat sink.
 With Supply enabled, `ReturningPcb` identifies the original heat sink and `Returning`
 confirms a held PCB at Receive Z. Supply secures it before Placement releases and
-rises. Placement waits for Supply's departure and next forward handoff, then places
+rises and moves to the original heat sink Y before allowing Supply to withdraw. Placement waits for Supply's departure and next forward handoff, then places
 and presses the same PCB. Supply keeps the PCB secured through its reverse travel
 at pickup travel height; it does not put the PCB into an upstream slot.
 After STOP, live holding feedback selects forward continuation: a PCB on Supply
 waits for forward receipt, a PCB held by Placement continues to its heat sink,
-and a shared hold at Receive Z waits for Supply release before Placement rises.
+and a shared hold at Receive Z waits for Supply release before Placement rises and departs in Y.
+A stop partway through departure resumes Y before moving X; no additional sequence state is used.
 Main Conveyor OFF repeats the completed seated carrier
 with a new work record; it does not clear incomplete work.
 

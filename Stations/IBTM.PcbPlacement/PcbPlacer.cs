@@ -69,6 +69,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         : PcbPlacementHandoff.Unavailable;
                 }
                 return _handler.HandlerRaised && _handler.IsAtHorizontalZ()
+                    && _handler.IsAtY(GetHeatSinkPosition(trip.HeatSink))
                     ? PcbPlacementHandoff.Clear : PcbPlacementHandoff.Unavailable;
             }
             switch (State)
@@ -211,6 +212,12 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 await _handler.SetIpmLiftDownAsync(_handler.Pcb == PlacementPcbState.Secured, cancellationToken);
                 await _handler.SetLiftDownAsync(false, cancellationToken);
                 await _handler.MoveToHorizontalZAsync(cancellationToken);
+                if (_handler.PcbSecured)
+                {
+                    // A prefetched PCB waits outside handoff at the first placement Y.
+                    var destination = heatSink ?? HeatSinkSlot.HeatSink1;
+                    await _handler.MoveAxisAsync(MotionAxis.Y, GetHeatSinkPosition(destination).Y, cancellationToken);
+                }
                 break;
             case PcbPlacementState.PlacingPcb:
             {
@@ -336,6 +343,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         return PcbPlacementState.PlacingPcb;
                     case true when _handler.IpmLift != PlacementCylinderState.Down
                         || _handler.Lift != PlacementCylinderState.Up || !_handler.IsAtHorizontalZ(live):
+                        return PcbPlacementState.PreparingPlacement;
+                    case true when !_handler.IsAtY(GetHeatSinkPosition(heatSink ?? HeatSinkSlot.HeatSink1), live):
                         return PcbPlacementState.PreparingPlacement;
                     case true when !_work.Station.CarrierSeated || _work.Completed:
                         return PcbPlacementState.WaitingForCarrier;

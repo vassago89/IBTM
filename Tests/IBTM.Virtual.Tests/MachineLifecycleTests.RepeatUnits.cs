@@ -196,6 +196,7 @@ public sealed partial class MachineLifecycleTests
         var enteredDisabledStation = false;
         var unsafeRelease = false;
         var descendedToSourceSlot = false;
+        var placementDepartedInY = false;
         var stopped = false;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -246,6 +247,23 @@ public sealed partial class MachineLifecycleTests
         supply.Changed += StopAtHandoff;
         placement.Changed += StopAtHandoff;
         supply.Feedback.PositionChanged += (x, y, z) => StopAtHandoff();
+        placement.Feedback.PositionChanged += (x, y, z) =>
+        {
+            if (placer.State is PcbPlacementState.WaitingForSupply or PcbPlacementState.WaitingForSupplyRelease
+                && y > settings.PcbPlacementHandler.HandoffPosition.Y
+                && y < recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y)
+            {
+                placementDepartedInY = true;
+                Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.X, x);
+                Assert.Equal(settings.PcbPlacementHandler.HandoffPosition.Z, z);
+                Assert.NotEqual(PcbPlacementHandoff.Clear, placer.Handoff);
+            }
+        };
+        supplier.Trace += message =>
+        {
+            if (message.StartsWith("PcbSupplier: MovingToPickup ", StringComparison.Ordinal))
+                Assert.Equal(recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y, placement.Feedback.GetPosition().Y);
+        };
         supply.Feedback.StateChanged += () =>
         {
             if (supply.PcbSecured && supply.Rotation == PcbSupplyRotationState.Rotated
@@ -275,6 +293,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(descendedToSourceSlot);
             Assert.Equal(stopPoint == PcbRepeatStopPoint.BothHolding ? 1 : 2, reverseHandoffs);
             Assert.False(unsafeRelease);
+            Assert.True(placementDepartedInY);
             Assert.False(enteredDisabledStation);
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             Assert.True(mainReturned);

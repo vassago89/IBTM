@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Device;
 
 namespace IBTM.PcbSupply;
 
@@ -91,6 +92,9 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         IPcbPlacementHandoff placement,
         CancellationToken cancellationToken)
     {
+        if (_handler.IsAtHandoff() && _handler.Rotation != PcbSupplyRotationState.Unrotated)
+            throw new MotionInterlockException("Supply handoff requires confirmed Unrotated feedback.");
+
         if (_pickStep != PickStep.WaitingForCarrierExit)
         {
             _handler.SetUpstreamReady(true);
@@ -185,6 +189,8 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         IPcbPlacementHandoff placement,
         CancellationToken cancellationToken)
     {
+        if (_handler.Rotation != PcbSupplyRotationState.Unrotated)
+            throw new MotionInterlockException("Supply must remain Unrotated while releasing the PCB.");
         if (_handler.IpmFixed)
         {
             if (placement.Handoff != PcbPlacementHandoff.Holding)
@@ -193,6 +199,8 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
         if (_handler.Gripper != PcbSupplyCylinderState.Backward)
         {
+            if (_handler.Rotation != PcbSupplyRotationState.Unrotated)
+                throw new MotionInterlockException("Supply lost Unrotated feedback before opening its gripper.");
             if (placement.Handoff != PcbPlacementHandoff.Holding)
                 throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
             await _handler.SetGripperClosedAsync(false, cancellationToken);
@@ -214,6 +222,8 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         get
         {
+            if (!_units.PcbSupply || _handler.Rotation != PcbSupplyRotationState.Unrotated)
+                return PcbSupplyHandoff.Unavailable;
             if (_repeatState is not null)
             {
                 if (!_handler.IsAtHandoff())

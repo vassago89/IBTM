@@ -116,6 +116,7 @@ public sealed partial class PcbPlacer
                 await _handler.SetIpmGripperAsync(false, operation.Token);
                 await _handler.SetLiftDownAsync(false, operation.Token);
                 await _handler.MoveToHorizontalZAsync(operation.Token);
+                await _handler.MoveAxisAsync(MotionAxis.Y, GetHeatSinkPosition(trip.HeatSink).Y, operation.Token);
                 trip.State = PcbPlacementState.WaitingForSupply;
                 RepeatChanged?.Invoke();
                 // Observe departure before accepting the next forward handoff.
@@ -144,9 +145,10 @@ public sealed partial class PcbPlacer
                 operation.Token.ThrowIfCancellationRequested();
                 while (_supply.Handoff != PcbSupplyHandoff.Released)
                     await WaitForChangeAsync(operation.Token);
-                trip.State = PcbPlacementState.PlacingPcb;
                 await _handler.SetLiftDownAsync(false, operation.Token);
                 await _handler.MoveToHorizontalZAsync(operation.Token);
+                await _handler.MoveAxisAsync(MotionAxis.Y, GetHeatSinkPosition(trip.HeatSink).Y, operation.Token);
+                trip.State = PcbPlacementState.PlacingPcb;
                 RepeatChanged?.Invoke();
                 receiving = false;
             }

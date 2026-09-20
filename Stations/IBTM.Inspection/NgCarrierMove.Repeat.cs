@@ -40,10 +40,6 @@ public sealed partial class NgCarrierMove
             || !_pickup.IsRaised)
             throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the first FOV.");
 
-        var safeX = _settings.PickupSafeX
-            ?? throw new InvalidOperationException("Teach Carrier Pickup X (Approach) before leaving Station 3.");
-        await _gantry.MoveAxisAsync(MotionAxis.X, safeX, _settings.Speed, cancellationToken);
-        await _gantry.MoveAxisAsync(MotionAxis.Y, firstFov.Y, _settings.Speed, cancellationToken);
-        await _gantry.MoveAxisAsync(MotionAxis.X, firstFov.X, _settings.Speed, cancellationToken);
+        await _gantry.MoveToAsync(firstFov, _settings.Speed, cancellationToken);
     }
 }

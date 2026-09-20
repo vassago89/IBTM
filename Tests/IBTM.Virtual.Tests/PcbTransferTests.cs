@@ -282,8 +282,10 @@ public sealed class PcbTransferTests
         Assert.Equal(PcbPlacementHandoff.Holding, placer.Handoff);
     }
 
-    [Fact]
-    public async Task DirectHandoffConfirmsHoldingAndLetsPlacementLeaveBeforeSupply()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DirectHandoffWaitsForPlacementYDepartureBeforeSupply(bool stopDuringDeparture)
     {
         var recipe = new PcbPlacementRecipe
         {
@@ -411,10 +413,27 @@ public sealed class PcbTransferTests
         Assert.False(recipient.HandlerRaised);
         Assert.Equal(PcbPlacementState.ReceivingPcb, placer.State);
         io.SetInput(InputIo.PcbPlacementHandlerDown, false);
-        placementMotion.PositionChanged += (_, _, z) =>
+        using var departureStop = new CancellationTokenSource();
+        placementSettings.Motion.HorizontalSpeed = 50;
+        var departedInY = false;
+        var interrupted = false;
+        placementMotion.PositionChanged += (x, y, z) =>
         {
-            if (placementMotion.IsMoving && z != placementSettings.HandoffPosition.Z)
+            if (placementMotion.IsMoving)
                 Assert.NotEqual(PcbPlacementHandoff.Clear, placer.Handoff);
+            if (y > 10 && y < recipe.HeatSink1PcbPlacementPosition.Y)
+            {
+                departedInY = true;
+                Assert.Equal(50, x);
+                Assert.Equal(placementSettings.HandoffPosition.Z, z);
+                Assert.Equal(PcbPlacementState.PreparingPlacement, placer.State);
+                Assert.True(source.IsAtHandoff());
+                if (stopDuringDeparture && !interrupted)
+                {
+                    interrupted = true;
+                    departureStop.Cancel();
+                }
+            }
         };
         using var returnCheck = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var waitedForZ = false;
@@ -427,6 +446,8 @@ public sealed class PcbTransferTests
             {
                 Assert.True(recipient.IsAtHorizontalZ());
                 Assert.True(recipient.HandlerRaised);
+                Assert.Equal((50, recipe.HeatSink1PcbPlacementPosition.Y, placementSettings.HandoffPosition.Z),
+                    placementMotion.GetPosition());
                 returnAllowed = true;
                 returnCheck.Cancel(); // Stop before XY so the independent Placement departure is checked below.
             }
@@ -438,6 +459,17 @@ public sealed class PcbTransferTests
             Assert.True(waitedForZ);
             Assert.False(returnAllowed);
             Assert.False(returning.IsCompleted);
+            if (stopDuringDeparture)
+            {
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                    () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, departureStop.Token));
+                Assert.True(interrupted);
+                Assert.False(returnAllowed);
+                Assert.False(returning.IsCompleted);
+                Assert.True(source.IsAtHandoff());
+                Assert.Equal(PcbPlacementState.PreparingPlacement, placer.State);
+                Assert.NotEqual(PcbPlacementHandoff.Clear, placer.Handoff);
+            }
             await placer.PlaceAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
             await returning.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.True(returnAllowed);
@@ -449,6 +481,7 @@ public sealed class PcbTransferTests
             supplier.Trace -= ObserveReturn;
         }
         Assert.True(source.PcbReleased && recipient.HandlerRaised);
+        Assert.True(departedInY);
         Assert.True(recipient.IsAtHorizontalZ());
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetState(HeatSinkSlot.HeatSink1));
         Assert.True(source.IsAtHandoff());

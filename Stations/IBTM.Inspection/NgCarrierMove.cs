@@ -243,7 +243,7 @@ public sealed partial class NgCarrierMove : AutoUnit
                 break;
             case NgTransferState.PlacingCarrier:
                 var position = GetTransferPosition(destination)
-                    ?? throw new InvalidOperationException("Teach Carrier Pickup X (Approach) before returning to Station 3.");
+                    ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before returning to Station 3.");
                 if (!_gantry.IsAt(position))
                     await _gantry.MoveToAsync(position, _settings.Speed, cancellationToken);
                 // The support may change while XY is moving; do not lower onto it blindly.
@@ -277,15 +277,10 @@ public sealed partial class NgCarrierMove : AutoUnit
     {
         cancellationToken.ThrowIfCancellationRequested();
         var position = GetTransferPosition(source)
-            ?? throw new InvalidOperationException("Teach Carrier Pickup X (Approach) before moving to a carrier.");
+            ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to a carrier.");
         if (_gantry.IsAt(position))
             return;
-        var safeX = _settings.PickupSafeX
-            ?? throw new InvalidOperationException("Teach Carrier Pickup X (Approach) before moving to a carrier.");
-        await _gantry.MoveAxisAsync(MotionAxis.X, safeX, _settings.Speed, cancellationToken);
-        await _gantry.MoveAxisAsync(MotionAxis.Y, position.Y, _settings.Speed, cancellationToken);
-        if (source == NgTransferDestination.Shuttle)
-            await _gantry.MoveAxisAsync(MotionAxis.X, position.X, _settings.Speed, cancellationToken);
+        await _gantry.MoveToAsync(position, _settings.Speed, cancellationToken);
     }
 
     private AxisPosition? GetTransferPosition(NgTransferDestination location)

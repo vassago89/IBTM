@@ -63,7 +63,7 @@ public enum TeachingTarget
     [Description("Bolt Fastening")]
     BoltPosition,
 
-    [Description("Carrier Pickup Y (S3)")]
+    [Description("Carrier Pickup (S3)")]
     NgCarrierPickup,
 
     [Description("Carrier Placement (Shuttle)")]
@@ -95,9 +95,6 @@ public enum TeachingTarget
 
     [Description("Data Matrix Inspection")]
     DataMatrix,
-
-    [Description("Carrier Pickup X (Approach)")]
-    NgPickupSafeX,
 
     [Description("Shooting Head Fastening Z")]
     ShootingHeadFasteningZ,

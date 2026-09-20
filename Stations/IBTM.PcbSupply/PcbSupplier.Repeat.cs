@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Device;
 
 namespace IBTM.PcbSupply;
 
@@ -35,13 +36,16 @@ public sealed partial class PcbSupplier
 
             if (placement.ReturningPcb is { } heatSink)
                 _pickStep = heatSink == HeatSinkSlot.HeatSink2 ? PickStep.Pcb2 : PickStep.Pcb1;
+            if (_handler.Rotation != PcbSupplyRotationState.Unrotated
+                && placement.Handoff is PcbPlacementHandoff.Returning or PcbPlacementHandoff.Holding)
+                throw new MotionInterlockException("Supply cannot prepare rotation while Placement holds the PCB at receive Z.");
             RepeatState = PcbSupplyState.MovingToHandoff;
             if (_handler.Pcb == PcbSupplyPcbState.None)
             {
                 await _handler.SetIpmFixerAsync(false, cancellationToken);
                 await _handler.SetGripperClosedAsync(false, cancellationToken);
             }
-            if (!_handler.IsAtHandoff())
+            if (!_handler.IsAtHandoff() || _handler.Rotation != PcbSupplyRotationState.Unrotated)
             {
                 await _handler.SetRotatedAsync(false, cancellationToken);
                 await _handler.MoveToHandoffAsync(cancellationToken);

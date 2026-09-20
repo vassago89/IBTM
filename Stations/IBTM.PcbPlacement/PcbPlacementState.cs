@@ -52,7 +52,7 @@ public enum PcbPlacementState
     [Description("Waiting for Supply Release")]
     WaitingForSupplyRelease,
 
-    [Description("Raising Handler to Travel Height")]
+    [Description("Raising Handler and Moving to Placement Y")]
     PreparingPlacement,
 
     [Description("Waiting for Carrier")]

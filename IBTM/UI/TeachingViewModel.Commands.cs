@@ -58,8 +58,8 @@ public enum TeachingMotionHint
     AxisFault,
     [Description("Motion feedback is unavailable for this unit.")]
     MotionUnavailable,
-    [Description("Teach Carrier Pickup X (Approach) before moving to a carrier.")]
-    NgPickupSafeXRequired,
+    [Description("Record Carrier Pickup (S3) X/Y before moving to a carrier.")]
+    NgPickupPositionRequired,
 }
 
 public partial class TeachingViewModel

@@ -52,7 +52,7 @@ public partial class TeachingViewModel
             }
             if (SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
                 && _ngTransferSettings.PickupSafeX is null)
-                return TeachingMotionHint.NgPickupSafeXRequired;
+                return TeachingMotionHint.NgPickupPositionRequired;
             switch (ActiveMotionGroup)
             {
                 case MotionGroup.PcbPlacementHandler when !_placementHandler.HandlerRaised:
@@ -341,9 +341,6 @@ public partial class TeachingViewModel
                 case MotionGroup.BoltFastening:
                     await _fasteningGantry.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
                     break;
-                case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgPickupSafeX:
-                    await _inspectionGantry.MoveAxisAsync(MotionAxis.X, point.X, TeachingXySpeed, operation.Token);
-                    break;
                 case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup:
                     await _ngCarrierMove.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
                     break;
@@ -389,8 +386,6 @@ public partial class TeachingViewModel
                     return _supplyHandler.IsMoveToTeachingPositionAllowed(point.Position);
                 case { } point:
                     return (point.Position.Mode == TeachMode.ZOnly || IsHorizontalMoveAllowed)
-                        && (point.Position.Target != TeachingTarget.NgCarrierPickup
-                            || _ngTransferSettings.PickupSafeX is not null)
                         && (IsInspectionSelected && point.Position.Bolt is { } bolt
                             ? Inspector.HasPosition(bolt)
                             : point.Position.HasPosition);

@@ -13,7 +13,7 @@ public sealed class NgCarrierTransferSettings : Setting
 
     public double Speed { get; set; } = 100.0;
     public double? PickupSafeX { get; set; }
-    // Only Y is taught here. The pickup X is always PickupSafeX.
+    // Keep the stored fields unchanged: pickup X is PickupSafeX, pickup Y is here.
     public AxisPosition CarrierPickupPosition { get; set; }
     public AxisPosition ShuttlePlacePosition { get; set; }
 
@@ -28,20 +28,17 @@ public sealed class NgCarrierTransferSettings : Setting
     {
         return [
             new(
-                TeachingTarget.NgPickupSafeX,
-                MotionGroup.InspectionGantry,
-                TeachMode.XOnly,
-                () => new() { X = PickupSafeX ?? 0 },
-                p => PickupSafeX = p.X,
-                this,
-                () => PickupSafeX is not null),
-            new(
                 TeachingTarget.NgCarrierPickup,
                 MotionGroup.InspectionGantry,
-                TeachMode.YOnly,
-                () => CarrierPickupPosition,
-                p => CarrierPickupPosition.Y = p.Y,
-                this),
+                TeachMode.XYOnly,
+                () => GetCarrierPickupPosition() ?? new() { Y = CarrierPickupPosition.Y },
+                p =>
+                {
+                    PickupSafeX = p.X;
+                    CarrierPickupPosition.Y = p.Y;
+                },
+                this,
+                () => PickupSafeX is not null),
             new(
                 TeachingTarget.NgShuttlePlace,
                 MotionGroup.InspectionGantry,

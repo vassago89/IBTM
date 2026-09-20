@@ -185,6 +185,12 @@ public sealed class PcbPlacementHandler
         return MoveToXYAsync(_settings.HandoffPosition, cancellationToken);
     }
 
+    public bool IsAtY(AxisPosition position, bool live = true)
+    {
+        return Motion.IsSettled(live, MotionAxis.Y)
+            && Math.Abs(Motion.ReadPosition(live).Y - position.Y) <= MotionService.PositionToleranceMillimeters;
+    }
+
     public Task MoveToReceiveZAsync(CancellationToken cancellationToken = default)
     {
         return MoveAxisAsync(

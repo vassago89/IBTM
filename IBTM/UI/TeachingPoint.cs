@@ -54,7 +54,6 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.SafeZ:
                 case TeachingTarget.ShootingHeadFasteningZ:
                 case TeachingTarget.PickupHeadFasteningZ:
-                case TeachingTarget.NgPickupSafeX:
                 case TeachingTarget.CarrierUpperLeftLocatingPin:
                 case TeachingTarget.CarrierLowerRightLocatingPin:
                 case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
@@ -116,10 +115,8 @@ public class TeachingPoint : ObservableObject
                     return "Pickup head XY aligned with the backup plate's upper-left reference pin.";
                 case TeachingTarget.PickupHeadLowerRightLocatingPin:
                     return "Pickup head XY aligned with the backup plate's lower-right reference pin.";
-                case TeachingTarget.NgPickupSafeX:
-                    return "X used to approach and pick up the carrier at Station 3. X moves before Pickup Y.";
                 case TeachingTarget.NgCarrierPickup:
-                    return "Y where the transfer grips the carrier at Station 3, using Carrier Pickup X (Approach).";
+                    return "XY where the transfer grips the carrier at Station 3. X and Y move together.";
                 case TeachingTarget.NgShuttlePlace:
                     return "XY where the transfer places the carrier on the NG shuttle.";
                 default:
@@ -212,7 +209,7 @@ public enum TeachingSaveBehavior
     PlacementHandoff,
     [Description("Record Position saves this Z automatically. Move to Position moves only Z at the current X/Y. Select PCB Receive Standby to move X/Y.")]
     PlacementReceiveZ,
-    [Description("Record Position saves this Y automatically. Move to Position moves to Carrier Pickup X (Approach), then this Y.")]
+    [Description("Record Position saves pickup X/Y together automatically. Move to Position moves X and Y together.")]
     NgPickup,
 
     [Description("Record Position with pickup head (Head 1) down; saves automatically. Move to Position travels to pickup XY, lowers the head, then moves to pickup Z. Vacuum is unchanged.")]

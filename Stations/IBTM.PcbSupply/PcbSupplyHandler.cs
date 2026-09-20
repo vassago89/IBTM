@@ -261,6 +261,8 @@ public sealed class PcbSupplyHandler
     internal async Task MoveFromHandoffAsync(PcbPickPosition nextPick, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (Rotation != PcbSupplyRotationState.Unrotated)
+            throw new MotionInterlockException("Supply must remain Unrotated until it leaves the handoff position.");
         if (nextPick.Y is not { } y)
             throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
         await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: _settings.HandoffPosition.Z);
