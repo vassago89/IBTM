@@ -231,6 +231,36 @@ public sealed class RecipeTests
     }
 
     [Fact]
+    public void NgPickupTeachingCombinesStoredCoordinatesWithoutRewritingThem()
+    {
+        var settings = System.Text.Json.JsonSerializer.Deserialize<NgCarrierTransferSettings>(
+            """{"PickupSafeX":157.283,"CarrierPickupPosition":{"X":999,"Y":456.789,"Z":12},"ShuttlePlacePosition":{"X":146.46,"Y":1085.274}}""")!;
+        var before = System.Text.Json.JsonSerializer.Serialize(settings);
+        var database = VirtualTest.OpenMachineStore();
+        database.SaveSettings([settings]);
+        settings = database.LoadSettings().Get<NgCarrierTransferSettings>();
+        var point = new TeachingPoint(settings.GetTeachingPositions()
+            .Single(position => position.Target == TeachingTarget.NgCarrierPickup));
+
+        Assert.Equal((157.283, 456.789), (point.X, point.Y));
+        var target = point.Read();
+        target.X = -1;
+        target.Y = -2;
+        point.Refresh();
+        database.SaveSettings([settings]);
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(
+            database.LoadSettings().Get<NgCarrierTransferSettings>()));
+
+        point.Teach(160, 460, 999);
+        database.SaveSettings([settings]);
+        var saved = database.LoadSettings().Get<NgCarrierTransferSettings>();
+        var pickup = saved.GetCarrierPickupPosition()!;
+        Assert.Equal((160, 460), (pickup.X, pickup.Y));
+        Assert.Equal((999, 12), (saved.CarrierPickupPosition.X, saved.CarrierPickupPosition.Z));
+        Assert.Equal((146.46, 1085.274), (saved.ShuttlePlacePosition.X, saved.ShuttlePlacePosition.Y));
+    }
+
+    [Fact]
     public void TeachingUsesOwnerCoordinatesAndRetainsTheOtherReferencePin()
     {
         var reference = new CarrierReferenceSettings

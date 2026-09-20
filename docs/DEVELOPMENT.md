@@ -161,11 +161,16 @@ StopGrabbing → 장치 Close → Dispose → SDK Finalize 순서이며, 연결 
 티칭 메뉴는 `Teaching` 하나다. 유닛 목록에서 Supply, Placement, Fastening,
 Inspection, NG Transfer를 선택한다. 인계 위치·회전 및 이동 높이는 각각 Supply와 Placement의
 티칭 목록에 포함되며, 축 피드백과 I/O는 선택 유닛을 따른다. 좌표는 `Record Position`에서만 변경한다.
+`Record Position` 버튼은 선택 항목·기존 좌표를 표시한 확인 창을 먼저 띄우며, 기본 선택은 취소다.
+확인해야 기록 명령을 실행하고, 이미지 티칭은 좌표와 이미지가 함께 변경됨을 안내한다.
 인계값도 원본 설정을 직접 기록하며 화면용 복사본은 없다. 상단의 `Save`는 양쪽 인계값과 현재 레시피를 그대로 저장한다.
 화면 재진입·유닛 전환·이동·Save에서는 좌표를 변경하지 않는다. 검사 촬영 XY와 볼트 좌표도
 `Record Position`으로 기록하며, ROI 크기·해상도 보정은 기존 좌표를 다시 쓰지 않는다.
 
 각 유닛 목록은 작업 위치, 설비 기준값, 계산 위치로 구분한다. 인계 영역 경계값은 사용하지 않는다.
+NG Transfer는 `Carrier Pickup (S3)`와 `Carrier Placement (Shuttle)` 두 XY 위치를 티칭한다.
+픽업 X/Y는 `Record Position`에서 함께 기록하고 이동도 XY가 동시에 진행한다.
+기존 저장 필드 `PickupSafeX`와 `CarrierPickupPosition.Y`를 그대로 읽으며, 저장·화면 진입 시 좌표를 변환하거나 덮어쓰지 않는다.
 Supply의 `PCB Handoff`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unrotated 상태다.
 `Rotation Z`에서 Unrotated로 전환한 뒤 인계 Z → 인계 XY 순서로 이동한다.
 대기는 PCB 1 Pickup의 X/Y와 PCB Rotation Z에서 Rotated 상태다.
@@ -370,7 +375,7 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.RunAsync` | `state`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
 | Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `ExecuteAsync`가 `false`를 반환하면 피드백 대기 |
-| NG 이송의 정방향·복귀 순서가 예상과 다름 | `NgCarrierMove.GetState`, `ExecuteAsync`, `MoveToCarrierAsync` | `destination`, `state`, 현재 픽업 상승·그립·캐리어 감지, Safe X |
+| NG 이송의 정방향·복귀 순서가 예상과 다름 | `NgCarrierMove.GetState`, `ExecuteAsync`, `MoveToCarrierAsync` | `destination`, `state`, 현재 픽업 상승·그립·캐리어 감지, 목적지 XY |
 | NG 셔틀이 대기하거나 Repeat 상승하지 않음 | `NgShuttle.ExecuteAsync`, `CycleAsync` | `state`, 실제 Up/Down·캐리어·픽업 상승 피드백 |
 | NG 컨베이어 적재·배출이 막힘 | `NgCarrierConveyor.ExecuteAsync`, `MoveCarrierAsync`, `GetState` | `state`, `destination` 입력, `_movement`, `_ejectionPhase`, 현재 위치 센서 |
 | 실린더 타임아웃 | `IIoService.SetOutputAndWaitAsync`, `WaitForInputAsync` | 출력 `output`/`value`, 기다리는 입력 `input`/`value`, 제한시간 |

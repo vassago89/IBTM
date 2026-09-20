@@ -51,6 +51,7 @@ public partial class TeachingViewModel
                 }
             }
             if (SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
+                && SelectedPoint?.Position.Target == TeachingTarget.NgCarrierPickup
                 && _ngTransferSettings.PickupSafeX is null)
                 return TeachingMotionHint.NgPickupPositionRequired;
             switch (ActiveMotionGroup)

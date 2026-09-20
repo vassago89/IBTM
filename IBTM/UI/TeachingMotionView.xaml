@@ -238,7 +238,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Button Content="Record Position"
+            <ui:RecordPositionButton Content="Record Position"
                 Command="{Binding TeachCurrentPositionCommand}"
                 ToolTip="Record the current coordinates for this point only. Inspection points also record their teaching image. The axes must be homed and stopped. See the saving instructions below."
                 ToolTipService.ShowOnDisabled="True"

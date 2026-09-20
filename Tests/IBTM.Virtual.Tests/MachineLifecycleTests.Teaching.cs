@@ -256,7 +256,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task NgTransferTeachingHasSeparatePointsAndUsesTheInspectionAxes()
+    public async Task NgTransferTeachingRecordsTwoXyPositionsAndUsesTheInspectionAxes()
     {
         await using var services = CreateDisplayServices(out var feedback);
         var transferSettings = services.GetRequiredService<NgCarrierTransferSettings>();
@@ -279,7 +279,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MotionGroup.InspectionGantry, teaching.ActiveMotionGroup);
         var teachingTargets = new[]
         {
-            TeachingTarget.NgPickupSafeX, TeachingTarget.NgCarrierPickup, TeachingTarget.NgShuttlePlace,
+            TeachingTarget.NgCarrierPickup, TeachingTarget.NgShuttlePlace,
         };
         Assert.Equal(
             teachingTargets.Order(),
@@ -293,10 +293,16 @@ public sealed partial class MachineLifecycleTests
         Assert.Contains(teaching.TeachingIoGroups, group => group.Area == HardwareArea.NgCarrierTransfer);
         Assert.Contains(teaching.TeachingIoGroups, group => group.Area == HardwareArea.NgShuttle);
 
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Position.Target == TeachingTarget.NgCarrierPickup);
+        Assert.False(teaching.SelectedPoint.Position.HasPosition);
+        Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+
         foreach (var target in teachingTargets)
         {
             var point = teaching.FilteredPoints.Single(point => point.Position.Target == target);
             teaching.SelectedPoint = point;
+            Assert.Equal(TeachMode.XYOnly, point.Position.Mode);
             var x = point.X + 1;
             var y = point.Y + 2;
             await gantry.MoveToAsync(new() { X = x, Y = y }, 10_000);
@@ -305,31 +311,18 @@ public sealed partial class MachineLifecycleTests
             var saved = services.GetRequiredService<MachineStore>().LoadSettings().Get<NgCarrierTransferSettings>();
             var position = point.Position.Target switch
             {
-                TeachingTarget.NgPickupSafeX => new AxisPosition { X = saved.PickupSafeX!.Value },
-                TeachingTarget.NgCarrierPickup => saved.CarrierPickupPosition,
+                TeachingTarget.NgCarrierPickup => saved.GetCarrierPickupPosition()!,
                 _ => saved.ShuttlePlacePosition,
             };
-            if (point.Position.Mode != TeachMode.YOnly)
-                Assert.Equal(x, position.X);
-            Assert.Equal(point.Position.Mode == TeachMode.XOnly ? 0 : y, position.Y);
+            Assert.Equal(x, position.X);
+            Assert.Equal(y, position.Y);
 
             await gantry.MoveToAsync(new() { X = x + 5, Y = y + 5 }, 10_000);
             await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
             feedback.AxisMoves.Clear();
             await teaching.MoveToPointCommand.ExecuteAsync(null);
-            var targetX = point.Position.Mode == TeachMode.YOnly
-                ? transferSettings.PickupSafeX!.Value
-                : x;
-            Assert.Equal((targetX, point.Position.Mode == TeachMode.XOnly ? y + 5 : y, 0), gantry.Feedback.GetPosition());
-            if (point.Position.Target == TeachingTarget.NgCarrierPickup)
-            {
-                Assert.Equal(TeachMode.YOnly, point.Position.Mode);
-                Assert.Equal(
-                    new[] { (MotionAxis.X, transferSettings.PickupSafeX!.Value), (MotionAxis.Y, y) },
-                    feedback.AxisMoves);
-            }
-            if (point.Position.Target == TeachingTarget.NgShuttlePlace)
-                Assert.Empty(feedback.AxisMoves);
+            Assert.Equal((x, y, 0), gantry.Feedback.GetPosition());
+            Assert.Empty(feedback.AxisMoves);
             Assert.Equal(transferSettings.Speed, feedback.LastMoveVelocity);
         }
 
