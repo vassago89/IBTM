@@ -12,7 +12,7 @@ public sealed partial class InspectionStation : AutoUnit
 {
     private readonly InspectionWork _work;
     private readonly BoltInspector _inspector;
-    private readonly NgCarrierMove _move;
+    private readonly NgCarrierTransfer _transfer;
     private readonly NgShuttle _shuttle;
     private readonly UnitSettings _units;
     private HeatSinkSlot[]? _runTargets;
@@ -20,16 +20,17 @@ public sealed partial class InspectionStation : AutoUnit
     public InspectionStation(
         InspectionWork work,
         BoltInspector inspector,
-        NgCarrierMove move,
+        NgCarrierTransfer transfer,
         NgShuttle shuttle,
         UnitSettings units)
     {
         _work = work;
         _inspector = inspector;
-        _move = move;
+        _transfer = transfer;
         _shuttle = shuttle;
         _units = units;
-        move.Changed += NotifyChanged;
+        work.Changed += NotifyChanged;
+        transfer.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;
@@ -109,11 +110,11 @@ public sealed partial class InspectionStation : AutoUnit
         CancellationToken cancellationToken)
     {
         var transferState = GetTransferState(repeat, holdAtShuttle);
-        if (GetTransferDisplayState(transferState) is not null)
+        if (transferState is not (NgTransferState.Idle or NgTransferState.WaitingForCarrier or NgTransferState.Completed))
         {
-            if (!await _move.ExecuteAsync(
+            if (!await _transfer.ExecuteAsync(
                 NgTransferDestination.Shuttle, transferState, cancellationToken, holdAtShuttle,
-                allowEmpty: repeat && _move.IsEmptyRepeatAllowed))
+                allowEmpty: repeat && _transfer.IsEmptyRepeatAllowed))
                 await WaitForChangeAsync(cancellationToken);
 
             return;
@@ -126,7 +127,7 @@ public sealed partial class InspectionStation : AutoUnit
         switch (inspectionState)
         {
             case InspectionStationState.ReturningToNgPickup:
-                await _move.MoveToCarrierAsync(NgTransferDestination.Station, cancellationToken);
+                await _transfer.MoveToCarrierAsync(NgTransferDestination.Station, cancellationToken);
                 return;
             case InspectionStationState.Disabled
                 or InspectionStationState.Waiting
@@ -151,16 +152,16 @@ public sealed partial class InspectionStation : AutoUnit
 
         var canReceive = holdAtShuttle
             || _shuttle.IsReceiveAllowed(useConveyor: !repeat || _units.NgConveyor, conveyorRunning);
-        return _move.GetState(
+        return _transfer.GetState(
             NgTransferDestination.Shuttle,
-            canPickUp: (repeat && _move.IsEmptyRepeatAllowed || _work.Station.CarrierSeated
+            canPickUp: (repeat && _transfer.IsEmptyRepeatAllowed || _work.Station.CarrierSeated
                 && _work.Completed
                 && (repeat || _work.RouteToNg))
                 && canReceive,
             canReceive: canReceive,
             holdAtDestination: holdAtShuttle,
             live: live,
-            allowEmpty: repeat && _move.IsEmptyRepeatAllowed);
+            allowEmpty: repeat && _transfer.IsEmptyRepeatAllowed);
     }
 
     private static InspectionStationState? GetTransferDisplayState(NgTransferState state)
@@ -235,7 +236,7 @@ public sealed partial class InspectionStation : AutoUnit
                         NotifyChanged();
                         break;
                     case InspectionStationState.CompletingInspection:
-                        await _move.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
+                        await _transfer.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
                         foreach (var heatSink in targets)
                         {

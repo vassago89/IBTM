@@ -95,7 +95,7 @@ public sealed class InspectionTests
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
         motion.Initialize();
-        var gantry = new InspectionGantry(motion, new NgCarrierTransfer(io), operations, settings);
+        var gantry = VirtualTest.CreateNgTransfer(io, motion, operations, settings);
         Assert.True(await gantry.HomeHorizontalAsync());
         var recipe = new BoltInspectionRecipe();
         var fov = new CarrierImageTile
@@ -176,7 +176,6 @@ public sealed class InspectionTests
         var io = new VirtualIoService(
             new NgCarrierTransferHardwareSettings().Outputs,
             new MachineOptions());
-        var transfer = new NgCarrierTransfer(io);
         var carrierReference = new CarrierReferenceSettings
         {
             UpperLeftLocatingPin = new AxisPosition { X = 2, Y = 2 },
@@ -191,10 +190,11 @@ public sealed class InspectionTests
             gantrySettings.Motion,
             operations,
             hasZ: false);
-        var gantry = new InspectionGantry(motion, transfer, operations, gantrySettings);
         var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0 };
         var units = new UnitSettings { MainConveyor = false, NgCarrierTransfer = false };
-        var work = new InspectionWork(io, transfer, gantry, transferSettings, units);
+        var transfer = VirtualTest.CreateNgTransfer(io, motion, operations, gantrySettings, transferSettings, units);
+        var gantry = transfer;
+        var work = new InspectionWork(io, transfer, transferSettings, units);
         BoltPoint[] bolts = [
             Bolt(1, HeatSinkSlot.HeatSink1, 9, 9, carrierReference),
             Bolt(2, HeatSinkSlot.HeatSink1, 9, 21, carrierReference),
@@ -244,7 +244,7 @@ public sealed class InspectionTests
         var station = new InspectionStation(
             work,
             inspector,
-            new NgCarrierMove(work, shuttle, transfer, gantry, transferSettings, units),
+            transfer,
             shuttle,
             units);
 
@@ -350,13 +350,12 @@ public sealed class InspectionTests
         var transferWork = new InspectionWork(
             io,
             transfer,
-            gantry,
             transferSettings,
             transferUnits);
         var transferStation = new InspectionStation(
             transferWork,
             inspector,
-            new NgCarrierMove(transferWork, shuttle, transfer, gantry, transferSettings, transferUnits),
+            transfer,
             shuttle,
             transferUnits);
         io.SetInput(InputIo.NgShuttleUp, true);

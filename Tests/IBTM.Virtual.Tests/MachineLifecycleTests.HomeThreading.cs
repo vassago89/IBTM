@@ -1,3 +1,5 @@
+using IBTM.Storage;
+using IBTM.BoltFeeder;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -103,9 +105,9 @@ public sealed partial class MachineLifecycleTests
             Assert.Empty(outputs);
             var motions = new[]
             {
-                services.GetRequiredService<PcbPlacementHandler>().Feedback,
-                services.GetRequiredService<BoltFasteningGantry>().Feedback,
-                services.GetRequiredService<PcbSupplyHandler>().Feedback,
+                services.GetRequiredService<PcbPlacer>().Feedback,
+                services.GetRequiredService<BoltFasteningStation>().Feedback,
+                services.GetRequiredService<PcbSupplier>().Feedback,
             };
             foreach (var motion in motions)
             {
@@ -143,14 +145,24 @@ public sealed partial class MachineLifecycleTests
 
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
-            .AddSingleton(provider => new PcbPlacementHandler(
-                Wrap(provider, MotionGroup.PcbPlacementHandler),
-                provider.GetRequiredService<IIoService>(), settings.PcbPlacementHandler))
-            .AddSingleton(provider => new BoltFasteningGantry(
-                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
-                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
-                provider.GetRequiredService<IIoService>(), Wrap(provider, MotionGroup.BoltFastening),
-                settings.BoltFastening, settings.CarrierReference))
+            .AddSingleton(provider => new PcbPlacer(Wrap(provider, MotionGroup.PcbPlacementHandler),
+                        provider.GetRequiredService<IIoService>(),
+                        settings.PcbPlacementHandler,
+                        provider.GetRequiredService<IPcbSupplyHandoff>(),
+                        provider.GetRequiredService<PcbPlacementWork>(),
+                        provider.GetRequiredService<RecipeManager>(),
+                        provider.GetRequiredService<UnitSettings>()))
+            .AddSingleton(provider => new BoltFasteningStation(provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
+                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
+                        provider.GetRequiredService<IIoService>(),
+                        Wrap(provider, MotionGroup.BoltFastening),
+                        settings.BoltFastening,
+                        settings.CarrierReference,
+                        provider.GetRequiredService<BoltFasteningWork>(),
+                        provider.GetRequiredService<PickupBoltFeeder>(),
+                        provider.GetRequiredService<ShootingBoltFeeder>(),
+                        provider.GetRequiredService<RecipeManager>(),
+                        provider.GetRequiredService<UnitSettings>()))
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();

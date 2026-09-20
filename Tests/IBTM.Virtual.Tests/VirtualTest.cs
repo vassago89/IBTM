@@ -9,11 +9,56 @@ using IBTM.Device;
 using IBTM.Virtual;
 using IBTM.Inspection;
 using IBTM.Storage;
+using IBTM.PcbSupply;
+using IBTM.PcbPlacement;
+using IBTM.BoltFastening;
+using IBTM.BoltFeeder;
+using IBTM.NgConveyor;
 
 namespace IBTM.Virtual.Tests;
 
 internal static class VirtualTest
 {
+    public static PcbSupplier CreateSupplier(IXyMotion motion, IIoService io, PcbSupplySettings settings)
+    {
+        return new(motion, io, settings, new());
+    }
+
+    public static PcbPlacer CreatePlacer(IXyMotion motion, IIoService io, PcbPlacementHandlerSettings settings)
+    {
+        var units = new UnitSettings();
+        return new(motion, io, settings, new UnavailableSupply(),
+            new(ConveyorStation.CreatePcbPlacement(io), units), new(OpenMachineStore(), new()), units);
+    }
+
+    public static BoltFasteningStation CreateFastening(
+        IBoltHead shooting, IBoltHead pickup, IIoService io, IXyMotion motion,
+        BoltFasteningSettings settings, CarrierReferenceSettings reference)
+    {
+        var units = new UnitSettings();
+        return new(shooting, pickup, io, motion, settings, reference,
+            new(ConveyorStation.CreateBoltFastening(io), units),
+            new(io, new()), new(io, new()), new(OpenMachineStore(), new()), units);
+    }
+
+    public static NgCarrierTransfer CreateNgTransfer(
+        IIoService io, IXyMotion? motion = null, OperationCancellation? operations = null,
+        InspectionGantrySettings? motionSettings = null, NgCarrierTransferSettings? settings = null,
+        UnitSettings? units = null, NgShuttleFeedback? shuttle = null)
+    {
+        operations ??= new();
+        motionSettings ??= new();
+        motion ??= new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);
+        return new(io, motion, operations, motionSettings, settings ?? new(), shuttle ?? new(io), units ?? new());
+    }
+
+    private sealed class UnavailableSupply : IPcbSupplyHandoff
+    {
+        public event Action? Changed { add { } remove { } }
+        public bool PcbSecured => false;
+        public PcbSupplyHandoff Handoff => PcbSupplyHandoff.Unavailable;
+    }
+
     public static MachineStore OpenMachineStore(string? file = null)
     {
         return new MachineStore(

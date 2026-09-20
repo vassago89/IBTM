@@ -1,3 +1,4 @@
+using IBTM.BoltFeeder;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -55,11 +56,13 @@ public sealed partial class MachineLifecycleTests
                         y,
                         transfer.GetCarrierPickupPosition(),
                         transfer.ShuttlePlacePosition);
-                    return new InspectionGantry(
+                    return new NgCarrierTransfer(provider.GetRequiredService<IIoService>(),
                         motion,
-                        provider.GetRequiredService<NgCarrierTransfer>(),
                         provider.GetRequiredService<OperationCancellation>(),
-                        provider.GetRequiredService<InspectionGantrySettings>());
+                        provider.GetRequiredService<InspectionGantrySettings>(),
+                        provider.GetRequiredService<NgCarrierTransferSettings>(),
+                        provider.GetRequiredService<IBTM.NgConveyor.NgShuttleFeedback>(),
+                        provider.GetRequiredService<UnitSettings>());
                 })
             .BuildServiceProvider();
     }
@@ -100,40 +103,49 @@ public sealed partial class MachineLifecycleTests
             .AddIbtmApplication(settings)
             .AddSingleton(
                 provider =>
-                    new PcbSupplyHandler(
-                        Wrap(
+                    new PcbSupplier(Wrap(
                             MotionGroup.PcbSupply,
                             provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply)),
                         provider.GetRequiredService<IIoService>(),
-                        settings.PcbSupply))
+                        settings.PcbSupply,
+                        provider.GetRequiredService<UnitSettings>()))
             .AddSingleton(
                 provider =>
-                    new PcbPlacementHandler(
-                        Wrap(
+                    new PcbPlacer(Wrap(
                             MotionGroup.PcbPlacementHandler,
                             provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler)),
                         provider.GetRequiredService<IIoService>(),
-                        settings.PcbPlacementHandler))
+                        settings.PcbPlacementHandler,
+                        provider.GetRequiredService<IPcbSupplyHandoff>(),
+                        provider.GetRequiredService<PcbPlacementWork>(),
+                        provider.GetRequiredService<RecipeManager>(),
+                        provider.GetRequiredService<UnitSettings>()))
             .AddSingleton(
                 provider =>
-                    new BoltFasteningGantry(
-                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
+                    new BoltFasteningStation(provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
                         provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
                         provider.GetRequiredService<IIoService>(),
                         Wrap(
                             MotionGroup.BoltFastening,
                             provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening)),
                         settings.BoltFastening,
-                        settings.CarrierReference))
+                        settings.CarrierReference,
+                        provider.GetRequiredService<BoltFasteningWork>(),
+                        provider.GetRequiredService<PickupBoltFeeder>(),
+                        provider.GetRequiredService<ShootingBoltFeeder>(),
+                        provider.GetRequiredService<RecipeManager>(),
+                        provider.GetRequiredService<UnitSettings>()))
             .AddSingleton(
                 provider =>
-                    new InspectionGantry(
+                    new NgCarrierTransfer(provider.GetRequiredService<IIoService>(),
                         Wrap(
                             MotionGroup.InspectionGantry,
                             provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry)),
-                        provider.GetRequiredService<NgCarrierTransfer>(),
                         provider.GetRequiredService<OperationCancellation>(),
-                        settings.InspectionGantry));
+                        settings.InspectionGantry,
+                        provider.GetRequiredService<NgCarrierTransferSettings>(),
+                        provider.GetRequiredService<IBTM.NgConveyor.NgShuttleFeedback>(),
+                        provider.GetRequiredService<UnitSettings>()));
         configure?.Invoke(services);
         var provider = services.BuildServiceProvider();
         // These tests replace the handler factories that normally initialize virtual feedback.

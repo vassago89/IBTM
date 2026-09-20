@@ -24,8 +24,6 @@ namespace IBTM.UI;
 public partial class OperationViewModel : ObservableObject
 {
     public MachineController Machine { get; }
-    private readonly PcbPlacer _placer;
-    private readonly BoltFasteningStation _fasteningStation;
     private readonly InspectionStation _inspectionStation;
     private readonly MachineOptions _options;
     private readonly RecipeManager _recipes;
@@ -57,13 +55,10 @@ public partial class OperationViewModel : ObservableObject
         NgCarrierConveyor ngConveyor,
         NgShuttle ngShuttle,
         NgCarrierTransfer ngTransfer,
-        PcbSupplyHandler supply,
-        PcbPlacementHandler placement,
-        BoltFasteningGantry fastening,
-        InspectionGantry inspectionGantry,
+        PcbSupplier supply,
+        PcbPlacer placement,
+        BoltFasteningStation fastening,
         BoltInspector inspector,
-        PcbPlacer placer,
-        BoltFasteningStation fasteningStation,
         InspectionStation inspectionStation)
     {
         StartCommand = new AsyncRelayCommand(StartAsync);
@@ -81,8 +76,6 @@ public partial class OperationViewModel : ObservableObject
             new("DOOR 6", signals.Inputs[InputIo.Door6Open]),
         ];
         Machine = machine;
-        _placer = placer;
-        _fasteningStation = fasteningStation;
         _inspectionStation = inspectionStation;
         Units = units;
         _options = options;
@@ -100,7 +93,6 @@ public partial class OperationViewModel : ObservableObject
         Supply = supply;
         Placement = placement;
         Fastening = fastening;
-        InspectionGantry = inspectionGantry;
 
         supply.Motion.PropertyChanged += OnPcbSupplyMotionChanged;
         foreach (var axis in supply.Motion.Axes.Values)
@@ -114,20 +106,14 @@ public partial class OperationViewModel : ObservableObject
         foreach (var axis in fastening.Motion.Axes.Values)
             axis.PropertyChanged += OnBoltFasteningMotionChanged;
         fastening.Changed += OnBoltFasteningChanged;
-        inspectionGantry.Motion.PropertyChanged += OnInspectionGantryMotionChanged;
-        foreach (var axis in inspectionGantry.Motion.Axes.Values)
+        ngTransfer.Motion.PropertyChanged += OnInspectionGantryMotionChanged;
+        foreach (var axis in ngTransfer.Motion.Axes.Values)
             axis.PropertyChanged += OnInspectionGantryMotionChanged;
         conveyor.Changed += OnMainConveyorChanged;
-        pickupFeeder.Changed += OnBoltFasteningChanged;
-        shootingFeeder.Changed += OnBoltFasteningChanged;
-        pcbPlacementWork.Changed += OnPcbPlacementChanged;
-        boltFasteningWork.Changed += OnBoltFasteningChanged;
-        inspectionWork.Changed += OnInspectionChanged;
         inspector.InspectionCaptured += OnInspectionCaptured;
         ngTransfer.Changed += OnNgConveyorChanged;
         ngConveyor.Changed += OnNgConveyorChanged;
         ngShuttle.Feedback.Changed += OnNgConveyorChanged;
-        placer.Changed += OnPcbPlacementChanged;
         inspectionStation.Changed += OnInspectionChanged;
         state.PropertyChanged += OnMachineStateChanged;
         machine.PropertyChanged += OnMachinePropertyChanged;
@@ -149,10 +135,9 @@ public partial class OperationViewModel : ObservableObject
     public NgShuttle NgShuttle { get; }
     public NgCarrierTransfer NgTransfer { get; }
 
-    public PcbSupplyHandler Supply { get; }
-    public PcbPlacementHandler Placement { get; }
-    public BoltFasteningGantry Fastening { get; }
-    public InspectionGantry InspectionGantry { get; }
+    public PcbSupplier Supply { get; }
+    public PcbPlacer Placement { get; }
+    public BoltFasteningStation Fastening { get; }
 
     public double? PcbSupplyMapLeft => _map.GetSupplyPosition(Supply.Motion.Position)?.X;
 
@@ -170,9 +155,9 @@ public partial class OperationViewModel : ObservableObject
 
     public double BoltPickupFeederMapTop => _map.PickupFeederPosition.Y;
 
-    public double? InspectionGantryMapLeft => _map.GetInspectionPosition(InspectionGantry.Motion.Position)?.X;
+    public double? InspectionGantryMapLeft => _map.GetInspectionPosition(NgTransfer.Motion.Position)?.X;
 
-    public double? InspectionGantryMapTop => _map.GetInspectionPosition(InspectionGantry.Motion.Position)?.Y;
+    public double? InspectionGantryMapTop => _map.GetInspectionPosition(NgTransfer.Motion.Position)?.Y;
 
     public bool PcbSupplyPcbDetected => Supply.Pcb != PcbSupplyPcbState.None;
 
@@ -217,7 +202,7 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return State.AutomaticRunning && FasteningState is { } state
-                ? _fasteningStation.GetActiveBolt(state) : null;
+                ? Fastening.GetActiveBolt(state) : null;
         }
     }
 

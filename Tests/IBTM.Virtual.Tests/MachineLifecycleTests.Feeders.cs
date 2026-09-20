@@ -45,7 +45,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<BoltFasteningWork>();
-        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var gantry = services.GetRequiredService<BoltFasteningStation>();
         var outputs = new ConcurrentQueue<(OutputIo Output, bool On)>();
         var starts = new ConcurrentQueue<(FasteningHead Head, double X, double Y, double Z)>();
         var descents = new ConcurrentQueue<(FasteningHead Head, double X, double Y, double Z)>();
@@ -261,7 +261,7 @@ public sealed partial class MachineLifecycleTests
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Pickup, X = 20, Y = 10 }];
         var machine = services.GetRequiredService<MachineController>();
         var station = services.GetRequiredService<BoltFasteningStation>();
-        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var gantry = services.GetRequiredService<BoltFasteningStation>();
         var work = services.GetRequiredService<BoltFasteningWork>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();

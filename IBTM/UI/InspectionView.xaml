@@ -127,7 +127,7 @@
                         ToolTip="Carrier detected near NG pickup. This does not confirm grip."/>
                     <Grid x:Name="CarrierPicker" Width="{x:Static ui:MachinePlan.NgPickerWidth}" HorizontalAlignment="Center">
                         <Border Margin="-8,-6" Background="{StaticResource MachineGhostBrush}"
-                            Tag="{Binding InspectionGantry.Motion.IsMoving}"
+                            Tag="{Binding NgTransfer.Motion.IsMoving}"
                             Style="{StaticResource OverheadBodyStyle}"/>
                         <Border Tag="{Binding NgTransfer.Lift}" Style="{StaticResource DownFootprintStyle}"/>
                         <Border Tag="{Binding NgTransfer.Gripper}" Style="{StaticResource CarrierPickerTopJawStyle}"/>
@@ -136,7 +136,7 @@
                     </Grid>
                 </Grid>
                 <Border Width="18" Height="{x:Static ui:MachinePlan.CameraGap}"
-                    Tag="{Binding InspectionGantry.Motion.IsMoving}"
+                    Tag="{Binding NgTransfer.Motion.IsMoving}"
                     Style="{StaticResource OverheadBodyStyle}"/>
                 <Grid x:Name="InspectionCamera" Width="{x:Static ui:MachinePlan.CameraSize}" Height="{x:Static ui:MachinePlan.CameraSize}">
                     <Ellipse Width="42" Height="42" Fill="{StaticResource MachineGhostBrush}" Stroke="{StaticResource AccentBlueBrush}"

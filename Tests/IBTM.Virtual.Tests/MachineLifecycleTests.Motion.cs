@@ -1,3 +1,4 @@
+using IBTM.BoltFeeder;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -307,7 +308,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(default);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -342,7 +343,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(default);
         void TripWhileMotionHasNotFinished(bool moving)
@@ -467,7 +468,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Contains("Home feedback read failed.", state.AlarmDetail);
         Assert.False(state.IsHoming);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-        Assert.False(services.GetRequiredService<InspectionGantry>().Feedback.IsMoving);
+        Assert.False(services.GetRequiredService<NgCarrierTransfer>().Feedback.IsMoving);
     }
 
     [Theory]
@@ -553,7 +554,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -661,7 +662,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         await machine.InitializeAsync();
         try
@@ -718,7 +719,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         try
@@ -732,7 +733,7 @@ public sealed partial class MachineLifecycleTests
 
             await teaching.HomeCommand.ExecuteAsync(null);
 
-            var fastening = services.GetRequiredService<BoltFasteningGantry>();
+            var fastening = services.GetRequiredService<BoltFasteningStation>();
             Assert.All(fastening.Feedback.Axes, axis => Assert.True(fastening.Feedback.GetAxisState(axis).Homed));
             Assert.False(ngMoved);
             Assert.True(io.GetInput(InputIo.NgCarrierPickupDown));
@@ -766,10 +767,10 @@ public sealed partial class MachineLifecycleTests
             output => signals.SetOutputAndWaitAsync(output, true)));
         var motions = new[]
         {
-            services.GetRequiredService<PcbSupplyHandler>().Feedback,
-            services.GetRequiredService<PcbPlacementHandler>().Feedback,
-            services.GetRequiredService<BoltFasteningGantry>().Feedback,
-            services.GetRequiredService<InspectionGantry>().Feedback,
+            services.GetRequiredService<PcbSupplier>().Feedback,
+            services.GetRequiredService<PcbPlacer>().Feedback,
+            services.GetRequiredService<BoltFasteningStation>().Feedback,
+            services.GetRequiredService<NgCarrierTransfer>().Feedback,
         };
         var moved = false;
         var movedBeforeRaised = false;
@@ -827,7 +828,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await placement.SetLiftDownAsync(true);
@@ -1011,7 +1012,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         IIoService signals = io;
         await machine.InitializeAsync();
         await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, true);
@@ -1080,8 +1081,8 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
-        var fastening = services.GetRequiredService<BoltFasteningGantry>();
+        var placement = services.GetRequiredService<PcbPlacer>();
+        var fastening = services.GetRequiredService<BoltFasteningStation>();
         var isPlacement = group == MotionGroup.PcbPlacementHandler;
         var feedback = isPlacement ? placement.Feedback : fastening.Feedback;
         Task MoveXY()
@@ -1134,7 +1135,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Homed);
@@ -1168,7 +1169,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var gantry = services.GetRequiredService<BoltFasteningStation>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -1261,7 +1262,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var gantry = services.GetRequiredService<BoltFasteningStation>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -1290,7 +1291,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var gantry = services.GetRequiredService<BoltFasteningStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveZAsync(10);
@@ -1319,7 +1320,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var gantry = services.GetRequiredService<BoltFasteningStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveZAsync(10);
@@ -1464,8 +1465,8 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
-        var fastening = services.GetRequiredService<BoltFasteningGantry>();
+        var placement = services.GetRequiredService<PcbPlacer>();
+        var fastening = services.GetRequiredService<BoltFasteningStation>();
         await machine.InitializeAsync();
         await Task.WhenAll(placement.MoveAxisAsync(MotionAxis.Z, 50), fastening.MoveZAsync(50));
         var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -1553,17 +1554,24 @@ public sealed partial class MachineLifecycleTests
 
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
-            .AddSingleton(provider => new PcbPlacementHandler(
-                Wrap(provider, MotionGroup.PcbPlacementHandler),
-                provider.GetRequiredService<IIoService>(),
-                settings.PcbPlacementHandler))
-            .AddSingleton(provider => new BoltFasteningGantry(
-                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
-                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
-                provider.GetRequiredService<IIoService>(),
-                Wrap(provider, MotionGroup.BoltFastening),
-                settings.BoltFastening,
-                settings.CarrierReference))
+            .AddSingleton(provider => new PcbPlacer(Wrap(provider, MotionGroup.PcbPlacementHandler),
+                        provider.GetRequiredService<IIoService>(),
+                        settings.PcbPlacementHandler,
+                        provider.GetRequiredService<IPcbSupplyHandoff>(),
+                        provider.GetRequiredService<PcbPlacementWork>(),
+                        provider.GetRequiredService<RecipeManager>(),
+                        provider.GetRequiredService<UnitSettings>()))
+            .AddSingleton(provider => new BoltFasteningStation(provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
+                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
+                        provider.GetRequiredService<IIoService>(),
+                        Wrap(provider, MotionGroup.BoltFastening),
+                        settings.BoltFastening,
+                        settings.CarrierReference,
+                        provider.GetRequiredService<BoltFasteningWork>(),
+                        provider.GetRequiredService<PickupBoltFeeder>(),
+                        provider.GetRequiredService<ShootingBoltFeeder>(),
+                        provider.GetRequiredService<RecipeManager>(),
+                        provider.GetRequiredService<UnitSettings>()))
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -1624,13 +1632,17 @@ public sealed partial class MachineLifecycleTests
                     homeResult = (HomeResultMotion)motion;
                     homeResult.AwaitCleanupAfterCancellation = safetyStop;
                     homeResult.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
-                    return new BoltFasteningGantry(
-                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
+                    return new BoltFasteningStation(provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
                         provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
                         provider.GetRequiredService<IIoService>(),
                         motion,
                         settings.BoltFastening,
-                        settings.CarrierReference);
+                        settings.CarrierReference,
+                        provider.GetRequiredService<BoltFasteningWork>(),
+                        provider.GetRequiredService<PickupBoltFeeder>(),
+                        provider.GetRequiredService<ShootingBoltFeeder>(),
+                        provider.GetRequiredService<RecipeManager>(),
+                        provider.GetRequiredService<UnitSettings>());
                 })
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();

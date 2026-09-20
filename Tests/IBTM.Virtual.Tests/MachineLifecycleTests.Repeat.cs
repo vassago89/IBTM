@@ -49,7 +49,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<BoltFasteningWork>();
-        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var gantry = services.GetRequiredService<BoltFasteningStation>();
         var completed = new ConcurrentDictionary<long, HeatSinkAssembly[]>();
         var forbidden = new ConcurrentQueue<OutputIo>();
         var shootingStarts = 0;
@@ -181,7 +181,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var pickup = services.GetRequiredService<NgCarrierTransfer>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         if (!shuttleEnabled)

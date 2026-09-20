@@ -32,8 +32,7 @@ public sealed partial class MachineController
                 // A failed feedback scan must leave recovery usable without another native read.
                 case true when _state.IsError
                     || _feedback.ReadError is not null
-                    || _fasteningGantry.HasPendingResult
-                    || _fasteningStation.HasPendingResult:
+                    || _fasteningStation.HasUncollectedResults:
                     return true;
             }
             var motion = _state.FeedbackReadiness;
@@ -123,24 +122,24 @@ public sealed partial class MachineController
                 switch (group)
                 {
                     case MotionGroup.PcbSupply:
-                        _supplyHandler.InitializeMotion();
+                        _pcbSupply.InitializeMotion();
                         operation.Token.ThrowIfCancellationRequested();
-                        _supplyHandler.ResetMotion();
+                        _pcbSupply.ResetMotion();
                         break;
                     case MotionGroup.PcbPlacementHandler:
-                        _placementHandler.InitializeMotion();
+                        _pcbPlacement.InitializeMotion();
                         operation.Token.ThrowIfCancellationRequested();
-                        _placementHandler.ResetMotion();
+                        _pcbPlacement.ResetMotion();
                         break;
                     case MotionGroup.BoltFastening:
-                        _fasteningGantry.InitializeMotion();
+                        _fasteningStation.InitializeMotion();
                         operation.Token.ThrowIfCancellationRequested();
-                        _fasteningGantry.ResetMotion();
+                        _fasteningStation.ResetMotion();
                         break;
                     case MotionGroup.InspectionGantry:
-                        _inspectionGantry.InitializeMotion();
+                        _ngTransfer.InitializeMotion();
                         operation.Token.ThrowIfCancellationRequested();
-                        _inspectionGantry.ResetMotion();
+                        _ngTransfer.ResetMotion();
                         break;
                 }
             }
@@ -176,7 +175,7 @@ public sealed partial class MachineController
         {
             try
             {
-                await _fasteningGantry.ResetHeadsAsync(operation.Token);
+                await _fasteningStation.ResetHeadsAsync(operation.Token);
             }
             catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
             {
@@ -199,7 +198,7 @@ public sealed partial class MachineController
         {
             // Discard only results for a carrier that has been removed. Results for
             // the current carrier stay available to its next fastening command.
-            if ((_fasteningGantry.HasPendingResult || _fasteningStation.HasPendingResult)
+            if (_fasteningStation.HasUncollectedResults
                 && !_io.GetInput(InputIo.BoltFasteningHeatSink1Present)
                 && !_io.GetInput(InputIo.BoltFasteningHeatSink2Present)
                 && !_io.GetInput(InputIo.PickupHeadVacuumDetected)
@@ -283,7 +282,7 @@ public sealed partial class MachineController
             {
                 stage = "PCB supply motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
-                _supplyHandler.InitializeMotion();
+                _pcbSupply.InitializeMotion();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
@@ -291,7 +290,7 @@ public sealed partial class MachineController
             {
                 stage = "PCB placement motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
-                _placementHandler.InitializeMotion();
+                _pcbPlacement.InitializeMotion();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
@@ -299,7 +298,7 @@ public sealed partial class MachineController
             {
                 stage = "Bolt fastening motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
-                _fasteningGantry.InitializeMotion();
+                _fasteningStation.InitializeMotion();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
@@ -307,7 +306,7 @@ public sealed partial class MachineController
             {
                 stage = "Inspection motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
-                _inspectionGantry.InitializeMotion();
+                _ngTransfer.InitializeMotion();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
@@ -349,7 +348,7 @@ public sealed partial class MachineController
             try
             {
                 _log?.LogInformation("Bolt controller readiness check started.");
-                await _fasteningGantry.CheckReadyAsync(cancellationToken);
+                await _fasteningStation.CheckReadyAsync(cancellationToken);
                 _log?.LogInformation("Bolt controller readiness check completed.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -13,11 +13,9 @@ public sealed partial class BoltFasteningStation
     {
         if (!_units.MainConveyor && _work.Completed)
         {
-            if (HasPendingResult
-                || _gantry.GetHead(FasteningHead.Pickup).HasPendingResult
-                || _gantry.GetHead(FasteningHead.Shooting).HasPendingResult)
+            if (HasUncollectedResults)
                 throw new InvalidOperationException("Collect both fastening results before repeating this carrier.");
-            if (!_work.Station.CarrierSeated || !_gantry.IsHorizontalMoveAllowed || !_gantry.IsAtSafeZ())
+            if (!_work.Station.CarrierSeated || !IsHorizontalMoveAllowed || !IsAtSafeZ())
                 throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads at safe height.");
             _work.StartRepeat(_work.CurrentJob);
         }

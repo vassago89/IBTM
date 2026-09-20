@@ -256,7 +256,7 @@ public sealed partial class MachineLifecycleTests
         var station = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await services.GetRequiredService<InspectionGantry>().MoveToAsync(new() { X = 12, Y = 7 }, 10_000);
+        await services.GetRequiredService<NgCarrierTransfer>().MoveToAsync(new() { X = 12, Y = 7 }, 10_000);
         var interrupted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var beltForcedOn = false;
         station.Trace += message =>

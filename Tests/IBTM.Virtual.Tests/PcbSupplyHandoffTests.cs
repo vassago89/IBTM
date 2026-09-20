@@ -176,15 +176,19 @@ public sealed class PcbSupplyHandoffTests
             };
             Io = new(new PcbSupplyHardwareSettings().Outputs, new MachineOptions { TimeoutMilliseconds = 500 });
             Motion = new(Settings.Motion, new(), horizontalZ: () => Settings.RotationZ);
-            Handler = new(Motion, Io, Settings);
-            Supplier = new(Handler, new());
+
+            Supplier = new PcbSupplier(Motion,
+                Io,
+                Settings,
+                new());
+            Handler = Supplier;
             Placement = new();
         }
 
         public PcbSupplySettings Settings { get; }
         public VirtualIoService Io { get; }
         public VirtualMotionService Motion { get; }
-        public PcbSupplyHandler Handler { get; }
+        public PcbSupplier Handler { get; }
         public PcbSupplier Supplier { get; }
         public PlacementFeedback Placement { get; }
 

@@ -8,7 +8,7 @@ public sealed partial class InspectionStation
 {
     private async Task PrepareRepeatAsync(CancellationToken cancellationToken)
     {
-        if ((!_move.IsEmptyRepeatAllowed && !_work.Station.CarrierPresent) || !_work.PickupClear)
+        if ((!_transfer.IsEmptyRepeatAllowed && !_work.Station.CarrierPresent) || !_work.PickupClear)
             return;
         if (_work.Completed && !_units.NgCarrierTransfer && _work.Enabled)
             _work.StartRepeat(_work.CurrentJob);

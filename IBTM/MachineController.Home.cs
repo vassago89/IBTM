@@ -42,17 +42,17 @@ public sealed partial class MachineController
                 || group is null
                 && PcbHandlersEnabled)
                 && _io.GetInput(InputIo.PcbPlacementPcbDetected)
-                && _placementHandler.IpmLift != PlacementCylinderState.Up:
+                && _pcbPlacement.IpmLift != PlacementCylinderState.Up:
                 return HomeBlockReason.PlacementHoldingPcb;
             case true when requireRaised
                 && (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
                     || group is null && PcbHandlersEnabled)
-                && (!_placementHandler.HandlerRaised
-                    || _placementHandler.IpmLift != PlacementCylinderState.Up):
+                && (!_pcbPlacement.HandlerRaised
+                    || _pcbPlacement.IpmLift != PlacementCylinderState.Up):
                 return HomeBlockReason.PlacementNotRaised;
             case true when requireRaised
                 && (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
-                && !_fasteningGantry.IsHorizontalMoveAllowed:
+                && !_fasteningStation.IsHorizontalMoveAllowed:
                 return HomeBlockReason.FasteningNotRaised;
             case true when requireRaised && (group == MotionGroup.InspectionGantry
                 || group is null
@@ -114,24 +114,24 @@ public sealed partial class MachineController
                     switch (group)
                     {
                         case MotionGroup.PcbSupply:
-                            homed = await _supplyHandler.HomeAxisAsync(axis ?? MotionAxis.Z, operation.Token);
+                            homed = await _pcbSupply.HomeAxisAsync(axis ?? MotionAxis.Z, operation.Token);
                             if (homed && axis is null)
-                                homed = await _supplyHandler.HomeHorizontalAsync(operation.Token);
+                                homed = await _pcbSupply.HomeHorizontalAsync(operation.Token);
                             break;
                         case MotionGroup.PcbPlacementHandler:
-                            homed = await _placementHandler.HomeAxisAsync(axis ?? MotionAxis.Z, operation.Token);
+                            homed = await _pcbPlacement.HomeAxisAsync(axis ?? MotionAxis.Z, operation.Token);
                             if (homed && axis is null)
-                                homed = await _placementHandler.HomeHorizontalAsync(operation.Token);
+                                homed = await _pcbPlacement.HomeHorizontalAsync(operation.Token);
                             break;
                         case MotionGroup.BoltFastening:
-                            homed = await _fasteningGantry.HomeAxisAsync(axis ?? MotionAxis.Z, operation.Token);
+                            homed = await _fasteningStation.HomeAxisAsync(axis ?? MotionAxis.Z, operation.Token);
                             if (homed && axis is null)
-                                homed = await _fasteningGantry.HomeHorizontalAsync(operation.Token);
+                                homed = await _fasteningStation.HomeHorizontalAsync(operation.Token);
                             break;
                         case MotionGroup.InspectionGantry:
                             homed = axis is { } selectedAxis
-                                ? await _inspectionGantry.HomeAxisAsync(selectedAxis, operation.Token)
-                                : await _inspectionGantry.HomeHorizontalAsync(operation.Token);
+                                ? await _ngTransfer.HomeAxisAsync(selectedAxis, operation.Token)
+                                : await _ngTransfer.HomeHorizontalAsync(operation.Token);
                             break;
                         default:
                             throw new ArgumentOutOfRangeException(nameof(group));
@@ -188,13 +188,13 @@ public sealed partial class MachineController
             // it does not establish PCB grip or advance the automatic sequence.
             var pcbDetected = _io.GetInput(InputIo.PcbPlacementPcbDetected);
             await ObserveRaiseAsync(
-                _placementHandler.SetLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
+                _pcbPlacement.SetLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
             if (!pcbDetected && !_io.GetInput(InputIo.PcbPlacementPcbDetected))
                 await ObserveRaiseAsync(
-                    _placementHandler.SetIpmLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
+                    _pcbPlacement.SetIpmLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
         }
         if (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
-            await ObserveRaiseAsync(_fasteningGantry.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening);
+            await ObserveRaiseAsync(_fasteningStation.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening);
         if (group == MotionGroup.InspectionGantry || group is null && InspectionGantryEnabled)
             await ObserveRaiseAsync(
                 _ngTransfer.SetLiftUpAsync(true, operation.Token), MachineAlarm.NgCarrierTransfer);
@@ -267,29 +267,29 @@ public sealed partial class MachineController
             await Task.WhenAll(
                 _units.PcbPlacement
                     ? CheckHomeAsync(
-                        _placementHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                        _pcbPlacement.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
                     : Task.CompletedTask,
                 _units.PcbSupply
                     ? CheckHomeAsync(
-                        _supplyHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                        _pcbSupply.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
                     : Task.CompletedTask,
                 _units.BoltFastening
                     ? CheckHomeAsync(
-                        _fasteningGantry.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                        _fasteningStation.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
                     : Task.CompletedTask);
             cancellationToken.ThrowIfCancellationRequested();
             await Task.WhenAll(
                 _units.PcbPlacement
-                    ? CheckHomeAsync(_placementHandler.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                    ? CheckHomeAsync(_pcbPlacement.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask,
                 _units.PcbSupply
-                    ? CheckHomeAsync(_supplyHandler.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                    ? CheckHomeAsync(_pcbSupply.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask,
                 _units.BoltFastening
-                    ? CheckHomeAsync(_fasteningGantry.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                    ? CheckHomeAsync(_fasteningStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask,
                 InspectionGantryEnabled
-                    ? CheckHomeAsync(_inspectionGantry.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                    ? CheckHomeAsync(_ngTransfer.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask);
         }
         catch (OperationCanceledException)

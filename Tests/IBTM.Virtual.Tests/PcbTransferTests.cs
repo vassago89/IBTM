@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,7 +24,7 @@ public sealed class PcbTransferTests
             """{"Pcb1PickPosition":{"X":10,"Z":5},"Pcb2PickPosition":{"X":20,"Z":8}}""")!;
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
-        var handler = new PcbSupplyHandler(motion, io, settings);
+        var handler = VirtualTest.CreateSupplier(motion, io, settings);
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);
@@ -69,10 +69,14 @@ public sealed class PcbTransferTests
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, new(), horizontalZ: () => placementSettings.HandoffPosition.Z);
-        var handler = new PcbSupplyHandler(motion, io, settings);
-        var placement = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var supplier = new PcbSupplier(handler, new());
-        var placer = CreatePlacer(supplier, placement, io);
+
+        var supplier = new PcbSupplier(motion,
+            io,
+            settings,
+            new());
+        var handler = supplier;
+        var placer = CreatePlacer(supplier, placementMotion, io, placementSettings);
+        var placement = placer;
         var recipe = new PcbSupplyRecipe
         {
             Pcb1PickPosition = new() { X = 10, Y = 20, Z = 5 },
@@ -129,7 +133,7 @@ public sealed class PcbTransferTests
         }
         Assert.True(handler.TestUpstreamCarrierAvailable);
         Assert.False(readyWentOn);
-        var newHandler = new PcbSupplyHandler(motion, io, settings);
+        var newHandler = VirtualTest.CreateSupplier(motion, io, settings);
         Assert.False(newHandler.TestUpstreamCarrierAvailable);
         Assert.False(newHandler.UpstreamCarrierAvailable);
     }
@@ -203,10 +207,14 @@ public sealed class PcbTransferTests
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
-        var source = new PcbSupplyHandler(supplyMotion, io, supplySettings);
-        var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var supplier = new PcbSupplier(source, new());
-        var placer = CreatePlacer(supplier, recipient, io);
+
+        var supplier = new PcbSupplier(supplyMotion,
+            io,
+            supplySettings,
+            new());
+        var source = supplier;
+        var placer = CreatePlacer(supplier, placementMotion, io, placementSettings);
+        var recipient = placer;
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -316,12 +324,16 @@ public sealed class PcbTransferTests
             supplySettings.Motion, operations, horizontalZ: () => supplySettings.RotationZ);
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
-        var source = new PcbSupplyHandler(supplyMotion, io, supplySettings);
-        var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
+
         var units = new UnitSettings();
-        var supplier = new PcbSupplier(source, units);
+        var supplier = new PcbSupplier(supplyMotion,
+            io,
+            supplySettings,
+            units);
+        var source = supplier;
         var work = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units);
-        var placer = CreatePlacer(supplier, recipient, io, recipe, work);
+        var placer = CreatePlacer(supplier, placementMotion, io, placementSettings, recipe, work);
+        var recipient = placer;
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -546,10 +558,14 @@ public sealed class PcbTransferTests
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
-        var source = new PcbSupplyHandler(supplyMotion, io, supplySettings);
-        var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var supplier = new PcbSupplier(source, new());
-        var placer = CreatePlacer(supplier, recipient, io);
+
+        var supplier = new PcbSupplier(supplyMotion,
+            io,
+            supplySettings,
+            new());
+        var source = supplier;
+        var placer = CreatePlacer(supplier, placementMotion, io, placementSettings);
+        var recipient = placer;
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -563,6 +579,8 @@ public sealed class PcbTransferTests
         io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
         io.SetInput(InputIo.PcbPlacementIpmGripperOpen, false);
         io.SetInput(InputIo.PcbPlacementIpmGripperClosed, true);
+        await recipient.SetIpmLiftDownAsync(true);
+        Assert.Equal(PcbPlacementHandoff.Holding, placer.Handoff);
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PcbSupplyIpmFixerForward && !on)
@@ -630,14 +648,15 @@ public sealed class PcbTransferTests
             placementSettings.ReceiveZ,
             placementRecipe.HeatSink1PcbPlacementPosition,
             placementRecipe.HeatSink2PcbPlacementPosition);
-        var placementHandler = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var supplyHandler = new PcbSupplyHandler(
-            supplyMotion,
+
+        var supply = new PcbSupplier(supplyMotion,
             io,
-            supplySettings);
-        var supply = new PcbSupplier(supplyHandler, new());
+            supplySettings,
+            new());
+        var supplyHandler = supply;
         var work = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new());
-        var placement = CreatePlacer(supply, placementHandler, io, placementRecipe, work);
+        var placement = CreatePlacer(supply, placementMotion, io, placementSettings, placementRecipe, work);
+        var placementHandler = placement;
         var returnedPositions = new System.Collections.Generic.List<(double X, double Y, double Z)>();
         io.OutputChanged += (output, on) =>
         {
@@ -809,13 +828,14 @@ public sealed class PcbTransferTests
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
-        var placementHandler = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var supplyHandler = new PcbSupplyHandler(
-            supplyMotion,
+
+        var supply = new PcbSupplier(supplyMotion,
             io,
-            supplySettings);
-        var supply = new PcbSupplier(supplyHandler, new());
-        var placement = CreatePlacer(supply, placementHandler, io);
+            supplySettings,
+            new());
+        var supplyHandler = supply;
+        var placement = CreatePlacer(supply, placementMotion, io, placementSettings);
+        var placementHandler = placement;
         var pcb1Visited = false;
         var pcb2Visited = false;
         var pcb1Visits = 0;
@@ -948,13 +968,14 @@ public sealed class PcbTransferTests
             supplySettings.Motion, operations, horizontalZ: () => supplySettings.RotationZ);
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
-        var placementHandler = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var supplyHandler = new PcbSupplyHandler(
-            supplyMotion,
+
+        var supply = new PcbSupplier(supplyMotion,
             io,
-            supplySettings);
-        var supply = new PcbSupplier(supplyHandler, new());
-        var placement = CreatePlacer(supply, placementHandler, io);
+            supplySettings,
+            new());
+        var supplyHandler = supply;
+        var placement = CreatePlacer(supply, placementMotion, io, placementSettings);
+        var placementHandler = placement;
 
         io.Initialize();
         supplyMotion.Initialize();
@@ -1014,14 +1035,15 @@ public sealed class PcbTransferTests
 
     private static PcbPlacer CreatePlacer(
         PcbSupplier supply,
-        PcbPlacementHandler handler,
+        IXyMotion motion,
         IIoService io,
+        PcbPlacementHandlerSettings settings,
         PcbPlacementRecipe? recipe = null,
         PcbPlacementWork? work = null)
     {
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.PcbPlacement = recipe ?? new();
-        return new(supply, handler, work ?? new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), recipes, new());
+        return new(motion, io, settings, supply, work ?? new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), recipes, new());
     }
 
     private static MotionSettings FastMotion()

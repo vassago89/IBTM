@@ -84,7 +84,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var placement = services.GetRequiredService<PcbPlacer>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -155,7 +155,7 @@ public sealed partial class MachineLifecycleTests
         settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 1;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
@@ -263,7 +263,7 @@ public sealed partial class MachineLifecycleTests
         transferSettings.Speed = 1_234;
         transferSettings.PickupSafeX = null;
         var machine = services.GetRequiredService<MachineController>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -403,7 +403,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         if (unit == HardwareArea.PcbPlacementHandler)
-            await services.GetRequiredService<PcbPlacementHandler>().MoveToHorizontalZAsync();
+            await services.GetRequiredService<PcbPlacer>().MoveToHorizontalZAsync();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = unit;
         await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
@@ -441,7 +441,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var operations = services.GetRequiredService<OperationCancellation>();
-        var motion = services.GetRequiredService<InspectionGantry>().Feedback;
+        var motion = services.GetRequiredService<NgCarrierTransfer>().Feedback;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -537,7 +537,7 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -570,7 +570,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         if (group == MotionGroup.PcbPlacementHandler)
-            await services.GetRequiredService<PcbPlacementHandler>().MoveToHorizontalZAsync();
+            await services.GetRequiredService<PcbPlacer>().MoveToHorizontalZAsync();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = group switch
         {
@@ -580,9 +580,9 @@ public sealed partial class MachineLifecycleTests
         };
         IMotionFeedback feedback = group switch
         {
-            MotionGroup.PcbSupply => services.GetRequiredService<PcbSupplyHandler>().Feedback,
-            MotionGroup.PcbPlacementHandler => services.GetRequiredService<PcbPlacementHandler>().Feedback,
-            _ => services.GetRequiredService<InspectionGantry>().Feedback,
+            MotionGroup.PcbSupply => services.GetRequiredService<PcbSupplier>().Feedback,
+            MotionGroup.PcbPlacementHandler => services.GetRequiredService<PcbPlacer>().Feedback,
+            _ => services.GetRequiredService<NgCarrierTransfer>().Feedback,
         };
 
         teaching.JogSpeed = 1;
@@ -642,7 +642,7 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedFov = images[0];
         var roi = teaching.FovRegion;
         var moves = 0;
-        services.GetRequiredService<InspectionGantry>().Feedback.PositionChanged += (_, _, _) => moves++;
+        services.GetRequiredService<NgCarrierTransfer>().Feedback.PositionChanged += (_, _, _) => moves++;
 
         teaching.IsMeasuring = true;
         Assert.False(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
@@ -736,7 +736,7 @@ public sealed partial class MachineLifecycleTests
         var otherImage = await Task.Run(() => InspectionPreview.CreateBitmap(new ImageFrame(2, 1, 6, [60, 60, 60, 160, 160, 160])));
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var moves = 0;
-        services.GetRequiredService<InspectionGantry>().Feedback.PositionChanged += (_, _, _) => moves++;
+        services.GetRequiredService<NgCarrierTransfer>().Feedback.PositionChanged += (_, _, _) => moves++;
         teaching.CarrierImages = metadata.Select(tile => new CarrierImageTileView(tile, tile.Number == 1 ? image : otherImage)).ToArray();
         var first = teaching.FilteredPoints.Single(point => point.BoltNumber == 1);
         var second = teaching.FilteredPoints.Single(point => point.BoltNumber == 2);
@@ -818,8 +818,8 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
-        var supply = services.GetRequiredService<PcbSupplyHandler>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var supply = services.GetRequiredService<PcbSupplier>();
+        var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(services.GetRequiredService<MachineState>().Homed,
@@ -870,7 +870,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateMotionScopeServices(settings, out var probes);
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         var probe = probes[MotionGroup.PcbPlacementHandler];
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
@@ -950,7 +950,7 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => !gripper.ToggleOutputCommand.CanExecute(null));
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        var handler = services.GetRequiredService<PcbSupplyHandler>();
+        var handler = services.GetRequiredService<PcbSupplier>();
         Assert.True(state.Homed, state.AlarmDetail);
         var rotation = TeachingRows(teaching)[OutputIo.PcbSupplyRotate];
         var wasRotated = io.GetOutput(OutputIo.PcbSupplyRotate);
@@ -1046,7 +1046,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         // HOME ends at the origin; this test explicitly prepares the horizontal travel height.
-        await services.GetRequiredService<PcbPlacementHandler>().MoveToHorizontalZAsync();
+        await services.GetRequiredService<PcbPlacer>().MoveToHorizontalZAsync();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         Assert.True(state.Ready, state.AlarmDetail);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
@@ -1068,11 +1068,11 @@ public sealed partial class MachineLifecycleTests
             var head = TeachingRows(teaching)[output];
             await head.ToggleOutputCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(output));
-            Assert.False(services.GetRequiredService<BoltFasteningGantry>().IsHorizontalMoveAllowed);
+            Assert.False(services.GetRequiredService<BoltFasteningStation>().IsHorizontalMoveAllowed);
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
             await head.ToggleOutputCommand.ExecuteAsync(null);
             Assert.False(io.GetOutput(output));
-            Assert.True(services.GetRequiredService<BoltFasteningGantry>().IsHorizontalMoveAllowed);
+            Assert.True(services.GetRequiredService<BoltFasteningStation>().IsHorizontalMoveAllowed);
         }
 
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
@@ -1183,8 +1183,8 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
-        var supply = services.GetRequiredService<PcbSupplyHandler>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var supply = services.GetRequiredService<PcbSupplier>();
+        var placement = services.GetRequiredService<PcbPlacer>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         try
@@ -1622,7 +1622,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var gantry = services.GetRequiredService<BoltFasteningStation>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         await gantry.RaiseCylindersAsync();

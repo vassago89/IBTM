@@ -15,7 +15,7 @@ public sealed record CarrierImage(AxisPosition Center, ImageFrame Frame);
 
 public sealed class BoltInspector
 {
-    private readonly InspectionGantry _gantry;
+    private readonly NgCarrierTransfer _gantry;
     private readonly ICamera _camera;
     private readonly ILightController _light;
     private readonly InspectionGantrySettings _gantrySettings;
@@ -25,7 +25,7 @@ public sealed class BoltInspector
     private int? _lightChannel;
 
     public BoltInspector(
-        InspectionGantry gantry,
+        NgCarrierTransfer gantry,
         ICamera camera,
         ILightController light,
         InspectionGantrySettings gantrySettings,

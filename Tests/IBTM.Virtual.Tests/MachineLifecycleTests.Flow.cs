@@ -64,9 +64,9 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var inspection = services.GetRequiredService<InspectionWork>();
         IMotionFeedback[] disabledMotions = [
-            services.GetRequiredService<PcbSupplyHandler>().Feedback,
-            services.GetRequiredService<PcbPlacementHandler>().Feedback,
-            services.GetRequiredService<BoltFasteningGantry>().Feedback,
+            services.GetRequiredService<PcbSupplier>().Feedback,
+            services.GetRequiredService<PcbPlacer>().Feedback,
+            services.GetRequiredService<BoltFasteningStation>().Feedback,
         ];
         var disabledOutputs = settings.PcbSupplyHardware.Outputs.Keys.Concat(
             settings.PcbPlacementHandlerHardware.Outputs.Keys)

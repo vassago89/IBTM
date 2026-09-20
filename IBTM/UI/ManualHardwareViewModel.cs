@@ -12,7 +12,7 @@ public sealed class ManualHardwareViewModel : ObservableObject
     public ManualHardwareViewModel(
         IoSignals signals,
         MachineController machine,
-        PcbSupplyHandler supply,
+        PcbSupplier supply,
         MainConveyor conveyor)
     {
         Signals = signals;
@@ -27,7 +27,7 @@ public sealed class ManualHardwareViewModel : ObservableObject
     }
 
     public IoSignals Signals { get; }
-    public PcbSupplyHandler Supply { get; }
+    public PcbSupplier Supply { get; }
     public MainConveyor Conveyor { get; }
     public ManualConveyorRow[] Conveyors { get; }
 

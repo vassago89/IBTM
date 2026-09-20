@@ -29,7 +29,7 @@ public sealed partial class MachineController
                 case true when _units.BoltFastening
                     && (!_carrierReference.IsDefined
                         || _recipes.Current.Pcb.BoltPoints.Any(bolt =>
-                            bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))):
+                            bolt.X is null || bolt.Y is null || !_fasteningStation.HasReference(bolt.Head))):
                     return false;
                 default:
                     return !_units.Inspection

@@ -311,37 +311,37 @@ public sealed partial class MachineController
             switch (output.Signal)
             {
                 case OutputIo.PcbSupplyGripperClosed:
-                    await _supplyHandler.SetGripperClosedAsync(value, operation.Token);
+                    await _pcbSupply.SetGripperClosedAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbSupplyIpmFixerForward:
-                    await _supplyHandler.SetIpmFixerAsync(value, operation.Token);
+                    await _pcbSupply.SetIpmFixerAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbSupplyRotate:
-                    await _supplyHandler.SetRotatedAsync(value, operation.Token);
+                    await _pcbSupply.SetRotatedAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbPlacementHandlerDown:
-                    await _placementHandler.SetLiftDownAsync(value, operation.Token);
+                    await _pcbPlacement.SetLiftDownAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbPlacementIpmDown:
-                    await _placementHandler.SetIpmLiftDownAsync(value, operation.Token);
+                    await _pcbPlacement.SetIpmLiftDownAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbPlacementIpmGripperClose:
-                    await _placementHandler.SetIpmGripperAsync(value, operation.Token);
+                    await _pcbPlacement.SetIpmGripperAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbPlacementVacuumEjector:
-                    await _placementHandler.SetVacuumAsync(value, operation.Token);
+                    await _pcbPlacement.SetVacuumAsync(value, operation.Token);
                     break;
                 case OutputIo.PickupHeadDown:
-                    await _fasteningGantry.SetHeadDownAsync(FasteningHead.Pickup, value, operation.Token);
+                    await _fasteningStation.SetHeadDownAsync(FasteningHead.Pickup, value, operation.Token);
                     break;
                 case OutputIo.ShootingHeadDown:
-                    await _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, value, operation.Token);
+                    await _fasteningStation.SetHeadDownAsync(FasteningHead.Shooting, value, operation.Token);
                     break;
                 case OutputIo.PickupHeadVacuumPump:
-                    await _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, operation.Token);
+                    await _fasteningStation.SetVacuumAsync(FasteningHead.Pickup, value, operation.Token);
                     break;
                 case OutputIo.ShootingHeadVacuumPump:
-                    await _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, operation.Token);
+                    await _fasteningStation.SetVacuumAsync(FasteningHead.Shooting, value, operation.Token);
                     break;
                 case OutputIo.NgCarrierPickupDown:
                     await _ngTransfer.SetLiftUpAsync(!value, operation.Token);

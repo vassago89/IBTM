@@ -38,11 +38,11 @@ public partial class OperationViewModel
         get
         {
             return State.Available && PlacementPositionKnown
-                && Placement.Motion.IsReady(live: false) ? _placer.GetState(live: false) : null;
+                && Placement.Motion.IsReady(live: false) ? Placement.GetState(live: false) : null;
         }
     }
 
-    public HeatSinkSlot? PlacementTarget => _placer.TargetHeatSink;
+    public HeatSinkSlot? PlacementTarget => Placement.TargetHeatSink;
 
     public BoltFasteningState? FasteningState
     {
@@ -50,7 +50,7 @@ public partial class OperationViewModel
         {
             return State.Available && Units.BoltFastening
                 && Machine.TeachingReady && FasteningPositionKnown && Fastening.Motion.IsReady(live: false)
-                ? _fasteningStation.GetState(live: false) : null;
+                ? Fastening.GetState(live: false) : null;
         }
     }
 
@@ -59,7 +59,7 @@ public partial class OperationViewModel
         get
         {
             return State.Available && Units.Inspection
-                && Machine.TeachingReady && InspectionPositionKnown && InspectionGantry.Motion.IsReady(live: false)
+                && Machine.TeachingReady && InspectionPositionKnown && NgTransfer.Motion.IsReady(live: false)
                 && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } mainRunning
                 && Signals.Outputs[OutputIo.NgConveyorRun].IsOn is { } running
                 ? _inspectionStation.GetState(_recipes.Current.Pcb.BoltPoints, State.RepeatEnabled,
@@ -100,8 +100,8 @@ public partial class OperationViewModel
     {
         get
         {
-            return InspectionGantry.Motion.XyHomed && _map.InspectionDefined
-                && InspectionGantry.Motion.Position is { X: not null, Y: not null };
+            return NgTransfer.Motion.XyHomed && _map.InspectionDefined
+                && NgTransfer.Motion.Position is { X: not null, Y: not null };
         }
     }
 
@@ -326,9 +326,9 @@ public partial class OperationViewModel
                     return StationDisplayState.IoAlarm;
                 case true when !InspectionPositionKnown:
                     return StationDisplayState.PositionUnknown;
-                case true when !State.AutomaticRunning && !InspectionGantry.Motion.IsMoving:
+                case true when !State.AutomaticRunning && !NgTransfer.Motion.IsMoving:
                     return StationDisplayState.Stopped;
-                case true when InspectionGantry.Motion.IsMoving
+                case true when NgTransfer.Motion.IsMoving
                     || NgTransfer.IsTransferPending
                     || InspectionTransferWorking:
                     return StationDisplayState.Working;

@@ -235,7 +235,7 @@ public sealed class IoStartupTests
         await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
-        var supply = services.GetRequiredService<PcbSupplyHandler>();
+        var supply = services.GetRequiredService<PcbSupplier>();
         var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
         await machine.InitializeAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
@@ -914,7 +914,7 @@ public sealed class IoStartupTests
                 TransferFailureStep.Return => conveyor.ReturnToStartAsync(timeout.Token),
                 TransferFailureStep.NgConveyor => services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>()
                     .RunUntilAsync(InputIo.NgConveyorPosition1Occupied, true, false, timeout.Token),
-                TransferFailureStep.ShootBolt => services.GetRequiredService<IBTM.BoltFastening.BoltFasteningGantry>()
+                TransferFailureStep.ShootBolt => services.GetRequiredService<IBTM.BoltFastening.BoltFasteningStation>()
                     .ShootBoltAsync(timeout.Token),
                 TransferFailureStep.PcbSupply => services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>()
                     .RunAsync(new(), services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>(), timeout.Token),
@@ -977,13 +977,7 @@ public sealed class IoStartupTests
         await work.Station.SeatAsync(CancellationToken.None);
         var runError = new IOException("Fastening carrier feedback failed.");
         var stopError = new IOException("Shooting output OFF failed.");
-        var station = new IBTM.BoltFastening.BoltFasteningStation(
-            services.GetRequiredService<IBTM.BoltFastening.BoltFasteningGantry>(),
-            work,
-            services.GetRequiredService<IBTM.BoltFeeder.PickupBoltFeeder>(),
-            services.GetRequiredService<IBTM.BoltFeeder.ShootingBoltFeeder>(),
-            services.GetRequiredService<RecipeManager>(),
-            services.GetRequiredService<UnitSettings>());
+        var station = services.GetRequiredService<IBTM.BoltFastening.BoltFasteningStation>();
         io.BeforeInputRead = input =>
         {
             if (input == InputIo.BoltFasteningHeatSink1Present)
@@ -1348,7 +1342,7 @@ public sealed class IoStartupTests
             entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
         Assert.True(machine.IsResetAllowed);
         Assert.All(
-            services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
+            services.GetRequiredService<NgCarrierTransfer>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Equal(0, io.ReadsWhileUnavailable);
         await Assert.ThrowsAsync<AggregateException>(machine.ShutdownAsync);
@@ -1375,7 +1369,7 @@ public sealed class IoStartupTests
 
         AssertUnavailable(state, machine, error);
         Assert.All(
-            services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
+            services.GetRequiredService<NgCarrierTransfer>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Equal(0, io.ReadsWhileUnavailable);
         await Assert.ThrowsAsync<AggregateException>(machine.ShutdownAsync);

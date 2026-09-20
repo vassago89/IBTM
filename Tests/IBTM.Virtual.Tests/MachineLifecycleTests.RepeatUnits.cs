@@ -127,7 +127,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var pickup = services.GetRequiredService<NgCarrierTransfer>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var work = services.GetRequiredService<InspectionWork>();
         var firstFov = new AxisPosition { X = 35, Y = 45 };
         services.GetRequiredService<RecipeManager>().Current.CarrierImages =
@@ -143,7 +143,7 @@ public sealed partial class MachineLifecycleTests
         if (startsWithCarrierHeld)
         {
             await work.Station.SeatAsync(CancellationToken.None);
-            await services.GetRequiredService<NgCarrierMove>().ExecuteAsync(
+            await services.GetRequiredService<NgCarrierTransfer>().ExecuteAsync(
                 NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None);
             Assert.True(pickup.CarrierDetected);
             Assert.False(work.Station.CarrierPresent);
@@ -228,12 +228,12 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
-        await services.GetRequiredService<NgCarrierMove>().ExecuteAsync(
+        await services.GetRequiredService<NgCarrierTransfer>().ExecuteAsync(
             NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None);
         await gantry.MoveToAsync(new() { X = 50, Y = 30 }, 10_000);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
@@ -333,8 +333,8 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var supply = services.GetRequiredService<PcbSupplyHandler>();
-        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var supply = services.GetRequiredService<PcbSupplier>();
+        var placement = services.GetRequiredService<PcbPlacer>();
         var supplier = services.GetRequiredService<PcbSupplier>();
         var placer = services.GetRequiredService<PcbPlacer>();
         var handoffSteps = new ConcurrentQueue<string>();

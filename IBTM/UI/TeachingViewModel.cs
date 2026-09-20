@@ -21,18 +21,16 @@ namespace IBTM.UI;
 public partial class TeachingViewModel : ObservableObject
 {
     private readonly IAsyncRelayCommand[] _commands;
-    private readonly PcbSupplyHandler _supplyHandler;
+    private readonly PcbSupplier _supplyHandler;
     private readonly PcbSupplySettings _supplySettings;
-    private readonly PcbPlacementHandler _placementHandler;
-    private readonly BoltFasteningGantry _fasteningGantry;
-    private readonly InspectionGantry _inspectionGantry;
+    private readonly PcbPlacer _placementHandler;
+    private readonly BoltFasteningStation _fasteningGantry;
     private readonly InspectionGantrySettings _inspectionGantrySettings;
     private readonly CarrierReferenceSettings _carrierReference;
     private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly BoltFasteningSettings _fasteningSettings;
     private readonly NgCarrierTransferSettings _ngTransferSettings;
     private readonly NgCarrierTransfer _ngTransfer;
-    private readonly NgCarrierMove _ngCarrierMove;
     private CancellationTokenSource _recipeImageCancellation;
     private Task _recipeImageUpdate = Task.CompletedTask;
     [ObservableProperty]
@@ -66,11 +64,10 @@ public partial class TeachingViewModel : ObservableObject
     public partial double MillimetersPerPixel { get; set; }
 
     public TeachingViewModel(
-        PcbSupplyHandler supplyHandler,
+        PcbSupplier supplyHandler,
         PcbSupplySettings supplySettings,
-        PcbPlacementHandler placementHandler,
-        BoltFasteningGantry fasteningGantry,
-        InspectionGantry inspectionGantry,
+        PcbPlacer placementHandler,
+        BoltFasteningStation fasteningGantry,
         BoltInspector boltInspector,
         MachineState state,
         MachineController machine,
@@ -81,7 +78,6 @@ public partial class TeachingViewModel : ObservableObject
         BoltFasteningSettings fasteningSettings,
         NgCarrierTransferSettings ngTransferSettings,
         NgCarrierTransfer ngTransfer,
-        NgCarrierMove ngCarrierMove,
         RecipeEditor recipeEditor,
         RecipeManager recipes,
         MachineStore store,
@@ -158,7 +154,6 @@ public partial class TeachingViewModel : ObservableObject
         _supplySettings = supplySettings;
         _placementHandler = placementHandler;
         _fasteningGantry = fasteningGantry;
-        _inspectionGantry = inspectionGantry;
         Inspector = boltInspector;
         _inspectionGantrySettings = inspectionGantrySettings;
         _carrierReference = carrierReference;
@@ -166,7 +161,6 @@ public partial class TeachingViewModel : ObservableObject
         _fasteningSettings = fasteningSettings;
         _ngTransferSettings = ngTransferSettings;
         _ngTransfer = ngTransfer;
-        _ngCarrierMove = ngCarrierMove;
         RecipeEditor = recipeEditor;
         Recipes = recipes;
         Preview = new(boltInspector, recipes);

@@ -103,7 +103,7 @@ public sealed class MachineStoreTests
         {
             AutoResponseEnabled = false,
         };
-        var transfer = new NgCarrierTransfer(io);
+        var transfer = VirtualTest.CreateNgTransfer(io);
         io.SetInput(InputIo.NgCarrierPickupUp, true);
         io.SetInput(InputIo.NgCarrierPickupDown, false);
         var lowering = transfer.SetLiftUpAsync(false);

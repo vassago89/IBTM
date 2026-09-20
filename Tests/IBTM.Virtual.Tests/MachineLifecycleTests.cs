@@ -316,7 +316,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(work.Completed);
         Assert.Null(work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
         Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
-        Assert.False(services.GetRequiredService<InspectionGantry>().Feedback.IsMoving);
+        Assert.False(services.GetRequiredService<NgCarrierTransfer>().Feedback.IsMoving);
 
         camera.SourceImage = null;
         await machine.ResetAsync();
@@ -395,7 +395,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
@@ -461,7 +461,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var station = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -497,7 +497,7 @@ public sealed partial class MachineLifecycleTests
 
         async Task VerifyTransferReleaseAsync(NgTransferState expected)
         {
-            var move = services.GetRequiredService<NgCarrierMove>();
+            var move = services.GetRequiredService<NgCarrierTransfer>();
             using var moveStop = new CancellationTokenSource();
             var moveTask = move.RunToAsync(NgTransferDestination.Shuttle, moveStop.Token);
             try
@@ -578,7 +578,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         if (inspectionEnabled || transferEnabled)
         {
-            await services.GetRequiredService<NgCarrierMove>().MoveToCarrierAsync(
+            await services.GetRequiredService<NgCarrierTransfer>().MoveToCarrierAsync(
                 NgTransferDestination.Station, CancellationToken.None);
         }
         io.SetInput(InputIo.AutoMode, false);
@@ -807,7 +807,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var shuttle = services.GetRequiredService<NgShuttle>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         await machine.InitializeAsync();
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);

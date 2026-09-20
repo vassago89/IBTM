@@ -8,26 +8,21 @@ namespace IBTM.Inspection;
 public sealed class InspectionWork : StationWork
 {
     private readonly IIoService _io;
-    private readonly INgCarrierTransferFeedback _transferFeedback;
-    private readonly InspectionGantry _gantry;
+    private readonly NgCarrierTransfer _transfer;
     private readonly NgCarrierTransferSettings _transferSettings;
     // Scheduling ownership for this job only; never a physical position or restart checkpoint.
     private volatile Job? _inspectionRequestedJob;
 
     public InspectionWork(
         IIoService io,
-        INgCarrierTransferFeedback transferFeedback,
-        InspectionGantry gantry,
+        NgCarrierTransfer transfer,
         NgCarrierTransferSettings transferSettings,
-        UnitSettings units) : base(ConveyorStation.CreateInspection(io), units)
+        UnitSettings units) : base(transfer.Station, units)
     {
         _io = io;
-        _transferFeedback = transferFeedback;
-        _gantry = gantry;
+        _transfer = transfer;
         _transferSettings = transferSettings;
-        transferFeedback.Changed += NotifyChanged;
-        // Conveyor release depends on the transfer's actual waiting position.
-        gantry.Feedback.StateChanged += NotifyChanged;
+        transfer.Changed += NotifyChanged;
         io.OutputChanged += OnOutputChanged;
     }
 
@@ -45,7 +40,7 @@ public sealed class InspectionWork : StationWork
 
     public bool InspectionRequested => ReferenceEquals(_inspectionRequestedJob, CurrentJob);
 
-    public bool PickupClear => _transferFeedback.IsClear;
+    public bool PickupClear => _transfer.IsClear;
 
     public override bool IsTransferAllowed => IsTransferAllowedFor();
 
@@ -56,7 +51,7 @@ public sealed class InspectionWork : StationWork
     }
 
     public override bool IsReceiveAllowed => base.IsReceiveAllowed
-        && (!Units.NgCarrierTransfer || !_transferFeedback.IsTransferPending);
+        && (!Units.NgCarrierTransfer || !_transfer.IsTransferPending);
 
     public bool RouteToNg => !Enabled || HasNg;
 
@@ -86,7 +81,7 @@ public sealed class InspectionWork : StationWork
             case true when !IsAtInspectionPosition(conveyorRunning):
                 return InspectionWorkState.WaitingForInspectionPosition;
             default:
-                return !_transferFeedback.IsClear
+                return !_transfer.IsClear
                     ? InspectionWorkState.WaitingForGantry
                     : InspectionWorkState.ReadyToInspect;
         }
@@ -96,9 +91,9 @@ public sealed class InspectionWork : StationWork
     {
         if (!Units.IsMotionEnabled(MotionGroup.InspectionGantry))
             return true;
-        return _transferFeedback.IsClear
+        return _transfer.IsClear
             && _transferSettings.GetCarrierPickupPosition() is { } position
-            && _gantry.IsAt(position, live);
+            && _transfer.IsAt(position, live);
     }
 
     public void RequestInspection(Job job)

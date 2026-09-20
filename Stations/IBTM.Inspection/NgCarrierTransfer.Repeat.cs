@@ -6,7 +6,7 @@ using IBTM.Device;
 
 namespace IBTM.Inspection;
 
-public sealed partial class NgCarrierMove
+public sealed partial class NgCarrierTransfer
 {
     public async Task WaitForRepeatEndAsync(bool holdAtShuttle, CancellationToken cancellationToken)
     {
@@ -28,7 +28,7 @@ public sealed partial class NgCarrierMove
 
     public async Task ReturnToStationAsync(CancellationToken cancellationToken)
     {
-        await _work.Station.SeatAsync(cancellationToken);
+        await Station.SeatAsync(cancellationToken);
         await RunToAsync(NgTransferDestination.Station, cancellationToken,
             allowEmpty: IsEmptyRepeatAllowed);
     }
@@ -37,11 +37,12 @@ public sealed partial class NgCarrierMove
     {
         if (firstFov is null)
             return;
-        if ((!IsEmptyRepeatAllowed && !_work.Station.CarrierPresent)
-            || _pickup.Gripper != NgTransferGripperState.Open
-            || !_pickup.IsRaised)
+        if ((!IsEmptyRepeatAllowed && !Station.CarrierPresent)
+            || IsTransferPending
+            || Gripper != NgTransferGripperState.Open
+            || !IsRaised)
             throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the first FOV.");
 
-        await _gantry.MoveToAsync(firstFov, _settings.Speed, cancellationToken);
+        await MoveToAsync(firstFov, _settings.Speed, cancellationToken);
     }
 }

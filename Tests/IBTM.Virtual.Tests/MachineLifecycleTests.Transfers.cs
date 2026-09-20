@@ -17,13 +17,67 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NgTransferStopsBeforeLoweringAfterGripFeedbackLoss(bool opens)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.NgCarrierTransfer.Speed = 200;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var move = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var pickup = services.GetRequiredService<NgCarrierTransfer>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, timeout.Token);
+        var lost = false;
+        var lowered = false;
+        gantry.Feedback.PositionChanged += (x, y, z) =>
+        {
+            if (!lost && gantry.Feedback.IsMoving && x > 30)
+            {
+                lost = true;
+                io.SetInputs((InputIo.NgCarrierGripperClosed, false), (InputIo.NgCarrierGripperOpen, opens));
+            }
+        };
+        io.OutputChanged += (output, on) => lowered |= output == OutputIo.NgCarrierPickupDown && on;
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteAsync(
+                NgTransferDestination.Shuttle, NgTransferState.PlacingCarrier, timeout.Token));
+            Assert.True(lost);
+            Assert.False(lowered);
+            Assert.False(gantry.Feedback.IsMoving);
+            Assert.True(pickup.IsTransferPending);
+            var restarted = false;
+            io.OutputChanged += (output, on) => restarted |= output is OutputIo.NgCarrierGripperClose
+                or OutputIo.NgCarrierPickupDown;
+            gantry.Feedback.MovingChanged += moving => restarted |= moving;
+            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteAsync(
+                NgTransferDestination.Shuttle,
+                move.GetState(NgTransferDestination.Shuttle, canPickUp: true), timeout.Token));
+            Assert.False(restarted);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task SmemaTestInputsRequireTeachingAndClearWhenTheSelectorTurnsOff()
     {
         await using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var supply = services.GetRequiredService<PcbSupplyHandler>();
+        var supply = services.GetRequiredService<PcbSupplier>();
         var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
         await machine.InitializeAsync();
         io.AutoResponseEnabled = false;
@@ -99,7 +153,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var station = services.GetRequiredService<BoltFasteningStation>();
         var work = services.GetRequiredService<BoltFasteningWork>();
-        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var gantry = services.GetRequiredService<BoltFasteningStation>();
         var operations = services.GetRequiredService<OperationCancellation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -149,7 +203,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var supply = services.GetRequiredService<PcbSupplier>();
-        var handler = services.GetRequiredService<PcbSupplyHandler>();
+        var handler = services.GetRequiredService<PcbSupplier>();
         var motion = handler.Feedback;
         var recipe = new PcbSupplyRecipe
         {
@@ -223,9 +277,9 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
-        var move = services.GetRequiredService<NgCarrierMove>();
+        var move = services.GetRequiredService<NgCarrierTransfer>();
         var settings = services.GetRequiredService<NgCarrierTransferSettings>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var pickup = services.GetRequiredService<NgCarrierTransfer>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
@@ -306,9 +360,9 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
-        var move = services.GetRequiredService<NgCarrierMove>();
+        var move = services.GetRequiredService<NgCarrierTransfer>();
         var settings = services.GetRequiredService<NgCarrierTransferSettings>();
-        var gantry = services.GetRequiredService<InspectionGantry>();
+        var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -377,7 +431,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var handler = services.GetRequiredService<PcbPlacementHandler>();
+        var handler = services.GetRequiredService<PcbPlacer>();
         var placer = services.GetRequiredService<PcbPlacer>();
         var work = services.GetRequiredService<PcbPlacementWork>();
         var recipe = services.GetRequiredService<RecipeManager>().Current.PcbPlacement;
@@ -456,7 +510,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var handler = services.GetRequiredService<PcbPlacementHandler>();
+        var handler = services.GetRequiredService<PcbPlacer>();
         var placer = services.GetRequiredService<PcbPlacer>();
         var work = services.GetRequiredService<PcbPlacementWork>();
         var recipe = services.GetRequiredService<RecipeManager>().Current.PcbPlacement;
@@ -583,7 +637,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var move = services.GetRequiredService<NgCarrierMove>();
+        var move = services.GetRequiredService<NgCarrierTransfer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
@@ -591,7 +645,7 @@ public sealed partial class MachineLifecycleTests
         // Establish pickup ownership through the real sequence, independently of presence DI.
         await move.ExecuteAsync(destination, NgTransferState.PickingCarrier,
             CancellationToken.None, allowEmpty: true);
-        await services.GetRequiredService<InspectionGantry>()
+        await services.GetRequiredService<NgCarrierTransfer>()
             .MoveToAsync(
                 destination == NgTransferDestination.Station
                     ? settings.NgCarrierTransfer.GetCarrierPickupPosition()!
@@ -628,7 +682,8 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.NgCarrierPickupDown, false);
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             io.SetInput(InputIo.NgCarrierGripperOpen, true);
-            Assert.Equal(NgTransferState.Raising,
+            // Unexpected opening above an unsupported destination must retain the failed transfer.
+            Assert.Equal(NgTransferState.GrippingCarrier,
                 move.GetState(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierPickupDown, true);
             io.SetInput(InputIo.NgCarrierGripperClosed, true);
@@ -642,6 +697,10 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         AssertState(NgTransferState.Opening);
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
+        var pickup = services.GetRequiredService<NgCarrierTransfer>();
+        Assert.True(pickup.IsTransferPending);
+        await move.ExecuteAsync(destination, NgTransferState.Opening, CancellationToken.None);
+        Assert.False(pickup.IsTransferPending);
         io.SetInput(destinationSensor, false);
         AssertState(NgTransferState.WaitingForPlacement);
         io.SetInput(destinationSensor, true);

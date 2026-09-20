@@ -139,7 +139,7 @@ NG 운반 중처럼 캐리어를 잡고 있으면 기존 NG 이송 동작이 우
 - `PcbPlacer`, `BoltFasteningStation`, `InspectionStation`: 각 공정 실행과 현재 캐리어의 완료 판단.
 - `InspectionStation`: 바코드·볼트 검사, 검사 후 복귀, NG 집기·운반.
 - `InspectionWork`: 현재 S3 피드백, 캐리어별 결과와 완료 소유권, 대기 위치 확인.
-- `NgCarrierMove`: Safe X 접근과 실제 픽업/셔틀 이송.
+- `NgCarrierTransfer`: 공유 검사 XY 축, NG 실린더·그리퍼와 픽업/셔틀 이송을 직접 실행한다.
 - 참조 방향은 `IBTM.Conveyor → IBTM.Inspection → IBTM.NgConveyor`다.
   메인 컨베이어는 구체적인 `InspectionWork`를 읽고, `InspectionStation` 실행 루프를 호출하지 않는다.
 

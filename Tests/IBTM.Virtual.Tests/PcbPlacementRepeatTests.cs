@@ -198,18 +198,25 @@ public sealed class PcbPlacementRepeatTests
             Motion.PositionChanged += (x, y, z) => simulation.UpdatePlacementPosition(
                 x, y, z, settings.HandoffPosition, settings.ReceiveZ,
                 Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition);
-            Handler = new(Motion, Io, settings);
-            var supply = new PcbSupplyHandler(_supplyMotion, Io, supplySettings);
+
             var units = new UnitSettings { PcbSupply = enableSupply };
+            var supply = new PcbSupplier(_supplyMotion, Io, supplySettings, units);
             Work = new(ConveyorStation.CreatePcbPlacement(Io), units);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement = Recipe;
-            Placer = new(new PcbSupplier(supply, units), Handler, Work, recipes, units);
+            Placer = new PcbPlacer(Motion,
+                Io,
+                settings,
+                supply,
+                Work,
+                recipes,
+                units);
+            Handler = Placer;
         }
 
         public VirtualIoService Io { get; }
         public VirtualMotionService Motion { get; }
-        public PcbPlacementHandler Handler { get; }
+        public PcbPlacer Handler { get; }
         public PcbPlacementWork Work { get; }
         public PcbPlacer Placer { get; }
         public PcbPlacementRecipe Recipe { get; }

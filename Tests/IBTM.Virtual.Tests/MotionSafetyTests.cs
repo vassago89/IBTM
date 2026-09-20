@@ -191,9 +191,9 @@ public sealed class MotionSafetyTests
         var io = CreateIo();
         using var supply = Motion(settings, operations);
         using var placement = Motion(settings, operations);
-        var placementHandler = new PcbPlacementHandler(placement, io,
+        var placementHandler = VirtualTest.CreatePlacer(placement, io,
             new PcbPlacementHandlerSettings { HandoffPosition = handoff });
-        var supplyHandler = new PcbSupplyHandler(supply, io,
+        var supplyHandler = VirtualTest.CreateSupplier(supply, io,
             new PcbSupplySettings { HandoffPosition = new() { X = handoff.X, Y = handoff.Y, Z = 3 } });
 
         io.Initialize();
@@ -251,7 +251,7 @@ public sealed class MotionSafetyTests
             settings.Motion,
             new OperationCancellation(),
             horizontalZ: () => settings.RotationZ);
-        var supply = new PcbSupplyHandler(
+        var supply = VirtualTest.CreateSupplier(
             motion,
             io,
             settings);
@@ -320,9 +320,10 @@ public sealed class MotionSafetyTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PlacementStandbyTeachingUsesPendingZBeforeHorizontalMove(bool cancelAtStandbyZ)
+    [InlineData(null)]
+    [InlineData(MotionAxis.Z)]
+    [InlineData(MotionAxis.X)]
+    public async Task PlacementStandbyTeachingUsesPendingZThenXThenY(MotionAxis? cancelAfterAxis)
     {
         var settings = new PcbPlacementHandlerSettings
         {
@@ -334,7 +335,7 @@ public sealed class MotionSafetyTests
             settings.Motion,
             new OperationCancellation(),
             horizontalZ: () => settings.HandoffPosition.Z);
-        var placement = new PcbPlacementHandler(motion, io, settings);
+        var placement = VirtualTest.CreatePlacer(motion, io, settings);
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 1_000);
@@ -350,15 +351,17 @@ public sealed class MotionSafetyTests
         motion.PositionChanged += (x, y, z) =>
         {
             positions.Add((x, y, z));
-            if (cancelAtStandbyZ && x == 0 && y == 0 && z == pending.Z)
+            if ((cancelAfterAxis == MotionAxis.Z && x == 0 && y == 0 && z == pending.Z)
+                || (cancelAfterAxis == MotionAxis.X && x == pending.X && y == 0))
                 stop.Cancel();
         };
 
-        if (cancelAtStandbyZ)
+        if (cancelAfterAxis is not null)
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
                 () => placement.MoveToTeachingPositionAsync(standby, pending, stop.Token));
-            Assert.Equal((0, 0, pending.Z), motion.GetPosition());
+            var expectedX = cancelAfterAxis == MotionAxis.X ? pending.X : 0;
+            Assert.Equal((expectedX, 0, pending.Z), motion.GetPosition());
         }
         else
         {
@@ -372,10 +375,74 @@ public sealed class MotionSafetyTests
             Assert.InRange(position.Z, pending.Z, 9);
             if (position.X != 0 || position.Y != 0)
                 Assert.Equal(pending.Z, position.Z);
+            if (position.Y != 0)
+                Assert.Equal(pending.X, position.X);
         });
         Assert.False(motion.IsMoving);
         Assert.Equal((20, 15, 3),
             (settings.HandoffPosition.X, settings.HandoffPosition.Y, settings.HandoffPosition.Z));
+    }
+
+    [Theory]
+    [InlineData(TeachingTarget.HeatSink1PcbPlacement, false)]
+    [InlineData(TeachingTarget.HeatSink2PcbPlacement, false)]
+    [InlineData(TeachingTarget.HeatSink1PcbPlacement, true)]
+    public async Task PlacementHeatSinkTeachingMovesYThenXBeforeTargetZ(
+        TeachingTarget target,
+        bool cancelAfterY)
+    {
+        var settings = new PcbPlacementHandlerSettings
+        {
+            Motion = new MotionSettings { HorizontalSpeed = 1_000, ZSpeed = 1_000 },
+            HandoffPosition = new() { Z = 3 },
+        };
+        var io = new VirtualIoService(new PcbPlacementHandlerHardwareSettings().Outputs, new MachineOptions());
+        using var motion = new VirtualMotionService(
+            settings.Motion,
+            new OperationCancellation(),
+            horizontalZ: () => settings.HandoffPosition.Z);
+        var placement = VirtualTest.CreatePlacer(motion, io, settings);
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 1_000);
+        io.SetInputs(
+            (InputIo.PcbPlacementHandlerUp, true),
+            (InputIo.PcbPlacementHandlerDown, false));
+        await motion.MoveAxisAsync(MotionAxis.Z, 9, 1_000);
+
+        var point = Array.Find(settings.GetTeachingPositions(new()), point => point.Target == target)!;
+        var destination = new AxisPosition { X = 30, Y = 25, Z = 7 };
+        using var stop = new CancellationTokenSource();
+        var positions = new List<(double X, double Y, double Z)>();
+        motion.PositionChanged += (x, y, z) =>
+        {
+            positions.Add((x, y, z));
+            if (cancelAfterY && y == destination.Y)
+                stop.Cancel();
+        };
+
+        if (cancelAfterY)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => placement.MoveToTeachingPositionAsync(point, destination, stop.Token));
+            Assert.Equal((0, destination.Y, settings.HandoffPosition.Z), motion.GetPosition());
+        }
+        else
+        {
+            await placement.MoveToTeachingPositionAsync(point, destination, stop.Token);
+            Assert.Equal((destination.X, destination.Y, destination.Z), motion.GetPosition());
+        }
+
+        Assert.NotEmpty(positions);
+        Assert.All(positions, position =>
+        {
+            if (position.X != 0)
+                Assert.Equal(destination.Y, position.Y);
+            if ((position.X != 0 || position.Y != 0)
+                && (position.X != destination.X || position.Y != destination.Y))
+                Assert.Equal(settings.HandoffPosition.Z, position.Z);
+        });
+        Assert.False(motion.IsMoving);
     }
 
     private static VirtualIoService CreateIo()

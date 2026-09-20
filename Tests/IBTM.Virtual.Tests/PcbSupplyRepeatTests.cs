@@ -12,6 +12,54 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbSupplyRepeatTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PartialGripAwayFromSupportsDoesNotRestartByMovingOrOpening(bool repeat)
+    {
+        var settings = new PcbSupplySettings
+        {
+            Motion = new() { HorizontalSpeed = 2_000, ZSpeed = 2_000 },
+            RotationZ = 0,
+            HandoffPosition = new() { X = 80, Y = 30, Z = 2 },
+        };
+        var recipe = new PcbSupplyRecipe
+        {
+            Pcb1PickPosition = new() { X = 10, Y = 10, Z = 5 },
+            Pcb2PickPosition = new() { X = 20, Y = 10, Z = 5 },
+        };
+        var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
+        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
+
+        var supplier = new PcbSupplier(motion,
+            io,
+            settings,
+            new() { PcbPlacement = false });
+        var handler = supplier;
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 2_000);
+        await handler.SetRotatedAsync(true);
+        await motion.MoveToXYAsync(30, 20, 2_000);
+        await handler.SetGripperClosedAsync(true);
+        await handler.SetIpmFixerAsync(false);
+        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        Assert.Equal(PcbSupplyPcbState.Detected, handler.Pcb);
+        var commanded = false;
+        motion.MovingChanged += moving => commanded |= moving;
+        io.OutputChanged += (output, on) => commanded |= output is OutputIo.PcbSupplyRotate
+            or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward;
+
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat));
+
+        Assert.False(commanded);
+        Assert.Equal(PcbSupplyCylinderState.Forward, handler.Gripper);
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]
@@ -30,8 +78,12 @@ public sealed class PcbSupplyRepeatTests
         };
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
-        var handler = new PcbSupplyHandler(motion, io, settings);
-        var supplier = new PcbSupplier(handler, new() { PcbPlacement = false });
+
+        var supplier = new PcbSupplier(motion,
+            io,
+            settings,
+            new() { PcbPlacement = false });
+        var handler = supplier;
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);
@@ -119,8 +171,12 @@ public sealed class PcbSupplyRepeatTests
             x, y, z,
             (recipe.Pcb1PickPosition.X, recipe.Pcb1PickPosition.Y, recipe.Pcb1PickPosition.Z),
             (recipe.Pcb2PickPosition.X, recipe.Pcb2PickPosition.Y, recipe.Pcb2PickPosition.Z), settings.HandoffPosition);
-        var handler = new PcbSupplyHandler(motion, io, settings);
-        var supplier = new PcbSupplier(handler, new() { PcbPlacement = false });
+
+        var supplier = new PcbSupplier(motion,
+            io,
+            settings,
+            new() { PcbPlacement = false });
+        var handler = supplier;
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);

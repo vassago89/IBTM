@@ -35,13 +35,13 @@ public sealed partial class MachineController
             if (_units.MainConveyor || _units.NgCarrierTransfer)
             {
                 var carriers = (_units.MainConveyor ? _conveyor.CarrierCount
-                        : _ngMove.IsCarrierPresent(NgTransferDestination.Station) ? 1 : 0)
+                        : _ngTransfer.IsCarrierPresent(NgTransferDestination.Station) ? 1 : 0)
                     + (_units.NgCarrierTransfer && _ngTransfer.IsTransferPending ? 1 : 0)
                     + (_units.NgCarrierTransfer && _units.NgShuttle && _ngShuttle.Feedback.CarrierDetected ? 1 : 0)
                     + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
                     + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
                 if (carriers > 1
-                    || carriers == 0 && !(_units.NgCarrierTransfer && _ngMove.IsEmptyRepeatAllowed)
+                    || carriers == 0 && !(_units.NgCarrierTransfer && _ngTransfer.IsEmptyRepeatAllowed)
                     || _units.MainConveyor && _conveyor.ExitCarrierDetected)
                     throw new InvalidOperationException("Repeat requires one carrier on the active route; only NG Transfer standalone repeat allows an empty route. Check the enabled supports and any unfinished NG transfer.");
             }
@@ -83,9 +83,9 @@ public sealed partial class MachineController
                 if (_units.NgCarrierTransfer)
                 {
                     RepeatDisplayPhase = RepeatPhase.ReturnToStation3;
-                    await _ngMove.ReturnToStationAsync(cancellationToken);
+                    await _ngTransfer.ReturnToStationAsync(cancellationToken);
                     RepeatDisplayPhase = RepeatPhase.ClearStation3;
-                    await _ngMove.ClearStationAsync(
+                    await _ngTransfer.ClearStationAsync(
                         _recipes.Current.CarrierImages.MinBy(image => image.Number)?.Center,
                         cancellationToken);
                 }
@@ -134,7 +134,7 @@ public sealed partial class MachineController
             else if (_units.NgConveyor)
                 await _ngConveyor.WaitForRepeatEndAsync(cycle.Token);
             else
-                await _ngMove.WaitForRepeatEndAsync(!_units.NgShuttle, cycle.Token);
+                await _ngTransfer.WaitForRepeatEndAsync(!_units.NgShuttle, cycle.Token);
         }
         finally
         {
@@ -154,9 +154,9 @@ public sealed partial class MachineController
             {
                 switch (true)
                 {
-                    case true when !_placementHandler.HandlerRaised:
+                    case true when !_pcbPlacement.HandlerRaised:
                         return OutputBlockReason.PlacementNotRaised;
-                    case true when !_placementHandler.IsAtHorizontalZ():
+                    case true when !_pcbPlacement.IsAtHorizontalZ():
                         return OutputBlockReason.PlacementNotAtSafeZ;
                 }
             }
@@ -165,9 +165,9 @@ public sealed partial class MachineController
             {
                 switch (true)
                 {
-                    case true when !_fasteningGantry.IsHorizontalMoveAllowed:
+                    case true when !_fasteningStation.IsHorizontalMoveAllowed:
                         return OutputBlockReason.FasteningNotRaised;
-                    case true when !_fasteningGantry.IsAtSafeZ():
+                    case true when !_fasteningStation.IsAtSafeZ():
                         return OutputBlockReason.FasteningNotAtSafeZ;
                 }
             }
@@ -197,8 +197,8 @@ public sealed partial class MachineController
         }
 
         _state.Changed += CheckPath;
-        _placementHandler.Changed += CheckPath;
-        _fasteningGantry.Changed += CheckPath;
+        _pcbPlacement.Changed += CheckPath;
+        _fasteningStation.Changed += CheckPath;
         _ngTransfer.Changed += CheckPath;
         try
         {
@@ -210,8 +210,8 @@ public sealed partial class MachineController
         finally
         {
             _state.Changed -= CheckPath;
-            _placementHandler.Changed -= CheckPath;
-            _fasteningGantry.Changed -= CheckPath;
+            _pcbPlacement.Changed -= CheckPath;
+            _fasteningStation.Changed -= CheckPath;
             _ngTransfer.Changed -= CheckPath;
         }
     }

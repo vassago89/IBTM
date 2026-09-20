@@ -147,7 +147,7 @@ public partial class TeachingViewModel
                     await _fasteningGantry.JogAsync(axis, velocity, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await _inspectionGantry.JogAsync(axis, velocity, operation.Token);
+                    await _ngTransfer.JogAsync(axis, velocity, operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(group));
@@ -252,7 +252,7 @@ public partial class TeachingViewModel
                     await _fasteningGantry.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await _inspectionGantry.MoveAxisAsync(axis, target, TeachingXySpeed, operation.Token);
+                    await _ngTransfer.MoveAxisAsync(axis, target, TeachingXySpeed, operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup));
@@ -343,7 +343,7 @@ public partial class TeachingViewModel
                     await _fasteningGantry.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup:
-                    await _ngCarrierMove.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
+                    await _ngTransfer.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt:
                     await Inspector.MoveToAsync(bolt, operation.Token);
@@ -352,7 +352,7 @@ public partial class TeachingViewModel
                     await Inspector.MoveToBarcodeAsync(SelectedPcb, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await _inspectionGantry.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, TeachingXySpeed, operation.Token);
+                    await _ngTransfer.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, TeachingXySpeed, operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(point));

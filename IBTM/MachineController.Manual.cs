@@ -15,8 +15,7 @@ public sealed partial class MachineController
         get
         {
             return _state.ManualSetupEnabled
-                && !_fasteningGantry.HasPendingResult
-                && !_fasteningStation.HasPendingResult;
+                && !_fasteningStation.HasUncollectedResults;
         }
     }
 
@@ -137,16 +136,16 @@ public sealed partial class MachineController
             switch (group)
             {
                 case MotionGroup.PcbSupply:
-                    _supplyHandler.SetServo(axis, on);
+                    _pcbSupply.SetServo(axis, on);
                     break;
                 case MotionGroup.PcbPlacementHandler:
-                    _placementHandler.SetServo(axis, on);
+                    _pcbPlacement.SetServo(axis, on);
                     break;
                 case MotionGroup.BoltFastening:
-                    _fasteningGantry.SetServo(axis, on);
+                    _fasteningStation.SetServo(axis, on);
                     break;
                 case MotionGroup.InspectionGantry:
-                    _inspectionGantry.SetServo(axis, on);
+                    _ngTransfer.SetServo(axis, on);
                     break;
             }
         }
@@ -177,7 +176,7 @@ public sealed partial class MachineController
             throw new InvalidOperationException("Bolt testing requires safe manual mode.");
         }
 
-        if (_fasteningGantry.HasPendingResult || _fasteningStation.HasPendingResult)
+        if (_fasteningStation.HasUncollectedResults)
         {
             throw new InvalidOperationException(
                 "A production fastening result is still pending. Resolve that result before testing a bolt head.");

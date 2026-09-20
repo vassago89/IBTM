@@ -53,10 +53,10 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         UnitSettings units,
         IIoService io,
         IoSignals ioSignals,
-        PcbSupplyHandler supply,
-        PcbPlacementHandler placement,
-        BoltFasteningGantry fastening,
-        InspectionGantry inspection,
+        PcbSupplier supply,
+        PcbPlacer placement,
+        BoltFasteningStation fastening,
+        NgCarrierTransfer inspection,
         ILogger<MachineFeedbackMonitor>? log = null)
     {
         _lifetime = new();

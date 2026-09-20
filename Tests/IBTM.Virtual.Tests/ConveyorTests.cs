@@ -627,14 +627,13 @@ public sealed partial class ConveyorTests
 
     private static InspectionWork CreateInspectionWork(IIoService io, UnitSettings? units = null)
     {
-        var transfer = new NgCarrierTransfer(io);
         var settings = new InspectionGantrySettings();
         var operations = new OperationCancellation();
         var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
-        var gantry = new InspectionGantry(motion, transfer, operations, settings);
+        var transfer = VirtualTest.CreateNgTransfer(io, motion, operations, settings);
         return new InspectionWork(
-            io, transfer, gantry, new NgCarrierTransferSettings { PickupSafeX = 0 },
+            io, transfer, new NgCarrierTransferSettings { PickupSafeX = 0 },
             units ?? new UnitSettings { MainConveyor = false, NgCarrierTransfer = false });
     }
 

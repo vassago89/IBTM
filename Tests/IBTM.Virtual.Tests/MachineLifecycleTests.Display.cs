@@ -177,7 +177,7 @@ public sealed partial class MachineLifecycleTests
             Assert.NotEqual(BoltFasteningState.Waiting, display.FasteningState);
             Assert.NotEqual(InspectionStationState.Waiting, display.InspectionState);
             Assert.NotNull(display.BoltFasteningActiveBolt);
-            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => services.GetRequiredService<PcbSupplyHandler>().IsAtHandoff()));
+            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => services.GetRequiredService<PcbSupplier>().IsAtHandoff()));
             Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(
                 () => services.GetRequiredService<MainConveyor>().RunCommandOn));
 
@@ -195,7 +195,7 @@ public sealed partial class MachineLifecycleTests
             _ = display.InspectionActiveBolt;
 
             // Unavailable sampled feedback must remain unknown instead of reading the SDK.
-            services.GetRequiredService<PcbPlacementHandler>().Motion.InvalidateFeedback(new IOException("Lost sample."));
+            services.GetRequiredService<PcbPlacer>().Motion.InvalidateFeedback(new IOException("Lost sample."));
             Assert.Null(display.PlacementState);
         }
         finally
@@ -376,7 +376,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(machine.IsStartAllowed);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.All(
-            services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
+            services.GetRequiredService<NgCarrierTransfer>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
 
         var nextError = new IOException(error.Message, new InvalidOperationException());
@@ -403,7 +403,7 @@ public sealed partial class MachineLifecycleTests
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         var row = manual.Axes.Single(
             axis => axis.Group == MotionGroup.InspectionGantry && axis.Axis == MotionAxis.X);
-        var motion = services.GetRequiredService<InspectionGantry>().Feedback;
+        var motion = services.GetRequiredService<NgCarrierTransfer>().Feedback;
         void FailOnce()
         {
             motion.StateChanged -= FailOnce;
@@ -436,7 +436,7 @@ public sealed partial class MachineLifecycleTests
         await operations.ShutdownAsync();
         await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
 
-        Assert.False(services.GetRequiredService<PcbSupplyHandler>().Feedback.IsMoving);
+        Assert.False(services.GetRequiredService<PcbSupplier>().Feedback.IsMoving);
         Assert.False(operations.HasActiveOperations);
         Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
     }
