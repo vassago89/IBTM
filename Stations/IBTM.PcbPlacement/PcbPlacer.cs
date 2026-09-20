@@ -189,9 +189,11 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
-    public Task MoveToHandoffXYAsync(CancellationToken cancellationToken = default)
+    public async Task MoveToHandoffXYAsync(CancellationToken cancellationToken = default)
     {
-        return MoveToXYAsync(_settings.HandoffPosition, cancellationToken);
+        await MoveToHorizontalZAsync(cancellationToken);
+        await MoveAxisAsync(MotionAxis.X, _settings.HandoffPosition.X, cancellationToken);
+        await MoveAxisAsync(MotionAxis.Y, _settings.HandoffPosition.Y, cancellationToken);
     }
 
     public bool IsAtY(AxisPosition position, bool live = true)

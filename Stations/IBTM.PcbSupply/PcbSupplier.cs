@@ -384,8 +384,8 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    // A partial grip can resume only where the slot or the other handler supports the PCB.
-                    if (!PcbSecured && !PcbReleased
+                    // A detected PCB with partial grip needs support; empty actuators can prepare for pickup.
+                    if (Pcb == PcbSupplyPcbState.Detected && !PcbReleased
                         && !(Rotation == PcbSupplyRotationState.Rotated
                             && UpstreamCarrierAvailable
                             && (IsAtPickup(recipe.Pcb1PickPosition)

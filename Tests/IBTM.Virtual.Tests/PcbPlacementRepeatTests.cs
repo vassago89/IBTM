@@ -17,6 +17,53 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbPlacementRepeatTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task RepeatApproachesHandoffXThenYAndCanStopBetweenAxes(bool enableSupply, bool stopAfterX)
+    {
+        using var rig = new RepeatRig(loadPcbs: true, enableSupply: enableSupply);
+        await rig.InitializeAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        var positions = new List<(double X, double Y, double Z)>();
+        var reachedCorner = false;
+        var reachedHandoff = false;
+        rig.Motion.PositionChanged += (x, y, z) =>
+        {
+            if (!rig.Handler.PcbSecured || !rig.Motion.IsMovingHorizontal)
+                return;
+            positions.Add((x, y, z));
+            if (x == 50 && y == 20)
+            {
+                reachedCorner = true;
+                if (stopAfterX)
+                    stop.Cancel();
+            }
+            if (x == 50 && y == 10)
+            {
+                reachedHandoff = true;
+                stop.Cancel();
+            }
+        };
+
+        await rig.Placer.RunAsync(stop.Token, repeat: true);
+
+        Assert.True(reachedCorner);
+        Assert.Equal(!stopAfterX, reachedHandoff);
+        Assert.NotEmpty(positions);
+        Assert.All(positions, position =>
+        {
+            Assert.Equal(8, position.Z);
+            if (position.Y != 20)
+                Assert.Equal(50, position.X);
+        });
+        Assert.Equal((50.0, stopAfterX ? 20.0 : 10.0, 8.0), rig.Motion.GetPosition());
+        Assert.False(rig.Motion.IsMoving);
+        Assert.True(rig.Handler.PcbSecured);
+        Assert.Empty(rig.Work.Assemblies);
+    }
+
     [Fact]
     public async Task RepeatStillPicksWhenSupplyOnlyDetectsANearbyPcb()
     {

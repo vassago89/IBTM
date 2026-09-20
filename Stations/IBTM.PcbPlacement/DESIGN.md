@@ -4,7 +4,7 @@ Standby is `HandoffPosition.Z` followed by `HandoffPosition.X/Y`. This Z is
 also the XY travel height. `ReceiveZ` is taught separately at the same X/Y.
 Handler Rotate output stays OFF during automatic, repeat and manual operation.
 
-1. Raise the handler, reach standby Z, prepare the IPM, then move to standby XY.
+1. Raise the handler, reach standby Z, prepare the IPM, then move to standby X followed by Y. Automatic and Repeat use this same approach regardless of Supply enablement.
 2. Wait for Supply at its give XYZ with confirmed holding. Keep the handler cylinder Up, move Z to `ReceiveZ`, detect the PCB and confirm vacuum holding.
 3. After Supply fixer and gripper retract, return Z to standby and move only Y to the selected heat sink's placement Y. Keep `PreparingPlacement` until Y settles; only then publish `Clear` for Supply withdrawal. A prefetched PCB without a carrier target waits at Heat Sink 1 Y.
 4. With the carrier seated, finish the move to the selected heat sink X, descend to placement Z and lower the handler.

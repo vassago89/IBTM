@@ -12,9 +12,11 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbSupplyRepeatTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PartialGripAwayFromSupportsDoesNotRestartByMovingOrOpening(bool repeat)
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    public async Task PartialGripAwayFromSupportsBlocksDetectedPcbButAllowsEmptyPickup(bool repeat, bool pcbDetected)
     {
         var settings = new PcbSupplySettings
         {
@@ -44,19 +46,39 @@ public sealed class PcbSupplyRepeatTests
         await handler.SetIpmFixerAsync(false);
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
-        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        Assert.Equal(PcbSupplyPcbState.Detected, handler.Pcb);
+        io.SetInput(InputIo.PcbSupplyPcbDetected, pcbDetected);
+        Assert.Equal(pcbDetected ? PcbSupplyPcbState.Detected : PcbSupplyPcbState.None, handler.Pcb);
         var commanded = false;
         motion.MovingChanged += moving => commanded |= moving;
         io.OutputChanged += (output, on) => commanded |= output is OutputIo.PcbSupplyRotate
             or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward;
 
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat));
+        var reachedPickup = false;
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (x == 10 && y == 10 && z == 5)
+            {
+                reachedPickup = true;
+                stop.Cancel();
+            }
+        };
+        if (pcbDetected)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat));
+            Assert.False(commanded);
+            Assert.Equal(PcbSupplyCylinderState.Forward, handler.Gripper);
+        }
+        else
+        {
+            await supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat);
+            Assert.True(reachedPickup);
+            Assert.Equal(PcbSupplyCylinderState.Backward, handler.Gripper);
+            Assert.False(handler.IpmFixed);
+        }
 
-        Assert.False(commanded);
-        Assert.Equal(PcbSupplyCylinderState.Forward, handler.Gripper);
+        Assert.False(motion.IsMoving);
     }
 
     [Theory]
