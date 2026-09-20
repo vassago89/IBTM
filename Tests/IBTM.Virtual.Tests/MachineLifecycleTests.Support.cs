@@ -225,7 +225,7 @@ public sealed partial class MachineLifecycleTests
         settings.BoltFastening.ShootingHead = HeadSettings();
         settings.InspectionGantry.Motion = FastMotion();
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
-        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 0 };
+        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
         settings.NgCarrierTransfer.Speed = 10_000;
         settings.NgCarrierTransfer.PickupSafeX = 5;
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 20, Y = 20 };
@@ -249,7 +249,7 @@ public sealed partial class MachineLifecycleTests
         return new()
         {
             UpperLeftLocatingPin = new() { X = 0, Y = 0 },
-            LowerRightLocatingPin = new() { X = 100, Y = 0 },
+            LowerRightLocatingPin = new() { X = 100, Y = 100 },
         };
     }
 
@@ -258,7 +258,7 @@ public sealed partial class MachineLifecycleTests
         recipe.PcbSupply.Pcb1PickPosition.Y = 10;
         recipe.PcbSupply.Pcb2PickPosition.Y = 10;
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
-        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 0 };
+        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
         settings.BoltFastening.PickupHead = HeadSettings();
         settings.BoltFastening.ShootingHead = HeadSettings();
         recipe.Pcb = new();

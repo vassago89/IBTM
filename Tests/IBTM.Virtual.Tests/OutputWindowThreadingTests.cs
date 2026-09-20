@@ -688,7 +688,7 @@ public sealed class OutputWindowThreadingTests
 
             var reference = services.GetRequiredService<CarrierReferenceSettings>();
             reference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
-            reference.LowerRightLocatingPin = new() { X = 1, Y = 0 };
+            reference.LowerRightLocatingPin = new() { X = 1, Y = 1 };
             await services.GetRequiredService<NgCarrierTransfer>().HomeHorizontalAsync();
             teaching.RecipeEditor.Name = "ThreadingScan";
             teaching.AddBoltPointCommand.Execute(null);

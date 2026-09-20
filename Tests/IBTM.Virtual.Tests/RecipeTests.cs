@@ -21,6 +21,54 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class RecipeTests
 {
+    [Theory]
+    [InlineData(0, 0, 300, 400)]
+    [InlineData(100, 200, 500, 1000)]
+    [InlineData(10, 0, 320, 400)]
+    [InlineData(10, 20, 320, 460)]
+    public void FasteningCoordinatesMapUpperLowerAndBoltPerAxis(
+        double relativeX, double relativeY, double expectedX, double expectedY)
+    {
+        var reference = new CarrierReferenceSettings
+        {
+            UpperLeftLocatingPin = new() { X = 100, Y = 200 },
+            LowerRightLocatingPin = new() { X = 200, Y = 400 },
+        };
+        var settings = new BoltFasteningSettings
+        {
+            ShootingHead = new()
+            {
+                UpperLeftLocatingPin = new() { X = 300, Y = 400 },
+                LowerRightLocatingPin = new() { X = 500, Y = 1000 },
+                FasteningZ = 12,
+            },
+        };
+        var bolt = new BoltPoint { X = relativeX, Y = relativeY };
+
+        var position = settings.GetBoltPosition(bolt, reference);
+
+        Assert.Equal(expectedX, position.X, 6);
+        Assert.Equal(expectedY, position.Y, 6);
+        Assert.Equal(12, position.Z);
+        Assert.Equal((relativeX, relativeY), (bolt.X, bolt.Y));
+    }
+
+    [Theory]
+    [InlineData(0, 100)]
+    [InlineData(100, 0)]
+    public void FasteningCoordinatesRequireBothReferenceAxisSpans(double x, double y)
+    {
+        var upper = new AxisPosition();
+        var lower = new AxisPosition { X = x, Y = y };
+        var validLower = new AxisPosition { X = 100, Y = 200 };
+
+        Assert.False(CarrierCoordinates.IsDefined(upper, lower));
+        Assert.Throws<InvalidOperationException>(() =>
+            CarrierCoordinates.ToMachine(new(), upper, lower, upper, validLower));
+        Assert.Throws<InvalidOperationException>(() =>
+            CarrierCoordinates.ToMachine(new(), upper, validLower, upper, lower));
+    }
+
     [Fact]
     public async Task InvalidInspectionRecipeKeepsTheActiveRecipeUntilCorrected()
     {
@@ -99,7 +147,7 @@ public sealed class RecipeTests
             ShootingHead = new()
             {
                 UpperLeftLocatingPin = new() { X = 300, Y = 400 },
-                LowerRightLocatingPin = new() { X = 200, Y = 500 },
+                LowerRightLocatingPin = new() { X = 400, Y = 500 },
             },
         };
         var second = CarrierCoordinates.FromMachine(new() { X = 175, Y = 230 }, pins.UpperLeftLocatingPin);
@@ -110,8 +158,8 @@ public sealed class RecipeTests
         var firstCamera = inspection.GetBoltPosition(targets[0], pins);
         var secondHead = fastening.GetBoltPosition(targets[1], pins);
         Assert.Equal((113, 224), (firstCamera.X, firstCamera.Y));
-        Assert.Equal(270, secondHead.X, 6);
-        Assert.Equal(475, secondHead.Y, 6);
+        Assert.Equal(375, secondHead.X, 6);
+        Assert.Equal(430, secondHead.Y, 6);
 
         var database = VirtualTest.OpenMachineStore();
         var recipes = new RecipeManager(database, new());
@@ -280,13 +328,13 @@ public sealed class RecipeTests
             {
                 FasteningZ = 12,
                 UpperLeftLocatingPin = new() { X = 300, Y = 400 },
-                LowerRightLocatingPin = new() { X = 200, Y = 500 },
+                LowerRightLocatingPin = new() { X = 400, Y = 500 },
             },
             PickupHead = new()
             {
                 FasteningZ = 16,
                 UpperLeftLocatingPin = new() { X = 300, Y = 400 },
-                LowerRightLocatingPin = new() { X = 200, Y = 500 },
+                LowerRightLocatingPin = new() { X = 400, Y = 500 },
             },
         };
         var bolt = new BoltPoint { Number = 1 };
@@ -297,15 +345,15 @@ public sealed class RecipeTests
                 .Single(p => p.Target == TeachingTarget.BoltPosition));
         Assert.False(position.Position.HasPosition);
         Assert.False(position.Position.IsTeachAllowed);
-        Assert.Equal(TeachMode.XYOnly, position.Position.Mode);
+        Assert.Equal(TeachMode.Full, position.Position.Mode);
         var relative = CarrierCoordinates.FromMachine(new() { X = 110, Y = 220 }, reference.UpperLeftLocatingPin);
         bolt.X = relative.X;
         bolt.Y = relative.Y;
         Assert.Equal((10d, 20d), (bolt.X, bolt.Y));
         position.Refresh();
         Assert.True(position.Position.HasPosition);
-        Assert.Equal(280, position.X, 6);
-        Assert.Equal(410, position.Y, 6);
+        Assert.Equal(310, position.X, 6);
+        Assert.Equal(420, position.Y, 6);
         Assert.Equal(fastening.ShootingHead.FasteningZ, position.Z);
         fastening.SafeZ = 7;
         position.Refresh();

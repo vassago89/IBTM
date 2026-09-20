@@ -704,7 +704,7 @@ public sealed class BoltFasteningTests
             io,
             motion,
             settings,
-            new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100 } },
+            new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work,
             new BoltFeederUnit(FasteningHead.Pickup, io, new()),
             new BoltFeederUnit(FasteningHead.Shooting, io, new()),
@@ -871,7 +871,7 @@ public sealed class BoltFasteningTests
             new CarrierReferenceSettings
             {
                 UpperLeftLocatingPin = new(),
-                LowerRightLocatingPin = new() { X = 100 },
+                LowerRightLocatingPin = new() { X = 100, Y = 100 },
             },
             work,
             new BoltFeederUnit(FasteningHead.Pickup, io, new()),
@@ -985,7 +985,7 @@ public sealed class BoltFasteningTests
             new CarrierReferenceSettings
             {
                 UpperLeftLocatingPin = new(),
-                LowerRightLocatingPin = new() { X = 100 },
+                LowerRightLocatingPin = new() { X = 100, Y = 100 },
             },
             work,
             new BoltFeederUnit(FasteningHead.Pickup, io, new()),
@@ -1120,7 +1120,7 @@ public sealed class BoltFasteningTests
             io,
             motion,
             settings,
-            new() { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100 } },
+            new() { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work,
             new BoltFeederUnit(FasteningHead.Pickup, io, new()),
             new BoltFeederUnit(FasteningHead.Shooting, io, new()),
@@ -1296,7 +1296,7 @@ public sealed class BoltFasteningTests
             new CarrierReferenceSettings
             {
                 UpperLeftLocatingPin = new AxisPosition { X = 0, Y = 0 },
-                LowerRightLocatingPin = new AxisPosition { X = 100, Y = 0 },
+                LowerRightLocatingPin = new AxisPosition { X = 100, Y = 100 },
             },
             work,
             pickupFeeder,
@@ -1519,7 +1519,7 @@ public sealed class BoltFasteningTests
             io,
             motion,
             settings,
-            new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100 }, },
+            new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 }, },
             new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new()),
             new BoltFeederUnit(FasteningHead.Pickup, io, feederSettings),
             new BoltFeederUnit(FasteningHead.Shooting, io, feederSettings),
@@ -1637,7 +1637,7 @@ public sealed class BoltFasteningTests
         var reference = new CarrierReferenceSettings
         {
             UpperLeftLocatingPin = new(),
-            LowerRightLocatingPin = new() { X = 100 },
+            LowerRightLocatingPin = new() { X = 100, Y = 100 },
         };
         var bolt = Bolt(1, head, 20, 30);
         var layout = new PcbLayout { BoltPoints = [bolt] };
@@ -1757,7 +1757,7 @@ public sealed class BoltFasteningTests
         return new()
         {
             UpperLeftLocatingPin = new AxisPosition { X = 0, Y = 0 },
-            LowerRightLocatingPin = new AxisPosition { X = 100, Y = 0 },
+            LowerRightLocatingPin = new AxisPosition { X = 100, Y = 100 },
         };
     }
 

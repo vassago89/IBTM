@@ -8,7 +8,8 @@ public static class CarrierCoordinates
     {
         return first is not null
             && second is not null
-            && (first.X != second.X || first.Y != second.Y);
+            && first.X != second.X
+            && first.Y != second.Y;
     }
 
     public static AxisPosition FromMachine(AxisPosition position, AxisPosition origin)
@@ -38,35 +39,23 @@ public static class CarrierCoordinates
         AxisPosition targetUpperLeftLocatingPin,
         AxisPosition targetLowerRightLocatingPin)
     {
-        var (cosine, sine) = GetRotation(
-            sourceUpperLeftLocatingPin,
-            sourceLowerRightLocatingPin,
-            targetUpperLeftLocatingPin,
-            targetLowerRightLocatingPin);
+        if (!IsDefined(sourceUpperLeftLocatingPin, sourceLowerRightLocatingPin)
+            || !IsDefined(targetUpperLeftLocatingPin, targetLowerRightLocatingPin))
+        {
+            throw new InvalidOperationException(
+                "Record Upper/Lower reference positions with different X and Y coordinates before converting bolt positions.");
+        }
+
+        var scaleX = (targetLowerRightLocatingPin.X - targetUpperLeftLocatingPin.X)
+            / (sourceLowerRightLocatingPin.X - sourceUpperLeftLocatingPin.X);
+        var scaleY = (targetLowerRightLocatingPin.Y - targetUpperLeftLocatingPin.Y)
+            / (sourceLowerRightLocatingPin.Y - sourceUpperLeftLocatingPin.Y);
+        // Recorded bolt XY is already relative to the Inspection Upper reference.
         return new AxisPosition
         {
-            X = targetUpperLeftLocatingPin.X + (cosine * position.X) - (sine * position.Y),
-            Y = targetUpperLeftLocatingPin.Y + (sine * position.X) + (cosine * position.Y),
+            X = targetUpperLeftLocatingPin.X + position.X * scaleX,
+            Y = targetUpperLeftLocatingPin.Y + position.Y * scaleY,
             Z = position.Z,
         };
-    }
-
-    private static (double Cosine, double Sine) GetRotation(
-        AxisPosition sourceUpperLeftLocatingPin,
-        AxisPosition sourceLowerRightLocatingPin,
-        AxisPosition targetUpperLeftLocatingPin,
-        AxisPosition targetLowerRightLocatingPin)
-    {
-        var sourceX = sourceLowerRightLocatingPin.X - sourceUpperLeftLocatingPin.X;
-        var sourceY = sourceLowerRightLocatingPin.Y - sourceUpperLeftLocatingPin.Y;
-        var sourceLength = Math.Sqrt((sourceX * sourceX) + (sourceY * sourceY));
-        var targetX = targetLowerRightLocatingPin.X - targetUpperLeftLocatingPin.X;
-        var targetY = targetLowerRightLocatingPin.Y - targetUpperLeftLocatingPin.Y;
-        var targetLength = Math.Sqrt((targetX * targetX) + (targetY * targetY));
-        sourceX /= sourceLength;
-        sourceY /= sourceLength;
-        targetX /= targetLength;
-        targetY /= targetLength;
-        return ((sourceX * targetX) + (sourceY * targetY), (sourceX * targetY) - (sourceY * targetX));
     }
 }

@@ -223,10 +223,12 @@ independent motion systems.
 Bolt X/Y positions are taught with the Station 3 camera and stored in carrier-relative
 millimetres. The upper-left locating pin is (0, 0), and the Station 3 image X/Y
 directions are the carrier X/Y directions. The lower-right locating pin supplies the
-reference vector used to align Station 2. Station 3 teaches both pins on the carrier
+X and Y reference spans used to map Station 2. Station 3 teaches both pins on the carrier
 image; Station 2 teaches the same two pins separately for each fastening head. The
-Station 3-to-Station 2 conversion applies only translation and rotation because all
-axes already report physical X/Y; it never stretches the bolt pattern. Each bolt
+Station 3-to-Station 2 conversion maps X and Y independently between the taught
+Upper/Lower ranges. Each axis uses the target span divided by the source span;
+there is no rotation or mixing of X and Y. Both taught pins map to their matching
+head references. Stored bolt coordinates and SDK Unit/Pulse are unchanged. Each bolt
 point identifies Heat Sink 1 or Heat Sink 2 so the station can use its heat sink-present
 inputs as the work mask.
 
@@ -259,9 +261,7 @@ Commission the image map in this order:
 
 Set millimetres per pixel before teaching the locating pins and bolts. If that value
 was wrong when the points were taught, teach those points again after correcting it.
-Station 2 and Station 3 must also use the same logical X/Y handedness through their
-axis-direction settings. A single mirrored axis is a reflection and cannot be derived
-from the two locating pins as a rotation.
+Upper and Lower must have different X and Y coordinates so both axis spans are defined.
 
 Automatic start is blocked until the recipe contains at least one bolt point, the
 shared carrier pins and every bolt X/Y are taught, and, when Bolt Fastening is

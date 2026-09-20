@@ -50,7 +50,7 @@ public sealed partial class MachineLifecycleTests
         FastHomes(settings);
         settings.InspectionGantry.Motion = FastMotion();
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
-        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 0 };
+        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 20, Y = 20 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 100, Y = 20 };
         settings.NgCarrierTransfer.Speed = 10_000;
