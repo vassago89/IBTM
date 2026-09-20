@@ -82,7 +82,8 @@ public sealed partial class MachineLifecycleTests
                 && io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                 Interlocked.Increment(ref mainReturns);
             if (on && output is OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyReadyToFront1
-                or OutputIo.ShootBolt or OutputIo.ShootingEscapeForward or OutputIo.ShootingFeederRunSignal)
+                or OutputIo.ShootBolt or OutputIo.ShootingEscapeForward
+                || !on && output == OutputIo.ShootingFeederOff)
                 forbidden.Enqueue(output);
             if (on && output == OutputIo.PickupHeadVacuumPump)
             {
@@ -607,12 +608,13 @@ public sealed partial class MachineLifecycleTests
                 && !io.GetOutput(OutputIo.MainConveyorForward)
                 && io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                 Interlocked.Increment(ref mainReturns);
+            if (!on && output == OutputIo.ShootingFeederOff)
+                forbidden.Enqueue(output);
             if (!on)
                 return;
             if (output is OutputIo.MainConveyorReadyToFront2
                 or OutputIo.MainConveyorAvailableToRear
-                or OutputIo.ShootBolt
-                or OutputIo.ShootingFeederRunSignal)
+                or OutputIo.ShootBolt)
                 forbidden.Enqueue(output);
             if (output == OutputIo.NgConveyorRun && io.GetOutput(OutputIo.NgConveyorReverse))
             {

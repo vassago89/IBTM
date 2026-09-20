@@ -203,16 +203,18 @@ Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 �
 체결기는 회전을, 실린더는 볼트 전진을 담당한다. START 전송 성공 후 하강하며, 하강 중 오류·정지 시 체결기도 정지한다.
 대기는 Heat Sink 1의 첫 슈팅 볼트 XY·Safe Z다. 백업 플레이트가 상승해 캐리어가 착좌되면 체결 Z로 내려간다.
 모든 Heat Sink의 슈팅 체결이 끝날 때까지 픽업 테이블을 상승 상태로 유지한다.
-슈팅 완료 후 헤드 상승 → Safe Z → 픽업 테이블 하강 확인 → Pickup XY → Pickup Z → 볼트 취득 →
+슈팅 피더 DO 045는 `Shooting Feeder OFF (Linear)`다. ON은 공급 정지, OFF는 공급 허용이다.
+볼트 준비·이스케이프 전진/후진 중에는 ON을 유지하고, 후진 완료 후 볼트가 없을 때만 OFF로 재공급한다. 장비 STOP도 ON이다.
+슈팅 완료 후 헤드 상승 → Safe Z → 픽업 테이블 하강 확인 → Pickup XY → 피더 볼트 준비 확인 → 헤드 하강 → Pickup Z → 볼트 취득 →
 Safe Z → 헤드 상승 → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다.
 별도의 가체결·본체결 패스는 없다. 슈팅·픽업 모두 프리셋 1번으로 고정하며, 레시피에는 프리셋 속성이 없다.
 
 | 체결 상태 | 동작 / 완료 기준 |
 | --- | --- |
-| `MovingToStandby` → `Waiting` | 헤드 상승 → 첫 슈팅 볼트 XY·이동 Z → 픽업 테이블 상승 후 착좌 대기 |
+| `MovingToStandby` → `Waiting` | 헤드 상승 → Safe Z → 픽업 테이블 상승 확인 → 첫 슈팅 볼트 XY → 착좌 대기 |
 | `FasteningPcb` | 테이블 상승 확인 → 볼트 위치 → 공급·튜브 통과 확인 → 체결 → 헤드·이동 Z 복귀 |
-| `FasteningPickup` | 이동 Z → 테이블 하강 → Pickup XY/Z → 볼트 취득 → 이동 Z·헤드 상승 → 체결 위치 → 체결·복귀 |
-| `WaitingForShootingFeeder` / `WaitingForPickupFeeder` | 해당 공급기의 실제 볼트 준비 또는 헤드 감지 변경 대기 |
+| `FasteningPickup` | Safe Z → 테이블 하강 → Pickup XY → 볼트 준비 확인 → 헤드 하강·Pickup Z → 볼트 취득 → Safe Z·헤드 상승 → 체결 위치 → 체결·복귀 |
+| `WaitingForShootingFeeder` / `WaitingForPickupFeeder` | 슈팅은 공급·헤드 피드백을 재확인한다. 픽업은 Safe Z·헤드 상승 상태에서 피더 볼트 감지를 기다린다. Repeat·피더 OFF는 공급 대기를 생략한다. |
 | `CompletingCarrier` | 모든 결과와 헤드·Z 복귀 확인 후 작업 완료 |
 
 
@@ -318,9 +320,10 @@ HOME·START 선상승과 HOME 순서(2026-09-19):
   완료까지 반환하지 않는 SDK 함수를 기다리느라 취소·인터록 정지가 지연되지 않도록 한다.
   축 알람·도착 신호 타임아웃은 수동 화면에서 처리하는 모션 오류로 전달한다.
 
-검사 → 체결 좌표는 검사측과 해당 체결 헤드의 Upper/Lower 두 점을 각각 평균내어 중심을 구한다.
-`체결 XY = 검사 티칭 XY + (헤드 중심 XY − 검사 중심 XY)`로 X·Y 모두 같은 방향의 중심 차이를 더한다.
-`Record Position`은 실제 검사축 XY를 그대로 저장한다. 회전·배율 보정과 Y 오프셋 반전은 하지 않으며,
+검사 → 체결 좌표는 검사측과 해당 체결 헤드의 Upper→Lower 방향각 차이 θ를 구한다.
+`체결 XY = 헤드 Upper XY + R(θ) × (검사 티칭 XY − 검사 Upper XY)`로 회전과 위치 차이를 적용한다.
+두 기준점은 서로 다른 위치여야 하며, 두 점 사이 거리 차이로 배율을 보정하지 않는다.
+`Record Position`은 실제 검사축 XY를 그대로 저장한다. 기준점 차감과 회전은 목표 좌표를 계산할 때만 수행하며,
 저장된 티칭 좌표를 수정하지 않고 화면·Move To·자동 체결에서 같은 변환식을 사용한다.
 
 볼트 티칭의 `Move to Position`은 Safe Z → 테이블(픽업 Down / 슈팅 Up) 완료 확인 →

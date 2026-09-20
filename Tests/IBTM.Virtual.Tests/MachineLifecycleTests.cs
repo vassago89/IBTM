@@ -1061,7 +1061,7 @@ public sealed partial class MachineLifecycleTests
             error = new AggregateException(new IOException("Output cleanup failed."), new AggregateException(error));
         io.OutputChanged += (output, value) =>
         {
-            feederStarted |= output == OutputIo.ShootingFeederRunSignal && value;
+            feederStarted |= output == OutputIo.ShootingFeederOff && !value;
             if (output == OutputIo.MainConveyorReadyToFront2 && value)
             {
                 stopped = true;
@@ -1083,7 +1083,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(expectedAlarm, state.Alarm);
         Assert.Equal(failure ? error.Message : null, state.AlarmMessage);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-        Assert.False(io.GetOutput(OutputIo.ShootingFeederRunSignal));
+        Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
         if (failure)
         {
             var entries = services.GetRequiredService<ApplicationLog>().Snapshot();
@@ -1204,7 +1204,7 @@ public sealed partial class MachineLifecycleTests
         await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(MachineAlarm.ShootingBoltFeeder, state.Alarm);
-        Assert.False(io.GetOutput(OutputIo.ShootingFeederRunSignal));
+        Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
         Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
         Assert.False(state.IsRunning);
         Assert.True(machine.IsResetAllowed);

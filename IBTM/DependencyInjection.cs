@@ -394,7 +394,8 @@ public static class DependencyInjection
                         provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Pickup),
                         provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Shooting),
                         provider.GetRequiredService<RecipeManager>(),
-                        provider.GetRequiredService<UnitSettings>()));
+                        provider.GetRequiredService<UnitSettings>(),
+                        provider.GetRequiredService<ILogger<BoltFasteningStation>>()));
 
         services
             .AddSingleton<MachineFeedbackMonitor>()

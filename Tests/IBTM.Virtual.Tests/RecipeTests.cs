@@ -23,12 +23,12 @@ public sealed class RecipeTests
 {
     [Theory]
     [InlineData(340, 400, 310, 420)]
-    [InlineData(300, 440, 290, 440)]
-    [InlineData(300, 360, 290, 400)]
-    [InlineData(260, 400, 270, 420)]
-    [InlineData(324, 432, 302, 436)]
-    [InlineData(380, 400, 330, 420)]
-    public void FasteningCoordinatesUseMidpointOffsetWithoutRotationOrScaling(
+    [InlineData(300, 440, 280, 410)]
+    [InlineData(300, 360, 320, 390)]
+    [InlineData(260, 400, 290, 380)]
+    [InlineData(324, 432, 290, 420)]
+    [InlineData(380, 400, 310, 420)]
+    public void FasteningCoordinatesRotateFromInspectionReferenceWithoutScaling(
         double lowerX, double lowerY, double expectedX, double expectedY)
     {
         var reference = new CarrierReferenceSettings
@@ -56,21 +56,22 @@ public sealed class RecipeTests
     }
 
     [Fact]
-    public void FasteningCenterOffsetRequiresRecordedReferencesWithoutAxisSpanConditions()
+    public void FasteningRotationRequiresDistinctRecordedReferences()
     {
         var upper = new AxisPosition { X = 100, Y = 200 };
         var lower = new AxisPosition { X = 200, Y = 400 };
 
         Assert.False(CarrierCoordinates.IsDefined(null, lower));
         Assert.False(CarrierCoordinates.IsDefined(upper, null));
-        Assert.True(CarrierCoordinates.IsDefined(upper, new() { X = 100, Y = 200 }));
+        Assert.False(CarrierCoordinates.IsDefined(upper, new() { X = 100, Y = 200 }));
         Assert.Throws<InvalidOperationException>(() =>
             CarrierCoordinates.ToMachine(new(), upper, null!, upper, lower));
         Assert.Throws<InvalidOperationException>(() =>
             CarrierCoordinates.ToMachine(new(), upper, lower, null!, lower));
-        var position = CarrierCoordinates.ToMachine(
-            new() { X = 110, Y = 220, Z = 12 }, upper, upper, lower, lower);
-        Assert.Equal((210d, 420d, 12d), (position.X, position.Y, position.Z));
+        Assert.Throws<InvalidOperationException>(() =>
+            CarrierCoordinates.ToMachine(new(), upper, upper, upper, lower));
+        Assert.Throws<InvalidOperationException>(() =>
+            CarrierCoordinates.ToMachine(new(), upper, lower, lower, lower));
     }
 
     [Fact]

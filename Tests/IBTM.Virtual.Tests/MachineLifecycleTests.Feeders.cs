@@ -156,7 +156,8 @@ public sealed partial class MachineLifecycleTests
             if (!shootingFeeding)
                 Assert.DoesNotContain(outputs, command =>
                     command.On && command.Output is OutputIo.ShootingHeadVacuumPump
-                        or OutputIo.ShootBolt or OutputIo.ShootingEscapeForward or OutputIo.ShootingFeederRunSignal);
+                        or OutputIo.ShootBolt or OutputIo.ShootingEscapeForward
+                    || !command.On && command.Output == OutputIo.ShootingFeederOff);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
             Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
             Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));

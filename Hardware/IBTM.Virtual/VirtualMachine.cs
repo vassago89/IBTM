@@ -331,10 +331,10 @@ public sealed class VirtualMachine
 
                     return;
                 }
-            case OutputIo.ShootingFeederRunSignal:
+            case OutputIo.ShootingFeederOff:
                 {
                     var feederVersion = Interlocked.Increment(ref _shootingFeederVersion);
-                    if (value)
+                    if (!value)
                     {
                         _ = FeedShootingBoltAsync(feederVersion);
                     }
@@ -420,7 +420,10 @@ public sealed class VirtualMachine
             () =>
             {
                 if (_shootingFeederVersion == version
-                    && _io.GetOutput(OutputIo.ShootingFeederRunSignal))
+                    && !_io.GetOutput(OutputIo.ShootingFeederOff)
+                    && !_io.GetOutput(OutputIo.ShootingEscapeForward)
+                    && _io.GetInput(InputIo.ShootingEscapeBackward)
+                    && !_io.GetInput(InputIo.ShootingEscapeForward))
                 {
                     _io.SetInput(InputIo.ShootingFeederBoltDetected, true);
                 }

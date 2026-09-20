@@ -13,7 +13,7 @@ public sealed class BoltFeederHardwareSettings : IoHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.ShootingFeederRunSignal] = CreateOutput(45),
+            [OutputIo.ShootingFeederOff] = CreateOutput(45),
         };
     }
 

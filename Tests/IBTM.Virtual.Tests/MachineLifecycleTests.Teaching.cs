@@ -756,8 +756,8 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(FasteningHead.Shooting, HeatSinkSlot.HeatSink1, 290, 440, 12)]
-    [InlineData(FasteningHead.Pickup, HeatSinkSlot.HeatSink2, -60, 250, 16)]
+    [InlineData(FasteningHead.Shooting, HeatSinkSlot.HeatSink1, 280, 410, 12)]
+    [InlineData(FasteningHead.Pickup, HeatSinkSlot.HeatSink2, -30, 240, 16)]
     public async Task InspectionRecordedBoltAppearsAsReadOnlyFasteningPosition(
         FasteningHead head, HeatSinkSlot heatSink, double expectedX, double expectedY, double expectedZ)
     {

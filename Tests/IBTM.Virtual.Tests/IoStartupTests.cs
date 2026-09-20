@@ -760,7 +760,7 @@ public sealed class IoStartupTests
         var shootingFailure = new IOException("Shoot output OFF failed.");
         io.BeforeOutputWrite = (output, value) =>
         {
-            Assert.False(value);
+            Assert.Equal(output == OutputIo.ShootingFeederOff, value);
             writes.Add(output);
             if (output == failedOutput)
                 throw conveyorFailure;
@@ -777,7 +777,7 @@ public sealed class IoStartupTests
             Assert.Contains(OutputIo.MainConveyorReadyToFront2, writes);
             Assert.Contains(OutputIo.MainConveyorAvailableToRear, writes);
             Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
-            Assert.Contains(OutputIo.ShootingFeederRunSignal, writes);
+            Assert.Contains(OutputIo.ShootingFeederOff, writes);
             Assert.Contains(OutputIo.NgConveyorRun, writes);
             Assert.Contains(OutputIo.NgCarrierEjectLamp, writes);
             Assert.Contains(OutputIo.NgCarrierEjectCompleteLamp, writes);
@@ -867,13 +867,15 @@ public sealed class IoStartupTests
         }
         if (step == TransferFailureStep.Return)
             VirtualTest.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
+        if (step == TransferFailureStep.BoltFeeder)
+            physicalIo.SetInput(InputIo.ShootingEscapeBackward, true);
 
         var output = step switch
         {
             TransferFailureStep.NgConveyor => OutputIo.NgConveyorRun,
             TransferFailureStep.ShootBolt => OutputIo.ShootBolt,
             TransferFailureStep.PcbSupply => OutputIo.PcbSupplyReadyToFront1,
-            TransferFailureStep.BoltFeeder => OutputIo.ShootingFeederRunSignal,
+            TransferFailureStep.BoltFeeder => OutputIo.ShootingFeederOff,
             _ => OutputIo.MainConveyorRun,
         };
         var runError = new IOException("Transfer step failed.");
@@ -890,12 +892,12 @@ public sealed class IoStartupTests
         var handshakeFailed = false;
         io.BeforeOutputWrite = (signal, on) =>
         {
-            if (signal == output && on)
+            if (signal == output && on == (output != OutputIo.ShootingFeederOff))
             {
                 started = true;
                 throw runError;
             }
-            if (started && signal == output && !on && !stopFailed)
+            if (started && signal == output && on == (output == OutputIo.ShootingFeederOff) && !stopFailed)
             {
                 stopFailed = true;
                 throw stopError;

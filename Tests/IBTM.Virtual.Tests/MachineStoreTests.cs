@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
+using IBTM.BoltFeeder;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
@@ -162,6 +163,12 @@ public sealed class MachineStoreTests
     {
         Assert.Equal("20", JsonSerializer.Serialize(OutputIo.NgCarrierPickupDown));
         Assert.Equal("21", JsonSerializer.Serialize(OutputIo.NgCarrierGripperClose));
+        Assert.Equal("23", JsonSerializer.Serialize(OutputIo.ShootingFeederOff));
+        Assert.Equal(OutputIo.ShootingFeederOff, JsonSerializer.Deserialize<OutputIo>("\"ShootingFeederRunSignal\""));
+        var feeder = JsonSerializer.Deserialize<BoltFeederHardwareSettings>("""
+            {"Outputs":{"ShootingFeederRunSignal":{"Number":145}}}
+            """)!;
+        Assert.Equal(145, feeder.Outputs[OutputIo.ShootingFeederOff].Number);
         Assert.Equal(OutputIo.NgCarrierPickupDown, JsonSerializer.Deserialize<OutputIo>("20"));
         Assert.Equal(OutputIo.NgCarrierPickupDown, JsonSerializer.Deserialize<OutputIo>("\"NgCarrierPickupUp\""));
         Assert.Equal(OutputIo.NgCarrierPickupDown, JsonSerializer.Deserialize<OutputIo>("\"NgCarrierPickupDown\""));

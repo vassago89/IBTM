@@ -7,6 +7,7 @@ using IBTM.BoltFeeder;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.BoltFastening;
 
@@ -23,6 +24,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
     private readonly BoltFeederUnit _shootingFeeder;
     private readonly RecipeManager _recipes;
     private readonly UnitSettings _units;
+    private readonly ILogger<BoltFasteningStation>? _log;
     private HeatSinkSlot[]? _runTargets;
     // The result belongs to this bolt until collection or removal of its carrier.
     private PendingFastening? _pendingFastening;
@@ -40,7 +42,8 @@ public sealed partial class BoltFasteningStation : AutoUnit
         BoltFeederUnit pickupFeeder,
         BoltFeederUnit shootingFeeder,
         RecipeManager recipes,
-        UnitSettings units)
+        UnitSettings units,
+        ILogger<BoltFasteningStation>? log = null)
     {
         _shootingHead = shootingHead;
         _pickupHead = pickupHead;
@@ -53,6 +56,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         _shootingFeeder = shootingFeeder;
         _recipes = recipes;
         _units = units;
+        _log = log;
         Motion = new(motion);
         io.InputChanged += OnInputChanged;
         work.Changed += NotifyChanged;
@@ -263,13 +267,19 @@ public sealed partial class BoltFasteningStation : AutoUnit
         {
             case { Target: TeachingTarget.BoltPosition, Bolt: { } bolt }:
             {
+                _log?.LogInformation(
+                    "Bolt teaching Move To: {HeatSink}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}; Safe Z={SafeZ}.",
+                    bolt.HeatSink, bolt.Number, bolt.Head, position.X, position.Y, position.Z, _settings.SafeZ);
                 if (!point.HasPosition)
                     throw new MotionInterlockException("Record the bolt and reference pins before moving to its fastening position.");
                 var tableDown = bolt.Head == FasteningHead.Pickup;
                 EnsureCanMoveHorizontal(cancellationToken);
                 await MoveToSafeZAsync(cancellationToken);
+                _log?.LogInformation("Bolt teaching Move To: Safe Z completed; requesting pickup table {Table}.",
+                    tableDown ? "DOWN" : "UP");
                 EnsureCanMoveHorizontal(cancellationToken);
                 await SetPickupTableDownAsync(tableDown, cancellationToken);
+                _log?.LogInformation("Bolt teaching Move To: pickup table feedback confirmed.");
                 using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 void CheckTeachingTable()
                 {
@@ -282,11 +292,14 @@ public sealed partial class BoltFasteningStation : AutoUnit
                 {
                     CheckTeachingTable();
                     EnsureCanMoveHorizontal(move.Token);
+                    _log?.LogInformation("Bolt teaching Move To: requesting XY, X={X}, Y={Y}.", position.X, position.Y);
                     await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, move.Token);
+                    _log?.LogInformation("Bolt teaching Move To: XY command completed; requesting fastening Z={Z}.", position.Z);
                     CheckTeachingTable();
                     EnsureCanMoveHorizontal(move.Token);
                     await MoveZAsync(position.Z, move.Token);
                     move.Token.ThrowIfCancellationRequested();
+                    _log?.LogInformation("Bolt teaching Move To: fastening Z completed.");
                 }
                 catch (OperationCanceledException) when (move.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
                 {
@@ -361,16 +374,16 @@ public sealed partial class BoltFasteningStation : AutoUnit
     }
 
     internal async Task MoveToBoltAsync(
-        BoltPoint bolt, CancellationToken cancellationToken = default, bool atTravelZ = false)
+        BoltPoint bolt, CancellationToken cancellationToken = default)
     {
         var position = _settings.GetBoltPosition(bolt, _carrierReference);
+        _log?.LogInformation(
+            "Automatic bolt move: {HeatSink}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}.",
+            bolt.HeatSink, bolt.Number, bolt.Head, position.X, position.Y, position.Z);
         // XY travel uses Safe Z. Approach the work height with both heads raised.
         await MoveToXYAsync(position.X, position.Y, cancellationToken);
-        if (!atTravelZ)
-        {
-            EnsureCanMoveHorizontal(cancellationToken);
-            await MoveZAsync(position.Z, cancellationToken);
-        }
+        EnsureCanMoveHorizontal(cancellationToken);
+        await MoveZAsync(position.Z, cancellationToken);
     }
 
     internal async Task FinishFasteningAsync(
@@ -425,9 +438,12 @@ public sealed partial class BoltFasteningStation : AutoUnit
         return MoveZAsync(_settings.PickupPosition.Z, cancellationToken);
     }
 
-    internal Task SetShootingEscapeForwardAsync(bool forward, CancellationToken cancellationToken = default)
+    internal async Task SetShootingEscapeForwardAsync(bool forward, CancellationToken cancellationToken = default)
     {
-        return _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, forward, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (forward)
+            _shootingFeeder.Stop();
+        await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, forward, cancellationToken);
     }
 
     internal async Task ShootBoltAsync(CancellationToken cancellationToken = default)
@@ -479,9 +495,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
             switch (head)
             {
                 case FasteningHead.Pickup:
-                    return !_io.GetInput(InputIo.PickupFeederBoltDetected)
-                        && !PickupBoltLoaded
-                        && PickupHeadPosition == BoltCylinderState.Down;
+                    return !_io.GetInput(InputIo.PickupFeederBoltDetected);
                 case FasteningHead.Shooting:
                     return !_io.GetInput(InputIo.ShootingFeederBoltDetected)
                         && !ShootingBoltLoaded
@@ -497,10 +511,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         {
             var relevant = head switch
             {
-                FasteningHead.Pickup => input is InputIo.PickupFeederBoltDetected
-                    or InputIo.PickupHeadVacuumDetected
-                    or InputIo.PickupHeadUp
-                    or InputIo.PickupHeadDown,
+                FasteningHead.Pickup => input == InputIo.PickupFeederBoltDetected,
                 FasteningHead.Shooting => input is InputIo.ShootingFeederBoltDetected
                     or InputIo.ShootingHeadVacuumDetected
                     or InputIo.ShootingTubeBoltDetected
@@ -514,8 +525,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                 changed.Set();
         }
 
-        // Listen only during this supply wait; late head feedback can mean the bolt
-        // already arrived. The station rechecks live state before its next action.
+        // Subscribe before checking feedback so newly prepared supply is not missed.
         _io.InputChanged += OnSupplyInputChanged;
         try
         {
@@ -814,10 +824,15 @@ public sealed partial class BoltFasteningStation : AutoUnit
         switch (state)
         {
             case BoltFasteningState.MovingToStandby:
+            {
+                var position = _settings.GetBoltPosition(StandbyBolt!, _carrierReference);
                 await RaiseCylindersAsync(cancellationToken);
-                await MoveToBoltAsync(StandbyBolt!, cancellationToken, atTravelZ: true);
+                await MoveToSafeZAsync(cancellationToken);
                 await SetPickupTableDownAsync(false, cancellationToken);
+                EnsureCanMoveHorizontal(cancellationToken);
+                await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
                 break;
+            }
             case BoltFasteningState.WaitingForShootingFeeder:
                 await WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken);
                 break;
@@ -890,20 +905,17 @@ public sealed partial class BoltFasteningStation : AutoUnit
                 if (PendingResult is null && (feeding ? !PickupBoltLoaded : !pickupAttempted))
                 {
                     await MoveToPickupXYAsync(cancellationToken);
-                    await SetHeadDownAsync(FasteningHead.Pickup, true, cancellationToken);
-                    await MoveToPickupZAsync(cancellationToken);
                     if (feeding)
                         await WaitForBoltSupplyAsync(FasteningHead.Pickup, cancellationToken);
-                    if (!feeding || !PickupBoltLoaded)
-                    {
-                        var job = _work.CurrentJob;
-                        await SetVacuumAsync(
-                            FasteningHead.Pickup, true, cancellationToken, waitForFeedback: feeding);
-                        cancellationToken.ThrowIfCancellationRequested();
-                        _work.RequireCurrentJob(job);
-                        if (!feeding)
-                            _pickupAttempt = new(job, bolt);
-                    }
+                    await SetHeadDownAsync(FasteningHead.Pickup, true, cancellationToken);
+                    await MoveToPickupZAsync(cancellationToken);
+                    var job = _work.CurrentJob;
+                    await SetVacuumAsync(
+                        FasteningHead.Pickup, true, cancellationToken, waitForFeedback: feeding);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    _work.RequireCurrentJob(job);
+                    if (!feeding)
+                        _pickupAttempt = new(job, bolt);
                 }
                 if (IsAtPickupXY())
                 {
@@ -965,8 +977,8 @@ public sealed partial class BoltFasteningStation : AutoUnit
             case true when PendingPickupBolts.Any():
                 return !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Pickup)
                     && PickupTablePosition == BoltCylinderState.Down
-                    && IsAtPickupPosition(live)
-                    && PickupHeadPosition == BoltCylinderState.Down
+                    && IsAtPickupXY(live) && IsAtSafeZ(live)
+                    && PickupHeadPosition == BoltCylinderState.Up
                     && !PickupBoltLoaded && _pickupFeeder.State != BoltFeederState.BoltReady
                     ? BoltFasteningState.WaitingForPickupFeeder
                     : BoltFasteningState.FasteningPickup;

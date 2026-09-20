@@ -366,8 +366,9 @@ public enum OutputIo
     [JsonStringEnumMemberName("NgShuttleUp")]
     NgShuttleDown = 22,
 
-    [Description("Shooting Feeder Run (Linear)")]
-    ShootingFeederRunSignal = 23,
+    [Description("Shooting Feeder OFF (Linear)")]
+    [JsonStringEnumMemberName("ShootingFeederRunSignal")]
+    ShootingFeederOff = 23,
 
     [Description("Shooting Escape Forward")]
     ShootingEscapeForward = 24,
