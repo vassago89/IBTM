@@ -31,8 +31,8 @@ public enum InspectionStationState
     [Description("Teach Inspection FOV / ROI")]
     FovTeachingRequired,
 
-    [Description("Returning to NG Pickup Waiting Position")]
-    ReturningToNgPickup,
+    [Description("Returning to Waiting Position")]
+    ReturningToWaitingPosition,
 
     [Description("Waiting for Other Carrier Transfers Before Inspection")]
     WaitingForConveyor,

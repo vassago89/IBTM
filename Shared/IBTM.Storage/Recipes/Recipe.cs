@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Serialization;
 using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
@@ -26,6 +28,10 @@ public sealed class Recipe
     public BoltInspectionRecipe BoltInspection { get; set; }
     public double CarrierImageMillimetersPerPixel { get; set; } = DefaultCarrierImageMillimetersPerPixel;
     public List<CarrierImageTile> CarrierImages { get; set; }
+
+    [JsonIgnore]
+    public AxisPosition? InspectionWaitingPosition => CarrierImages
+        .SingleOrDefault(image => image.IsBarcode && image.HeatSink == HeatSinkSlot.HeatSink1)?.Center;
 
     public void ReplaceWith(Recipe recipe)
     {

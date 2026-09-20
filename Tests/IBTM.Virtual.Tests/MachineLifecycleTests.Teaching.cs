@@ -617,7 +617,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task TeachingGrabAllowsFirstImageAndRulerWithoutATaughtPosition()
+    public async Task TeachingGrabCreatesEditableRoiAndRecordsItWithTheFirstPoint()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -637,12 +637,21 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Null(teaching.CameraError);
         Assert.True(teaching.Preview.HasImage);
-        Assert.True(teaching.IsGrabPreview);
-        Assert.Null(teaching.Preview.Region);
+        Assert.NotNull(teaching.Preview.Region);
+        Assert.Equal(teaching.FovRegion, teaching.Preview.Region);
         Assert.Null(teaching.SelectedFov);
         Assert.Equal(0, moves);
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
         Assert.Equal(settingsBefore, JsonSerializer.Serialize(settings));
+
+        var grabbedImage = teaching.Preview.Image;
+        Assert.True(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
+        await teaching.DrawFovRegionCommand.ExecuteAsync(new System.Windows.Rect(10, 10, 40, 60));
+        var roi = teaching.FovRegion;
+        Assert.Equal(60, roi!.Value.Width);
+        Assert.Equal(roi, teaching.Preview.Region);
+        Assert.Same(grabbedImage, teaching.Preview.Image);
+        Assert.Empty(teaching.Recipes.Current.CarrierImages);
 
         teaching.IsMeasuring = true;
         var ruler = new ImageRuler(new(10, 10), new(40, 50));
@@ -658,10 +667,27 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(0, moves);
         var saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
         Assert.Equal(0.1, saved.CarrierImageMillimetersPerPixel);
+
+        teaching.IsMeasuring = false;
+        teaching.AddBoltPointCommand.Execute(null);
+        Assert.Same(grabbedImage, teaching.Preview.Image);
+        Assert.Equal(roi, teaching.Preview.Region);
+        Assert.Null(teaching.SelectedFov);
+        await services.GetRequiredService<MachineController>().HomeAsync(CancellationToken.None);
+        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+
+        Assert.Null(teaching.CameraError);
+        Assert.Null(teaching.RecipeEditor.Error);
+        var recorded = Assert.Single(teaching.Recipes.Current.CarrierImages);
+        Assert.Equal(60, recorded.Region!.Width);
+        Assert.Equal(teaching.SelectedPoint!.BoltNumber, recorded.BoltNumber);
+        Assert.True(teaching.Inspection.HasPosition(teaching.SelectedPoint.Position.Bolt!));
+        Assert.Equal(roi, teaching.Preview.Region);
     }
 
     [Fact]
-    public async Task TeachingGrabPreservesSavedImageCoordinatesAndRoi()
+    public async Task TeachingGrabAndRoiResizePreserveRecordedImageAndCoordinates()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -690,24 +716,61 @@ public sealed partial class MachineLifecycleTests
         await teaching.GrabCommand.ExecuteAsync(null);
 
         Assert.Null(teaching.CameraError);
-        Assert.True(teaching.IsGrabPreview);
         Assert.NotSame(savedImage, teaching.Preview.Image);
-        Assert.Null(teaching.Preview.Region);
+        Assert.NotNull(teaching.Preview.Region);
         Assert.Same(tile, teaching.SelectedFov);
         Assert.Same(savedImage, teaching.SelectedFov!.Image);
-        Assert.False(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
-        Assert.False(teaching.TeachFovRegionCommand.CanExecute(teaching.FovRegion));
-        Assert.False(teaching.ReinspectImageCommand.CanExecute(null));
+        Assert.True(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
+        Assert.True(teaching.ReinspectImageCommand.CanExecute(null));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
         Assert.Equal(settingsBefore, JsonSerializer.Serialize(settings));
         Assert.Equal(0, moves);
 
+        var grabbedImage = teaching.Preview.Image;
+        await teaching.DrawFovRegionCommand.ExecuteAsync(new System.Windows.Rect(10, 10, 40, 40));
+        Assert.Same(grabbedImage, teaching.Preview.Image);
+        Assert.Same(savedImage, teaching.SelectedFov.Image);
+        Assert.Equal((12d, 34d), (bolt.X, bolt.Y));
+        Assert.Equal((100d, 200d), (metadata.Center.X, metadata.Center.Y));
+        Assert.Equal(new PixelRegion(30, 20, 40, 40), metadata.Region);
+        var saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
+        Assert.Equal(metadata.Region, Assert.Single(saved.CarrierImages).Region);
+        Assert.Equal(0, moves);
+
         teaching.SelectedPoint = null;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == bolt);
-        Assert.False(teaching.IsGrabPreview);
         Assert.Same(savedImage, teaching.Preview.Image);
         Assert.NotNull(teaching.Preview.Region);
-        Assert.True(teaching.TeachFovRegionCommand.CanExecute(teaching.FovRegion));
+        Assert.True(teaching.DrawFovRegionCommand.CanExecute(teaching.FovRegion));
+    }
+
+    [Fact]
+    public async Task TeachingGrabAllowsDataMatrixRoiBeforeRecordingAPosition()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        await services.GetRequiredService<MachineController>().InitializeAsync();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Position.Target == TeachingTarget.DataMatrix);
+        var camera = (VirtualCamera)services.GetRequiredService<ICamera>();
+        var source = new VirtualCamera(
+            () => (0, 0, 0), () => [],
+            () => [new(new() { X = 0, Y = 0 }, 4, 4, "ROI-FIRST")]);
+        camera.SourceImage = await source.CaptureAsync();
+        var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
+
+        await teaching.GrabCommand.ExecuteAsync(null);
+        Assert.NotNull(teaching.Preview.Region);
+        await teaching.DrawFovRegionCommand.ExecuteAsync(new System.Windows.Rect(0, 0, 160, 160));
+        Assert.True(teaching.ReadDataMatrixCommand.CanExecute(null));
+        await teaching.ReadDataMatrixCommand.ExecuteAsync(null);
+
+        Assert.Equal("ROI-FIRST", teaching.DataMatrixResult);
+        Assert.Null(teaching.CameraError);
+        Assert.Null(teaching.SelectedFov);
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
     }
 
     [Fact]
@@ -740,7 +803,6 @@ public sealed partial class MachineLifecycleTests
 
         teaching.IsMeasuring = true;
         Assert.False(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
-        Assert.False(teaching.TeachFovRegionCommand.CanExecute(roi));
         var ruler = new ImageRuler(new(10, 10), new(40, 50)); // Diagonal 30/40/50 in source pixels.
         teaching.MeasureImageCommand.Execute(ruler);
         Assert.Equal(50, teaching.Ruler!.PixelLength);
@@ -874,15 +936,16 @@ public sealed partial class MachineLifecycleTests
         Assert.Null(teaching.Preview.Result);
         teaching.SelectedPoint = untaught;
         Assert.Null(teaching.SelectedFov);
-        Assert.Null(teaching.Preview.Image);
-        Assert.Null(teaching.FovRegion);
+        Assert.Same(otherImage, teaching.Preview.Image);
+        Assert.Equal(new System.Windows.Rect(0, 0, 1, 1), teaching.FovRegion);
 
         teaching.SelectedPoint = first;
         Assert.Same(image, teaching.Preview.Image);
         Assert.Equal(100, teaching.Preview.BrightnessThreshold);
         Assert.Equal(75, teaching.Preview.MinimumBrightPercent);
         Assert.Equal("NG · Bright 50%", teaching.Preview.Result);
-        teaching.SelectedFov = teaching.CarrierImages[3];
+        teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.BoltNumber == 1);
         Assert.Equal(HeatSinkSlot.HeatSink2, teaching.SelectedPcb);
         Assert.Equal(1, teaching.SelectedPoint!.BoltNumber);
         Assert.Equal(50, teaching.Preview.BrightnessThreshold);
@@ -893,17 +956,6 @@ public sealed partial class MachineLifecycleTests
         Assert.Throws<ArgumentOutOfRangeException>(() => teaching.Preview.BrightnessThreshold = 256);
         Assert.Throws<ArgumentOutOfRangeException>(() => teaching.Preview.MinimumBrightPercent = double.NaN);
 
-        await services.GetRequiredService<MachineController>().InitializeAsync();
-        var draft = new CarrierImageTileView(new() { Number = 5, Center = new() { X = 90, Y = 100 } }, image);
-        teaching.CarrierImages = [.. teaching.CarrierImages, draft];
-        teaching.SelectedFov = draft;
-        teaching.FovRegion = new(1, 0, 1, 1);
-        Assert.True(teaching.AddBoltPointCommand.CanExecute(null));
-        teaching.AddBoltPointCommand.Execute(null);
-        Assert.Equal(HeatSinkSlot.HeatSink2, teaching.SelectedPcb);
-        Assert.Equal(2, teaching.SelectedPoint!.BoltNumber);
-        Assert.Same(draft, teaching.SelectedFov);
-        Assert.Equal(new System.Windows.Rect(1, 0, 1, 1), teaching.FovRegion);
     }
 
     [Fact]

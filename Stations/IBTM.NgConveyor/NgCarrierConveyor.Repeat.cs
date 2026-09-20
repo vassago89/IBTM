@@ -25,8 +25,6 @@ public sealed partial class NgCarrierConveyor
 
     public async Task ReturnToShuttleAsync(CancellationToken cancellationToken)
     {
-        if (CarrierCount != 1)
-            throw new InvalidOperationException("NG return requires one carrier with known presence feedback.");
         if (ShuttleLift != NgShuttleLiftState.Down && !Position3Occupied)
             throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
 

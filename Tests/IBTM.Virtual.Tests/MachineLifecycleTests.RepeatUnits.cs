@@ -129,9 +129,13 @@ public sealed partial class MachineLifecycleTests
         var pickup = services.GetRequiredService<NgCarrierTransfer>();
         var gantry = services.GetRequiredService<NgCarrierTransfer>();
         var work = services.GetRequiredService<InspectionWork>();
-        var firstFov = new AxisPosition { X = 35, Y = 45 };
+        var dataMatrixPosition = new AxisPosition { X = 35, Y = 45 };
         services.GetRequiredService<RecipeManager>().Current.CarrierImages =
-            [new() { Number = 1, Center = firstFov }];
+            [
+                new() { Number = 1, Center = new() { X = 60, Y = 70 }, BoltNumber = 1 },
+                new() { Number = 2, Center = new() { X = 80, Y = 90 }, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2 },
+                new() { Number = 3, Center = dataMatrixPosition, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1 },
+            ];
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await work.Station.PrepareToReceiveAsync(CancellationToken.None);
@@ -191,7 +195,7 @@ public sealed partial class MachineLifecycleTests
                 || machine.RepeatDisplayPhase != RepeatPhase.Automatic
                 || descents.Count != expectedDescents.Length || stop.IsCancellationRequested)
                 return;
-            returnedTwice = gantry.IsAt(firstFov)
+            returnedTwice = gantry.IsAt(dataMatrixPosition)
                 && work.Station.CarrierPresent == startsWithCarrierHeld
                 && work.Station.BackupPlate == StationCylinderState.Up && pickup.IsClear
                 && pickup.Gripper == NgTransferGripperState.Open;

@@ -8,13 +8,12 @@ public sealed partial class NgShuttle
 {
     public async Task RunRepeatAsync(bool useConveyor, CancellationToken cancellationToken)
     {
-        if ((useConveyor ? _conveyor.CarrierCount : CarrierDetected ? 1 : 0) != 1)
-            throw new InvalidOperationException("NG repeat requires one carrier on the enabled support.");
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!useConveyor)
             {
+                await WaitForCarrierAsync(cancellationToken);
                 await CycleAsync(cancellationToken);
                 continue;
             }

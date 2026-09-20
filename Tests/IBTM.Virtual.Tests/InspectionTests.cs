@@ -107,8 +107,12 @@ public sealed class InspectionTests
             HeatSink = HeatSinkSlot.HeatSink1,
         };
         var units = new UnitSettings();
+        var recipes = new RecipeManager(OpenMachineStore(), new())
+        {
+            Current = { BoltInspection = recipe, CarrierImages = [fov] },
+        };
         var inspector = new InspectionStation(
-            new InspectionWork(io, gantry, new(), units),
+            new InspectionWork(io, gantry, new(), recipes, units),
             gantry,
             new NgShuttle(io, new NgCarrierConveyor(io, new()), gantry),
             units,
@@ -118,10 +122,7 @@ public sealed class InspectionTests
                 () => [new(new() { X = 15, Y = 7 }, 4, 4, "PCB-000123")]),
             new VirtualLightController(),
             new LightingSettings(),
-            new RecipeManager(OpenMachineStore(), new())
-            {
-                Current = { BoltInspection = recipe, CarrierImages = [fov] },
-            });
+            recipes);
         if (live)
             await inspector.StartLiveViewAsync();
 
@@ -197,7 +198,8 @@ public sealed class InspectionTests
         var units = new UnitSettings { MainConveyor = false, NgCarrierTransfer = false };
         var transfer = VirtualTest.CreateNgTransfer(io, motion, operations, gantrySettings, transferSettings, units);
         var gantry = transfer;
-        var work = new InspectionWork(io, transfer, transferSettings, units);
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        var work = new InspectionWork(io, transfer, transferSettings, recipes, units);
         BoltPoint[] bolts = [
             Bolt(1, HeatSinkSlot.HeatSink1, 9, 9, carrierReference),
             Bolt(2, HeatSinkSlot.HeatSink1, 9, 21, carrierReference),
@@ -214,7 +216,6 @@ public sealed class InspectionTests
         ]),
             motion.GetPosition,
             gantrySettings.GetBoltPosition(bolts[1], carrierReference));
-        var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.CarrierImages = [.. bolts.Select((bolt, index) => new CarrierImageTile
             {
                 Number = index + 1,
@@ -350,6 +351,7 @@ public sealed class InspectionTests
             io,
             transfer,
             transferSettings,
+            recipes,
             transferUnits);
         var transferStation = new InspectionStation(
             transferWork,
@@ -363,7 +365,7 @@ public sealed class InspectionTests
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
-        Assert.Equal(InspectionStationState.ReturningToNgPickup, transferStation.GetState([]));
+        Assert.Equal(InspectionStationState.ReturningToWaitingPosition, transferStation.GetState([]));
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperUp, false);

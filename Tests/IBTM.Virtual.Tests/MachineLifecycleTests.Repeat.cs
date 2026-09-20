@@ -416,7 +416,6 @@ public sealed partial class MachineLifecycleTests
         {
             await machine.InitializeAsync();
             await machine.HomeAsync(CancellationToken.None);
-            Assert.Equal(0, conveyor.CarrierCount);
             state.RepeatEnabled = true;
             await WaitUntilAsync(() => machine.IsStartAllowed);
             run = machine.StartAsync();

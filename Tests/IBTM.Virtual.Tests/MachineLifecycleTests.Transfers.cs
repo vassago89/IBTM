@@ -334,7 +334,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReverseNgPickupStaysAtShuttleAndClearsStationOnlyWithFirstFov(bool hasFov)
+    public async Task ReverseNgPickupStaysAtShuttleAndClearsStationOnlyWithWaitingPosition(bool hasWaitingPosition)
     {
         await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
@@ -379,7 +379,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(pickup.IsRaised);
         Assert.Equal(NgTransferGripperState.Open, pickup.Gripper);
         Assert.True(gantry.IsAt(settings.GetCarrierPickupPosition()!));
-        if (!hasFov)
+        if (!hasWaitingPosition)
         {
             var position = settings.GetCarrierPickupPosition()!;
             settings.PickupSafeX = null;
@@ -389,29 +389,29 @@ public sealed partial class MachineLifecycleTests
             return;
         }
 
-        var firstFov = new AxisPosition { X = 30, Y = 40 };
+        var waitingPosition = new AxisPosition { X = 30, Y = 40 };
         var pickupPosition = settings.GetCarrierPickupPosition()!;
         settings.Speed = 100;
         using var cancellation = new CancellationTokenSource();
-        void StopDuringFovMove(double x, double y, double z)
+        void StopDuringWaitingPositionMove(double x, double y, double z)
         {
-            if (x > pickupPosition.X + 1 && x < firstFov.X
-                && y > pickupPosition.Y + 1 && y < firstFov.Y)
+            if (x > pickupPosition.X + 1 && x < waitingPosition.X
+                && y > pickupPosition.Y + 1 && y < waitingPosition.Y)
                 cancellation.Cancel();
         }
-        gantry.Feedback.PositionChanged += StopDuringFovMove;
+        gantry.Feedback.PositionChanged += StopDuringWaitingPositionMove;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => move.ClearStationAsync(firstFov, cancellation.Token));
-        gantry.Feedback.PositionChanged -= StopDuringFovMove;
+            () => move.ClearStationAsync(waitingPosition, cancellation.Token));
+        gantry.Feedback.PositionChanged -= StopDuringWaitingPositionMove;
         Assert.Empty(feedback.AxisMoves);
         var stopped = gantry.Feedback.GetPosition();
-        Assert.InRange(stopped.X, pickupPosition.X + 0.01, firstFov.X - 0.01);
-        Assert.InRange(stopped.Y, pickupPosition.Y + 0.01, firstFov.Y - 0.01);
+        Assert.InRange(stopped.X, pickupPosition.X + 0.01, waitingPosition.X - 0.01);
+        Assert.InRange(stopped.Y, pickupPosition.Y + 0.01, waitingPosition.Y - 0.01);
 
         feedback.AxisMoves.Clear();
-        await move.ClearStationAsync(firstFov, CancellationToken.None);
+        await move.ClearStationAsync(waitingPosition, CancellationToken.None);
         Assert.Empty(feedback.AxisMoves);
-        Assert.True(gantry.IsAt(firstFov));
+        Assert.True(gantry.IsAt(waitingPosition));
         Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
         Assert.False(pickup.CarrierDetected);
     }

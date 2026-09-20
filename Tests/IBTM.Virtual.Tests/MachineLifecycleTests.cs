@@ -474,7 +474,7 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Equal(
             lift == NgTransferLiftState.Up
-                ? InspectionStationState.ReturningToNgPickup
+                ? InspectionStationState.ReturningToWaitingPosition
                 : InspectionStationState.TransferringNgCarrier,
             station.GetState([]));
 

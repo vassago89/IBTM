@@ -39,8 +39,6 @@ public sealed partial class MainConveyor
 
     public async Task ReturnToStartAsync(CancellationToken cancellationToken)
     {
-        if (CarrierCount > 1 || ExitCarrierDetected)
-            throw new InvalidOperationException("Main conveyor return requires one carrier and a clear exit.");
         _repeat = true;
         try
         {
@@ -56,14 +54,6 @@ public sealed partial class MainConveyor
             using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
             try
             {
-                if (!EntryCarrierDetected
-                    && !_placementWork.Station.CarrierPresent
-                    && !_boltFasteningWork.Station.CarrierPresent
-                    && !_inspectionWork.Station.CarrierPresent)
-                {
-                    throw new InvalidOperationException("Return carrier position is unknown. Restore carrier presence before restarting.");
-                }
-
                 await Task.WhenAll(
                     _placementWork.Station.ReleaseAsync(cancellationToken),
                     _boltFasteningWork.Station.ReleaseAsync(cancellationToken),

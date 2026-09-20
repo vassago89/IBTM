@@ -9,6 +9,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
+using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
@@ -454,7 +455,7 @@ public sealed partial class ConveyorTests
     }
 
     [Fact]
-    public async Task ReverseReturnStopsAtEntryInsteadOfStation1AndRejectsUnknownPosition()
+    public async Task ReverseReturnStopsAtEntryInsteadOfStation1()
     {
         var io = CreateIo();
         _ = new VirtualMachine(io, []);
@@ -476,15 +477,52 @@ public sealed partial class ConveyorTests
             Assert.True(io.GetInput(InputIo.PcbPlacementStopperDown));
             Assert.False(conveyor.RunCommandOn);
         }
+    }
 
-        io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
-        VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
-        var ranWithoutCarrier = false;
-        io.OutputChanged += (output, value) => ranWithoutCarrier |= output == OutputIo.MainConveyorRun && value;
-        using var empty = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => conveyor.ReturnToStartAsync(empty.Token));
-        Assert.False(ranWithoutCarrier);
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReverseReturnUsesEntryFeedbackWithoutCountingCarriers(bool severalOccupiedSensors)
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io);
+        io.Initialize();
+        io.SetInputs(
+            (InputIo.PcbPlacementHeatSink1Present, severalOccupiedSensors),
+            (InputIo.InspectionHeatSink1Present, severalOccupiedSensors),
+            (InputIo.MainConveyorExitCarrierDetected, severalOccupiedSensors));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var run = conveyor.ReturnToStartAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorForward));
+            Assert.False(run.IsCompleted);
+            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.False(conveyor.RunCommandOn);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+    }
+
+    [Fact]
+    public async Task ReverseReturnStillStopsOnArrivalTimeout()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io,
+            settings: new ConveyorSettings { TransferTimeoutSeconds = 0.05 });
+        io.Initialize();
+        var started = false;
+        io.OutputChanged += (output, on) => started |= output == OutputIo.MainConveyorRun && on;
+
+        await Assert.ThrowsAsync<IoTimeoutException>(() => conveyor.ReturnToStartAsync(CancellationToken.None));
+
+        Assert.True(started);
+        Assert.False(conveyor.RunCommandOn);
     }
 
     [Theory]
@@ -632,8 +670,11 @@ public sealed partial class ConveyorTests
         var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
         var transfer = VirtualTest.CreateNgTransfer(io, motion, operations, settings);
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.CarrierImages =
+            [new() { Number = 1, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new() }];
         return new InspectionWork(
-            io, transfer, new NgCarrierTransferSettings { PickupSafeX = 0 },
+            io, transfer, new NgCarrierTransferSettings { PickupSafeX = 0 }, recipes,
             units ?? new UnitSettings { MainConveyor = false, NgCarrierTransfer = false });
     }
 

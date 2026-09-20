@@ -107,18 +107,6 @@ public sealed partial class MainConveyor : AutoUnit
 
     public bool ExitCarrierDetected => _io.GetInput(InputIo.MainConveyorExitCarrierDetected);
 
-    public int CarrierCount
-    {
-        get
-        {
-            return (EntryCarrierDetected ? 1 : 0)
-                + (_placementWork.Station.CarrierPresent ? 1 : 0)
-                + (_boltFasteningWork.Station.CarrierPresent ? 1 : 0)
-                + (_inspectionWork.Station.CarrierPresent ? 1 : 0)
-                + (ExitCarrierDetected ? 1 : 0);
-        }
-    }
-
     public async Task RunMotorAsync(CancellationToken cancellationToken = default)
     {
         Stop();

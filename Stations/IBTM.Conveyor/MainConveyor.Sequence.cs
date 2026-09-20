@@ -59,7 +59,7 @@ public sealed partial class MainConveyor
                 return _inspectionWork.IsTransferAtWaitingPosition(live)
                     ? MainConveyorState.RaisingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
-            // 검사 요청 이후에는 검사와 NG 픽업 위치 복귀가 끝날 때까지 벨트를 정지한다.
+            // 검사 요청 이후에는 검사와 데이터 매트릭스 대기 위치 복귀가 끝날 때까지 벨트를 정지한다.
             case true when _inspectionWork.InspectionRequested && _inspectionWork.IsAtInspectionPosition(live ? null : runCommandOn):
                 return MainConveyorState.WaitingForInspection;
             default:

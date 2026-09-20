@@ -33,16 +33,16 @@ public sealed partial class NgCarrierTransfer
             allowEmpty: IsEmptyRepeatAllowed);
     }
 
-    public async Task ClearStationAsync(AxisPosition? firstFov, CancellationToken cancellationToken)
+    public async Task ClearStationAsync(AxisPosition? waitingPosition, CancellationToken cancellationToken)
     {
-        if (firstFov is null)
+        if (waitingPosition is null)
             return;
         if ((!IsEmptyRepeatAllowed && !Station.CarrierPresent)
             || IsTransferPending
             || Gripper != NgTransferGripperState.Open
             || !IsRaised)
-            throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the first FOV.");
+            throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the Data Matrix waiting position.");
 
-        await MoveToAsync(firstFov, _settings.Speed, cancellationToken);
+        await MoveToAsync(waitingPosition, _settings.Speed, cancellationToken);
     }
 }

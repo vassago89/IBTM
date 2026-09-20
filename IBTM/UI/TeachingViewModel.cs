@@ -121,7 +121,6 @@ public partial class TeachingViewModel : ObservableObject
         ApplyRulerResolutionCommand = new AsyncRelayCommand(ApplyRulerResolutionAsync, () => IsApplyRulerResolutionAllowed);
         ReadDataMatrixCommand = new AsyncRelayCommand(ReadDataMatrixAsync, () => IsReadDataMatrixAllowed);
         DrawFovRegionCommand = new AsyncRelayCommand<Rect>(DrawFovRegionAsync, IsDrawFovRegionAllowed);
-        TeachFovRegionCommand = new AsyncRelayCommand<Rect>(TeachFovRegionAsync, IsTeachFovRegionAllowed);
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, () => IsToggleLiveViewAllowed);
         GrabCommand = new AsyncRelayCommand(GrabAsync, () => IsGrabAllowed);
         CaptureInspectionCommand = new AsyncRelayCommand(CaptureInspectionAsync, () => IsCaptureInspectionAllowed);
@@ -145,7 +144,6 @@ public partial class TeachingViewModel : ObservableObject
             ReinspectImageCommand,
             ReadDataMatrixCommand,
             DrawFovRegionCommand,
-            TeachFovRegionCommand,
             TeachCurrentPositionCommand,
             SaveCommand,
         ];
@@ -184,7 +182,6 @@ public partial class TeachingViewModel : ObservableObject
             TeachCurrentPositionCommand.NotifyCanExecuteChanged();
             ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
             DrawFovRegionCommand.NotifyCanExecuteChanged();
-            TeachFovRegionCommand.NotifyCanExecuteChanged();
         };
 
         RefreshTeachingPoints();
@@ -276,6 +273,8 @@ public partial class TeachingViewModel : ObservableObject
         if (PositionUpdatesActive)
             SubscribeMotionChanges();
         CancelTeaching();
+        Preview.Clear();
+        FovRegion = null;
 
         if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
             _ = RequestCameraStopAsync();
@@ -497,7 +496,7 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(FovRoiLabel));
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
-        TeachFovRegionCommand.NotifyCanExecuteChanged();
+        DrawFovRegionCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnMillimetersPerPixelChanged(double value)
@@ -505,7 +504,6 @@ public partial class TeachingViewModel : ObservableObject
         Recipes.Current.CarrierImageMillimetersPerPixel = value;
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
         CaptureInspectionCommand.NotifyCanExecuteChanged();
-        TeachFovRegionCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(FovRegion));
         OnPropertyChanged(nameof(FovRoiLabel));
     }
@@ -518,6 +516,8 @@ public partial class TeachingViewModel : ObservableObject
     private void OnRecipeChanged()
     {
         CameraError = null;
+        Preview.Clear();
+        FovRegion = null;
         if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
             _ = RequestCameraStopAsync();
         SelectedPoint = null;

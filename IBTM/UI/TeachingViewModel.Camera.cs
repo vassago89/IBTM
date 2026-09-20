@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Windows;
+using System.Windows.Media.Imaging;
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,7 +18,6 @@ public partial class TeachingViewModel
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MeasureImageCommand))]
     [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
     public partial bool IsMeasuring { get; set; }
 
@@ -33,7 +33,6 @@ public partial class TeachingViewModel
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
     [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
     public partial CarrierImageTileView? SelectedFov { get; set; }
 
@@ -44,13 +43,6 @@ public partial class TeachingViewModel
 
     [ObservableProperty]
     public partial string? DataMatrixResult { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FovRoiLabel))]
-    [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
-    public partial bool IsGrabPreview { get; private set; }
 
     private readonly object _liveImageGate;
     private ImageFrame? _pendingLiveFrame;
@@ -73,25 +65,14 @@ public partial class TeachingViewModel
     {
         get
         {
-            if (IsGrabPreview)
-                return "Grabbed image · Use Ruler to measure. Select a bolt or Data Matrix and Record Position to save an image and its coordinates.";
             var metadata = SelectedFov?.Metadata;
-            var saved = metadata?.Region is { } region
-                ? new Rect(region.X, region.Y, region.Width, region.Height)
-                : (Rect?)null;
-            switch (true)
-            {
-                case true when FovRegion is not null && FovRegion != saved:
-                    if (SelectedBarcode is null && SelectedPoint?.Position.Bolt is null)
-                        return "ROI not saved · Select a bolt or Data Matrix, then Record Position.";
-                    return "ROI not saved · Set the resolution and Apply ROI.";
-                case true when metadata is { IsBarcode: true } barcode:
-                    return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to resize the centered square";
-                default:
-                    return metadata?.BoltNumber is { } number
-                        ? $"{metadata.HeatSink.GetDescription()} · Bolt {number} · Drag to resize the centered square"
-                        : "Select a bolt or Data Matrix, Record Position, then resize the centered square.";
-            }
+            if (metadata is { IsBarcode: true } barcode)
+                return $"{barcode.HeatSink.GetDescription()} · Data Matrix · ROI size saves when you finish dragging.";
+            if (metadata?.BoltNumber is { } number)
+                return $"{metadata.HeatSink.GetDescription()} · Bolt {number} · ROI size saves when you finish dragging.";
+            return Preview.HasImage
+                ? "Resize the ROI, select a bolt or Data Matrix, then Record Position to save the image, ROI and current coordinates."
+                : "Grab an image to start. A centered ROI is created automatically.";
         }
     }
 
@@ -106,6 +87,9 @@ public partial class TeachingViewModel
         RulerMillimeters = null;
         MeasureImageCommand.NotifyCanExecuteChanged();
         ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
+        DrawFovRegionCommand.NotifyCanExecuteChanged();
+        ReadDataMatrixCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(FovRoiLabel));
     }
 
     private void MeasureImage(ImageRuler? ruler)
@@ -181,7 +165,6 @@ public partial class TeachingViewModel
 
     partial void OnSelectedFovChanged(CarrierImageTileView? value)
     {
-        IsGrabPreview = false;
         ApplyRulerResolutionCommand.Cancel();
         Ruler = null;
         RulerMillimeters = null;
@@ -190,6 +173,13 @@ public partial class TeachingViewModel
         var metadata = value?.Metadata;
         ReadDataMatrixCommand.Cancel();
         DataMatrixResult = null;
+        if (value is null && IsInspectionSelected)
+        {
+            RefreshPreview();
+            OnPropertyChanged(nameof(FovRoiLabel));
+            NotifyManualTeachingCommands();
+            return;
+        }
         var region = metadata?.Region;
         if (region is null && value is not null)
         {
@@ -200,10 +190,10 @@ public partial class TeachingViewModel
         var bounds = region is not null
             ? new Rect(region.X, region.Y, region.Width, region.Height)
             : (Rect?)null;
-        if (FovRegion == bounds)
-            RefreshSavedPreview();
-        else
-            FovRegion = bounds;
+        Preview.Clear(SelectedBarcode, SelectedPoint?.Position.Bolt);
+        FovRegion = bounds;
+        if (value is not null)
+            RefreshPreview(value.Image);
         OnPropertyChanged(nameof(FovRoiLabel));
         MeasureImageCommand.NotifyCanExecuteChanged();
         NotifyManualTeachingCommands();
@@ -215,12 +205,11 @@ public partial class TeachingViewModel
         ReinspectImageCommand.Cancel();
         ReadDataMatrixCommand.Cancel();
         DataMatrixResult = null;
-        RefreshSavedPreview();
+        RefreshPreview();
     }
 
     private void SelectFovForTeachingPoint()
     {
-        IsGrabPreview = false;
         var fov = IsInspectionSelected
             ? CarrierImages.FirstOrDefault(image => image.Metadata.HeatSink == SelectedPcb
                 && (SelectedBarcode is not null
@@ -230,16 +219,17 @@ public partial class TeachingViewModel
             : null;
         if (SelectedFov != fov)
             SelectedFov = fov;
+        else if (fov is not null)
+            OnSelectedFovChanged(fov);
         else
-            RefreshSavedPreview();
+            RefreshPreview();
     }
 
-    private void RefreshSavedPreview()
+    private void RefreshPreview(BitmapSource? image = null)
     {
-        if (IsGrabPreview)
-            return;
+        image ??= Preview.Image;
         Preview.Clear(SelectedBarcode, SelectedPoint?.Position.Bolt);
-        if (!IsInspectionSelected || SelectedFov is not { } fov)
+        if (!IsInspectionSelected || image is null)
             return;
         try
         {
@@ -249,7 +239,7 @@ public partial class TeachingViewModel
                     (int)Math.Ceiling(bounds.Right) - (int)Math.Floor(bounds.Left),
                     (int)Math.Ceiling(bounds.Bottom) - (int)Math.Floor(bounds.Top))
                 : null;
-            Preview.SetSavedImage(fov.Image, region);
+            Preview.SetSavedImage(image, region);
             CameraError = null;
         }
         catch (Exception exception)
@@ -262,7 +252,7 @@ public partial class TeachingViewModel
 
     private async Task ReadDataMatrixAsync(CancellationToken cancellationToken)
     {
-        var fov = SelectedFov!;
+        var image = Preview.Image!;
         var bounds = FovRegion!.Value;
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, ViewCancellation);
@@ -273,7 +263,7 @@ public partial class TeachingViewModel
             var text = await Task.Run(
                 () =>
                 {
-                    var frame = InspectionPreview.CreateFrame(fov.Image);
+                    var frame = InspectionPreview.CreateFrame(image);
                     var left = (int)Math.Floor(bounds.Left);
                     var top = (int)Math.Floor(bounds.Top);
                     var region = new PixelRegion(
@@ -303,13 +293,12 @@ public partial class TeachingViewModel
         get
         {
             return IsInspectionSelected
-                && !IsGrabPreview
                 && SelectedBarcode is not null
-                && SelectedFov is { } fov
+                && Preview.Image is { } image
                 && FovRegion is { Width: >= 1, Height: >= 1 } bounds
                 && bounds.Left >= 0 && bounds.Top >= 0
-                && bounds.Right <= fov.Image.PixelWidth
-                && bounds.Bottom <= fov.Image.PixelHeight;
+                && bounds.Right <= image.PixelWidth
+                && bounds.Bottom <= image.PixelHeight;
         }
     }
 
@@ -317,38 +306,15 @@ public partial class TeachingViewModel
 
     private async Task DrawFovRegionAsync(Rect bounds)
     {
-        if (bounds.IsEmpty)
+        if (bounds.IsEmpty || !IsDrawFovRegionAllowed(bounds))
             return;
-        var image = SelectedFov!.Image;
+        var image = Preview.Image!;
         var region = PixelRegion.CenteredSquare(
             image.PixelWidth, image.PixelHeight, (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
-        bounds = new Rect(region.X, region.Y, region.Width, region.Height);
-        FovRegion = bounds;
-        if (IsTeachFovRegionAllowed(bounds))
-            await TeachFovRegionAsync(bounds);
-    }
-
-    private bool IsDrawFovRegionAllowed(Rect bounds)
-    {
-        return IsTeachingEditAllowed
-            && !IsGrabPreview
-            && !IsMeasuring
-            && RecipeEditor.IsSaveAllowed
-            && SelectedFov is not null
-            && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
-    }
-
-    public IAsyncRelayCommand<Rect> TeachFovRegionCommand { get; }
-
-    private async Task TeachFovRegionAsync(Rect bounds)
-    {
-        if (bounds.IsEmpty)
+        FovRegion = new Rect(region.X, region.Y, region.Width, region.Height);
+        if (SelectedFov is not { } fov)
             return;
-        var fov = SelectedFov!;
         var barcode = SelectedBarcode;
-        var region = PixelRegion.CenteredSquare(
-            fov.Image.PixelWidth, fov.Image.PixelHeight,
-            (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
         var viewToken = ViewCancellation;
         var activeToken = CancellationToken.None;
         try
@@ -360,9 +326,8 @@ public partial class TeachingViewModel
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            fov.Metadata.Region = region;
-
-            OnSelectedFovChanged(SelectedFov);
+            fov.Metadata.Region = PixelRegion.CenteredSquare(
+                fov.Image.PixelWidth, fov.Image.PixelHeight, region.Width);
             RefreshPointPositions();
             await RecipeEditor.SaveAsync(operation.Token);
             NotifyManualTeachingCommands();
@@ -381,17 +346,13 @@ public partial class TeachingViewModel
             await ReadDataMatrixCommand.ExecuteAsync(null);
     }
 
-    private bool IsTeachFovRegionAllowed(Rect bounds)
+    private bool IsDrawFovRegionAllowed(Rect bounds)
     {
         return IsTeachingEditAllowed
-            && !IsGrabPreview
+            && IsInspectionSelected
             && !IsMeasuring
             && RecipeEditor.IsSaveAllowed
-            && SelectedFov is not null
-            && (SelectedBarcode is not null
-                || double.IsFinite(MillimetersPerPixel)
-                    && MillimetersPerPixel > 0
-                    && SelectedPoint?.Position.Bolt is not null)
+            && Preview.HasImage
             && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
     }
 
@@ -480,12 +441,17 @@ public partial class TeachingViewModel
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(frame), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
 
-            // A snapshot has no recorded position and must not replace a taught FOV.
-            IsGrabPreview = true;
+            var size = FovRegion is { Width: >= 1, Height: >= 1 } bounds
+                ? (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height))
+                : Math.Min(image.PixelWidth, image.PixelHeight) / 4;
+            var region = PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight, size);
+            // Grab prepares the image and ROI; only Record Position changes teaching coordinates.
+            IsMeasuring = false;
             ReadDataMatrixCommand.Cancel();
             DataMatrixResult = null;
             Preview.Clear(SelectedBarcode, SelectedPoint?.Position.Bolt);
-            Preview.SetSavedImage(image, null);
+            FovRegion = new Rect(region.X, region.Y, region.Width, region.Height);
+            RefreshPreview(image);
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
             || viewToken.IsCancellationRequested
@@ -512,6 +478,7 @@ public partial class TeachingViewModel
         if (bolt is null && !barcode)
             return;
         var pcb = SelectedPcb;
+        var roi = FovRegion;
         var commandGroup = ActiveMotionGroup;
         var viewToken = ViewCancellation;
         var activeToken = cancellationToken;
@@ -545,8 +512,10 @@ public partial class TeachingViewModel
                 HeatSink = pcb,
                 BoltNumber = bolt?.Number,
                 IsBarcode = barcode,
-                Region = previous?.Region is { } region && region.IsInside(image.PixelWidth, image.PixelHeight)
-                    ? region : null,
+                Region = PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight,
+                    roi is { Width: >= 1, Height: >= 1 } bounds
+                        ? (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height))
+                        : Math.Min(image.PixelWidth, image.PixelHeight) / 4),
             };
             var replacement = new CarrierImageTileView(metadata, image);
             if (index >= 0)
@@ -639,7 +608,6 @@ public partial class TeachingViewModel
             var pcb = SelectedBarcode;
             var bolt = SelectedPoint!.Position.Bolt;
             var region = pcb is { } target ? Inspection.GetBarcodeFov(target).Region : Inspection.GetFov(bolt!).Region;
-            IsGrabPreview = false;
             Preview.Clear(pcb, bolt);
             var frame = pcb is { } barcode ? await Inspection.CaptureBarcodeAsync(barcode, operation.Token) : await Inspection.CaptureAsync(bolt!, operation.Token);
             await Preview.SetImageAsync(frame, operation.Token, region);

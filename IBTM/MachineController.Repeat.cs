@@ -71,7 +71,7 @@ public sealed partial class MachineController
                     await _ngTransfer.ReturnToStationAsync(cancellationToken);
                     RepeatDisplayPhase = RepeatPhase.ClearStation3;
                     await _ngTransfer.ClearStationAsync(
-                        _recipes.Current.CarrierImages.MinBy(image => image.Number)?.Center,
+                        _recipes.Current.InspectionWaitingPosition,
                         cancellationToken);
                 }
                 if (_units.MainConveyor)

@@ -780,7 +780,7 @@ public sealed class OutputWindowThreadingTests
             var secondBolt = teaching.SelectedPoint!;
             Assert.Null(teaching.SelectedFov);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-            await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(40, 60, 60, 60));
+            await teaching.DrawFovRegionCommand.ExecuteAsync(new Rect(40, 60, 60, 60));
             Assert.Equal(2, teaching.CarrierImages.Count);
             Assert.True(teaching.Inspection.HasPosition(firstBolt.Position.Bolt));
             Assert.True(teaching.Inspection.HasPosition(secondBolt.Position.Bolt!));
@@ -796,7 +796,7 @@ public sealed class OutputWindowThreadingTests
                 teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
                 Assert.Null(teaching.SelectedFov);
                 await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-                await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(100, 80, 80, 80));
+                await teaching.DrawFovRegionCommand.ExecuteAsync(new Rect(100, 80, 80, 80));
                 Assert.Equal("Not Read", teaching.DataMatrixResult);
                 Assert.True(teaching.Inspection.HasBarcodeRegion(heatSink));
             }

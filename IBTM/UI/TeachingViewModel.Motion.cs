@@ -427,7 +427,6 @@ public partial class TeachingViewModel
         GrabCommand.NotifyCanExecuteChanged();
         ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
         DrawFovRegionCommand.NotifyCanExecuteChanged();
-        TeachFovRegionCommand.NotifyCanExecuteChanged();
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         ReinspectImageCommand.NotifyCanExecuteChanged();
         AddBoltPointCommand.NotifyCanExecuteChanged();

@@ -29,6 +29,98 @@ public sealed class NgConveyorTests
     }
 
     [Fact]
+    public async Task EmptyShuttleRepeatCanBeStoppedWhileWaiting()
+    {
+        var system = CreateSystem();
+        using var stop = new CancellationTokenSource();
+        var run = system.Shuttle.RunRepeatAsync(useConveyor: false, stop.Token);
+
+        Assert.False(run.IsCompleted);
+        Assert.False(system.Io.GetOutput(OutputIo.NgShuttleDown));
+        Assert.False(system.Conveyor.RunCommandOn);
+        stop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => run.WaitAsync(TimeSpan.FromSeconds(2)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EmptyNgRepeatWaitsThenStartsWhenACarrierArrives(bool useConveyor)
+    {
+        var system = CreateSystem();
+        using var stop = new CancellationTokenSource();
+        var lowering = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        system.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.NgShuttleDown && on)
+                lowering.TrySetResult();
+        };
+        var run = system.Shuttle.RunRepeatAsync(useConveyor, stop.Token);
+        try
+        {
+            Assert.False(run.IsCompleted);
+            Assert.False(system.Io.GetOutput(OutputIo.NgShuttleDown));
+            Assert.False(system.Conveyor.RunCommandOn);
+
+            system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+            await lowering.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => run.WaitAsync(TimeSpan.FromSeconds(2)));
+        }
+    }
+
+    [Fact]
+    public async Task NgReverseReturnStillRequiresLoweredShuttle()
+    {
+        var system = CreateSystem();
+        system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+        system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => system.Conveyor.ReturnToShuttleAsync(CancellationToken.None));
+
+        Assert.Contains("Lower the NG shuttle", failure.Message);
+        Assert.False(system.Conveyor.RunCommandOn);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NgReverseReturnUsesShuttleFeedbackWithoutCountingCarriers(bool severalOccupiedSensors)
+    {
+        var system = CreateSystem();
+        await system.Shuttle.SetDownAsync(true);
+        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false);
+        system.Io.AutoResponseEnabled = false;
+        system.Io.SetInputs(
+            (InputIo.NgConveyorPosition1Occupied, severalOccupiedSensors),
+            (InputIo.NgConveyorPosition2Occupied, severalOccupiedSensors));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var run = system.Conveyor.ReturnToShuttleAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(system.Io, OutputIo.NgConveyorRun, true);
+            Assert.True(system.Io.GetOutput(OutputIo.NgConveyorReverse));
+            Assert.False(run.IsCompleted);
+            system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.False(system.Conveyor.RunCommandOn);
+            Assert.Equal(severalOccupiedSensors, system.Io.GetInput(InputIo.NgConveyorPosition1Occupied));
+            Assert.Equal(severalOccupiedSensors, system.Io.GetInput(InputIo.NgConveyorPosition2Occupied));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+    }
+
+    [Fact]
     public async Task InterruptedShuttleCycleStopsWithoutAdditionalCommands()
     {
         var system = CreateSystem();

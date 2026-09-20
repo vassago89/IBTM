@@ -111,7 +111,7 @@
                     </ui:TeachingPointList>
                     <StackPanel Grid.Row="2" Margin="0,8,0,0"
                         Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="Add Bolt → Center in Live → Record Position → Resize ROI"
+                        <TextBlock Text="Grab → Resize ROI → Select Bolt / Data Matrix → Record Position"
                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                         <ComboBox ItemsSource="{Binding FasteningHeads}"
                             SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
@@ -178,7 +178,7 @@
                                     <Button Content="Grab"
                                         Command="{Binding GrabCommand}"
                                         Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"
-                                        ToolTip="Capture one image at the current position for preview and measurement. No taught point is required. Does not move axes or save coordinates. Use Record Position to save a teaching image and its position."/>
+                                        ToolTip="Capture an image and create its centered ROI. Drag to resize it. Use Record Position to save a teaching image, ROI and current coordinates."/>
                                     <Button Content="Move &amp; Inspect"
                                         Command="{Binding CaptureInspectionCommand}"
                                         Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>
@@ -198,18 +198,13 @@
                                     <TextBlock Text="Resolution (mm/px)" VerticalAlignment="Center" Margin="0,0,6,6"/>
                                     <TextBlock Text="{Binding MillimetersPerPixel, StringFormat={}{0:G8}}"
                                         VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                    <Button Content="Apply ROI"
-                                        Command="{Binding TeachFovRegionCommand}"
-                                        CommandParameter="{Binding FovRegion}"
-                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"
-                                        ToolTip="Save the centered square ROI for the selected bolt or Data Matrix. Captured XY does not change."/>
                                     <ToggleButton Content="Ruler" IsChecked="{Binding IsMeasuring, UpdateSourceTrigger=PropertyChanged}"
                                         Padding="10,6" Margin="6,0,0,6"
                                         ToolTip="Drag between two known points on the grabbed or saved image to calibrate mm per pixel."/>
                                     <Button x:Name="ReadDataMatrixButton" Content="Read Data Matrix"
                                         Command="{Binding ReadDataMatrixCommand}"
                                         Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,6"
-                                        ToolTip="Read the ROI on the saved image. Does not move axes or stop live view."
+                                        ToolTip="Read the ROI on the displayed image. Does not move axes or stop live view."
                                         Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"/>
                                 </WrapPanel>
                                 <Grid Grid.Row="4">
@@ -224,7 +219,7 @@
                                         IsMeasuring="{Binding IsMeasuring}"
                                         Ruler="{Binding Ruler}" MeasureCommand="{Binding MeasureImageCommand}"
                                         ShowCrosshair="True" Cursor="Cross"
-                                        ToolTip="Drag toward or away from the center to resize the square ROI. The center stays fixed. Ruler measures freely. Esc cancels the drag."/>
+                                        ToolTip="Drag to resize the centered ROI. Changes apply on release and save automatically for a recorded point. Record Position saves a new point. Esc cancels the drag."/>
                                     <ScrollViewer Grid.Column="1" Width="200" Margin="10,0,0,0"
                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                         Visibility="{Binding IsBoltSelected, Converter={StaticResource BoolToVis}}">
@@ -274,12 +269,12 @@
                                                 </Button.Style>
                                             </Button>
                                         </WrapPanel>
-                                        <TextBlock Text="Saves mm per pixel only. Recorded coordinates and ROIs stay fixed. Turn Ruler off to resize a saved ROI."
+                                        <TextBlock Text="Saves mm per pixel only. Recorded coordinates and ROIs stay fixed. Turn Ruler off to resize the ROI."
                                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
                                     </StackPanel>
                                     <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"
                                         Margin="0,0,0,6">
-                                        <TextBlock Text="Data Matrix · saved FOV / ROI" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Data Matrix · displayed image / ROI" FontWeight="SemiBold"/>
                                         <TextBox x:Name="DataMatrixResultBox"
                                             Text="{Binding DataMatrixResult, Mode=OneWay}"
                                             IsReadOnly="True" TextWrapping="Wrap" FontSize="16" Margin="0,4,0,0"/>

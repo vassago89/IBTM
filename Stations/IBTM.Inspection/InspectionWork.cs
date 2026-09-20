@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Storage;
 
 namespace IBTM.Inspection;
 
@@ -10,6 +11,7 @@ public sealed class InspectionWork : StationWork
     private readonly IIoService _io;
     private readonly NgCarrierTransfer _transfer;
     private readonly NgCarrierTransferSettings _transferSettings;
+    private readonly RecipeManager _recipes;
     // Scheduling ownership for this job only; never a physical position or restart checkpoint.
     private volatile Job? _inspectionRequestedJob;
 
@@ -17,11 +19,13 @@ public sealed class InspectionWork : StationWork
         IIoService io,
         NgCarrierTransfer transfer,
         NgCarrierTransferSettings transferSettings,
+        RecipeManager recipes,
         UnitSettings units) : base(transfer.Station, units)
     {
         _io = io;
         _transfer = transfer;
         _transferSettings = transferSettings;
+        _recipes = recipes;
         transfer.Changed += NotifyChanged;
         io.OutputChanged += OnOutputChanged;
     }
@@ -41,6 +45,10 @@ public sealed class InspectionWork : StationWork
     public bool InspectionRequested => ReferenceEquals(_inspectionRequestedJob, CurrentJob);
 
     public bool PickupClear => _transfer.IsClear;
+
+    public AxisPosition? WaitingPosition => Enabled
+        ? _recipes.Current.InspectionWaitingPosition
+        : _transferSettings.GetCarrierPickupPosition();
 
     public override bool IsTransferAllowed => IsTransferAllowedFor();
 
@@ -81,7 +89,7 @@ public sealed class InspectionWork : StationWork
         if (!Units.IsMotionEnabled(MotionGroup.InspectionGantry))
             return true;
         return _transfer.IsClear
-            && _transferSettings.GetCarrierPickupPosition() is { } position
+            && WaitingPosition is { } position
             && _transfer.IsAt(position, live);
     }
 
