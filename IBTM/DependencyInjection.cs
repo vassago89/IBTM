@@ -155,6 +155,7 @@ public static class DependencyInjection
                     ],
                     [HardwareArea.BoltFastening] = [
                         new(OutputIo.PickupHeadDown, HardwareArea.BoltFastening),
+                        new(OutputIo.PickupTableDown, HardwareArea.BoltFastening),
                         new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening),
                         new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening),
                         new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening),

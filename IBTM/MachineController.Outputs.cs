@@ -349,6 +349,7 @@ public sealed partial class MachineController
                 case OutputIo.NgShuttleDown:
                     await _ngShuttle.SetDownAsync(value, operation.Token);
                     break;
+                case OutputIo.PickupTableDown:
                 case OutputIo.PcbPlacementBackupPlateUp:
                 case OutputIo.BoltFasteningBackupPlateUp:
                 case OutputIo.InspectionBackupPlateUp:

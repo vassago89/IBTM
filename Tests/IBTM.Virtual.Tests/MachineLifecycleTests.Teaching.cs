@@ -1037,6 +1037,60 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task TeachingPickupTableTogglesBothDirectionsAndWaitsForFeedback()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        await machine.InitializeAsync();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        var table = Assert.Single(teaching.TeachingIoGroups.SelectMany(group => group.Outputs),
+            row => row.Io.Signal == OutputIo.PickupTableDown);
+        Assert.NotNull(table.Output);
+        var position = station.Feedback.GetPosition();
+        try
+        {
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, false);
+            await WaitUntilAsync(() => table.ToggleOutputCommand.CanExecute(null));
+            await table.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.True(io.GetOutput(OutputIo.PickupTableDown));
+            Assert.Equal(BoltCylinderState.Down, station.PickupTablePosition);
+
+            io.AutoResponseEnabled = false;
+            await WaitUntilAsync(() => table.ToggleOutputCommand.CanExecute(null));
+            var raising = table.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.False(io.GetOutput(OutputIo.PickupTableDown));
+            Assert.False(raising.IsCompleted);
+            Assert.True(state.IsRunning);
+            io.SetInput(InputIo.PickupTableUp, true);
+            Assert.False(raising.IsCompleted);
+            io.SetInput(InputIo.PickupTableDown, false);
+            await raising.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(BoltCylinderState.Up, station.PickupTablePosition);
+
+            await WaitUntilAsync(() => table.ToggleOutputCommand.CanExecute(null));
+            var lowering = table.ToggleOutputCommand.ExecuteAsync(null);
+            Assert.False(lowering.IsCompleted);
+            teaching.JogStopCommand.Execute(null);
+            await lowering.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(io.GetOutput(OutputIo.PickupTableDown));
+            Assert.Equal(position, station.Feedback.GetPosition());
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await teaching.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task TeachingOutputsKeepOwnerMovementRulesAndReportFeedbackTimeout()
     {
         var settings = FlowSettings();

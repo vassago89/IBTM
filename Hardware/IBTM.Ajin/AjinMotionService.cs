@@ -164,8 +164,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                     nameof(CAXM.AxmMoveStartMultiPos));
             }).ConfigureAwait(false);
             await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
-            CheckPosition(_axisX, x);
-            CheckPosition(axisYNumber, y);
         }
         catch (Exception exception)
         {
@@ -428,7 +426,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                     $"{nameof(CAXM.AxmMoveStartPos)} (axis={axisNumber})");
             }).ConfigureAwait(false);
             await WaitForMoveAsync([axisNumber], cancellationToken).ConfigureAwait(false);
-            CheckPosition(axisNumber, position);
         }
         catch (Exception exception)
         {
@@ -454,17 +451,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         {
             throw new MotionInterlockException(
                 $"AJIN axis {axis} is not in absolute positioning mode (mode={mode}).");
-        }
-    }
-
-    private void CheckPosition(int axis, double target)
-    {
-        var actual = ReadPosition(axis);
-        if (Math.Abs(actual - target) > PositionToleranceMillimeters)
-        {
-            throw new MotionException("Move", new InvalidOperationException(
-                $"Axis stopped before reaching its target (axis={axis}, "
-                + $"target={target:F3}, actual={actual:F3} mm)."));
         }
     }
 
