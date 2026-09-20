@@ -30,6 +30,9 @@ public enum PcbPlacementState
 
     [Description("Completing Carrier")]
     CompletingCarrier,
+
+    [Description("Disabled")]
+    Disabled,
 }
 
 public enum PlacementCylinderState

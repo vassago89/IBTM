@@ -602,13 +602,30 @@ public sealed partial class ConveyorTests
             Inspection = inspectionEnabled,
             NgCarrierTransfer = ngCarrierTransferEnabled,
         };
+        var placement = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units);
+        var fastening = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
+        var inspection = CreateInspectionWork(io, units);
+        // Conveyor-only tests supply the completion normally reported by each station loop.
+        foreach (var work in new StationWork[] { placement, fastening, inspection })
+        {
+            void CompleteDisabledWork()
+            {
+                if (!work.Enabled
+                    && (work.Station.CarrierSeated
+                        || ReferenceEquals(work, inspection) && inspection.AtInspectionPosition))
+                    work.Complete(work.CurrentJob);
+            }
+
+            work.Changed += CompleteDisabledWork;
+            CompleteDisabledWork();
+        }
         return new(
             io,
             settings ?? new ConveyorSettings { CarrierStopDelaySeconds = 0 },
             new OperationCancellation(),
-            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units),
-            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units),
-            CreateInspectionWork(io, units),
+            placement,
+            fastening,
+            inspection,
             units);
     }
 

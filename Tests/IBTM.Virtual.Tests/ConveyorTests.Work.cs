@@ -156,7 +156,7 @@ public sealed partial class ConveyorTests
     }
 
     [Fact]
-    public void StationWorkReadsCurrentUnitSetting()
+    public void StationCompletionBelongsToCurrentCarrierRegardlessOfEnabledSetting()
     {
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
@@ -169,22 +169,23 @@ public sealed partial class ConveyorTests
         virtualIo.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
 
         Assert.False(placementWork.Completed);
-        placementWork.Complete(placementWork.CurrentJob); // Skipping a disabled station must not create a production completion.
-        units.PcbPlacement = true;
-        Assert.False(placementWork.Completed);
-        units.PcbPlacement = false;
         virtualIo.SetInput(InputIo.PcbPlacementBackupPlateDown, false);
         virtualIo.SetInput(InputIo.PcbPlacementBackupPlateUp, true);
+        Assert.False(placementWork.Completed); // Physical seating alone does not complete station work.
+        placementWork.Complete(placementWork.CurrentJob);
         Assert.True(placementWork.Completed);
         units.PcbPlacement = true;
-        Assert.False(placementWork.Completed);
+        Assert.True(placementWork.Completed);
         units.PcbPlacement = false;
         Assert.True(placementWork.Completed);
 
         virtualIo.SetInput(InputIo.PcbPlacementBackupPlateDown, true);
-        Assert.False(placementWork.Completed); // Contradictory feedback is not a completed rise.
+        Assert.False(placementWork.Station.CarrierSeated);
+        Assert.True(placementWork.Completed); // Position changes do not erase the owned result.
         virtualIo.SetInput(InputIo.PcbPlacementBackupPlateDown, false);
         VirtualTest.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, false);
+        Assert.False(placementWork.Completed);
+        VirtualTest.SetCarrier(virtualIo, InputIo.PcbPlacementHeatSink1Present, true);
         Assert.False(placementWork.Completed);
     }
 
@@ -203,6 +204,8 @@ public sealed partial class ConveyorTests
             new UnitSettings { Inspection = false, NgCarrierTransfer = false });
 
         Assert.True(work.Station.CarrierSeated);
+        Assert.False(work.IsTransferAllowed);
+        work.Complete(work.CurrentJob);
         Assert.True(work.IsTransferAllowed);
         Assert.True(work.RouteToNg);
         Assert.False(work.HasNg);

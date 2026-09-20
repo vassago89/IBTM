@@ -48,8 +48,6 @@ public sealed class InspectionWork : StationWork
 
     public bool PickupClear => _transferFeedback.IsClear;
 
-    public override bool Completed => Enabled ? base.Completed : Station.CarrierPresent;
-
     public override bool IsTransferAllowed => Station.CarrierPresent && Completed && (AtInspectionPosition || Station.CarrierSeated);
 
     public override bool IsReceiveAllowed => base.IsReceiveAllowed

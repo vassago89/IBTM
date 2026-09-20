@@ -367,6 +367,7 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionStopperDown, true);
+        transferWork.Complete(transferWork.CurrentJob);
         Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState([]));
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);

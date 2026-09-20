@@ -261,14 +261,6 @@ public sealed partial class MachineController
     private async Task RunAutomaticUnitsAsync(CancellationTokenSource cycle, bool repeat)
     {
         var runningUnits = new List<Task>();
-        if (!cycle.IsCancellationRequested && _units.MainConveyor)
-        {
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.MainConveyor,
-                _conveyor.RunAsync(cycle.Token, repeat),
-                cycle));
-        }
-
         // Repeat reuses the PCB on the carrier instead of feeding a new PCB.
         if (!cycle.IsCancellationRequested && (_units.PcbSupply && !repeat))
         {
@@ -278,7 +270,7 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        if (!cycle.IsCancellationRequested && _units.PcbPlacement)
+        if (!cycle.IsCancellationRequested)
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PcbPlacement,
@@ -302,12 +294,12 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        if (!cycle.IsCancellationRequested && _units.BoltFastening)
+        if (!cycle.IsCancellationRequested)
         {
-            if (!_units.PickupBoltFeeder)
+            if (_units.BoltFastening && !_units.PickupBoltFeeder)
                 _log?.LogInformation(
                     "Pickup Feeder OFF; pickup motion and vacuum remain active without bolt detection waits. Motor START and fastening result collection remain active.");
-            if (!_units.ShootingBoltFeeder)
+            if (_units.BoltFastening && !_units.ShootingBoltFeeder)
                 _log?.LogInformation(
                     "Shooting Feeder OFF; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
             runningUnits.Add(ObserveAutomaticUnitAsync(
@@ -316,7 +308,7 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        if (!cycle.IsCancellationRequested && InspectionGantryEnabled)
+        if (!cycle.IsCancellationRequested)
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 _units.Inspection ? MachineAlarm.Inspection : MachineAlarm.NgCarrierTransfer,
@@ -341,6 +333,15 @@ public sealed partial class MachineController
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.NgConveyor,
                 _ngConveyor.RunAsync(cycle.Token, repeat),
+                cycle));
+        }
+
+        // Stations report existing carrier work before the conveyor selects its first transfer.
+        if (!cycle.IsCancellationRequested && _units.MainConveyor)
+        {
+            runningUnits.Add(ObserveAutomaticUnitAsync(
+                MachineAlarm.MainConveyor,
+                _conveyor.RunAsync(cycle.Token, repeat),
                 cycle));
         }
 

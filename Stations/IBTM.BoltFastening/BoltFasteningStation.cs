@@ -117,6 +117,16 @@ public sealed class BoltFasteningStation : AutoUnit
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    if (!_work.Enabled)
+                    {
+                        var job = _work.CurrentJob;
+                        if (_work.Station.CarrierSeated)
+                            _work.Complete(job);
+                        TraceStep(BoltFasteningState.Disabled, workId: job.Id,
+                            waitingFor: _work.Completed ? "carrier transfer" : "carrier seated");
+                        await WaitForChangeAsync(cancellationToken);
+                        continue;
+                    }
                     await RunCarrierAsync(cancellationToken);
                 }
             }
@@ -136,7 +146,8 @@ public sealed class BoltFasteningStation : AutoUnit
         finally
         {
             _pickupAttempt = null;
-            _gantry.StopShooting(failure);
+            if (_work.Enabled)
+                _gantry.StopShooting(failure);
         }
     }
 
@@ -337,6 +348,8 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         switch (true)
         {
+            case true when !_work.Enabled:
+                return BoltFasteningState.Disabled;
             case true when _work.State != BoltFasteningWorkState.ReadyToFasten:
                 var standby = StandbyBolt;
                 return standby is not null && _gantry.HasPosition(standby)

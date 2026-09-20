@@ -74,6 +74,19 @@ public sealed class InspectionStation : AutoUnit
         {
             while (!cancellationToken.IsCancellationRequested)
             {
+                if (!_work.Enabled)
+                {
+                    var job = _work.CurrentJob;
+                    if (_work.Station.CarrierSeated || _work.AtInspectionPosition)
+                        _work.Complete(job);
+                    if (!_units.NgCarrierTransfer)
+                    {
+                        TraceStep(InspectionStationState.Disabled, workId: job.Id,
+                            waitingFor: _work.Completed ? "carrier transfer" : "carrier at station");
+                        await WaitForChangeAsync(cancellationToken);
+                        continue;
+                    }
+                }
                 await ExecuteAsync(bolts, repeat, holdAtShuttle, cancellationToken);
             }
         }
@@ -111,7 +124,8 @@ public sealed class InspectionStation : AutoUnit
             case InspectionStationState.ReturningToNgPickup:
                 await _move.MoveToCarrierAsync(NgTransferDestination.Station, cancellationToken);
                 return;
-            case InspectionStationState.Waiting
+            case InspectionStationState.Disabled
+                or InspectionStationState.Waiting
                 or InspectionStationState.WaitingForConveyor
                 or InspectionStationState.BarcodeTeachingRequired
                 or InspectionStationState.FovTeachingRequired:
@@ -250,9 +264,10 @@ public sealed class InspectionStation : AutoUnit
         {
             case true when !enabled || workState != InspectionWorkState.ReadyToInspect:
                 {
-                    var waiting = enabled && workState == InspectionWorkState.WaitingForConveyor
-                        ? InspectionStationState.WaitingForConveyor
-                        : InspectionStationState.Waiting;
+                    var waiting = !enabled ? InspectionStationState.Disabled
+                        : workState == InspectionWorkState.WaitingForConveyor
+                            ? InspectionStationState.WaitingForConveyor
+                            : InspectionStationState.Waiting;
                     return WaitAtPickup(waiting, live);
                 }
             case true when NextBarcode is { } pcb:

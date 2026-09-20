@@ -36,4 +36,7 @@ public enum InspectionStationState
 
     [Description("Waiting for Other Carrier Transfers Before Inspection")]
     WaitingForConveyor,
+
+    [Description("Disabled")]
+    Disabled,
 }

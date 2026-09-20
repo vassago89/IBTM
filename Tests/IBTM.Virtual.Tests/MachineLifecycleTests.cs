@@ -28,8 +28,10 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
-    [Fact]
-    public async Task DisabledPlacementAndFasteningTransferCarrierThroughBothStations()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisabledPlacementAndFasteningTransferCarrierThroughBothStations(bool raisedAtStart)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
@@ -42,7 +44,13 @@ public sealed partial class MachineLifecycleTests
         var fastening = services.GetRequiredService<BoltFasteningWork>();
         var inspection = services.GetRequiredService<InspectionWork>();
         var fasteningPlate = new ConcurrentQueue<bool>();
+        var workOutputs = new ConcurrentQueue<OutputIo>();
         await machine.InitializeAsync();
+        if (raisedAtStart)
+        {
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementBackupPlateUp, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementStopperUp, true);
+        }
         io.SetInputs(
             (InputIo.MainConveyorAvailableFromFront2, false),
             (InputIo.MainConveyorReadyFromRear, false),
@@ -56,6 +64,10 @@ public sealed partial class MachineLifecycleTests
         {
             if (output == OutputIo.BoltFasteningBackupPlateUp)
                 fasteningPlate.Enqueue(value);
+            if (value && output is OutputIo.PcbPlacementHandlerDown or OutputIo.PcbPlacementVacuumEjector
+                or OutputIo.ShootBolt or OutputIo.ShootingHeadDown or OutputIo.PickupHeadDown
+                or OutputIo.NgCarrierPickupDown or OutputIo.NgCarrierGripperClose)
+                workOutputs.Enqueue(output);
         };
         Assert.False(fastening.Enabled);
         Assert.True(machine.IsStartAllowed);
@@ -75,6 +87,9 @@ public sealed partial class MachineLifecycleTests
             Assert.False(conveyor.RunCommandOn);
             Assert.True(state.AutomaticRunning);
             Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.True(inspection.Completed);
+            Assert.Empty(inspection.Assemblies);
+            Assert.Empty(workOutputs);
         }
         finally
         {

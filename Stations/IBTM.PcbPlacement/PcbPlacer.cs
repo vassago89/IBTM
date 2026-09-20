@@ -77,6 +77,16 @@ public sealed partial class PcbPlacer : AutoUnit
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    if (!_work.Enabled)
+                    {
+                        var job = _work.CurrentJob;
+                        if (_work.Station.CarrierSeated)
+                            _work.Complete(job);
+                        TraceStep(PcbPlacementState.Disabled, workId: job.Id,
+                            waitingFor: _work.Completed ? "carrier transfer" : "carrier seated");
+                        await WaitForChangeAsync(cancellationToken);
+                        continue;
+                    }
                     await ExecuteAsync(recipe, cancellationToken);
                 }
             }
@@ -250,6 +260,8 @@ public sealed partial class PcbPlacer : AutoUnit
 
     public PcbPlacementState GetState(PcbPlacementRecipe recipe, HeatSinkSlot? heatSink, bool live = true)
     {
+        if (!_work.Enabled)
+            return PcbPlacementState.Disabled;
         var pcb = _handler.Pcb;
         var currentHeatSink = GetCurrentHeatSink(recipe, live);
         if (currentHeatSink is { } current && _work.Station.CarrierSeated && !_handler.VacuumDetected)

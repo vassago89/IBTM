@@ -38,15 +38,7 @@ public abstract class StationWork
 
     public ConveyorStation Station { get; }
 
-    public virtual bool Completed
-    {
-        get
-        {
-            return Enabled
-                ? Volatile.Read(ref _job.Completed)
-                : Station.CarrierPresent && Station.BackupPlate == StationCylinderState.Up;
-        }
-    }
+    public bool Completed => Station.CarrierPresent && _job.Completed;
 
     public IEnumerable<HeatSinkAssembly> Assemblies => _job.Assemblies.Values.ToArray();
 
@@ -101,9 +93,9 @@ public abstract class StationWork
         lock (JobGate)
         {
             RequireCurrentJob(job);
-            if (!Enabled || job.Completed)
+            if (job.Completed)
                 return;
-            Volatile.Write(ref job.Completed, true);
+            job.Completed = true;
         }
         Changed?.Invoke();
     }
@@ -126,7 +118,7 @@ public abstract class StationWork
     {
         private static long _nextId;
         internal readonly ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> Assemblies;
-        internal bool Completed;
+        internal volatile bool Completed;
 
         internal Job(long? id = null)
         {
