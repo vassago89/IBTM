@@ -26,7 +26,7 @@
 
 - `MainConveyor.ReadState`, `StationWork`의 이송 목적지/작업 결과 소유권.
 - `NgCarrierMove.State`와 복귀·하강·그리퍼 해제 판단.
-- `BufferStage`의 직접 인계 구역 및 퇴장 대기, `PcbPlacer`의 Supply 퇴장 대기 연결.
+- 당시 인계 로직의 직접 인계 구역 및 퇴장 대기, `PcbPlacer`의 Supply 퇴장 대기 연결.
 - `PcbSupplier.State`의 인계 위치 판단.
 - `MachineFeedbackMonitor`, `OperationCancellation`은 다음 검토를 위한 구조 파악만 시작했으며 전체 검토 완료가 아니다.
 
@@ -598,7 +598,7 @@ UI 조작 검증은 수행하지 않았으며, 새 빌드는 IBTM/bin/Virtual/ne
 ## 티칭 항목 정리와 Supply 인계 하강 제거
 
 - Supply 인계 위치를 XY로 축소하고 자동/수동 모두 `MoveToHandoffAsync`에서 Rotation Z → Y → X로 이동한다. 인계 직전 Z 하강 상태와 호출을 제거했다.
-- `BufferStage`는 현재 Rotation Z와 실제 XYZ 정지·원점 피드백으로 인계 위치를 판정한다. Placement의 PCB 감지·진공·그리퍼 닫힘 확인, 각 Supply 해제 전 재확인, 해제 후 Clear Z → X 이탈은 유지했다.
+- 당시 인계 로직은 현재 Rotation Z와 실제 XYZ 정지·원점 피드백으로 인계 위치를 판정한다. Placement의 PCB 감지·진공·그리퍼 닫힘 확인, 각 Supply 해제 전 재확인, 해제 후 Clear Z → X 이탈은 유지했다.
 - 기존 JSON의 인계 X/Y는 유지하고 옛 인계 Z는 무시한다. 저장 시 인계 위치에는 XY만 기록한다. Virtual 장비의 인계 판정도 같은 높이를 사용한다.
 - 티칭 목록을 작업 위치 / 설비 기준값 / 계산 위치 / 인계 간섭 영역으로 구분했다. Supply 전달·Placement 인수 이름을 구분하고 인수 위치를 안착 위치 앞에 배치했다.
 - 체결 B1/B2에는 헤드를 표시하고 계산 위치로 구분했다. 검사 목록의 좌표 없는 Bolt 항목은 제거하고 Add Bolt 안내문으로 옮겼다.

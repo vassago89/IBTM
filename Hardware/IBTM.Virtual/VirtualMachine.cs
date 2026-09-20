@@ -27,9 +27,9 @@ public sealed class VirtualMachine
     private int _shootingFeederVersion;
     private int _ngConveyorVersion;
     private int? _supplyPickupSlot;
-    private bool _supplyAtBuffer;
+    private bool _supplyAtHandoff;
     private bool _supplyHoldingPcb;
-    private bool _placementAtBuffer;
+    private bool _placementAtHandoff;
     private bool _placementHoldingPcb;
     private readonly bool[] _placedPcbs;
     private int? _placementHeatSink;
@@ -203,7 +203,7 @@ public sealed class VirtualMachine
         (double X, double Z) pcb2,
         AxisPosition handoff)
     {
-        _supplyAtBuffer = IsAt(x, y, z, handoff);
+        _supplyAtHandoff = IsAt(x, y, z, handoff);
         if (!_supplyHoldingPcb)
         {
             _supplyPickupSlot = IsAt(x, y, z, pcb1.X, carrierY, pcb1.Z)
@@ -224,11 +224,11 @@ public sealed class VirtualMachine
         double x,
         double y,
         double z,
-        AxisPosition bufferPosition,
+        AxisPosition handoffPosition,
         AxisPosition? heatSink1 = null,
         AxisPosition? heatSink2 = null)
     {
-        _placementAtBuffer = IsAt(x, y, z, bufferPosition);
+        _placementAtHandoff = IsAt(x, y, z, handoffPosition);
         _placementHeatSink = heatSink1 is not null && IsAt(x, y, z, heatSink1)
             ? 0
             : heatSink2 is not null && IsAt(x, y, z, heatSink2) ? 1 : null;
@@ -246,7 +246,7 @@ public sealed class VirtualMachine
         _io.SetInput(
             InputIo.PcbSupplyPcbDetected,
             _supplyHoldingPcb
-                || _supplyAtBuffer && _placementAtBuffer && _placementHoldingPcb
+                || _supplyAtHandoff && _placementAtHandoff && _placementHoldingPcb
                 || _supplyPickupSlot is { } slot && _supplyPcbs[slot]);
     }
 
@@ -255,8 +255,8 @@ public sealed class VirtualMachine
         _io.SetInput(
             InputIo.PcbPlacementPcbDetected,
             _placementHoldingPcb
-                || _placementAtBuffer
-                && _supplyAtBuffer && _supplyHoldingPcb
+                || _placementAtHandoff
+                && _supplyAtHandoff && _supplyHoldingPcb
                 || _placementHeatSink is { } slot
                 && _placedPcbs[slot]
                 && _io.GetInput(InputIo.PcbPlacementHandlerDown));

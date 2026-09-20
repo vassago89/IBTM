@@ -10,8 +10,9 @@ public enum InputIo
     [Description("Available From Front 2 (Heat Sink)")]
     MainConveyorAvailableFromFront2 = 0,
 
-    [Description("Unused (former PCB buffer sensor)")]
-    PcbBufferPcbPresent = 1,
+    [Description("Unused")]
+    [JsonStringEnumMemberName("PcbBufferPcbPresent")]
+    Unused1 = 1,
 
     [Description("PCB Placement Stopper Up")]
     PcbPlacementStopperUp = 2,

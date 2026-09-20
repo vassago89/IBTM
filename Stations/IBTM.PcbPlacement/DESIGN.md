@@ -1,6 +1,6 @@
 # PCB Placement Handler
 
-Standby is receiving Z followed by receiving XY. `BufferHandoffPosition.Z` is
+Standby is receiving Z followed by receiving XY. `HandoffPosition.Z` is
 also the XY travel height. Handler Rotate output stays OFF during automatic, repeat and manual operation. There is no separate wait coordinate.
 
 1. Raise the handler, reach receiving Z, prepare the IPM, then move to receiving XY.

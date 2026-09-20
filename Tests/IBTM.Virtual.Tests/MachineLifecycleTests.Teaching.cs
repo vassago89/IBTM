@@ -1091,7 +1091,8 @@ public sealed partial class MachineLifecycleTests
 
             await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
             await teaching.HomeCommand.ExecuteAsync(null);
-            Assert.Equal((0, 0, settings.PcbPlacementHandler.HandoffPosition.Z), placement.Feedback.GetPosition());
+            Assert.Equal((0, 0, 0), placement.Feedback.GetPosition());
+            Assert.All(placement.Feedback.Axes, axis => Assert.True(placement.Feedback.GetAxisState(axis).Homed));
             Assert.Equal(supplyPosition, supply.Feedback.GetPosition());
             Assert.Equal(MachineAlarm.None, state.Alarm);
         }

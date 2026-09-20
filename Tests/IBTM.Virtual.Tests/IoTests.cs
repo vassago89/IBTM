@@ -159,7 +159,7 @@ public sealed class IoTests
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         InputIo[] retiredInputs =
         [
-            InputIo.PcbBufferPcbPresent,
+            InputIo.Unused1,
             InputIo.PcbSupplyIpmFixerBackward,
             InputIo.PcbPlacementCarrierPresent,
             InputIo.BoltFasteningCarrierPresent,

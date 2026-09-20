@@ -345,12 +345,12 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 현재 편집 허용 상태를 확인한다. `SettingsStayLockedWhileBusyOrClosingEvenWithAnAlarm`은
 작업 중·종료 중 직접 호출해도 파일 대화상자를 열거나 검사 입력 이미지를 바꾸지 않는지 검증한다.
 
-아래 표는 자동 유닛 10개와 공용 인계 영역를 포함한다. 각 유닛의 `RunAsync`에 있는 루프가
+아래 표는 자동 유닛과 공급·안착 직접 인계를 포함한다. 각 유닛의 `RunAsync`에 있는 루프가
 현재 피드백으로 다음 동작을 선택하고, 할 일이 없으면 `WaitForChangeAsync`로 기다린다.
 `AutoUnit`은 변경 알림과 추적만 관리한다. 자동운전 시작 함수가 각 유닛을 직접 시작하고,
 `ObserveAutomaticUnitAsync`는 이미 시작한 작업의 종료·오류를 확인한다.
 검사와 NG 이송은 갠트리를 공유하므로 `InspectionStation.RunAsync` 한 경로에서 실행한다.
-`BufferStage`는 공급·안착이 함께 읽는 진입 조건이며 별도 실행 루프를 만들지 않는다.
+공급·안착 핸들러는 각자의 `IsAtHandoff`와 그립 피드백을 제공한다. 두 작업 루프가 상대 핸들러를 직접 참조하며, 인계를 관리하는 별도 스테이지 객체는 없다.
 
 | 증상 | 중단점 위치 | 먼저 볼 값 |
 | --- | --- | --- |
@@ -361,8 +361,8 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 | 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.RunAsync`, `GetState`, `TransferAsync` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
 | PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceAsync`의 `switch (state)` | `heatSink`, `state`; 반환값 `false`이면 피드백 대기 |
-| 공급 진입 또는 안착 인수 실린더가 대기함 | `BufferStage.CanEnterSupply`, `CanEnterPlacement`, `HasConflict` | 도착 순서는 무관; Placement Handler Up/Down 입력, 양쪽 현재 위치·Home·정지 피드백, Supply `PcbSecured`, 인계 좌표 |
-| 인수 후 실린더 상승 또는 Supply 복귀가 대기함 | `BufferStage.IsPlacementRaiseAllowed`, `IsSupplyExitAllowed`, `PcbSupplier.State` | Supply `PcbReleased`는 그리퍼·IPM 고정 실린더 모두 후퇴 확인; Placement 상승 확인 후 `MovingToPickup`에서 다음 PCB 픽업 XY로 복귀 |
+| 공급 진입 또는 안착 인수 실린더가 대기함 | `PcbPlacer.IsSupplyReady`, `PcbSupplier.IsPlacementSecured` | 도착 순서는 무관; Placement Handler Up/Down 입력, 양쪽 현재 위치·Home·정지 피드백, Supply `PcbSecured`, 인계 좌표 |
+| 인수 후 실린더 상승 또는 Supply 복귀가 대기함 | `PcbPlacer.GetState`, `PcbSupplier.State` | Supply `PcbReleased`는 그리퍼·IPM 고정 실린더 모두 후퇴 확인; Placement 상승 확인 후 `MovingToPickup`에서 다음 PCB 픽업 XY로 복귀 |
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.ExecuteAsync` | `waitingForBolt`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
 | Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `ExecuteAsync`가 `false`를 반환하면 피드백 대기 |

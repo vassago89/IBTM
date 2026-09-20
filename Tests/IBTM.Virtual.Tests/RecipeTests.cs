@@ -139,7 +139,7 @@ public sealed class RecipeTests
     public void SupplyHandoffStoresItsOwnZAndDropsTheObsoleteClearZ()
     {
         var supply = System.Text.Json.JsonSerializer.Deserialize<PcbSupplySettings>(
-            """{"RotationZ":3,"HandoffPosition":{"X":50,"Y":10,"Z":8},"BufferClearZ":12}""")!;
+            """{"RotationZ":3,"BufferHandoffPosition":{"X":50,"Y":10,"Z":8},"BufferClearZ":12}""")!;
         var definition = supply.GetTeachingPositions(new())
             .Single(point => point.Target == TeachingTarget.SupplyHandoff);
         Assert.Equal(TeachMode.Full, definition.Mode);
@@ -151,14 +151,14 @@ public sealed class RecipeTests
 
         using var saved = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(supply));
         Assert.False(saved.RootElement.TryGetProperty("BufferClearZ", out _));
-        Assert.Equal(99, saved.RootElement.GetProperty(nameof(supply.HandoffPosition)).GetProperty("Z").GetDouble());
+        Assert.Equal(99, saved.RootElement.GetProperty("BufferHandoffPosition").GetProperty("Z").GetDouble());
     }
 
     [Fact]
     public void PlacementHandoffLoadsTheCommonZAndDropsTheSeparateApproachHeight()
     {
         var placement = System.Text.Json.JsonSerializer.Deserialize<PcbPlacementHandlerSettings>(
-            """{"BufferEntryZ":3,"HandoffPosition":{"X":50,"Y":10,"Z":8}}""")!;
+            """{"BufferEntryZ":3,"BufferHandoffPosition":{"X":50,"Y":10,"Z":8}}""")!;
         var definition = placement.GetHandoffTeachingPosition();
         Assert.Equal(TeachMode.Full, definition.Mode);
         Assert.Equal(8, placement.HandoffPosition.Z);
@@ -170,7 +170,7 @@ public sealed class RecipeTests
     }
 
     [Fact]
-    public void TeachingDefinitionsKeepBufferEditsStagedAndUpdateTheOwningSettings()
+    public void TeachingDefinitionsKeepHandoffEditsStagedAndUpdateTheOwningSettings()
     {
         var supply = new PcbSupplySettings { CarrierY = 7 };
         var placement = new PcbPlacementHandlerSettings();

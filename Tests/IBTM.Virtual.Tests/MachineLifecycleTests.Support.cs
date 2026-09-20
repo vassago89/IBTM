@@ -135,7 +135,10 @@ public sealed partial class MachineLifecycleTests
                         provider.GetRequiredService<OperationCancellation>(),
                         settings.InspectionGantry));
         configure?.Invoke(services);
-        return services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
+        // These tests replace the handler factories that normally initialize virtual feedback.
+        _ = provider.GetRequiredService<VirtualMachine>();
+        return provider;
     }
 
     private static UnitSettings EnableOnly(MachineUnit unit)

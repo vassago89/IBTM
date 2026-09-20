@@ -69,7 +69,9 @@ when resuming an interrupted approach; it does not first return to Rotation Z.
 
 ## Direct handoff and live feedback
 
-There is no physical buffer. `BufferStage` checks handoff arrival and holding.
+Each handler reports its own handoff arrival and holding feedback.
+The Supply and Placement sequences read the other handler directly; there is no
+intermediate stage object or separate handoff project.
 Supply and Placement approach independently. Every Placement axis movement
 requires its handler cylinder Up. Either may arrive first. Both handlers must settle at their
 own taught XYZ before Placement lowers its receiving cylinder.
