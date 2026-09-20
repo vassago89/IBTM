@@ -935,7 +935,7 @@ public sealed partial class AjinControllerTests
     }
 
     [Fact]
-    public void MotionInitializationReadsAlarmsAndServoOffWithoutTurningServosOn()
+    public async Task MotionInitializationReadsAlarmsAndServoOffWithoutTurningServosOn()
     {
         using var controller = new AjinController(new());
         AjinSdk.MotionAxes[9] = new(Mechanical: (1U << 4) | (1U << 7), Position: 12340);
@@ -976,11 +976,11 @@ public sealed partial class AjinControllerTests
 
         var reset = new AjinSdk.Call(nameof(CAXM.AxmSignalServoAlarmReset), Value: 1, Axis: 9);
         AjinSdk.Results[reset] = (uint)AXT_FUNC_RESULT.AXT_RT_MOTION_ERROR_IN_ALARM;
-        Assert.Throws<IOException>(motion.Reset);
+        await Assert.ThrowsAsync<IOException>(() => motion.ResetAsync());
         status.RefreshControlFeedback();
         Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
         AjinSdk.Results.Remove(reset);
-        motion.Reset(); // Explicit RESET can now reach alarm reset before requesting Servo ON.
+        await motion.ResetAsync(); // Explicit RESET can now reach alarm reset before requesting Servo ON.
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         Assert.False(status.Axes[MotionAxis.X].State!.Value.Alarm);

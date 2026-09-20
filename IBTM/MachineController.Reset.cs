@@ -124,22 +124,22 @@ public sealed partial class MachineController
                     case MotionGroup.PcbSupply:
                         _pcbSupply.InitializeMotion();
                         operation.Token.ThrowIfCancellationRequested();
-                        _pcbSupply.ResetMotion();
+                        await _pcbSupply.ResetMotionAsync(operation.Token);
                         break;
                     case MotionGroup.PcbPlacementHandler:
                         _pcbPlacement.InitializeMotion();
                         operation.Token.ThrowIfCancellationRequested();
-                        _pcbPlacement.ResetMotion();
+                        await _pcbPlacement.ResetMotionAsync(operation.Token);
                         break;
                     case MotionGroup.BoltFastening:
                         _fasteningStation.InitializeMotion();
                         operation.Token.ThrowIfCancellationRequested();
-                        _fasteningStation.ResetMotion();
+                        await _fasteningStation.ResetMotionAsync(operation.Token);
                         break;
                     case MotionGroup.InspectionGantry:
                         _ngTransfer.InitializeMotion();
                         operation.Token.ThrowIfCancellationRequested();
-                        _ngTransfer.ResetMotion();
+                        await _ngTransfer.ResetMotionAsync(operation.Token);
                         break;
                 }
             }
@@ -188,6 +188,17 @@ public sealed partial class MachineController
         }
 
         operation.Token.ThrowIfCancellationRequested();
+        try
+        {
+            var motion = _feedback.ReadLiveReadiness();
+            if (motion.Faulted || !motion.ServosOn)
+                throw new InvalidOperationException(
+                    $"Motion reset is not confirmed by hardware feedback: faulted={motion.Faulted}, servosOn={motion.ServosOn}.");
+        }
+        catch (Exception exception)
+        {
+            RecordFailure(MachineAlarm.MotionUnavailable, "Motion feedback", exception);
+        }
         if (failures.Count > 0)
         {
             _state.SetError(alarm, failures.Count == 1 ? failures[0] : new AggregateException(failures));

@@ -123,6 +123,7 @@ public partial class TeachingViewModel : ObservableObject
         DrawFovRegionCommand = new AsyncRelayCommand<Rect>(DrawFovRegionAsync, IsDrawFovRegionAllowed);
         TeachFovRegionCommand = new AsyncRelayCommand<Rect>(TeachFovRegionAsync, IsTeachFovRegionAllowed);
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, () => IsToggleLiveViewAllowed);
+        GrabCommand = new AsyncRelayCommand(GrabAsync, () => IsGrabAllowed);
         CaptureInspectionCommand = new AsyncRelayCommand(CaptureInspectionAsync, () => IsCaptureInspectionAllowed);
         ReinspectImageCommand = new AsyncRelayCommand(ReinspectImageAsync, () => IsReinspectImageAllowed);
         AddBoltPointCommand = new RelayCommand(AddBoltPoint, () => IsAddBoltPointAllowed);
@@ -139,6 +140,7 @@ public partial class TeachingViewModel : ObservableObject
             MoveToPointCommand,
             ReturnFromPickupCommand,
             ApplyRulerResolutionCommand,
+            GrabCommand,
             CaptureInspectionCommand,
             ReinspectImageCommand,
             ReadDataMatrixCommand,
@@ -165,10 +167,7 @@ public partial class TeachingViewModel : ObservableObject
         Recipes = recipes;
         Preview = new(inspectionStation, recipes);
         CarrierImages = [];
-        Preview.PropertyChanged += (_, e) =>
-        {
-            ReinspectImageCommand.NotifyCanExecuteChanged();
-        };
+        Preview.PropertyChanged += OnPreviewChanged;
 
         MillimetersPerPixel = Recipes.Current.CarrierImageMillimetersPerPixel;
 

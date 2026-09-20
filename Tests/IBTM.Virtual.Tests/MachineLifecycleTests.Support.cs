@@ -559,7 +559,7 @@ public sealed partial class MachineLifecycleTests
             {
                 BeforeHardwareRead?.Invoke();
                 Interlocked.Increment(ref HardwareCalls);
-                if (name == nameof(IAxisMotion.Reset))
+                if (name == nameof(IAxisMotion.ResetAsync))
                     Interlocked.Increment(ref ResetCalls);
                 if (FailHardwareCalls)
                     throw new IOException($"Unavailable motion: {name}");

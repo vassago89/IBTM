@@ -83,7 +83,11 @@ polling with device notifications requesting an earlier read. Individual motion 
 failures are reported without hiding another axis's feedback. The monitors remain alive
 through operation cleanup and stop together before hardware disposal.
 Explicit Servo ON failures do not invalidate communication readiness. The existing
-operator RESET sequence still resets axis alarms before requesting Servo ON.
+operator RESET sequence pulses the axis alarm-reset outputs ON for one second,
+then releases them OFF before requesting Servo ON. Cancellation or a command failure
+still attempts OFF for every configured axis and reports any release failures.
+RESET does not write position or HOME-success values. The machine reads current
+alarm/emergency and Servo ON feedback before clearing its software alarm.
 
 Motion STOP checks every `AxmMoveSStop` return code and continues to the remaining
 axes after a failure. HOME results are initialized only at startup, not on STOP.

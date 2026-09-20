@@ -424,6 +424,7 @@ public partial class TeachingViewModel
         SaveCommand.NotifyCanExecuteChanged();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
         ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
         DrawFovRegionCommand.NotifyCanExecuteChanged();
         TeachFovRegionCommand.NotifyCanExecuteChanged();

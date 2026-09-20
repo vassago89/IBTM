@@ -58,7 +58,7 @@ public interface IAxisMotion : IMotionFeedback
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken = default);
-    void Reset();
+    Task ResetAsync(CancellationToken cancellationToken = default);
     void SetServo(MotionAxis axis, bool on);
 }
 
@@ -298,15 +298,19 @@ public abstract class MotionService : IXyMotion
         return await HomeAxesAsync(axes, velocity, cancellationToken);
     }
 
-    protected abstract void ResetAlarm();
+    protected abstract Task ResetAlarmAsync(CancellationToken cancellationToken);
 
     public abstract void Stop();
 
-    public void Reset()
+    public async Task ResetAsync(CancellationToken cancellationToken = default)
     {
-        ResetAlarm();
+        using var operation = Operations.Link(cancellationToken);
+        cancellationToken = operation.Token;
+        cancellationToken.ThrowIfCancellationRequested();
+        await ResetAlarmAsync(cancellationToken).ConfigureAwait(false);
         foreach (var axis in Axes)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             SetServo(axis, true);
         }
     }

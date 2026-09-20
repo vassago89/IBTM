@@ -386,16 +386,51 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         }
     }
 
-    protected override void ResetAlarm()
+    protected override async Task ResetAlarmAsync(CancellationToken cancellationToken)
     {
-        foreach (var axis in _axisParameters.Keys)
+        Exception? failure = null;
+        try
         {
-            AjinController.Check(
-                CAXM.AxmSignalServoAlarmReset(axis, 1),
-                $"{nameof(CAXM.AxmSignalServoAlarmReset)} (axis={axis})");
+            foreach (var axis in _axisParameters.Keys)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                AjinController.Check(
+                    CAXM.AxmSignalServoAlarmReset(axis, 1),
+                    $"{nameof(CAXM.AxmSignalServoAlarmReset)} (axis={axis}, on=1)");
+            }
+            // Keep the reference equipment's one-second reset pulse.
+            await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
         }
-
-        PublishStateChanged();
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
+        finally
+        {
+            var failures = new List<Exception>();
+            foreach (var axis in _axisParameters.Keys)
+            {
+                try
+                {
+                    // Release every reset output even after cancellation or another axis fails.
+                    AjinController.Check(
+                        CAXM.AxmSignalServoAlarmReset(axis, 0),
+                        $"{nameof(CAXM.AxmSignalServoAlarmReset)} (axis={axis}, on=0)");
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                }
+            }
+            if (failures.Count > 0)
+            {
+                if (failure is not null)
+                    failures.Insert(0, failure);
+                throw new AggregateException("Failed to release servo alarm reset outputs.", failures);
+            }
+            PublishStateChanged();
+        }
     }
 
     protected override async Task MoveAsync(

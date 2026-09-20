@@ -45,6 +45,13 @@ public partial class TeachingViewModel
     [ObservableProperty]
     public partial string? DataMatrixResult { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FovRoiLabel))]
+    [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
+    public partial bool IsGrabPreview { get; private set; }
+
     private readonly object _liveImageGate;
     private ImageFrame? _pendingLiveFrame;
     private bool _liveImageUpdateQueued;
@@ -66,6 +73,8 @@ public partial class TeachingViewModel
     {
         get
         {
+            if (IsGrabPreview)
+                return "Grabbed image · Use Ruler to measure. Select a bolt or Data Matrix and Record Position to save an image and its coordinates.";
             var metadata = SelectedFov?.Metadata;
             var saved = metadata?.Region is { } region
                 ? new Rect(region.X, region.Y, region.Width, region.Height)
@@ -88,6 +97,17 @@ public partial class TeachingViewModel
 
     public IRelayCommand<ImageRuler> MeasureImageCommand { get; }
 
+    private void OnPreviewChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        ReinspectImageCommand.NotifyCanExecuteChanged();
+        if (e.PropertyName != nameof(InspectionPreview.Image))
+            return;
+        Ruler = null;
+        RulerMillimeters = null;
+        MeasureImageCommand.NotifyCanExecuteChanged();
+        ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
+    }
+
     private void MeasureImage(ImageRuler? ruler)
     {
         if (ruler is { PixelLength: >= 1 })
@@ -99,9 +119,9 @@ public partial class TeachingViewModel
         if (ruler is null
             || !IsInspectionSelected
             || !IsMeasuring
-            || SelectedFov is not { } fov)
+            || Preview.Image is not { } image)
             return false;
-        var bounds = new Rect(0, 0, fov.Image.PixelWidth, fov.Image.PixelHeight);
+        var bounds = new Rect(0, 0, image.PixelWidth, image.PixelHeight);
         return bounds.Contains(ruler.Start) && bounds.Contains(ruler.End);
     }
 
@@ -154,13 +174,14 @@ public partial class TeachingViewModel
         get
         {
             return IsTeachingEditAllowed && IsInspectionSelected && IsMeasuring
-                && SelectedFov is not null && RulerResolution is not null
+                && Preview.HasImage && RulerResolution is not null
                 && RecipeEditor.IsSaveAllowed && CarrierImages.Count == Recipes.Current.CarrierImages.Count;
         }
     }
 
     partial void OnSelectedFovChanged(CarrierImageTileView? value)
     {
+        IsGrabPreview = false;
         ApplyRulerResolutionCommand.Cancel();
         Ruler = null;
         RulerMillimeters = null;
@@ -199,6 +220,7 @@ public partial class TeachingViewModel
 
     private void SelectFovForTeachingPoint()
     {
+        IsGrabPreview = false;
         var fov = IsInspectionSelected
             ? CarrierImages.FirstOrDefault(image => image.Metadata.HeatSink == SelectedPcb
                 && (SelectedBarcode is not null
@@ -214,6 +236,8 @@ public partial class TeachingViewModel
 
     private void RefreshSavedPreview()
     {
+        if (IsGrabPreview)
+            return;
         Preview.Clear(SelectedBarcode, SelectedPoint?.Position.Bolt);
         if (!IsInspectionSelected || SelectedFov is not { } fov)
             return;
@@ -279,6 +303,7 @@ public partial class TeachingViewModel
         get
         {
             return IsInspectionSelected
+                && !IsGrabPreview
                 && SelectedBarcode is not null
                 && SelectedFov is { } fov
                 && FovRegion is { Width: >= 1, Height: >= 1 } bounds
@@ -306,6 +331,7 @@ public partial class TeachingViewModel
     private bool IsDrawFovRegionAllowed(Rect bounds)
     {
         return IsTeachingEditAllowed
+            && !IsGrabPreview
             && !IsMeasuring
             && RecipeEditor.IsSaveAllowed
             && SelectedFov is not null
@@ -358,6 +384,7 @@ public partial class TeachingViewModel
     private bool IsTeachFovRegionAllowed(Rect bounds)
     {
         return IsTeachingEditAllowed
+            && !IsGrabPreview
             && !IsMeasuring
             && RecipeEditor.IsSaveAllowed
             && SelectedFov is not null
@@ -405,6 +432,7 @@ public partial class TeachingViewModel
                 || IsInspectionSelected
                     && State.ManualMode
                     && !TeachCurrentPositionCommand.IsRunning
+                    && !GrabCommand.IsRunning
                     && !CaptureInspectionCommand.IsRunning;
         }
     }
@@ -414,8 +442,66 @@ public partial class TeachingViewModel
         if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
             return;
         OnPropertyChanged(nameof(IsBusy));
-        if (ReferenceEquals(sender, TeachCurrentPositionCommand) || ReferenceEquals(sender, CaptureInspectionCommand))
+        if (ReferenceEquals(sender, TeachCurrentPositionCommand)
+            || ReferenceEquals(sender, GrabCommand)
+            || ReferenceEquals(sender, CaptureInspectionCommand))
             ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        if (ReferenceEquals(sender, ToggleLiveViewCommand))
+            GrabCommand.NotifyCanExecuteChanged();
+    }
+
+    public IAsyncRelayCommand GrabCommand { get; }
+
+    private bool IsGrabAllowed => IsInspectionSelected
+        && IsTeachingEditAllowed
+        && !State.IsRunning
+        && !ToggleLiveViewCommand.IsRunning;
+
+    private async Task GrabAsync(CancellationToken cancellationToken)
+    {
+        var viewToken = ViewCancellation;
+        var activeToken = cancellationToken;
+        try
+        {
+            if (!IsGrabAllowed)
+                return;
+            using var operation = Machine.BeginManualOperation(
+                () => State.ManualMode,
+                cancellationToken,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            CameraError = null;
+            SelectedCameraTab = 0;
+            await _recipeImageUpdate;
+            operation.Token.ThrowIfCancellationRequested();
+            var frame = await Inspection.CaptureCurrentAsync(operation.Token);
+            var image = await Task.Run(() => InspectionPreview.CreateBitmap(frame), operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
+
+            // A snapshot has no recorded position and must not replace a taught FOV.
+            IsGrabPreview = true;
+            ReadDataMatrixCommand.Cancel();
+            DataMatrixResult = null;
+            Preview.Clear(SelectedBarcode, SelectedPoint?.Position.Bolt);
+            Preview.SetSavedImage(image, null);
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(MachineAlarm.Inspection, exception);
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError("Teaching image grab failed. {0}", exception);
+            if (!activeToken.IsCancellationRequested)
+                CameraError = exception.Message;
+        }
     }
 
     private async Task RecordImagePositionAsync(CancellationToken cancellationToken)
@@ -553,6 +639,7 @@ public partial class TeachingViewModel
             var pcb = SelectedBarcode;
             var bolt = SelectedPoint!.Position.Bolt;
             var region = pcb is { } target ? Inspection.GetBarcodeFov(target).Region : Inspection.GetFov(bolt!).Region;
+            IsGrabPreview = false;
             Preview.Clear(pcb, bolt);
             var frame = pcb is { } barcode ? await Inspection.CaptureBarcodeAsync(barcode, operation.Token) : await Inspection.CaptureAsync(bolt!, operation.Token);
             await Preview.SetImageAsync(frame, operation.Token, region);

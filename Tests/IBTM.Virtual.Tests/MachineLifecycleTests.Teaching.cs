@@ -617,6 +617,100 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task TeachingGrabAllowsFirstImageAndRulerWithoutATaughtPosition()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        await services.GetRequiredService<MachineController>().InitializeAsync();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedPoint = null;
+        teaching.MillimetersPerPixel = 0;
+        var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
+        var settingsBefore = JsonSerializer.Serialize(settings);
+        var moves = 0;
+        services.GetRequiredService<NgCarrierTransfer>().Feedback.PositionChanged += (_, _, _) => moves++;
+
+        Assert.Empty(teaching.CarrierImages);
+        Assert.True(teaching.GrabCommand.CanExecute(null));
+        await teaching.GrabCommand.ExecuteAsync(null);
+
+        Assert.Null(teaching.CameraError);
+        Assert.True(teaching.Preview.HasImage);
+        Assert.True(teaching.IsGrabPreview);
+        Assert.Null(teaching.Preview.Region);
+        Assert.Null(teaching.SelectedFov);
+        Assert.Equal(0, moves);
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
+        Assert.Equal(settingsBefore, JsonSerializer.Serialize(settings));
+
+        teaching.IsMeasuring = true;
+        var ruler = new ImageRuler(new(10, 10), new(40, 50));
+        Assert.True(teaching.MeasureImageCommand.CanExecute(ruler));
+        teaching.MeasureImageCommand.Execute(ruler);
+        teaching.RulerMillimeters = 5;
+        Assert.True(teaching.ApplyRulerResolutionCommand.CanExecute(null));
+        await teaching.ApplyRulerResolutionCommand.ExecuteAsync(null);
+
+        Assert.Equal(0.1, teaching.MillimetersPerPixel);
+        Assert.Empty(teaching.Recipes.Current.CarrierImages);
+        Assert.Null(teaching.RecipeEditor.Error);
+        Assert.Equal(0, moves);
+        var saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
+        Assert.Equal(0.1, saved.CarrierImageMillimetersPerPixel);
+    }
+
+    [Fact]
+    public async Task TeachingGrabPreservesSavedImageCoordinatesAndRoi()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        await services.GetRequiredService<MachineController>().InitializeAsync();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.AddBoltPointCommand.Execute(null);
+        var bolt = teaching.SelectedPoint!.Position.Bolt!;
+        bolt.X = 12;
+        bolt.Y = 34;
+        var metadata = new CarrierImageTile
+        {
+            Number = 1, BoltNumber = bolt.Number, HeatSink = bolt.HeatSink,
+            Center = new() { X = 100, Y = 200 }, Region = new(20, 20, 20, 20),
+        };
+        var savedImage = await Task.Run(() => InspectionPreview.CreateBitmap(new ImageFrame(100, 80, 300, new byte[24_000])));
+        var tile = new CarrierImageTileView(metadata, savedImage);
+        Assert.True(await teaching.RecipeEditor.SaveCarrierImagesAsync([tile]));
+        teaching.CarrierImages = [tile];
+        var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
+        var settingsBefore = JsonSerializer.Serialize(settings);
+        var moves = 0;
+        services.GetRequiredService<NgCarrierTransfer>().Feedback.PositionChanged += (_, _, _) => moves++;
+
+        Assert.True(teaching.GrabCommand.CanExecute(null));
+        await teaching.GrabCommand.ExecuteAsync(null);
+
+        Assert.Null(teaching.CameraError);
+        Assert.True(teaching.IsGrabPreview);
+        Assert.NotSame(savedImage, teaching.Preview.Image);
+        Assert.Null(teaching.Preview.Region);
+        Assert.Same(tile, teaching.SelectedFov);
+        Assert.Same(savedImage, teaching.SelectedFov!.Image);
+        Assert.False(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
+        Assert.False(teaching.TeachFovRegionCommand.CanExecute(teaching.FovRegion));
+        Assert.False(teaching.ReinspectImageCommand.CanExecute(null));
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
+        Assert.Equal(settingsBefore, JsonSerializer.Serialize(settings));
+        Assert.Equal(0, moves);
+
+        teaching.SelectedPoint = null;
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == bolt);
+        Assert.False(teaching.IsGrabPreview);
+        Assert.Same(savedImage, teaching.Preview.Image);
+        Assert.NotNull(teaching.Preview.Region);
+        Assert.True(teaching.TeachFovRegionCommand.CanExecute(teaching.FovRegion));
+    }
+
+    [Fact]
     public async Task ImageRulerSavesResolutionWithoutChangingRecordedPositionsOrRois()
     {
         await using var services = CreateServices(FlowSettings());

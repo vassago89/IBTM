@@ -175,9 +175,9 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         _motion.Stop();
     }
 
-    public void ResetMotion()
+    public Task ResetMotionAsync(CancellationToken cancellationToken = default)
     {
-        _motion.Reset();
+        return _motion.ResetAsync(cancellationToken);
     }
 
     public void SetServo(MotionAxis axis, bool on)

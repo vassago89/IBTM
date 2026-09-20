@@ -97,7 +97,7 @@ public sealed class OutputWindowThreadingTests
         {
             units.PcbSupply = true;
             unrelated.Initialize();
-            unrelated.Reset();
+            await unrelated.ResetAsync();
             await unrelated.HomeAsync(MotionAxis.Z, 1000);
             await unrelated.HomeHorizontalAsync(1000);
             var supplySettings = services.GetRequiredService<IBTM.PcbSupply.PcbSupplySettings>();

@@ -154,9 +154,9 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _motion.Stop();
     }
 
-    public void ResetMotion()
+    public Task ResetMotionAsync(CancellationToken cancellationToken = default)
     {
-        _motion.Reset();
+        return _motion.ResetAsync(cancellationToken);
     }
 
     public void SetServo(MotionAxis axis, bool on)

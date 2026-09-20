@@ -86,7 +86,14 @@ internal static partial class CAXM
     {
         var result = AjinSdk.Record(new(nameof(AxmSignalServoAlarmReset), Value: value, Axis: axis));
         if (result == 0)
-            AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { Mechanical = AjinSdk.MotionAxes[axis].Mechanical & ~(1U << 4) };
+        {
+            var state = AjinSdk.MotionAxes[axis];
+            AjinSdk.MotionAxes[axis] = state with
+            {
+                AlarmReset = value,
+                Mechanical = value == 1 ? state.Mechanical & ~(1U << 4) : state.Mechanical,
+            };
+        }
         return result;
     }
 

@@ -203,9 +203,9 @@ public sealed partial class BoltFasteningStation : AutoUnit
         _motion.Stop();
     }
 
-    public void ResetMotion()
+    public Task ResetMotionAsync(CancellationToken cancellationToken = default)
     {
-        _motion.Reset();
+        return _motion.ResetAsync(cancellationToken);
     }
 
     public void SetServo(MotionAxis axis, bool on)

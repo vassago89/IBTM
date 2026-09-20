@@ -175,6 +175,10 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
+                                    <Button Content="Grab"
+                                        Command="{Binding GrabCommand}"
+                                        Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"
+                                        ToolTip="Capture one image at the current position for preview and measurement. No taught point is required. Does not move axes or save coordinates. Use Record Position to save a teaching image and its position."/>
                                     <Button Content="Move &amp; Inspect"
                                         Command="{Binding CaptureInspectionCommand}"
                                         Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>
@@ -201,7 +205,7 @@
                                         ToolTip="Save the centered square ROI for the selected bolt or Data Matrix. Captured XY does not change."/>
                                     <ToggleButton Content="Ruler" IsChecked="{Binding IsMeasuring, UpdateSourceTrigger=PropertyChanged}"
                                         Padding="10,6" Margin="6,0,0,6"
-                                        ToolTip="Drag between two known points on the saved image to calibrate mm per pixel."/>
+                                        ToolTip="Drag between two known points on the grabbed or saved image to calibrate mm per pixel."/>
                                     <Button x:Name="ReadDataMatrixButton" Content="Read Data Matrix"
                                         Command="{Binding ReadDataMatrixCommand}"
                                         Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,6"
@@ -214,8 +218,8 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ui:ImageTeachingView x:Name="FovImageView"
-                                        Source="{Binding SelectedFov.Image}"
-                                        SourceRegion="{Binding FovRegion}"
+                                        Source="{Binding Preview.Image}"
+                                        SourceRegion="{Binding Preview.Region}"
                                         RegionCommand="{Binding DrawFovRegionCommand}"
                                         IsMeasuring="{Binding IsMeasuring}"
                                         Ruler="{Binding Ruler}" MeasureCommand="{Binding MeasureImageCommand}"
@@ -270,7 +274,7 @@
                                                 </Button.Style>
                                             </Button>
                                         </WrapPanel>
-                                        <TextBlock Text="Updates both heat sinks' saved bolt coordinates from their ROIs. Capture XY and ROIs stay fixed. Turn Ruler off to resize the ROI."
+                                        <TextBlock Text="Saves mm per pixel only. Recorded coordinates and ROIs stay fixed. Turn Ruler off to resize a saved ROI."
                                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
                                     </StackPanel>
                                     <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"
@@ -285,7 +289,7 @@
                                         Text="ROI: centered square, size only. Align the bolt or Data Matrix with the live crosshair before capturing."
                                         TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}">
-                                        <Run Text="Capture XY · "/><Run Text="{Binding SelectedFov.Metadata.Center.X, Mode=OneWay, StringFormat={}{0:F3}}"/>
+                                        <Run Text="Recorded XY · "/><Run Text="{Binding SelectedFov.Metadata.Center.X, Mode=OneWay, StringFormat={}{0:F3}}"/>
                                         <Run Text=", "/><Run Text="{Binding SelectedFov.Metadata.Center.Y, Mode=OneWay, StringFormat={}{0:F3}}"/>
                                         <Run Text=" mm · Resizing saves when the selected target is ready"/>
                                     </TextBlock>

@@ -1375,12 +1375,14 @@ public sealed partial class MachineLifecycleTests
         Assert.False(state.Faulted);
         Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
+        await WaitUntilAsync(() => state.Ready);
         Assert.True(state.Ready);
         await WaitUntilAsync(() => state.ManualControlsEnabled);
 
         probes[group].Motion.SetServo(MotionAxis.X, false);
         await WaitUntilAsync(() => machine.IsResetAllowed);
         await machine.ResetAsync();
+        await WaitUntilAsync(() => state.Ready);
         Assert.True(state.Ready);
         Assert.Equal(1, probes[group].ResetCalls);
 
@@ -1416,6 +1418,29 @@ public sealed partial class MachineLifecycleTests
             probes.Where(item => item.Key != group),
             item => Assert.Equal(0, item.Value.HardwareCalls));
         Assert.Equal(MachineAlarm.None, state.Alarm);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ResetDoesNotClearMachineAlarmWhenMotionFeedbackRemainsFaulted(bool alarmRemains)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var probe = probes[MotionGroup.PcbSupply];
+        await machine.InitializeAsync();
+        probe.OverrideState = feedback => feedback with { Alarm = alarmRemains, ServoOn = alarmRemains };
+        await WaitUntilAsync(() => machine.IsResetAllowed);
+
+        await machine.ResetAsync();
+
+        Assert.Equal(1, probe.ResetCalls);
+        Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        Assert.Contains("not confirmed by hardware feedback", state.AlarmDetail);
+        Assert.False(state.Ready);
     }
 
     [Fact]

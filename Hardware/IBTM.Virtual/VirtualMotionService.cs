@@ -171,10 +171,12 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         return true;
     }
 
-    protected override void ResetAlarm()
+    protected override Task ResetAlarmAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         Array.Clear(_alarm);
         PublishStateChanged();
+        return Task.CompletedTask;
     }
 
     public void Dispose()

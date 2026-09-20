@@ -203,9 +203,9 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
         _motion.Stop();
     }
 
-    public void ResetMotion()
+    public Task ResetMotionAsync(CancellationToken cancellationToken = default)
     {
-        _motion.Reset();
+        return _motion.ResetAsync(cancellationToken);
     }
 
     public void SetServo(MotionAxis axis, bool on)
