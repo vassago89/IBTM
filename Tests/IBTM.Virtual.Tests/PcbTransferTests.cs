@@ -406,7 +406,7 @@ public sealed class PcbTransferTests
         };
         void StopBeforePlacementLifts(string message)
         {
-            if (message.StartsWith("PcbSupplier: WaitingForPlacementZ ", StringComparison.Ordinal))
+            if (message.StartsWith($"PcbSupplier: {nameof(PcbSupplyState.WaitingForPlacementClear)} ", StringComparison.Ordinal))
                 released.Cancel();
         }
         supplier.Trace += StopBeforePlacementLifts;
@@ -415,7 +415,7 @@ public sealed class PcbTransferTests
         Assert.Equal(new[] { OutputIo.PcbSupplyIpmFixerForward, OutputIo.PcbSupplyGripperClosed }, order);
         Assert.True(source.PcbReleased);
         Assert.Equal((50, 10, supplySettings.HandoffPosition.Z), supplyMotion.GetPosition());
-        Assert.Equal(PcbSupplyState.WaitingForPlacementZ, supplier.State);
+        Assert.Equal(PcbSupplyState.WaitingForPlacementClear, supplier.State);
         Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.State);
         io.SetInput(InputIo.PcbSupplyGripperClosed, true); // Both endpoints ON is not released.
         Assert.False(source.PcbReleased);
@@ -454,7 +454,7 @@ public sealed class PcbTransferTests
         var returnAllowed = false;
         void ObserveReturn(string message)
         {
-            if (message.StartsWith($"PcbSupplier: {nameof(PcbSupplyState.WaitingForPlacementZ)} ", StringComparison.Ordinal))
+            if (message.StartsWith($"PcbSupplier: {nameof(PcbSupplyState.WaitingForPlacementClear)} ", StringComparison.Ordinal))
                 waitedForZ = true;
             if (message.StartsWith($"PcbSupplier: {nameof(PcbSupplyState.MovingToPickup)} ", StringComparison.Ordinal))
             {

@@ -221,7 +221,7 @@ public partial class OperationViewModel
                     return HandlerDisplayState.Stopped;
                 case true when Supply.IsAtHandoff(live: false):
                     return Supply.PcbReleased
-                        ? HandlerDisplayState.WaitingForPlacementZ
+                        ? HandlerDisplayState.WaitingForPlacementClear
                         : HandlerDisplayState.WaitingForPlacement;
                 case true when Supply.PcbSecured:
                     return HandlerDisplayState.Working;

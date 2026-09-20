@@ -158,7 +158,7 @@ public sealed partial class PcbSupplier
         {
             RepeatState = PcbSupplyState.HandingOff;
             await ReleasePcbAsync(placement, cancellationToken);
-            RepeatState = PcbSupplyState.WaitingForPlacementZ;
+            RepeatState = PcbSupplyState.WaitingForPlacementClear;
             while (placement.Handoff != PcbPlacementHandoff.Clear)
                 await WaitForChangeAsync(cancellationToken);
         }
@@ -188,7 +188,7 @@ public sealed partial class PcbSupplier
             operation.Token.ThrowIfCancellationRequested();
             if (_units.PcbPlacement)
             {
-                RepeatState = PcbSupplyState.WaitingForPlacementZ;
+                RepeatState = PcbSupplyState.WaitingForPlacementClear;
                 while (placement.Handoff != PcbPlacementHandoff.Clear)
                     await WaitForChangeAsync(operation.Token);
             }

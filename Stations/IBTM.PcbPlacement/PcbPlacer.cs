@@ -10,18 +10,15 @@ namespace IBTM.PcbPlacement;
 
 public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 {
-    private readonly IPcbSupplyHandoff _supply;
-    private readonly RecipeManager _recipes;
-    private readonly PcbPlacementWork _work;
-    private readonly UnitSettings _units;
-    private HeatSinkSlot[]? _runTargets;
-    // Down before release and Down after pressing have identical IO feedback.
-    // Keep the press target only while this run owns the operation.
-    private HeatSinkSlot? _pressingHeatSink;
-
     private readonly IXyMotion _motion;
     private readonly IIoService _io;
     private readonly PcbPlacementHandlerSettings _settings;
+    private readonly IPcbSupplyHandoff _supply;
+    private readonly PcbPlacementWork _work;
+    private readonly RecipeManager _recipes;
+    private readonly UnitSettings _units;
+
+    private HeatSinkSlot[]? _runTargets;
 
     public PcbPlacer(
         IXyMotion motion,
@@ -347,9 +344,15 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 if (HandlerRaised && IpmLift == PlacementCylinderState.Up
                     && IsAtReceivePosition() && PcbSecured)
                 {
-                    return trip.State == PcbPlacementState.ReceivingPcb ? PcbPlacementHandoff.Returning
-                        : trip.State == PcbPlacementState.WaitingForSupply ? PcbPlacementHandoff.Holding
-                        : PcbPlacementHandoff.Unavailable;
+                    switch (trip.State)
+                    {
+                        case PcbPlacementState.ReceivingPcb:
+                            return PcbPlacementHandoff.Returning;
+                        case PcbPlacementState.WaitingForSupply:
+                            return PcbPlacementHandoff.Holding;
+                        default:
+                            return PcbPlacementHandoff.Unavailable;
+                    }
                 }
                 return HandlerRaised && IsAtHorizontalZ()
                     && IsAtY(GetHeatSinkPosition(trip.HeatSink))
@@ -443,7 +446,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         finally
         {
             _runTargets = null;
-            _pressingHeatSink = null;
             _repeatTrip = null;
             _repeat = false;
         }
@@ -490,12 +492,14 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 var target = carryingPcb
                     ? heatSink!.Value
                     : GetCurrentHeatSink()!.Value;
+                // Presence is required through placement/press completion, until retraction.
+                var checkingPcbPresence = false;
                 using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 void CheckPlacementFeedback()
                 {
                     if (!_work.Station.CarrierSeated || !ReferenceEquals(job, _work.CurrentJob)
                         || carryingPcb && !PcbSecured
-                        || _pressingHeatSink == target && Pcb == PlacementPcbState.None)
+                        || checkingPcbPresence && Pcb == PlacementPcbState.None)
                         operation.Cancel();
                 }
                 Changed += CheckPlacementFeedback;
@@ -515,7 +519,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                             await MoveAxisAsync(MotionAxis.Z, position.Z, operation.Token);
                         }
                         await SetLiftDownAsync(true, operation.Token);
-                        _pressingHeatSink = null;
                         if (_repeatTrip is { } releasing)
                             releasing.State = PcbPlacementState.PreparingPlacement;
                         // Grip is no longer required after confirmed placement descent.
@@ -523,22 +526,16 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         await SetVacuumAsync(false, operation.Token);
                     }
 
-                    if (_pressingHeatSink != target)
-                    {
-                        await SetIpmLiftDownAsync(false, operation.Token);
-                        _pressingHeatSink = target;
-                    }
+                    await SetIpmLiftDownAsync(false, operation.Token);
+                    checkingPcbPresence = true;
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
-                    if (_pressingHeatSink != target || !_work.Station.CarrierSeated
-                        || Pcb == PlacementPcbState.None)
-                        throw new InvalidOperationException("The placement carrier changed or lost seating before the PCB press.");
                     if (!_repeat)
                         await SetIpmLiftDownAsync(true, operation.Token);
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
                     _work.GetAssembly(job, target);
-                    _pressingHeatSink = null;
+                    checkingPcbPresence = false;
                     _repeatTrip = null;
                     await SetIpmLiftDownAsync(false, operation.Token);
                     await SetLiftDownAsync(false, operation.Token);
@@ -715,7 +712,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     private void OnCarrierChanged(bool present)
     {
-        _pressingHeatSink = null;
         _runTargets = null;
     }
 

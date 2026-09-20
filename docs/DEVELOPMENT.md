@@ -374,7 +374,7 @@ Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고,
 | PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceAsync`의 `switch (state)` | `heatSink`, `state`; 반환값 `false`이면 피드백 대기 |
 | 공급 진입 또는 안착 인수 Z 이동이 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `HandingOff`이면 수취 Z로 이동, Placement `WaitingForSupplyRelease`이면 해제; 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
-| 인수 후 Z/Y 이탈 또는 Supply 복귀가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacementZ`이면 Placement가 대기 Z → 히트싱크 Y로 이동; Y 도착 후 `Clear` 확인하고 Supply 복귀 |
+| 인수 후 Z/Y 이탈 또는 Supply 복귀가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacementClear`이면 Placement가 대기 Z → 히트싱크 Y로 이동; Y 도착 후 `Clear` 확인하고 Supply 복귀 |
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeederUnit.RunAsync` | `state`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `BoltFeederUnit.SetFeeding` |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
 | Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync` | `transferState`, `inspectionState`, `bolt`; 이송 또는 검사가 준비되지 않으면 피드백 대기 |
@@ -429,7 +429,7 @@ XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2 X와 C
 별도 Clear Z나 복귀 좌표는 없다. 시작 시 SMEMA가 없으면 PCB 1 XY·Rotation Z까지 이동해 대기한다.
 기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Handoff`의 XYZ를 확인하고 `Save`로 저장한다.
 Placement는 `PCB Receive Standby`에서 기다리다가 실린더 Up 상태로 `PCB Receive Z`까지 내려가
-PCB 감지·진공·그리퍼를 확인한다. Supply 해제 후 대기 Z → 선택한 히트싱크 Y 순서로 이동하며 X는 인계 위치를 유지한다.
+PCB 감지·진공을 확인한다. Supply 해제 후 대기 Z → 선택한 히트싱크 Y 순서로 이동하며 X는 인계 위치를 유지한다.
 Y 도착 후 기존 상태를 전환하고 Supply에 `Clear`를 전달한다. 그 뒤 히트싱크 X·안착 Z로 이동한다.
 캐리어 도착 전 선행 수취한 PCB는 Heat Sink 1 Y에서 대기한다. Repeat의 정·역인계 이탈도 같은 Z → Y 순서를 쓴다.
 `PCB Receive Z`는 티칭 시 자동 저장되며 기존 대기 XYZ와 별개다. 미티칭이면 수취 Z 이동을 시작하지 않는다.
@@ -439,9 +439,10 @@ Y 도착 후 기존 상태를 전환하고 Supply에 `Clear`를 전달한다. �
 상세 순서는 [Placement 동작](../Stations/IBTM.PcbPlacement/DESIGN.md)을 따른다.
 
 PCB 안착의 XY 이동은 `PcbPlacer.MoveToXYAsync`, Z 이동은 `MoveAxisAsync`에서
-장치 호출로 이어진다. 같은 Down 센서값으로 압입 전후를 구별할 수 없으므로
-`_pressingHeatSink`는 현재 실행 안에서만 압입 대상을 보관한다. `RunAsync` 종료 시 압입 대상,
-Repeat PCB 왕복 단계와 실행 대상을 버린다. 현재 캐리어·IPM·그리퍼 피드백 확인은 유지한다.
+장치 호출로 이어진다. 안착·일반 운전의 압입·상승은 `PlaceAsync` 한 호출 안에서 실행한다.
+PCB 존재 확인은 완료 기록 전까지 해당 호출의 지역 변수로 관리하며, 별도 압입 대상·단계는 저장하지 않는다.
+현재 캐리어 작업과 착좌·PCB·진공 피드백은 계속 확인한다. `RunAsync` 종료 시 Repeat PCB 왕복 단계와
+실행 대상을 버리고, 다음 START는 현재 피드백과 캐리어별 완료 결과로 동작을 고른다.
 
 STOP 자체는 새 START를 차단하거나 전체 장비 비움을 요구하지 않는다.
 정상 착좌된 캐리어는 그대로 두고 현재 I/O·작업 완료·인터록으로 다음 동작을 판단한다.

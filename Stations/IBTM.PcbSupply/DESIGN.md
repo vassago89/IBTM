@@ -100,7 +100,7 @@ same recipient checks before each actuator instead of preparing reverse receipt.
 After release, Placement returns Z
 to standby with its handler cylinder still Up, then moves Y to the selected heat sink while retaining handoff X.
 Supply waits for Placement's `Clear` after that Y move before its XY return.
-The existing `WaitingForPlacementZ` state also owns this Y departure wait.
+`WaitingForPlacementClear` covers this Z/Y departure wait until Placement publishes `Clear`.
 `HandingOff` owns both the wait for Placement holding and the fixer/gripper release;
 there is no separate release state. Interrupted release still requires confirmed recipient holding.
 

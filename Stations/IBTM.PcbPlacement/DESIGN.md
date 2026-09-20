@@ -32,9 +32,11 @@ The handler cannot be commanded Down while an axis moves. Actual arrival,
 seated-carrier and holding/release feedback remain in use. Supply area departure
 and relative handler positions do not gate this sequence.
 
-The press target belongs only to the current run because the Down inputs before
-and after pressing are identical. STOP discards this history. `PcbPlacer.Repeat.cs`
-uses the existing `PcbPlacementState` values and picks PCBs from the existing carrier.
+Placement, optional pressing and retraction run in one `PlaceAsync` operation.
+Its local feedback check requires PCB presence through completion, then permits
+the sensor to clear during retraction. There is no stored press target or resumable
+press phase. `PcbPlacer.Repeat.cs` uses the existing `PcbPlacementState` values and
+picks PCBs from the existing carrier.
 With Supply disabled, it visits handoff and places each PCB back on its heat sink.
 With Supply enabled, `ReturningPcb` identifies the original heat sink and `Returning`
 confirms a held PCB at Receive Z. Supply secures it before Placement releases and

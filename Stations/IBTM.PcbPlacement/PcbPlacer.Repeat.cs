@@ -48,20 +48,15 @@ public sealed partial class PcbPlacer
         if (!_work.Station.CarrierSeated)
             throw new InvalidOperationException("The repeat PCB carrier is no longer seated.");
 
-        if (trip.State == PcbPlacementState.PickingPcb && Pcb == PlacementPcbState.Secured)
+        if (trip.State == PcbPlacementState.PickingPcb && PcbSecured)
             trip.State = PcbPlacementState.MovingToHandoff;
 
         if (trip.State == PcbPlacementState.MovingToHandoff)
         {
-            if (Pcb != PlacementPcbState.Secured)
+            if (!PcbSecured)
                 throw new InvalidOperationException("The repeat PCB lost its holding feedback before reaching handoff.");
-            if (Lift == PlacementCylinderState.Up
-                && IsAtHorizontalZ()
-                && IsAtHandoffXY())
-            {
-                if (!_units.PcbSupply)
-                    trip.State = PcbPlacementState.PlacingPcb;
-            }
+            if (HandlerRaised && IsAtHorizontalZ() && IsAtHandoffXY() && !_units.PcbSupply)
+                trip.State = PcbPlacementState.PlacingPcb;
         }
 
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -72,7 +67,7 @@ public sealed partial class PcbPlacer
                 || !ReferenceEquals(trip.Job, _work.CurrentJob)
                 || (receiving
                     || trip.State is PcbPlacementState.MovingToHandoff or PcbPlacementState.ReceivingPcb or PcbPlacementState.PlacingPcb)
-                    && Pcb != PlacementPcbState.Secured)
+                    && !PcbSecured)
                 operation.Cancel();
         }
 
@@ -88,7 +83,6 @@ public sealed partial class PcbPlacer
                 TraceStep(trip.State, trip.HeatSink.ToString(), trip.Job.Id);
                 var pickPosition = GetHeatSinkPosition(trip.HeatSink);
                 await SetLiftDownAsync(false, operation.Token);
-                await MoveToHorizontalZAsync(operation.Token);
                 await MoveToXYAsync(pickPosition, operation.Token);
                 await MoveAxisAsync(MotionAxis.Z, pickPosition.Z, operation.Token);
                 await SetLiftDownAsync(true, operation.Token);
@@ -126,7 +120,6 @@ public sealed partial class PcbPlacer
                 if (!PcbSecured)
                 {
                     await SetLiftDownAsync(false, operation.Token);
-                    await MoveToHorizontalZAsync(operation.Token);
                     await MoveToHandoffXYAsync(operation.Token);
                     while (_supply.Handoff != PcbSupplyHandoff.Holding)
                         await WaitForChangeAsync(operation.Token);

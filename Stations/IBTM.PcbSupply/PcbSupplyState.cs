@@ -59,7 +59,7 @@ public enum PcbSupplyState
     HandingOff,
 
     [Description("Waiting for Placement Y Departure")]
-    WaitingForPlacementZ,
+    WaitingForPlacementClear,
 
     [Description("Disabled")]
     Disabled,

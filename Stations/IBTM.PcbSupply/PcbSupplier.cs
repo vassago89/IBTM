@@ -9,13 +9,13 @@ namespace IBTM.PcbSupply;
 
 public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 {
-    private readonly UnitSettings _units;
-    // Slot progress belongs only to the current run and upstream carrier.
-    private PickStep _pickStep;
-
     private readonly IXyMotion _motion;
     private readonly IIoService _io;
     private readonly PcbSupplySettings _settings;
+    private readonly UnitSettings _units;
+
+    // Slot progress belongs only to the current run and upstream carrier.
+    private PickStep _pickStep;
     // Commissioning input, kept only for this application session.
     private volatile bool _testUpstreamCarrierAvailable;
 
@@ -451,11 +451,10 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
 
         var state = State;
-        switch (state)
+        if (state == PcbSupplyState.WaitingForPlacementClear
+            && placement.Handoff == PcbPlacementHandoff.Clear)
         {
-            case PcbSupplyState.WaitingForPlacementZ when placement.Handoff == PcbPlacementHandoff.Clear:
-                state = PcbSupplyState.MovingToPickup;
-                break;
+            state = PcbSupplyState.MovingToPickup;
         }
         if (state == PcbSupplyState.WaitingForCarrier && !IsAtPickupXY(recipe.Pcb1PickPosition))
             state = PcbSupplyState.MovingToPickup;
@@ -617,13 +616,9 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             switch (true)
             {
                 case true when atHandoff && PcbReleased:
-                    return PcbSupplyState.WaitingForPlacementZ;
+                    return PcbSupplyState.WaitingForPlacementClear;
                 case true when atHandoff:
                     return PcbSupplyState.HandingOff;
-            }
-
-            switch (true)
-            {
                 case true when pcb == PcbSupplyPcbState.Secured:
                     return PcbSupplyState.MovingToHandoff;
                 case true when !IsAtRotationZ() || rotation != PcbSupplyRotationState.Rotated:
