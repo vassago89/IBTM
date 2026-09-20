@@ -195,6 +195,7 @@ public sealed partial class MachineLifecycleTests
             Y = 30,
         };
         settings.PcbPlacementHandler.Motion = FastMotion();
+        settings.PcbPlacementHandler.ReceiveZ = 12;
         settings.PcbPlacementHandler.HandoffPosition = new()
         {
             X = 80,

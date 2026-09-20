@@ -166,12 +166,11 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     public override async Task JogAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken = default,
-        bool atCurrentHeight = false)
+        CancellationToken cancellationToken = default)
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
-        ValidateJog(axis, velocity, atCurrentHeight);
+        ValidateJog(axis, velocity);
         ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
         ValidatePositive(Settings.DecelerationSeconds, nameof(Settings.DecelerationSeconds));
         var axisNumber = GetAxis(axis);
@@ -182,7 +181,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         EnsureAxisParameters(axisNumber);
         try
         {
-            BeginMotion(axis != MotionAxis.Z, adjustment: atCurrentHeight);
+            BeginMotion(axis != MotionAxis.Z, adjustment: true);
             AjinController.Check(
                 CAXM.AxmMoveVel(axisNumber, velocityInUnits, acceleration, deceleration),
                 nameof(CAXM.AxmMoveVel));

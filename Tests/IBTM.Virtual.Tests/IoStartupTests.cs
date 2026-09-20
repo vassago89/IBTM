@@ -22,6 +22,65 @@ namespace IBTM.Virtual.Tests;
 public sealed class IoStartupTests
 {
     [Theory]
+    [InlineData(OutputIo.MainConveyorRun)]
+    [InlineData(OutputIo.NgConveyorRun)]
+    public async Task ResetRechecksRunOutputsWhenAcquiredFeedbackStillSaysStopped(OutputIo output)
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        try
+        {
+            state.SetError(MachineAlarm.Inspection);
+            io.SetOutput(output, true);
+            Assert.False(state.IsRunning);
+            Assert.True(machine.IsResetAllowed); // The button sees the older acquisition.
+
+            await machine.ResetAsync();
+
+            Assert.Equal(MachineAlarm.Inspection, state.Alarm);
+            Assert.True(io.GetOutput(output)); // Initialization would stop/clear this output.
+            Assert.False(io.GetOutput(OutputIo.Buzzer)); // Acknowledgement still works.
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ResetReportsLiveOutputReadFailureWithoutClearingTheAlarm()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        var error = new IOException("RESET output read failed.");
+        try
+        {
+            state.SetError(MachineAlarm.Inspection);
+            io.OutputReadError = error;
+            await machine.ResetAsync();
+            Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+            Assert.Contains(error.Message, state.AlarmDetail);
+
+            io.OutputReadError = null;
+            await machine.ResetAsync();
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            io.OutputReadError = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
     [InlineData(BoltDriver.Io)]
     [InlineData(BoltDriver.Virtual)]
     [InlineData(BoltDriver.HantasAdc)]

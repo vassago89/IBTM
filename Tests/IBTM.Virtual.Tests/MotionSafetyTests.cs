@@ -72,8 +72,7 @@ public sealed class MotionSafetyTests
     {
         using var motion = new VirtualMotionService(
             new MotionSettings(),
-            new OperationCancellation(),
-            hasZ: false);
+            new OperationCancellation());
         motion.Initialize();
         var display = new MotionStatus(motion);
         var homed = false;
@@ -91,6 +90,7 @@ public sealed class MotionSafetyTests
         Assert.True(display.Axes[MotionAxis.X].State!.Value.Homed);
         Assert.Equal(horizontal, display.Axes[MotionAxis.Y].State!.Value.Homed);
         Assert.Equal(horizontal, display.XyHomed);
+        Assert.False(motion.GetAxisState(MotionAxis.Z).Homed);
 
         motion.SetServo(MotionAxis.X, false);
         display.RefreshMonitorFeedback();
@@ -149,7 +149,7 @@ public sealed class MotionSafetyTests
     [InlineData(null)]
     [InlineData(MotionAxis.X)]
     [InlineData(MotionAxis.Y)]
-    public async Task MotionRetractsZBeforeXyMovement(MotionAxis? axis)
+    public async Task AxisAndXyMovesKeepCurrentZ(MotionAxis? axis)
     {
         var settings = new MotionSettings { ZSpeed = 100 };
         using var motion = new VirtualMotionService(
@@ -159,15 +159,8 @@ public sealed class MotionSafetyTests
         motion.Initialize();
         await HomeAsync(motion, 1_000);
         await motion.MoveAxisAsync(MotionAxis.Z, 8, 100);
-        var movedXyBeforeZClear = false;
-        motion.PositionChanged += (x, y, z) =>
-        {
-            if ((x != 0 || y != 0)
-                && System.Math.Abs(z + 5) > MotionService.PositionToleranceMillimeters)
-            {
-                movedXyBeforeZClear = true;
-            }
-        };
+        var zChanged = false;
+        motion.PositionChanged += (_, _, z) => zChanged |= z != 8;
 
         if (axis is { } singleAxis)
             await motion.MoveAxisAsync(singleAxis, 10, 100);
@@ -176,12 +169,12 @@ public sealed class MotionSafetyTests
 
         var expected = axis switch
         {
-            MotionAxis.X => (10, 0, -5),
-            MotionAxis.Y => (0, 10, -5),
-            _ => (10, 20, -5),
+            MotionAxis.X => (10, 0, 8),
+            MotionAxis.Y => (0, 10, 8),
+            _ => (10, 20, 8),
         };
         Assert.Equal(expected, motion.GetPosition());
-        Assert.False(movedXyBeforeZClear);
+        Assert.False(zChanged);
     }
 
     [Fact]
@@ -274,11 +267,9 @@ public sealed class MotionSafetyTests
         Assert.All(pickups, point => Assert.True(supply.IsMoveToTeachingPositionAllowed(point)));
         Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));
         await Assert.ThrowsAsync<MotionInterlockException>(() => supply.MoveToHandoffAsync(default));
-        Assert.True(supply.IsAtTravelZ());
         await supply.MoveAxisAsync(MotionAxis.Z, 5);
-        Assert.False(supply.IsAtTravelZ());
         await supply.MoveAxisAsync(MotionAxis.X, 0);
-        Assert.Equal(settings.RotationZ, motion.GetPosition().Z);
+        Assert.Equal(5, motion.GetPosition().Z);
 
         var xyMovedTogether = false;
         var yMovedAtHandoff = false;
@@ -303,14 +294,12 @@ public sealed class MotionSafetyTests
         Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
         Assert.All(pickups, point => Assert.False(supply.IsMoveToTeachingPositionAllowed(point)));
         Assert.Equal(settings.RotationZ, motion.GetPosition().Z);
-        Assert.False(supply.IsAtTravelZ());
         await supply.MoveAxisAsync(MotionAxis.Z, 5);
         await supply.MoveToTeachingPositionAsync(handoff, new() { X = 20, Y = 15, Z = 7 });
 
         Assert.True(xyMovedTogether);
         Assert.False(movedAtWrongZ);
         Assert.Equal((20, 15, settings.HandoffPosition.Z), motion.GetPosition());
-        Assert.True(supply.IsAtTravelZ());
         Assert.Equal(TeachMode.Full, handoff.Mode);
 
         await supply.MoveAxisAsync(MotionAxis.Y, 14);
@@ -327,7 +316,6 @@ public sealed class MotionSafetyTests
         io.SetInput(InputIo.PcbSupplyRotated, true); // Both inputs ON is unknown.
         Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));
         Assert.All(pickups, point => Assert.False(supply.IsMoveToTeachingPositionAllowed(point)));
-        Assert.False(supply.IsAtTravelZ());
     }
 
     private static VirtualIoService CreateIo()

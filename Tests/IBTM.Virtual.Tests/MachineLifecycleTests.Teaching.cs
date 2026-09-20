@@ -27,6 +27,55 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Theory]
+    [InlineData(MotionGroup.PcbSupply, HardwareArea.PcbSupply, MachineUnit.PcbSupply)]
+    [InlineData(MotionGroup.PcbPlacementHandler, HardwareArea.PcbPlacementHandler, MachineUnit.PcbPlacement)]
+    public async Task TeachingHandlerJogAndStepKeepCurrentZ(
+        MotionGroup group, HardwareArea area, MachineUnit unit)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(unit);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(group);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        teaching.SelectedTeachingUnit = area;
+        await motion.MoveAxisAsync(MotionAxis.Z, 7, 1_000);
+        try
+        {
+            await WaitUntilAsync(() => teaching.Motion.Position.Z == 7
+                && teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+            Assert.Equal(TeachingMotionHint.None, teaching.MotionHint);
+            var before = motion.GetPosition();
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+            Assert.Equal(before.X + teaching.StepDistance, motion.GetPosition().X, 3);
+            Assert.Equal(before.Y, motion.GetPosition().Y);
+            Assert.Equal(7, motion.GetPosition().Z);
+
+            await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.YPlus));
+            var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.YPlus);
+            try
+            {
+                await WaitUntilAsync(() => motion.GetPosition().Y > before.Y);
+                Assert.Equal(7, motion.GetPosition().Z);
+            }
+            finally
+            {
+                teaching.JogStopCommand.Execute(null);
+                await jog.WaitAsync(TimeSpan.FromSeconds(2));
+            }
+            Assert.False(motion.IsMoving);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task TeachingHomeUsesSharedAxesAndCancelsTheWholeUnit(bool stopButton)
@@ -750,10 +799,11 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task PlacementHandoffTeachingRequiresXyzHomeAndKeepsTheCommonZStaged()
+    public async Task PlacementTeachingStagesStandbyAndSavesReceiveZSeparately()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.PcbPlacementHandler.ReceiveZ = null;
         await using var services = CreateMotionScopeServices(settings, out var probes);
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -773,13 +823,24 @@ public sealed partial class MachineLifecycleTests
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(originalZ, settings.PcbPlacementHandler.HandoffPosition.Z);
 
-            // The common Z is part of the receiving XYZ, so teaching requires all three axes.
+            // Standby XYZ requires all three axes; Receive Z only needs Z.
             Assert.True(await placement.HomeAxisAsync(MotionAxis.Z));
             Assert.False(placement.Feedback.GetAxisState(MotionAxis.X).Homed);
             await placement.MoveAxisAsync(MotionAxis.Z, 7);
             Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(originalZ, handoff.Z);
+
+            var receive = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementReceiveZ);
+            teaching.SelectedPoint = receive;
+            Assert.False(receive.Position.HasPosition);
+            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Equal(7, settings.PcbPlacementHandler.ReceiveZ);
+            Assert.Equal(7, services.GetRequiredService<MachineStore>().LoadSettings()
+                .Get<PcbPlacementHandlerSettings>().ReceiveZ);
+            Assert.Equal(originalZ, settings.PcbPlacementHandler.HandoffPosition.Z);
+            teaching.SelectedPoint = handoff;
 
             await placement.MoveToHorizontalZAsync();
             Assert.True(await placement.HomeHorizontalAsync());
@@ -835,8 +896,8 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(wasRotated ? PcbSupplyRotationState.Unrotated : PcbSupplyRotationState.Rotated, handler.Rotation);
         await rotation.ToggleOutputCommand.ExecuteAsync(null);
         await handler.MoveAxisAsync(MotionAxis.X, 80);
-        await WaitUntilAsync(() => !rotation.ToggleOutputCommand.CanExecute(null));
-        await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
+        await WaitUntilAsync(() => rotation.ToggleOutputCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
         await handler.MoveAxisAsync(MotionAxis.X, 0);
         io.AutoResponseEnabled = false;
         await WaitUntilAsync(() => gripper.ToggleOutputCommand.CanExecute(null));
@@ -1482,7 +1543,7 @@ public sealed partial class MachineLifecycleTests
         await gantry.AdjustAxisAsync(MotionAxis.X, 201, 10_000);
         using var jogStop = new CancellationTokenSource();
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
-        var beyondOldMaximum = motion.JogAsync(MotionAxis.X, 10, jogStop.Token, atCurrentHeight: true);
+        var beyondOldMaximum = motion.JogAsync(MotionAxis.X, 10, jogStop.Token);
         await WaitUntilAsync(() => gantry.Feedback.GetPosition().X > 201.1);
         jogStop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => beyondOldMaximum);

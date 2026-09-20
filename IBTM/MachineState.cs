@@ -106,16 +106,13 @@ public sealed class MachineState : INotifyPropertyChanged
         foreach (var motion in feedback.Motions.Values)
             motion.Feedback.StateChanged += OnMotionStateChanged;
         operations.ActivityChanged += NotifyChanged;
-        feedback.Changed += OnFeedbackChanged;
+        feedback.ReadinessChanged += OnMotionReadinessChanged;
+        feedback.ReadErrorChanged += OnReadErrorChanged;
         feedback.Io.PropertyChanged += OnFeedbackPropertyChanged;
         feedback.Io.Outputs[OutputIo.MainConveyorRun].PropertyChanged += OnFeedbackPropertyChanged;
         feedback.Io.Outputs[OutputIo.NgConveyorRun].PropertyChanged += OnFeedbackPropertyChanged;
         foreach (var motion in feedback.Motions.Values)
-        {
             motion.PropertyChanged += OnMotionPropertyChanged;
-            foreach (var axis in motion.Axes.Values)
-                axis.PropertyChanged += OnFeedbackPropertyChanged;
-        }
     }
 
     public event Action? Changed;
@@ -130,13 +127,18 @@ public sealed class MachineState : INotifyPropertyChanged
                 return;
             field = value;
             PropertyChanged?.Invoke(this, new(nameof(RepeatEnabled)));
-            OnFeedbackChanged();
         }
     }
 
-    public bool Available => _io.IsReady && ReadError is null
-        && _feedback.Io.Outputs[OutputIo.MainConveyorRun].IsOn is not null
-        && _feedback.Io.Outputs[OutputIo.NgConveyorRun].IsOn is not null;
+    public bool Available
+    {
+        get
+        {
+            return _io.IsReady && ReadError is null
+                && _feedback.Io.Outputs[OutputIo.MainConveyorRun].IsOn is not null
+                && _feedback.Io.Outputs[OutputIo.NgConveyorRun].IsOn is not null;
+        }
+    }
 
     public Exception? ReadError => _feedback.ReadError;
 
@@ -249,9 +251,15 @@ public sealed class MachineState : INotifyPropertyChanged
     public string? AlarmDetail { get; private set; }
     public string? AlarmMessage { get; private set; }
 
-    public bool IsRunning => IsRunningFor(
-        _feedback.Io.Outputs[OutputIo.MainConveyorRun].IsOn == true,
-        _feedback.Io.Outputs[OutputIo.NgConveyorRun].IsOn == true);
+    public bool IsRunning
+    {
+        get
+        {
+            return IsRunningFor(
+                _feedback.Io.Outputs[OutputIo.MainConveyorRun].IsOn == true,
+                _feedback.Io.Outputs[OutputIo.NgConveyorRun].IsOn == true);
+        }
+    }
 
     public ManualControlBlock ManualBlock => GetManualBlock(FeedbackReadiness, IsRunning);
 
@@ -337,33 +345,67 @@ public sealed class MachineState : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(null));
     }
 
-    private void OnFeedbackChanged()
+    private void OnMotionReadinessChanged()
     {
-        PropertyChanged?.Invoke(this, new(nameof(Available)));
-        PropertyChanged?.Invoke(this, new(nameof(ReadError)));
         PropertyChanged?.Invoke(this, new(nameof(Homed)));
         PropertyChanged?.Invoke(this, new(nameof(ServosOn)));
         PropertyChanged?.Invoke(this, new(nameof(Faulted)));
         PropertyChanged?.Invoke(this, new(nameof(ServoPowerOn)));
-        PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
-        PropertyChanged?.Invoke(this, new(nameof(ManualBlock)));
+        PropertyChanged?.Invoke(this, new(nameof(Ready)));
+        NotifyManualControlsChanged();
+    }
+
+    private void OnReadErrorChanged()
+    {
+        PropertyChanged?.Invoke(this, new(nameof(ReadError)));
+        NotifyAvailabilityChanged();
+    }
+
+    private void NotifyAvailabilityChanged()
+    {
+        PropertyChanged?.Invoke(this, new(nameof(Available)));
+        PropertyChanged?.Invoke(this, new(nameof(Ready)));
         PropertyChanged?.Invoke(this, new(nameof(ManualControlsEnabled)));
         PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
-        PropertyChanged?.Invoke(this, new(nameof(SetupEditingEnabled)));
+    }
+
+    private void NotifyManualControlsChanged()
+    {
+        PropertyChanged?.Invoke(this, new(nameof(ManualBlock)));
+        PropertyChanged?.Invoke(this, new(nameof(ManualControlsEnabled)));
     }
 
     private void OnFeedbackPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (sender is AxisStatus && e.PropertyName != nameof(AxisStatus.State)
-            || sender is IoOutputStatus && e.PropertyName != nameof(IoOutputStatus.IsOn))
+        if (sender is IoOutputStatus && e.PropertyName != nameof(IoOutputStatus.IsOn))
             return;
-        OnFeedbackChanged();
+        NotifyAvailabilityChanged();
+        if (sender is IoSignals)
+        {
+            PropertyChanged?.Invoke(this, new(nameof(ReadError)));
+            PropertyChanged?.Invoke(this, new(nameof(EmergencyStopReleased)));
+            PropertyChanged?.Invoke(this, new(nameof(DoorClosed)));
+            PropertyChanged?.Invoke(this, new(nameof(AirPressureOk)));
+            PropertyChanged?.Invoke(this, new(nameof(ServoMainContactorOn)));
+            PropertyChanged?.Invoke(this, new(nameof(ServoPowerOn)));
+            PropertyChanged?.Invoke(this, new(nameof(SafetyReady)));
+            PropertyChanged?.Invoke(this, new(nameof(AutoMode)));
+            PropertyChanged?.Invoke(this, new(nameof(ManualMode)));
+            PropertyChanged?.Invoke(this, new(nameof(DoorInterlockReady)));
+            PropertyChanged?.Invoke(this, new(nameof(SetupEditingEnabled)));
+        }
+        PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
+        NotifyManualControlsChanged();
     }
 
     private void OnMotionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MotionStatus.IsMoving))
-            OnFeedbackChanged();
+        {
+            PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
+            PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
+            NotifyManualControlsChanged();
+        }
     }
 
     private void OnMotionStateChanged()
@@ -390,7 +432,9 @@ public sealed class MachineState : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(nameof(Alarm)));
         PropertyChanged?.Invoke(this, new(nameof(AlarmDetail)));
         PropertyChanged?.Invoke(this, new(nameof(AlarmMessage)));
-        NotifyChanged();
+        PropertyChanged?.Invoke(this, new(nameof(IsError)));
+        Changed?.Invoke();
+        NotifyManualControlsChanged();
     }
 
     internal void ClearError()
@@ -403,13 +447,18 @@ public sealed class MachineState : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(nameof(Alarm)));
         PropertyChanged?.Invoke(this, new(nameof(AlarmDetail)));
         PropertyChanged?.Invoke(this, new(nameof(AlarmMessage)));
-        NotifyChanged();
+        PropertyChanged?.Invoke(this, new(nameof(IsError)));
+        Changed?.Invoke();
+        NotifyManualControlsChanged();
     }
 
     private void NotifyChanged()
     {
         Changed?.Invoke();
-        OnFeedbackChanged();
+        PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
+        PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
+        PropertyChanged?.Invoke(this, new(nameof(SetupEditingEnabled)));
+        NotifyManualControlsChanged();
     }
 
     internal static bool IsSafetyInput(InputIo input)
@@ -431,12 +480,33 @@ public sealed class MachineState : INotifyPropertyChanged
         if (input == InputIo.ServoMainContactorOn || IsSafetyInput(input))
         {
             Changed?.Invoke();
-            OnFeedbackChanged();
-            PropertyChanged?.Invoke(this, new(nameof(SafetyReady)));
-            PropertyChanged?.Invoke(this, new(nameof(EmergencyStopReleased)));
-            PropertyChanged?.Invoke(this, new(nameof(DoorClosed)));
-            PropertyChanged?.Invoke(this, new(nameof(AirPressureOk)));
-            PropertyChanged?.Invoke(this, new(nameof(AutoMode)));
+            switch (input)
+            {
+                case InputIo.ServoMainContactorOn:
+                    PropertyChanged?.Invoke(this, new(nameof(ServoMainContactorOn)));
+                    PropertyChanged?.Invoke(this, new(nameof(ServoPowerOn)));
+                    PropertyChanged?.Invoke(this, new(nameof(Ready)));
+                    break;
+                case InputIo.EmergencyStop1Pressed or InputIo.EmergencyStop2Pressed:
+                    PropertyChanged?.Invoke(this, new(nameof(EmergencyStopReleased)));
+                    PropertyChanged?.Invoke(this, new(nameof(SafetyReady)));
+                    break;
+                case InputIo.AirPressureHigh:
+                    PropertyChanged?.Invoke(this, new(nameof(AirPressureOk)));
+                    PropertyChanged?.Invoke(this, new(nameof(SafetyReady)));
+                    break;
+                case InputIo.AutoMode:
+                    PropertyChanged?.Invoke(this, new(nameof(AutoMode)));
+                    PropertyChanged?.Invoke(this, new(nameof(ManualMode)));
+                    PropertyChanged?.Invoke(this, new(nameof(DoorInterlockReady)));
+                    PropertyChanged?.Invoke(this, new(nameof(SetupEditingEnabled)));
+                    break;
+                default:
+                    PropertyChanged?.Invoke(this, new(nameof(DoorClosed)));
+                    PropertyChanged?.Invoke(this, new(nameof(DoorInterlockReady)));
+                    break;
+            }
+            NotifyManualControlsChanged();
         }
         PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
     }

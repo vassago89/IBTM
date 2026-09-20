@@ -57,8 +57,7 @@ public interface IAxisMotion : IMotionFeedback
     Task JogAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken = default,
-        bool atCurrentHeight = false);
+        CancellationToken cancellationToken = default);
     void Reset();
     void SetServo(MotionAxis axis, bool on);
 }
@@ -75,8 +74,7 @@ public interface IXyMotion : IAxisMotion
         double x,
         double y,
         double velocity,
-        CancellationToken cancellationToken = default,
-        double? travelZ = null);
+        CancellationToken cancellationToken = default);
     Task<bool> HomeHorizontalAsync(double velocity, CancellationToken cancellationToken = default);
 }
 
@@ -179,11 +177,13 @@ public abstract class MotionService : IXyMotion
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         ValidatePositive(Settings.HorizontalSpeed, nameof(Settings.HorizontalSpeed));
+        ValidatePositive(Settings.ZSpeed, nameof(Settings.ZSpeed));
         EnsureHasY();
+        EnsureHasZ();
         ValidateTarget(MotionAxis.X, x);
         ValidateTarget(MotionAxis.Y, y);
         ValidateTarget(MotionAxis.Z, z);
-        await MoveToHorizontalZAsync(cancellationToken);
+        EnsureStopped();
         await MoveXYAsync(x, y, Settings.HorizontalSpeed, cancellationToken);
         await MoveAsync(MotionAxis.Z, z, Settings.ZSpeed, cancellationToken);
     }
@@ -205,15 +205,7 @@ public abstract class MotionService : IXyMotion
             throw new ArgumentOutOfRangeException(nameof(axis));
 
         ValidateTarget(axis, position);
-        if (axis != MotionAxis.Z && HasZ)
-        {
-            await MoveToHorizontalZAsync(cancellationToken);
-        }
-        else
-        {
-            EnsureStopped();
-        }
-
+        EnsureStopped();
         await MoveAsync(axis, position, velocity, cancellationToken);
     }
 
@@ -221,8 +213,7 @@ public abstract class MotionService : IXyMotion
         double x,
         double y,
         double velocity,
-        CancellationToken cancellationToken = default,
-        double? travelZ = null)
+        CancellationToken cancellationToken = default)
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
@@ -230,15 +221,7 @@ public abstract class MotionService : IXyMotion
         EnsureHasY();
         ValidateTarget(MotionAxis.X, x);
         ValidateTarget(MotionAxis.Y, y);
-        if (HasZ)
-        {
-            await MoveToHorizontalZAsync(cancellationToken, travelZ);
-        }
-        else
-        {
-            EnsureStopped();
-        }
-
+        EnsureStopped();
         await MoveXYAsync(x, y, velocity, cancellationToken);
     }
 
@@ -265,10 +248,9 @@ public abstract class MotionService : IXyMotion
     public abstract Task JogAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken = default,
-        bool atCurrentHeight = false);
+        CancellationToken cancellationToken = default);
 
-    protected void ValidateJog(MotionAxis axis, double velocity, bool atCurrentHeight)
+    protected void ValidateJog(MotionAxis axis, double velocity)
     {
         if (axis is not (MotionAxis.X or MotionAxis.Y or MotionAxis.Z))
             throw new ArgumentOutOfRangeException(nameof(axis));
@@ -278,8 +260,6 @@ public abstract class MotionService : IXyMotion
         if (axis == MotionAxis.Z)
             EnsureHasZ();
         EnsureStopped();
-        if (axis != MotionAxis.Z && !atCurrentHeight)
-            EnsureHorizontalZ();
     }
 
     public abstract void SetServo(MotionAxis axis, bool on);
@@ -302,8 +282,6 @@ public abstract class MotionService : IXyMotion
 
         ValidatePositive(velocity, nameof(velocity));
         EnsureStopped();
-        if (axis != MotionAxis.Z)
-            EnsureZHomed();
 
         return await HomeAxesAsync([axis], velocity, cancellationToken);
     }
@@ -316,7 +294,6 @@ public abstract class MotionService : IXyMotion
         cancellationToken = operation.Token;
         ValidatePositive(velocity, nameof(velocity));
         EnsureStopped();
-        EnsureZHomed();
         MotionAxis[] axes = HasY ? [MotionAxis.X, MotionAxis.Y] : [MotionAxis.X];
         return await HomeAxesAsync(axes, velocity, cancellationToken);
     }
@@ -386,21 +363,6 @@ public abstract class MotionService : IXyMotion
         }
     }
 
-    private void EnsureZHomed()
-    {
-        if (HasZ && !GetAxisState(MotionAxis.Z).Homed)
-            throw new MotionInterlockException("Home Z before homing X/Y.");
-    }
-
-    private void EnsureHorizontalZ()
-    {
-        if (!IsAtHorizontalZ)
-        {
-            throw new MotionInterlockException(
-                $"Horizontal movement requires homed Z at {HorizontalZ:F3}.");
-        }
-    }
-
     private void EnsureHasY()
     {
         if (!HasY)
@@ -420,10 +382,9 @@ public abstract class MotionService : IXyMotion
     private void EnsureStopped()
     {
         if (Volatile.Read(ref _activeMotions) > 0
-            || IsMoving
-            || Axes.Any(axis => !GetAxisState(axis).InPosition))
+            || IsMoving)
         {
-            throw new MotionInterlockException("Wait for all axes to stop and confirm InPosition before moving.");
+            throw new MotionInterlockException("Wait for all axes to stop before moving.");
         }
     }
 

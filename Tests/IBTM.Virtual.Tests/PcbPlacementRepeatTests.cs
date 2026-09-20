@@ -162,6 +162,7 @@ public sealed class PcbPlacementRepeatTests
             {
                 Motion = motion,
                 HandoffPosition = new() { X = 50, Y = 10, Z = 8 },
+                ReceiveZ = 12,
             };
             var supplySettings = new PcbSupplySettings { Motion = motion };
             Io = new(
@@ -171,7 +172,7 @@ public sealed class PcbPlacementRepeatTests
             _supplyMotion = VirtualTest.Motion(motion, new());
             var simulation = new VirtualMachine(Io, [], incomingCarrierHasPcbs: () => loadPcbs);
             Motion.PositionChanged += (x, y, z) => simulation.UpdatePlacementPosition(
-                x, y, z, settings.HandoffPosition,
+                x, y, z, settings.HandoffPosition, settings.ReceiveZ,
                 Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition);
             Handler = new(Motion, Io, settings);
             var supply = new PcbSupplyHandler(_supplyMotion, Io, supplySettings);

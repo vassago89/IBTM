@@ -28,7 +28,7 @@ public sealed partial class MainConveyor
                 return MainConveyorState.SeatingCarriers;
         }
 
-        var transfer = GetNextTransfer(live);
+        var transfer = GetNextTransfer(live, live ? null : runCommandOn);
         switch (true)
         {
             case true when !_inspectionWork.Station.CarrierPresent:
@@ -43,7 +43,7 @@ public sealed partial class MainConveyor
                         return MainConveyorState.WaitingForInspectionTransfer;
                     case true when !_repeat
                         && !IsNgTransferRequired
-                        && _inspectionWork.IsTransferAllowedFor(live ? null : false)
+                        && _inspectionWork.IsTransferAllowedFor(live ? null : runCommandOn)
                         && DownstreamReady:
                         return MainConveyorState.DischargingInspectionCarrier;
                     default:
@@ -69,7 +69,7 @@ public sealed partial class MainConveyor
         }
     }
 
-    private MainConveyorState GetNextTransfer(bool live = true)
+    private MainConveyorState GetNextTransfer(bool live = true, bool? conveyorRunning = null)
     {
         // 이송 우선순위: 출구 잔류 → S3 배출 → S2→S3 → S1→S2 → 전단 반입.
         switch (true)
@@ -80,7 +80,7 @@ public sealed partial class MainConveyor
                     : MainConveyorState.WaitingForRearEquipment;
             case true when !_repeat
                 && !IsNgTransferRequired
-                && _inspectionWork.IsTransferAllowedFor(live ? null : false)
+                && _inspectionWork.IsTransferAllowedFor(conveyorRunning)
                 && _inspectionWork.IsTransferAtWaitingPosition(live)
                 && DownstreamReady:
                 return MainConveyorState.DischargingInspectionCarrier;
@@ -93,7 +93,7 @@ public sealed partial class MainConveyor
                 return MainConveyorState.ReceivingFrontCarrier;
             case true when !_repeat
                 && !IsNgTransferRequired
-                && _inspectionWork.IsTransferAllowedFor(live ? null : false)
+                && _inspectionWork.IsTransferAllowedFor(conveyorRunning)
                 && _inspectionWork.IsTransferAtWaitingPosition(live):
                 return MainConveyorState.WaitingForRearEquipment;
             case true when _boltFasteningWork.Station.CarrierPresent:

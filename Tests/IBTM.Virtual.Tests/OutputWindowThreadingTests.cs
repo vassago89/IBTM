@@ -96,7 +96,49 @@ public sealed class OutputWindowThreadingTests
         try
         {
             units.PcbSupply = true;
+            unrelated.Initialize();
+            unrelated.Reset();
+            await unrelated.HomeAsync(MotionAxis.Z, 1000);
+            await unrelated.HomeHorizontalAsync(1000);
+            var supplySettings = services.GetRequiredService<IBTM.PcbSupply.PcbSupplySettings>();
+            supplySettings.RotationZ = supplySettings.HandoffPosition.Z = 10;
+            var io = services.GetRequiredService<VirtualIoService>();
+            io.SetInput(InputIo.PcbSupplyRotated, false);
+            io.SetInput(InputIo.PcbSupplyUnrotated, true);
+            // Manual XY buttons remain usable away from the taught travel height.
+            var z = typeof(VirtualMotionService).GetField("_z",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            z.SetValue(unrelated, 9d);
+            teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
+            teaching.Activate();
+            var jog = new Button { Command = teaching.JogCommand, CommandParameter = TeachingDirection.XPlus };
+            var step = new Button { Command = teaching.StepCommand, CommandParameter = TeachingDirection.XPlus };
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.Motion.Position.Z == 9 && jog.IsEnabled && step.IsEnabled,
+                TimeSpan.FromSeconds(2)));
+            z.SetValue(unrelated, 10d);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => jog.IsEnabled && step.IsEnabled, TimeSpan.FromSeconds(2)),
+                $"Position={teaching.Motion.Position}; hint={teaching.MotionHint}; busy={state.IsRunning}; "
+                + $"predicate={teaching.JogCommand.CanExecute(TeachingDirection.XPlus)}");
+
+            teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+            z.SetValue(unrelated, 9d);
+            teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.Motion.Position.Z == 9 && jog.IsEnabled && step.IsEnabled,
+                TimeSpan.FromSeconds(2)));
+            teaching.Deactivate();
+            z.SetValue(unrelated, 10d);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.Motion.Position.Z == 10, TimeSpan.FromSeconds(2)));
+            teaching.Activate();
+            Assert.True(jog.IsEnabled);
+            Assert.True(step.IsEnabled);
+
+            teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
             unrelated.SetAlarm(MotionAxis.X, true);
+            unrelated.SetServo(MotionAxis.X, false);
             state.SetError(MachineAlarm.MotionUnavailable, new IOException("Supply axis alarm."));
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => teaching.StepCommand.CanExecute(TeachingDirection.XPlus),
@@ -132,6 +174,8 @@ public sealed class OutputWindowThreadingTests
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
 
             inspection.SetServo(MotionAxis.X, false);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => !jog.IsEnabled && !step.IsEnabled, TimeSpan.FromSeconds(2)));
             teaching.SelectedPoint = teaching.FilteredPoints.Single(
                 point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
             var taughtPoint = teaching.SelectedPoint;
@@ -148,8 +192,10 @@ public sealed class OutputWindowThreadingTests
         }
         finally
         {
+            teaching.Deactivate();
             units.PcbSupply = false;
             unrelated.SetAlarm(MotionAxis.X, false);
+            unrelated.SetServo(MotionAxis.X, true);
             inspection.SetServo(MotionAxis.X, true);
             state.ClearError();
         }

@@ -265,9 +265,9 @@ HOME·START 선상승과 HOME 순서(2026-09-19):
   START가 HOME을 대신 수행하지는 않으며, 원점 완료 조건은 유지한다.
 - HOME 중 안착의 Handoff / Travel Z, 체결의 Safe Z로 이동하지 않는다.
   전체 HOME 종료 뒤 공급기의 Rotation Z로 이동하던 단계도 제거했다.
-- 단일 축 HOME은 지정한 축만 실행한다. X/Y HOME에서 Z가 미원점이면 오류로 알린다.
+- 단일 축 HOME은 지정한 축의 서보·알람 피드백을 확인하고 해당 축만 실행한다.
+  X/Y HOME에 Z의 원점 완료·서보 ON·높이 일치를 요구하지 않는다.
   Z HOME이나 높이 이동을 공통 드라이버가 대신 실행하지 않는다.
-  X/Y HOME의 Z 조건은 현재 원점 완료와 정지이며, 운전용 높이 좌표를 요구하지 않는다.
 - AJIN의 동시 X/Y HOME은 두 축을 시작한 뒤 한 루프에서 결과를 확인한다.
   취소·실패 시 두 축의 정지 확인과 오류 수거를 끝내야 HOME이 반환한다.
   상위 단계도 한 유닛의 시작 오류 때문에 이미 시작한 다른 유닛을 남겨 두지 않는다.
@@ -281,11 +281,12 @@ HOME·START 선상승과 HOME 순서(2026-09-19):
   설정은 기존 JSON 이름으로 복원했으며 Settings의 Motion 화면에서 수정한다. 범용 이동 실행기는 다시 넣지 않는다.
   IBTM 연결에 필요한 취소, SDK 오류, 실제 이동·정지 피드백 처리는 유지한다.
 
-추가 동작 점검에서 남긴 검토 항목:
-
-| 위치 | 기존에 들어 있는 동작 | 이번 처리 |
-| --- | --- | --- |
-| `MotionService.MoveAxisAsync` / `MoveToXYAsync` | X/Y 위치 이동 전에 Z를 운전용 높이로 자동 이동 | HOME 외 운전·티칭 이동에 광범위하게 연결됨. 숨은 선행 동작으로 확인했으며 이번 HOME 변경에서는 유지 |
+`MotionService.MoveAxisAsync` / `MoveToXYAsync`는 지정한 축만 움직인다.
+조그도 현재 높이에서 지정 축을 움직이며, Z 높이 제한이나 우회 플래그를 두지 않는다.
+공급기의 Rotation Z·인계 Z, 배치기의 인계 Z, 체결기의 이동 Z는 각 유닛에서
+Z 이동 → XY 이동 순서를 명시한다. 공통 드라이버가 숨은 선행 이동을 넣지 않는다.
+새 명령을 시작할 때 기존 명령과 실제 이동 여부를 확인하되, 모든 축의 `InPosition`을
+요구하지 않는다. 실행한 이동의 완료·정지 피드백 확인은 유지한다.
 
 실린더 상승 피드백·서보·알람·정지 완료 검사는 추가 이동과 별개다.
 위 단계에서 임의로 실린더를 올리거나 장치 준비 상태를 추정하지 않는다.
@@ -399,12 +400,14 @@ OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류�
 `SupplySlotProgressDoesNotSurviveTheRun`이 STOP 후 슬롯 진행을 유지하지 않는지 확인한다.
 `PickingPcb` 분기는 픽업 중 전단 캐리어 이탈을 받으면 그 픽업을 취소한다. 늦게 끝난 이전 픽업은
 새 캐리어의 슬롯 이력을 넘기지 않으며 `SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes`로 확인한다.
-수동 한 축 이동은 `TeachingViewModel.StepAsync` → `PcbSupplyHandler.MoveAxisAsync` →
-`MotionService` 순서다. 모션 계층에서 축 속도·범위·이동 높이·취소를 처리한다. 자동/수동 인계 진입은
-`MoveToHandoffAsync`에서 인계 Z 확보 → XY 동시 이동 순서로 진행한다. `MoveToXYAsync`의
-`travelZ` 인자로 인계 높이를 전달하므로 XY 이동 전에 Rotation Z로 되돌아가지 않는다.
+수동 스텝 이동은 `TeachingViewModel.StepAsync` → 각 핸들러의 `AdjustAxisAsync` →
+`MotionService.AdjustAxisAsync` 순서다. 공급기·배치기 조그/스텝은 현재 Z에서 선택 축만 움직인다.
+Rotation Z/인계 Z와의 일치 조건 및 선행 Z 이동은 없으며, 배치기 핸들러 상승 확인은 유지한다.
+모션 계층에서 축 속도·범위·취소를 처리한다. 자동/수동 인계 진입은
+`MoveToHandoffAsync`에서 `MoveToHorizontalZAsync`에 인계 Z를 전달한 뒤 XY를 이동한다.
+XY 이동 전에 Rotation Z로 되돌아가지 않는다.
 픽업은 Rotation Z에서 XY 도착 후 해당 PCB 픽업 Z로 내려간다.
-회전 IO는 Rotation Z에서만 조작한다. 수평 이송·조그는 Rotated일 때 Rotation Z,
+회전 IO는 Rotation Z에서만 조작한다. 자동 이송·티칭 포인트 이동은 Rotated일 때 Rotation Z,
 Unrotated일 때 인계 Z를 사용한다.
 해제 후에는 두 Supply 실린더의 후퇴 완료 → Placement Handler Up 확인 → `MoveFromHandoffAsync`의
 XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2 X와 Carrier Y, PCB2 후에는
@@ -509,6 +512,11 @@ Virtual 입력은 시뮬레이터의 상태 변경 시 이미 반영되므로 `R
 같은 상태 판단 메서드에 `live: false`를 전달한다. 수집값이 없으면 null/Unavailable로 표시하고
 SDK 재조회로 대체하지 않는다. START·HOME 버튼의 표시도 수집값만 사용한다.
 실제 명령 진입에서는 `MotionReadiness`와 현재 출력·센서 피드백을 다시 확인한다.
+RESET도 표시용 정지 값만으로 초기화하지 않고, 실행 직전에 Main/NG 운전 출력을 다시 읽는다.
+읽기 실패는 정지·통신 알람으로 처리하며, 이미 연결이 끊긴 I/O의 명시적 초기화는 허용한다.
+수집기는 준비 상태와 읽기 오류를 따로 알린다. 축 변경마다 변경되지 않은 `ReadError`를
+재통지하여 전체 스테이션을 갱신하지 않는다. 티칭은 선택 유닛의 위치·축 상태 변경을 직접
+구독해 조그/스텝 버튼을 갱신하며, 유닛 변경·화면 종료 시 해당 구독을 해제한다.
 타워램프·부저 출력은 컨트롤러가 알람·자동운전·NG 상태 변경 시 처리한다.
 `MachineState`는 스테이션 객체를 참조하거나 출력 명령을 내리지 않는다.
 창을 닫거나 운전을 정지해도 DI·DO·모션 수집은 계속 동작한다.

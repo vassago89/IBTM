@@ -54,7 +54,9 @@ public sealed class MotionStatusTests
     public async Task FailedAdjustmentDoesNotReadFeedbackAgainToClearCommandHistory()
     {
         var motion = new StatusMotion();
+        motion.State = motion.State with { InPosition = false };
 
+        // A stopped axis may accept a command without the previous target being in position.
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(
             () => motion.AdjustAxisAsync(MotionAxis.X, 0, 1));
 

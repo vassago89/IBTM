@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -66,6 +67,22 @@ public sealed partial class MachineController
 
     private async Task ResetHardwareAsync()
     {
+        try
+        {
+            // Button availability uses acquired feedback; RESET must recheck the run outputs.
+            // Disconnected I/O is initialized below without trying to read it first.
+            if (_state.IsRunningFor())
+            {
+                _log?.LogInformation("Machine RESET: hardware recovery blocked while equipment is running.");
+                return;
+            }
+        }
+        catch (IOException exception)
+        {
+            StopAndReportFailure(MachineAlarm.IoCommunication, exception);
+            return;
+        }
+
         _log?.LogInformation("Machine RESET started.");
         using var operation = _operations.TryBegin();
         if (operation is null)

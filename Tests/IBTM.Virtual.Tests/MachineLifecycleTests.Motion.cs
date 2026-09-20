@@ -295,8 +295,10 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task PlacementZStopsWhenHandlerUpFeedbackIsLost()
+    [Theory]
+    [InlineData(MotionAxis.X)]
+    [InlineData(MotionAxis.Z)]
+    public async Task PlacementStopsWhenHandlerUpFeedbackIsLost(MotionAxis axis)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -310,7 +312,7 @@ public sealed partial class MachineLifecycleTests
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         try
         {
-            var jog = placement.JogAsync(MotionAxis.Z, 10, stop.Token);
+            var jog = placement.JogAsync(axis, 10, stop.Token);
             await WaitUntilAsync(() => placement.Feedback.IsMoving);
             io.SetInput(InputIo.PcbPlacementHandlerUp, false);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog);
@@ -318,6 +320,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(placement.Feedback.IsMoving);
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveAxisAsync(MotionAxis.Z, 10));
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.JogAsync(MotionAxis.Z, 10));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.AdjustAxisAsync(axis, 10, 10));
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveToHorizontalZAsync());
         }
         finally
@@ -1062,7 +1065,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(MotionGroup.PcbPlacementHandler, InputIo.PcbPlacementHandlerUp, InputIo.PcbPlacementHandlerDown)]
     [InlineData(MotionGroup.BoltFastening, InputIo.PickupHeadUp, InputIo.PickupHeadDown)]
     [InlineData(MotionGroup.BoltFastening, InputIo.ShootingHeadUp, InputIo.ShootingHeadDown)]
-    public async Task HorizontalMotionRequiresRaisedCylindersWhileZCanRetract(
+    public async Task MotionRequiresRaisedCylindersWhileFasteningZCanRetract(
         MotionGroup group,
         InputIo up,
         InputIo down)
@@ -1092,10 +1095,10 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(up, false);
         io.SetInput(down, true);
         if (isPlacement)
-            await placement.MoveAxisAsync(MotionAxis.Z, 1);
+            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveAxisAsync(MotionAxis.Z, 1));
         else
             await fastening.MoveZAsync(1);
-        Assert.Equal(1, feedback.GetPosition().Z);
+        Assert.Equal(isPlacement ? 0 : 1, feedback.GetPosition().Z);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         await Assert.ThrowsAsync<MotionInterlockException>(MoveXY);
         await Assert.ThrowsAsync<MotionInterlockException>(
@@ -1115,7 +1118,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(feedback.IsMoving);
         Assert.False(feedback.IsMovingHorizontal);
         Assert.Equal(isPlacement ? MachineAlarm.PcbPlacement : MachineAlarm.BoltFastening, state.Alarm);
-        Assert.Contains("horizontal movement", state.AlarmDetail);
+        Assert.Contains(isPlacement ? "axis movement" : "horizontal movement", state.AlarmDetail);
         Assert.Contains("Between", state.AlarmDetail);
     }
 
@@ -1290,7 +1293,7 @@ public sealed partial class MachineLifecycleTests
         await gantry.MoveZAsync(10);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true);
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
-        var jog = motion.JogAsync(MotionAxis.X, 1, atCurrentHeight: true);
+        var jog = motion.JogAsync(MotionAxis.X, 1);
         await WaitUntilAsync(() => gantry.Feedback.GetPosition().X > 0);
         if (autoMode)
             io.SetInput(InputIo.AutoMode, false);
@@ -1312,7 +1315,6 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<BoltFasteningGantry>();
         await machine.InitializeAsync();
@@ -1326,14 +1328,13 @@ public sealed partial class MachineLifecycleTests
                 io.SetInput(InputIo.PickupHeadUp, false);
         };
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => gantry.MoveToXYAsync(20, 20));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.MoveToXYAsync(20, 20));
 
         var after = gantry.Feedback.GetPosition();
         Assert.Equal(before.X, after.X);
         Assert.Equal(before.Y, after.Y);
         Assert.Equal(settings.BoltFastening.SafeZ, after.Z);
         Assert.False(gantry.Feedback.IsMoving);
-        Assert.Equal(MachineAlarm.BoltFastening, state.Alarm);
     }
 
     [Theory]

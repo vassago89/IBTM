@@ -179,7 +179,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     await _handler.SetIpmLiftDownAsync(true, cancellationToken);
                 if (_supply.Handoff != PcbSupplyHandoff.Holding)
                     return false;
-                await _handler.SetLiftDownAsync(true, cancellationToken);
+                await _handler.MoveToReceiveZAsync(cancellationToken);
                 await _handler.WaitForPcbAsync(cancellationToken);
                 await _handler.SetVacuumAsync(true, cancellationToken);
                 await _handler.SetIpmGripperAsync(true, cancellationToken);
@@ -314,9 +314,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             case true when pcb == PlacementPcbState.Secured:
                 switch (true)
                 {
-                    case true when !_repeat && _handler.IsAtHandoffXY(live)
-                        && _handler.IsAtHorizontalZ(live) && _handler.Lift != PlacementCylinderState.Up:
-                        return _handler.Lift == PlacementCylinderState.Down && _handler.IsAtHandoff(live)
+                    case true when !_repeat && _handler.IsAtReceivePosition(live):
+                        return _handler.HandlerRaised
                             ? PcbPlacementState.WaitingForSupplyRelease
                             : PcbPlacementState.ReceivingPcb;
                     case true when _work.Station.CarrierSeated && heatSink is not null
@@ -341,10 +340,12 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         var atHandoff = _handler.IsAtHandoff(live);
         switch (true)
         {
+            case true when _handler.IsAtReceivePosition(live) && !atHandoff:
+                return PcbPlacementState.ReceivingPcb;
             case true when !atHandoff:
                 return PcbPlacementState.MovingToHandoff;
             case true when _handler.Lift != PlacementCylinderState.Up:
-                return PcbPlacementState.ReceivingPcb;
+                return PcbPlacementState.MovingToHandoff;
             case true when _handler.IpmGripper != PlacementGripperState.Open || _handler.IpmLift != PlacementCylinderState.Down:
                 return PcbPlacementState.MovingToHandoff;
             default:

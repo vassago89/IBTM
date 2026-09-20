@@ -29,7 +29,7 @@ public sealed class VirtualMachine
     private int? _supplyPickupSlot;
     private bool _supplyAtHandoff;
     private bool _supplyHoldingPcb;
-    private bool _placementAtHandoff;
+    private bool _placementAtReceive;
     private bool _placementHoldingPcb;
     private readonly bool[] _placedPcbs;
     private int? _placementHeatSink;
@@ -225,10 +225,12 @@ public sealed class VirtualMachine
         double y,
         double z,
         AxisPosition handoffPosition,
+        double? receiveZ,
         AxisPosition? heatSink1 = null,
         AxisPosition? heatSink2 = null)
     {
-        _placementAtHandoff = IsAt(x, y, z, handoffPosition);
+        _placementAtReceive = receiveZ is { } targetZ && IsAt(x, y, handoffPosition)
+            && Math.Abs(z - targetZ) <= MotionService.PositionToleranceMillimeters;
         _placementHeatSink = heatSink1 is not null && IsAt(x, y, z, heatSink1)
             ? 0
             : heatSink2 is not null && IsAt(x, y, z, heatSink2) ? 1 : null;
@@ -246,7 +248,7 @@ public sealed class VirtualMachine
         _io.SetInput(
             InputIo.PcbSupplyPcbDetected,
             _supplyHoldingPcb
-                || _supplyAtHandoff && _placementAtHandoff && _placementHoldingPcb
+                || _supplyAtHandoff && _placementAtReceive && _placementHoldingPcb
                 || _supplyPickupSlot is { } slot && _supplyPcbs[slot]);
     }
 
@@ -255,7 +257,9 @@ public sealed class VirtualMachine
         _io.SetInput(
             InputIo.PcbPlacementPcbDetected,
             _placementHoldingPcb
-                || _placementAtHandoff
+                || _placementAtReceive
+                && _io.GetInput(InputIo.PcbPlacementHandlerUp)
+                && !_io.GetInput(InputIo.PcbPlacementHandlerDown)
                 && _supplyAtHandoff && _supplyHoldingPcb
                 || _placementHeatSink is { } slot
                 && _placedPcbs[slot]

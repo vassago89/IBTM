@@ -55,16 +55,12 @@ public partial class TeachingViewModel
                 return TeachingMotionHint.NgPickupSafeXRequired;
             switch (ActiveMotionGroup)
             {
-                case MotionGroup.PcbSupply when IsTeachingEditAllowed && !IsJogAllowed(MotionAxis.X):
-                    return TeachingMotionHint.SafeZRequired;
                 case MotionGroup.PcbPlacementHandler when !_placementHandler.HandlerRaised:
                     return TeachingMotionHint.RaisePlacementCylinders;
                 case MotionGroup.BoltFastening:
                     return TeachingMotionHint.BoltAdjustment;
                 case MotionGroup.InspectionGantry when !_ngTransfer.IsRaised:
                     return TeachingMotionHint.RaiseNgPickup;
-                case MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.HandoffPosition.Z):
-                    return TeachingMotionHint.SafeZRequired;
                 default:
                     return TeachingMotionHint.None;
             }
@@ -110,10 +106,8 @@ public partial class TeachingViewModel
             && Motion.Feedback.Axes.Contains(axis)
             && ActiveMotionGroup switch
             {
-                MotionGroup.PcbSupply => axis == MotionAxis.Z || _supplyHandler.IsAtTravelZ(live: false),
-                MotionGroup.PcbPlacementHandler => _placementHandler.HandlerRaised
-                    && (axis == MotionAxis.Z || _placementHandler.IsAtHorizontalZ(live: false)),
-                MotionGroup.BoltFastening => true,
+                MotionGroup.PcbSupply or MotionGroup.BoltFastening => true,
+                MotionGroup.PcbPlacementHandler => _placementHandler.HandlerRaised,
                 MotionGroup.InspectionGantry => _ngTransfer.IsRaised,
                 _ => false,
             };
@@ -248,10 +242,10 @@ public partial class TeachingViewModel
             switch (commandGroup)
             {
                 case MotionGroup.PcbSupply:
-                    await _supplyHandler.MoveAxisAsync(axis, target, operation.Token);
+                    await _supplyHandler.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.PcbPlacementHandler:
-                    await _placementHandler.MoveAxisAsync(axis, target, operation.Token);
+                    await _placementHandler.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.BoltFastening:
                     await _fasteningGantry.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);

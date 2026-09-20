@@ -26,6 +26,41 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Fact]
+    public async Task SupplyServoChangeDoesNotRefreshUnrelatedStationTargets()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var view = services.GetRequiredService<OperationViewModel>();
+        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await WaitUntilAsync(() => state.Homed && !state.IsRunning);
+        view.Activate();
+        var notifications = new ConcurrentQueue<string?>();
+        view.PropertyChanged += (_, e) => notifications.Enqueue(e.PropertyName);
+        try
+        {
+            motion.SetServo(MotionAxis.X, false);
+            await WaitUntilAsync(() => !state.ServosOn
+                && notifications.Contains(nameof(OperationViewModel.MachineDisplayState)));
+            Assert.Equal(MachineDisplayState.ServoOff, view.MachineDisplayState);
+            Assert.Contains(nameof(OperationViewModel.SupplyDisplayState), notifications);
+            Assert.DoesNotContain(nameof(OperationViewModel.BoltTargets), notifications);
+            Assert.DoesNotContain(nameof(OperationViewModel.InspectionTargets), notifications);
+            Assert.DoesNotContain(nameof(OperationViewModel.ModeText), notifications);
+            Assert.DoesNotContain(nameof(OperationViewModel.Alarm), notifications);
+        }
+        finally
+        {
+            view.Deactivate();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task UnchangedFeedbackDoesNotRefreshTheViewAndInputChangesNotifyImmediately()
     {
         var settings = FlowSettings();
@@ -316,17 +351,27 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         Assert.True(state.Available);
+        var view = services.GetRequiredService<OperationViewModel>();
+        var messages = new ConcurrentQueue<string?>();
+        var modes = new ConcurrentQueue<string>();
+        view.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(OperationViewModel.AlarmMessage))
+                messages.Enqueue(view.AlarmMessage);
+            if (e.PropertyName == nameof(OperationViewModel.ModeText))
+                modes.Enqueue(view.ModeText);
+        };
         var error = new IOException("Display feedback unavailable.");
         feedback.BeforeRead = () => throw error;
         feedback.DiagnosticReadError = error;
         // A ready display is not permission to operate when the actual read fails.
         Assert.Throws<IOException>(() => state.MotionReadiness);
-        state.Refresh();
-        await WaitUntilAsync(() => !state.Available);
+        await WaitUntilAsync(() => !state.Available && messages.Contains(error.Message)
+            && modes.Contains("UNKNOWN"));
         Assert.Same(error, state.ReadError);
         Assert.Equal(
             MachineDisplayState.Unavailable,
-            services.GetRequiredService<OperationViewModel>().ConveyorStatus);
+            view.ConveyorStatus);
         Assert.False(machine.IsHomeAllowed);
         Assert.False(machine.IsStartAllowed);
         Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -341,8 +386,8 @@ public sealed partial class MachineLifecycleTests
 
         feedback.BeforeRead = null;
         feedback.DiagnosticReadError = null;
-        state.Refresh();
-        await WaitUntilAsync(() => state.Available);
+        await WaitUntilAsync(() => state.Available && messages.Contains(null)
+            && modes.Contains("MANUAL"));
         Assert.Null(state.ReadError);
     }
 

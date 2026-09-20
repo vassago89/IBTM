@@ -199,10 +199,12 @@ public sealed class BoltFasteningGantry
             cancellationToken);
     }
 
-    public Task MoveToXYAsync(double x, double y, CancellationToken cancellationToken = default)
+    public async Task MoveToXYAsync(double x, double y, CancellationToken cancellationToken = default)
     {
         EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.MoveToXYAsync(x, y, _settings.Motion.HorizontalSpeed, cancellationToken);
+        await MoveToSafeZAsync(cancellationToken);
+        EnsureCanMoveHorizontal(cancellationToken);
+        await _motion.MoveToXYAsync(x, y, _settings.Motion.HorizontalSpeed, cancellationToken);
     }
 
     public Task MoveZAsync(double z, CancellationToken cancellationToken = default)
@@ -252,7 +254,7 @@ public sealed class BoltFasteningGantry
 
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
-        return _motion.JogAsync(axis, velocity, cancellationToken, atCurrentHeight: true);
+        return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)

@@ -304,10 +304,26 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     private void OnMachinePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
-        PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
-        PropertyChanged?.Invoke(this, new(nameof(HomeBlock)));
-        PropertyChanged?.Invoke(this, new(nameof(IsHomeAllowed)));
+        if (e.PropertyName is null or nameof(MachineState.Ready)
+            or nameof(MachineState.SafetyReady) or nameof(MachineState.DoorInterlockReady)
+            or nameof(MachineState.Alarm) or nameof(MachineState.RepeatEnabled))
+        {
+            PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
+            PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
+            PropertyChanged?.Invoke(this, new(nameof(IsHomeAllowed)));
+            PropertyChanged?.Invoke(this, new(nameof(IsResetAllowed)));
+        }
+        if (e.PropertyName == nameof(MachineState.IsRunning))
+        {
+            PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
+            PropertyChanged?.Invoke(this, new(nameof(IsHomeAllowed)));
+            PropertyChanged?.Invoke(this, new(nameof(IsResetAllowed)));
+        }
+        if (e.PropertyName is null or nameof(MachineState.ManualSetupEnabled))
+        {
+            PropertyChanged?.Invoke(this, new(nameof(HomeBlock)));
+            PropertyChanged?.Invoke(this, new(nameof(IsHomeAllowed)));
+        }
         if (e.PropertyName is nameof(MachineState.Alarm) or nameof(MachineState.AutomaticRunning))
             UpdateMachineIndicators();
     }

@@ -128,30 +128,6 @@ public sealed class PcbSupplyHandler
         return live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.RotationZ);
     }
 
-    private double? TravelZ
-    {
-        get
-        {
-            switch (Rotation)
-            {
-                case PcbSupplyRotationState.Rotated:
-                    return _settings.RotationZ;
-                case PcbSupplyRotationState.Unrotated:
-                    return _settings.HandoffPosition.Z;
-                default:
-                    return null;
-            }
-        }
-    }
-
-    public bool IsAtTravelZ(bool live = true)
-    {
-        return TravelZ is { } z && (live
-            ? _motion.GetAxisState(MotionAxis.Z).Homed
-                && Math.Abs(_motion.GetPosition().Z - z) <= MotionService.PositionToleranceMillimeters
-            : Motion.IsAtZ(z));
-    }
-
     public bool IsAtPickupXY(PcbPickPosition position)
     {
         var current = _motion.GetPosition();
@@ -200,12 +176,12 @@ public sealed class PcbSupplyHandler
         if (Rotation != PcbSupplyRotationState.Unrotated)
             throw new MotionInterlockException("Supply must be unrotated before moving to the handoff position.");
         position ??= _settings.HandoffPosition;
+        await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: position.Z);
         await _motion.MoveToXYAsync(
             position.X,
             position.Y,
             _settings.Motion.HorizontalSpeed,
-            cancellationToken,
-            travelZ: position.Z);
+            cancellationToken);
     }
 
     internal async Task PickAsync(
@@ -220,9 +196,10 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    internal Task MoveToPickupAsync(PcbPickPosition position, CancellationToken cancellationToken)
+    internal async Task MoveToPickupAsync(PcbPickPosition position, CancellationToken cancellationToken)
     {
-        return _motion.MoveToXYAsync(
+        await _motion.MoveToHorizontalZAsync(cancellationToken);
+        await _motion.MoveToXYAsync(
             position.X,
             _settings.CarrierY,
             _settings.Motion.HorizontalSpeed,
@@ -260,6 +237,7 @@ public sealed class PcbSupplyHandler
                 await MoveToHandoffAsync(cancellationToken, position);
                 break;
             case TeachMode.XZOnly:
+                await _motion.MoveToHorizontalZAsync(cancellationToken);
                 await _motion.MoveToXYAsync(
                     position.X,
                     position.Y,
@@ -272,14 +250,14 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    internal Task MoveFromHandoffAsync(PcbPickPosition nextPick, CancellationToken cancellationToken = default)
+    internal async Task MoveFromHandoffAsync(PcbPickPosition nextPick, CancellationToken cancellationToken = default)
     {
-        return _motion.MoveToXYAsync(
+        await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: _settings.HandoffPosition.Z);
+        await _motion.MoveToXYAsync(
             nextPick.X,
             _settings.CarrierY,
             _settings.Motion.HorizontalSpeed,
-            cancellationToken,
-            travelZ: _settings.HandoffPosition.Z);
+            cancellationToken);
     }
 
     public Task SetIpmFixerAsync(bool forward, CancellationToken cancellationToken = default)
@@ -309,29 +287,19 @@ public sealed class PcbSupplyHandler
         double position,
         CancellationToken cancellationToken = default)
     {
-        switch (axis)
-        {
-            case MotionAxis.Z:
-                return _motion.MoveAxisAsync(axis, position, _settings.Motion.ZSpeed, cancellationToken);
-            case MotionAxis.X or MotionAxis.Y:
-                var current = _motion.GetPosition();
-                return _motion.MoveToXYAsync(
-                    axis == MotionAxis.X ? position : current.X,
-                    axis == MotionAxis.Y ? position : current.Y,
-                    _settings.Motion.HorizontalSpeed,
-                    cancellationToken,
-                    travelZ: TravelZ ?? throw new MotionInterlockException("Supply rotation position is unknown."));
-            default:
-                throw new ArgumentOutOfRangeException(nameof(axis));
-        }
+        var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
+        return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
 
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (axis != MotionAxis.Z && !IsAtTravelZ())
-            throw new MotionInterlockException("Supply XY jog requires the current orientation's travel Z.");
-        return _motion.JogAsync(axis, velocity, cancellationToken, atCurrentHeight: axis != MotionAxis.Z);
+        return _motion.JogAsync(axis, velocity, cancellationToken);
+    }
+
+    public Task AdjustAxisAsync(
+        MotionAxis axis, double position, double velocity, CancellationToken cancellationToken = default)
+    {
+        return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
     }
 
     public Task MoveToRotationZAsync(CancellationToken cancellationToken = default)

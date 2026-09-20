@@ -158,8 +158,10 @@ public enum TeachingSaveBehavior
 {
     [Description("Teach give XYZ. Supply picks while Rotated, unrotates at Rotation Z, moves to give Z, then moves XY and holds until Placement detects the PCB, vacuum and closed gripper. Apply & Save Handoff before leaving Teaching.")]
     SupplyHandoff,
-    [Description("Teach receiving XYZ. This Z is shared by XY travel, rotation and receipt, with clearance while the handler cylinder is Up. Either handler may arrive first; only the cylinder lowers after both arrive. Apply & Save Handoff before leaving Teaching.")]
+    [Description("Teach standby XYZ. With the handler cylinder Up, wait here for Supply, move Z to PCB Receive Z to receive, then return to standby Z after Supply releases. Apply & Save Handoff before leaving Teaching.")]
     PlacementHandoff,
+    [Description("Receive the PCB at this Z using the standby X/Y, with the handler cylinder Up. Teach saves automatically. Move To moves Z only.")]
+    PlacementReceiveZ,
     [Description("Common pickup Y for both PCB slots. Each slot teaches only X and Z. Saves automatically.")]
     SupplyCarrierY,
     [Description("Teach pickup Y. Move To uses NG Pickup Safe X and this Y. Saves automatically.")]

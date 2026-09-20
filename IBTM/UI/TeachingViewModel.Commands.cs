@@ -50,8 +50,6 @@ public enum TeachingMotionHint
     RaisePlacementCylinders,
     [Description("Jog/Step adjust one axis at the current height. Raise both heads before moving to a teaching position.")]
     BoltAdjustment,
-    [Description("Move to Safe Z before moving X/Y.")]
-    SafeZRequired,
     [Description("Home this unit before jogging or moving to a teaching position.")]
     HomeRequired,
     [Description("Turn on this unit's axis servos before moving.")]
@@ -414,6 +412,26 @@ public partial class TeachingViewModel
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         QueueManualCommandRefresh();
+    }
+
+    private void OnTeachingMotionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MotionStatus.Position) or nameof(AxisStatus.State))
+            QueueManualCommandRefresh();
+    }
+
+    private void SubscribeMotionChanges()
+    {
+        Motion.PropertyChanged += OnTeachingMotionChanged;
+        foreach (var axis in Motion.Axes.Values)
+            axis.PropertyChanged += OnTeachingMotionChanged;
+    }
+
+    private void UnsubscribeMotionChanges()
+    {
+        Motion.PropertyChanged -= OnTeachingMotionChanged;
+        foreach (var axis in Motion.Axes.Values)
+            axis.PropertyChanged -= OnTeachingMotionChanged;
     }
 
     private void QueueManualCommandRefresh()

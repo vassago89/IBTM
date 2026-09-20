@@ -57,7 +57,7 @@ public enum TeachingTarget
     [Description("PCB Give Position")]
     SupplyHandoff,
 
-    [Description("PCB Receive Position")]
+    [Description("PCB Receive Standby")]
     PlacementHandoff,
 
     [Description("Heat Sink 1 PCB Placement")]
@@ -109,6 +109,9 @@ public enum TeachingTarget
     ShootingHeadFasteningZ,
     [Description("Pickup Head Fastening Z")]
     PickupHeadFasteningZ,
+
+    [Description("PCB Receive Z")]
+    PlacementReceiveZ,
 
 }
 

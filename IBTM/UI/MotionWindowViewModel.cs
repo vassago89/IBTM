@@ -135,6 +135,11 @@ public partial class MotionWindowViewModel : ObservableObject
         IsClosing = false;
         _active = true;
         _state.PropertyChanged += OnDisplayChanged;
+        foreach (var row in Axes)
+        {
+            row.Diagnostics.PropertyChanged += OnDisplayChanged;
+            _state.GetMotionStatus(row.Group).Axes[row.Axis].PropertyChanged += OnDisplayChanged;
+        }
         Refresh();
     }
 
@@ -142,11 +147,17 @@ public partial class MotionWindowViewModel : ObservableObject
     {
         _active = false;
         _state.PropertyChanged -= OnDisplayChanged;
+        foreach (var row in Axes)
+        {
+            row.Diagnostics.PropertyChanged -= OnDisplayChanged;
+            _state.GetMotionStatus(row.Group).Axes[row.Axis].PropertyChanged -= OnDisplayChanged;
+        }
     }
 
     private void OnDisplayChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (!_active || Interlocked.Exchange(ref _refreshQueued, 1) != 0)
+        if (sender is AxisStatus && e.PropertyName != nameof(AxisStatus.State)
+            || !_active || Interlocked.Exchange(ref _refreshQueued, 1) != 0)
             return;
         _dispatcher!.BeginInvoke(() =>
         {

@@ -24,6 +24,31 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Fact]
+    public async Task SelectedAxisHomeDoesNotRequireZHomeOrServo()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
+        await machine.InitializeAsync();
+        try
+        {
+            motion.SetServo(MotionAxis.Z, false);
+            await machine.HomeAsync(MotionGroup.PcbSupply, default, MotionAxis.X);
+
+            Assert.True(motion.GetAxisState(MotionAxis.X).Homed);
+            Assert.False(motion.GetAxisState(MotionAxis.Z).Homed);
+            Assert.False(motion.GetAxisState(MotionAxis.Z).ServoOn);
+            Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task AllUnitsHomeEndsAtHomeWithoutMovingToWorkHeights()
     {
         var settings = FlowSettings();

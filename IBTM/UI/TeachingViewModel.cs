@@ -242,6 +242,8 @@ public partial class TeachingViewModel : ObservableObject
                     return TeachingSaveBehavior.SupplyHandoff;
                 case { Target: TeachingTarget.PlacementHandoff }:
                     return TeachingSaveBehavior.PlacementHandoff;
+                case { Target: TeachingTarget.PlacementReceiveZ }:
+                    return TeachingSaveBehavior.PlacementReceiveZ;
                 case { Target: TeachingTarget.SupplyCarrierY }:
                     return TeachingSaveBehavior.SupplyCarrierY;
                 case { Target: TeachingTarget.NgCarrierPickup }:
@@ -278,8 +280,16 @@ public partial class TeachingViewModel : ObservableObject
         NotifyManualTeachingCommands();
     }
 
+    partial void OnSelectedTeachingUnitChanging(HardwareArea value)
+    {
+        if (PositionUpdatesActive)
+            UnsubscribeMotionChanges();
+    }
+
     partial void OnSelectedTeachingUnitChanged(HardwareArea value)
     {
+        if (PositionUpdatesActive)
+            SubscribeMotionChanges();
         CancelTeaching();
 
         if (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning)
@@ -353,6 +363,8 @@ public partial class TeachingViewModel : ObservableObject
         RefreshHandoffPoints();
         RecipeEditor.Refresh();
         RefreshTeachingPoints();
+        if (!PositionUpdatesActive)
+            SubscribeMotionChanges();
         PositionUpdatesActive = true;
         OnPropertyChanged(nameof(Motion));
         ShowRecipeImages();
@@ -361,6 +373,7 @@ public partial class TeachingViewModel : ObservableObject
 
     public void Deactivate()
     {
+        UnsubscribeMotionChanges();
         PositionUpdatesActive = false;
         // Page/application shutdown must still receive an unconfirmed device stop.
         CancelTeaching(reportDeviceFailure: false);

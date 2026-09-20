@@ -103,12 +103,20 @@ public partial class OperationViewModel : ObservableObject
         InspectionGantry = inspectionGantry;
 
         supply.Motion.PropertyChanged += OnPcbSupplyMotionChanged;
+        foreach (var axis in supply.Motion.Axes.Values)
+            axis.PropertyChanged += OnPcbSupplyMotionChanged;
         supply.Changed += OnPcbSupplyChanged;
         placement.Motion.PropertyChanged += OnPcbPlacementMotionChanged;
+        foreach (var axis in placement.Motion.Axes.Values)
+            axis.PropertyChanged += OnPcbPlacementMotionChanged;
         placement.Changed += OnPcbPlacementChanged;
         fastening.Motion.PropertyChanged += OnBoltFasteningMotionChanged;
+        foreach (var axis in fastening.Motion.Axes.Values)
+            axis.PropertyChanged += OnBoltFasteningMotionChanged;
         fastening.Changed += OnBoltFasteningChanged;
         inspectionGantry.Motion.PropertyChanged += OnInspectionGantryMotionChanged;
+        foreach (var axis in inspectionGantry.Motion.Axes.Values)
+            axis.PropertyChanged += OnInspectionGantryMotionChanged;
         conveyor.Changed += OnMainConveyorChanged;
         pickupFeeder.Changed += OnBoltFasteningChanged;
         shootingFeeder.Changed += OnBoltFasteningChanged;
@@ -461,7 +469,7 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
-        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(MotionStatus.XyHomed))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(AxisStatus.State))
             OnPcbSupplyChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
@@ -477,7 +485,7 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
-        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(MotionStatus.XyHomed))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(AxisStatus.State))
             OnPcbPlacementChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
@@ -493,7 +501,7 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
-        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(MotionStatus.XyHomed))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(AxisStatus.State))
             OnBoltFasteningChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
@@ -509,7 +517,7 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
-        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(MotionStatus.XyHomed))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(AxisStatus.State))
         {
             OnInspectionChanged();
             OnMainConveyorChanged();
@@ -525,14 +533,23 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        OnPropertyChanged(nameof(MachineDisplayState));
-        OnPropertyChanged(nameof(ModeText));
-        OnPropertyChanged(nameof(HasAlarm));
-        OnPropertyChanged(nameof(Alarm));
-        OnPropertyChanged(nameof(AlarmDetail));
-        OnPropertyChanged(nameof(AlarmMessage));
+        if (e.PropertyName is null or nameof(MachineState.Available) or nameof(MachineState.SafetyReady)
+            or nameof(MachineState.Alarm) or nameof(MachineState.Faulted) or nameof(MachineState.IsHoming)
+            or nameof(MachineState.ServoPowerOn) or nameof(MachineState.Homed) or nameof(MachineState.IsRunning))
+            OnPropertyChanged(nameof(MachineDisplayState));
+        if (e.PropertyName is null or nameof(MachineState.AutoMode) or nameof(MachineState.Available))
+            OnPropertyChanged(nameof(ModeText));
+        if (e.PropertyName is null or nameof(MachineState.Alarm) or nameof(MachineState.ReadError))
+        {
+            OnPropertyChanged(nameof(HasAlarm));
+            OnPropertyChanged(nameof(Alarm));
+        }
+        if (e.PropertyName is null or nameof(MachineState.AlarmDetail) or nameof(MachineState.ReadError))
+            OnPropertyChanged(nameof(AlarmDetail));
+        if (e.PropertyName is null or nameof(MachineState.AlarmMessage) or nameof(MachineState.ReadError))
+            OnPropertyChanged(nameof(AlarmMessage));
         if (e.PropertyName is null or nameof(MachineState.AutomaticRunning)
-            or nameof(MachineState.Alarm) or nameof(MachineState.ReadError))
+            or nameof(MachineState.Alarm) or nameof(MachineState.Available))
         {
             OnPcbSupplyChanged();
             OnPcbPlacementChanged();
@@ -540,6 +557,13 @@ public partial class OperationViewModel : ObservableObject
             OnInspectionChanged();
             OnMainConveyorChanged();
             OnNgConveyorChanged();
+        }
+        if (e.PropertyName == nameof(MachineState.BoltTestRunning))
+            OnPropertyChanged(nameof(BoltDisplayState));
+        if (e.PropertyName == nameof(MachineState.RepeatEnabled))
+        {
+            OnInspectionChanged();
+            OnMainConveyorChanged();
         }
     }
 

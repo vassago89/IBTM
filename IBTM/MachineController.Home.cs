@@ -75,7 +75,7 @@ public sealed partial class MachineController
 
         var motion = _state.GetMotionStatus(group);
         return motion.IsReady(live)
-            && motion.Feedback.Axes.Where(candidate => axis is null || candidate == axis || candidate == MotionAxis.Z)
+            && motion.Feedback.Axes.Where(candidate => axis is null || candidate == axis)
                 .All(
                     candidate =>
                         (live ? motion.Feedback.GetAxisState(candidate) : motion.Axes[candidate].State)

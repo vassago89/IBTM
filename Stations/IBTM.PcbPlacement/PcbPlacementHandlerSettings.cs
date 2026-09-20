@@ -15,10 +15,19 @@ public sealed class PcbPlacementHandlerSettings : Setting
     public MotionSettings Motion { get; set; }
     [JsonPropertyName("BufferHandoffPosition")]
     public AxisPosition HandoffPosition { get; set; }
+    public double? ReceiveZ { get; set; }
 
     public TeachingPosition[] GetTeachingPositions(PcbPlacementRecipe recipe)
     {
         return [
+            new(
+                TeachingTarget.PlacementReceiveZ,
+                MotionGroup.PcbPlacementHandler,
+                TeachMode.ZOnly,
+                () => new() { Z = ReceiveZ ?? 0 },
+                p => ReceiveZ = p.Z,
+                this,
+                isDefined: () => ReceiveZ is not null),
             new(
                 TeachingTarget.HeatSink1PcbPlacement,
                 MotionGroup.PcbPlacementHandler,

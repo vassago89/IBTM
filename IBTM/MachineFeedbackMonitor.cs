@@ -80,7 +80,8 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
     internal event Action<MotionGroup, MotionFeedbackSample>? Sampled;
     internal event Action<Exception>? IoFaulted;
-    internal event Action? Changed;
+    internal event Action? ReadinessChanged;
+    internal event Action? ReadErrorChanged;
 
     internal IoSignals Io { get; }
 
@@ -199,7 +200,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
             first.TrySetException(error);
             _log?.LogError(error, "{Message}", $"{name} monitor stopped by an unexpected error. Restart the application.");
             failed(error);
-            Changed?.Invoke();
+            ReadErrorChanged?.Invoke();
             throw;
         }
     }
@@ -251,7 +252,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         if (!_io.IsReady)
             Io.InvalidateOutputs();
         if (!ReferenceEquals(previousError, _outputReadError))
-            Changed?.Invoke();
+            ReadErrorChanged?.Invoke();
     }
 
     private void FailOutputs(Exception error)
@@ -316,26 +317,33 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
             sample = sample with { IoReady = false, Readiness = new(false, false, true) };
         }
 
-        var previous = _samples.GetValueOrDefault(group);
+        var previousReadiness = Readiness;
+        var previousError = ReadError;
         _samples[group] = sample;
         // Safety checks consume every sample, including its acquisition timestamp.
         Sampled?.Invoke(group, sample);
-        if (previous is null
-            || previous.Enabled != sample.Enabled
-            || previous.IoReady != sample.IoReady
-            || previous.Readiness != sample.Readiness
-            || !ReferenceEquals(previous.ReadError, sample.ReadError))
-            Changed?.Invoke();
+        NotifyChanges(previousReadiness, previousError);
     }
 
     private void FailMotion(MotionGroup group, MotionStatus motion, Exception error)
     {
+        var previousReadiness = Readiness;
+        var previousError = ReadError;
         motion.InvalidateFeedback(error);
         var sample = new MotionFeedbackSample(
             Stopwatch.GetTimestamp(), _units.IsMotionEnabled(group), _io.IsReady,
             new(false, false, true), error);
         _samples[group] = sample;
         Sampled?.Invoke(group, sample);
+        NotifyChanges(previousReadiness, previousError);
+    }
+
+    private void NotifyChanges(MotionReadiness previousReadiness, Exception? previousError)
+    {
+        if (previousReadiness != Readiness)
+            ReadinessChanged?.Invoke();
+        if (!ReferenceEquals(previousError, ReadError))
+            ReadErrorChanged?.Invoke();
     }
 
     internal MotionReadiness ReadLiveReadiness()
@@ -377,6 +385,8 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
     private void OnIoFaulted(Exception error)
     {
+        var previousReadiness = Readiness;
+        var previousError = ReadError;
         foreach (var (group, motion) in Motions)
         {
             // Invalidate control immediately; independent raw diagnostics keep running.
@@ -390,7 +400,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         }
 
         IoFaulted?.Invoke(error);
-        Changed?.Invoke();
+        NotifyChanges(previousReadiness, previousError);
         _outputsRequested.Set();
     }
 

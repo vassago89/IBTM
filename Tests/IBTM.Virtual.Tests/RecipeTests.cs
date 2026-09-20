@@ -155,7 +155,7 @@ public sealed class RecipeTests
     }
 
     [Fact]
-    public void PlacementHandoffLoadsTheCommonZAndDropsTheSeparateApproachHeight()
+    public void PlacementReceiveZIsTaughtAndStoredSeparatelyFromStandby()
     {
         var placement = System.Text.Json.JsonSerializer.Deserialize<PcbPlacementHandlerSettings>(
             """{"BufferEntryZ":3,"BufferHandoffPosition":{"X":50,"Y":10,"Z":8}}""")!;
@@ -165,8 +165,21 @@ public sealed class RecipeTests
         definition.Apply(new() { X = 60, Y = 20, Z = 9 });
         Assert.Equal(9, placement.HandoffPosition.Z);
 
+        var receive = placement.GetTeachingPositions(new())
+            .Single(point => point.Target == TeachingTarget.PlacementReceiveZ);
+        Assert.Null(placement.ReceiveZ);
+        Assert.False(receive.HasPosition);
+        Assert.Equal(TeachMode.ZOnly, receive.Mode);
+        Assert.Equal(TeachingStorage.Machine, receive.Storage);
+        receive.Apply(new() { X = 100, Y = 200, Z = 12 });
+        Assert.Equal(12, placement.ReceiveZ);
+        Assert.True(receive.HasPosition);
+        Assert.Equal((60, 20, 9), (placement.HandoffPosition.X, placement.HandoffPosition.Y, placement.HandoffPosition.Z));
+
         using var saved = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(placement));
         Assert.False(saved.RootElement.TryGetProperty("BufferEntryZ", out _));
+        Assert.Equal(12, saved.RootElement.GetProperty(nameof(placement.ReceiveZ)).GetDouble());
+        Assert.Equal(12, System.Text.Json.JsonSerializer.Deserialize<PcbPlacementHandlerSettings>(saved.RootElement)!.ReceiveZ);
     }
 
     [Fact]

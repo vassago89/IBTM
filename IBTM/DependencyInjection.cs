@@ -359,6 +359,7 @@ public static class DependencyInjection
                         var recipes = provider.GetRequiredService<RecipeManager>();
                         placement.Feedback.PositionChanged += (x, y, z) => machine.UpdatePlacementPosition(
                             x, y, z, settings.PcbPlacementHandler.HandoffPosition,
+                            settings.PcbPlacementHandler.ReceiveZ,
                             recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition,
                             recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition);
                     }

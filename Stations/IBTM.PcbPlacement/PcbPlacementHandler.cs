@@ -32,6 +32,12 @@ public sealed class PcbPlacementHandler
         return Motion.IsAt(_settings.HandoffPosition, live);
     }
 
+    public bool IsAtReceivePosition(bool live = true)
+    {
+        return _settings.ReceiveZ is { } z
+            && Motion.IsAt(new() { X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = z }, live);
+    }
+
     public PlacementCylinderState Lift
     {
         get
@@ -179,6 +185,14 @@ public sealed class PcbPlacementHandler
         return MoveToXYAsync(_settings.HandoffPosition, cancellationToken);
     }
 
+    public Task MoveToReceiveZAsync(CancellationToken cancellationToken = default)
+    {
+        return MoveAxisAsync(
+            MotionAxis.Z,
+            _settings.ReceiveZ ?? throw new MotionInterlockException("Teach PCB Receive Z before receiving a PCB."),
+            cancellationToken);
+    }
+
     public Task MoveAxisAsync(
         MotionAxis axis,
         double position,
@@ -189,20 +203,22 @@ public sealed class PcbPlacementHandler
         return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
 
-    public Task MoveToXYAsync(AxisPosition position, CancellationToken cancellationToken = default)
+    public async Task MoveToXYAsync(AxisPosition position, CancellationToken cancellationToken = default)
     {
+        await MoveToHorizontalZAsync(cancellationToken);
         EnsureHandlerRaised(cancellationToken);
-        return _motion.MoveToXYAsync(
+        await _motion.MoveToXYAsync(
             position.X,
             position.Y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
     }
 
-    public Task MoveToAsync(double x, double y, double z, CancellationToken cancellationToken = default)
+    public async Task MoveToAsync(double x, double y, double z, CancellationToken cancellationToken = default)
     {
+        await MoveToHorizontalZAsync(cancellationToken);
         EnsureHandlerRaised(cancellationToken);
-        return _motion.MoveToAsync(x, y, z, cancellationToken);
+        await _motion.MoveToAsync(x, y, z, cancellationToken);
     }
 
     public Task MoveToTeachingPositionAsync(
@@ -227,6 +243,13 @@ public sealed class PcbPlacementHandler
     {
         EnsureHandlerRaised(cancellationToken);
         return _motion.JogAsync(axis, velocity, cancellationToken);
+    }
+
+    public Task AdjustAxisAsync(
+        MotionAxis axis, double position, double velocity, CancellationToken cancellationToken = default)
+    {
+        EnsureHandlerRaised(cancellationToken);
+        return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
     }
 
     public Task SetLiftDownAsync(bool down, CancellationToken cancellationToken = default)

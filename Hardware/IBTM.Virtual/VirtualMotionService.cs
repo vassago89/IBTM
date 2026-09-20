@@ -233,12 +233,11 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
     public override async Task JogAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken = default,
-        bool atCurrentHeight = false)
+        CancellationToken cancellationToken = default)
     {
         using var operation = Operations.Link(cancellationToken);
-        ValidateJog(axis, velocity, atCurrentHeight);
-        using var movement = BeginMovement(axis != MotionAxis.Z, operation.Token, adjustment: atCurrentHeight);
+        ValidateJog(axis, velocity);
+        using var movement = BeginMovement(axis != MotionAxis.Z, operation.Token, adjustment: true);
         var startX = _x;
         var startY = _y;
         var startZ = _z;
