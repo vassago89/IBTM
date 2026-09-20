@@ -47,7 +47,7 @@ at pickup travel height; it does not put the PCB into an upstream slot.
 After STOP, live holding feedback selects forward continuation: a PCB on Supply
 waits for forward receipt, a PCB held by Placement continues to its heat sink,
 and a shared hold at Receive Z waits for Supply release before Placement rises and departs in Y.
-After STOP, a PCB confirmed by receive XYZ, handler Up and vacuum remains `Holding`
+After STOP, a PCB confirmed by receive XYZ, handler Up, PCB detection and vacuum remains `Holding`
 with either confirmed IPM endpoint. An unknown or contradictory IPM position is unavailable.
 Normal restart prepares IPM Down after Supply releases; Repeat keeps IPM Up.
 A stop partway through departure resumes Y before moving X; no additional sequence state is used.
