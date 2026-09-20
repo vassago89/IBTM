@@ -168,7 +168,8 @@ Teaching 메뉴를 나갔다 다시 열면 저장·적용된 설정에서 다시
 Supply의 `PCB Give Position`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unrotated 상태다.
 `Rotation Z`에서 Unrotated로 전환한 뒤 인계 Z → 인계 XY 순서로 이동한다.
 대기는 PCB 1 X·공통 Pickup Y·Rotation Z에서 Rotated 상태다.
-Placement는 핸들러 상승 → 인계 Z → 인계 XY에서 대기하고, 인계 후 Heat Sink 1/2에 차례로 안착한다.
+Placement는 핸들러 상승 → 대기 Z → 인계 XY에서 대기하고, 실린더 Up 상태로 `ReceiveZ`까지 이동해 받는다.
+Supply 해제 후 대기 Z로 복귀하고 Heat Sink 1/2에 차례로 안착한다.
 Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 동작에서 회전하거나 회전 피드백을 기다리지 않는다. 티칭·OUTPUTS에서도 ON으로 전환할 수 없다.
 체결의 `Safe Z (Travel)`은 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
 `Pickup Head Fastening Z`는 픽업 볼트의 체결 높이다. 볼트마다 한 번만 체결한다.
@@ -363,8 +364,8 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 | 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.RunAsync`, `GetState`, `TransferAsync` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
 | PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceAsync`의 `switch (state)` | `heatSink`, `state`; 반환값 `false`이면 피드백 대기 |
-| 공급 진입 또는 안착 인수 실린더가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacement`이면 수취, Placement `WaitingForSupplyRelease`이면 해제; 각 상태의 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
-| 인수 후 실린더 상승 또는 Supply 복귀가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacementLift`이면 Placement 상승; Placement의 수취 대기·캐리어 대기·안착·완료 상태를 확인한 뒤 Supply 복귀 |
+| 공급 진입 또는 안착 인수 Z 이동이 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacement`이면 수취 Z로 이동, Placement `WaitingForSupplyRelease`이면 해제; 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
+| 인수 후 Z 복귀 또는 Supply 복귀가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacementLift`이면 Placement가 대기 Z로 복귀; Placement의 `Clear` 확인 후 Supply 복귀 |
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.ExecuteAsync` | `waitingForBolt`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
 | Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `ExecuteAsync`가 `false`를 반환하면 피드백 대기 |
@@ -409,12 +410,14 @@ XY 이동 전에 Rotation Z로 되돌아가지 않는다.
 픽업은 Rotation Z에서 XY 도착 후 해당 PCB 픽업 Z로 내려간다.
 회전 IO는 Rotation Z에서만 조작한다. 자동 이송·티칭 포인트 이동은 Rotated일 때 Rotation Z,
 Unrotated일 때 인계 Z를 사용한다.
-해제 후에는 두 Supply 실린더의 후퇴 완료 → Placement Handler Up 확인 → `MoveFromHandoffAsync`의
+해제 후에는 두 Supply 실린더의 후퇴 완료 → Placement의 대기 Z 복귀·Handler Up 확인 → `MoveFromHandoffAsync`의
 XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2 X와 Carrier Y, PCB2 후에는
 다음 캐리어의 PCB1 X와 Carrier Y로 돌아간다. 픽업 XY에 도착한 뒤 Rotation Z로 이동하고 Rotated로 전환한다.
 별도 Clear Z나 복귀 좌표는 없다. 시작 시 SMEMA가 없으면 PCB 1 XY·Rotation Z까지 이동해 대기한다.
 기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Give Position`의 XYZ를 확인하고 `Apply & Save Handoff`로 저장한다.
-Placement는 Supply 해제 확인 후 핸들러를 올리고 선택한 히트싱크 XY로 바로 이동한다.
+Placement는 `PCB Receive Standby`에서 기다리다가 실린더 Up 상태로 `PCB Receive Z`까지 내려가
+PCB 감지·진공·그리퍼를 확인한다. Supply 해제 후 대기 Z로 복귀하고 선택한 히트싱크 XY로 이동한다.
+`PCB Receive Z`는 티칭 시 자동 저장되며 기존 대기 XYZ와 별개다. 미티칭이면 수취 Z 이동을 시작하지 않는다.
 상대 위치에 따른 진입·이탈·간섭 대기와 경계 티칭은 제거했다. Z와 HOME을 포함한 모든 Placement 축 이동은
 핸들러 상승을 요구하며, 이동 중 상승 피드백을 잃으면 정지한다. 인계 도착·잡힘·해제 확인은 유지한다.
 상세 순서는 [Placement 동작](../Stations/IBTM.PcbPlacement/DESIGN.md)을 따른다.

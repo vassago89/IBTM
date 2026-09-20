@@ -1,22 +1,27 @@
 # PCB Placement Handler
 
-Standby is receiving Z followed by receiving XY. `HandoffPosition.Z` is
-also the XY travel height. Handler Rotate output stays OFF during automatic, repeat and manual operation. There is no separate wait coordinate.
+Standby is `HandoffPosition.Z` followed by `HandoffPosition.X/Y`. This Z is
+also the XY travel height. `ReceiveZ` is taught separately at the same X/Y.
+Handler Rotate output stays OFF during automatic, repeat and manual operation.
 
-1. Raise the handler, reach receiving Z, prepare the IPM, then move to receiving XY.
-2. Wait for Supply at its give XYZ with confirmed holding. Keep axes still, lower the handler, detect the PCB, apply vacuum and close the IPM gripper.
-3. After Supply fixer and gripper retract, raise the handler. Both handlers may leave independently.
+1. Raise the handler, reach standby Z, prepare the IPM, then move to standby XY.
+2. Wait for Supply at its give XYZ with confirmed holding. Keep the handler cylinder Up, move Z to `ReceiveZ`, detect the PCB, apply vacuum and close the IPM gripper.
+3. After Supply fixer and gripper retract, return Z to standby. Both handlers may then leave independently.
 4. With the carrier seated, move directly to Heat Sink 1 XY, descend to placement Z and lower the handler.
 5. Release vacuum, open the IPM gripper, raise IPM, close the gripper and lower IPM to press. Record the placement, then raise IPM, handler and Z.
 6. Return to receiving XY for the second PCB and repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
 7. Complete the carrier after the final placement is raised, then return to receiving standby.
 
 `State` / `GetState` describe Placement's own feedback only. `PlaceAsync` starts
-receipt when Supply's `Handoff` is `Holding`, and raises the handler once it is
+receipt when Supply's `Handoff` is `Holding`, and returns Z to standby once it is
 `Released`. Placement publishes `Holding` while securing the PCB at the receiving
 position, and `Clear` once Supply may withdraw. Internal placement/press stages
 are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
 documents these conditions and reference direction.
+
+Teaching lists `PCB Receive Standby` (XYZ, Apply & Save Handoff) and
+`PCB Receive Z` (Z only, saved automatically). Existing settings retain their
+standby coordinates. Missing `ReceiveZ` remains untaught and cannot start receipt.
 
 Placement reads `RecipeManager.Current.PcbPlacement` for both state selection and
 motion targets; callers do not pass a second recipe into the execution path.

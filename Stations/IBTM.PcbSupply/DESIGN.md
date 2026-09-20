@@ -76,9 +76,9 @@ motion commands, or internal sequence stages, and do not store duplicate state.
 
 | Handoff | Confirmed locally | Peer action |
 | --- | --- | --- |
-| Supply `Holding` | Secured PCB at settled give XYZ | Placement receives with its cylinder |
-| Placement `Holding` | At receiving XYZ, handler Down, PCB detected, vacuum and gripper confirmed | Supply retracts fixer, then opens gripper |
-| Supply `Released` | At give XYZ, fixer and gripper released | Placement raises its handler |
+| Supply `Holding` | Secured PCB at settled give XYZ | Placement moves Z to its receive height with its cylinder Up |
+| Placement `Holding` | At receive XY/Z, handler Up, PCB detected, vacuum and gripper confirmed | Supply retracts fixer, then opens gripper |
+| Supply `Released` | At give XYZ, fixer and gripper released | Placement returns Z to standby |
 | Placement `Clear` | Receiving/travel preparation complete, or working at the heat sink | Supply returns to pickup |
 | Either unit `Unavailable` | Disabled or not at a confirmed handoff condition | Peer waits |
 
@@ -88,13 +88,13 @@ to the other. Each loop listens for the peer's own changes to wake its wait;
 it never relays those changes back to the peer.
 Supply and Placement approach independently. Every Placement axis movement
 requires its handler cylinder Up. Either may arrive first. Both handlers must settle at their
-own taught XYZ before Placement lowers its receiving cylinder.
+own taught standby/give XYZ before Placement moves Z to `ReceiveZ`.
 
 Supply releases only while Placement reports handoff `Holding`, which
 requires PCB detection, vacuum detection, and its closed IPM gripper. The state
-is checked again before each release actuator. After release, Placement raises its handler cylinder without
-moving XYZ. Supply waits for that Up feedback before its XY return. Placement
-may leave for the selected heat sink as soon as its handler is Up.
+is checked again before each release actuator. After release, Placement returns Z
+to standby with its handler cylinder still Up. Supply waits for Placement's `Clear`
+before its XY return. Placement may then leave for the selected heat sink.
 
 The give position requires settled X/Y/Z feedback at the stored give XYZ;
 matching X/Y at Rotation Z is insufficient when the two heights differ.
@@ -106,7 +106,7 @@ inputs ON or both OFF mean Between. PCB detection alone does not prove holding:
 `Secured` also requires closed-gripper and IPM-fixer feedback. Output commands
 never substitute for endpoint confirmation.
 
-Manual XY travel and jog use Rotation Z when rotated and give Z when unrotated. A handoff point
+Manual axis moves and jog retain the current Z. A handoff point
 move requires unrotated feedback. A pickup point move requires rotated feedback.
 
 ## SMEMA and slot progress

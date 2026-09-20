@@ -52,7 +52,9 @@ Supply의 `HandoffPosition`은 인계 XYZ를 저장한다. 회전은 `RotationZ`
 인계 Z가 없으므로 `PCB Give Position`의 XYZ를 티칭하고 `Apply & Save Handoff`로 저장해야 한다.
 옛 `BufferClearZ`는 읽을 때 무시하고 다음 저장에서 제외한다. 별도 복귀 좌표는 저장하지 않으며
 PCB1·PCB2의 픽업 X와 공통 `CarrierY`를 사용한다.
-Placement도 `HandoffPosition.Z`를 인계·회전·XY 이동에 공통으로 사용하고, 옛 `BufferEntryZ`는 무시·제외한다.
+Placement의 `HandoffPosition`은 인계 대기 XYZ이며 그 Z를 XY 이동 높이로 사용한다.
+실린더 Up 상태에서 PCB를 받는 Z는 별도 `ReceiveZ`로 저장한다. `PCB Receive Z`를 티칭하면
+자동 저장되며, 기존 설정에 없으면 미티칭 상태로 남긴다. 옛 `BufferEntryZ`는 무시·제외한다.
 인계 영역 경계 설정은 읽거나 저장하지 않는다. 기존 DB 행은 삭제하지 않는다.
 인계 좌표 속성은 `HandoffPosition`이며, 기존 장비 좌표 보존을 위해 JSON 키 `BufferHandoffPosition`은 유지한다.
 카메라 Live FPS와 레시피의 노출·게인 설정도 읽거나 저장하지 않는다. 카메라에 설정된 값을 그대로 사용한다.

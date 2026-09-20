@@ -121,6 +121,29 @@ public sealed class PcbTransferTests
         Assert.True(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
     }
 
+    [Fact]
+    public async Task VirtualPlacementDetectsSupplyAtReceiveZWithCylinderUp()
+    {
+        var io = new VirtualIoService(
+            Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
+            new MachineOptions());
+        var simulation = new VirtualMachine(io, []);
+        io.Initialize();
+        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+        simulation.UpdateSupplyPosition(50, 10, 7, 30, (10, 5), (20, 5), Position(50, 10, 7));
+        var standby = Position(50, 10, 8);
+
+        simulation.UpdatePlacementPosition(50, 10, 8, standby, 12);
+        Assert.False(io.GetInput(InputIo.PcbPlacementPcbDetected));
+        simulation.UpdatePlacementPosition(50, 10, 12, standby, null);
+        Assert.False(io.GetInput(InputIo.PcbPlacementPcbDetected));
+        simulation.UpdatePlacementPosition(50, 10, 12, standby, 12);
+        Assert.True(io.GetInput(InputIo.PcbPlacementPcbDetected));
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, true);
+        Assert.False(io.GetInput(InputIo.PcbPlacementPcbDetected));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
