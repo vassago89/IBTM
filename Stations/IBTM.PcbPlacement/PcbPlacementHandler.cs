@@ -6,7 +6,7 @@ using IBTM.Device;
 
 namespace IBTM.PcbPlacement;
 
-public sealed class PcbPlacementHandler : IPcbHandoffReceiver
+public sealed class PcbPlacementHandler
 {
     private readonly IXyMotion _motion;
     private readonly IIoService _io;
@@ -267,7 +267,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         }
     }
 
-    private void OnInputChanged(InputIo input, bool _)
+    private void OnInputChanged(InputIo input, bool value)
     {
         if (input is InputIo.PcbPlacementHandlerDown
             or InputIo.PcbPlacementHandlerUp

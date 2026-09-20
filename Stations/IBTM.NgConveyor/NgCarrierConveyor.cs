@@ -414,7 +414,7 @@ public sealed class NgCarrierConveyor : AutoUnit
         NotifyChanged();
     }
 
-    private void OnInputChanged(InputIo input, bool _)
+    private void OnInputChanged(InputIo input, bool value)
     {
         if (input == InputIo.NgConveyorPosition1Occupied
             && Position1Occupied
@@ -434,7 +434,7 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
     }
 
-    private void OnOutputChanged(OutputIo output, bool _)
+    private void OnOutputChanged(OutputIo output, bool value)
     {
         if (output == OutputIo.NgConveyorRun)
         {

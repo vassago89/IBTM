@@ -449,9 +449,12 @@ public partial class TeachingViewModel
         }
     }
 
-    private void OnInspectionCommandChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnCommandChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+        if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
+            return;
+        OnPropertyChanged(nameof(IsBusy));
+        if (ReferenceEquals(sender, GrabCommand) || ReferenceEquals(sender, CaptureInspectionCommand))
             ToggleLiveViewCommand.NotifyCanExecuteChanged();
     }
 
@@ -470,7 +473,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
-            if (State.IsRunning)
+            if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -549,7 +552,7 @@ public partial class TeachingViewModel
         {
             return IsInspectionSelected
                 && (IsBoltSelected || IsDataMatrixSelected)
-                && !State.Display.IsRunning
+                && !State.IsRunning
                 && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
                 && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
                 && MillimetersPerPixel > 0
@@ -567,7 +570,7 @@ public partial class TeachingViewModel
         var activeToken = token;
         try
         {
-            if (State.IsRunning)
+            if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),

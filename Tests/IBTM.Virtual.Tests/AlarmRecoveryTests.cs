@@ -83,30 +83,30 @@ public sealed class AlarmRecoveryTests
             Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.Buzzer));
             Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.TowerLampYellow));
             var refreshed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            void OnDisplayChanged()
+            void OnDisplayChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
             {
                 refreshed.TrySetResult();
             }
 
-            state.DisplayChanged += OnDisplayChanged;
+            state.PropertyChanged += OnDisplayChanged;
             try
             {
-                state.RequestDisplayRefresh();
+                state.Refresh();
                 await refreshed.Task.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.True(io.GetOutput(OutputIo.Buzzer));
                 Assert.False(io.GetOutput(OutputIo.TowerLampYellow));
             }
             finally
             {
-                state.DisplayChanged -= OnDisplayChanged;
+                state.PropertyChanged -= OnDisplayChanged;
             }
 
-            state.SilenceBuzzer();
+            machine.SilenceBuzzer();
             Assert.False(io.GetOutput(OutputIo.Buzzer));
             Assert.False(io.GetOutput(OutputIo.TowerLampYellow));
             io.SetInput(InputIo.AutoMode, false); // Selecting AUTO alone is not Auto Run.
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.AutoMode,
+                () => state.AutoMode,
                 TimeSpan.FromSeconds(2)));
             Assert.False(io.GetOutput(OutputIo.TowerLampYellow));
             state.AutomaticRunning = true;
@@ -120,7 +120,7 @@ public sealed class AlarmRecoveryTests
             await machine.ResetAsync();
             await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-            state.RequestDisplayRefresh();
+            state.Refresh();
             Assert.False(io.GetOutput(OutputIo.Buzzer));
             state.SetError(MachineAlarm.Inspection);
             await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
@@ -304,7 +304,7 @@ public sealed class AlarmRecoveryTests
             SetAlarm(state, MachineAlarm.MotionUnavailable);
             Assert.True(
                 await VirtualTest.WaitUntilAsync(
-                    () => state.Display.Alarm == MachineAlarm.MotionUnavailable,
+                    () => state.Alarm == MachineAlarm.MotionUnavailable,
                     TimeSpan.FromSeconds(2)));
             var row = new ManualConveyorRow(
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun],
@@ -425,14 +425,13 @@ public sealed class AlarmRecoveryTests
                 Assert.Equal(stopper, io.GetOutput(OutputIo.NgConveyorStopperUp));
                 // First pass: carriers appear while running. Second pass: start
                 // with every carrier sensor already ON. Neither starts a sequence.
-                var previous = state.Display;
                 io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
                 io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
                 io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-                state.RequestDisplayRefresh();
+                state.Refresh();
                 Assert.True(
                     await VirtualTest.WaitUntilAsync(
-                        () => !ReferenceEquals(previous, state.Display),
+                        () => state.Available,
                         TimeSpan.FromSeconds(2)));
                 Assert.True(io.GetOutput(OutputIo.NgConveyorRun));
                 Assert.False(run.IsCompleted);
@@ -484,7 +483,7 @@ public sealed class AlarmRecoveryTests
             Assert.False(state.ManualControlsEnabled);
             Assert.False(state.AutomaticRunning);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => state.Display.AutoMode, TimeSpan.FromSeconds(2)));
+                await VirtualTest.WaitUntilAsync(() => state.AutoMode, TimeSpan.FromSeconds(2)));
 
             io.SetInput(InputIo.AutoMode, true);
             Assert.True(input.IsOn);
@@ -492,7 +491,7 @@ public sealed class AlarmRecoveryTests
             Assert.True(state.ManualMode);
             Assert.True(view.IsSettingsEditAllowed);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => !state.Display.AutoMode, TimeSpan.FromSeconds(2)));
+                await VirtualTest.WaitUntilAsync(() => !state.AutoMode, TimeSpan.FromSeconds(2)));
         }
         finally
         {
@@ -753,7 +752,7 @@ public sealed class AlarmRecoveryTests
                 Assert.False(machine.IsStartAllowed);
                 Assert.True(
                     await VirtualTest.WaitUntilAsync(
-                        () => state.Display.Available && !state.Display.DoorClosed,
+                        () => state.Available && !state.DoorClosed,
                         TimeSpan.FromSeconds(2)));
 
                 io.SetInput(input, true);
@@ -761,7 +760,7 @@ public sealed class AlarmRecoveryTests
                 Assert.True(state.DoorClosed);
                 Assert.True(
                     await VirtualTest.WaitUntilAsync(
-                        () => state.Display.DoorClosed,
+                        () => state.DoorClosed,
                         TimeSpan.FromSeconds(2)));
                 // Closing the door does not clear the latched alarm or restart the machine.
                 Assert.Equal(alarm, state.Alarm);

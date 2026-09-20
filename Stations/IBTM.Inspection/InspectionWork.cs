@@ -33,22 +33,27 @@ public sealed class InspectionWork : StationWork
 
     public override bool Enabled => Units.Inspection;
 
-    public bool AtInspectionPosition
+    public bool AtInspectionPosition => IsAtInspectionPosition();
+
+    public bool IsAtInspectionPosition(bool? conveyorRunning = null)
     {
-        get
-        {
-            return Station.CarrierPresent
-                && Station.BackupPlate == StationCylinderState.Down
-                && Station.Stopper == StationCylinderState.Up
-                && !_io.GetOutput(OutputIo.MainConveyorRun);
-        }
+        return Station.CarrierPresent
+            && Station.BackupPlate == StationCylinderState.Down
+            && Station.Stopper == StationCylinderState.Up
+            && !(conveyorRunning ?? _io.GetOutput(OutputIo.MainConveyorRun));
     }
 
     public bool InspectionRequested => ReferenceEquals(_inspectionRequestedJob, CurrentJob);
 
     public bool PickupClear => _transferFeedback.IsClear;
 
-    public override bool IsTransferAllowed => Station.CarrierPresent && Completed && (AtInspectionPosition || Station.CarrierSeated);
+    public override bool IsTransferAllowed => IsTransferAllowedFor();
+
+    public bool IsTransferAllowedFor(bool? conveyorRunning = null)
+    {
+        return Station.CarrierPresent && Completed
+            && (IsAtInspectionPosition(conveyorRunning) || Station.CarrierSeated);
+    }
 
     public override bool IsReceiveAllowed => base.IsReceiveAllowed
         && (!Units.NgCarrierTransfer || !_transferFeedback.CarrierDetected);
@@ -66,25 +71,24 @@ public sealed class InspectionWork : StationWork
         }
     }
 
-    internal InspectionWorkState State
+    internal InspectionWorkState State => GetState();
+
+    internal InspectionWorkState GetState(bool? conveyorRunning = null)
     {
-        get
+        switch (true)
         {
-            switch (true)
-            {
-                case true when !Station.CarrierPresent:
-                    return InspectionWorkState.WaitingForCarrier;
-                case true when Completed:
-                    return InspectionWorkState.WaitingForTransfer;
-                case true when Units.MainConveyor && !InspectionRequested:
-                    return InspectionWorkState.WaitingForConveyor;
-                case true when !AtInspectionPosition:
-                    return InspectionWorkState.WaitingForInspectionPosition;
-                default:
-                    return !_transferFeedback.IsClear
-                        ? InspectionWorkState.WaitingForGantry
-                        : InspectionWorkState.ReadyToInspect;
-            }
+            case true when !Station.CarrierPresent:
+                return InspectionWorkState.WaitingForCarrier;
+            case true when Completed:
+                return InspectionWorkState.WaitingForTransfer;
+            case true when Units.MainConveyor && !InspectionRequested:
+                return InspectionWorkState.WaitingForConveyor;
+            case true when !IsAtInspectionPosition(conveyorRunning):
+                return InspectionWorkState.WaitingForInspectionPosition;
+            default:
+                return !_transferFeedback.IsClear
+                    ? InspectionWorkState.WaitingForGantry
+                    : InspectionWorkState.ReadyToInspect;
         }
     }
 
@@ -112,7 +116,7 @@ public sealed class InspectionWork : StationWork
         NotifyChanged();
     }
 
-    private void OnOutputChanged(OutputIo output, bool _)
+    private void OnOutputChanged(OutputIo output, bool value)
     {
         if (output == OutputIo.MainConveyorRun)
             NotifyChanged();

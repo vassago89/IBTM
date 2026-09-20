@@ -35,5 +35,51 @@ csharp_style_expression_bodied_indexers = when_on_single_line:suggestion
 csharp_style_expression_bodied_accessors = when_on_single_line:suggestion
 csharp_style_expression_bodied_local_functions = false:suggestion
 
+# Most specific field rules first: const, private static, private instance.
+dotnet_naming_rule.constant_fields.symbols = constant_fields
+dotnet_naming_rule.constant_fields.style = pascal_case
+dotnet_naming_rule.constant_fields.severity = warning
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.applicable_accessibilities = *
+dotnet_naming_symbols.constant_fields.required_modifiers = const
+
+dotnet_naming_rule.private_static_fields.symbols = private_static_fields
+dotnet_naming_rule.private_static_fields.style = static_field
+dotnet_naming_rule.private_static_fields.severity = warning
+dotnet_naming_symbols.private_static_fields.applicable_kinds = field
+dotnet_naming_symbols.private_static_fields.applicable_accessibilities = private
+dotnet_naming_symbols.private_static_fields.required_modifiers = static
+
+dotnet_naming_rule.private_instance_fields.symbols = private_fields
+dotnet_naming_rule.private_instance_fields.style = instance_field
+dotnet_naming_rule.private_instance_fields.severity = warning
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+
+dotnet_naming_rule.exposed_fields.symbols = exposed_fields
+dotnet_naming_rule.exposed_fields.style = pascal_case
+dotnet_naming_rule.exposed_fields.severity = warning
+dotnet_naming_symbols.exposed_fields.applicable_kinds = field
+dotnet_naming_symbols.exposed_fields.applicable_accessibilities = public, internal, protected, protected_internal, private_protected
+
+dotnet_naming_rule.properties_methods_events.symbols = properties_methods_events
+dotnet_naming_rule.properties_methods_events.style = pascal_case
+dotnet_naming_rule.properties_methods_events.severity = warning
+dotnet_naming_symbols.properties_methods_events.applicable_kinds = property, method, event
+dotnet_naming_symbols.properties_methods_events.applicable_accessibilities = *
+
+dotnet_naming_style.instance_field.required_prefix = _
+dotnet_naming_style.instance_field.capitalization = camel_case
+dotnet_naming_style.static_field.required_prefix = s_
+dotnet_naming_style.static_field.capitalization = camel_case
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+# Keep manufacturer SDK declaration names intact.
+[Hardware/IBTM.Ajin/AX*.cs]
+dotnet_diagnostic.IDE1006.severity = none
+
+[Hardware/IBTM.AlphaMotion/tmc*.cs]
+dotnet_diagnostic.IDE1006.severity = none
+
 [*.{csproj,slnx}]
 indent_size = 2

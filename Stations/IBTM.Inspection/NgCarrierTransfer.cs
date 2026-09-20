@@ -97,7 +97,7 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
         return _io.WaitForInputAsync(InputIo.NgCarrierDetected, true, cancellationToken);
     }
 
-    private void OnInputChanged(InputIo input, bool _)
+    private void OnInputChanged(InputIo input, bool value)
     {
         if (input is InputIo.NgCarrierPickupUp
             or InputIo.NgCarrierPickupDown

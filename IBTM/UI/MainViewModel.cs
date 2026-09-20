@@ -35,7 +35,6 @@ public partial class MainViewModel : ObservableObject
     private readonly ManualHardwareViewModel _manualHardwareViewModel;
     private readonly MachineState _state;
     private readonly MachineController _machine;
-    private readonly IAsyncRelayCommand[] _recipeEditingCommands;
     private int _stateRefreshQueued;
     private bool _shuttingDown;
     private readonly DiagnosticWindows _windows;
@@ -84,27 +83,11 @@ public partial class MainViewModel : ObservableObject
         _machine = machine;
         _windows = windows;
         _log = log;
-        _recipeEditingCommands = [
-            NavigateCommand,
-            recipeEditor.SaveCommand,
-            recipeEditor.LoadCommand,
-            teachingViewModel.SaveHandoffSetupCommand,
-            teachingViewModel.TeachCurrentPositionCommand,
-            teachingViewModel.MoveToPointCommand,
-            teachingViewModel.ReturnFromPickupCommand,
-            teachingViewModel.GrabCommand,
-            teachingViewModel.ApplyRulerResolutionCommand,
-            teachingViewModel.CaptureInspectionCommand,
-            teachingViewModel.ReinspectImageCommand,
-            teachingViewModel.DrawFovRegionCommand,
-            teachingViewModel.TeachFovRegionCommand,
-        ];
-        foreach (var command in _recipeEditingCommands)
-        {
-            command.PropertyChanged += OnRecipeEditingChanged;
-        }
+        NavigateCommand.PropertyChanged += OnRecipeEditingChanged;
+        recipeEditor.PropertyChanged += OnRecipeEditingChanged;
+        teachingViewModel.PropertyChanged += OnRecipeEditingChanged;
 
-        state.DisplayChanged += OnMachineStateChanged;
+        state.PropertyChanged += OnMachineStateChanged;
         ActivateCurrentPage();
     }
 
@@ -123,7 +106,9 @@ public partial class MainViewModel : ObservableObject
             return !_shuttingDown
                 && !IsClosing
                 && _state.SetupEditingEnabled
-                && Array.TrueForAll(_recipeEditingCommands, static command => !command.IsRunning);
+                && !NavigateCommand.IsRunning
+                && !RecipeEditor.IsBusy
+                && !_teachingViewModel.IsBusy;
         }
     }
 
@@ -150,7 +135,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     // Window access follows selector mode only, not alarm/busy output admission.
-    public bool OutputsWindowEnabled => !_shuttingDown && !IsClosing && !_state.Display.AutoMode;
+    public bool OutputsWindowEnabled => !_shuttingDown && !IsClosing && !_state.AutoMode;
 
     public bool AdcProtocolEnabled => !_shuttingDown && _settingsViewModel.ActiveBoltDriver != BoltDriver.Io;
 
@@ -160,7 +145,7 @@ public partial class MainViewModel : ObservableObject
         {
             return !NavigateCommand.IsRunning
                 && (SelectedPage is AppPage.Operation or AppPage.Settings or AppPage.ManualHardware
-                    || !RecipeEditor.SaveCommand.IsRunning && !RecipeEditor.LoadCommand.IsRunning);
+                    || !RecipeEditor.IsBusy);
         }
     }
 
@@ -251,11 +236,10 @@ public partial class MainViewModel : ObservableObject
     {
         _shuttingDown = true;
         ResetCommand.NotifyCanExecuteChanged();
-        _state.DisplayChanged -= OnMachineStateChanged;
-        foreach (var command in _recipeEditingCommands)
-        {
-            command.PropertyChanged -= OnRecipeEditingChanged;
-        }
+        _state.PropertyChanged -= OnMachineStateChanged;
+        NavigateCommand.PropertyChanged -= OnRecipeEditingChanged;
+        RecipeEditor.PropertyChanged -= OnRecipeEditingChanged;
+        _teachingViewModel.PropertyChanged -= OnRecipeEditingChanged;
 
         return Task.WhenAll(
             CommandShutdown.WaitAsync(CommandShutdown.Capture(ResetCommand, NavigateCommand)),
@@ -363,14 +347,14 @@ public partial class MainViewModel : ObservableObject
 
     private void OnRecipeEditingChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+        if (e.PropertyName is nameof(IAsyncRelayCommand.IsRunning) or nameof(RecipeEditor.IsBusy))
         {
             OnPropertyChanged(nameof(RecipeEditingEnabled));
             OnPropertyChanged(nameof(CurrentPageEnabled));
         }
     }
 
-    private void OnMachineStateChanged()
+    private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_shuttingDown || Interlocked.Exchange(ref _stateRefreshQueued, 1) != 0)
         {

@@ -39,24 +39,25 @@ public sealed class InspectionStation : AutoUnit
         bool repeat = false,
         bool holdAtShuttle = false,
         bool live = true,
-        bool? conveyorRunning = null)
+        bool? conveyorRunning = null,
+        bool? mainConveyorRunning = null)
     {
         return GetTransferDisplayState(GetTransferState(repeat, holdAtShuttle, live, conveyorRunning))
-            ?? GetNextInspectionState(GetNextBolt(bolts), live);
+            ?? GetNextInspectionState(GetNextBolt(bolts), live, mainConveyorRunning);
     }
 
-    public BoltPoint? GetActiveBolt(IReadOnlyList<BoltPoint> bolts)
+    public BoltPoint? GetActiveBolt(IReadOnlyList<BoltPoint> bolts, bool? mainConveyorRunning = null)
     {
         return _work.Enabled
-            && _work.State == InspectionWorkState.ReadyToInspect
+            && _work.GetState(mainConveyorRunning) == InspectionWorkState.ReadyToInspect
             && NextBarcode is null
             ? GetNextBolt(bolts)
             : null;
     }
 
-    public HeatSinkSlot? GetActivePcb(IReadOnlyList<BoltPoint> bolts)
+    public HeatSinkSlot? GetActivePcb(IReadOnlyList<BoltPoint> bolts, bool? mainConveyorRunning = null)
     {
-        return _work.Enabled && _work.State == InspectionWorkState.ReadyToInspect
+        return _work.Enabled && _work.GetState(mainConveyorRunning) == InspectionWorkState.ReadyToInspect
             ? NextBarcode ?? GetNextBolt(bolts)?.HeatSink
             : null;
     }
@@ -256,10 +257,10 @@ public sealed class InspectionStation : AutoUnit
         }
     }
 
-    private InspectionStationState GetNextInspectionState(BoltPoint? bolt, bool live = true)
+    private InspectionStationState GetNextInspectionState(BoltPoint? bolt, bool live = true, bool? mainConveyorRunning = null)
     {
         var enabled = _work.Enabled;
-        var workState = _work.State;
+        var workState = _work.GetState(mainConveyorRunning);
         switch (true)
         {
             case true when !enabled || workState != InspectionWorkState.ReadyToInspect:

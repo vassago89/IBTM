@@ -179,7 +179,6 @@ public sealed class IoStartupTests
         var supply = services.GetRequiredService<PcbSupplyHandler>();
         var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
         await machine.InitializeAsync();
-        await services.GetRequiredService<MachineState>().StopDisplayUpdatesAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         services.GetRequiredService<VirtualIoService>().AutoResponseEnabled = false;
         try
@@ -258,7 +257,6 @@ public sealed class IoStartupTests
             Assert.False(physicalOutputs.GetOutput(OutputIo.MainConveyorRun));
 
             // Drain reads already in flight before checking the manual commands.
-            await services.GetRequiredService<MachineState>().StopDisplayUpdatesAsync();
             await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
             var readsBeforeManualCommands = io.ReadsWhileUnavailable;
 
@@ -657,7 +655,6 @@ public sealed class IoStartupTests
         var io = services.GetRequiredService<StartupIo>();
         var signals = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
-        await services.GetRequiredService<MachineState>().StopDisplayUpdatesAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         signals.AutoResponseEnabled = false;
         signals.SetInput(InputIo.AutoMode, false);
@@ -860,7 +857,7 @@ public sealed class IoStartupTests
                 TransferFailureStep.ShootBolt => services.GetRequiredService<IBTM.BoltFastening.BoltFasteningGantry>()
                     .ShootBoltAsync(timeout.Token),
                 TransferFailureStep.PcbSupply => services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>()
-                    .RunAsync(new(), timeout.Token),
+                    .RunAsync(new(), services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>(), timeout.Token),
                 TransferFailureStep.BoltFeeder => services.GetRequiredService<IBTM.BoltFeeder.ShootingBoltFeeder>()
                     .RunAsync(timeout.Token),
                 _ => conveyor.RunAsync(timeout.Token),
@@ -1027,7 +1024,6 @@ public sealed class IoStartupTests
         var io = services.GetRequiredService<StartupIo>();
         var outputs = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
-        await state.StopDisplayUpdatesAsync(); // Isolate the command's output read.
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         outputs.AutoResponseEnabled = false;
         var readFailure = new IOException("Manual RUN output read failed.");
@@ -1085,7 +1081,6 @@ public sealed class IoStartupTests
         var operations = services.GetRequiredService<OperationCancellation>();
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
-        await state.StopDisplayUpdatesAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         Assert.True(machine.IsHomeAllowed);
         var failure = new IOException("PCB input became unavailable before cylinder raise.");
@@ -1131,21 +1126,23 @@ public sealed class IoStartupTests
     public async Task HomeStopsAndReportsInputReadFailureFromStateNotification()
     {
         var settings = new MachineSettings();
-        settings.BoltFastening.SafeZ = 10;
-        settings.BoltFastening.Motion.ZSpeed = 1;
+        settings.BoltFastening.Motion.ZHome.SearchSpeed = 1;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
-        await state.StopDisplayUpdatesAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
+        await motion.MoveAxisAsync(MotionAxis.Z, 10, 1_000);
         var homing = machine.HomeAsync(CancellationToken.None);
-        var failure = new IOException("Carrier input read failed during HOME notification.");
+        await WaitUntilAsync(() => state.IsHoming && motion.GetAxisState(MotionAxis.Z).InMotion);
+        var failure = new IOException("Placement PCB input read failed during HOME notification.");
         var notificationThread = Environment.CurrentManagedThreadId;
         io.BeforeInputRead = input =>
         {
-            if (input != InputIo.PcbPlacementHeatSink1Present
+            if (input != InputIo.PcbPlacementPcbDetected
                 || Environment.CurrentManagedThreadId != notificationThread)
                 return;
             io.BeforeInputRead = null;
@@ -1236,7 +1233,7 @@ public sealed class IoStartupTests
 
         await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
-        AssertUnavailable(state, error);
+        AssertUnavailable(state, machine, error);
         var log = services.GetRequiredService<ApplicationLog>();
         var detail = Assert.Single(log.Snapshot(), entry => entry.Detail?.Contains(error.Message) == true);
         Assert.Equal("Machine alarm: IoCommunication.", detail.Message);
@@ -1257,16 +1254,16 @@ public sealed class IoStartupTests
         var resetError = new IOException("Control initialization failed again during RESET.");
         io.InitializationError = resetError;
         await machine.ResetAsync().WaitAsync(TimeSpan.FromSeconds(2));
-        AssertUnavailable(state, error);
+        AssertUnavailable(state, machine, error);
         var resetDetail = Assert.Single(log.Snapshot(), entry => entry.Detail?.Contains(resetError.Message) == true);
         Assert.Equal("Machine alarm remains: IoCommunication.", resetDetail.Message);
         Assert.Equal(resetError.ToString(), resetDetail.Detail);
 
         io.InitializationError = null;
         await machine.ResetAsync().WaitAsync(TimeSpan.FromSeconds(2));
-        await WaitUntilAsync(() => state.Display.Available && state.Display.Alarm == MachineAlarm.None);
+        await WaitUntilAsync(() => state.Available && state.Alarm == MachineAlarm.None);
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.Null(state.Display.ReadError);
+        Assert.Null(state.ReadError);
         Assert.Equal(0, io.ReadsWhileUnavailable);
         Assert.Equal(0, io.WritesWhileUnavailable);
         await machine.ShutdownAsync();
@@ -1283,9 +1280,9 @@ public sealed class IoStartupTests
         var error = new IOException("Original control connection failure.");
 
         io.Disconnect(error);
-        await WaitUntilAsync(() => !state.Display.Available);
+        await WaitUntilAsync(() => !state.Available);
 
-        AssertUnavailable(state, error);
+        AssertUnavailable(state, machine, error);
         Assert.Contains(
             services.GetRequiredService<ApplicationLog>().Snapshot(),
             entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
@@ -1313,10 +1310,10 @@ public sealed class IoStartupTests
             throw new IOException("Secondary AXT_RT_NOT_OPEN during the in-flight read.");
         };
 
-        state.RequestDisplayRefresh();
-        await WaitUntilAsync(() => !state.Display.Available);
+        state.Refresh();
+        await WaitUntilAsync(() => !state.Available);
 
-        AssertUnavailable(state, error);
+        AssertUnavailable(state, machine, error);
         Assert.All(
             services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
@@ -1332,8 +1329,6 @@ public sealed class IoStartupTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
-        await state.StopDisplayUpdatesAsync();
-        var display = state.Display;
         var error = new IOException("Actual output read failure.");
         try
         {
@@ -1344,7 +1339,6 @@ public sealed class IoStartupTests
             Assert.False(services.GetRequiredService<VirtualIoService>().GetOutput(OutputIo.MainConveyorRun));
             Assert.All(services.GetRequiredService<IoSignals>().Outputs.Values, output => Assert.Null(output.IsOn));
             Assert.Same(error, services.GetRequiredService<MachineFeedbackMonitor>().ReadError);
-            Assert.Same(display, state.Display);
 
             io.OutputReadError = null;
             await WaitUntilAsync(() => services.GetRequiredService<MachineFeedbackMonitor>().ReadError is null);
@@ -1358,7 +1352,7 @@ public sealed class IoStartupTests
     }
 
     [Fact]
-    public async Task InputAndOutputMonitorsOutliveDisplayAndWaitForOperationCleanup()
+    public async Task InputAndOutputMonitorsWaitForOperationCleanup()
     {
         await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
@@ -1367,8 +1361,6 @@ public sealed class IoStartupTests
         var signals = services.GetRequiredService<IoSignals>();
         var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
         await machine.InitializeAsync();
-        await state.StopDisplayUpdatesAsync();
-        var display = state.Display;
         var input = signals.Inputs[InputIo.PcbSupplyPcbDetected];
         var light = signals.Outputs[OutputIo.MachineLight];
         using var operation = services.GetRequiredService<OperationCancellation>().Link();
@@ -1378,7 +1370,6 @@ public sealed class IoStartupTests
             io.PendingInput = (input.Signal, true);
             io.ObservedLight = true;
             await WaitUntilAsync(() => input.IsOn == true && light.IsOn == true);
-            Assert.Same(display, state.Display);
 
             var shutdown = machine.ShutdownAsync();
             await WaitUntilAsync(() => operation.Token.IsCancellationRequested);
@@ -1448,18 +1439,18 @@ public sealed class IoStartupTests
         }
     }
 
-    private static void AssertUnavailable(MachineState state, Exception error)
+    private static void AssertUnavailable(MachineState state, MachineController machine, Exception error)
     {
         Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
-        Assert.False(state.Display.Available);
-        Assert.Equal(MachineAlarm.IoCommunication, state.Display.Alarm);
-        Assert.Equal(error.Message, state.Display.AlarmMessage);
-        Assert.Contains(error.Message, state.Display.AlarmDetail);
-        Assert.Null(state.Display.ReadError);
-        Assert.False(state.Display.IsStartAllowed);
-        Assert.False(state.Display.IsHomeAllowed);
-        Assert.False(state.Display.ManualControlsEnabled);
-        Assert.False(state.Display.ManualSetupEnabled);
+        Assert.False(state.Available);
+        Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+        Assert.Equal(error.Message, state.AlarmMessage);
+        Assert.Contains(error.Message, state.AlarmDetail);
+        Assert.Null(state.ReadError);
+        Assert.False(machine.IsStartAllowed);
+        Assert.False(machine.IsHomeAllowed);
+        Assert.False(state.ManualControlsEnabled);
+        Assert.False(state.ManualSetupEnabled);
     }
 
     private static ServiceProvider CreateServices(MachineSettings? settings = null)

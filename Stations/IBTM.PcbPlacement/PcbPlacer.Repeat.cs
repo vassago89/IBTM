@@ -13,7 +13,6 @@ public sealed partial class PcbPlacer
     private RepeatPcbTrip? _repeatTrip;
 
     private async Task ExecuteRepeatAsync(
-        PcbPlacementRecipe recipe,
         HeatSinkSlot? heatSink,
         CancellationToken cancellationToken)
     {
@@ -26,7 +25,7 @@ public sealed partial class PcbPlacer
 
         if (_repeatTrip is not { } trip)
         {
-            if (!await PlaceAsync(recipe, heatSink, cancellationToken))
+            if (!await PlaceAsync(heatSink, cancellationToken))
                 await WaitForChangeAsync(cancellationToken);
             return;
         }
@@ -66,7 +65,7 @@ public sealed partial class PcbPlacer
         {
             CheckRepeatFeedback();
             operation.Token.ThrowIfCancellationRequested();
-            if (!await PlaceAsync(recipe, trip.HeatSink, operation.Token))
+            if (!await PlaceAsync(trip.HeatSink, operation.Token))
                 await WaitForChangeAsync(operation.Token);
             operation.Token.ThrowIfCancellationRequested();
         }

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -6,7 +7,7 @@ using IBTM.Device;
 
 namespace IBTM.PcbSupply;
 
-public sealed class PcbSupplyHandler : IPcbHandoffSource
+public sealed class PcbSupplyHandler
 {
     private readonly IXyMotion _motion;
     private readonly IIoService _io;
@@ -188,6 +189,8 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
     {
         // In production, STOP is not pickup completion. Teaching clears the external
         // output; unknown production feedback must not imply an empty carrier position.
+        if (!_io.IsReady)
+            throw new IOException("Supply SMEMA feedback is unavailable; Ready cannot be cleared safely.");
         if (_io.GetInput(InputIo.AutoMode) || !UpstreamCarrierAvailable)
             _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, false);
     }

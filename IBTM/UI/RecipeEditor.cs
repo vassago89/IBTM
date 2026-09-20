@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -35,12 +36,22 @@ public partial class RecipeEditor : ObservableObject
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsSaveAllowed);
         LoadCommand = new AsyncRelayCommand<string>(LoadAsync);
         NewCommand = new RelayCommand(New);
+        SaveCommand.PropertyChanged += OnCommandChanged;
+        LoadCommand.PropertyChanged += OnCommandChanged;
 
         _recipes = recipes;
         _operations = operations;
         Name = recipes.Current.Name;
         Recipes = recipes.GetRecipeNames();
         recipes.Changed += OnRecipeChanged;
+    }
+
+    public bool IsBusy => SaveCommand.IsRunning || LoadCommand.IsRunning;
+
+    private void OnCommandChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+            OnPropertyChanged(nameof(IsBusy));
     }
 
     public string ActiveName => _recipes.Current.Name;

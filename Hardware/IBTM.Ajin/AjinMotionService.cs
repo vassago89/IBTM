@@ -17,7 +17,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     private const int EmergencyBit = 6;
     private const int HomeSensorBit = 7;
     private const uint AccelerationInUnitsPerSecondSquared = 0;
-    private static readonly TimeSpan StatusPollInterval;
+    private static readonly TimeSpan s_statusPollInterval;
 
     private readonly AjinController _controller;
     private readonly MachineOptions _options;
@@ -28,7 +28,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
     static AjinMotionService()
     {
-        StatusPollInterval = TimeSpan.FromMilliseconds(10);
+        s_statusPollInterval = TimeSpan.FromMilliseconds(10);
     }
 
     public AjinMotionService(
@@ -470,7 +470,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= _options.TimeoutMilliseconds)
                 throw new TimeoutException(
                     $"Motion did not stop within {_options.TimeoutMilliseconds} ms.");
-            await Task.Delay(StatusPollInterval).ConfigureAwait(false);
+            await Task.Delay(s_statusPollInterval).ConfigureAwait(false);
         }
     }
 
@@ -496,7 +496,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                         $"In-position feedback was not received within {_options.TimeoutMilliseconds} ms.");
             }
 
-            await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(s_statusPollInterval, cancellationToken).ConfigureAwait(false);
         }
     }
 

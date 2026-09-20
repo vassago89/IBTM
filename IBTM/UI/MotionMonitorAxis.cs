@@ -68,7 +68,7 @@ public sealed class MotionMonitorAxis : ObservableObject
         await _machine.HomeAsync(Group, cancellationToken, Axis);
     }
 
-    private bool IsHomeAllowed => _state.Display.HomeableAxes.Contains((Group, Axis));
+    private bool IsHomeAllowed => _machine.IsHomeAxisAllowed(Group, Axis);
 
     internal bool Refresh()
     {

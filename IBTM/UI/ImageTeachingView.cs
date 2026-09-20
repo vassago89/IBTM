@@ -26,10 +26,10 @@ public sealed record ImageRuler(Point Start, Point End)
 // Drawing and measurement coordinates are original-image pixels, independent of display size.
 public sealed class ImageTeachingView : FrameworkElement
 {
-    private static readonly Pen RegionPen;
-    private static readonly Pen RulerPen;
-    private static readonly Pen CrosshairOutlinePen;
-    private static readonly Pen CrosshairPen;
+    private static readonly Pen s_regionPen;
+    private static readonly Pen s_rulerPen;
+    private static readonly Pen s_crosshairOutlinePen;
+    private static readonly Pen s_crosshairPen;
 
     private Point? _dragStart;
     private Point? _dragEnd;
@@ -52,10 +52,10 @@ public sealed class ImageTeachingView : FrameworkElement
 
     static ImageTeachingView()
     {
-        RegionPen = CreateFrozenPen(Color.FromRgb(74, 222, 128), 2.5);
-        RulerPen = CreateFrozenPen(Color.FromRgb(56, 189, 248), 2);
-        CrosshairOutlinePen = CreateFrozenPen(Colors.Black, 3);
-        CrosshairPen = CreateFrozenPen(Color.FromRgb(251, 191, 36), 1);
+        s_regionPen = CreateFrozenPen(Color.FromRgb(74, 222, 128), 2.5);
+        s_rulerPen = CreateFrozenPen(Color.FromRgb(56, 189, 248), 2);
+        s_crosshairOutlinePen = CreateFrozenPen(Colors.Black, 3);
+        s_crosshairPen = CreateFrozenPen(Color.FromRgb(251, 191, 36), 1);
         SourceProperty = DependencyProperty.Register(
             nameof(Source),
             typeof(BitmapSource),
@@ -162,7 +162,7 @@ public sealed class ImageTeachingView : FrameworkElement
                 region.Height * scale);
             if (SourceOverlay is not null && _dragStart is null)
                 drawing.DrawImage(SourceOverlay, bounds);
-            drawing.DrawRectangle(null, RegionPen, bounds);
+            drawing.DrawRectangle(null, s_regionPen, bounds);
         }
 
         if (IsMeasuring)
@@ -174,10 +174,10 @@ public sealed class ImageTeachingView : FrameworkElement
             {
                 var first = new Point(fitted.X + ruler.Start.X * scale, fitted.Y + ruler.Start.Y * scale);
                 var last = new Point(fitted.X + ruler.End.X * scale, fitted.Y + ruler.End.Y * scale);
-                drawing.DrawLine(CrosshairOutlinePen, first, last);
-                drawing.DrawLine(RulerPen, first, last);
-                drawing.DrawEllipse(Brushes.Black, RulerPen, first, 4, 4);
-                drawing.DrawEllipse(Brushes.Black, RulerPen, last, 4, 4);
+                drawing.DrawLine(s_crosshairOutlinePen, first, last);
+                drawing.DrawLine(s_rulerPen, first, last);
+                drawing.DrawEllipse(Brushes.Black, s_rulerPen, first, 4, 4);
+                drawing.DrawEllipse(Brushes.Black, s_rulerPen, last, 4, 4);
             }
         }
 
@@ -190,10 +190,10 @@ public sealed class ImageTeachingView : FrameworkElement
         var right = new Point(center.X + arm, center.Y);
         var top = new Point(center.X, center.Y - arm);
         var bottom = new Point(center.X, center.Y + arm);
-        drawing.DrawLine(CrosshairOutlinePen, left, right);
-        drawing.DrawLine(CrosshairOutlinePen, top, bottom);
-        drawing.DrawLine(CrosshairPen, left, right);
-        drawing.DrawLine(CrosshairPen, top, bottom);
+        drawing.DrawLine(s_crosshairOutlinePen, left, right);
+        drawing.DrawLine(s_crosshairOutlinePen, top, bottom);
+        drawing.DrawLine(s_crosshairPen, left, right);
+        drawing.DrawLine(s_crosshairPen, top, bottom);
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)

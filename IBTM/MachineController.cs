@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -18,9 +19,9 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
-public sealed partial class MachineController
+public sealed partial class MachineController : INotifyPropertyChanged
 {
-    private static readonly InputIo[] CarrierInputs;
+    private static readonly InputIo[] s_carrierInputs;
 
     private readonly MachineState _state;
     private readonly MachineFeedbackMonitor _feedback;
@@ -50,7 +51,7 @@ public sealed partial class MachineController
 
     static MachineController()
     {
-        CarrierInputs = [
+        s_carrierInputs = [
             InputIo.MainConveyorEntryCarrierDetected,
             InputIo.PcbPlacementHeatSink1Present,
             InputIo.PcbPlacementHeatSink2Present,
@@ -127,18 +128,28 @@ public sealed partial class MachineController
             foreach (var unit in automaticUnits)
                 unit.Trace += message => log.LogInformation("{Message}", message);
         }
+        state.PropertyChanged += OnMachinePropertyChanged;
+        recipes.Changed += OnRecipeChanged;
+        conveyor.Changed += state.Refresh;
+        ngConveyor.Changed += OnNgConveyorChanged;
         io.InputChanged += OnInputChanged;
         feedback.IoFaulted += OnIoFaulted;
         placementHandler.Feedback.MovingChanged += _ => CheckMotionInterlocks();
         fasteningGantry.Feedback.StateChanged += CheckMotionInterlocks;
         inspectionGantry.Feedback.MovingChanged += _ => CheckMotionInterlocks();
-        pcbSupply.Changed += state.RequestDisplayRefresh;
-        pcbPlacement.Changed += state.RequestDisplayRefresh;
-        fasteningStation.Changed += state.RequestDisplayRefresh;
-        fasteningGantry.Changed += state.RequestDisplayRefresh;
-        inspectionStation.Changed += state.RequestDisplayRefresh;
-        pickupBoltFeeder.Changed += state.RequestDisplayRefresh;
-        shootingBoltFeeder.Changed += state.RequestDisplayRefresh;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    internal bool IsHomeAxisAllowed(MotionGroup group, MotionAxis axis)
+    {
+        return _state.Available && !_state.IsRunning && IsHomeAxisReady(group, axis, live: false);
+    }
+
+    private void OnRecipeChanged()
+    {
+        PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
+        PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
     }
 
     private bool PcbHandlersEnabled => _units.PcbSupply || _units.PcbPlacement;
@@ -163,8 +174,7 @@ public sealed partial class MachineController
                 _state.SetError(alarm, error);
         }
 
-        _state.UpdateMachineIndicators();
-        await _state.StartDisplayUpdatesAsync(ReadDisplay);
+        UpdateMachineIndicators();
         _log?.LogInformation("{Message}", $"Machine initialization finished. Alarm={_state.Alarm}.");
     }
 
@@ -227,7 +237,6 @@ public sealed partial class MachineController
     private async Task ShutdownHardwareAsync()
     {
         _log?.LogInformation("Machine shutdown requested.");
-        var displayStopped = _state.StopDisplayUpdatesAsync();
         var shutdown = _operations.ShutdownAsync();
         Exception? failure = null;
         try
@@ -241,11 +250,11 @@ public sealed partial class MachineController
 
         // Cleanup may still await cylinder inputs. Keep every monitor alive
         // until command/device cleanup finishes, then stop and join the loops.
-        var cleanup = Task.WhenAll(shutdown, displayStopped, _boltInspector.StopLiveViewAsync());
+        var cleanup = Task.WhenAll(shutdown, _boltInspector.StopLiveViewAsync());
         try
         {
             await cleanup;
-            _state.UpdateMachineIndicators();
+            UpdateMachineIndicators();
         }
         catch (Exception exception)
         {
@@ -293,6 +302,22 @@ public sealed partial class MachineController
             ExceptionDispatchInfo.Throw(failure);
     }
 
+    private void OnMachinePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
+        PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
+        PropertyChanged?.Invoke(this, new(nameof(HomeBlock)));
+        PropertyChanged?.Invoke(this, new(nameof(IsHomeAllowed)));
+        if (e.PropertyName is nameof(MachineState.Alarm) or nameof(MachineState.AutomaticRunning))
+            UpdateMachineIndicators();
+    }
+
+    private void OnNgConveyorChanged()
+    {
+        UpdateMachineIndicators();
+        _state.Refresh();
+    }
+
     private void OnInputChanged(InputIo input, bool value)
     {
         if (MachineState.IsSafetyInput(input))
@@ -322,7 +347,7 @@ public sealed partial class MachineController
             CheckMotionInterlocks();
         }
 
-        if (Array.IndexOf(CarrierInputs, input) >= 0
+        if (Array.IndexOf(s_carrierInputs, input) >= 0
             || input is InputIo.PcbPlacementPcbDetected
                 or InputIo.PcbPlacementHandlerUp
                 or InputIo.PcbPlacementHandlerDown
@@ -335,9 +360,6 @@ public sealed partial class MachineController
                 or InputIo.NgCarrierPickupUp
                 or InputIo.NgCarrierPickupDown)
             _state.Refresh();
-
-        if (input == InputIo.ServoMainContactorOn || MachineState.IsSafetyInput(input))
-            _state.RequestDisplayRefresh();
 
         if (input == InputIo.ResetButton && value && _options.UseResetButton)
         {

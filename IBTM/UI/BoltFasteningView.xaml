@@ -46,7 +46,7 @@
             </Border>
 
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.DetailTop}" Width="340"
-                Text="{Binding State.Display.FasteningState,
+                Text="{Binding FasteningState,
                                       Converter={StaticResource EnumDescriptionConverter}}"
                 TextAlignment="Left" Style="{StaticResource MapLabelStyle}" FontSize="14"
                 Visibility="{Binding FasteningStateVisible,

@@ -817,7 +817,7 @@ public sealed partial class AjinControllerTests
         var stateRead = new AjinSdk.Call(nameof(CAXM.AxmStatusReadMechanical), Axis: 9);
         var positionRead = new AjinSdk.Call(nameof(CAXM.AxmStatusGetActPos), Axis: 10);
         var reportedErrors = 0;
-        void ReportError(MotionAxis _, Exception __)
+        void ReportError(MotionAxis axis, Exception error)
         {
             reportedErrors++;
         }

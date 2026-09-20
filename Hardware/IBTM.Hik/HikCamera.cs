@@ -14,7 +14,7 @@ namespace IBTM.Hik;
 public sealed class HikCamera : ICamera, IDisposable
 {
     private readonly InspectionCameraSettings _settings;
-    private static readonly MvGvspPixelType ConversionPixelType = MvGvspPixelType.PixelType_Gvsp_RGB8_Packed;
+    private static readonly MvGvspPixelType s_conversionPixelType = MvGvspPixelType.PixelType_Gvsp_RGB8_Packed;
 
     // Device selection changes apply after restart, not during connection recovery.
     private readonly string _deviceId;
@@ -396,7 +396,7 @@ public sealed class HikCamera : ICamera, IDisposable
                     image,
                     pixels,
                     out var convertedSize,
-                    ConversionPixelType),
+                    s_conversionPixelType),
                 "Convert Hik frame to RGB8");
 
             if (convertedSize != checked((ulong)pixels.Length))

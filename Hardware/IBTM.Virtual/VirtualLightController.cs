@@ -8,15 +8,15 @@ public sealed class VirtualLightController : ILightController
     {
     }
 
-    public void SetLevel(int _, int __)
+    public void SetLevel(int channel, int level)
     {
     }
 
-    public void TurnOn(int _)
+    public void TurnOn(int channel)
     {
     }
 
-    public void TurnOff(int _)
+    public void TurnOff(int channel)
     {
     }
 

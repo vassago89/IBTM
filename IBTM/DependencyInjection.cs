@@ -346,7 +346,6 @@ public static class DependencyInjection
                     }
                     return supply;
                 })
-            .AddSingleton<IPcbHandoffSource>(provider => provider.GetRequiredService<PcbSupplyHandler>())
             .AddSingleton(
                 provider =>
                 {
@@ -365,7 +364,6 @@ public static class DependencyInjection
                     }
                     return placement;
                 })
-            .AddSingleton<IPcbHandoffReceiver>(provider => provider.GetRequiredService<PcbPlacementHandler>())
             .AddSingleton(
                 provider =>
                     new BoltFasteningGantry(
@@ -381,6 +379,7 @@ public static class DependencyInjection
             .AddSingleton<MachineState>()
             .AddSingleton<MachineController>()
             .AddSingleton<PcbSupplier>()
+            .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
             .AddSingleton<PcbPlacer>()
             .AddSingleton<PickupBoltFeeder>()
             .AddSingleton<ShootingBoltFeeder>()

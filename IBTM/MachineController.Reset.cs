@@ -47,7 +47,7 @@ public sealed partial class MachineController
 
     private Task AcknowledgeAndResetAsync()
     {
-        _state.SilenceBuzzer();
+        SilenceBuzzer();
         lock (_resetGate)
         {
             // Repeated clicks acknowledge the buzzer, but share the current recovery.

@@ -123,10 +123,10 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.RepeatCycles >= 2 || state.IsError, TimeSpan.FromSeconds(55)),
-                $"Cycles={state.Display.RepeatCycles}; Phase={state.Display.RepeatPhase}; Main={state.Display.ConveyorState}; {state.AlarmDetail}");
+                () => machine.RepeatCycles >= 2 || state.IsError, TimeSpan.FromSeconds(55)),
+                $"Cycles={machine.RepeatCycles}; Phase={machine.RepeatDisplayPhase}; Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().State}; {state.AlarmDetail}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-            Assert.True(state.Display.RepeatCycles >= 2);
+            Assert.True(machine.RepeatCycles >= 2);
             Assert.True(shootingStarts >= 4);
             Assert.True(pickupDescents >= 4);
             Assert.True(pickupStarts >= 4);
@@ -235,7 +235,7 @@ public sealed partial class MachineLifecycleTests
                 ngConveyorRan = true;
         };
         Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
-        await WaitUntilAsync(() => state.Display.IsStartAllowed);
+        await WaitUntilAsync(() => machine.IsStartAllowed);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         var run = machine.StartAsync(timeout.Token);
         try
@@ -249,11 +249,11 @@ public sealed partial class MachineLifecycleTests
             }
 
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.RepeatCycles >= 1 || state.IsError,
+                () => machine.RepeatCycles >= 1 || state.IsError,
                 TimeSpan.FromSeconds(10)),
-                $"Phase={state.Display.RepeatPhase}, Alarm={state.AlarmDetail}");
+                $"Phase={machine.RepeatDisplayPhase}, Alarm={state.AlarmDetail}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-            Assert.Equal(1, state.Display.RepeatCycles);
+            Assert.Equal(1, machine.RepeatCycles);
             Assert.True(loweredWhileHolding);
             Assert.Equal(shuttleEnabled, openedAtShuttle);
             Assert.Equal(shuttleEnabled, placedAndReleased);
@@ -315,7 +315,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(state.DoorInterlockReady);
             }
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
-            await WaitUntilAsync(() => state.Display.IsStartAllowed);
+            await WaitUntilAsync(() => machine.IsStartAllowed);
             run = machine.StartAsync();
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(3)),
@@ -337,7 +337,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             Assert.Equal(repeat ? StartBlockReason.TeachingMode : StartBlockReason.None, machine.StartBlock);
-            await WaitUntilAsync(() => state.Display.IsStartAllowed == !repeat);
+            await WaitUntilAsync(() => machine.IsStartAllowed == !repeat);
         }
         finally
         {
@@ -431,11 +431,11 @@ public sealed partial class MachineLifecycleTests
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             await machine.StartAsync(timeout.Token);
-            Assert.True(returned, $"Phase: {state.Display.RepeatPhase}; {state.AlarmDetail}");
+            Assert.True(returned, $"Phase: {machine.RepeatDisplayPhase}; {state.AlarmDetail}");
             Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
-            Assert.Equal(0, state.Display.RepeatCycles);
+            Assert.Equal(0, machine.RepeatCycles);
         }
         finally
         {
@@ -476,13 +476,13 @@ public sealed partial class MachineLifecycleTests
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
-            await WaitUntilAsync(() => state.Display.RepeatPhase == RepeatPhase.Automatic);
+            await WaitUntilAsync(() => machine.RepeatDisplayPhase == RepeatPhase.Automatic);
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(1));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
-            Assert.Equal(0, state.Display.RepeatCycles);
+            Assert.Equal(0, machine.RepeatCycles);
             Assert.False(state.IsError);
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
@@ -555,11 +555,11 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.True(
                 await VirtualTest.WaitUntilAsync(
-                    () => state.Display.RepeatCycles >= 2 || state.IsError,
+                    () => machine.RepeatCycles >= 2 || state.IsError,
                     TimeSpan.FromSeconds(22)),
-                $"Repeat timed out. Cycles={state.Display.RepeatCycles}, Phase={state.Display.RepeatPhase}, Main={state.Display.ConveyorState}, Alarm={state.AlarmMessage}");
+                $"Repeat timed out. Cycles={machine.RepeatCycles}, Phase={machine.RepeatDisplayPhase}, Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().State}, Alarm={state.AlarmMessage}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-            Assert.True(state.Display.RepeatCycles >= 2, state.AlarmDetail);
+            Assert.True(machine.RepeatCycles >= 2, state.AlarmDetail);
             Assert.True(ngReverse >= 2);
             Assert.True(mainReverse >= 2);
             Assert.True(visited.GetValueOrDefault(InputIo.NgConveyorPosition1Occupied) >= 2);

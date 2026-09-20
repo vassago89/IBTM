@@ -1,6 +1,7 @@
 using System;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
@@ -12,6 +13,62 @@ public sealed record DoorSensorDisplay(string Name, IoInputStatus Input);
 
 public partial class OperationViewModel
 {
+    public MainConveyorState? ConveyorState
+    {
+        get
+        {
+            return State.Available
+                && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running
+                ? Conveyor.GetState(running, live: false) : null;
+        }
+    }
+
+    public NgConveyorState? NgConveyorState
+    {
+        get
+        {
+            return State.Available
+                && Signals.Outputs[OutputIo.NgConveyorRun].IsOn is { } running
+                ? NgConveyor.GetState(running) : null;
+        }
+    }
+
+    public PcbPlacementState? PlacementState
+    {
+        get
+        {
+            return State.Available && PlacementPositionKnown
+                && Placement.Motion.IsReady(live: false) ? _placer.GetState(live: false) : null;
+        }
+    }
+
+    public HeatSinkSlot? PlacementTarget => _placer.TargetHeatSink;
+
+    public BoltFasteningState? FasteningState
+    {
+        get
+        {
+            return State.Available && Units.BoltFastening
+                && Machine.TeachingReady && FasteningPositionKnown && Fastening.Motion.IsReady(live: false)
+                ? _fasteningStation.GetState(live: false) : null;
+        }
+    }
+
+    public InspectionStationState? InspectionState
+    {
+        get
+        {
+            return State.Available && Units.Inspection
+                && Machine.TeachingReady && InspectionPositionKnown && InspectionGantry.Motion.IsReady(live: false)
+                && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } mainRunning
+                && Signals.Outputs[OutputIo.NgConveyorRun].IsOn is { } running
+                ? _inspectionStation.GetState(_recipes.Current.Pcb.BoltPoints, State.RepeatEnabled,
+                    holdAtShuttle: State.RepeatEnabled && !Units.NgShuttle, live: false,
+                    conveyorRunning: running, mainConveyorRunning: mainRunning)
+                : null;
+        }
+    }
+
     public bool SupplyPositionKnown
     {
         get
@@ -55,7 +112,7 @@ public partial class OperationViewModel
         get
         {
             return PlacementDisplayState is HandlerDisplayState.Working or HandlerDisplayState.Moving
-                ? State.Display.PlacementState
+                ? PlacementState ?? (Enum)MachineDisplayState.Unavailable
                 : PlacementDisplayState;
         }
     }
@@ -68,11 +125,11 @@ public partial class OperationViewModel
             {
                 case true when !Units.MainConveyor:
                     return HandlerDisplayState.Disabled;
-                case true when State.Display.Available
+                case true when State.Available
                     && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running:
-                    return !State.Display.AutomaticRunning && !running
+                    return !State.AutomaticRunning && !running
                         ? HandlerDisplayState.Stopped
-                        : State.Display.ConveyorState;
+                        : ConveyorState ?? (Enum)MachineDisplayState.Unavailable;
                 default:
                     return MachineDisplayState.Unavailable;
             }
@@ -83,7 +140,7 @@ public partial class OperationViewModel
     {
         get
         {
-            switch (State.Display)
+            switch (State)
             {
                 case { Available: false }:
                     return MachineDisplayState.Unavailable;
@@ -91,7 +148,7 @@ public partial class OperationViewModel
                     return MachineDisplayState.SafetyStop;
                 case { Alarm: not MachineAlarm.None }:
                     return MachineDisplayState.Alarm;
-                case { MotionFaulted: true }:
+                case { Faulted: true }:
                     return MachineDisplayState.MotionFault;
                 case { IsHoming: true }:
                     return MachineDisplayState.Homing;
@@ -111,9 +168,9 @@ public partial class OperationViewModel
     {
         get
         {
-            return !State.Display.IsStartAllowed
-                && !State.Display.IsHoming
-                && State.Display.StartBlock != StartBlockReason.None;
+            return !Machine.IsStartAllowed
+                && !State.IsHoming
+                && Machine.StartBlock != StartBlockReason.None;
         }
     }
 
@@ -121,8 +178,8 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Display.AutomaticRunning
-                && State.Display.FasteningState != BoltFasteningState.Waiting;
+            return State.AutomaticRunning
+                && FasteningState is not null and not BoltFasteningState.Waiting;
         }
     }
 
@@ -130,8 +187,8 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Display.AutomaticRunning
-                && State.Display.InspectionState != InspectionStationState.Waiting;
+            return State.AutomaticRunning
+                && InspectionState is not null and not InspectionStationState.Waiting;
         }
     }
 
@@ -139,10 +196,10 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Display.StartBlock == StartBlockReason.HomeRequired
-                && State.Display.HomeBlock != HomeBlockReason.None
-                ? State.Display.HomeBlock
-                : State.Display.StartBlock;
+            return Machine.StartBlock == StartBlockReason.HomeRequired
+                && Machine.HomeBlock != HomeBlockReason.None
+                ? Machine.HomeBlock
+                : Machine.StartBlock;
         }
     }
 
@@ -160,9 +217,9 @@ public partial class OperationViewModel
                     return HandlerDisplayState.PositionUnknown;
                 case true when Supply.Motion.IsMoving:
                     return HandlerDisplayState.Moving;
-                case true when !State.Display.AutomaticRunning:
+                case true when !State.AutomaticRunning:
                     return HandlerDisplayState.Stopped;
-                case true when State.Display.SupplyAtHandoff:
+                case true when Supply.IsAtHandoff(live: false):
                     return Supply.PcbReleased
                         ? HandlerDisplayState.WaitingForPlacementLift
                         : HandlerDisplayState.WaitingForPlacement;
@@ -190,10 +247,10 @@ public partial class OperationViewModel
                     return HandlerDisplayState.PositionUnknown;
                 case true when Placement.Motion.IsMoving:
                     return HandlerDisplayState.Moving;
-                case true when !State.Display.AutomaticRunning:
+                case true when !State.AutomaticRunning:
                     return HandlerDisplayState.Stopped;
                 default:
-                    switch (State.Display.PlacementState)
+                    switch (PlacementState)
                     {
                         case PcbPlacementState.WaitingForSupply:
                             return HandlerDisplayState.WaitingForSupply;
@@ -224,7 +281,7 @@ public partial class OperationViewModel
                     return StationDisplayState.PositionUnknown;
                 case true when Fastening.Motion.IsMoving || State.BoltTestRunning:
                     return StationDisplayState.Working;
-                case true when !State.Display.AutomaticRunning:
+                case true when !State.AutomaticRunning:
                     return StationDisplayState.Stopped;
                 case true when !BoltFasteningWork.Station.CarrierPresent:
                     return StationDisplayState.WaitingForCarrier;
@@ -245,12 +302,12 @@ public partial class OperationViewModel
             switch (InspectionDisplayState)
             {
                 case StationDisplayState.Working when InspectionStateVisible:
-                    return State.Display.InspectionState;
+                    return InspectionState ?? (Enum)MachineDisplayState.Unavailable;
                 case StationDisplayState.WaitingForTransfer when Units.NgCarrierTransfer && InspectionWork.RouteToNg:
                     return InspectionStationState.WaitingForShuttleReady;
                 case StationDisplayState.WaitingForTransfer when Units.MainConveyor
-                        && State.Display.ConveyorState == MainConveyorState.WaitingForRearEquipment:
-                    return State.Display.ConveyorState;
+                        && ConveyorState == MainConveyorState.WaitingForRearEquipment:
+                    return ConveyorState ?? (Enum)MachineDisplayState.Unavailable;
                 default:
                     return InspectionDisplayState;
             }
@@ -269,7 +326,7 @@ public partial class OperationViewModel
                     return StationDisplayState.IoAlarm;
                 case true when !InspectionPositionKnown:
                     return StationDisplayState.PositionUnknown;
-                case true when !State.Display.AutomaticRunning && !InspectionGantry.Motion.IsMoving:
+                case true when !State.AutomaticRunning && !InspectionGantry.Motion.IsMoving:
                     return StationDisplayState.Stopped;
                 case true when InspectionGantry.Motion.IsMoving
                     || NgTransfer.CarrierDetected
@@ -291,7 +348,7 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Display.InspectionState == InspectionStationState.TransferringNgCarrier;
+            return InspectionState == InspectionStationState.TransferringNgCarrier;
         }
     }
 }

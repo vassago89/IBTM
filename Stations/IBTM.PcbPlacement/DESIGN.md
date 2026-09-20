@@ -11,6 +11,16 @@ also the XY travel height. Handler Rotate output stays OFF during automatic, rep
 6. Return to receiving XY for the second PCB and repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
 7. Complete the carrier after the final placement is raised, then return to receiving standby.
 
+`State` / `GetState` describe Placement's own feedback only. `PlaceAsync` starts
+receipt when Supply's `Handoff` is `Holding`, and raises the handler once it is
+`Released`. Placement publishes `Holding` while securing the PCB at the receiving
+position, and `Clear` once Supply may withdraw. Internal placement/press stages
+are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
+documents these conditions and reference direction.
+
+Placement reads `RecipeManager.Current.PcbPlacement` for both state selection and
+motion targets; callers do not pass a second recipe into the execution path.
+
 Handler Up is required before and during every axis movement, including Z and
 HOME. The handler cannot be commanded Down while an axis moves. Actual arrival,
 seated-carrier and holding/release feedback remain in use. Supply area departure

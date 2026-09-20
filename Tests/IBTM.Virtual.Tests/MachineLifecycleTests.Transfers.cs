@@ -203,7 +203,7 @@ public sealed partial class MachineLifecycleTests
         motion.PositionChanged += ChangeCarrierAtPickup;
         try
         {
-            await supply.RunAsync(recipe, stop.Token).WaitAsync(TimeSpan.FromSeconds(4));
+            await supply.RunAsync(recipe, services.GetRequiredService<PcbPlacer>(), stop.Token).WaitAsync(TimeSpan.FromSeconds(4));
             Assert.False(skippedFirstSlot);
             Assert.Equal(2, firstSlotVisits);
             Assert.False(motion.IsMoving);
@@ -411,9 +411,9 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += ChangeCarrierOnClose;
         try
         {
-            Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetState(recipe));
+            Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
             var failure = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => placer.PlaceAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!);
+                () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, CancellationToken.None)!);
             Assert.Contains("carrier", failure.Message, StringComparison.OrdinalIgnoreCase);
             Assert.False(pressed);
             Assert.Empty(work.Assemblies);
@@ -471,11 +471,11 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(input, false);
         // XY alone is not a placement position, even with PCB detection and vacuum OFF.
         Assert.DoesNotContain(
-            placer.GetState(recipe),
+            placer.State,
             new[] { PcbPlacementState.PlacingPcb });
         await handler.MoveAxisAsync(MotionAxis.Z, 10);
         Assert.DoesNotContain(
-            placer.GetState(recipe),
+            placer.State,
             new[] { PcbPlacementState.PlacingPcb });
         io.SetInput(InputIo.PcbPlacementHandlerUp, false);
         io.SetInput(InputIo.PcbPlacementHandlerDown, true);
@@ -507,33 +507,33 @@ public sealed partial class MachineLifecycleTests
                 closing.Cancel();
         };
 
-        Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetState(recipe));
+        Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => placer.PlaceAsync(recipe, HeatSinkSlot.HeatSink1, closing.Token)!);
+            () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, closing.Token)!);
         Assert.Equal(PlacementGripperState.Closed, handler.IpmGripper);
-        Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetState(recipe));
+        Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
         Assert.Empty(work.Assemblies);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => placer.PlaceAsync(recipe, HeatSinkSlot.HeatSink1, pressing.Token)!);
+            () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, pressing.Token)!);
         Assert.Equal(PlacementCylinderState.Between, handler.IpmLift);
-        Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetState(recipe));
+        Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
         Assert.Empty(work.Assemblies);
         io.SetInput(InputIo.PcbPlacementIpmDown, true);
-        Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetState(recipe));
+        Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
         if (replaceCarrier)
         {
             VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
             VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
-            Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetState(recipe));
+            Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
             Assert.Empty(work.Assemblies);
         }
         else
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                () => placer.PlaceAsync(recipe, HeatSinkSlot.HeatSink1, pressing.Token)!);
+                () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, pressing.Token)!);
             Assert.Empty(work.Assemblies);
-            await placer.PlaceAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!;
+            await placer.PlaceAsync(HeatSinkSlot.HeatSink1, CancellationToken.None)!;
             Assert.Single(work.Assemblies);
         }
         var expected = new List<(OutputIo, bool)>

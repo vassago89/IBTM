@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,6 +11,56 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
+    // Last handled notification, not the physical lamp/buzzer state.
+    private (MachineAlarm Alarm, bool Running, bool NgAlarm)? _lastIndicatorNotification;
+
+    internal void SilenceBuzzer()
+    {
+        if (!_io.IsReady)
+            return;
+
+        try
+        {
+            _io.SetOutput(OutputIo.Buzzer, false);
+        }
+        catch (IOException exception)
+        {
+            _log?.LogError(exception, "Buzzer OFF failed.");
+        }
+    }
+
+    // Called by alarm/run/NG notifications, never by the display or acquisition loops.
+    private void UpdateMachineIndicators()
+    {
+        if (!_io.IsReady)
+            return;
+
+        try
+        {
+            var notification = (_state.Alarm, Running: _state.AutomaticRunning, NgAlarm: _ngConveyor.AlarmRequired);
+            var previous = _lastIndicatorNotification;
+            if (previous == notification)
+                return;
+
+            var attention = notification.Alarm != MachineAlarm.None || notification.NgAlarm;
+            var newAlarm = notification.Alarm != MachineAlarm.None
+                    && notification.Alarm != previous?.Alarm
+                || notification.NgAlarm && previous?.NgAlarm != true;
+
+            _io.SetOutput(OutputIo.TowerLampGreen, notification.Running && !attention);
+            _io.SetOutput(OutputIo.TowerLampYellow, !notification.Running && !attention);
+            _io.SetOutput(OutputIo.TowerLampRed, attention);
+            if (!attention || newAlarm)
+                _io.SetOutput(OutputIo.Buzzer, newAlarm);
+
+            _lastIndicatorNotification = notification;
+        }
+        catch (IOException exception)
+        {
+            _log?.LogError(exception, "Machine indicator output update failed.");
+        }
+    }
+
     // OUTPUTS writes just the selected logical output. Feedback is display-only;
     // it does not start a conveyor sequence, move an axis, or wait for a cylinder.
     internal OutputBlockReason ToggleDiagnosticOutput(OutputIo signal)
@@ -31,7 +82,7 @@ public sealed partial class MachineController
             };
             _io.SetOutput(signal, value);
             _log?.LogInformation("{Message}", $"Direct output {signal}: {(value ? "ON" : "OFF")}; alarm={_state.Alarm}.");
-            _state.RequestDisplayRefresh();
+            _state.Refresh();
             return OutputBlockReason.None;
         }
         catch (Exception exception)
@@ -226,7 +277,7 @@ public sealed partial class MachineController
     // Teaching may coordinate a handler as well as its cylinder output.
     internal bool IsSetTeachingOutputAllowed(TeachingOutput output, bool live = true)
     {
-        return (live ? _state.ManualSetupEnabled : _state.Display.ManualSetupEnabled)
+        return (_state.ManualSetupEnabled && (!live || !_state.IsRunningFor()))
             && output.Signal != OutputIo.PcbPlacementHandlerRotate
             && (output.Signal != OutputIo.PcbSupplyRotate
                 || IsManualMotionReady(MotionGroup.PcbSupply, live));

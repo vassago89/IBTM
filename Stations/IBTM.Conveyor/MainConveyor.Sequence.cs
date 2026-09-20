@@ -43,7 +43,7 @@ public sealed partial class MainConveyor
                         return MainConveyorState.WaitingForInspectionTransfer;
                     case true when !_repeat
                         && !IsNgTransferRequired
-                        && _inspectionWork.IsTransferAllowed
+                        && _inspectionWork.IsTransferAllowedFor(live ? null : false)
                         && DownstreamReady:
                         return MainConveyorState.DischargingInspectionCarrier;
                     default:
@@ -60,7 +60,7 @@ public sealed partial class MainConveyor
                     ? MainConveyorState.RaisingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
             // 검사 요청 이후에는 검사와 NG 픽업 위치 복귀가 끝날 때까지 벨트를 정지한다.
-            case true when _inspectionWork.InspectionRequested && _inspectionWork.AtInspectionPosition:
+            case true when _inspectionWork.InspectionRequested && _inspectionWork.IsAtInspectionPosition(live ? null : runCommandOn):
                 return MainConveyorState.WaitingForInspection;
             default:
                 return _inspectionWork.PickupClear
@@ -80,7 +80,7 @@ public sealed partial class MainConveyor
                     : MainConveyorState.WaitingForRearEquipment;
             case true when !_repeat
                 && !IsNgTransferRequired
-                && _inspectionWork.IsTransferAllowed
+                && _inspectionWork.IsTransferAllowedFor(live ? null : false)
                 && _inspectionWork.IsTransferAtWaitingPosition(live)
                 && DownstreamReady:
                 return MainConveyorState.DischargingInspectionCarrier;
@@ -93,7 +93,7 @@ public sealed partial class MainConveyor
                 return MainConveyorState.ReceivingFrontCarrier;
             case true when !_repeat
                 && !IsNgTransferRequired
-                && _inspectionWork.IsTransferAllowed
+                && _inspectionWork.IsTransferAllowedFor(live ? null : false)
                 && _inspectionWork.IsTransferAtWaitingPosition(live):
                 return MainConveyorState.WaitingForRearEquipment;
             case true when _boltFasteningWork.Station.CarrierPresent:

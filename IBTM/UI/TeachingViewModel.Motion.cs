@@ -32,7 +32,7 @@ public partial class TeachingViewModel
     {
         get
         {
-            if (!State.Display.Available)
+            if (!State.Available)
                 return IsInspectionSelected ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable;
             if (!IsInspectionSelected)
             {
@@ -105,7 +105,7 @@ public partial class TeachingViewModel
 
     private bool IsJogAllowed(MotionAxis axis)
     {
-        return !State.Display.IsRunning
+        return !State.IsRunning
             && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
             && Motion.Feedback.Axes.Contains(axis)
             && ActiveMotionGroup switch
@@ -130,7 +130,7 @@ public partial class TeachingViewModel
         var activeCancellation = cancellationToken;
         try
         {
-            if (State.IsRunning)
+            if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(group),
@@ -178,7 +178,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
-            if (State.IsRunning)
+            if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -225,7 +225,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
-            if (State.IsRunning)
+            if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -283,7 +283,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
-            if (State.IsRunning)
+            if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -311,7 +311,7 @@ public partial class TeachingViewModel
         get
         {
             return ActiveMotionGroup == MotionGroup.BoltFastening
-                && !State.Display.IsRunning
+                && !State.IsRunning
                 && Machine.IsManualMotionReady(ActiveMotionGroup, live: false);
         }
     }
@@ -326,7 +326,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
-            if (State.IsRunning)
+            if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -385,7 +385,7 @@ public partial class TeachingViewModel
             {
                 case null:
                     return false;
-                case { } when State.Display.IsRunning
+                case { } when State.IsRunning
                     || !Machine.IsManualMotionReady(ActiveMotionGroup, live: false):
                     return false;
                 case { } point when ActiveMotionGroup == MotionGroup.PcbSupply:

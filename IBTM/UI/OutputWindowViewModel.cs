@@ -7,19 +7,14 @@ namespace IBTM.UI;
 
 public class OutputWindowViewModel : ObservableObject
 {
-    private readonly MachineState _state;
-
-    public OutputWindowViewModel(IoSignals signals, MachineController machine, MachineState state)
+    public OutputWindowViewModel(IoSignals signals, MachineController machine)
     {
         RefreshCommand = new RelayCommand(Refresh);
 
-        _state = state;
         Rows = signals.Outputs.Values.OrderBy(row => row.Signal)
             .Select(row => new OutputWindowRow(row, machine))
             .ToArray();
         Filter = new(Rows, row => row.Io);
-
-        state.RequestDisplayRefresh();
     }
 
     public OutputWindowRow[] Rows { get; }
@@ -29,7 +24,6 @@ public class OutputWindowViewModel : ObservableObject
 
     private void Refresh()
     {
-        _state.RequestDisplayRefresh();
         foreach (var row in Rows)
             row.ActionMessage = null;
     }

@@ -2,22 +2,19 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
-using IBTM.Device;
 
 namespace IBTM.PcbSupply;
 
-public sealed class PcbSupplier : AutoUnit
+public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 {
     private readonly PcbSupplyHandler _handler;
-    private readonly IPcbHandoffReceiver _placement;
     private readonly UnitSettings _units;
     // Slot progress belongs only to the current run and upstream carrier.
     private PickStep _pickStep;
 
-    public PcbSupplier(PcbSupplyHandler handler, IPcbHandoffReceiver placement, UnitSettings units)
+    public PcbSupplier(PcbSupplyHandler handler, UnitSettings units)
     {
         _handler = handler;
-        _placement = placement;
         _units = units;
         _handler.Changed += OnHandlerChanged;
     }
@@ -27,31 +24,31 @@ public sealed class PcbSupplier : AutoUnit
         add
         {
             _handler.Changed += value;
-            _placement.Changed += value;
             _handler.Feedback.StateChanged += value;
-            _placement.Feedback.StateChanged += value;
         }
 
         remove
         {
             _handler.Changed -= value;
-            _placement.Changed -= value;
             _handler.Feedback.StateChanged -= value;
-            _placement.Feedback.StateChanged -= value;
         }
     }
 
-    public async Task RunAsync(PcbSupplyRecipe recipe, CancellationToken cancellationToken = default)
+    public async Task RunAsync(
+        PcbSupplyRecipe recipe,
+        IPcbPlacementHandoff placement,
+        CancellationToken cancellationToken = default)
     {
         Exception? failure = null;
         try
         {
             BeginRun();
+            placement.Changed += OnChanged;
             try
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await ExecuteAsync(recipe, cancellationToken);
+                    await ExecuteAsync(recipe, placement, cancellationToken);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -59,6 +56,7 @@ public sealed class PcbSupplier : AutoUnit
             }
             finally
             {
+                placement.Changed -= OnChanged;
                 EndRun(cancellationToken);
             }
         }
@@ -81,7 +79,10 @@ public sealed class PcbSupplier : AutoUnit
         }
     }
 
-    private async Task ExecuteAsync(PcbSupplyRecipe recipe, CancellationToken cancellationToken)
+    private async Task ExecuteAsync(
+        PcbSupplyRecipe recipe,
+        IPcbPlacementHandoff placement,
+        CancellationToken cancellationToken)
     {
         if (_pickStep != PickStep.WaitingForCarrierExit)
         {
@@ -95,6 +96,15 @@ public sealed class PcbSupplier : AutoUnit
         }
 
         var state = State;
+        switch (state)
+        {
+            case PcbSupplyState.WaitingForPlacement when placement.Handoff == PcbPlacementHandoff.Holding:
+                state = PcbSupplyState.ReleasingPcb;
+                break;
+            case PcbSupplyState.WaitingForPlacementLift when placement.Handoff == PcbPlacementHandoff.Clear:
+                state = PcbSupplyState.MovingToPickup;
+                break;
+        }
         if (state == PcbSupplyState.WaitingForCarrier && !_handler.IsAtPickupXY(recipe.Pcb1PickPosition))
             state = PcbSupplyState.MovingToPickup;
         TraceStep(state, _pickStep.ToString());
@@ -158,13 +168,13 @@ public sealed class PcbSupplier : AutoUnit
             case PcbSupplyState.ReleasingPcb:
                 if (_handler.IpmFixed)
                 {
-                    if (!IsPlacementSecured)
+                    if (placement.Handoff != PcbPlacementHandoff.Holding)
                         throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
                     await _handler.SetIpmFixerAsync(false, cancellationToken);
                 }
                 if (_handler.Gripper != PcbSupplyCylinderState.Backward)
                 {
-                    if (!IsPlacementSecured)
+                    if (placement.Handoff != PcbPlacementHandoff.Holding)
                         throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
                     await _handler.SetGripperClosedAsync(false, cancellationToken);
                 }
@@ -184,23 +194,40 @@ public sealed class PcbSupplier : AutoUnit
         }
     }
 
-    private PcbSupplyState State
+    public PcbSupplyHandoff Handoff
     {
         get
         {
+            switch (State)
+            {
+                case PcbSupplyState.WaitingForPlacement:
+                    return PcbSupplyHandoff.Holding;
+                case PcbSupplyState.WaitingForPlacementLift:
+                    return PcbSupplyHandoff.Released;
+                default:
+                    return PcbSupplyHandoff.Unavailable;
+            }
+        }
+    }
+
+    public PcbSupplyState State
+    {
+        get
+        {
+            if (!_units.PcbSupply)
+                return PcbSupplyState.Disabled;
             var pcb = _handler.Pcb;
             var rotation = _handler.Rotation;
+            var atHandoff = _handler.IsAtHandoff();
 
             switch (true)
             {
-                case true when _handler.IsAtHandoff() && _handler.PcbReleased:
-                    return _placement.HandlerRaised
-                        ? PcbSupplyState.MovingToPickup
-                        : PcbSupplyState.WaitingForPlacementLift;
-                case true when _handler.IsAtHandoff():
-                    return IsPlacementSecured
-                        ? PcbSupplyState.ReleasingPcb
-                        : PcbSupplyState.WaitingForPlacement;
+                case true when atHandoff && _handler.PcbReleased:
+                    return PcbSupplyState.WaitingForPlacementLift;
+                case true when atHandoff && pcb == PcbSupplyPcbState.Secured:
+                    return PcbSupplyState.WaitingForPlacement;
+                case true when atHandoff:
+                    return PcbSupplyState.ReleasingPcb;
             }
 
             switch (true)
@@ -218,8 +245,6 @@ public sealed class PcbSupplier : AutoUnit
             }
         }
     }
-
-    private bool IsPlacementSecured => _units.PcbPlacement && _placement.IsAtHandoff() && _placement.PcbSecured;
 
     private enum PickStep
     {

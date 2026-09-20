@@ -33,7 +33,7 @@ public sealed class OutputWindowUiCollection;
 public sealed class OutputWindowThreadingTests
 {
     [Fact]
-    public async Task BoundConveyorButtonsKeepDisplayAliveAcrossOffCloseAndReopen()
+    public async Task BoundConveyorButtonsUpdateAcrossOffCloseAndReopen()
     {
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(
@@ -254,7 +254,7 @@ public sealed class OutputWindowThreadingTests
             for (var reopen = 0; reopen < 2; reopen++)
             {
                 Assert.True(openButton.IsEnabled);
-                window = new OutputWindow(new OutputWindowViewModel(signals, machine, state));
+                window = new OutputWindow(new OutputWindowViewModel(signals, machine));
                 if (reopen == 0)
                     await VerifyDirectBindingsAsync(services, window);
                 var row = ((OutputWindowViewModel)window.DataContext).Rows.Single(candidate => candidate.Io.Signal == output);
@@ -297,7 +297,7 @@ public sealed class OutputWindowThreadingTests
                 Assert.True(manualStop.IsEnabled); // STOP is always callable, even after OFF.
                 Assert.Same(row.ToggleCommand, outputButton.Command);
                 // Also exercise background DI/DO notifications after OFF. Neither may
-                // invoke a command subscriber or stop the common display worker.
+                // invoke a command subscriber on the acquisition thread.
                 await Task.Run(
                     () => io.SetOutput(OutputIo.MachineLight, !io.GetOutput(OutputIo.MachineLight)));
                 var feedback = BindOutputRow(
@@ -314,13 +314,12 @@ public sealed class OutputWindowThreadingTests
                         () => feedback.Text == "Input conflict",
                         TimeSpan.FromSeconds(2)));
                 await Task.Run(() => io.SetInput(InputIo.PcbPlacementStopperUp, false));
-                var previous = state.Display;
-                state.RequestDisplayRefresh();
+                state.Refresh();
                 Assert.True(
                     await VirtualTest.WaitUntilAsync(
-                        () => !ReferenceEquals(previous, state.Display),
+                        () => state.Available,
                         TimeSpan.FromSeconds(2)));
-                Assert.True(state.Display.Available);
+                Assert.True(state.Available);
                 Assert.True(openButton.IsEnabled);
                 Assert.False(closed.Task.IsCompleted); // OFF must not close OUTPUTS.
                 row.ToggleCommand.Execute(null);

@@ -8,6 +8,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
@@ -49,8 +50,8 @@ public sealed class PcbPlacementRepeatTests
                 firstStop.Cancel();
         };
 
-        await rig.Placer.RunAsync(rig.Recipe, firstStop.Token, repeat: true);
-        Assert.True(rig.Work.Completed, rig.Placer.GetState(rig.Recipe).ToString());
+        await rig.Placer.RunAsync(firstStop.Token, repeat: true);
+        Assert.True(rig.Work.Completed, rig.Placer.State.ToString());
         Assert.Equal(2, rig.Work.Assemblies.Count());
         Assert.Equal(2, handoffVisits);
         Assert.False(movedUnsafely);
@@ -93,7 +94,7 @@ public sealed class PcbPlacementRepeatTests
         };
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => rig.Placer.RunAsync(rig.Recipe, timeout.Token, repeat: true));
+            () => rig.Placer.RunAsync(timeout.Token, repeat: true));
         Assert.True(interrupted);
         Assert.False(rig.Motion.IsMoving);
         Assert.Empty(rig.Work.Assemblies);
@@ -112,7 +113,7 @@ public sealed class PcbPlacementRepeatTests
                 stop.Cancel();
         }
         rig.Motion.PositionChanged += StopWhileHolding;
-        await rig.Placer.RunAsync(rig.Recipe, stop.Token, repeat: true);
+        await rig.Placer.RunAsync(stop.Token, repeat: true);
         rig.Motion.PositionChanged -= StopWhileHolding;
         Assert.True(rig.Handler.PcbSecured);
         Assert.Empty(rig.Work.Assemblies);
@@ -124,9 +125,9 @@ public sealed class PcbPlacementRepeatTests
             if (rig.Work.Completed)
                 finish.Cancel();
         };
-        await rig.Placer.RunAsync(rig.Recipe, finish.Token, repeat: true);
+        await rig.Placer.RunAsync(finish.Token, repeat: true);
         Assert.Same(job, rig.Work.CurrentJob);
-        Assert.True(rig.Work.Completed, rig.Placer.GetState(rig.Recipe).ToString());
+        Assert.True(rig.Work.Completed, rig.Placer.State.ToString());
         Assert.Equal(2, rig.Work.Assemblies.Count());
     }
 
@@ -137,7 +138,7 @@ public sealed class PcbPlacementRepeatTests
         await rig.InitializeAsync();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         await Assert.ThrowsAsync<IoTimeoutException>(
-            () => rig.Placer.RunAsync(rig.Recipe, timeout.Token, repeat: true));
+            () => rig.Placer.RunAsync(timeout.Token, repeat: true));
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
         Assert.False(rig.Io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
@@ -175,7 +176,9 @@ public sealed class PcbPlacementRepeatTests
             Handler = new(Motion, Io, settings);
             var supply = new PcbSupplyHandler(_supplyMotion, Io, supplySettings);
             Work = new(ConveyorStation.CreatePcbPlacement(Io), new());
-            Placer = new(supply, Handler, Work, new());
+            var recipes = new RecipeManager(OpenMachineStore(), new());
+            recipes.Current.PcbPlacement = Recipe;
+            Placer = new(new PcbSupplier(supply, new()), Handler, Work, recipes);
         }
 
         public VirtualIoService Io { get; }

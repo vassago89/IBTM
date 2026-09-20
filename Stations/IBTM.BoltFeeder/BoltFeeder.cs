@@ -86,7 +86,7 @@ public abstract class BoltFeeder : AutoUnit
     {
     }
 
-    private void OnInputChanged(InputIo input, bool _)
+    private void OnInputChanged(InputIo input, bool value)
     {
         if (input == _boltDetected)
         {

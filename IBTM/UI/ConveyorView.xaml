@@ -50,7 +50,7 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding State.Display.ConveyorState}"
+                                        <Condition Binding="{Binding ConveyorState}"
                                             Value="{x:Static conveyor:MainConveyorState.Idle}"/>
                                         <Condition Binding="{Binding Units.MainConveyor}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
@@ -112,7 +112,7 @@
                 Pcb1Placed="{Binding PcbPlacementHeatSink1Completed}"
                 Pcb2Placed="{Binding PcbPlacementHeatSink2Completed}"
                 ShowPcbSlots="True"
-                ActiveHeatSink="{Binding State.Display.PlacementTarget}">
+                ActiveHeatSink="{Binding PlacementTarget}">
                 <ui:CarrierView.Style>
                     <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -191,7 +191,6 @@
             <TextBlock Canvas.Left="1358" Canvas.Top="137" Width="80"
                 Text="OUT"
                 Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <TextBlock Canvas.Left="18" Canvas.Top="264" Text="SIDE VIEW" Style="{StaticResource EquipmentRoleLabelStyle}"/>
             <Canvas Canvas.Left="{x:Static ui:MachinePlan.FirstPlateLeft}" Canvas.Top="248" Width="284" Height="48">
                 <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
                 <Path Tag="{Binding PcbPlacementWork.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>

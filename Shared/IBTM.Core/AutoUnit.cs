@@ -18,6 +18,11 @@ public abstract class AutoUnit
     public abstract event Action? Changed;
     public event Action<string>? Trace;
 
+    protected void OnChanged()
+    {
+        _stateChanged.Set();
+    }
+
     protected void TraceStep(Enum step, string? target = null, long? workId = null, string? waitingFor = null)
     {
         if (Trace is null)
@@ -48,12 +53,12 @@ public abstract class AutoUnit
         _lastStep = null;
         _waiting = false;
         Trace?.Invoke($"{GetType().Name}: run started.");
-        Changed += _stateChanged.Set;
+        Changed += OnChanged;
     }
 
     protected void EndRun(CancellationToken cancellationToken)
     {
-        Changed -= _stateChanged.Set;
+        Changed -= OnChanged;
         Trace?.Invoke(
             $"{GetType().Name}: run ended; cancelled={cancellationToken.IsCancellationRequested}; "
                 + $"last={_lastStep ?? "no step"}.");

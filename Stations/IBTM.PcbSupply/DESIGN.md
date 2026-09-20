@@ -69,16 +69,30 @@ when resuming an interrupted approach; it does not first return to Rotation Z.
 
 ## Direct handoff and live feedback
 
-Each handler reports its own handoff arrival and holding feedback.
-The Supply and Placement sequences read the other handler directly; there is no
-intermediate stage object or separate handoff project.
+Each unit owns its sequence enum and computes its state from its own feedback.
+Only `Handoff` and `Changed` cross the boundary through Core's
+`IPcbSupplyHandoff` / `IPcbPlacementHandoff`. These interfaces expose no handler,
+motion commands, or internal sequence stages, and do not store duplicate state.
+
+| Handoff | Confirmed locally | Peer action |
+| --- | --- | --- |
+| Supply `Holding` | Secured PCB at settled give XYZ | Placement receives with its cylinder |
+| Placement `Holding` | At receiving XYZ, handler Down, PCB detected, vacuum and gripper confirmed | Supply retracts fixer, then opens gripper |
+| Supply `Released` | At give XYZ, fixer and gripper released | Placement raises its handler |
+| Placement `Clear` | Receiving/travel preparation complete, or working at the heat sink | Supply returns to pickup |
+| Either unit `Unavailable` | Disabled or not at a confirmed handoff condition | Peer waits |
+
+`MachineController` passes Placement's handoff interface into Supply's run.
+Placement receives Supply's handoff interface through DI. Neither project refers
+to the other. Each loop listens for the peer's own changes to wake its wait;
+it never relays those changes back to the peer.
 Supply and Placement approach independently. Every Placement axis movement
 requires its handler cylinder Up. Either may arrive first. Both handlers must settle at their
 own taught XYZ before Placement lowers its receiving cylinder.
 
-Supply releases only after Placement confirms PCB detection, vacuum detection,
-and its closed IPM gripper. These conditions are checked again before each
-release actuator. After release, Placement raises its handler cylinder without
+Supply releases only while Placement reports handoff `Holding`, which
+requires PCB detection, vacuum detection, and its closed IPM gripper. The state
+is checked again before each release actuator. After release, Placement raises its handler cylinder without
 moving XYZ. Supply waits for that Up feedback before its XY return. Placement
 may leave for the selected heat sink as soon as its handler is Up.
 

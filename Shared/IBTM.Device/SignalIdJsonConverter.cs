@@ -9,11 +9,11 @@ namespace IBTM.Device;
 public sealed class SignalIdJsonConverter<T> : JsonConverter<T>
     where T : struct, Enum
 {
-    private static readonly JsonConverter<T> Names;
+    private static readonly JsonConverter<T> s_names;
 
     static SignalIdJsonConverter()
     {
-        Names = (JsonConverter<T>)
+        s_names = (JsonConverter<T>)
                 new JsonStringEnumConverter<T>().CreateConverter(typeof(T), JsonSerializerOptions.Default);
     }
 
@@ -22,7 +22,7 @@ public sealed class SignalIdJsonConverter<T> : JsonConverter<T>
         var value = reader.TokenType == JsonTokenType.String
             && Enum.TryParse<T>(reader.GetString(), out var named)
             ? named
-            : Names.Read(ref reader, typeToConvert, options);
+            : s_names.Read(ref reader, typeToConvert, options);
         return RequireDefined(value);
     }
 
@@ -33,7 +33,7 @@ public sealed class SignalIdJsonConverter<T> : JsonConverter<T>
     {
         var value = Enum.TryParse<T>(reader.GetString(), out var named)
             ? named
-            : Names.ReadAsPropertyName(ref reader, typeToConvert, options);
+            : s_names.ReadAsPropertyName(ref reader, typeToConvert, options);
         return RequireDefined(value);
     }
 

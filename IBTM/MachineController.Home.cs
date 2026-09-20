@@ -12,7 +12,7 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
-    public bool IsHomeAllowed => IsHomeAllowedFor(_state.MotionReadiness);
+    public bool IsHomeAllowed => _state.Available && IsHomeAllowedFor(_state.FeedbackReadiness, _state.IsRunning);
 
     public HomeBlockReason HomeBlock => GetHomeBlock();
 
@@ -24,7 +24,7 @@ public sealed partial class MachineController
             && !motion.Faulted
             && _state.ServoMainContactorOn
             && !_state.IsError
-            && !(running ?? _state.IsRunning)
+            && !(running ?? _state.IsRunningFor())
             && HomeBlock == HomeBlockReason.None;
     }
 
@@ -93,7 +93,7 @@ public sealed partial class MachineController
             var activeToken = cancellationToken;
             try
             {
-                if (_state.IsRunning)
+                if (_state.IsRunningFor())
                     return;
                 var homingAxes = false;
                 using var operation = BeginManualOperation(
@@ -209,7 +209,7 @@ public sealed partial class MachineController
     {
         try
         {
-            if (!IsHomeAllowed)
+            if (!IsHomeAllowedFor(_state.MotionReadiness))
                 return;
         }
         catch (Exception exception) when (exception is IOException or MotionException)

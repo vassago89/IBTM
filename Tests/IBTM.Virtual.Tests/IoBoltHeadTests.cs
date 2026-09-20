@@ -66,7 +66,7 @@ public sealed class IoBoltHeadTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var inputs = new InputWindowViewModel(io, signals);
-        var outputs = new OutputWindowViewModel(signals, machine, state);
+        var outputs = new OutputWindowViewModel(signals, machine);
         foreach (var signal in settings.IoBoltHardware.Inputs.Keys)
         {
             Assert.Contains(

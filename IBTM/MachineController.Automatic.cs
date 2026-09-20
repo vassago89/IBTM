@@ -13,9 +13,9 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
-    public bool IsStartAllowed => IsStartAllowedFor(StartBlock);
+    public bool IsStartAllowed => _state.Available && IsStartAllowedFor(StartBlock, _state.IsRunning);
 
-    public StartBlockReason StartBlock => GetStartBlock(_state.MotionReadiness);
+    public StartBlockReason StartBlock => GetStartBlock(_state.FeedbackReadiness);
 
     public bool TeachingReady
     {
@@ -42,7 +42,7 @@ public sealed partial class MachineController
     private bool IsStartAllowedFor(StartBlockReason block, bool? running = null)
     {
         return !_operations.IsShuttingDown
-            && !(running ?? _state.IsRunning)
+            && !(running ?? _state.IsRunningFor())
             && block == StartBlockReason.None;
     }
 
@@ -93,7 +93,7 @@ public sealed partial class MachineController
     {
         try
         {
-            if (!IsStartAllowedFor(StartBlock))
+            if (!IsStartAllowedFor(GetStartBlock(_state.MotionReadiness)))
                 return;
         }
         catch (Exception exception) when (exception is IOException or MotionException)
@@ -266,7 +266,7 @@ public sealed partial class MachineController
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PcbSupply,
-                _pcbSupply.RunAsync(_recipes.Current.PcbSupply, cycle.Token),
+                _pcbSupply.RunAsync(_recipes.Current.PcbSupply, _pcbPlacement, cycle.Token),
                 cycle));
         }
 
@@ -274,7 +274,7 @@ public sealed partial class MachineController
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PcbPlacement,
-                _pcbPlacement.RunAsync(_recipes.Current.PcbPlacement, cycle.Token, repeat),
+                _pcbPlacement.RunAsync(cycle.Token, repeat),
                 cycle));
         }
 

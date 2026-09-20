@@ -185,7 +185,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
-        await WaitUntilAsync(() => state.Display.IsStartAllowed);
+        await WaitUntilAsync(() => machine.IsStartAllowed);
         io.AutoResponseEnabled = false;
         OutputIo[] plates =
         [
@@ -306,7 +306,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(work.Station.CarrierSeated);
-        await WaitUntilAsync(() => state.Display.Homed);
+        await WaitUntilAsync(() => state.Homed);
         Assert.True(machine.IsStartAllowed);
         using var failureStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await machine.StartAsync(failureStop.Token);
@@ -320,7 +320,7 @@ public sealed partial class MachineLifecycleTests
 
         camera.SourceImage = null;
         await machine.ResetAsync();
-        await WaitUntilAsync(() => state.Display.Homed);
+        await WaitUntilAsync(() => state.Homed);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var run = machine.StartAsync(stop.Token);
         try
@@ -751,7 +751,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
         io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => state.Display.IsStartAllowed);
+        await WaitUntilAsync(() => machine.IsStartAllowed);
         Assert.True(services.GetRequiredService<BoltFasteningWork>().Station.CarrierSeated);
 
         var run = machine.StartAsync();
@@ -1086,7 +1086,7 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.IsStartAllowed);
-        await WaitUntilAsync(() => state.Display.IsStartAllowed);
+        await WaitUntilAsync(() => machine.IsStartAllowed);
         var firstRun = machine.StartAsync();
         Assert.True(await VirtualTest.WaitUntilAsync(
             () => state.AutomaticRunning, TimeSpan.FromSeconds(2)),
@@ -1109,7 +1109,7 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.Door1Open, true);
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => state.Display.IsStartAllowed);
+        await WaitUntilAsync(() => machine.IsStartAllowed);
         var secondRun = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
 

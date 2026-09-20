@@ -419,7 +419,7 @@ public sealed class BoltFasteningGantry
             }
         }
 
-        void OnSupplyInputChanged(InputIo input, bool _)
+        void OnSupplyInputChanged(InputIo input, bool value)
         {
             var relevant = head switch
             {
@@ -535,7 +535,7 @@ public sealed class BoltFasteningGantry
             await _io.WaitForInputAsync(input, on, cancellationToken);
     }
 
-    private void OnInputChanged(InputIo input, bool _)
+    private void OnInputChanged(InputIo input, bool value)
     {
         if (input is InputIo.PickupHeadVacuumDetected
             or InputIo.ShootingHeadVacuumDetected

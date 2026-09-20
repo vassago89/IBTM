@@ -1,4 +1,4 @@
-// Source: C:/git/AnyWave/AnyWave.Device/Lights/MOVSService.cs. Implementation kept unchanged.
+// Source: C:/git/AnyWave/AnyWave.Device/Lights/MOVSService.cs. Only private member names follow this project's style.
 #nullable disable
 using System.Threading;
 
@@ -14,26 +14,26 @@ namespace AnyWave.Device.LightControllers
     public class MOVSService
     {
         private SerialPort _port;
-        private string portName;
+        private string _portName;
 
         public string Find()
         {
             foreach (var port in SerialPort.GetPortNames())
             {
                 Connect(port);
-                _port.DataReceived += _port_DataReceived;
+                _port.DataReceived += OnPortDataReceived;
                 
                 Off();
             }
 
             Thread.Sleep(1000);
 
-            return portName;
+            return _portName;
         }
 
-        private void _port_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        private void OnPortDataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            portName = ((SerialPort)sender).PortName;
+            _portName = ((SerialPort)sender).PortName;
         }
 
         public void Connect(string portName)

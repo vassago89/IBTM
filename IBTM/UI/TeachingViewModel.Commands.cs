@@ -105,7 +105,7 @@ public partial class TeachingViewModel
             {
                 case true when IsTeachingEditAllowed:
                     return ManualControlBlock.None;
-                case true when State.Display.AutoMode:
+                case true when State.AutoMode:
                     return ManualControlBlock.AutoMode;
                 default:
                     return ManualControlBlock.Busy;
@@ -113,7 +113,7 @@ public partial class TeachingViewModel
         }
     }
 
-    public bool IsTeachingEditAllowed => State.Display.SetupEditingEnabled;
+    public bool IsTeachingEditAllowed => State.SetupEditingEnabled;
 
     public IReadOnlyList<TeachingIoGroup> TeachingIoGroups
     {
@@ -365,7 +365,7 @@ public partial class TeachingViewModel
         await Machine.HomeAsync(group, cancellation.Token);
     }
 
-    private bool IsHomeAllowed => Motion.Feedback.Axes.All(axis => State.Display.HomeableAxes.Contains((ActiveMotionGroup, axis)));
+    private bool IsHomeAllowed => Motion.Feedback.Axes.All(axis => Machine.IsHomeAxisAllowed(ActiveMotionGroup, axis));
 
     private void CancelTeaching(bool reportDeviceFailure = true)
     {
@@ -409,6 +409,11 @@ public partial class TeachingViewModel
         OnPropertyChanged(nameof(ManualBlock));
         OnPropertyChanged(nameof(IsTeachingEditAllowed));
         OnPropertyChanged(nameof(MotionHint));
+    }
+
+    private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        QueueManualCommandRefresh();
     }
 
     private void QueueManualCommandRefresh()

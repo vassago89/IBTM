@@ -28,9 +28,9 @@ internal sealed record MotionFeedbackSample(
 // Owns device acquisition independently of views and display calculation.
 public sealed class MachineFeedbackMonitor : IAsyncDisposable
 {
-    private static readonly TimeSpan InputPollInterval;
-    private static readonly TimeSpan OutputPollInterval;
-    private static readonly TimeSpan MotionPollInterval;
+    private static readonly TimeSpan s_inputPollInterval;
+    private static readonly TimeSpan s_outputPollInterval;
+    private static readonly TimeSpan s_motionPollInterval;
     private readonly UnitSettings _units;
     private readonly IIoService _io;
     private readonly ILogger<MachineFeedbackMonitor>? _log;
@@ -44,9 +44,9 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
     static MachineFeedbackMonitor()
     {
-        InputPollInterval = TimeSpan.FromMilliseconds(10);
-        OutputPollInterval = TimeSpan.FromMilliseconds(250);
-        MotionPollInterval = TimeSpan.FromMilliseconds(250);
+        s_inputPollInterval = TimeSpan.FromMilliseconds(10);
+        s_outputPollInterval = TimeSpan.FromMilliseconds(250);
+        s_motionPollInterval = TimeSpan.FromMilliseconds(250);
     }
 
     public MachineFeedbackMonitor(
@@ -150,9 +150,9 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         var monitors = new List<Task>
         {
             Task.Run(() => MonitorAsync(
-                "Input", firstInputs, InputPollInterval, null, ReadInputs, FailInputs)),
+                "Input", firstInputs, s_inputPollInterval, null, ReadInputs, FailInputs)),
             Task.Run(() => MonitorAsync(
-                "Output", firstOutputs, OutputPollInterval, _outputsRequested, ReadOutputs, FailOutputs)),
+                "Output", firstOutputs, s_outputPollInterval, _outputsRequested, ReadOutputs, FailOutputs)),
         };
         foreach (var (group, motion) in Motions)
         {
@@ -227,6 +227,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
     private void ReadOutputs()
     {
+        var previousError = _outputReadError;
         try
         {
             Io.RefreshOutputs();
@@ -249,7 +250,8 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
         if (!_io.IsReady)
             Io.InvalidateOutputs();
-        Changed?.Invoke();
+        if (!ReferenceEquals(previousError, _outputReadError))
+            Changed?.Invoke();
     }
 
     private void FailOutputs(Exception error)
@@ -268,7 +270,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
             await MonitorAsync(
                 $"Motion {group}",
                 first,
-                MotionPollInterval,
+                s_motionPollInterval,
                 requested,
                 () => ReadMotion(group, motion),
                 error => FailMotion(group, motion, error)).ConfigureAwait(false);
@@ -314,9 +316,16 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
             sample = sample with { IoReady = false, Readiness = new(false, false, true) };
         }
 
+        var previous = _samples.GetValueOrDefault(group);
         _samples[group] = sample;
+        // Safety checks consume every sample, including its acquisition timestamp.
         Sampled?.Invoke(group, sample);
-        Changed?.Invoke();
+        if (previous is null
+            || previous.Enabled != sample.Enabled
+            || previous.IoReady != sample.IoReady
+            || previous.Readiness != sample.Readiness
+            || !ReferenceEquals(previous.ReadError, sample.ReadError))
+            Changed?.Invoke();
     }
 
     private void FailMotion(MotionGroup group, MotionStatus motion, Exception error)

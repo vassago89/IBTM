@@ -33,7 +33,7 @@ public sealed class NgShuttleFeedback
         }
     }
 
-    private void OnInputChanged(InputIo input, bool _)
+    private void OnInputChanged(InputIo input, bool value)
     {
         if (input is InputIo.NgShuttleUp
             or InputIo.NgShuttleDown

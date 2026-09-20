@@ -99,7 +99,7 @@ NG 셔틀의 6개 상태는 픽업 상승·컨베이어 종료·위치 불명 �
 | 수동 축 이동 / 티칭 저장 / 서보·ADC·볼트 테스트 | `IBTM/MachineController.Manual.cs` |
 | Repeat 왕복 경로와 마지막 유닛 | `IBTM/MachineController.Repeat.cs` |
 | 수동 DO 조작 | `IBTM/MachineController.Outputs.cs`, `IBTM/UI/OutputWindowRow.cs` |
-| 화면 표시 상태 | `IBTM/MachineController.Display.cs`, `IBTM/UI/OperationViewModel.Display.cs` |
+| 화면 표시 상태 | `IBTM/MachineState.cs`, `IBTM/UI/OperationViewModel.Display.cs` |
 | 메인 창 명령·레시피 파일 선택·종료 대기 | `IBTM/UI/MainViewModel.cs` |
 | 진단 창 생성·재활성화·Owner 관리 | `IBTM/UI/DiagnosticWindows.cs` |
 | ADC 진단 명령·입력값·취소·정지 확인 | `IBTM/UI/AdcProtocolViewModel.cs` |
@@ -350,19 +350,20 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 `AutoUnit`은 변경 알림과 추적만 관리한다. 자동운전 시작 함수가 각 유닛을 직접 시작하고,
 `ObserveAutomaticUnitAsync`는 이미 시작한 작업의 종료·오류를 확인한다.
 검사와 NG 이송은 갠트리를 공유하므로 `InspectionStation.RunAsync` 한 경로에서 실행한다.
-공급·안착 핸들러는 각자의 `IsAtHandoff`와 그립 피드백을 제공한다. 두 작업 루프가 상대 핸들러를 직접 참조하며, 인계를 관리하는 별도 스테이지 객체는 없다.
+공급·안착 유닛은 자기 피드백만으로 상태를 계산하며 전체 시퀀스 enum은 각 프로젝트에 둔다. 두 루프는 Core의 `IPcbSupplyHandoff` / `IPcbPlacementHandoff`를 통해 `Handoff`와 변경 알림만 공유한다. 공급은 `Holding`/`Released`, 안착은 `Holding`/`Clear`를 내보내며 그 외에는 `Unavailable`이다. 상대 내부 작업 단계나 핸들러를 참조하지 않는다. Placement는 Supply 인계를 DI로 받고, MachineController는 Supply 실행 시 Placement 인계를 전달한다. 상대 변경은 대기를 깨우기만 하고 다시 전달하지 않는다.
+안착 상태 판단과 실행 좌표는 모두 `RecipeManager.Current.PcbPlacement`에서 읽으며 호출자가 별도 레시피를 넘기지 않는다.
 
 | 증상 | 중단점 위치 | 먼저 볼 값 |
 | --- | --- | --- |
-| Start가 실행돼도 돌아오거나 버튼이 비활성 | `MachineController.StartAsync`의 `IsStartAllowed` 조건 / `MachineController.GetStartBlock` | 실행 시 `startBlock`, 버튼은 `State.Display.StartBlock` |
+| Start가 실행돼도 돌아오거나 버튼이 비활성 | `MachineController.StartAsync`의 `IsStartAllowed` 조건 / `MachineController.GetStartBlock` | 실행 시 `startBlock`, 버튼은 `Machine.StartBlock` |
 | 특정 유닛이 시작하지 않음 | `RunAutomaticUnitsAsync`의 해당 유닛 `if`, `RunAutomaticUnitAsync`의 취소 조건 | `_units`, `repeat`, `alarm`, `cycle.IsCancellationRequested` |
 | 자동운전 중 알람 발생 | `RunAutomaticUnitAsync`의 `catch (Exception exception)` | `alarm`은 발생 유닛, `exception`은 원본 오류, `_state.Alarm`은 먼저 발생한 알람 |
 | Repeat 메인 복귀가 취소됨 | `MachineController.Repeat.cs`의 `GetMainConveyorReturnBlock`, `ReturnMainCarrierAsync`의 `CheckPath` | 핸들러 상승·안전 Z, NG 픽업 상승·캐리어 센서; 현재 피드백으로 차단 이유를 반환 |
 | 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.RunAsync`, `GetState`, `TransferAsync` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
 | PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceAsync`의 `switch (state)` | `heatSink`, `state`; 반환값 `false`이면 피드백 대기 |
-| 공급 진입 또는 안착 인수 실린더가 대기함 | `PcbPlacer.IsSupplyReady`, `PcbSupplier.IsPlacementSecured` | 도착 순서는 무관; Placement Handler Up/Down 입력, 양쪽 현재 위치·Home·정지 피드백, Supply `PcbSecured`, 인계 좌표 |
-| 인수 후 실린더 상승 또는 Supply 복귀가 대기함 | `PcbPlacer.GetState`, `PcbSupplier.State` | Supply `PcbReleased`는 그리퍼·IPM 고정 실린더 모두 후퇴 확인; Placement 상승 확인 후 `MovingToPickup`에서 다음 PCB 픽업 XY로 복귀 |
+| 공급 진입 또는 안착 인수 실린더가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacement`이면 수취, Placement `WaitingForSupplyRelease`이면 해제; 각 상태의 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
+| 인수 후 실린더 상승 또는 Supply 복귀가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacementLift`이면 Placement 상승; Placement의 수취 대기·캐리어 대기·안착·완료 상태를 확인한 뒤 Supply 복귀 |
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.ExecuteAsync` | `waitingForBolt`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
 | Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `ExecuteAsync`가 `false`를 반환하면 피드백 대기 |
@@ -473,7 +474,7 @@ S3 캐리어가 벨트에 놓여 있으면 전단 Ready도 OFF로 유지한다. 
 NG 픽업의 상승·하강은 정방향·Repeat·수동 모두 `SetLiftUpAsync`에서 같은 피드백 대기를 거친다.
 
 Watch에서 `GetPosition()`, `GetAxisState()` 같은 장치 읽기를 계속 평가하기보다 먼저
-현재 프레임의 지역변수와 `State.Display`, `Motion.Axes`의 수집된 값을 확인한다.
+현재 프레임의 지역변수와 `State`, `Motion.Axes`의 수집된 값을 확인한다.
 수집된 표시값은 마지막 스캔 값이다. 실제 분기 판단은 유닛의 현재 I/O·SDK 읽기에서 확인한다.
 
 오류는 실행 폴더의 `Logs/IBTM-*.log`에도 남는다. `Automatic unit ... failed`로 유닛을 찾고,
@@ -501,11 +502,16 @@ DI·DO·모션의 상시 감시는 모두 `MachineFeedbackMonitor.StartAsync`에
 최초 실행의 입력 상태는 새 버튼 입력으로 알리지 않는다. 복구 중 새로 확인된 캐리어 입고는
 `ConveyorStation.CarrierChanged`를 통해 이전 작업 완료·결과를 초기화한다.
 Virtual 입력은 시뮬레이터의 상태 변경 시 이미 반영되므로 `RefreshInputs`에서 SDK를 읽지 않는다.
-`MachineController.ReadDisplay`는 `IoSignals`와 `MotionStatus`의 수집값으로 계산한다.
-버퍼·안착·체결·검사 상태도 같은 판단 메서드에 `live: false`를 전달하며 SDK를 재조회하지 않는다.
-수집값이 없으면 읽기 오류로 표시하고 장치 직접 읽기로 대체하지 않는다.
-명령에서는 기본값인 `live: true`로 같은 조건을 현재 피드백에 적용한다.
-화면 갱신을 멈추거나 창을 닫아도 DI·DO·모션 수집은 계속 동작한다.
+화면 갱신 루프와 전체 `MachineDisplay` 스냅샷은 없다.
+`IoSignals`·`MotionStatus`가 실제 값의 변경을 알리고, `MachineState`는 수집된 준비 상태와
+운전·알람 속성의 변경을 알린다. 화면은 이 객체에 직접 바인딩한다.
+스테이션별 표시 계산은 `OperationViewModel`에서 해당 유닛의 변경을 받아 수행하며,
+같은 상태 판단 메서드에 `live: false`를 전달한다. 수집값이 없으면 null/Unavailable로 표시하고
+SDK 재조회로 대체하지 않는다. START·HOME 버튼의 표시도 수집값만 사용한다.
+실제 명령 진입에서는 `MotionReadiness`와 현재 출력·센서 피드백을 다시 확인한다.
+타워램프·부저 출력은 컨트롤러가 알람·자동운전·NG 상태 변경 시 처리한다.
+`MachineState`는 스테이션 객체를 참조하거나 출력 명령을 내리지 않는다.
+창을 닫거나 운전을 정지해도 DI·DO·모션 수집은 계속 동작한다.
 
 앱 종료는 명령 취소와 모터 OFF, 진행 중인 작업의 정리를 기다린 다음 모든 구성 축의
 현재 `InMotion`을 한 번 더 읽는다. 비활성 유닛도 포함하며, 이동 중이거나 읽기가 실패하면
@@ -525,13 +531,13 @@ DO·모션 진단값은 후속 읽기로 회복할 수 있지만 알람을 자�
 한 회차의 읽기가 끝나면 `Sampled(group, sample)`을 먼저 전달한다.
 `MachineController.StartAsync` 안의 `StopWhenMotionFeedbackBecomesUnavailable`이 이 샘플로
 운전 지속 여부를 판단한다. 여기서는 `group`, `sample.Readiness`, `sample.ReadError`에
-중단점을 걸면 된다. 표시용 `MachineDisplay`를 다시 읽어 정지 여부를 결정하지 않는다.
+중단점을 걸면 된다. 화면 속성으로 정지 여부를 결정하지 않는다.
 Start 시점보다 먼저 읽기 시작한 샘플은 새 운전에 적용하지 않는다.
 Start/Home/수동 명령의 진입 조건은 계속 현재 장치 피드백을 직접 확인한다.
 
-화면은 그 뒤의 `Changed` 알림을 받아 마지막 수집값을 반영한다.
-원시 모션·출력 이벤트는 제어에 즉시 전달하지만 화면은 수집 완료 후 갱신한다.
-DI는 입력 변경 시에만 화면을 깨우며, 운전·알람 등 소프트웨어 상태 변경은 직접 갱신을 요청한다.
+수집값이 그대로이면 화면에 다시 알리지 않는다. `Sampled`는 값이 같아도 매 수집마다 유지한다.
+원시 모션·출력 이벤트는 제어에 즉시 전달하지만 화면은 수집된 속성의 변경을 반영한다.
+DI는 입력 변경을, 운전·알람 등 소프트웨어 상태는 해당 속성 변경을 직접 알린다.
 `MachineState.FeedbackReadiness`는 수집된 준비 상태이고, `MotionReadiness`는 현재 장치 읽기다.
 `MotionStatus`는 감시 루프의 수명을 소유하지 않는다.
 제어 I/O가 끊기면 제어용 축 표시를 즉시 unknown으로 만들고 원시 모션 진단은 계속한다.
@@ -545,10 +551,11 @@ NG 셔틀·검사 작업처럼 연결된 객체를 통해 같은 변경 알림�
 `AutoUnit`의 `AsyncAutoResetEvent`는 대기 중인 알림을 합치고 동작을 순서대로 실행한다.
 이벤트 구독 자체에 SDK 폴링 루프가 추가되는 것은 아니다.
 
-이 경계의 집중 검사는 `HomeAndAutomaticStartIgnorePreStartSampleAndStoppedDisplay`와
-`AutomaticFeedbackStopsOnSilentMotionFaultAfterDisplayStops`,
-`InputAndOutputMonitorsOutliveDisplayAndWaitForOperationCleanup`,
+이 경계의 집중 검사는 `HomeAndAutomaticStartIgnorePreStartSample`와
+`AutomaticFeedbackStopsOnSilentMotionFaultWithoutAView`,
+`InputAndOutputMonitorsWaitForOperationCleanup`,
 `ReadyOutputReadFailureStillFailsClosed`다.
+`UnchangedFeedbackDoesNotRefreshTheViewAndInputChangesNotifyImmediately`는 무변경 수집 중 화면 알림이 없고 센서 변경은 즉시 반영되는지 확인한다.
 `DisplayUsesAcquiredFeedbackForAllStationsAndNeverFallsBackToHardware`는 각 스테이션이
 활성인 화면에서 SDK 재조회가 없고, 명령의 직접 읽기와 수집 실패 표시가 유지되는지 확인한다.
 실제 DI 스캔은 SDK 대역의
@@ -600,7 +607,7 @@ dotnet test Tests/IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-r
 ```
 
 WPF 화면 바인딩/명령 수명 회귀는
-`OutputWindowThreadingTests.BoundConveyorButtonsKeepDisplayAliveAcrossOffCloseAndReopen`에
+`OutputWindowThreadingTests.BoundConveyorButtonsUpdateAcrossOffCloseAndReopen`에
 기존 티칭·FOV 검사도 묶여 있다. WPF Application을 여러 개 만드는 새 테스트 호스트를 추가하지 않는다.
 AJIN/AlphaMotion 래퍼는 각 SDK 대역 테스트 프로젝트에서 해당 테스트만 선택한다.
 장비 코드 수정은 `IBTM.slnx`, 테스트 프로젝트를 IDE에서 열 때는 `Tests/IBTM.Tests.slnx`를 사용한다.

@@ -10,12 +10,12 @@ namespace IBTM.Device;
 public abstract class StationWork
 {
     // Protect only result ownership changes, never device calls or notifications.
-    private static readonly Lock JobGate;
+    private static readonly Lock s_jobGate;
     private volatile Job _job;
 
     static StationWork()
     {
-        JobGate = new();
+        s_jobGate = new();
     }
 
     protected StationWork(ConveyorStation station, UnitSettings units)
@@ -55,7 +55,7 @@ public abstract class StationWork
 
     public HeatSinkAssembly GetAssembly(Job job, HeatSinkSlot heatSink)
     {
-        lock (JobGate)
+        lock (s_jobGate)
         {
             RequireCurrentJob(job);
             return job.Assemblies.GetOrAdd(heatSink, static slot => new HeatSinkAssembly(slot));
@@ -71,7 +71,7 @@ public abstract class StationWork
 
     public void TransferAssembliesTo(StationWork destination, Job job)
     {
-        lock (JobGate)
+        lock (s_jobGate)
         {
             // The carrier keeps its trace number; each station gets a new completion owner.
             var received = new Job(job.Id);
@@ -90,7 +90,7 @@ public abstract class StationWork
 
     public void Complete(Job job)
     {
-        lock (JobGate)
+        lock (s_jobGate)
         {
             RequireCurrentJob(job);
             if (job.Completed)
@@ -109,14 +109,14 @@ public abstract class StationWork
     {
         if (present)
         {
-            lock (JobGate)
+            lock (s_jobGate)
                 _job = new();
         }
     }
 
     public sealed class Job
     {
-        private static long _nextId;
+        private static long s_nextId;
         internal readonly ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> Assemblies;
         internal volatile bool Completed;
 
@@ -124,7 +124,7 @@ public abstract class StationWork
         {
             Assemblies = new();
 
-            Id = id ?? Interlocked.Increment(ref _nextId);
+            Id = id ?? Interlocked.Increment(ref s_nextId);
         }
 
         public long Id { get; }

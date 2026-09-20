@@ -114,11 +114,11 @@ public sealed partial class MachineController
     {
         return _units.IsMotionEnabled(group)
             && (live
-                ? _state.ManualMode && _state.SafetyReady && !_state.IsRunning
-                : _state.Display.Available
-                    && !_state.Display.AutoMode
-                    && _state.Display.SafetyReady
-                    && !_state.Display.IsRunning)
+                ? _state.ManualMode && _state.SafetyReady && !_state.IsRunningFor()
+                : _state.Available
+                    && !_state.AutoMode
+                    && _state.SafetyReady
+                    && !_state.IsRunning)
             && (live
                 ? _state.GetMotionStatus(group).Feedback.IsReady
                 : _state.GetMotionStatus(group).Axes.Values.All(axis => axis.State is not null));
@@ -159,7 +159,7 @@ public sealed partial class MachineController
 
     internal OperationCancellation.Operation BeginAdcProtocol(CancellationToken cancellationToken)
     {
-        if (!IsUseAdcProtocolAllowed)
+        if (!IsUseAdcProtocolAllowed || _state.IsRunningFor())
         {
             throw new InvalidOperationException("ADC diagnostics require an idle machine in manual mode.");
         }

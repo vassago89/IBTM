@@ -20,6 +20,7 @@ namespace IBTM.UI;
 
 public partial class TeachingViewModel : ObservableObject
 {
+    private readonly IAsyncRelayCommand[] _commands;
     private readonly PcbSupplyHandler _supplyHandler;
     private readonly PcbSupplySettings _supplySettings;
     private IReadOnlyList<TeachingPoint> _handoffPoints;
@@ -137,6 +138,27 @@ public partial class TeachingViewModel : ObservableObject
         SaveHandoffSetupCommand = new AsyncRelayCommand(SaveHandoffSetupAsync, () => IsTeachingEditAllowed);
         ReturnFromPickupCommand = new AsyncRelayCommand(ReturnFromPickupAsync, () => IsReturnFromPickupAllowed);
 
+        _commands = [
+            ToggleLiveViewCommand,
+            JogCommand,
+            HomeCommand,
+            StepCommand,
+            MoveToHorizontalZCommand,
+            MoveToPointCommand,
+            ReturnFromPickupCommand,
+            GrabCommand,
+            ApplyRulerResolutionCommand,
+            CaptureInspectionCommand,
+            ReinspectImageCommand,
+            ReadDataMatrixCommand,
+            DrawFovRegionCommand,
+            TeachFovRegionCommand,
+            TeachCurrentPositionCommand,
+            SaveHandoffSetupCommand,
+        ];
+        foreach (var command in _commands)
+            command.PropertyChanged += OnCommandChanged;
+
         _supplyHandler = supplyHandler;
         _supplySettings = supplySettings;
         _placementHandler = placementHandler;
@@ -163,9 +185,7 @@ public partial class TeachingViewModel : ObservableObject
 
         boltInspector.FrameReady += UpdateLiveImage;
         boltInspector.LiveViewChanged += OnLiveViewChanged;
-        GrabCommand.PropertyChanged += OnInspectionCommandChanged;
-        CaptureInspectionCommand.PropertyChanged += OnInspectionCommandChanged;
-        state.DisplayChanged += QueueManualCommandRefresh;
+        state.PropertyChanged += OnMachineStateChanged;
         recipes.Changed += OnRecipeChanged;
         recipeEditor.PropertyChanged += (_, e) =>
         {
@@ -187,6 +207,8 @@ public partial class TeachingViewModel : ObservableObject
         get => field ?? Inspector.LiveViewError?.Message;
         private set => SetProperty(ref field, value);
     }
+
+    public bool IsBusy => Array.Exists(_commands, static command => command.IsRunning);
 
     public BoltInspector Inspector { get; }
 
@@ -351,25 +373,7 @@ public partial class TeachingViewModel : ObservableObject
 
     public async Task ShutdownAsync()
     {
-        IAsyncRelayCommand[] commands = [
-            ToggleLiveViewCommand,
-            JogCommand,
-            HomeCommand,
-            StepCommand,
-            MoveToHorizontalZCommand,
-            MoveToPointCommand,
-            ReturnFromPickupCommand,
-            GrabCommand,
-            ApplyRulerResolutionCommand,
-            CaptureInspectionCommand,
-            ReinspectImageCommand,
-            ReadDataMatrixCommand,
-            DrawFovRegionCommand,
-            TeachFovRegionCommand,
-            TeachCurrentPositionCommand,
-            SaveHandoffSetupCommand,
-            .. OutputCommands,
-        ];
+        IAsyncRelayCommand[] commands = [.. _commands, .. OutputCommands];
         var pending = CommandShutdown.Capture(commands);
         Task deactivated;
         try

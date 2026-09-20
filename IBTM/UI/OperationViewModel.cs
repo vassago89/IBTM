@@ -23,7 +23,10 @@ namespace IBTM.UI;
 
 public partial class OperationViewModel : ObservableObject
 {
-    private readonly MachineController _machine;
+    public MachineController Machine { get; }
+    private readonly PcbPlacer _placer;
+    private readonly BoltFasteningStation _fasteningStation;
+    private readonly InspectionStation _inspectionStation;
     private readonly MachineOptions _options;
     private readonly RecipeManager _recipes;
     private readonly MachineMap _map;
@@ -58,7 +61,10 @@ public partial class OperationViewModel : ObservableObject
         PcbPlacementHandler placement,
         BoltFasteningGantry fastening,
         InspectionGantry inspectionGantry,
-        BoltInspector inspector)
+        BoltInspector inspector,
+        PcbPlacer placer,
+        BoltFasteningStation fasteningStation,
+        InspectionStation inspectionStation)
     {
         StartCommand = new AsyncRelayCommand(StartAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -74,7 +80,10 @@ public partial class OperationViewModel : ObservableObject
             new("DOOR 5", signals.Inputs[InputIo.Door5Open]),
             new("DOOR 6", signals.Inputs[InputIo.Door6Open]),
         ];
-        _machine = machine;
+        Machine = machine;
+        _placer = placer;
+        _fasteningStation = fasteningStation;
+        _inspectionStation = inspectionStation;
         Units = units;
         _options = options;
         PcbPlacementWork = pcbPlacementWork;
@@ -110,7 +119,13 @@ public partial class OperationViewModel : ObservableObject
         ngTransfer.Changed += OnNgConveyorChanged;
         ngConveyor.Changed += OnNgConveyorChanged;
         ngShuttle.Feedback.Changed += OnNgConveyorChanged;
-        state.DisplayChanged += OnMachineDisplayChanged;
+        placer.Changed += OnPcbPlacementChanged;
+        inspectionStation.Changed += OnInspectionChanged;
+        state.PropertyChanged += OnMachineStateChanged;
+        machine.PropertyChanged += OnMachinePropertyChanged;
+        recipes.Changed += OnRecipeChanged;
+        signals.Outputs[OutputIo.MainConveyorRun].PropertyChanged += OnConveyorOutputChanged;
+        signals.Outputs[OutputIo.NgConveyorRun].PropertyChanged += OnConveyorOutputChanged;
     }
 
     public MachineState State { get; }
@@ -189,11 +204,32 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public BoltPoint? BoltFasteningActiveBolt => FasteningStateVisible ? State.Display.FasteningBolt : null;
+    public BoltPoint? BoltFasteningActiveBolt
+    {
+        get
+        {
+            return State.AutomaticRunning && FasteningState is { } state
+                ? _fasteningStation.GetActiveBolt(state) : null;
+        }
+    }
 
-    public BoltPoint? InspectionActiveBolt => InspectionStateVisible ? State.Display.InspectionBolt : null;
+    public BoltPoint? InspectionActiveBolt
+    {
+        get
+        {
+            return InspectionStateVisible && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running
+                ? _inspectionStation.GetActiveBolt(_recipes.Current.Pcb.BoltPoints, running) : null;
+        }
+    }
 
-    public HeatSinkSlot? InspectionActivePcb => InspectionStateVisible ? State.Display.InspectionPcb : null;
+    public HeatSinkSlot? InspectionActivePcb
+    {
+        get
+        {
+            return InspectionStateVisible && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running
+                ? _inspectionStation.GetActivePcb(_recipes.Current.Pcb.BoltPoints, running) : null;
+        }
+    }
 
     public string? InspectionActiveBarcode => InspectionActivePcb is { } pcb ? InspectionBarcode(pcb) : null;
 
@@ -256,14 +292,14 @@ public partial class OperationViewModel : ObservableObject
 
     public AssemblyResult InspectionHeatSink2Result => GetAssemblyResult(InspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
 
-    public string ModeText => State.Display.Available ? (State.Display.AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
+    public string ModeText => State.Available ? (State.AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
 
     public bool HasAlarm
     {
         get
         {
-            return State.Display.Alarm != MachineAlarm.None
-                || State.Display.ReadError is not null;
+            return State.Alarm != MachineAlarm.None
+                || State.ReadError is not null;
         }
     }
 
@@ -271,15 +307,15 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return State.Display.ReadError is null
-                ? State.Display.Alarm
+            return State.ReadError is null
+                ? State.Alarm
                 : MachineDisplayState.Unavailable;
         }
     }
 
-    public string? AlarmDetail => State.Display.ReadError?.ToString() ?? State.Display.AlarmDetail;
+    public string? AlarmDetail => State.ReadError?.ToString() ?? State.AlarmDetail;
 
-    public string? AlarmMessage => State.Display.ReadError?.Message ?? State.Display.AlarmMessage;
+    public string? AlarmMessage => State.ReadError?.Message ?? State.AlarmMessage;
 
     public bool SafetyBypass
     {
@@ -301,7 +337,6 @@ public partial class OperationViewModel : ObservableObject
     public void Activate()
     {
         _active = true;
-        State.RequestDisplayRefresh();
         OnPropertyChanged(nameof(PcbSupplyMapLeft));
         OnPropertyChanged(nameof(PcbSupplyMapTop));
         OnPropertyChanged(nameof(PcbPlacementMapLeft));
@@ -310,7 +345,9 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(BoltFasteningMapTop));
         OnPropertyChanged(nameof(InspectionGantryMapLeft));
         OnPropertyChanged(nameof(InspectionGantryMapTop));
-        OnMachineDisplayChanged();
+        OnMachineStateChanged(this, new(null));
+        OnRecipeChanged();
+        OnPropertyChanged(nameof(ConveyorState));
         OnPropertyChanged(nameof(Conveyor));
         OnPropertyChanged(nameof(Units));
         OnPropertyChanged(nameof(BoltPickupFeederMapLeft));
@@ -334,7 +371,7 @@ public partial class OperationViewModel : ObservableObject
 
     private async Task StartAsync(CancellationToken cancellationToken)
     {
-        await _machine.StartAsync(cancellationToken);
+        await Machine.StartAsync(cancellationToken);
     }
 
     public IAsyncRelayCommand StopCommand { get; }
@@ -347,7 +384,7 @@ public partial class OperationViewModel : ObservableObject
             var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
                 commands,
-                _machine.StopAsync(),
+                Machine.StopAsync(),
                 pending);
         }
         catch (Exception exception)
@@ -363,7 +400,7 @@ public partial class OperationViewModel : ObservableObject
 
     private async Task HomeAsync(CancellationToken cancellationToken)
     {
-        await _machine.HomeAsync(cancellationToken);
+        await Machine.HomeAsync(cancellationToken);
     }
 
     private static bool HasAssembly(StationWork work, HeatSinkSlot heatSink)
@@ -419,12 +456,12 @@ public partial class OperationViewModel : ObservableObject
         return result.Success ? BoltTargetState.Ok : BoltTargetState.Ng;
     }
 
-    private void OnPcbSupplyMotionChanged(object? _, PropertyChangedEventArgs e)
+    private void OnPcbSupplyMotionChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!_active)
             return;
 
-        if (e.PropertyName == nameof(MotionStatus.IsMoving))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(MotionStatus.XyHomed))
             OnPcbSupplyChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
@@ -435,12 +472,12 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    private void OnPcbPlacementMotionChanged(object? _, PropertyChangedEventArgs e)
+    private void OnPcbPlacementMotionChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!_active)
             return;
 
-        if (e.PropertyName == nameof(MotionStatus.IsMoving))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(MotionStatus.XyHomed))
             OnPcbPlacementChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
@@ -451,12 +488,12 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    private void OnBoltFasteningMotionChanged(object? _, PropertyChangedEventArgs e)
+    private void OnBoltFasteningMotionChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!_active)
             return;
 
-        if (e.PropertyName == nameof(MotionStatus.IsMoving))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(MotionStatus.XyHomed))
             OnBoltFasteningChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
@@ -467,13 +504,16 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    private void OnInspectionGantryMotionChanged(object? _, PropertyChangedEventArgs e)
+    private void OnInspectionGantryMotionChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!_active)
             return;
 
-        if (e.PropertyName == nameof(MotionStatus.IsMoving))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(MotionStatus.XyHomed))
+        {
             OnInspectionChanged();
+            OnMainConveyorChanged();
+        }
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
@@ -483,26 +523,59 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    private void OnMachineDisplayChanged()
+    private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         OnPropertyChanged(nameof(MachineDisplayState));
-        OnPropertyChanged(nameof(StartBlocked));
-        OnPropertyChanged(nameof(StartBlock));
         OnPropertyChanged(nameof(ModeText));
         OnPropertyChanged(nameof(HasAlarm));
         OnPropertyChanged(nameof(Alarm));
         OnPropertyChanged(nameof(AlarmDetail));
         OnPropertyChanged(nameof(AlarmMessage));
-        OnPropertyChanged(nameof(SupplyPositionKnown));
-        OnPropertyChanged(nameof(PlacementPositionKnown));
-        OnPropertyChanged(nameof(FasteningPositionKnown));
-        OnPropertyChanged(nameof(InspectionPositionKnown));
-        OnPropertyChanged(nameof(BoltFeederPositionKnown));
-        OnPropertyChanged(nameof(ConveyorStatus));
+        if (e.PropertyName is null or nameof(MachineState.AutomaticRunning)
+            or nameof(MachineState.Alarm) or nameof(MachineState.ReadError))
+        {
+            OnPcbSupplyChanged();
+            OnPcbPlacementChanged();
+            OnBoltFasteningChanged();
+            OnInspectionChanged();
+            OnMainConveyorChanged();
+            OnNgConveyorChanged();
+        }
+    }
+
+    private void OnMachinePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MachineController.StartBlock)
+            or nameof(MachineController.HomeBlock) or nameof(MachineController.IsStartAllowed))
+        {
+            OnPropertyChanged(nameof(StartBlocked));
+            OnPropertyChanged(nameof(StartBlock));
+        }
+    }
+
+    private void OnConveyorOutputChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(IoOutputStatus.IsOn))
+            return;
+        if (sender == Signals.Outputs[OutputIo.MainConveyorRun])
+        {
+            OnMainConveyorChanged();
+            OnInspectionChanged();
+        }
+        else
+        {
+            OnNgConveyorChanged();
+            OnInspectionChanged();
+        }
+    }
+
+    private void OnRecipeChanged()
+    {
+        OnPcbSupplyChanged();
         OnPcbPlacementChanged();
         OnBoltFasteningChanged();
         OnInspectionChanged();
-        OnNgConveyorChanged();
+        OnPropertyChanged(nameof(BoltFeederPositionKnown));
     }
 
     // Devices expose Changed events; notifying their property also refreshes nested XAML bindings.
@@ -514,6 +587,7 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PcbSupplyPcbDetected));
         OnPropertyChanged(nameof(PcbSupplyPcbSecured));
         OnPropertyChanged(nameof(PcbSupplyGripperClosed));
+        OnPropertyChanged(nameof(SupplyPositionKnown));
         OnPropertyChanged(nameof(Supply));
         OnPropertyChanged(nameof(SupplyDisplayState));
     }
@@ -523,6 +597,9 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
+        OnPropertyChanged(nameof(PlacementState));
+        OnPropertyChanged(nameof(PlacementTarget));
+        OnPropertyChanged(nameof(PlacementPositionKnown));
         OnPropertyChanged(nameof(PlacementStatus));
         OnPropertyChanged(nameof(PcbPlacementPcbDetected));
         OnPropertyChanged(nameof(PcbPlacementIpmDown));
@@ -540,6 +617,7 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
+        OnPropertyChanged(nameof(ConveyorState));
         OnPropertyChanged(nameof(Conveyor));
         OnPropertyChanged(nameof(ConveyorStatus));
         OnPropertyChanged(nameof(InspectionStatus));
@@ -550,6 +628,8 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
+        OnPropertyChanged(nameof(FasteningState));
+        OnPropertyChanged(nameof(FasteningPositionKnown));
         OnPropertyChanged(nameof(BoltFasteningWork));
         OnPropertyChanged(nameof(Fastening));
         OnPropertyChanged(nameof(PickupFeederBoltDetected));
@@ -575,6 +655,8 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
+        OnPropertyChanged(nameof(InspectionState));
+        OnPropertyChanged(nameof(InspectionPositionKnown));
         OnPropertyChanged(nameof(InspectionWork));
         OnPropertyChanged(nameof(InspectionActiveBolt));
         OnPropertyChanged(nameof(InspectionActivePcb));
@@ -594,6 +676,7 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
+        OnPropertyChanged(nameof(NgConveyorState));
         OnPropertyChanged(nameof(NgTransfer));
         OnPropertyChanged(nameof(NgShuttle));
         OnPropertyChanged(nameof(NgConveyor));

@@ -18,47 +18,47 @@ public sealed class MachineMap
     private readonly CarrierReferenceSettings _carrier;
     private readonly InspectionGantrySettings _inspection;
     private readonly NgCarrierTransferSettings _transfer;
-    private static readonly (double X, double Y) SupplyPcb1;
-    private static readonly (double X, double Y) SupplyPcb2;
-    private static readonly (double X, double Y) SupplyHandoff;
-    private static readonly (double X, double Y) PlacementHandoff;
-    private static readonly (double X, double Y) PlacementHeatSink1;
-    private static readonly (double X, double Y) PlacementHeatSink2;
-    private static readonly (double X, double Y) ShootingUpperLeft;
-    private static readonly (double X, double Y) ShootingLowerRight;
-    private static readonly (double X, double Y) PickupUpperLeft;
-    private static readonly (double X, double Y) PickupFeederOffset;
+    private static readonly (double X, double Y) s_supplyPcb1;
+    private static readonly (double X, double Y) s_supplyPcb2;
+    private static readonly (double X, double Y) s_supplyHandoff;
+    private static readonly (double X, double Y) s_placementHandoff;
+    private static readonly (double X, double Y) s_placementHeatSink1;
+    private static readonly (double X, double Y) s_placementHeatSink2;
+    private static readonly (double X, double Y) s_shootingUpperLeft;
+    private static readonly (double X, double Y) s_shootingLowerRight;
+    private static readonly (double X, double Y) s_pickupUpperLeft;
+    private static readonly (double X, double Y) s_pickupFeederOffset;
 
     static MachineMap()
     {
-        SupplyPcb1 = MachinePlan.Offset(
+        s_supplyPcb1 = MachinePlan.Offset(
             MachinePlan.SupplyPcb1Center,
             MachinePlan.SupplyToolCenter);
-        SupplyPcb2 = MachinePlan.Offset(
+        s_supplyPcb2 = MachinePlan.Offset(
             MachinePlan.SupplyPcb2Center,
             MachinePlan.SupplyToolCenter);
-        SupplyHandoff = MachinePlan.Offset(
+        s_supplyHandoff = MachinePlan.Offset(
             MachinePlan.HandoffCenter,
             MachinePlan.SupplyToolCenter);
-        PlacementHandoff = MachinePlan.Offset(
+        s_placementHandoff = MachinePlan.Offset(
             MachinePlan.HandoffCenter,
             MachinePlan.PlacementToolCenter);
-        PlacementHeatSink1 = MachinePlan.Offset(
+        s_placementHeatSink1 = MachinePlan.Offset(
             MachinePlan.PlacementHeatSink1,
             MachinePlan.PlacementToolCenter);
-        PlacementHeatSink2 = MachinePlan.Offset(
+        s_placementHeatSink2 = MachinePlan.Offset(
             MachinePlan.PlacementHeatSink2,
             MachinePlan.PlacementToolCenter);
-        ShootingUpperLeft = MachinePlan.Offset(
+        s_shootingUpperLeft = MachinePlan.Offset(
             MachinePlan.FasteningUpperLeft,
             MachinePlan.ShootingToolCenter);
-        ShootingLowerRight = MachinePlan.Offset(
+        s_shootingLowerRight = MachinePlan.Offset(
             MachinePlan.FasteningLowerRight,
             MachinePlan.ShootingToolCenter);
-        PickupUpperLeft = MachinePlan.Offset(
+        s_pickupUpperLeft = MachinePlan.Offset(
             MachinePlan.FasteningUpperLeft,
             MachinePlan.PickupToolCenter);
-        PickupFeederOffset = (
+        s_pickupFeederOffset = (
             -MachinePlan.PickupFeederWidth / 2,
             -MachinePlan.PickupFeederHeight / 2);
     }
@@ -145,9 +145,9 @@ public sealed class MachineMap
             (
                 _supply.HandoffPosition.X,
                 _supply.HandoffPosition.Y),
-            SupplyPcb1,
-            SupplyPcb2,
-            SupplyHandoff);
+            s_supplyPcb1,
+            s_supplyPcb2,
+            s_supplyHandoff);
     }
 
     public (double X, double Y)? GetPlacementPosition(MotionPosition current)
@@ -166,9 +166,9 @@ public sealed class MachineMap
             (
                 _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.X,
                 _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.Y),
-            PlacementHandoff,
-            PlacementHeatSink1,
-            PlacementHeatSink2);
+            s_placementHandoff,
+            s_placementHeatSink1,
+            s_placementHeatSink2);
     }
 
     public (double X, double Y)? GetFasteningPosition(MotionPosition current)
@@ -183,8 +183,8 @@ public sealed class MachineMap
             var point = _fastening.PickupPosition;
             var mapped = MapFastening(point.X, point.Y);
             return (
-                mapped.X + MachinePlan.PickupToolCenter.X + PickupFeederOffset.X,
-                mapped.Y + MachinePlan.PickupToolCenter.Y + PickupFeederOffset.Y);
+                mapped.X + MachinePlan.PickupToolCenter.X + s_pickupFeederOffset.X,
+                mapped.Y + MachinePlan.PickupToolCenter.Y + s_pickupFeederOffset.Y);
         }
     }
 
@@ -230,9 +230,9 @@ public sealed class MachineMap
                     (first.X, first.Y),
                     (second.X, second.Y),
                     (pickup.X, pickup.Y),
-                    ShootingUpperLeft,
-                    ShootingLowerRight,
-                    PickupUpperLeft);
+                    s_shootingUpperLeft,
+                    s_shootingLowerRight,
+                    s_pickupUpperLeft);
         }
 
         var shooting = HasPins(_fastening.ShootingHead);

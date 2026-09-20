@@ -1,17 +1,8 @@
 using System.ComponentModel;
-using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
-using System.Threading;
 using System;
-using IBTM.BoltFastening;
-using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Inspection;
-using IBTM.NgConveyor;
-using IBTM.PcbPlacement;
-using IBTM.PcbSupply;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM;
@@ -89,21 +80,12 @@ public enum ManualControlBlock
     Busy,
 }
 
-public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
+public sealed class MachineState : INotifyPropertyChanged
 {
-    private readonly AsyncAutoResetEvent _displayRequested;
-    private readonly CancellationTokenSource _displayLifetime;
-    private readonly TaskCompletionSource _firstDisplay;
-    private Task? _displayUpdates;
-    private MachineDisplay _display;
-    // Last handled notification, not the physical state of the lamp/buzzer outputs.
-    private (MachineAlarm Alarm, bool Running, bool NgAlarm)? _lastIndicatorNotification;
     private readonly MachineFeedbackMonitor _feedback;
     private readonly MachineOptions _options;
     private readonly OperationCancellation _operations;
     private readonly IIoService _io;
-    private readonly MainConveyor _conveyor;
-    private readonly NgCarrierConveyor _ngConveyor;
     private readonly ILogger<MachineState>? _log;
 
     public MachineState(
@@ -111,41 +93,32 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         OperationCancellation operations,
         IIoService io,
         MachineFeedbackMonitor feedback,
-        MainConveyor conveyor,
-        NgCarrierConveyor ngConveyor,
-        PcbSupplyHandler pcbSupply,
-        PcbPlacementHandler pcbPlacement,
-        BoltFasteningGantry boltFastening,
-        InspectionGantry inspectionGantry,
         ILogger<MachineState>? log = null)
     {
-        _displayRequested = new();
-        _displayLifetime = new();
-        _firstDisplay = new(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        _display = new();
-
         _options = options;
         _operations = operations;
         _io = io;
-        _conveyor = conveyor;
-        _ngConveyor = ngConveyor;
         _feedback = feedback;
         _log = log;
 
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
-        pcbSupply.Feedback.StateChanged += OnMotionStateChanged;
-        pcbPlacement.Feedback.StateChanged += OnMotionStateChanged;
-        boltFastening.Feedback.StateChanged += OnMotionStateChanged;
-        inspectionGantry.Feedback.StateChanged += OnMotionStateChanged;
-        conveyor.Changed += NotifyChanged;
-        ngConveyor.Changed += OnNgConveyorChanged;
+        foreach (var motion in feedback.Motions.Values)
+            motion.Feedback.StateChanged += OnMotionStateChanged;
         operations.ActivityChanged += NotifyChanged;
+        feedback.Changed += OnFeedbackChanged;
+        feedback.Io.PropertyChanged += OnFeedbackPropertyChanged;
+        feedback.Io.Outputs[OutputIo.MainConveyorRun].PropertyChanged += OnFeedbackPropertyChanged;
+        feedback.Io.Outputs[OutputIo.NgConveyorRun].PropertyChanged += OnFeedbackPropertyChanged;
+        foreach (var motion in feedback.Motions.Values)
+        {
+            motion.PropertyChanged += OnMotionPropertyChanged;
+            foreach (var axis in motion.Axes.Values)
+                axis.PropertyChanged += OnFeedbackPropertyChanged;
+        }
     }
 
     public event Action? Changed;
-    public event Action? DisplayChanged;
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public bool RepeatEnabled
@@ -157,32 +130,29 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
                 return;
             field = value;
             PropertyChanged?.Invoke(this, new(nameof(RepeatEnabled)));
-            RequestDisplayRefresh();
+            OnFeedbackChanged();
         }
     }
 
-    public MachineDisplay Display
-    {
-        get => Volatile.Read(ref _display);
+    public bool Available => _io.IsReady && ReadError is null
+        && _feedback.Io.Outputs[OutputIo.MainConveyorRun].IsOn is not null
+        && _feedback.Io.Outputs[OutputIo.NgConveyorRun].IsOn is not null;
 
-        private set
-        {
-            Volatile.Write(ref _display, value);
-            PropertyChanged?.Invoke(this, new(nameof(Display)));
-        }
-    }
+    public Exception? ReadError => _feedback.ReadError;
+
+    public bool ServoPowerOn => ServoMainContactorOn && ServosOn;
 
     internal MotionReadiness MotionReadiness => _feedback.ReadLiveReadiness();
 
     internal MotionReadiness FeedbackReadiness => _feedback.Readiness;
 
-    public bool Homed => MotionReadiness.Homed;
+    public bool Homed => FeedbackReadiness.Homed;
 
-    public bool ServosOn => MotionReadiness.ServosOn;
+    public bool ServosOn => FeedbackReadiness.ServosOn;
 
-    public bool Faulted => MotionReadiness.Faulted;
+    public bool Faulted => FeedbackReadiness.Faulted;
 
-    public bool Ready => IsMotionReady(MotionReadiness);
+    public bool Ready => Available && IsMotionReady(FeedbackReadiness);
 
     public bool EmergencyStopReleased
     {
@@ -242,7 +212,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
 
             _log?.LogInformation("{Message}", $"Automatic operation {(value ? "started" : "stopped")}.");
             field = value;
-            UpdateMachineIndicators();
+            PropertyChanged?.Invoke(this, new(nameof(AutomaticRunning)));
             NotifyChanged();
         }
     }
@@ -252,9 +222,11 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         get;
         internal set
         {
-            if (field != value)
-                _log?.LogInformation("{Message}", $"Bolt test {(value ? "started" : "stopped")}.");
+            if (field == value)
+                return;
+            _log?.LogInformation("{Message}", $"Bolt test {(value ? "started" : "stopped")}.");
             field = value;
+            PropertyChanged?.Invoke(this, new(nameof(BoltTestRunning)));
             NotifyChanged();
         }
     }
@@ -264,9 +236,11 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         get;
         internal set
         {
-            if (field != value)
-                _log?.LogInformation("{Message}", $"Homing {(value ? "started" : "finished")}.");
+            if (field == value)
+                return;
+            _log?.LogInformation("{Message}", $"Homing {(value ? "started" : "finished")}.");
             field = value;
+            PropertyChanged?.Invoke(this, new(nameof(IsHoming)));
             NotifyChanged();
         }
     }
@@ -275,11 +249,13 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
     public string? AlarmDetail { get; private set; }
     public string? AlarmMessage { get; private set; }
 
-    public bool IsRunning => IsRunningFor();
+    public bool IsRunning => IsRunningFor(
+        _feedback.Io.Outputs[OutputIo.MainConveyorRun].IsOn == true,
+        _feedback.Io.Outputs[OutputIo.NgConveyorRun].IsOn == true);
 
-    public ManualControlBlock ManualBlock => GetManualBlock(MotionReadiness);
+    public ManualControlBlock ManualBlock => GetManualBlock(FeedbackReadiness, IsRunning);
 
-    public bool ManualControlsEnabled => ManualBlock == ManualControlBlock.None;
+    public bool ManualControlsEnabled => Available && ManualBlock == ManualControlBlock.None;
 
     // Editing data does not operate a device or require motion readiness.
     public bool SetupEditingEnabled
@@ -301,7 +277,7 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
     {
         get
         {
-            return _io.IsReady
+            return Available
                 && !_operations.IsShuttingDown
                 && ManualMode
                 && SafetyReady
@@ -309,150 +285,11 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         }
     }
 
-    public void RequestDisplayRefresh()
-    {
-        _displayRequested.Set();
-    }
-
     internal MotionStatus GetMotionStatus(MotionGroup group)
     {
         return _feedback.Motions.TryGetValue(group, out var motion)
             ? motion
             : throw new ArgumentOutOfRangeException(nameof(group));
-    }
-
-    internal async Task StartDisplayUpdatesAsync(Func<MachineDisplay> read)
-    {
-        if (_displayUpdates is null)
-        {
-            _feedback.Changed += RequestDisplayRefresh;
-            RequestDisplayRefresh();
-            _displayUpdates = Task.Run(() => UpdateDisplayLoopAsync(read));
-        }
-
-        await _firstDisplay.Task.ConfigureAwait(false);
-    }
-
-    private async Task UpdateDisplayLoopAsync(Func<MachineDisplay> read)
-    {
-        var cancellationToken = _displayLifetime.Token;
-        try
-        {
-            while (true)
-            {
-                await _displayRequested.WaitAsync(cancellationToken).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                RefreshDisplay(read);
-                DisplayChanged?.Invoke();
-                _firstDisplay.TrySetResult();
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            _firstDisplay.TrySetCanceled(cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            _log?.LogError(exception, "Display worker stopped by an unexpected error.");
-            Display = new() { ReadError = exception };
-            _firstDisplay.TrySetException(exception);
-            DisplayChanged?.Invoke();
-            throw;
-        }
-        finally
-        {
-            _feedback.Changed -= RequestDisplayRefresh;
-        }
-    }
-
-    internal void SilenceBuzzer()
-    {
-        if (!_io.IsReady)
-            return;
-
-        try
-        {
-            _io.SetOutput(OutputIo.Buzzer, false);
-        }
-        catch (IOException exception)
-        {
-            _log?.LogError(exception, "Buzzer OFF failed.");
-        }
-    }
-
-    // Called by alarm/run/NG notifications, never by the display or acquisition loops.
-    internal void UpdateMachineIndicators()
-    {
-        if (!_io.IsReady)
-            return;
-
-        try
-        {
-            var notification = (Alarm, Running: AutomaticRunning, NgAlarm: _ngConveyor.AlarmRequired);
-            var previous = _lastIndicatorNotification;
-            if (previous == notification)
-                return;
-
-            var attention = notification.Alarm != MachineAlarm.None || notification.NgAlarm;
-            var newAlarm = notification.Alarm != MachineAlarm.None
-                    && notification.Alarm != previous?.Alarm
-                || notification.NgAlarm && previous?.NgAlarm != true;
-
-            _io.SetOutput(OutputIo.TowerLampGreen, notification.Running && !attention);
-            _io.SetOutput(OutputIo.TowerLampYellow, !notification.Running && !attention);
-            _io.SetOutput(OutputIo.TowerLampRed, attention);
-            if (!attention || newAlarm)
-                _io.SetOutput(OutputIo.Buzzer, newAlarm);
-
-            _lastIndicatorNotification = notification;
-        }
-        catch (IOException exception)
-        {
-            _log?.LogError(exception, "Machine indicator output update failed.");
-        }
-    }
-
-    private void RefreshDisplay(Func<MachineDisplay> read)
-    {
-        try
-        {
-            if (_feedback.ReadError is { } error)
-            {
-                if (!ReferenceEquals(Display.ReadError, error))
-                    Display = new() { ReadError = error };
-                return;
-            }
-
-            Display = read();
-        }
-        catch (IOException exception)
-        {
-            if (Display.ReadError is null)
-                _log?.LogError(exception, "Display refresh failed.");
-            if (_io.IsReady)
-            {
-                if (!ReferenceEquals(Display.ReadError, exception))
-                    Display = new() { ReadError = exception };
-            }
-            else
-            {
-                // The connection may fail partway through a scan.
-                // Keep the original fault; the feedback monitor invalidates control axes.
-                Display = read();
-            }
-        }
-    }
-
-    internal Task StopDisplayUpdatesAsync()
-    {
-        _displayLifetime.Cancel();
-        return _displayUpdates ?? Task.CompletedTask;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        using (_displayLifetime)
-            await StopDisplayUpdatesAsync().ConfigureAwait(false);
     }
 
     private bool IsMotionReady(MotionReadiness motion)
@@ -466,11 +303,11 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
             || AutomaticRunning
             || BoltTestRunning
             || IsHoming
-            || (_io.IsReady && (mainRunning ?? _conveyor.RunCommandOn))
+            || (_io.IsReady && (mainRunning ?? _io.GetOutput(OutputIo.MainConveyorRun)))
             // Always-on observations include disabled axes, without issuing native
             // calls while the UI evaluates commands such as RESET.
             || _feedback.Motions.Values.Any(static motion => motion.IsMoving)
-            || (_io.IsReady && (ngRunning ?? _ngConveyor.RunCommandOn));
+            || (_io.IsReady && (ngRunning ?? _io.GetOutput(OutputIo.NgConveyorRun)));
     }
 
     internal ManualControlBlock GetManualBlock(
@@ -497,7 +334,36 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
     public void Refresh()
     {
         Changed?.Invoke();
-        RequestDisplayRefresh();
+        PropertyChanged?.Invoke(this, new(null));
+    }
+
+    private void OnFeedbackChanged()
+    {
+        PropertyChanged?.Invoke(this, new(nameof(Available)));
+        PropertyChanged?.Invoke(this, new(nameof(ReadError)));
+        PropertyChanged?.Invoke(this, new(nameof(Homed)));
+        PropertyChanged?.Invoke(this, new(nameof(ServosOn)));
+        PropertyChanged?.Invoke(this, new(nameof(Faulted)));
+        PropertyChanged?.Invoke(this, new(nameof(ServoPowerOn)));
+        PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
+        PropertyChanged?.Invoke(this, new(nameof(ManualBlock)));
+        PropertyChanged?.Invoke(this, new(nameof(ManualControlsEnabled)));
+        PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
+        PropertyChanged?.Invoke(this, new(nameof(SetupEditingEnabled)));
+    }
+
+    private void OnFeedbackPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is AxisStatus && e.PropertyName != nameof(AxisStatus.State)
+            || sender is IoOutputStatus && e.PropertyName != nameof(IoOutputStatus.IsOn))
+            return;
+        OnFeedbackChanged();
+    }
+
+    private void OnMotionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MotionStatus.IsMoving))
+            OnFeedbackChanged();
     }
 
     private void OnMotionStateChanged()
@@ -521,7 +387,9 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         AlarmDetail = exception?.ToString();
         AlarmMessage = exception?.Message;
         _log?.LogError(exception, "{Message}", $"Machine alarm: {alarm}.");
-        UpdateMachineIndicators();
+        PropertyChanged?.Invoke(this, new(nameof(Alarm)));
+        PropertyChanged?.Invoke(this, new(nameof(AlarmDetail)));
+        PropertyChanged?.Invoke(this, new(nameof(AlarmMessage)));
         NotifyChanged();
     }
 
@@ -532,20 +400,16 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         Alarm = MachineAlarm.None;
         AlarmDetail = null;
         AlarmMessage = null;
-        UpdateMachineIndicators();
-        NotifyChanged();
-    }
-
-    private void OnNgConveyorChanged()
-    {
-        UpdateMachineIndicators();
+        PropertyChanged?.Invoke(this, new(nameof(Alarm)));
+        PropertyChanged?.Invoke(this, new(nameof(AlarmDetail)));
+        PropertyChanged?.Invoke(this, new(nameof(AlarmMessage)));
         NotifyChanged();
     }
 
     private void NotifyChanged()
     {
         Changed?.Invoke();
-        RequestDisplayRefresh();
+        OnFeedbackChanged();
     }
 
     internal static bool IsSafetyInput(InputIo input)
@@ -565,8 +429,16 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
     private void OnInputChanged(InputIo input, bool value)
     {
         if (input == InputIo.ServoMainContactorOn || IsSafetyInput(input))
+        {
             Changed?.Invoke();
-        RequestDisplayRefresh();
+            OnFeedbackChanged();
+            PropertyChanged?.Invoke(this, new(nameof(SafetyReady)));
+            PropertyChanged?.Invoke(this, new(nameof(EmergencyStopReleased)));
+            PropertyChanged?.Invoke(this, new(nameof(DoorClosed)));
+            PropertyChanged?.Invoke(this, new(nameof(AirPressureOk)));
+            PropertyChanged?.Invoke(this, new(nameof(AutoMode)));
+        }
+        PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
     }
 
     private void OnOutputChanged(OutputIo output, bool value)

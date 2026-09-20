@@ -2,33 +2,6 @@ using System.ComponentModel;
 
 namespace IBTM.PcbSupply;
 
-public enum PcbSupplyState
-{
-    [Description("Waiting for Carrier")]
-    WaitingForCarrier,
-
-    [Description("Waiting for Carrier Exit")]
-    WaitingForCarrierExit,
-
-    [Description("Preparing Pickup / Standby")]
-    MovingToPickup,
-
-    [Description("Picking PCB")]
-    PickingPcb,
-
-    [Description("Securing PCB and Moving to Handoff")]
-    MovingToHandoff,
-
-    [Description("Waiting for Placement Handler")]
-    WaitingForPlacement,
-
-    [Description("Releasing PCB")]
-    ReleasingPcb,
-
-    [Description("Waiting for Placement Handler Up")]
-    WaitingForPlacementLift,
-}
-
 public enum PcbSupplyRotationState
 {
     [Description("Unrotated")]
@@ -63,4 +36,34 @@ public enum PcbSupplyPcbState
 
     [Description("PCB Secured")]
     Secured,
+}
+
+public enum PcbSupplyState
+{
+    [Description("Waiting for Carrier")]
+    WaitingForCarrier,
+
+    [Description("Waiting for Carrier Exit")]
+    WaitingForCarrierExit,
+
+    [Description("Preparing Pickup / Standby")]
+    MovingToPickup,
+
+    [Description("Picking PCB")]
+    PickingPcb,
+
+    [Description("Securing PCB and Moving to Handoff")]
+    MovingToHandoff,
+
+    [Description("Waiting for Placement Handler")]
+    WaitingForPlacement,
+
+    [Description("Releasing PCB")]
+    ReleasingPcb,
+
+    [Description("Waiting for Placement Handler Up")]
+    WaitingForPlacementLift,
+
+    [Description("Disabled")]
+    Disabled,
 }

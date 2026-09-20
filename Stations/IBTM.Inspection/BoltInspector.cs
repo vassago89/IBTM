@@ -15,12 +15,12 @@ public sealed record CarrierImage(AxisPosition Center, ImageFrame Frame);
 
 public sealed class BoltInspector
 {
-    private readonly InspectionGantry gantry;
-    private readonly ICamera camera;
-    private readonly ILightController light;
-    private readonly InspectionGantrySettings gantrySettings;
-    private readonly LightingSettings lightingSettings;
-    private readonly RecipeManager recipes;
+    private readonly InspectionGantry _gantry;
+    private readonly ICamera _camera;
+    private readonly ILightController _light;
+    private readonly InspectionGantrySettings _gantrySettings;
+    private readonly LightingSettings _lightingSettings;
+    private readonly RecipeManager _recipes;
     private readonly SemaphoreSlim _visionGate;
     private int? _lightChannel;
 
@@ -34,12 +34,12 @@ public sealed class BoltInspector
     {
         _visionGate = new(1, 1);
 
-        this.gantry = gantry;
-        this.camera = camera;
-        this.light = light;
-        this.gantrySettings = gantrySettings;
-        this.lightingSettings = lightingSettings;
-        this.recipes = recipes;
+        _gantry = gantry;
+        _camera = camera;
+        _light = light;
+        _gantrySettings = gantrySettings;
+        _lightingSettings = lightingSettings;
+        _recipes = recipes;
         camera.LiveViewFailed += OnCameraLiveViewFailed;
     }
 
@@ -49,11 +49,11 @@ public sealed class BoltInspector
 
     public event Action<ImageFrame>? FrameReady
     {
-        add => camera.FrameReady += value;
-        remove => camera.FrameReady -= value;
+        add => _camera.FrameReady += value;
+        remove => _camera.FrameReady -= value;
     }
 
-    public bool IsLiveView => camera.IsLiveView;
+    public bool IsLiveView => _camera.IsLiveView;
 
     public Exception? LiveViewError { get; private set; }
 
@@ -77,7 +77,7 @@ public sealed class BoltInspector
         Exception? failure = null;
         try
         {
-            camera.Initialize();
+            _camera.Initialize();
         }
         catch (Exception exception)
         {
@@ -86,8 +86,8 @@ public sealed class BoltInspector
 
         try
         {
-            light.Initialize();
-            light.TurnOffAll();
+            _light.Initialize();
+            _light.TurnOffAll();
             _lightChannel = null;
         }
         catch (Exception exception)
@@ -103,13 +103,13 @@ public sealed class BoltInspector
     public BinaryCheckResult Check(ImageFrame image, PixelRegion region, BoltPoint point)
     {
         return BinaryChecker.Check(image, region,
-            point.BrightnessThreshold ?? recipes.Current.BoltInspection.BrightnessThreshold);
+            point.BrightnessThreshold ?? _recipes.Current.BoltInspection.BrightnessThreshold);
     }
 
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
     {
-        var size = camera.FrameSize;
-        var fovs = recipes.Current.CarrierImages.Where(fov => fov.IsBarcode && fov.HeatSink == pcb).ToArray();
+        var size = _camera.FrameSize;
+        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsBarcode && fov.HeatSink == pcb).ToArray();
         return fovs.Length == 1
             && fovs[0].Region is { } region
             && region.IsInside(size.Width, size.Height);
@@ -117,8 +117,8 @@ public sealed class BoltInspector
 
     public CarrierImageTile GetBarcodeFov(HeatSinkSlot pcb)
     {
-        var fov = recipes.Current.CarrierImages.SingleOrDefault(item => item.IsBarcode && item.HeatSink == pcb);
-        var size = camera.FrameSize;
+        var fov = _recipes.Current.CarrierImages.SingleOrDefault(item => item.IsBarcode && item.HeatSink == pcb);
+        var size = _camera.FrameSize;
         if (fov?.Region is not { } region || !region.IsInside(size.Width, size.Height))
             throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
         return fov;
@@ -126,7 +126,7 @@ public sealed class BoltInspector
 
     public bool IsAtBarcode(HeatSinkSlot pcb, bool live = true)
     {
-        return gantry.IsAt(GetBarcodeFov(pcb).Center, live);
+        return _gantry.IsAt(GetBarcodeFov(pcb).Center, live);
     }
 
     public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
@@ -172,8 +172,8 @@ public sealed class BoltInspector
 
     public bool HasPosition(BoltPoint point)
     {
-        var size = camera.FrameSize;
-        var fovs = recipes.Current.CarrierImages.Where(fov =>
+        var size = _camera.FrameSize;
+        var fovs = _recipes.Current.CarrierImages.Where(fov =>
             !fov.IsBarcode
             && fov.BoltNumber == point.Number
             && fov.HeatSink == point.HeatSink).ToArray();
@@ -184,11 +184,11 @@ public sealed class BoltInspector
 
     public CarrierImageTile GetFov(BoltPoint point)
     {
-        var fov = recipes.Current.CarrierImages.SingleOrDefault(fov =>
+        var fov = _recipes.Current.CarrierImages.SingleOrDefault(fov =>
             !fov.IsBarcode
             && fov.BoltNumber == point.Number
             && fov.HeatSink == point.HeatSink);
-        var size = camera.FrameSize;
+        var size = _camera.FrameSize;
         if (fov?.Region is not { } region || !region.IsInside(size.Width, size.Height))
             throw new InvalidOperationException(
                 $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
@@ -197,7 +197,7 @@ public sealed class BoltInspector
 
     internal bool IsAt(BoltPoint point, bool live = true)
     {
-        return gantry.IsAt(GetFov(point).Center, live);
+        return _gantry.IsAt(GetFov(point).Center, live);
     }
 
     public Task MoveToAsync(BoltPoint point, CancellationToken cancellationToken = default)
@@ -208,12 +208,12 @@ public sealed class BoltInspector
     private async Task<ImageFrame> CaptureWithLightAsync(CancellationToken cancellationToken)
     {
         await Task.Run(StopLiveView, cancellationToken).ConfigureAwait(false);
-        var channel = lightingSettings.InspectionChannel;
+        var channel = _lightingSettings.InspectionChannel;
         Exception? failure = null;
         try
         {
             await Task.Run(() => TurnLightOn(channel), cancellationToken).ConfigureAwait(false);
-            return await camera.CaptureAsync(cancellationToken).ConfigureAwait(false);
+            return await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -244,7 +244,7 @@ public sealed class BoltInspector
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var present = Check(image, region, point).BrightRatio
-                    >= (point.MinimumBrightRatio ?? recipes.Current.BoltInspection.MinimumBrightRatio);
+                    >= (point.MinimumBrightRatio ?? _recipes.Current.BoltInspection.MinimumBrightRatio);
                 cancellationToken.ThrowIfCancellationRequested();
                 return present;
             },
@@ -260,7 +260,7 @@ public sealed class BoltInspector
             var image = await Task.Run(
                 async () =>
                 {
-                    var feedback = gantry.Feedback;
+                    var feedback = _gantry.Feedback;
                     if (feedback.IsMoving
                         || !feedback.GetAxisState(MotionAxis.X).InPosition
                         || !feedback.GetAxisState(MotionAxis.Y).InPosition)
@@ -268,10 +268,10 @@ public sealed class BoltInspector
 
                     var position = feedback.GetPosition();
                     var center = new AxisPosition { X = position.X, Y = position.Y };
-                    var frame = camera.IsLiveView
-                        ? await camera.CaptureAsync(cancellationToken).ConfigureAwait(false)
+                    var frame = _camera.IsLiveView
+                        ? await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false)
                         : await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
-                    if (!gantry.IsAt(center))
+                    if (!_gantry.IsAt(center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);
                 },
@@ -311,9 +311,9 @@ public sealed class BoltInspector
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            TurnLightOn(lightingSettings.InspectionChannel);
+            TurnLightOn(_lightingSettings.InspectionChannel);
             cancellationToken.ThrowIfCancellationRequested();
-            camera.StartLiveView();
+            _camera.StartLiveView();
             cancellationToken.ThrowIfCancellationRequested();
             if (LiveViewError is { } failure)
                 ExceptionDispatchInfo.Throw(failure);
@@ -351,7 +351,7 @@ public sealed class BoltInspector
         Exception? failure = null;
         try
         {
-            camera.StopLiveView();
+            _camera.StopLiveView();
         }
         catch (Exception exception)
         {
@@ -400,7 +400,7 @@ public sealed class BoltInspector
     {
         try
         {
-            light.TurnOff(channel);
+            _light.TurnOff(channel);
             _lightChannel = null;
         }
         catch (Exception cleanupFailure) when (failure is not null)
@@ -411,14 +411,14 @@ public sealed class BoltInspector
 
     private Task MoveToAsync(AxisPosition position, CancellationToken cancellationToken)
     {
-        return gantry.MoveToAsync(position, gantrySettings.Motion.HorizontalSpeed, cancellationToken);
+        return _gantry.MoveToAsync(position, _gantrySettings.Motion.HorizontalSpeed, cancellationToken);
     }
 
     private void TurnLightOn(int channel)
     {
-        light.Initialize();
+        _light.Initialize();
         _lightChannel = channel;
-        light.SetLevel(channel, recipes.Current.BoltInspection.LightLevel);
-        light.TurnOn(channel);
+        _light.SetLevel(channel, _recipes.Current.BoltInspection.LightLevel);
+        _light.TurnOn(channel);
     }
 }

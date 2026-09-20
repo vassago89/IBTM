@@ -638,7 +638,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgShuttleUp, false);
         io.SetInput(InputIo.NgShuttleDown, true);
         Assert.True(machine.IsHomeAllowed);
-        services.GetRequiredService<MachineState>().RequestDisplayRefresh();
+        services.GetRequiredService<MachineState>().Refresh();
         await WaitUntilAsync(() => manual.Axes[9].HomeCommand.CanExecute(null));
         Assert.False(manual.Axes[3].HomeCommand.CanExecute(null));
         Assert.True(manual.Axes[9].HomeCommand.CanExecute(null));
@@ -782,19 +782,20 @@ public sealed partial class MachineLifecycleTests
         Assert.False(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
         Assert.Empty(outputChanges);
-        await WaitUntilAsync(() => !state.Display.IsHomeAllowed);
+        await WaitUntilAsync(() => !machine.IsHomeAllowed);
         io.SetInput(InputIo.PcbPlacementPcbDetected, false);
         Assert.True(machine.IsHomeAllowed);
-        await WaitUntilAsync(() => state.Display.IsHomeAllowed);
+        await WaitUntilAsync(() => machine.IsHomeAllowed);
 
         var homing = machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => state.Display.IsHoming);
+        await WaitUntilAsync(() => state.IsHoming);
         Assert.True(state.IsRunning);
         Assert.True(state.IsHoming);
         Assert.Equal(MachineDisplayState.Homing, services.GetRequiredService<OperationViewModel>().MachineDisplayState);
         Assert.False(state.ManualSetupEnabled);
         Assert.False(machine.IsHomeAllowed);
         await homing;
+        await WaitUntilAsync(() => machine.IsHomeAllowed && state.Homed);
         Assert.True(machine.IsHomeAllowed);
         Assert.True(state.Homed);
         Assert.False(state.IsHoming);
@@ -1362,7 +1363,7 @@ public sealed partial class MachineLifecycleTests
 
         await machine.InitializeAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.True(state.Display.Available);
+        Assert.True(state.Available);
         Assert.False(state.Faulted);
         Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
@@ -1390,7 +1391,7 @@ public sealed partial class MachineLifecycleTests
         {
             var placer = services.GetRequiredService<PcbPlacer>();
             Assert.NotEqual(PcbPlacementState.ReceivingPcb,
-                placer.GetState(services.GetRequiredService<RecipeManager>().Current.PcbPlacement));
+                placer.State);
         }
 
         foreach (var row in manual.Axes.Where(row => row.Group != group))
@@ -1669,7 +1670,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(expectedAlarm, state.Alarm);
             if (exception)
                 Assert.Contains("Home command failed.", state.AlarmDetail);
-            await WaitUntilAsync(() => state.Display.Alarm == expectedAlarm && !state.Display.IsRunning);
+            await WaitUntilAsync(() => state.Alarm == expectedAlarm && !state.IsRunning);
             // A latched home failure does not block a retry while the axis feedback remains healthy.
             Assert.Equal(!safetyStop, axisRow.HomeCommand.CanExecute(null));
             Assert.False(state.IsHoming);

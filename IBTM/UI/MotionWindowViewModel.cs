@@ -69,11 +69,11 @@ public partial class MotionWindowViewModel : ObservableObject
         {
             switch (true)
             {
-                case true when !_state.Display.Available:
+                case true when !_state.Available:
                     return "Read only: machine status is unavailable.";
-                case true when _state.Display.AutoMode:
+                case true when _state.AutoMode:
                     return "AUTO · monitoring only.";
-                case true when _state.Display.IsRunning:
+                case true when _state.IsRunning:
                     return "Operation in progress · monitoring remains available.";
                 default:
                     return "MANUAL";
@@ -134,18 +134,17 @@ public partial class MotionWindowViewModel : ObservableObject
         _dispatcher = Dispatcher.CurrentDispatcher;
         IsClosing = false;
         _active = true;
-        _state.DisplayChanged += OnDisplayChanged;
+        _state.PropertyChanged += OnDisplayChanged;
         Refresh();
-        _state.RequestDisplayRefresh();
     }
 
     public void Deactivate()
     {
         _active = false;
-        _state.DisplayChanged -= OnDisplayChanged;
+        _state.PropertyChanged -= OnDisplayChanged;
     }
 
-    private void OnDisplayChanged()
+    private void OnDisplayChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!_active || Interlocked.Exchange(ref _refreshQueued, 1) != 0)
             return;

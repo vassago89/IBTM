@@ -9,8 +9,8 @@ namespace IBTM.Virtual;
 public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDiagnostics
 {
     private readonly Func<bool>? _servoPowerOn;
-    private static readonly TimeSpan UpdateInterval;
-    private static readonly int AxisCount;
+    private static readonly TimeSpan s_updateInterval;
+    private static readonly int s_axisCount;
     private readonly (double X, double Y, double Z) _resolution;
 
     private readonly bool[] _servoOn;
@@ -23,8 +23,8 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
 
     static VirtualMotionService()
     {
-        UpdateInterval = TimeSpan.FromMilliseconds(10);
-        AxisCount = Enum.GetValues<MotionAxis>().Length;
+        s_updateInterval = TimeSpan.FromMilliseconds(10);
+        s_axisCount = Enum.GetValues<MotionAxis>().Length;
     }
 
     public VirtualMotionService(
@@ -46,9 +46,9 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         _servoPowerOn = servoPowerOn;
         _resolution = axisResolutionMillimeters
             ?? (resolutionMillimeters, resolutionMillimeters, resolutionMillimeters);
-        _servoOn = new bool[AxisCount];
-        _homed = new bool[AxisCount];
-        _alarm = new bool[AxisCount];
+        _servoOn = new bool[s_axisCount];
+        _homed = new bool[s_axisCount];
+        _alarm = new bool[s_axisCount];
     }
 
     public override bool IsReady => true;
@@ -218,7 +218,7 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
                     startX + ((x - startX) * progress),
                     startY + ((y - startY) * progress),
                     startZ + ((z - startZ) * progress));
-                await Task.Delay(UpdateInterval, movement.Token).ConfigureAwait(false);
+                await Task.Delay(s_updateInterval, movement.Token).ConfigureAwait(false);
             }
 
             movement.Token.ThrowIfCancellationRequested();
@@ -247,7 +247,7 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         {
             while (true)
             {
-                await Task.Delay(UpdateInterval, movement.Token).ConfigureAwait(false);
+                await Task.Delay(s_updateInterval, movement.Token).ConfigureAwait(false);
                 var distance = velocity * stopwatch.Elapsed.TotalSeconds;
                 SetPosition(
                     axis == MotionAxis.X ? startX + distance : startX,

@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
@@ -125,7 +126,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         SelectedBaudRate = settings.BaudRate;
         SlaveText = settings.PickupSlaveAddress.ToString();
         _bus.FrameTransferred += OnFrameTransferred;
-        _state.DisplayChanged += OnMachineStateChanged;
+        _state.PropertyChanged += OnMachineStateChanged;
         if (_bus.IsOpen)
         {
             SelectedPort = _bus.PortName;
@@ -209,7 +210,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         _disposed = true;
         _operationCancellation?.Cancel();
         _bus.FrameTransferred -= OnFrameTransferred;
-        _state.DisplayChanged -= OnMachineStateChanged;
+        _state.PropertyChanged -= OnMachineStateChanged;
         ((INotifyCollectionChanged)_frameLogView).CollectionChanged -= OnFrameLogChanged;
         _frameLogView.DetachFromSourceCollection();
     }
@@ -219,7 +220,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         ToggleConnectionCommand.NotifyCanExecuteChanged();
     }
 
-    private void OnMachineStateChanged()
+    private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_disposed || Interlocked.Exchange(ref _refreshQueued, 1) != 0)
             return;

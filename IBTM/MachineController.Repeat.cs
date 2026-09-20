@@ -30,15 +30,15 @@ public sealed partial class MachineController
 {
     // Display only. Each invocation executes a new route from its first step.
     private volatile RepeatPhase _repeatDisplayPhase;
-    private int _repeatCycles;
+    public int RepeatCycles { get; private set; }
 
-    private RepeatPhase RepeatDisplayPhase
+    public RepeatPhase RepeatDisplayPhase
     {
         get => _repeatDisplayPhase;
-        set
+        private set
         {
             _repeatDisplayPhase = value;
-            _state.RequestDisplayRefresh();
+            PropertyChanged?.Invoke(this, new(nameof(RepeatDisplayPhase)));
         }
     }
 
@@ -78,8 +78,9 @@ public sealed partial class MachineController
                 RepeatDisplayPhase = RepeatPhase.ReturnToStart;
                 await ReturnMainCarrierAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
-                _repeatCycles++;
-                _log?.LogInformation("{Message}", $"Repeat cycle {_repeatCycles} returned to the entry sensor.");
+                RepeatCycles++;
+                PropertyChanged?.Invoke(this, new(nameof(RepeatCycles)));
+                _log?.LogInformation("{Message}", $"Repeat cycle {RepeatCycles} returned to the entry sensor.");
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

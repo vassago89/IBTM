@@ -72,7 +72,7 @@ public sealed class DiagnosticWindows
             _output.Activate();
             return;
         }
-        _output = new(new OutputWindowViewModel(_signals, _machine, _state)) { Owner = Owner };
+        _output = new(new OutputWindowViewModel(_signals, _machine)) { Owner = Owner };
         _output.Closed += (_, _) => _output = null;
         _output.Show();
     }

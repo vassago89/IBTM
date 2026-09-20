@@ -158,12 +158,12 @@ public sealed class DiagnosticToolsTests
             motion.SetAlarm(MotionAxis.X, true);
             motion.SetServo(MotionAxis.Y, false);
             state.SetError(MachineAlarm.MotionUnavailable, new IOException("Axis alarm is latched."));
-            state.RequestDisplayRefresh();
+            state.Refresh();
             Assert.True(
                 await VirtualTest.WaitUntilAsync(
-                    () => state.Display.Available
-                        && state.Display.MotionFaulted
-                        && !state.Display.ServoPowerOn,
+                    () => state.Available
+                        && state.Faulted
+                        && !state.ServoPowerOn,
                     TimeSpan.FromSeconds(2)));
             var view = new MotionWindowViewModel(machine, state, settings);
             var axes = view.Axes.Where(row => row.Group == MotionGroup.InspectionGantry).ToArray();
@@ -240,7 +240,7 @@ public sealed class DiagnosticToolsTests
                     TimeSpan.FromSeconds(2)));
             Assert.Equal(MachineAlarm.None, state.Alarm); // Disabled axes are diagnostic only.
             Assert.Equal(42, position.Position.X);
-            Assert.False(state.Display.MotionFaulted);
+            Assert.False(state.Faulted);
 
             // Movement started outside the application still makes the machine busy.
             diagnostics.InMotion = true;
@@ -251,9 +251,9 @@ public sealed class DiagnosticToolsTests
             Assert.True(state.SetupEditingEnabled);
             Assert.True(services.GetRequiredService<SettingsViewModel>().IsSettingsEditAllowed);
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.IsRunning && state.Display.SetupEditingEnabled,
+                () => state.IsRunning && state.SetupEditingEnabled,
                 TimeSpan.FromSeconds(2)));
-            Assert.False(state.Display.ManualSetupEnabled);
+            Assert.False(state.ManualSetupEnabled);
 
             await view.StopCommand.ExecuteAsync(null);
             Assert.Equal(1, diagnostics.Stops);
@@ -277,7 +277,7 @@ public sealed class DiagnosticToolsTests
                     TimeSpan.FromSeconds(2)));
             Assert.NotNull(x.Diagnostics.Snapshot.ReadError);
             Assert.Equal(43, position.Position.X); // A state-query failure does not hide a readable coordinate.
-            Assert.True(state.Display.Available);
+            Assert.True(state.Available);
             diagnostics.FailPosition = true;
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => position.Position.X is null && x.Diagnostics.Snapshot.Position is null,
@@ -296,13 +296,13 @@ public sealed class DiagnosticToolsTests
             Assert.True(x.Refresh());
             Assert.False(x.Refresh());
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.MotionFaulted && !y.ToggleServoCommand.CanExecute(null),
+                () => state.Faulted && state.ReadError is not null && !y.ToggleServoCommand.CanExecute(null),
                 TimeSpan.FromSeconds(2)));
-            Assert.NotNull(state.Display.ReadError); // Explicit failure without another throwing control read.
+            Assert.NotNull(state.ReadError); // Explicit failure without another throwing control read.
             diagnostics.FailX = false;
             diagnostics.FailControl = true;
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => !state.Display.Available, TimeSpan.FromSeconds(2)));
+                await VirtualTest.WaitUntilAsync(() => !state.Available, TimeSpan.FromSeconds(2)));
             Assert.NotNull(y.Diagnostics.Snapshot.State);
             Assert.NotNull(y.Diagnostics.Snapshot.Position);
             Assert.True(machine.IsResetAllowed);
@@ -325,11 +325,13 @@ public sealed class DiagnosticToolsTests
             Assert.False(x.ToggleServoCommand.CanExecute(null));
             Assert.False(x.HomeCommand.CanExecute(null));
 
+            io.IsReady = true;
             await machine.ShutdownAsync();
             Assert.True(services.GetRequiredService<MachineFeedbackMonitor>().Completion.IsCompletedSuccessfully);
         }
         finally
         {
+            io.IsReady = true;
             await machine.ShutdownAsync();
         }
     }
