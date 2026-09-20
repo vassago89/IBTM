@@ -198,17 +198,16 @@ public sealed class VirtualMachine
         double x,
         double y,
         double z,
-        double carrierY,
-        (double X, double Z) pcb1,
-        (double X, double Z) pcb2,
+        (double X, double? Y, double Z) pcb1,
+        (double X, double? Y, double Z) pcb2,
         AxisPosition handoff)
     {
         _supplyAtHandoff = IsAt(x, y, z, handoff);
         if (!_supplyHoldingPcb)
         {
-            _supplyPickupSlot = IsAt(x, y, z, pcb1.X, carrierY, pcb1.Z)
+            _supplyPickupSlot = pcb1.Y is { } pcb1Y && IsAt(x, y, z, pcb1.X, pcb1Y, pcb1.Z)
                 ? 0
-                : IsAt(x, y, z, pcb2.X, carrierY, pcb2.Z) ? 1 : null;
+                : pcb2.Y is { } pcb2Y && IsAt(x, y, z, pcb2.X, pcb2Y, pcb2.Z) ? 1 : null;
         }
 
         _io.ApplyAutoResponse(

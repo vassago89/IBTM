@@ -6,7 +6,7 @@
 ## 티칭 순서
 
 1. Teaching → Inspection Gantry → Heat Sink 1 또는 2를 선택한다.
-2. 볼트는 왼쪽 **Add Bolt**로 추가해 선택한다. 바코드는 **Data Matrix**를 선택한다.
+2. 볼트는 왼쪽 **Add Bolt**로 추가한 뒤 **Bolt N Inspection**을 선택한다. 바코드는 **Data Matrix Inspection**을 선택한다.
 3. **Live**로 보면서 조그로 이동해 볼트 또는 Data Matrix를 가운데 십자선에 맞춘다.
 4. 축을 멈추고 **Grab**을 누른다. 선택 포인트의 영상과 촬영 XY를 저장한다. 다시 Grab하면 같은 한 장을 교체하며 Live는 유지된다.
 5. 처음 셋업할 때는 아래 **Ruler**로 해상도를 보정한다. 아래 보정 순서를 따른다.

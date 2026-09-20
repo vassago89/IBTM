@@ -17,13 +17,49 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbTransferTests
 {
     [Fact]
+    public async Task SupplyPickupTeachingUsesEachSlotsXyzAndBlocksMissingY()
+    {
+        var settings = new PcbSupplySettings { Motion = FastMotion(), RotationZ = 3 };
+        var recipe = System.Text.Json.JsonSerializer.Deserialize<PcbSupplyRecipe>(
+            """{"Pcb1PickPosition":{"X":10,"Z":5},"Pcb2PickPosition":{"X":20,"Z":8}}""")!;
+        var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
+        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
+        var handler = new PcbSupplyHandler(motion, io, settings);
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 2_000);
+        await handler.SetRotatedAsync(true, default);
+        var picks = settings.GetTeachingPositions(recipe)
+            .Where(point => point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick).ToArray();
+        Assert.All(picks, point => Assert.False(point.HasPosition));
+        Assert.All(picks, point => Assert.False(handler.IsMoveToTeachingPositionAllowed(point)));
+        var before = motion.GetPosition();
+        await Assert.ThrowsAsync<MotionInterlockException>(() =>
+            handler.MoveToTeachingPositionAsync(picks[0], picks[0].Read()));
+        Assert.Equal(before, motion.GetPosition());
+
+        picks[0].Apply(Position(10, 30, 5));
+        picks[1].Apply(Position(20, 45, 8));
+        var positions = new[] { recipe.Pcb1PickPosition, recipe.Pcb2PickPosition };
+        for (var index = 0; index < picks.Length; index++)
+        {
+            var point = picks[index];
+            Assert.True(handler.IsMoveToTeachingPositionAllowed(point));
+            await handler.MoveToTeachingPositionAsync(point, point.Read());
+            var target = positions[index];
+            Assert.Equal((target.X, target.Y!.Value, target.Z), motion.GetPosition());
+            Assert.True(handler.IsAtPickupXY(target));
+            Assert.False(handler.IsAtPickupXY(positions[1 - index]));
+        }
+    }
+
+    [Fact]
     public async Task SupplyTestAvailableWakesPickupAndNeedsAnOffEdgeForTheNextCarrier()
     {
         var settings = new PcbSupplySettings
         {
             Motion = FastMotion(),
             RotationZ = 3,
-            CarrierY = 30,
             HandoffPosition = new() { X = 50, Y = 10 },
         };
         var placementSettings = new PcbPlacementHandlerSettings { Motion = FastMotion() };
@@ -39,8 +75,8 @@ public sealed class PcbTransferTests
         var placer = CreatePlacer(supplier, placement, io);
         var recipe = new PcbSupplyRecipe
         {
-            Pcb1PickPosition = new() { X = 10, Z = 5 },
-            Pcb2PickPosition = new() { X = 20, Z = 5 },
+            Pcb1PickPosition = new() { X = 10, Y = 20, Z = 5 },
+            Pcb2PickPosition = new() { X = 20, Y = 30, Z = 5 },
         };
         io.Initialize();
         motion.Initialize();
@@ -72,7 +108,7 @@ public sealed class PcbTransferTests
             Assert.Equal(PcbSupplyRotationState.Rotated, handler.Rotation);
             handler.TestUpstreamCarrierAvailable = true;
             Assert.True(await WaitUntilAsync(() => completedCarriers == 1, TimeSpan.FromSeconds(2)));
-            Assert.Equal((20, settings.CarrierY, settings.RotationZ), motion.GetPosition());
+            Assert.Equal((20, recipe.Pcb2PickPosition.Y!.Value, settings.RotationZ), motion.GetPosition());
             Assert.False(io.GetInput(InputIo.PcbSupplyAvailableFromFront1));
             Assert.True(handler.TestUpstreamCarrierAvailable);
 
@@ -83,7 +119,7 @@ public sealed class PcbTransferTests
 
             handler.TestUpstreamCarrierAvailable = true;
             Assert.True(await WaitUntilAsync(() => completedCarriers == 2, TimeSpan.FromSeconds(2)));
-            Assert.Equal((20, settings.CarrierY, settings.RotationZ), motion.GetPosition());
+            Assert.Equal((20, recipe.Pcb2PickPosition.Y!.Value, settings.RotationZ), motion.GetPosition());
             Assert.True(io.GetInput(InputIo.PcbSupplyAvailableFromFront1));
         }
         finally
@@ -131,7 +167,7 @@ public sealed class PcbTransferTests
         io.Initialize();
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
-        simulation.UpdateSupplyPosition(50, 10, 7, 30, (10, 5), (20, 5), Position(50, 10, 7));
+        simulation.UpdateSupplyPosition(50, 10, 7, (10, 30, 5), (20, 30, 5), Position(50, 10, 7));
         var standby = Position(50, 10, 8);
 
         simulation.UpdatePlacementPosition(50, 10, 8, standby, 12);
@@ -258,7 +294,6 @@ public sealed class PcbTransferTests
         {
             Motion = FastMotion(),
             RotationZ = 3,
-            CarrierY = 30,
             HandoffPosition = new() { X = 50, Y = 10, Z = 7 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
@@ -428,7 +463,7 @@ public sealed class PcbTransferTests
         Assert.Equal((70, 20, 8), placementMotion.GetPosition());
         Assert.True(source.IsAtHandoff());
 
-        var exitRecipe = new PcbSupplyRecipe { Pcb1PickPosition = new() { X = 15, Z = 5 } };
+        var exitRecipe = new PcbSupplyRecipe { Pcb1PickPosition = new() { X = 15, Y = 30, Z = 5 } };
         using var exited = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var diagonalExit = false;
         supplyMotion.PositionChanged += (x, y, z) =>
@@ -513,7 +548,6 @@ public sealed class PcbTransferTests
         {
             Motion = FastMotion(),
             RotationZ = 0,
-            CarrierY = 30,
             HandoffPosition = new() { X = 50, Y = 10 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
@@ -524,8 +558,8 @@ public sealed class PcbTransferTests
         };
         var supplyRecipe = new PcbSupplyRecipe
         {
-            Pcb1PickPosition = new() { X = 10, Z = 5 },
-            Pcb2PickPosition = new() { X = 20, Z = 5 },
+            Pcb1PickPosition = new() { X = 10, Y = 30, Z = 5 },
+            Pcb2PickPosition = new() { X = 20, Y = 30, Z = 5 },
         };
         var placementRecipe = new PcbPlacementRecipe
         {
@@ -547,13 +581,8 @@ public sealed class PcbTransferTests
             x,
             y,
             z,
-            supplySettings.CarrierY,
-            (
-                supplyRecipe.Pcb1PickPosition.X,
-                supplyRecipe.Pcb1PickPosition.Z),
-            (
-                supplyRecipe.Pcb2PickPosition.X,
-                supplyRecipe.Pcb2PickPosition.Z),
+            (supplyRecipe.Pcb1PickPosition.X, supplyRecipe.Pcb1PickPosition.Y, supplyRecipe.Pcb1PickPosition.Z),
+            (supplyRecipe.Pcb2PickPosition.X, supplyRecipe.Pcb2PickPosition.Y, supplyRecipe.Pcb2PickPosition.Z),
             supplySettings.HandoffPosition);
         placementMotion.PositionChanged += (x, y, z) => machine.UpdatePlacementPosition(
             x,
@@ -723,7 +752,6 @@ public sealed class PcbTransferTests
         var supplySettings = new PcbSupplySettings
         {
             Motion = FastMotion(),
-            CarrierY = 30,
             HandoffPosition = new() { X = 50, Y = 10 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
@@ -734,8 +762,8 @@ public sealed class PcbTransferTests
         };
         var recipe = new PcbSupplyRecipe
         {
-            Pcb1PickPosition = new() { X = 10, Z = 5 },
-            Pcb2PickPosition = new() { X = 20, Z = 5 },
+            Pcb1PickPosition = new() { X = 10, Y = 30, Z = 5 },
+            Pcb2PickPosition = new() { X = 20, Y = 30, Z = 5 },
         };
         var io = new VirtualIoService(
             Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
@@ -773,7 +801,7 @@ public sealed class PcbTransferTests
                 y,
                 z,
                 recipe.Pcb1PickPosition.X,
-                supplySettings.CarrierY,
+                recipe.Pcb1PickPosition.Y!.Value,
                 recipe.Pcb1PickPosition.Z);
             if (nowAtPcb1 && !atPcb1)
                 pcb1Visits++;
@@ -791,7 +819,7 @@ public sealed class PcbTransferTests
                 y,
                 z,
                 recipe.Pcb2PickPosition.X,
-                supplySettings.CarrierY,
+                recipe.Pcb2PickPosition.Y!.Value,
                 recipe.Pcb2PickPosition.Z);
             if (pcb2Visited && secondPcbPresent)
             {

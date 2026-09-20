@@ -339,9 +339,13 @@ public static class DependencyInjection
                         var machine = provider.GetRequiredService<VirtualMachine>();
                         var recipes = provider.GetRequiredService<RecipeManager>();
                         supply.Feedback.PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
-                            x, y, z, settings.PcbSupply.CarrierY,
-                            (recipes.Current.PcbSupply.Pcb1PickPosition.X, recipes.Current.PcbSupply.Pcb1PickPosition.Z),
-                            (recipes.Current.PcbSupply.Pcb2PickPosition.X, recipes.Current.PcbSupply.Pcb2PickPosition.Z),
+                            x, y, z,
+                            (recipes.Current.PcbSupply.Pcb1PickPosition.X,
+                                recipes.Current.PcbSupply.Pcb1PickPosition.Y,
+                                recipes.Current.PcbSupply.Pcb1PickPosition.Z),
+                            (recipes.Current.PcbSupply.Pcb2PickPosition.X,
+                                recipes.Current.PcbSupply.Pcb2PickPosition.Y,
+                                recipes.Current.PcbSupply.Pcb2PickPosition.Z),
                             settings.PcbSupply.HandoffPosition);
                     }
                     return supply;

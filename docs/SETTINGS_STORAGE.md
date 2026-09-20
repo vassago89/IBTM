@@ -49,9 +49,12 @@
 
 Supply의 `HandoffPosition`은 인계 XYZ를 저장한다. 회전은 `RotationZ`에서 수행하고,
 인계와 다음 픽업 XY 복귀는 `HandoffPosition.Z`에서 수행한다. 이전 XY 전용 설정에는
-인계 Z가 없으므로 `PCB Give Position`의 XYZ를 티칭하고 `Apply & Save Handoff`로 저장해야 한다.
+인계 Z가 없으므로 `PCB Handoff`의 XYZ를 티칭하고 `Apply & Save Handoff`로 저장해야 한다.
 옛 `BufferClearZ`는 읽을 때 무시하고 다음 저장에서 제외한다. 별도 복귀 좌표는 저장하지 않으며
-PCB1·PCB2의 픽업 X와 공통 `CarrierY`를 사용한다.
+PCB1·PCB2 각 픽업의 X/Y를 사용한다. `PCB 1 Pickup`과 `PCB 2 Pickup`은 각각 XYZ를
+레시피에 저장한다. 공통 `CarrierY` 설정은 더 이상 사용하지 않는다.
+기존 레시피에 픽업별 Y가 없으면 미티칭으로 표시하고 해당 픽업 이동을 차단한다.
+각 픽업을 XYZ로 다시 티칭한 뒤 `Save Recipe`로 저장한다.
 Placement의 `HandoffPosition`은 인계 대기 XYZ이며 그 Z를 XY 이동 높이로 사용한다.
 실린더 Up 상태에서 PCB를 받는 Z는 별도 `ReceiveZ`로 저장한다. `PCB Receive Z`를 티칭하면
 자동 저장되며, 기존 설정에 없으면 미티칭 상태로 남긴다. 옛 `BufferEntryZ`는 무시·제외한다.

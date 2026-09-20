@@ -7,7 +7,7 @@ The confirmed sequence uses separate rotation and handoff heights.
 
 - Pick PCB 1 and PCB 2 from the same upstream carrier.
 - Secure each PCB with the supply gripper and IPM fixer.
-- Pick while Rotated, then unrotate at Rotation Z and approach Placement at the taught give Z.
+- Pick while Rotated, then unrotate at Rotation Z and approach Placement at the taught handoff Z.
 - Hold the PCB until Placement confirms its receiving position and holding inputs.
 - Complete the upstream SMEMA handshake after both pickup positions are checked.
 
@@ -15,19 +15,19 @@ The confirmed sequence uses separate rotation and handoff heights.
 
 | Teaching item | Use |
 | --- | --- |
-| Rotation Z | Standby, pickup XY travel, and rotation in either direction |
-| PCB Pickup Common Y | Shared pickup Y for PCB 1 and PCB 2 |
-| PCB 1 Pick X/Z | First pickup position |
-| PCB 2 Pick X/Z | Second pickup position |
-| PCB Give Position XYZ | Handoff Z followed by handoff XY; also the return travel height |
+| PCB Rotation Z | Standby, pickup XY travel, and rotation in either direction |
+| PCB 1 Pickup XYZ | First pickup position |
+| PCB 2 Pickup XYZ | Second pickup position |
+| PCB Handoff XYZ | Handoff Z followed by handoff XY; also the return travel height |
 
-Standby is PCB 1 X, common pickup Y, and Rotation Z, with Rotated feedback confirmed.
+Standby uses PCB 1 Pickup X/Y and PCB Rotation Z, with Rotated feedback confirmed.
 There is no separate standby, Clear Z, return coordinate, or collision boundary.
-The two pick X/Z values belong to the recipe; the other values are machine settings.
+Each pickup XYZ belongs to the recipe; rotation Z and handoff XYZ are machine settings.
+A pickup without a taught Y cannot be moved to; teach XYZ and save the recipe.
 
-`PCB Give Position` is staged in Teaching and committed with `Apply & Save Handoff`.
+`PCB Handoff` is staged in Teaching and committed with `Apply & Save Handoff`.
 It now stores Z independently of Rotation Z. Older settings that stored only X/Y
-must have give Z taught before equipment operation; do not infer it from Rotation Z.
+must have handoff Z taught before equipment operation; do not infer it from Rotation Z.
 
 ## Normal flow
 
@@ -40,13 +40,13 @@ PCB 1 XY + Rotation Z, rotated
   -> advance IPM fixer and confirm
   -> Rotation Z
   -> rotation IO OFF and unrotated input confirmed
-  -> give Z
-  -> give X/Y together, keeping give Z
+  -> handoff Z
+  -> handoff X/Y together, keeping handoff Z
   -> wait for Placement to secure the PCB at its receiving XYZ
   -> retract IPM fixer
   -> open supply gripper
   -> wait for Placement Handler Up
-  -> next pickup X/Y together, keeping give Z
+  -> next pickup X/Y together, keeping handoff Z
   -> Rotation Z
   -> rotation IO ON and rotated input confirmed
 ```
@@ -60,7 +60,7 @@ same carrier handshake.
 `MovingToPickup` prepares the PCB 1 standby position even when SMEMA is absent.
 `PickingPcb` moves to the selected pickup XY at Rotation Z before descending.
 `SetRotatedAsync` always reaches Rotation Z before commanding rotation IO.
-`MovingToHandoff` reaches give Z before any XY approach. The motion call receives
+`MovingToHandoff` reaches handoff Z before any XY approach. The motion call receives
 this height explicitly, so it cannot first move back to the default Rotation Z.
 `MovingToPickup` also owns withdrawal: give-height XY to the next pickup, then
 Rotation Z and Rotated feedback. `MovingToHandoff` owns PCB securing, rotation and
@@ -151,5 +151,5 @@ slot identity is not needed for restart because no PCB is placed there.
 See the [Repeat instructions](../../docs/STATION3_COMMISSIONING.md#repeat).
 
 Focused regressions cover standby before SMEMA, both pickup slots, rotation at
-Rotation Z, travel at a different give Z, interrupted entry at that same height,
+Rotation Z, travel at a different handoff Z, interrupted entry at that same height,
 recipient holding feedback, independent departure, and staged XYZ teaching.

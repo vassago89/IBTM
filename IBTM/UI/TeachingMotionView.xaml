@@ -48,7 +48,7 @@
     </UserControl.Resources>
     <StackPanel>
         <WrapPanel Margin="0,0,0,8">
-            <TextBlock Text="Teaching position · " Foreground="{StaticResource TextMutedBrush}"/>
+            <TextBlock Text="Target position · " Foreground="{StaticResource TextMutedBrush}"/>
             <TextBlock Text="{Binding SelectedPoint.PositionLabel, TargetNullValue=—}" FontFamily="Consolas" TextWrapping="Wrap"/>
             <TextBlock Text=" mm" Foreground="{StaticResource TextMutedBrush}"/>
         </WrapPanel>
@@ -170,7 +170,7 @@
         </Grid>
         <Button Content="HOME" Command="{Binding HomeCommand}" Margin="0,8,0,0"
             Style="{StaticResource SecondaryButtonStyle}"
-            ToolTip="Home the selected unit: Z → safe height → XY. XY-only units home X/Y. PCB Supply uses Home All."/>
+            ToolTip="Home the selected unit: Z first, then X/Y. Units without Z home X/Y only."/>
         <ComboBox ItemsSource="{Binding MoveModes}"
             SelectedItem="{Binding MoveMode, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0"/>
         <Grid Margin="0,6,0,0">
@@ -245,6 +245,7 @@
             <Button Content="{Binding HorizontalZName}"
                 Command="{Binding MoveToHorizontalZCommand}"
                 Style="{StaticResource SecondaryButtonStyle}" MinWidth="80"
+                ToolTip="Move Z only to this unit's rotation or travel height. For Placement, use the Z of PCB Receive Standby."
                 Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}"/>
         </WrapPanel>
         <TextBlock Text="Position moves: configured axis speed" Margin="0,4,0,0" TextWrapping="Wrap"

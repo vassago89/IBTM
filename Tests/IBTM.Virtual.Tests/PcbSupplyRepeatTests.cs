@@ -20,21 +20,20 @@ public sealed class PcbSupplyRepeatTests
         {
             Motion = new() { HorizontalSpeed = 2_000, ZSpeed = 2_000 },
             RotationZ = 0,
-            CarrierY = 10,
             HandoffPosition = new() { X = 80, Y = 30, Z = 2 },
         };
         var recipe = new PcbSupplyRecipe
         {
-            Pcb1PickPosition = new() { X = 10, Z = 5 },
-            Pcb2PickPosition = new() { X = 20, Z = 5 },
+            Pcb1PickPosition = new() { X = 10, Y = 10, Z = 5 },
+            Pcb2PickPosition = new() { X = 20, Y = 10, Z = 5 },
         };
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions { TimeoutMilliseconds = 1_000 });
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
         var simulation = new VirtualMachine(io, [motion]);
         motion.PositionChanged += (x, y, z) => simulation.UpdateSupplyPosition(
-            x, y, z, settings.CarrierY,
-            (recipe.Pcb1PickPosition.X, recipe.Pcb1PickPosition.Z),
-            (recipe.Pcb2PickPosition.X, recipe.Pcb2PickPosition.Z), settings.HandoffPosition);
+            x, y, z,
+            (recipe.Pcb1PickPosition.X, recipe.Pcb1PickPosition.Y, recipe.Pcb1PickPosition.Z),
+            (recipe.Pcb2PickPosition.X, recipe.Pcb2PickPosition.Y, recipe.Pcb2PickPosition.Z), settings.HandoffPosition);
         var handler = new PcbSupplyHandler(motion, io, settings);
         var supplier = new PcbSupplier(handler, new() { PcbPlacement = false });
         io.Initialize();

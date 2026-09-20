@@ -339,7 +339,7 @@ Head 1 Down confirmation and pickup-Z actions as automatic operation. It finishe
 with Head 1 down at the pickup position without changing either vacuum output or
 waiting for a feeder bolt. Stop cancels any remaining action and keeps pneumatic
 outputs; ordinary saved-position admission still requires both heads raised.
-Return from Pickup is available throughout Bolt Fastening teaching, independently
+Return from Bolt Pickup is available throughout Bolt Fastening teaching, independently
 of the selected point: move Z to Safe Z, then raise Head 1 and confirm its Up input.
 It does not move X/Y or change vacuum. Stop, screen/group changes and Manual-mode
 exit cancel the remaining steps. Manual cylinder timeouts, whether from a movement

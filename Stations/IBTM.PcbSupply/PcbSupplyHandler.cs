@@ -130,10 +130,12 @@ public sealed class PcbSupplyHandler
 
     public bool IsAtPickupXY(PcbPickPosition position)
     {
+        if (position.Y is not { } y)
+            return false;
         var current = _motion.GetPosition();
         return Motion.IsSettled(true, MotionAxis.X, MotionAxis.Y)
             && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - _settings.CarrierY) <= MotionService.PositionToleranceMillimeters;
+            && Math.Abs(current.Y - y) <= MotionService.PositionToleranceMillimeters;
     }
 
     public void InitializeMotion()
@@ -198,10 +200,13 @@ public sealed class PcbSupplyHandler
 
     internal async Task MoveToPickupAsync(PcbPickPosition position, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (position.Y is not { } y)
+            throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
         await _motion.MoveToHorizontalZAsync(cancellationToken);
         await _motion.MoveToXYAsync(
             position.X,
-            _settings.CarrierY,
+            y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
     }
@@ -212,7 +217,7 @@ public sealed class PcbSupplyHandler
         {
             TeachingTarget.SupplyHandoff => Rotation == PcbSupplyRotationState.Unrotated,
             TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick
-                => Rotation == PcbSupplyRotationState.Rotated,
+                => point.HasPosition && Rotation == PcbSupplyRotationState.Rotated,
             _ => true,
         };
     }
@@ -222,6 +227,7 @@ public sealed class PcbSupplyHandler
         AxisPosition position,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         switch (point.Mode)
         {
             case TeachMode.XOnly:
@@ -233,10 +239,9 @@ public sealed class PcbSupplyHandler
             case TeachMode.ZOnly:
                 await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
-            case TeachMode.Full or TeachMode.XYOnly:
-                await MoveToHandoffAsync(cancellationToken, position);
-                break;
-            case TeachMode.XZOnly:
+            case TeachMode.Full when point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
+                if (!point.HasPosition)
+                    throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
                 await _motion.MoveToHorizontalZAsync(cancellationToken);
                 await _motion.MoveToXYAsync(
                     position.X,
@@ -245,6 +250,9 @@ public sealed class PcbSupplyHandler
                     cancellationToken);
                 await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
+            case TeachMode.Full or TeachMode.XYOnly:
+                await MoveToHandoffAsync(cancellationToken, position);
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(point));
         }
@@ -252,10 +260,13 @@ public sealed class PcbSupplyHandler
 
     internal async Task MoveFromHandoffAsync(PcbPickPosition nextPick, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (nextPick.Y is not { } y)
+            throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
         await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: _settings.HandoffPosition.Z);
         await _motion.MoveToXYAsync(
             nextPick.X,
-            _settings.CarrierY,
+            y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
     }

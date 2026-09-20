@@ -185,7 +185,7 @@ public sealed class RecipeTests
     [Fact]
     public void TeachingDefinitionsKeepHandoffEditsStagedAndUpdateTheOwningSettings()
     {
-        var supply = new PcbSupplySettings { CarrierY = 7 };
+        var supply = new PcbSupplySettings();
         var placement = new PcbPlacementHandlerSettings();
         var recipe = new PcbSupplyRecipe();
         var supplyHandoff = supply.HandoffPosition;
@@ -195,33 +195,29 @@ public sealed class RecipeTests
             placement.GetHandoffTeachingPosition(),
         ];
         var points = definitions.Select(p => new TeachingPoint(p)).ToArray();
-        Assert.Equal(6, points.Length);
+        Assert.Equal(5, points.Length);
         var staged = points.Where(p => p.Position.Storage == TeachingStorage.Handoff).ToArray();
         foreach (var point in staged)
             point.Teach(10, 20, 30);
         Assert.Equal(0, supply.HandoffPosition.X);
         Assert.Equal(0, placement.HandoffPosition.X);
 
-        var carrierY = points.Single(p => p.Position.Target == TeachingTarget.SupplyCarrierY);
-        carrierY.Teach(0, 45, 0);
-        carrierY.Apply();
-        foreach (var point in points.Where(p => p.Position.Storage != TeachingStorage.Handoff))
-            point.Refresh();
         var picks = points.Where(p => p.Position.Storage == TeachingStorage.Recipe).ToArray();
-        Assert.All(picks, p => Assert.Equal(45, p.Y));
+        Assert.All(picks, p => Assert.Equal(TeachMode.Full, p.Position.Mode));
         Assert.Equal(10, staged[0].X);
         Assert.Equal(0, supply.HandoffPosition.X);
-        Assert.Same(supply, carrierY.Position.Setting);
 
-        foreach (var point in picks)
-        {
-            point.Teach(12, 999, 34);
-            point.Apply();
-        }
+        picks[0].Teach(12, 45, 34);
+        picks[0].Apply();
+        picks[1].Teach(22, 65, 44);
+        picks[1].Apply();
 
-        Assert.Equal((12, 34), (recipe.Pcb1PickPosition.X, recipe.Pcb1PickPosition.Z));
-        Assert.Equal((12, 34), (recipe.Pcb2PickPosition.X, recipe.Pcb2PickPosition.Z));
-        Assert.Equal(45, supply.CarrierY);
+        Assert.Equal((12d, 45d, 34d), (recipe.Pcb1PickPosition.X, recipe.Pcb1PickPosition.Y!.Value, recipe.Pcb1PickPosition.Z));
+        Assert.Equal((22d, 65d, 44d), (recipe.Pcb2PickPosition.X, recipe.Pcb2PickPosition.Y!.Value, recipe.Pcb2PickPosition.Z));
+        var saved = System.Text.Json.JsonSerializer.Serialize(recipe);
+        var restored = System.Text.Json.JsonSerializer.Deserialize<PcbSupplyRecipe>(saved)!;
+        Assert.Equal(45, restored.Pcb1PickPosition.Y);
+        Assert.Equal(65, restored.Pcb2PickPosition.Y);
         foreach (var point in staged)
             point.Apply();
         Assert.Same(supplyHandoff, supply.HandoffPosition);

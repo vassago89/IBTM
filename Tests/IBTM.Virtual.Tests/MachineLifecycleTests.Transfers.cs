@@ -153,8 +153,8 @@ public sealed partial class MachineLifecycleTests
         var motion = handler.Feedback;
         var recipe = new PcbSupplyRecipe
         {
-            Pcb1PickPosition = new() { X = 10, Z = 5 },
-            Pcb2PickPosition = new() { X = 20, Z = 5 },
+            Pcb1PickPosition = new() { X = 10, Y = 10, Z = 5 },
+            Pcb2PickPosition = new() { X = 20, Y = 10, Z = 5 },
         };
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -179,7 +179,7 @@ public sealed partial class MachineLifecycleTests
         void ChangeCarrierAtPickup(double x, double y, double z)
         {
             var atPickup = Math.Abs(x - 10) < 0.01
-                && Math.Abs(y - settings.PcbSupply.CarrierY) < 0.01
+                && Math.Abs(y - recipe.Pcb1PickPosition.Y!.Value) < 0.01
                 && Math.Abs(z - 5) < 0.01;
             if (atPickup && !atFirstSlot)
             {

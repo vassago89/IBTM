@@ -188,7 +188,6 @@ public sealed partial class MachineLifecycleTests
         FastHomes(settings);
         settings.PcbSupply.Motion = FastMotion();
         settings.PcbSupply.RotationZ = 0;
-        settings.PcbSupply.CarrierY = 10;
         settings.PcbSupply.HandoffPosition = new()
         {
             X = 80,
@@ -244,6 +243,8 @@ public sealed partial class MachineLifecycleTests
 
     private static void PrepareCarrierTeaching(MachineSettings settings, Recipe recipe)
     {
+        recipe.PcbSupply.Pcb1PickPosition.Y = 10;
+        recipe.PcbSupply.Pcb2PickPosition.Y = 10;
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 0 };
         settings.BoltFastening.PickupHead = HeadSettings();

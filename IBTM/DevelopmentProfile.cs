@@ -38,7 +38,6 @@ internal static class DevelopmentProfile
             section.Settings.ZHome.SearchSpeed = 100;
         }
 
-        settings.PcbSupply.CarrierY = 10;
         settings.PcbSupply.RotationZ = 0;
         settings.PcbSupply.HandoffPosition = new() { X = 80, Y = 30 };
         settings.PcbSupply.Motion.HorizontalSpeed = 100;
@@ -71,8 +70,8 @@ internal static class DevelopmentProfile
         settings.NgCarrierTransfer.Speed = 25;
 
         var recipe = new Recipe { Name = "Virtual Development" };
-        recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Z = 10 };
-        recipe.PcbSupply.Pcb2PickPosition = new() { X = 20, Z = 10 };
+        recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 10 };
+        recipe.PcbSupply.Pcb2PickPosition = new() { X = 20, Y = 10, Z = 10 };
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
         recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 10 };
         recipe.Pcb.BoltPoints = [

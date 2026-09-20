@@ -179,8 +179,8 @@ public sealed partial class MachineLifecycleTests
         settings.Conveyor.CarrierStopDelaySeconds = 0;
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Z = 5 };
-        recipe.PcbSupply.Pcb2PickPosition = new() { X = 20, Z = 5 };
+        recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 5 };
+        recipe.PcbSupply.Pcb2PickPosition = new() { X = 20, Y = 10, Z = 5 };
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 12 };
         recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 12 };
         var machine = services.GetRequiredService<MachineController>();

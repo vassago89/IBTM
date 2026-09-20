@@ -104,7 +104,7 @@
                         </ListBox.GroupStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type ui:TeachingPoint}">
-                                <StackPanel Margin="4,4">
+                                <StackPanel Margin="4,4" ToolTip="{Binding Description}">
                                     <TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding PositionLabel}" TextWrapping="Wrap"
                                         FontFamily="Consolas" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
@@ -131,13 +131,15 @@
                         HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="0,0,12,0">
                             <TextBlock Text="{Binding SelectedPoint.Name}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                            <TextBlock Text="{Binding SelectedPoint.Description}" TextWrapping="Wrap"
+                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
                             <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
                                 Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
                             <ui:TeachingMotionView/>
-                            <Button Content="Return from Pickup"
+                            <Button Content="Return from Bolt Pickup"
                                 Command="{Binding ReturnFromPickupCommand}"
                                 Margin="0,6,0,0" Style="{StaticResource SecondaryButtonStyle}"
-                                ToolTip="Raise Z to Safe Z, then raise Head 1. XY and vacuum remain unchanged."
+                                ToolTip="Move Z to Travel Z, then raise the pickup head (Head 1). XY and vacuum remain unchanged."
                                 Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </ScrollViewer>

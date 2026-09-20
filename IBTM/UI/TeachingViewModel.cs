@@ -244,8 +244,6 @@ public partial class TeachingViewModel : ObservableObject
                     return TeachingSaveBehavior.PlacementHandoff;
                 case { Target: TeachingTarget.PlacementReceiveZ }:
                     return TeachingSaveBehavior.PlacementReceiveZ;
-                case { Target: TeachingTarget.SupplyCarrierY }:
-                    return TeachingSaveBehavior.SupplyCarrierY;
                 case { Target: TeachingTarget.NgCarrierPickup }:
                     return TeachingSaveBehavior.NgPickup;
                 case { Target: TeachingTarget.BoltPosition }:

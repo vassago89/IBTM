@@ -19,11 +19,11 @@ public partial class TeachingViewModel
             switch (ActiveMotionGroup)
             {
                 case MotionGroup.PcbSupply:
-                    return "Rotation Z";
+                    return "PCB Rotation Z";
                 case MotionGroup.PcbPlacementHandler:
-                    return "Handoff / Travel Z";
+                    return "Standby Z";
                 default:
-                    return "Safe Z";
+                    return "Travel Z";
             }
         }
     }

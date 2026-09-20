@@ -14,7 +14,6 @@ public sealed class PcbSupplySettings : Setting
 
     public MotionSettings Motion { get; set; }
     public double RotationZ { get; set; }
-    public double CarrierY { get; set; }
     [JsonPropertyName("BufferHandoffPosition")]
     public AxisPosition HandoffPosition { get; set; }
 
@@ -27,13 +26,6 @@ public sealed class PcbSupplySettings : Setting
                 TeachMode.ZOnly,
                 () => new() { Z = RotationZ },
                 p => RotationZ = p.Z,
-                this),
-            new(
-                TeachingTarget.SupplyCarrierY,
-                MotionGroup.PcbSupply,
-                TeachMode.YOnly,
-                () => new() { Y = CarrierY },
-                p => CarrierY = p.Y,
                 this),
             Pick(TeachingTarget.SupplyPcb1Pick, recipe.Pcb1PickPosition),
             Pick(TeachingTarget.SupplyPcb2Pick, recipe.Pcb2PickPosition),
@@ -52,12 +44,14 @@ public sealed class PcbSupplySettings : Setting
         return new(
             target,
             MotionGroup.PcbSupply,
-            TeachMode.XZOnly,
-            () => new() { X = pick.X, Y = CarrierY, Z = pick.Z },
+            TeachMode.Full,
+            () => new() { X = pick.X, Y = pick.Y ?? 0, Z = pick.Z },
             p =>
             {
                 pick.X = p.X;
+                pick.Y = p.Y;
                 pick.Z = p.Z;
-            });
+            },
+            isDefined: () => pick.Y is not null);
     }
 }

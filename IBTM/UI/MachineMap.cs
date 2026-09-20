@@ -85,14 +85,17 @@ public sealed class MachineMap
     {
         get
         {
+            if (_recipes.Current.PcbSupply.Pcb1PickPosition.Y is not { } pcb1Y
+                || _recipes.Current.PcbSupply.Pcb2PickPosition.Y is not { } pcb2Y)
+                return false;
             return MachinePlan.GetSide(
                 (_supply.HandoffPosition.X, _supply.HandoffPosition.Y),
                 (
                     _recipes.Current.PcbSupply.Pcb1PickPosition.X,
-                    _supply.CarrierY),
+                    pcb1Y),
                 (
                     _recipes.Current.PcbSupply.Pcb2PickPosition.X,
-                    _supply.CarrierY)) != 0;
+                    pcb2Y)) != 0;
         }
     }
 
@@ -131,17 +134,19 @@ public sealed class MachineMap
 
     public (double X, double Y)? GetSupplyPosition(MotionPosition current)
     {
-        if (current is not { X: { } x, Y: { } y })
+        if (current is not { X: { } x, Y: { } y }
+            || _recipes.Current.PcbSupply.Pcb1PickPosition.Y is not { } pcb1Y
+            || _recipes.Current.PcbSupply.Pcb2PickPosition.Y is not { } pcb2Y)
             return null;
         return FromThreePoints(
             x,
             y,
             (
                 _recipes.Current.PcbSupply.Pcb1PickPosition.X,
-                _supply.CarrierY),
+                pcb1Y),
             (
                 _recipes.Current.PcbSupply.Pcb2PickPosition.X,
-                _supply.CarrierY),
+                pcb2Y),
             (
                 _supply.HandoffPosition.X,
                 _supply.HandoffPosition.Y),

@@ -15,9 +15,6 @@ public enum TeachMode
     [Description("XY")]
     XYOnly,
 
-    [Description("XZ")]
-    XZOnly,
-
     [Description("X")]
     XOnly,
 
@@ -42,67 +39,64 @@ public enum TeachingStorage
 
 public enum TeachingTarget
 {
-    [Description("Safe Z")]
+    [Description("Travel Z")]
     SafeZ,
 
-    [Description("PCB Pickup Common Y")]
-    SupplyCarrierY,
-
-    [Description("PCB 1 Pick")]
+    [Description("PCB 1 Pickup")]
     SupplyPcb1Pick,
 
-    [Description("PCB 2 Pick")]
+    [Description("PCB 2 Pickup")]
     SupplyPcb2Pick,
 
-    [Description("PCB Give Position")]
+    [Description("PCB Handoff")]
     SupplyHandoff,
 
     [Description("PCB Receive Standby")]
     PlacementHandoff,
 
-    [Description("Heat Sink 1 PCB Placement")]
+    [Description("PCB Placement - Heat Sink 1")]
     HeatSink1PcbPlacement,
 
-    [Description("Heat Sink 2 PCB Placement")]
+    [Description("PCB Placement - Heat Sink 2")]
     HeatSink2PcbPlacement,
 
-    [Description("Bolt Position")]
+    [Description("Bolt Fastening")]
     BoltPosition,
 
-    [Description("NG Carrier Pickup Y")]
+    [Description("Carrier Pickup Y (S3)")]
     NgCarrierPickup,
 
-    [Description("NG Shuttle Place")]
+    [Description("Carrier Placement (Shuttle)")]
     NgShuttlePlace,
 
-    [Description("Backup Plate Upper Left Pin")]
+    [Description("Backup Plate Pin - Upper Left")]
     CarrierUpperLeftLocatingPin,
 
-    [Description("Backup Plate Lower Right Pin")]
+    [Description("Backup Plate Pin - Lower Right")]
     CarrierLowerRightLocatingPin,
 
-    [Description("Shooting Head Upper Left Locating Pin")]
+    [Description("Shooting Head Pin - Upper Left")]
     ShootingHeadUpperLeftLocatingPin,
 
-    [Description("Shooting Head Lower Right Locating Pin")]
+    [Description("Shooting Head Pin - Lower Right")]
     ShootingHeadLowerRightLocatingPin,
 
-    [Description("Pickup Head Upper Left Locating Pin")]
+    [Description("Pickup Head Pin - Upper Left")]
     PickupHeadUpperLeftLocatingPin,
 
-    [Description("Pickup Head Lower Right Locating Pin")]
+    [Description("Pickup Head Pin - Lower Right")]
     PickupHeadLowerRightLocatingPin,
 
-    [Description("Bolt Pickup")]
+    [Description("Bolt Pickup (Feeder)")]
     BoltPickup,
 
-    [Description("Bolt Reference")]
+    [Description("Bolt Inspection")]
     BoltReference,
 
-    [Description("Data Matrix")]
+    [Description("Data Matrix Inspection")]
     DataMatrix,
 
-    [Description("NG Pickup Safe X")]
+    [Description("Carrier Pickup X (Approach)")]
     NgPickupSafeX,
 
     [Description("Shooting Head Fastening Z")]

@@ -165,13 +165,13 @@ Inspection, NG Transfer를 선택한다. 인계 위치·회전 및 이동 높이
 Teaching 메뉴를 나갔다 다시 열면 저장·적용된 설정에서 다시 읽는다.
 
 각 유닛 목록은 작업 위치, 설비 기준값, 계산 위치로 구분한다. 인계 영역 경계값은 사용하지 않는다.
-Supply의 `PCB Give Position`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unrotated 상태다.
+Supply의 `PCB Handoff`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unrotated 상태다.
 `Rotation Z`에서 Unrotated로 전환한 뒤 인계 Z → 인계 XY 순서로 이동한다.
-대기는 PCB 1 X·공통 Pickup Y·Rotation Z에서 Rotated 상태다.
+대기는 PCB 1 Pickup의 X/Y와 PCB Rotation Z에서 Rotated 상태다.
 Placement는 핸들러 상승 → 대기 Z → 인계 XY에서 대기하고, 실린더 Up 상태로 `ReceiveZ`까지 이동해 받는다.
 Supply 해제 후 대기 Z로 복귀하고 Heat Sink 1/2에 차례로 안착한다.
 Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 동작에서 회전하거나 회전 피드백을 기다리지 않는다. 티칭·OUTPUTS에서도 ON으로 전환할 수 없다.
-체결의 `Safe Z (Travel)`은 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
+체결의 `Travel Z`은 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
 `Pickup Head Fastening Z`는 픽업 볼트의 체결 높이다. 볼트마다 한 번만 체결한다.
 자동 동작은 양쪽 헤드 상승 → Safe Z에서 XY 이동 → 선택 헤드의 체결 Z 이동 → 체결 START → 즉시 해당 헤드 하강 순서다.
 체결기는 회전을, 실린더는 볼트 전진을 담당한다. START 전송 성공 후 하강하며, 하강 중 오류·정지 시 체결기도 정지한다.
@@ -264,7 +264,7 @@ HOME·START 선상승과 HOME 순서(2026-09-19):
   티칭·모션 창의 개별 HOME도 해당 유닛의 실린더를 먼저 올린다. 축별 HOME은 지정 축만 실행한다.
 - START도 같은 실행권·취소 토큰 안에서 활성 유닛의 실린더 상승을 완료한 뒤 자동 시퀀스를 시작한다.
   START가 HOME을 대신 수행하지는 않으며, 원점 완료 조건은 유지한다.
-- HOME 중 안착의 Handoff / Travel Z, 체결의 Safe Z로 이동하지 않는다.
+- HOME 중 안착의 Standby Z, 체결의 Travel Z로 이동하지 않는다.
   전체 HOME 종료 뒤 공급기의 Rotation Z로 이동하던 단계도 제거했다.
 - 단일 축 HOME은 지정한 축의 서보·알람 피드백을 확인하고 해당 축만 실행한다.
   X/Y HOME에 Z의 원점 완료·서보 ON·높이 일치를 요구하지 않는다.
@@ -414,7 +414,7 @@ Unrotated일 때 인계 Z를 사용한다.
 XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2 X와 Carrier Y, PCB2 후에는
 다음 캐리어의 PCB1 X와 Carrier Y로 돌아간다. 픽업 XY에 도착한 뒤 Rotation Z로 이동하고 Rotated로 전환한다.
 별도 Clear Z나 복귀 좌표는 없다. 시작 시 SMEMA가 없으면 PCB 1 XY·Rotation Z까지 이동해 대기한다.
-기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Give Position`의 XYZ를 확인하고 `Apply & Save Handoff`로 저장한다.
+기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Handoff`의 XYZ를 확인하고 `Apply & Save Handoff`로 저장한다.
 Placement는 `PCB Receive Standby`에서 기다리다가 실린더 Up 상태로 `PCB Receive Z`까지 내려가
 PCB 감지·진공·그리퍼를 확인한다. Supply 해제 후 대기 Z로 복귀하고 선택한 히트싱크 XY로 이동한다.
 `PCB Receive Z`는 티칭 시 자동 저장되며 기존 대기 XYZ와 별개다. 미티칭이면 수취 Z 이동을 시작하지 않는다.
