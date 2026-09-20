@@ -112,7 +112,8 @@ public sealed partial class InspectionStation : AutoUnit
         if (GetTransferDisplayState(transferState) is not null)
         {
             if (!await _move.ExecuteAsync(
-                NgTransferDestination.Shuttle, transferState, cancellationToken, holdAtShuttle))
+                NgTransferDestination.Shuttle, transferState, cancellationToken, holdAtShuttle,
+                allowEmpty: repeat && _move.IsEmptyRepeatAllowed))
                 await WaitForChangeAsync(cancellationToken);
 
             return;
@@ -152,13 +153,14 @@ public sealed partial class InspectionStation : AutoUnit
             || _shuttle.IsReceiveAllowed(useConveyor: !repeat || _units.NgConveyor, conveyorRunning);
         return _move.GetState(
             NgTransferDestination.Shuttle,
-            canPickUp: _work.Station.CarrierSeated
+            canPickUp: (repeat && _move.IsEmptyRepeatAllowed || _work.Station.CarrierSeated
                 && _work.Completed
-                && (repeat || _work.RouteToNg)
+                && (repeat || _work.RouteToNg))
                 && canReceive,
             canReceive: canReceive,
             holdAtDestination: holdAtShuttle,
-            live: live);
+            live: live,
+            allowEmpty: repeat && _move.IsEmptyRepeatAllowed);
     }
 
     private static InspectionStationState? GetTransferDisplayState(NgTransferState state)

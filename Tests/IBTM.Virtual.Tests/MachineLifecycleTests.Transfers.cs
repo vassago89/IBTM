@@ -588,6 +588,9 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
+        // Establish pickup ownership through the real sequence, independently of presence DI.
+        await move.ExecuteAsync(destination, NgTransferState.PickingCarrier,
+            CancellationToken.None, allowEmpty: true);
         await services.GetRequiredService<InspectionGantry>()
             .MoveToAsync(
                 destination == NgTransferDestination.Station
@@ -625,7 +628,7 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.NgCarrierPickupDown, false);
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             io.SetInput(InputIo.NgCarrierGripperOpen, true);
-            Assert.Equal(NgTransferState.GrippingCarrier,
+            Assert.Equal(NgTransferState.Raising,
                 move.GetState(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierPickupDown, true);
             io.SetInput(InputIo.NgCarrierGripperClosed, true);

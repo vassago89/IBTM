@@ -79,7 +79,7 @@ public sealed partial class ConveyorTests
     }
 
     [Fact]
-    public async Task StartupPreparationPreservesOccupiedSupportsAndNgPickupSupport()
+    public async Task StartupPreparationPreservesOccupiedSupportsWithoutTreatingNgDetectionAsGrip()
     {
         var io = CreateIo();
         var conveyor = CreateConveyor(io, ngCarrierTransferEnabled: true);
@@ -99,10 +99,6 @@ public sealed partial class ConveyorTests
         Assert.Empty(lowered);
         io.SetInput(InputIo.NgCarrierDetected, true);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-        await conveyor.PrepareEmptyStationsAsync(default);
-        Assert.Empty(lowered);
-
-        io.SetInput(InputIo.NgCarrierDetected, false);
         await conveyor.PrepareEmptyStationsAsync(default);
         Assert.Equal(OutputIo.InspectionBackupPlateUp, Assert.Single(lowered));
         Assert.True(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));

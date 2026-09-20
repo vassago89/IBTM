@@ -16,7 +16,8 @@ public sealed partial class NgCarrierMove
         {
             var endState = holdAtShuttle ? NgTransferState.HoldingAtDestination : NgTransferState.Completed;
             while (GetState(NgTransferDestination.Shuttle,
-                canPickUp: true, holdAtDestination: holdAtShuttle) != endState)
+                canPickUp: true, holdAtDestination: holdAtShuttle,
+                allowEmpty: IsEmptyRepeatAllowed) != endState)
                 await changed.WaitAsync(cancellationToken);
         }
         finally
@@ -28,14 +29,15 @@ public sealed partial class NgCarrierMove
     public async Task ReturnToStationAsync(CancellationToken cancellationToken)
     {
         await _work.Station.SeatAsync(cancellationToken);
-        await RunToAsync(NgTransferDestination.Station, cancellationToken);
+        await RunToAsync(NgTransferDestination.Station, cancellationToken,
+            allowEmpty: IsEmptyRepeatAllowed);
     }
 
     public async Task ClearStationAsync(AxisPosition? firstFov, CancellationToken cancellationToken)
     {
         if (firstFov is null)
             return;
-        if (!_work.Station.CarrierPresent
+        if ((!IsEmptyRepeatAllowed && !_work.Station.CarrierPresent)
             || _pickup.Gripper != NgTransferGripperState.Open
             || !_pickup.IsRaised)
             throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the first FOV.");

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -104,6 +105,152 @@ public sealed partial class MachineLifecycleTests
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.Equal(2, completed);
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        }
+        finally
+        {
+            machine.Stop();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task NgTransferOnlyRepeatPicksAndReturnsWithOrWithoutMaterial(
+        bool startsWithCarrierHeld, bool detected)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var pickup = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionGantry>();
+        var work = services.GetRequiredService<InspectionWork>();
+        var firstFov = new AxisPosition { X = 35, Y = 45 };
+        services.GetRequiredService<RecipeManager>().Current.CarrierImages =
+            [new() { Number = 1, Center = firstFov }];
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await work.Station.PrepareToReceiveAsync(CancellationToken.None);
+        io.SetInput(InputIo.InspectionHeatSink1Present, startsWithCarrierHeld);
+        // Material on the disabled main route does not belong to this repeat.
+        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+        // Disabled shuttle feedback must not be required for the held-carrier turn.
+        io.SetInputs((InputIo.NgShuttleUp, false), (InputIo.NgShuttleDown, false));
+        if (startsWithCarrierHeld)
+        {
+            await work.Station.SeatAsync(CancellationToken.None);
+            await services.GetRequiredService<NgCarrierMove>().ExecuteAsync(
+                NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None);
+            Assert.True(pickup.CarrierDetected);
+            Assert.False(work.Station.CarrierPresent);
+        }
+        else
+        {
+            // A closed empty gripper and an ON presence sensor are not a completed pickup.
+            await pickup.SetGripperOpenAsync(false);
+        }
+        io.SetInput(InputIo.NgCarrierDetected, detected);
+
+        (double X, double Y, bool Holding)[] expectedDescents = startsWithCarrierHeld
+            ? [(150d, 20d, true), (5d, 20d, true),
+                (5d, 20d, false), (150d, 20d, true), (5d, 20d, true)]
+            : [(5d, 20d, false), (150d, 20d, true), (5d, 20d, true),
+                (5d, 20d, false), (150d, 20d, true), (5d, 20d, true)];
+
+        var descents = new ConcurrentQueue<(double X, double Y, bool Holding)>();
+        var mainRan = false;
+        var ngConveyorRan = false;
+        var shuttleMoved = false;
+        var plateRaised = false;
+        var releasedAtShuttle = false;
+        var returnedTwice = false;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.NgCarrierPickupDown && on)
+            {
+                var position = gantry.Feedback.GetPosition();
+                descents.Enqueue((position.X, position.Y,
+                    pickup.Gripper == NgTransferGripperState.Closed));
+            }
+            if (output == OutputIo.NgCarrierGripperClose && !on
+                && gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition))
+                releasedAtShuttle = true;
+            mainRan |= output == OutputIo.MainConveyorRun && on;
+            ngConveyorRan |= output == OutputIo.NgConveyorRun && on;
+            shuttleMoved |= output == OutputIo.NgShuttleDown;
+            plateRaised |= output == OutputIo.InspectionBackupPlateUp && on;
+        };
+        machine.PropertyChanged += (sender, args) =>
+        {
+            if (args.PropertyName != nameof(MachineController.RepeatDisplayPhase)
+                || machine.RepeatDisplayPhase != RepeatPhase.Automatic
+                || descents.Count != expectedDescents.Length || stop.IsCancellationRequested)
+                return;
+            returnedTwice = gantry.IsAt(firstFov)
+                && work.Station.CarrierPresent == startsWithCarrierHeld
+                && work.Station.BackupPlate == StationCylinderState.Up && pickup.IsClear
+                && pickup.Gripper == NgTransferGripperState.Open;
+            stop.Cancel();
+        };
+        state.RepeatEnabled = true;
+        try
+        {
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            await machine.StartAsync(stop.Token);
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.True(returnedTwice);
+            Assert.Equal(expectedDescents, descents.ToArray());
+            if (!startsWithCarrierHeld)
+                Assert.True(plateRaised);
+            Assert.False(releasedAtShuttle);
+            Assert.False(mainRan);
+            Assert.False(ngConveyorRan);
+            Assert.False(shuttleMoved);
+        }
+        finally
+        {
+            machine.Stop();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task NgTransferOnlyRepeatRejectsAnAdditionalCarrierWhilePickupIsLoaded()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var gantry = services.GetRequiredService<InspectionGantry>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await services.GetRequiredService<NgCarrierMove>().ExecuteAsync(
+            NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None);
+        await gantry.MoveToAsync(new() { X = 50, Y = 30 }, 10_000);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        var lowered = false;
+        io.OutputChanged += (output, on) => lowered |= output == OutputIo.NgCarrierPickupDown && on;
+        state.RepeatEnabled = true;
+        try
+        {
+            await WaitUntilAsync(() => machine.IsStartAllowed);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await machine.StartAsync(timeout.Token);
+            Assert.True(state.IsError);
+            Assert.Contains("one carrier on the active route", state.AlarmDetail);
+            Assert.False(lowered);
+            Assert.Equal((50, 30, 0), gantry.Feedback.GetPosition());
+            Assert.True(io.GetInput(InputIo.NgCarrierDetected));
+            Assert.True(io.GetInput(InputIo.NgCarrierGripperClosed));
         }
         finally
         {

@@ -29,8 +29,8 @@ public enum OutputBlockReason
     FasteningNotAtSafeZ,
     [Description("Raise the NG pickup: UP must be ON and DOWN must be OFF.")]
     NgPickupNotRaised,
-    [Description("Clear the carrier detected at the NG pickup.")]
-    NgCarrierDetected,
+    [Description("Complete the pending NG transfer before moving the main conveyor.")]
+    NgTransferPending,
 
     [Description("Wait for the current machine operation and its stop cleanup to finish.")]
     Busy,

@@ -114,7 +114,7 @@ public sealed partial class MainConveyor
         cancellationToken.ThrowIfCancellationRequested();
 
         // Preserve the support under an interrupted placement/fastening operation.
-        // Station 3 also stays supported while the pickup still detects a carrier.
+        // Keep Station 3 supported while an NG transfer has not released its grip.
         var preparation = new List<Task>(3);
         if (_placementWork.IsReceiveAllowed && _placementWork.Station.BackupPlate != StationCylinderState.Down)
             preparation.Add(_io.SetOutputAndWaitAsync(

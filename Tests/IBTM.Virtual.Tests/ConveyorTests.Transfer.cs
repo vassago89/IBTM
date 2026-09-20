@@ -288,7 +288,7 @@ public sealed partial class ConveyorTests
     }
 
     [Fact]
-    public async Task InspectionReceivingIgnoresPickupHeightButWaitsForHeldCarrier()
+    public async Task InspectionReceivingDoesNotTreatNgDetectionAsHeldCarrier()
     {
         var io = CreateIo();
         io.Initialize();
@@ -299,22 +299,12 @@ public sealed partial class ConveyorTests
         await SetSeatedCarrierAsync(
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
         var conveyor = CreateConveyor(io, boltFasteningEnabled: false, ngCarrierTransferEnabled: true);
-        var steps = new System.Collections.Concurrent.ConcurrentQueue<string>();
-        conveyor.Trace += steps.Enqueue;
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var run = conveyor.RunAsync(cancellation.Token);
         try
         {
-            await WaitForOutputAsync(io, OutputIo.PcbPlacementBackupPlateUp, false);
-            Assert.True(io.GetOutput(OutputIo.InspectionBackupPlateUp));
-            Assert.False(conveyor.RunCommandOn);
-            Assert.Equal(MainConveyorState.WaitingForInspectionClear, conveyor.State);
-            Assert.True(await WaitUntilAsync(
-                () => steps.Any(step => step.Contains("NG carrier detected=True")),
-                TimeSpan.FromSeconds(1)));
-
-            io.SetInput(InputIo.NgCarrierDetected, false);
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            Assert.True(io.GetInput(InputIo.NgCarrierDetected));
             Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
             Assert.False(io.GetOutput(OutputIo.BoltFasteningBackupPlateUp));
             Assert.False(io.GetOutput(OutputIo.InspectionBackupPlateUp));

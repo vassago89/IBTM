@@ -42,7 +42,21 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
 
     public event Action? Changed;
 
+    // Presence near the pickup does not prove that its gripper holds the carrier.
     public bool CarrierDetected => _io.GetInput(InputIo.NgCarrierDetected);
+
+    // Unfinished pickup/release ownership, not proof that material is present.
+    public bool IsTransferPending
+    {
+        get;
+        private set
+        {
+            if (field == value)
+                return;
+            field = value;
+            Changed?.Invoke();
+        }
+    }
 
     public NgTransferLiftState Lift
     {
@@ -80,10 +94,12 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
 
     public bool IsRaised => Lift == NgTransferLiftState.Up;
 
-    public bool IsClear => IsRaised && !CarrierDetected;
+    public bool IsClear => IsRaised && !IsTransferPending;
 
     public Task SetLiftUpAsync(bool up, CancellationToken cancellationToken = default)
     {
+        if (up && IsTransferPending && Gripper != NgTransferGripperState.Closed)
+            throw new MotionInterlockException("Confirm the NG gripper is closed before raising the pending transfer.");
         return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, !up, cancellationToken);
     }
 
@@ -92,13 +108,28 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
         return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, !open, cancellationToken);
     }
 
-    internal Task WaitForCarrierGripAsync(CancellationToken cancellationToken = default)
+    internal async Task GripForTransferAsync(CancellationToken cancellationToken, bool allowEmpty)
     {
-        return _io.WaitForInputAsync(InputIo.NgCarrierDetected, true, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        IsTransferPending = true;
+        try
+        {
+            await SetGripperOpenAsync(false, cancellationToken);
+            if (!allowEmpty)
+                await _io.WaitForInputAsync(InputIo.NgCarrierDetected, true, cancellationToken);
+        }
+        finally
+        {
+            if (Gripper == NgTransferGripperState.Open)
+                IsTransferPending = false;
+        }
     }
 
     private void OnInputChanged(InputIo input, bool value)
     {
+        if (input is InputIo.NgCarrierGripperOpen or InputIo.NgCarrierGripperClosed
+            && Gripper == NgTransferGripperState.Open)
+            IsTransferPending = false;
         if (input is InputIo.NgCarrierPickupUp
             or InputIo.NgCarrierPickupDown
             or InputIo.NgCarrierGripperOpen

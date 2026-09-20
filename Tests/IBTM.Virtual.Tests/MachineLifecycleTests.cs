@@ -400,6 +400,15 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
+        // Presence and a closed empty gripper must not skip the first pickup descent.
+        await services.GetRequiredService<NgCarrierTransfer>().SetGripperOpenAsync(false);
+        io.SetInput(InputIo.NgCarrierDetected, true);
+        var pickupDescents = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.NgCarrierPickupDown && on)
+                pickupDescents++;
+        };
         io.SetInput(InputIo.AutoMode, false);
         void StopDuringTransfer(double x, double y, double z)
         {
@@ -414,6 +423,7 @@ public sealed partial class MachineLifecycleTests
         gantry.Feedback.PositionChanged -= StopDuringTransfer;
         var stoppedX = gantry.Feedback.GetPosition().X;
         Assert.InRange(stoppedX, 40, 149);
+        Assert.Equal(1, pickupDescents);
         Assert.False(gantry.Feedback.IsMoving);
         Assert.True(io.GetInput(InputIo.NgCarrierGripperClosed));
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
@@ -464,7 +474,7 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Equal(
             lift == NgTransferLiftState.Up
-                ? InspectionStationState.Waiting
+                ? InspectionStationState.ReturningToNgPickup
                 : InspectionStationState.TransferringNgCarrier,
             station.GetState([]));
 

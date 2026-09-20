@@ -36,13 +36,14 @@ public sealed partial class MachineController
             {
                 var carriers = (_units.MainConveyor ? _conveyor.CarrierCount
                         : _ngMove.IsCarrierPresent(NgTransferDestination.Station) ? 1 : 0)
+                    + (_units.NgCarrierTransfer && _ngTransfer.IsTransferPending ? 1 : 0)
                     + (_units.NgCarrierTransfer && _units.NgShuttle && _ngShuttle.Feedback.CarrierDetected ? 1 : 0)
                     + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
                     + (_units.NgCarrierTransfer && _units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
-                if (carriers != 1
-                    || _units.MainConveyor && _conveyor.ExitCarrierDetected
-                    || _units.NgCarrierTransfer && _ngTransfer.CarrierDetected)
-                    throw new InvalidOperationException("Repeat requires one carrier on a support with known presence feedback and an empty NG pickup.");
+                if (carriers > 1
+                    || carriers == 0 && !(_units.NgCarrierTransfer && _ngMove.IsEmptyRepeatAllowed)
+                    || _units.MainConveyor && _conveyor.ExitCarrierDetected)
+                    throw new InvalidOperationException("Repeat requires one carrier on the active route; only NG Transfer standalone repeat allows an empty route. Check the enabled supports and any unfinished NG transfer.");
             }
 
             if (_units.PcbSupply && !_units.PcbPlacement)
@@ -177,8 +178,8 @@ public sealed partial class MachineController
                 {
                     case true when !_ngTransfer.IsRaised:
                         return OutputBlockReason.NgPickupNotRaised;
-                    case true when _ngTransfer.CarrierDetected:
-                        return OutputBlockReason.NgCarrierDetected;
+                    case true when _ngTransfer.IsTransferPending:
+                        return OutputBlockReason.NgTransferPending;
                 }
             }
 

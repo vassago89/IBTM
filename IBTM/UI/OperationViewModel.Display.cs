@@ -329,7 +329,7 @@ public partial class OperationViewModel
                 case true when !State.AutomaticRunning && !InspectionGantry.Motion.IsMoving:
                     return StationDisplayState.Stopped;
                 case true when InspectionGantry.Motion.IsMoving
-                    || NgTransfer.CarrierDetected
+                    || NgTransfer.IsTransferPending
                     || InspectionTransferWorking:
                     return StationDisplayState.Working;
                 case true when !InspectionWork.Station.CarrierPresent:

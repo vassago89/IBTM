@@ -244,7 +244,7 @@ public sealed class InspectionTests
         var station = new InspectionStation(
             work,
             inspector,
-            new NgCarrierMove(work, shuttle, transfer, gantry, transferSettings),
+            new NgCarrierMove(work, shuttle, transfer, gantry, transferSettings, units),
             shuttle,
             units);
 
@@ -356,7 +356,7 @@ public sealed class InspectionTests
         var transferStation = new InspectionStation(
             transferWork,
             inspector,
-            new NgCarrierMove(transferWork, shuttle, transfer, gantry, transferSettings),
+            new NgCarrierMove(transferWork, shuttle, transfer, gantry, transferSettings, transferUnits),
             shuttle,
             transferUnits);
         io.SetInput(InputIo.NgShuttleUp, true);

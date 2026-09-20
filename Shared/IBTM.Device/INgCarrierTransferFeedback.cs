@@ -8,7 +8,7 @@ public interface INgCarrierTransferFeedback
 
     bool IsRaised { get; }
 
-    bool CarrierDetected { get; }
+    bool IsTransferPending { get; }
 
     bool IsClear { get; }
 }
