@@ -542,14 +542,24 @@
                                         <TextBlock Text="Bolt Controller · ADC Communication" Style="{StaticResource SettingSectionTitle}"/>
                                         <UniformGrid Columns="2">
                                             <StackPanel Margin="0,0,4,10">
-                                                <TextBlock Text="COM Port" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="Pickup COM Port" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                    Text="{Binding Settings.Hantas.PortName, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    Text="{Binding Settings.Hantas.PickupPortName, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                             <StackPanel Margin="4,0,0,10">
-                                                <TextBlock Text="Baud Rate" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="Shooting COM Port" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                    Text="{Binding Settings.Hantas.BaudRate, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    Text="{Binding Settings.Hantas.ShootingPortName, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,4,10">
+                                                <TextBlock Text="Pickup Baud Rate" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                                    Text="{Binding Settings.Hantas.PickupBaudRate, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="4,0,0,10">
+                                                <TextBlock Text="Shooting Baud Rate" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                                    Text="{Binding Settings.Hantas.ShootingBaudRate, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                             <StackPanel Margin="0,0,4,0">
                                                 <TextBlock Text="Pickup Slave ID" Style="{StaticResource SettingFieldLabel}"/>
