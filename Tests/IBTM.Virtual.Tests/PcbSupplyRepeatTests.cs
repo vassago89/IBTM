@@ -85,7 +85,7 @@ public sealed class PcbSupplyRepeatTests
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public async Task PresenceDoesNotSkipPickupAndInterruptedGripResumesAtTheSlot(bool repeat, bool loseGrip)
+    public async Task PresenceDoesNotSkipPickupAndTravelRequiresHolding(bool repeat, bool loseGrip)
     {
         var settings = new PcbSupplySettings
         {
@@ -119,26 +119,19 @@ public sealed class PcbSupplyRepeatTests
         Assert.NotEqual(PcbSupplyState.MovingToHandoff, supplier.State);
 
         var grippedAtPickup = false;
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-        void StopAfterGrip(InputIo input, bool on)
+        io.InputChanged += (input, on) =>
         {
             if (input != InputIo.PcbSupplyGripperClosed || !on)
                 return;
             grippedAtPickup = handler.IsAtPickup(recipe.Pcb1PickPosition)
                 && handler.Rotation == PcbSupplyRotationState.Rotated;
-            stop.Cancel();
-        }
-        io.InputChanged += StopAfterGrip;
-        await supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat);
-        io.InputChanged -= StopAfterGrip;
-        Assert.True(grippedAtPickup);
-        Assert.False(handler.IpmFixed);
+        };
 
         var movedBeforeFixing = false;
         var reachedHandoff = false;
         var lostGrip = false;
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-        motion.MovingChanged += moving => movedBeforeFixing |= moving && !handler.PcbSecured;
+        motion.MovingChanged += moving => movedBeforeFixing |= moving && grippedAtPickup && !handler.PcbSecured;
         motion.PositionChanged += (x, y, z) =>
         {
             if (loseGrip && !lostGrip && handler.PcbSecured && motion.IsMovingHorizontal && x > 30)
@@ -166,6 +159,7 @@ public sealed class PcbSupplyRepeatTests
             await supplier.RunAsync(recipe, new NoPlacement(), finish.Token, repeat);
         }
         Assert.Equal(!loseGrip, reachedHandoff);
+        Assert.True(grippedAtPickup);
         Assert.False(movedBeforeFixing);
         Assert.Equal(!loseGrip, handler.PcbSecured);
     }

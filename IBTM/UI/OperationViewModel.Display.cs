@@ -38,7 +38,7 @@ public partial class OperationViewModel
         get
         {
             return State.Available && PlacementPositionKnown
-                && Placement.Motion.IsReady(live: false) ? Placement.GetState(live: false) : null;
+                && Placement.Motion.IsReady(live: false) ? Placement.State : null;
         }
     }
 

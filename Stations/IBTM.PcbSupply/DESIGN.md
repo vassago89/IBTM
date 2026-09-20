@@ -65,12 +65,15 @@ same carrier handshake.
 this height explicitly, so it cannot first move back to the default Rotation Z.
 `MovingToPickup` also owns withdrawal: give-height XY to the next pickup, then
 Rotation Z and Rotated feedback. `MovingToHandoff` owns PCB securing, rotation and
-handoff approach. An already secured, unrotated PCB keeps the give travel height
-when resuming an interrupted approach; it does not first return to Rotation Z.
+handoff approach. Rotation completes at Rotation Z before the give-height approach.
 
 ## Direct handoff and live feedback
 
-Each unit owns its sequence enum and computes its state from its own feedback.
+Each unit owns its sequence enum and advances its process stage after the commanded operation completes.
+Coordinates never select a process stage or pickup slot.
+Program startup and manual motion do not reconstruct progress from matching teaching coordinates.
+Sensor feedback still validates each operation and handoff.
+Starting another axis move invalidates the previous handoff completion without changing the stored process stage or starting recovery moves.
 Only `Handoff` and `Changed` cross the boundary through Core's
 `IPcbSupplyHandoff` / `IPcbPlacementHandoff`. These interfaces expose no handler,
 motion commands, or internal sequence stages, and do not store duplicate state.
@@ -93,19 +96,17 @@ own taught standby/give XYZ before Placement moves Z to `ReceiveZ`.
 
 Supply releases only while Placement reports handoff `Holding`, which
 requires PCB detection and vacuum detection at the receive position with the handler Up.
-Normal receipt prepares IPM Down and Repeat prepares IPM Up. A stopped, already
-secured PCB remains `Holding` with either confirmed IPM endpoint; a contradictory
-or unknown endpoint is unavailable. An interrupted forward release resumes the
-same recipient checks before each actuator instead of preparing reverse receipt.
+Normal receipt prepares IPM Down and Repeat prepares IPM Up. A contradictory
+or unknown endpoint is unavailable. Forward release checks recipient holding before each actuator.
 After release, Placement returns Z
 to standby with its handler cylinder still Up, then moves Y to the selected heat sink while retaining handoff X.
 Supply waits for Placement's `Clear` after that Y move before its XY return.
 `WaitingForPlacementClear` covers this Z/Y departure wait until Placement publishes `Clear`.
 `HandingOff` owns both the wait for Placement holding and the fixer/gripper release;
-there is no separate release state. Interrupted release still requires confirmed recipient holding.
+there is no separate release state.
 
-The give position requires settled X/Y/Z feedback at the stored give XYZ;
-matching X/Y at Rotation Z is insufficient when the two heights differ.
+Handoff requires the completed give-position command, settled axes and current rotation/grip feedback.
+Moving axes manually to matching coordinates does not complete the handoff process stage.
 Only confirmed recipient holding permits Supply release. Shared-area overlap,
 entry/exit checks and collision boundaries are not used.
 
@@ -135,8 +136,8 @@ need not have received the last PCB yet.
 
 Board Available OFF resets the next slot to PCB 1. A stale ON cannot start another
 carrier. If availability disappears during a pickup, cancel that pickup; a late
-completion cannot advance a replacement carrier. STOP discards the run's slot
-progress without requiring the equipment to be empty. In automatic mode, STOP
+completion cannot advance a replacement carrier. Slot progress belongs to the current run.
+In automatic mode, STOP
 preserves Ready while the upstream carrier remains available.
 
 In teaching/manual mode, FRONT 1 `TEST Available` replaces the real SMEMA input.
@@ -159,13 +160,8 @@ the normal forward handoff. This route does not require an upstream support or
 Available TEST; Repeat does not feed replacement PCBs.
 Both units retain their holding and seating checks in either direction.
 
-STOP discards the current direction. START uses live PCB and position feedback:
-Supply holding resumes forward handoff; Placement holding resumes forward
-placement. When both hold at handoff, Supply releases only after Placement
-confirms holding, and waits for Placement to rise before moving away. Source
-slot identity is not needed for restart because no PCB is placed there.
 See the [Repeat instructions](../../docs/STATION3_COMMISSIONING.md#repeat).
 
 Focused regressions cover standby before SMEMA, both pickup slots, rotation at
-Rotation Z, travel at a different handoff Z, interrupted entry at that same height,
+Rotation Z, travel at a different handoff Z, motion cancellation,
 recipient holding feedback, independent departure, and recorded XYZ teaching.

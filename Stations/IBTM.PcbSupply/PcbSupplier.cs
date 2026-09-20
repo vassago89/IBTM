@@ -16,6 +16,10 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     // Slot progress belongs only to the current run and upstream carrier.
     private PickStep _pickStep;
+    private PcbSupplyState _state;
+    private bool _repeat;
+    private bool _handoffPendingDeparture;
+    private bool _handoffReady;
     // Commissioning input, kept only for this application session.
     private volatile bool _testUpstreamCarrierAvailable;
 
@@ -25,8 +29,10 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         _io = io;
         _settings = settings;
         _units = units;
+        _state = PcbSupplyState.MovingToPickup;
         Motion = new(motion);
         io.InputChanged += OnInputChanged;
+        motion.MovingChanged += OnMovingChanged;
         motion.StateChanged += NotifyChanged;
     }
 
@@ -35,6 +41,12 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     private void NotifyChanged()
     {
         Changed?.Invoke();
+    }
+
+    private void OnMovingChanged(bool moving)
+    {
+        if (moving)
+            _handoffReady = false;
     }
 
     public MotionStatus Motion { get; }
@@ -192,34 +204,46 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         if (Rotation != PcbSupplyRotationState.Unrotated)
             throw new MotionInterlockException("Supply must be unrotated before moving to the handoff position.");
+        var automaticPosition = position is null;
         position ??= _settings.HandoffPosition;
+        if (automaticPosition)
+            State = PcbSupplyState.MovingToHandoff;
         await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: position.Z);
         await _motion.MoveToXYAsync(
             position.X,
             position.Y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (automaticPosition)
+        {
+            _handoffPendingDeparture = true;
+            _handoffReady = true;
+            State = PcbSupplyState.HandingOff;
+        }
     }
 
     internal async Task PickAsync(
         PcbPickPosition position,
         CancellationToken cancellationToken = default)
     {
-        if (!IsAtPickup(position))
-        {
-            await SetIpmFixerAsync(false, cancellationToken);
-            await SetGripperClosedAsync(false, cancellationToken);
-            await MoveToPickupAsync(position, cancellationToken);
-            await _motion.MoveAxisAsync(MotionAxis.Z, position.Z, _settings.Motion.ZSpeed, cancellationToken);
-        }
+        await SetIpmFixerAsync(false, cancellationToken);
+        await SetGripperClosedAsync(false, cancellationToken);
+        await MoveToPickupAsync(position, cancellationToken);
+        await _motion.MoveAxisAsync(MotionAxis.Z, position.Z, _settings.Motion.ZSpeed, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        State = PcbSupplyState.PickingPcb;
         if (Pcb == PcbSupplyPcbState.None)
         {
             await _motion.MoveToHorizontalZAsync(cancellationToken);
+            State = PcbSupplyState.WaitingForCarrier;
             return;
         }
         // Presence can be ON before reaching the PCB; grip only at the taught pickup XYZ.
         await SetGripperClosedAsync(true, cancellationToken);
         await SetIpmFixerAsync(true, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        State = PcbSupplyState.MovingToHandoff;
     }
 
     internal async Task MoveToPickupAsync(PcbPickPosition position, CancellationToken cancellationToken)
@@ -227,12 +251,15 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         cancellationToken.ThrowIfCancellationRequested();
         if (position.Y is not { } y)
             throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
+        State = PcbSupplyState.MovingToPickup;
         await _motion.MoveToHorizontalZAsync(cancellationToken);
         await _motion.MoveToXYAsync(
             position.X,
             y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        State = PcbSupplyState.WaitingForCarrier;
     }
 
     public bool IsMoveToTeachingPositionAllowed(TeachingPosition point)
@@ -289,6 +316,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             throw new MotionInterlockException("Supply must remain Unrotated until it leaves the handoff position.");
         if (nextPick.Y is not { } y)
             throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
+        State = PcbSupplyState.MovingToPickup;
         await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: _settings.HandoffPosition.Z);
         await _motion.MoveToXYAsync(
             nextPick.X,
@@ -376,6 +404,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         bool repeat = false)
     {
         Exception? failure = null;
+        _repeat = repeat;
         try
         {
             BeginRun();
@@ -384,13 +413,10 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    // A detected PCB with partial grip needs support; empty actuators can prepare for pickup.
+                    // A partial grip is valid only during pickup or an active handoff.
                     if (Pcb == PcbSupplyPcbState.Detected && !PcbReleased
-                        && !(Rotation == PcbSupplyRotationState.Rotated
-                            && UpstreamCarrierAvailable
-                            && (IsAtPickup(recipe.Pcb1PickPosition)
-                                || IsAtPickup(recipe.Pcb2PickPosition)))
-                        && !(IsAtHandoff()
+                        && State != PcbSupplyState.PickingPcb
+                        && !(State == PcbSupplyState.HandingOff
                             && placement.Handoff is PcbPlacementHandoff.Holding or PcbPlacementHandoff.Returning))
                     {
                         throw new InvalidOperationException(
@@ -419,7 +445,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         finally
         {
             _pickStep = PickStep.Pcb1;
-            _repeatState = null;
+            _repeat = false;
             try
             {
                 StopUpstream();
@@ -436,14 +462,15 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         IPcbPlacementHandoff placement,
         CancellationToken cancellationToken)
     {
-        if (IsAtHandoff() && Rotation != PcbSupplyRotationState.Unrotated)
+        if (State is PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear
+            && Rotation != PcbSupplyRotationState.Unrotated)
             throw new MotionInterlockException("Supply handoff requires confirmed Unrotated feedback.");
 
         if (_pickStep != PickStep.WaitingForCarrierExit)
         {
             SetUpstreamReady(true);
         }
-        else if (IsAtRotationZ() && Pcb != PcbSupplyPcbState.Detected)
+        else if (State is PcbSupplyState.HandingOff or PcbSupplyState.WaitingForCarrierExit)
         {
             // Keep Ready through both slot checks and the final pickup lift.
             // Its falling edge tells the upstream machine that pickup is complete.
@@ -451,39 +478,27 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
 
         var state = State;
-        if (state == PcbSupplyState.WaitingForPlacementClear
-            && placement.Handoff == PcbPlacementHandoff.Clear)
-        {
-            state = PcbSupplyState.MovingToPickup;
-        }
-        if (state == PcbSupplyState.WaitingForCarrier && !IsAtPickupXY(recipe.Pcb1PickPosition))
-            state = PcbSupplyState.MovingToPickup;
-        // Resume an interrupted grip at the actual slot without lifting an unsecured PCB.
-        if (!IsAtHandoff() && Pcb == PcbSupplyPcbState.Detected
-            && Rotation == PcbSupplyRotationState.Rotated && UpstreamCarrierAvailable)
-        {
-            if (IsAtPickup(recipe.Pcb1PickPosition))
-            {
-                _pickStep = PickStep.Pcb1;
-                state = PcbSupplyState.PickingPcb;
-            }
-            else if (IsAtPickup(recipe.Pcb2PickPosition))
-            {
-                _pickStep = PickStep.Pcb2;
-                state = PcbSupplyState.PickingPcb;
-            }
-        }
         TraceStep(state, _pickStep.ToString());
         switch (state)
         {
             case PcbSupplyState.MovingToPickup:
                 var nextPick = _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition;
-                if (IsAtHandoff())
+                if (_handoffPendingDeparture)
+                {
                     await MoveFromHandoffAsync(nextPick, cancellationToken);
-                await SetRotatedAsync(true, cancellationToken);
-                if (!IsAtPickupXY(nextPick))
+                    await SetRotatedAsync(true, cancellationToken);
+                    _handoffPendingDeparture = false;
+                    State = PcbSupplyState.WaitingForCarrier;
+                }
+                else
+                {
+                    await SetRotatedAsync(true, cancellationToken);
                     await MoveToPickupAsync(nextPick, cancellationToken);
+                }
+                if (_pickStep == PickStep.WaitingForCarrierExit)
+                    State = PcbSupplyState.WaitingForCarrierExit;
                 break;
+            case PcbSupplyState.WaitingForCarrier when UpstreamCarrierAvailable:
             case PcbSupplyState.PickingPcb:
             {
                 var pickStep = _pickStep;
@@ -508,11 +523,16 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                     await PickAsync(pickPosition, pickup.Token);
                     // Never advance a replacement carrier.
                     if (!carrierChanged)
+                    {
                         _pickStep = pickStep == PickStep.Pcb1 ? PickStep.Pcb2 : PickStep.WaitingForCarrierExit;
+                        if (!PcbSecured && _pickStep == PickStep.WaitingForCarrierExit)
+                            State = PcbSupplyState.WaitingForCarrierExit;
+                    }
                 }
                 catch (OperationCanceledException) when (carrierChanged
                     && !cancellationToken.IsCancellationRequested)
                 {
+                    State = PcbSupplyState.WaitingForCarrier;
                 }
                 finally
                 {
@@ -551,7 +571,17 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 if (PcbSecured && placement.Handoff != PcbPlacementHandoff.Holding)
                     await WaitForChangeAsync(cancellationToken);
                 else
+                {
                     await ReleasePcbAsync(placement, cancellationToken);
+                    State = PcbSupplyState.WaitingForPlacementClear;
+                }
+                break;
+            case PcbSupplyState.WaitingForPlacementClear when placement.Handoff == PcbPlacementHandoff.Clear:
+                State = PcbSupplyState.MovingToPickup;
+                break;
+            case PcbSupplyState.WaitingForCarrierExit when !UpstreamCarrierAvailable:
+                _pickStep = PickStep.Pcb1;
+                State = PcbSupplyState.MovingToPickup;
                 break;
             default:
                 await WaitForChangeAsync(cancellationToken);
@@ -583,10 +613,12 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     private void OnHandlerChanged()
     {
-        if (_repeatState is null && _pickStep != PickStep.Pcb1
+        if (!_repeat && _pickStep != PickStep.Pcb1
             && !UpstreamCarrierAvailable)
         {
             _pickStep = PickStep.Pcb1;
+            if (State == PcbSupplyState.WaitingForCarrierExit)
+                State = PcbSupplyState.MovingToPickup;
         }
     }
 
@@ -594,7 +626,13 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     {
         get
         {
-            if (!_units.PcbSupply || Rotation != PcbSupplyRotationState.Unrotated || !IsAtHandoff())
+            if (!_units.PcbSupply || !_handoffReady || Rotation != PcbSupplyRotationState.Unrotated
+                || State is not (PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear)
+                || !Motion.IsReady(live: true)
+                || !_motion.GetAxisState(MotionAxis.X).Homed
+                || !_motion.GetAxisState(MotionAxis.Y).Homed
+                || !_motion.GetAxisState(MotionAxis.Z).Homed
+                || !Motion.IsSettled(true, MotionAxis.X, MotionAxis.Y, MotionAxis.Z))
                 return PcbSupplyHandoff.Unavailable;
             return PcbSecured ? PcbSupplyHandoff.Holding
                 : PcbReleased ? PcbSupplyHandoff.Released : PcbSupplyHandoff.Unavailable;
@@ -603,33 +641,13 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     public PcbSupplyState State
     {
-        get
+        get => _units.PcbSupply ? _state : PcbSupplyState.Disabled;
+        private set
         {
-            if (!_units.PcbSupply)
-                return PcbSupplyState.Disabled;
-            if (_repeatState is { } repeatState)
-                return repeatState;
-            var pcb = Pcb;
-            var rotation = Rotation;
-            var atHandoff = IsAtHandoff();
-
-            switch (true)
-            {
-                case true when atHandoff && PcbReleased:
-                    return PcbSupplyState.WaitingForPlacementClear;
-                case true when atHandoff:
-                    return PcbSupplyState.HandingOff;
-                case true when pcb == PcbSupplyPcbState.Secured:
-                    return PcbSupplyState.MovingToHandoff;
-                case true when !IsAtRotationZ() || rotation != PcbSupplyRotationState.Rotated:
-                    return PcbSupplyState.MovingToPickup;
-                case true when _pickStep == PickStep.WaitingForCarrierExit:
-                    return PcbSupplyState.WaitingForCarrierExit;
-                default:
-                    return UpstreamCarrierAvailable
-                        ? PcbSupplyState.PickingPcb
-                        : PcbSupplyState.WaitingForCarrier;
-            }
+            if (_state == value)
+                return;
+            _state = value;
+            Changed?.Invoke();
         }
     }
 

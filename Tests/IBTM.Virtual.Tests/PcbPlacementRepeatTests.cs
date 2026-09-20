@@ -17,6 +17,52 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbPlacementRepeatTests
 {
+    [Fact]
+    public async Task RepeatExchangesPcbsWithSupplyUsingCompletedStages()
+    {
+        using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
+        await rig.InitializeAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        rig.Work.Changed += () =>
+        {
+            if (rig.Work.Completed)
+                stop.Cancel();
+        };
+        var supply = rig.Supply.RunAsync(rig.SupplyRecipe, rig.Placer, stop.Token, repeat: true);
+        var placement = rig.Placer.RunAsync(stop.Token, repeat: true);
+        try
+        {
+            await Task.WhenAll(supply, placement);
+            Assert.True(rig.Work.Completed, $"Supply={rig.Supply.State}, Placement={rig.Placer.State}");
+            Assert.Equal(2, rig.Work.Assemblies.Count());
+            Assert.False(rig.Supply.PcbSecured);
+            Assert.False(rig.Placer.PcbSecured);
+        }
+        finally
+        {
+            stop.Cancel();
+            await Task.WhenAll(supply, placement);
+        }
+    }
+
+    [Fact]
+    public async Task MatchingReceiveOrHeatSinkCoordinatesDoesNotChangeTheProcessStage()
+    {
+        using var rig = new RepeatRig(loadPcbs: true);
+        await rig.InitializeAsync();
+        await rig.Motion.MoveToAsync(50, 10, 12);
+        rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        await rig.Handler.SetVacuumAsync(true);
+        Assert.Equal(PcbPlacementState.MovingToHandoff, rig.Placer.State);
+        Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
+
+        var target = rig.Recipe.HeatSink2PcbPlacementPosition;
+        await rig.Motion.MoveToAsync(target.X, target.Y, target.Z);
+        Assert.Equal(PcbPlacementState.MovingToHandoff, rig.Placer.State);
+        Assert.Equal(HeatSinkSlot.HeatSink1, rig.Placer.TargetHeatSink);
+        Assert.Empty(rig.Work.Assemblies);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
@@ -61,6 +107,7 @@ public sealed class PcbPlacementRepeatTests
         Assert.Equal((50.0, stopAfterX ? 20.0 : 10.0, 8.0), rig.Motion.GetPosition());
         Assert.False(rig.Motion.IsMoving);
         Assert.True(rig.Handler.PcbSecured);
+        Assert.Null(rig.Placer.ReturningPcb);
         Assert.Empty(rig.Work.Assemblies);
     }
 
@@ -208,7 +255,7 @@ public sealed class PcbPlacementRepeatTests
     }
 
     [Fact]
-    public async Task StoppedRepeatWithHeldPcbRestartsWithoutReset()
+    public async Task CancelledRepeatKeepsHoldingWithoutRecordingPlacement()
     {
         using var rig = new RepeatRig(loadPcbs: true);
         await rig.InitializeAsync();
@@ -228,18 +275,9 @@ public sealed class PcbPlacementRepeatTests
         rig.Motion.PositionChanged -= StopWhileHolding;
         Assert.True(rig.Handler.PcbSecured);
         Assert.Empty(rig.Work.Assemblies);
-        var job = rig.Work.CurrentJob;
-
-        using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(12));
-        rig.Work.Changed += () =>
-        {
-            if (rig.Work.Completed)
-                finish.Cancel();
-        };
-        await rig.Placer.RunAsync(finish.Token, repeat: true);
-        Assert.Same(job, rig.Work.CurrentJob);
-        Assert.True(rig.Work.Completed, rig.Placer.State.ToString());
-        Assert.Equal(2, rig.Work.Assemblies.Count());
+        Assert.False(rig.Work.Completed);
+        Assert.False(rig.Motion.IsMoving);
+        Assert.Null(rig.Placer.ReturningPcb);
     }
 
     [Fact]
@@ -275,26 +313,38 @@ public sealed class PcbPlacementRepeatTests
                 HandoffPosition = new() { X = 50, Y = 10, Z = 8 },
                 ReceiveZ = 12,
             };
-            var supplySettings = new PcbSupplySettings { Motion = motion };
+            var supplySettings = new PcbSupplySettings
+            {
+                Motion = motion,
+                RotationZ = 3,
+                HandoffPosition = new() { X = 50, Y = 10, Z = 7 },
+            };
+            SupplyRecipe = new()
+            {
+                Pcb1PickPosition = new() { X = 10, Y = 30, Z = 5 },
+                Pcb2PickPosition = new() { X = 20, Y = 30, Z = 5 },
+            };
             Io = new(
                 Outputs(new PcbPlacementHandlerHardwareSettings(), new PcbSupplyHardwareSettings(), new ConveyorHardwareSettings()),
                 new MachineOptions { TimeoutMilliseconds = 1_000 });
             Motion = new(motion, new OperationCancellation(), horizontalZ: () => settings.HandoffPosition.Z);
-            _supplyMotion = VirtualTest.Motion(motion, new());
+            _supplyMotion = new(motion, new(), horizontalZ: () => supplySettings.RotationZ);
             var simulation = new VirtualMachine(Io, [], incomingCarrierHasPcbs: () => loadPcbs);
             Motion.PositionChanged += (x, y, z) => simulation.UpdatePlacementPosition(
                 x, y, z, settings.HandoffPosition, settings.ReceiveZ,
                 Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition);
+            _supplyMotion.PositionChanged += (x, y, z) => simulation.UpdateSupplyPosition(
+                x, y, z, (10, 30, 5), (20, 30, 5), supplySettings.HandoffPosition);
 
             var units = new UnitSettings { PcbSupply = enableSupply };
-            var supply = new PcbSupplier(_supplyMotion, Io, supplySettings, units);
+            Supply = new PcbSupplier(_supplyMotion, Io, supplySettings, units);
             Work = new(ConveyorStation.CreatePcbPlacement(Io), units);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement = Recipe;
             Placer = new PcbPlacer(Motion,
                 Io,
                 settings,
-                supply,
+                Supply,
                 Work,
                 recipes,
                 units);
@@ -307,6 +357,8 @@ public sealed class PcbPlacementRepeatTests
         public PcbPlacementWork Work { get; }
         public PcbPlacer Placer { get; }
         public PcbPlacementRecipe Recipe { get; }
+        public PcbSupplier Supply { get; }
+        public PcbSupplyRecipe SupplyRecipe { get; }
 
         public AxisPosition[] Positions => [Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition];
 

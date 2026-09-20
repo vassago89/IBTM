@@ -19,6 +19,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private readonly UnitSettings _units;
 
     private HeatSinkSlot[]? _runTargets;
+    private PcbPlacementState _state;
+    private bool _handoffReady;
 
     public PcbPlacer(
         IXyMotion motion,
@@ -36,8 +38,10 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _work = work;
         _recipes = recipes;
         _units = units;
+        _state = PcbPlacementState.MovingToHandoff;
         Motion = new(motion);
         io.InputChanged += OnInputChanged;
+        motion.MovingChanged += OnMovingChanged;
         motion.StateChanged += NotifyChanged;
         work.Changed += NotifyChanged;
         work.Station.CarrierChanged += OnCarrierChanged;
@@ -48,6 +52,12 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private void NotifyChanged()
     {
         Changed?.Invoke();
+    }
+
+    private void OnMovingChanged(bool moving)
+    {
+        if (moving)
+            _handoffReady = false;
     }
 
     public MotionStatus Motion { get; }
@@ -191,9 +201,13 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public async Task MoveToHandoffXYAsync(CancellationToken cancellationToken = default)
     {
+        State = PcbPlacementState.MovingToHandoff;
         await MoveToHorizontalZAsync(cancellationToken);
         await MoveAxisAsync(MotionAxis.X, _settings.HandoffPosition.X, cancellationToken);
         await MoveAxisAsync(MotionAxis.Y, _settings.HandoffPosition.Y, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        _handoffReady = true;
+        State = PcbPlacementState.WaitingForSupply;
     }
 
     public bool IsAtY(AxisPosition position, bool live = true)
@@ -202,12 +216,17 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             && Math.Abs(Motion.ReadPosition(live).Y - position.Y) <= MotionService.PositionToleranceMillimeters;
     }
 
-    public Task MoveToReceiveZAsync(CancellationToken cancellationToken = default)
+    public async Task MoveToReceiveZAsync(CancellationToken cancellationToken = default)
     {
-        return MoveAxisAsync(
+        State = PcbPlacementState.ReceivingPcb;
+        await MoveAxisAsync(
             MotionAxis.Z,
             _settings.ReceiveZ ?? throw new MotionInterlockException("Teach PCB Receive Z before receiving a PCB."),
             cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        _handoffReady = true;
+        if (PcbSecured)
+            State = PcbPlacementState.WaitingForSupplyRelease;
     }
 
     public Task MoveAxisAsync(
@@ -335,36 +354,36 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         }
     }
 
-    public PcbPlacementState State => GetState();
+    public PcbPlacementState State
+    {
+        get => _work.Enabled ? _state : PcbPlacementState.Disabled;
+        private set
+        {
+            if (_state == value)
+                return;
+            _state = value;
+            Changed?.Invoke();
+        }
+    }
 
     public PcbPlacementHandoff Handoff
     {
         get
         {
-            if (_repeatTrip is { } trip && _units.PcbSupply)
-            {
-                if (HandlerRaised && IpmLift == PlacementCylinderState.Up
-                    && IsAtReceivePosition() && PcbSecured)
-                {
-                    switch (trip.State)
-                    {
-                        case PcbPlacementState.ReceivingPcb:
-                            return PcbPlacementHandoff.Returning;
-                        case PcbPlacementState.WaitingForSupply:
-                            return PcbPlacementHandoff.Holding;
-                        default:
-                            return PcbPlacementHandoff.Unavailable;
-                    }
-                }
-                return HandlerRaised && IsAtHorizontalZ()
-                    && IsAtY(GetHeatSinkPosition(trip.HeatSink))
-                    ? PcbPlacementHandoff.Clear : PcbPlacementHandoff.Unavailable;
-            }
+            if (!_handoffReady || !HandlerRaised || IpmLift == PlacementCylinderState.Between
+                || !Motion.IsReady(live: true)
+                || !_motion.GetAxisState(MotionAxis.X).Homed
+                || !_motion.GetAxisState(MotionAxis.Y).Homed
+                || !_motion.GetAxisState(MotionAxis.Z).Homed
+                || !Motion.IsSettled(true, MotionAxis.X, MotionAxis.Y, MotionAxis.Z))
+                return PcbPlacementHandoff.Unavailable;
             switch (State)
             {
-                case PcbPlacementState.WaitingForSupplyRelease:
-                    return PcbPlacementHandoff.Holding;
-                case PcbPlacementState.WaitingForSupply or PcbPlacementState.WaitingForCarrier
+                case PcbPlacementState.WaitingForSupplyRelease when PcbSecured:
+                    return _repeat && _repeatTrip?.State == PcbPlacementState.ReceivingPcb
+                        ? PcbPlacementHandoff.Returning : PcbPlacementHandoff.Holding;
+                case PcbPlacementState.WaitingForSupply when !PcbSecured:
+                case PcbPlacementState.WaitingForCarrier
                     or PcbPlacementState.PlacingPcb or PcbPlacementState.CompletingCarrier:
                     return PcbPlacementHandoff.Clear;
                 default:
@@ -422,7 +441,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         _runTargets = null;
                     }
                     if (_repeat && !_units.MainConveyor && _work.Completed
-                        && _work.Station.CarrierSeated && HandlerRaised && IsAtHorizontalZ())
+                        && _work.Station.CarrierSeated && State == PcbPlacementState.WaitingForCarrier)
                         _work.StartRepeat(_work.CurrentJob);
                     if (_work.Station.CarrierSeated)
                     {
@@ -459,8 +478,10 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (!_work.Enabled)
+            return false;
         var job = _work.CurrentJob;
-        var state = GetState(heatSink);
+        var state = State;
         switch (state)
         {
             case PcbPlacementState.WaitingForSupply when _supply.Handoff == PcbSupplyHandoff.Holding:
@@ -469,7 +490,11 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             case PcbPlacementState.WaitingForSupplyRelease when _supply.Handoff == PcbSupplyHandoff.Released:
                 state = PcbPlacementState.PreparingPlacement;
                 break;
+            case PcbPlacementState.WaitingForCarrier when _work.Station.CarrierSeated && !_work.Completed:
+                state = heatSink is null ? PcbPlacementState.CompletingCarrier : PcbPlacementState.PlacingPcb;
+                break;
         }
+        State = state;
         TraceStep(state, _repeatTrip is { } trip ? $"{trip.HeatSink}, Repeat {trip.State}" : heatSink?.ToString(), job.Id);
         if (IsPcbGripUncertain)
             throw new InvalidOperationException("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before moving or releasing it.");
@@ -487,13 +512,21 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 break;
             case PcbPlacementState.PreparingPlacement:
                 await PreparePlacementAsync(heatSink ?? HeatSinkSlot.HeatSink1, cancellationToken);
+                if (PcbSecured)
+                    State = _work.Station.CarrierSeated && !_work.Completed
+                        ? PcbPlacementState.PlacingPcb : PcbPlacementState.WaitingForCarrier;
+                else
+                {
+                    State = TargetHeatSink is null && _work.Station.CarrierSeated && !_work.Completed
+                        ? PcbPlacementState.CompletingCarrier : PcbPlacementState.MovingToHandoff;
+                }
                 break;
             case PcbPlacementState.PlacingPcb:
             {
-                var carryingPcb = PcbSecured;
-                var target = carryingPcb
-                    ? heatSink!.Value
-                    : GetCurrentHeatSink()!.Value;
+                var target = heatSink ?? throw new InvalidOperationException("No placement target is selected.");
+                var carryingPcb = true;
+                if (!PcbSecured)
+                    throw new InvalidOperationException("Placement requires confirmed PCB holding before travelling to its target.");
                 // Presence is required through placement/press completion, until retraction.
                 var checkingPcbPresence = false;
                 using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -509,24 +542,20 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 {
                     CheckPlacementFeedback();
                     operation.Token.ThrowIfCancellationRequested();
-                    if (carryingPcb)
-                    {
-                        var position = GetHeatSinkPosition(target);
-                        await SetIpmLiftDownAsync(!_repeat, operation.Token);
-                        if (!IsAtXY(position) || !IsAtZ(position))
-                        {
-                            await SetLiftDownAsync(false, operation.Token);
-                            if (!IsAtXY(position))
-                                await MoveToXYAsync(position, operation.Token);
-                            await MoveAxisAsync(MotionAxis.Z, position.Z, operation.Token);
-                        }
-                        await SetLiftDownAsync(true, operation.Token);
-                        if (_repeatTrip is { } releasing)
-                            releasing.State = PcbPlacementState.PreparingPlacement;
-                        // Grip is no longer required after confirmed placement descent.
-                        carryingPcb = false;
-                        await SetVacuumAsync(false, operation.Token);
-                    }
+                    var position = GetHeatSinkPosition(target);
+                    await SetIpmLiftDownAsync(!_repeat, operation.Token);
+                    await SetLiftDownAsync(false, operation.Token);
+                    await MoveToHorizontalZAsync(operation.Token);
+                    await MoveAxisAsync(MotionAxis.Y, position.Y, operation.Token);
+                    await MoveAxisAsync(MotionAxis.X, position.X, operation.Token);
+                    await MoveAxisAsync(MotionAxis.Z, position.Z, operation.Token);
+                    await SetLiftDownAsync(true, operation.Token);
+                    operation.Token.ThrowIfCancellationRequested();
+                    // Grip is no longer required after confirmed placement descent.
+                    carryingPcb = false;
+                    if (_repeatTrip is { } releasing)
+                        releasing.State = PcbPlacementState.PreparingPlacement;
+                    await SetVacuumAsync(false, operation.Token);
 
                     await SetIpmLiftDownAsync(false, operation.Token);
                     checkingPcbPresence = true;
@@ -542,6 +571,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     await SetIpmLiftDownAsync(false, operation.Token);
                     await SetLiftDownAsync(false, operation.Token);
                     await MoveToHorizontalZAsync(operation.Token);
+                    State = TargetHeatSink is null
+                        ? PcbPlacementState.CompletingCarrier : PcbPlacementState.MovingToHandoff;
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
@@ -557,6 +588,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 await PreparePlacementAsync(null, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 _work.Complete(job);
+                State = _repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff;
                 break;
             default:
                 return false;
@@ -587,6 +619,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             await WaitForPcbAsync(receipt.Token);
             await SetVacuumAsync(true, receipt.Token);
             receipt.Token.ThrowIfCancellationRequested();
+            State = PcbPlacementState.WaitingForSupplyRelease;
             return true;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -619,6 +652,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             await MoveToHorizontalZAsync(preparation.Token);
             if (carryingPcb && departure is { } destination)
                 await MoveAxisAsync(MotionAxis.Y, GetHeatSinkPosition(destination).Y, preparation.Token);
+            preparation.Token.ThrowIfCancellationRequested();
+            _handoffReady = true;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -627,88 +662,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         finally
         {
             Changed -= CheckHolding;
-        }
-    }
-
-    public PcbPlacementState GetState(bool live = true)
-    {
-        return GetState(TargetHeatSink, live);
-    }
-
-    public PcbPlacementState GetState(HeatSinkSlot? heatSink, bool live = true)
-    {
-        if (!_work.Enabled)
-            return PcbPlacementState.Disabled;
-        if (_repeatTrip?.State is PcbPlacementState.ReceivingPcb
-            or PcbPlacementState.WaitingForSupplyRelease or PcbPlacementState.WaitingForSupply)
-            return _repeatTrip.State;
-        var pcb = Pcb;
-        var currentHeatSink = GetCurrentHeatSink(live);
-        if (currentHeatSink is { } current && _work.Station.CarrierSeated && !VacuumDetected)
-        {
-            if (IsHeatSinkCompleted(current))
-            {
-                if (Lift != PlacementCylinderState.Up || !IsAtHorizontalZ(live))
-                    return PcbPlacementState.PreparingPlacement;
-            }
-            else if ((!_repeat || _repeatTrip?.State is PcbPlacementState.PlacingPcb or PcbPlacementState.PreparingPlacement)
-                && !_work.Completed && IsTarget(current) && pcb != PlacementPcbState.None
-                && IsAtZ(GetHeatSinkPosition(current), live)
-                && Lift == PlacementCylinderState.Down)
-            {
-                return PcbPlacementState.PlacingPcb;
-            }
-        }
-
-        switch (true)
-        {
-            case true when _repeatTrip?.State == PcbPlacementState.PickingPcb:
-                return PcbPlacementState.PickingPcb;
-            case true when _repeatTrip?.State == PcbPlacementState.MovingToHandoff:
-                return PcbPlacementState.MovingToHandoff;
-            case true when pcb == PlacementPcbState.Secured:
-                switch (true)
-                {
-                    case true when !_repeat && IsAtReceivePosition(live):
-                        // A stopped Repeat can still hold the PCB with IPM Up.
-                        // The next operation prepares IPM for the selected mode.
-                        return HandlerRaised && IpmLift is PlacementCylinderState.Up or PlacementCylinderState.Down
-                            ? PcbPlacementState.WaitingForSupplyRelease
-                            : PcbPlacementState.ReceivingPcb;
-                    case true when _work.Station.CarrierSeated && heatSink is not null
-                        && IsAtXY(GetHeatSinkPosition(heatSink.Value), live):
-                        return PcbPlacementState.PlacingPcb;
-                    case true when IpmLift != (_repeat ? PlacementCylinderState.Up : PlacementCylinderState.Down)
-                        || Lift != PlacementCylinderState.Up || !IsAtHorizontalZ(live):
-                        return PcbPlacementState.PreparingPlacement;
-                    case true when !IsAtY(GetHeatSinkPosition(heatSink ?? HeatSinkSlot.HeatSink1), live):
-                        return PcbPlacementState.PreparingPlacement;
-                    case true when !_work.Station.CarrierSeated || _work.Completed:
-                        return PcbPlacementState.WaitingForCarrier;
-                    default:
-                        return heatSink is null ? PcbPlacementState.CompletingCarrier : PcbPlacementState.PlacingPcb;
-                }
-            case true when _work.Station.CarrierSeated && !_work.Completed && heatSink is null:
-                return Lift == PlacementCylinderState.Up && IsAtHorizontalZ(live)
-                    ? PcbPlacementState.CompletingCarrier
-                    : PcbPlacementState.PreparingPlacement;
-            case true when _repeat:
-                return PcbPlacementState.WaitingForCarrier;
-        }
-
-        var atHandoff = IsAtHandoff(live);
-        switch (true)
-        {
-            case true when IsAtReceivePosition(live) && !atHandoff:
-                return PcbPlacementState.ReceivingPcb;
-            case true when !atHandoff:
-                return PcbPlacementState.MovingToHandoff;
-            case true when Lift != PlacementCylinderState.Up:
-                return PcbPlacementState.MovingToHandoff;
-            case true when IpmLift != PlacementCylinderState.Down:
-                return PcbPlacementState.MovingToHandoff;
-            default:
-                return PcbPlacementState.WaitingForSupply;
         }
     }
 
@@ -724,7 +677,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             var pcb = Pcb;
             if (pcb == PlacementPcbState.Secured || !VacuumDetected)
                 return false;
-            if (IsAtReceivePosition() && _supply.Handoff == PcbSupplyHandoff.Holding)
+            if (State is PcbPlacementState.ReceivingPcb or PcbPlacementState.WaitingForSupplyRelease
+                && _supply.Handoff == PcbSupplyHandoff.Holding)
                 return false;
             return true;
         }
@@ -738,17 +692,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private bool IsHeatSinkCompleted(HeatSinkSlot heatSink)
     {
         return _work.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
-    }
-
-    private HeatSinkSlot? GetCurrentHeatSink(bool live = true)
-    {
-        var recipe = _recipes.Current.PcbPlacement;
-        if (IsAtXY(recipe.HeatSink1PcbPlacementPosition, live))
-        {
-            return HeatSinkSlot.HeatSink1;
-        }
-
-        return IsAtXY(recipe.HeatSink2PcbPlacementPosition, live) ? HeatSinkSlot.HeatSink2 : null;
     }
 
     private AxisPosition GetHeatSinkPosition(HeatSinkSlot heatSink)

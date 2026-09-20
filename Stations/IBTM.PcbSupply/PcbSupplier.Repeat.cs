@@ -8,16 +8,12 @@ namespace IBTM.PcbSupply;
 
 public sealed partial class PcbSupplier
 {
-    // Current command only. START chooses forward handoff from live PCB feedback.
-    private PcbSupplyState? _repeatState;
-
     private PcbSupplyState RepeatState
     {
         set
         {
-            _repeatState = value;
+            State = value;
             TraceStep(value, _pickStep.ToString());
-            Changed?.Invoke();
         }
     }
 
@@ -26,13 +22,11 @@ public sealed partial class PcbSupplier
         IPcbPlacementHandoff placement,
         CancellationToken cancellationToken)
     {
-        // An interrupted release at handoff continues through ReleasePcbAsync below.
-        // Do not reopen the gripper through reverse-receipt preparation.
+        // Keep a forward handoff separate from reverse receipt preparation.
         if (_units.PcbPlacement
             && (!PcbSecured || placement.Handoff == PcbPlacementHandoff.Returning)
-            && !(IsAtHandoff() && placement.Handoff == PcbPlacementHandoff.Holding))
+            && !(State == PcbSupplyState.HandingOff && placement.Handoff == PcbPlacementHandoff.Holding))
         {
-            RepeatState = PcbSupplyState.HandingOff;
             while (placement.ReturningPcb is null && placement.Handoff != PcbPlacementHandoff.Holding)
                 await WaitForChangeAsync(cancellationToken);
 
@@ -41,14 +35,15 @@ public sealed partial class PcbSupplier
             if (Rotation != PcbSupplyRotationState.Unrotated
                 && placement.Handoff is PcbPlacementHandoff.Returning or PcbPlacementHandoff.Holding)
                 throw new MotionInterlockException("Supply cannot prepare rotation while Placement holds the PCB at receive Z.");
-            RepeatState = PcbSupplyState.MovingToHandoff;
             if (!PcbSecured)
             {
                 await SetIpmFixerAsync(false, cancellationToken);
                 await SetGripperClosedAsync(false, cancellationToken);
             }
-            if (!IsAtHandoff() || Rotation != PcbSupplyRotationState.Unrotated)
+            if (State is not (PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear)
+                || Rotation != PcbSupplyRotationState.Unrotated)
             {
+                RepeatState = PcbSupplyState.MovingToHandoff;
                 await SetRotatedAsync(false, cancellationToken);
                 await MoveToHandoffAsync(cancellationToken);
             }
@@ -70,7 +65,6 @@ public sealed partial class PcbSupplier
         }
         else if (!_units.PcbPlacement && !PcbSecured)
         {
-            RepeatState = PcbSupplyState.WaitingForCarrier;
             SetUpstreamReady(true);
             while (!UpstreamCarrierAvailable)
                 await WaitForChangeAsync(cancellationToken);
@@ -87,17 +81,12 @@ public sealed partial class PcbSupplier
             {
                 CheckCarrier();
                 pickup.Token.ThrowIfCancellationRequested();
-                if (Pcb == PcbSupplyPcbState.Detected && IsAtPickup(recipe.Pcb2PickPosition))
-                    _pickStep = PickStep.Pcb2;
                 var position = _pickStep == PickStep.Pcb1 ? recipe.Pcb1PickPosition : recipe.Pcb2PickPosition;
                 RepeatState = PcbSupplyState.MovingToPickup;
-                if (!IsAtPickup(position) || Rotation != PcbSupplyRotationState.Rotated)
-                {
-                    if (IsAtHandoff())
-                        await MoveFromHandoffAsync(position, pickup.Token);
-                    await SetRotatedAsync(true, pickup.Token);
-                }
-                RepeatState = PcbSupplyState.PickingPcb;
+                if (_handoffPendingDeparture)
+                    await MoveFromHandoffAsync(position, pickup.Token);
+                await SetRotatedAsync(true, pickup.Token);
+                _handoffPendingDeparture = false;
                 await PickAsync(position, pickup.Token);
                 if (Pcb == PcbSupplyPcbState.None)
                 {
@@ -117,7 +106,7 @@ public sealed partial class PcbSupplier
         }
 
         // Continue the forward handoff from current position and recipient holding.
-        if (!_units.PcbPlacement || !IsAtHandoff()
+        if (!_units.PcbPlacement || State != PcbSupplyState.HandingOff
             || placement.Handoff != PcbPlacementHandoff.Holding)
         {
             if (!PcbSecured)
@@ -196,6 +185,7 @@ public sealed partial class PcbSupplier
             await MoveFromHandoffAsync(position, operation.Token);
             await SetRotatedAsync(true, operation.Token);
             await MoveToPickupAsync(position, operation.Token);
+            _handoffPendingDeparture = false;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

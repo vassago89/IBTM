@@ -325,6 +325,8 @@ XY·체결 Z 이동 중 테이블 피드백이 달라지면 이동을 취소하�
 축을 다시 움직이거나 좌표를 재기록하지 않고 저장을 재시도할 수 있다.
 
 `MotionService.MoveAxisAsync` / `MoveToXYAsync`는 지정한 축만 움직인다.
+Supply·Placement의 공정 `State`는 동작 완료 시 갱신한다. 현재 좌표와 티칭 좌표가 같다는 이유로
+픽업·수취·안착 단계를 추정하거나 생략하지 않는다. 재시작을 위한 별도 이력 저장이나 단계 전환은 하지 않는다.
 조그도 현재 높이에서 지정 축을 움직이며, Z 높이 제한이나 우회 플래그를 두지 않는다.
 공급기의 Rotation Z·인계 Z, 배치기의 인계 Z, 체결기의 이동 Z는 각 유닛에서
 Z 이동 → XY 이동 순서를 명시한다. 공통 드라이버가 숨은 선행 이동을 넣지 않는다.
@@ -427,7 +429,7 @@ Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고,
 
 PCB 공급의 그립·해제 출력 순서는 `ExecuteAsync`의 해당 `case`에서 바로 확인한다.
 `_pickStep`은 현재 실행에서 확인한 PCB 슬롯 이력이며 실행 종료 시 PCB1로 초기화한다.
-`OnHandlerChanged`는 전단 캐리어 이탈 시 PCB1을 선택한다. 픽업 중 재시작은 현재 슬롯 좌표·회전·잡힘을 함께 확인한다.
+`OnHandlerChanged`는 전단 캐리어 이탈 시 PCB1을 선택한다.
 Front 1 Ready는 캐리어 도착 후에도 유지하고, PCB2까지 확인/확보하여 운반 높이로 복귀한 뒤 OFF한다.
 Available OFF가 들어오면 다음 캐리어의 Ready를 ON한다. `PcbSupplier.StopUpstream`은
 현재 Available이 ON이면 Ready를 그대로 두며, OFF일 때만 대기 중 Ready를 끈다.
@@ -443,7 +445,7 @@ OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류�
 시퀀스의 SMEMA 출력은 `IIoService.SetAutomaticSmemaOutput`을 사용하며 티칭에서는 쓰지 않는다.
 초기화·티칭 진입 시 기존 STOP 경로로 외부 SMEMA를 OFF한다. OUTPUTS 창은 원래 `SetOutput`을
 직접 사용하므로 티칭에서도 수동 ON/OFF가 가능하다. 이 창의 기존 조작 조건에 새 제한을 넣지 않았다.
-`SupplySlotProgressDoesNotSurviveTheRun`이 STOP 후 슬롯 진행을 유지하지 않는지 확인한다.
+`SupplyChecksBothSlotsBeforeDroppingReady`가 두 슬롯 확인 전 Ready를 내리지 않는지 확인한다.
 `PickingPcb` 분기는 픽업 중 전단 캐리어 이탈을 받으면 그 픽업을 취소한다. 늦게 끝난 이전 픽업은
 새 캐리어의 슬롯 이력을 넘기지 않으며 `SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes`로 확인한다.
 수동 스텝 이동은 `TeachingViewModel.StepAsync` → 각 핸들러의 `AdjustAxisAsync` →
@@ -479,7 +481,7 @@ PCB 안착의 XY 이동은 `PcbPlacer.MoveToXYAsync`, Z 이동은 `MoveAxisAsync
 장치 호출로 이어진다. 안착·일반 운전의 압입·상승은 `PlaceAsync` 한 호출 안에서 실행한다.
 PCB 존재 확인은 완료 기록 전까지 해당 호출의 지역 변수로 관리하며, 별도 압입 대상·단계는 저장하지 않는다.
 현재 캐리어 작업과 착좌·PCB·진공 피드백은 계속 확인한다. `RunAsync` 종료 시 Repeat PCB 왕복 단계와
-실행 대상을 버리고, 다음 START는 현재 피드백과 캐리어별 완료 결과로 동작을 고른다.
+실행 대상을 버린다. 별도의 재시작 단계 선택은 없다.
 
 STOP 자체는 새 START를 차단하거나 전체 장비 비움을 요구하지 않는다.
 정상 착좌된 캐리어는 그대로 두고 현재 I/O·작업 완료·인터록으로 다음 동작을 판단한다.

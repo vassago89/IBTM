@@ -12,12 +12,13 @@ Handler Rotate output stays OFF during automatic, repeat and manual operation.
 6. Return to receiving XY for the second PCB and repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
 7. Complete the carrier after the final placement is raised, then return to receiving standby.
 
-`State` / `GetState` describe Placement feedback and its current repeat operation. `PlaceAsync` starts
+`State` records the process stage reached by completed operations; coordinates do not select stages or heat sinks. `PlaceAsync` starts
 receipt when Supply's `Handoff` is `Holding`, and returns Z to standby followed by placement Y once it is
 `Released`. Placement publishes `Holding` while securing the PCB at the receiving
 position, and `Clear` after the Y departure settles. Internal placement/press stages
 are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
 documents these conditions and reference direction.
+Starting another axis move clears the previous handoff completion; manual moves do not select a new process stage or start recovery moves.
 
 Teaching lists `PCB Receive Standby` (XYZ, Save) and
 `PCB Receive Z` (Z only, saved automatically). Existing settings retain their
@@ -34,8 +35,8 @@ and relative handler positions do not gate this sequence.
 
 Placement, optional pressing and retraction run in one `PlaceAsync` operation.
 Its local feedback check requires PCB presence through completion, then permits
-the sensor to clear during retraction. There is no stored press target or resumable
-press phase. `PcbPlacer.Repeat.cs` uses the existing `PcbPlacementState` values and
+the sensor to clear during retraction. The operation uses its selected carrier and heat-sink target;
+it never guesses a heat sink from X/Y. `PcbPlacer.Repeat.cs` uses the existing `PcbPlacementState` values and
 picks PCBs from the existing carrier.
 With Supply disabled, it visits handoff and places each PCB back on its heat sink.
 With Supply enabled, `ReturningPcb` identifies the original heat sink and `Returning`
@@ -49,13 +50,6 @@ Repeat pickup confirms both signals after vacuum completes and only then enters
 raising the handler and trying the pickup again.
 Supply keeps the PCB secured through its reverse travel
 at pickup travel height; it does not put the PCB into an upstream slot.
-After STOP, live holding feedback selects forward continuation: a PCB on Supply
-waits for forward receipt, a PCB held by Placement continues to its heat sink,
-and a shared hold at Receive Z waits for Supply release before Placement rises and departs in Y.
-After STOP, a PCB confirmed by receive XYZ, handler Up, PCB detection and vacuum remains `Holding`
-with either confirmed IPM endpoint. An unknown or contradictory IPM position is unavailable.
-Normal restart prepares IPM Down after Supply releases; Repeat keeps IPM Up.
-A stop partway through departure resumes Y before moving X; no additional sequence state is used.
 Main Conveyor OFF repeats the completed seated carrier
 with a new work record; it does not clear incomplete work.
 

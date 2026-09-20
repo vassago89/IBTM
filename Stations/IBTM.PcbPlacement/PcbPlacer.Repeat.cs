@@ -9,10 +9,10 @@ namespace IBTM.PcbPlacement;
 public sealed partial class PcbPlacer
 {
     private bool _repeat;
-    // Current-run ownership only; discarded when RunAsync exits.
+    // Ownership for the current Repeat run.
     private RepeatPcbTrip? _repeatTrip;
 
-    public HeatSinkSlot? ReturningPcb => _repeatTrip is { } trip
+    public HeatSinkSlot? ReturningPcb => _repeat && _repeatTrip is { } trip
         && trip.State is PcbPlacementState.MovingToHandoff or PcbPlacementState.ReceivingPcb
         ? trip.HeatSink : null;
 
@@ -20,41 +20,32 @@ public sealed partial class PcbPlacer
         HeatSinkSlot? heatSink,
         CancellationToken cancellationToken)
     {
+        if (_repeatTrip is null && State == PcbPlacementState.CompletingCarrier)
+        {
+            await PlaceAsync(heatSink, cancellationToken);
+            return;
+        }
         if (_repeatTrip is null)
         {
             if (IsPcbGripUncertain)
-                throw new InvalidOperationException("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before restarting Repeat.");
+                throw new InvalidOperationException("Placement PCB holding requires both PCB detection and vacuum feedback.");
             if (_work.Station.CarrierSeated && !_work.Completed && heatSink is not null)
             {
                 _repeatTrip = new(_work.CurrentJob, heatSink.Value);
-                // STOP discards direction. A PCB already held by either handler goes forward.
-                if (PcbSecured)
-                    _repeatTrip.State = _units.PcbSupply && IsAtReceivePosition()
-                        ? PcbPlacementState.WaitingForSupply : PcbPlacementState.PlacingPcb;
-                else if (_units.PcbSupply && _supply.PcbSecured)
-                    _repeatTrip.State = PcbPlacementState.WaitingForSupply;
                 Changed?.Invoke();
             }
         }
 
         if (_repeatTrip is not { } trip)
         {
-            if (!await PlaceAsync(heatSink, cancellationToken))
-                await WaitForChangeAsync(cancellationToken);
+            State = PcbPlacementState.WaitingForCarrier;
+            await WaitForChangeAsync(cancellationToken);
             return;
         }
 
         _work.RequireCurrentJob(trip.Job);
         if (!_work.Station.CarrierSeated)
             throw new InvalidOperationException("The repeat PCB carrier is no longer seated.");
-
-        if (trip.State == PcbPlacementState.MovingToHandoff)
-        {
-            if (!PcbSecured)
-                throw new InvalidOperationException("The repeat PCB lost its holding feedback before reaching handoff.");
-            if (HandlerRaised && IsAtHorizontalZ() && IsAtHandoffXY() && !_units.PcbSupply)
-                trip.State = PcbPlacementState.PlacingPcb;
-        }
 
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var receiving = trip.State == PcbPlacementState.WaitingForSupply && PcbSecured;
@@ -77,6 +68,7 @@ public sealed partial class PcbPlacer
                 await SetIpmLiftDownAsync(false, operation.Token);
             if (trip.State == PcbPlacementState.PickingPcb)
             {
+                State = PcbPlacementState.PickingPcb;
                 TraceStep(trip.State, trip.HeatSink.ToString(), trip.Job.Id);
                 var pickPosition = GetHeatSinkPosition(trip.HeatSink);
                 await SetLiftDownAsync(false, operation.Token);
@@ -92,13 +84,20 @@ public sealed partial class PcbPlacer
                 Changed?.Invoke();
                 return;
             }
-            if (_units.PcbSupply && trip.State == PcbPlacementState.MovingToHandoff
-                && HandlerRaised && IsAtHorizontalZ() && IsAtHandoffXY())
+            if (trip.State == PcbPlacementState.MovingToHandoff)
             {
+                TraceStep(trip.State, trip.HeatSink.ToString(), trip.Job.Id);
+                await SetLiftDownAsync(false, operation.Token);
+                await MoveToHandoffXYAsync(operation.Token);
+                operation.Token.ThrowIfCancellationRequested();
+                trip.State = _units.PcbSupply
+                    ? PcbPlacementState.ReceivingPcb : PcbPlacementState.PlacingPcb;
                 Changed?.Invoke();
+            }
+            if (trip.State == PcbPlacementState.ReceivingPcb)
+            {
                 while (_supply.Handoff != PcbSupplyHandoff.Released)
                     await WaitForChangeAsync(operation.Token);
-                trip.State = PcbPlacementState.ReceivingPcb;
                 TraceStep(trip.State, $"Return {trip.HeatSink} to Supply", trip.Job.Id);
                 await MoveToReceiveZAsync(operation.Token);
                 Changed?.Invoke();
@@ -108,39 +107,45 @@ public sealed partial class PcbPlacer
                 await SetVacuumAsync(false, operation.Token);
                 if (_supply.Handoff != PcbSupplyHandoff.Holding)
                     throw new InvalidOperationException("Supply lost the returned PCB while placement released vacuum.");
+                State = PcbPlacementState.PreparingPlacement;
                 await SetLiftDownAsync(false, operation.Token);
                 await MoveToHorizontalZAsync(operation.Token);
                 await MoveAxisAsync(MotionAxis.Y, GetHeatSinkPosition(trip.HeatSink).Y, operation.Token);
+                operation.Token.ThrowIfCancellationRequested();
+                _handoffReady = true;
                 trip.State = PcbPlacementState.WaitingForSupply;
-                Changed?.Invoke();
+                State = PcbPlacementState.WaitingForSupply;
                 // Observe departure before accepting the next forward handoff.
                 while (_supply.Handoff != PcbSupplyHandoff.Unavailable)
                     await WaitForChangeAsync(operation.Token);
             }
             if (trip.State == PcbPlacementState.WaitingForSupply)
             {
-                if (!PcbSecured)
-                {
-                    await SetLiftDownAsync(false, operation.Token);
-                    await MoveToHandoffXYAsync(operation.Token);
-                    while (_supply.Handoff != PcbSupplyHandoff.Holding)
-                        await WaitForChangeAsync(operation.Token);
-                    TraceStep(PcbPlacementState.ReceivingPcb, trip.HeatSink.ToString(), trip.Job.Id);
-                    if (!await ReceivePcbAsync(operation.Token))
-                        return;
-                }
+                await SetLiftDownAsync(false, operation.Token);
+                await MoveToHandoffXYAsync(operation.Token);
+                while (_supply.Handoff != PcbSupplyHandoff.Holding)
+                    await WaitForChangeAsync(operation.Token);
+                TraceStep(PcbPlacementState.ReceivingPcb, trip.HeatSink.ToString(), trip.Job.Id);
+                if (!await ReceivePcbAsync(operation.Token))
+                    return;
                 receiving = true;
                 CheckRepeatFeedback();
                 operation.Token.ThrowIfCancellationRequested();
                 while (_supply.Handoff != PcbSupplyHandoff.Released)
                     await WaitForChangeAsync(operation.Token);
+                State = PcbPlacementState.PreparingPlacement;
                 await SetLiftDownAsync(false, operation.Token);
                 await MoveToHorizontalZAsync(operation.Token);
                 await MoveAxisAsync(MotionAxis.Y, GetHeatSinkPosition(trip.HeatSink).Y, operation.Token);
+                operation.Token.ThrowIfCancellationRequested();
+                _handoffReady = true;
                 trip.State = PcbPlacementState.PlacingPcb;
-                Changed?.Invoke();
+                State = PcbPlacementState.PlacingPcb;
                 receiving = false;
             }
+            if (trip.State == PcbPlacementState.PlacingPcb
+                && State is PcbPlacementState.WaitingForSupply or PcbPlacementState.WaitingForCarrier)
+                State = PcbPlacementState.PreparingPlacement;
             if (!await PlaceAsync(trip.HeatSink, operation.Token))
                 await WaitForChangeAsync(operation.Token);
             operation.Token.ThrowIfCancellationRequested();

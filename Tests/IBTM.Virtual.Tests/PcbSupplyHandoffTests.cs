@@ -12,6 +12,32 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbSupplyHandoffTests
 {
+    [Fact]
+    public async Task MatchingHandoffCoordinatesDoesNotStartTheHandoffStage()
+    {
+        using var rig = new HandoffRig();
+        rig.Io.Initialize();
+        rig.Motion.Initialize();
+        await HomeAsync(rig.Motion, 2_000);
+        await rig.Handler.SetRotatedAsync(false);
+        await rig.Handler.SetGripperClosedAsync(true);
+        await rig.Handler.SetIpmFixerAsync(true);
+        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        var target = rig.Settings.HandoffPosition;
+        await rig.Motion.MoveToAsync(target.X, target.Y, target.Z);
+
+        Assert.True(rig.Handler.IsAtHandoff());
+        Assert.True(rig.Handler.PcbSecured);
+        Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.State);
+        Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
+
+        await rig.Handler.MoveToHandoffAsync(CancellationToken.None);
+        Assert.Equal(PcbSupplyHandoff.Holding, rig.Supplier.Handoff);
+        await rig.Motion.MoveAxisAsync(MotionAxis.X, target.X + 10, 2_000);
+        Assert.Equal(PcbSupplyState.HandingOff, rig.Supplier.State);
+        Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
+    }
+
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]
