@@ -667,23 +667,23 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         AssertState(NgTransferState.PlacingCarrier);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
-        AssertState(NgTransferState.Opening);
+        AssertState(NgTransferState.PlacingCarrier);
         if (destination == NgTransferDestination.Shuttle)
         {
             io.SetInput(InputIo.NgShuttleUp, false);
             io.SetInput(InputIo.NgShuttleDown, false);
             Assert.Equal(NgTransferState.HoldingAtDestination,
                 move.GetState(destination, canPickUp: true, holdAtDestination: true));
-            AssertState(NgTransferState.ShuttleNotReady);
+            AssertState(NgTransferState.WaitingForDestination);
             io.SetInput(InputIo.NgCarrierDetected, false);
-            Assert.Equal(NgTransferState.GrippingCarrier,
+            Assert.Equal(NgTransferState.PickingCarrier,
                 move.GetState(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierDetected, true);
             io.SetInput(InputIo.NgCarrierPickupDown, false);
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             io.SetInput(InputIo.NgCarrierGripperOpen, true);
             // Unexpected opening above an unsupported destination must retain the failed transfer.
-            Assert.Equal(NgTransferState.GrippingCarrier,
+            Assert.Equal(NgTransferState.PickingCarrier,
                 move.GetState(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierPickupDown, true);
             io.SetInput(InputIo.NgCarrierGripperClosed, true);
@@ -695,16 +695,22 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(gripperOutput, io.GetOutput(OutputIo.NgCarrierGripperClose));
         }
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
-        AssertState(NgTransferState.Opening);
+        AssertState(NgTransferState.PlacingCarrier);
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
         var pickup = services.GetRequiredService<NgCarrierTransfer>();
         Assert.True(pickup.IsTransferPending);
-        await move.ExecuteAsync(destination, NgTransferState.Opening, CancellationToken.None);
-        Assert.False(pickup.IsTransferPending);
+        using (var stop = new CancellationTokenSource())
+        {
+            var placing = move.ExecuteAsync(destination, NgTransferState.PlacingCarrier, stop.Token);
+            Assert.False(pickup.IsTransferPending);
+            Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => placing);
+        }
         io.SetInput(destinationSensor, false);
-        AssertState(NgTransferState.WaitingForPlacement);
+        AssertState(NgTransferState.PlacingCarrier);
         io.SetInput(destinationSensor, true);
-        AssertState(NgTransferState.Raising);
+        AssertState(NgTransferState.PlacingCarrier);
         io.SetInput(InputIo.NgCarrierPickupDown, false);
         io.SetInput(InputIo.NgCarrierPickupUp, true);
         AssertState(NgTransferState.Completed);

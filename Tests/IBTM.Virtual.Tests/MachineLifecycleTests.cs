@@ -485,7 +485,7 @@ public sealed partial class MachineLifecycleTests
         await run;
 
         if (lift != NgTransferLiftState.Up)
-            await VerifyTransferReleaseAsync(NgTransferState.Raising);
+            await VerifyTransferReleaseAsync();
         // The carrier may leave the pickup sensor before the gripper reaches Open.
         io.SetInput(InputIo.NgCarrierDetected, false);
         io.SetInput(InputIo.NgCarrierPickupUp, false);
@@ -493,16 +493,16 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         Assert.Equal(InspectionStationState.TransferringNgCarrier, station.GetState([]));
-        await VerifyTransferReleaseAsync(NgTransferState.Opening);
+        await VerifyTransferReleaseAsync();
 
-        async Task VerifyTransferReleaseAsync(NgTransferState expected)
+        async Task VerifyTransferReleaseAsync()
         {
             var move = services.GetRequiredService<NgCarrierTransfer>();
             using var moveStop = new CancellationTokenSource();
             var moveTask = move.RunToAsync(NgTransferDestination.Shuttle, moveStop.Token);
             try
             {
-                Assert.Equal(expected, move.GetState(NgTransferDestination.Shuttle, canPickUp: true));
+                Assert.Equal(NgTransferState.PlacingCarrier, move.GetState(NgTransferDestination.Shuttle, canPickUp: true));
                 Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
             }
             finally

@@ -110,7 +110,7 @@ public sealed partial class InspectionStation : AutoUnit
         CancellationToken cancellationToken)
     {
         var transferState = GetTransferState(repeat, holdAtShuttle);
-        if (transferState is not (NgTransferState.Idle or NgTransferState.WaitingForCarrier or NgTransferState.Completed))
+        if (transferState is not (NgTransferState.Idle or NgTransferState.Completed))
         {
             if (!await _transfer.ExecuteAsync(
                 NgTransferDestination.Shuttle, transferState, cancellationToken, holdAtShuttle,
@@ -168,12 +168,9 @@ public sealed partial class InspectionStation : AutoUnit
     {
         switch (state)
         {
-            case NgTransferState.PickingCarrier or NgTransferState.GrippingCarrier
-                or NgTransferState.Raising or NgTransferState.PlacingCarrier
-                or NgTransferState.Opening or NgTransferState.WaitingForPlacement:
+            case NgTransferState.PreparingTransfer or NgTransferState.PickingCarrier or NgTransferState.PlacingCarrier:
                 return InspectionStationState.TransferringNgCarrier;
-            case NgTransferState.StationNotReady or NgTransferState.ShuttleNotReady
-                or NgTransferState.WaitingForDestination:
+            case NgTransferState.WaitingForDestination:
                 return InspectionStationState.WaitingForShuttleReady;
             case NgTransferState.HoldingAtDestination:
                 return InspectionStationState.HoldingCarrierAtShuttle;
