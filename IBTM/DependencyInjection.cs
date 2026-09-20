@@ -271,23 +271,35 @@ public static class DependencyInjection
         else
         {
             if (settings.Drivers.Bolt == BoltDriver.Virtual)
-                services.AddSingleton<IAdcBus, VirtualAdcBus>();
+            {
+                services
+                    .AddKeyedSingleton<IAdcBus, VirtualAdcBus>(FasteningHead.Pickup)
+                    .AddKeyedSingleton<IAdcBus, VirtualAdcBus>(FasteningHead.Shooting);
+            }
             else
-                services.AddSingleton<IAdcBus, AdcBus>();
+            {
+                services
+                    .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Pickup)
+                    .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Shooting);
+            }
 
             services
                 .AddKeyedSingleton<IBoltHead>(
                     FasteningHead.Shooting,
                     (provider, _) => new AdcBoltHead(
-                        provider.GetRequiredService<IAdcBus>(),
+                        provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting),
                         settings.Hantas,
-                        settings.Hantas.ShootingSlaveAddress))
+                        settings.Hantas.ShootingSlaveAddress,
+                        settings.Hantas.ShootingPortName,
+                        settings.Hantas.ShootingBaudRate))
                 .AddKeyedSingleton<IBoltHead>(
                     FasteningHead.Pickup,
                     (provider, _) => new AdcBoltHead(
-                        provider.GetRequiredService<IAdcBus>(),
+                        provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup),
                         settings.Hantas,
-                        settings.Hantas.PickupSlaveAddress));
+                        settings.Hantas.PickupSlaveAddress,
+                        settings.Hantas.PickupPortName,
+                        settings.Hantas.PickupBaudRate));
         }
 
         if (settings.Drivers.Camera == CameraDriver.Virtual)

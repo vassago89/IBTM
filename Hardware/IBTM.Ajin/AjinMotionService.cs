@@ -18,6 +18,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     private const int EmergencyBit = 6;
     private const int HomeSensorBit = 7;
     private const uint AccelerationInUnitsPerSecondSquared = 0;
+    private const uint AbsolutePositionMode = 0;
     private static readonly TimeSpan s_statusPollInterval;
 
     private readonly AjinController _controller;
@@ -149,15 +150,18 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             await Task.Run(() =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                foreach (var axis in axes)
+                    SetAbsolutePositionMode(axis);
+                cancellationToken.ThrowIfCancellationRequested();
                 AjinController.Check(
-                    CAXM.AxmMoveMultiPos(
+                    CAXM.AxmMoveStartMultiPos(
                         axes.Length,
                         axes,
                         [ToUnits(x), ToUnits(y)],
                         [velocityX, velocityY],
                         [velocityX / Settings.AccelerationSeconds, velocityY / Settings.AccelerationSeconds],
                         [velocityX / Settings.DecelerationSeconds, velocityY / Settings.DecelerationSeconds]),
-                    nameof(CAXM.AxmMoveMultiPos));
+                    nameof(CAXM.AxmMoveStartMultiPos));
             }).ConfigureAwait(false);
             await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
             CheckPosition(_axisX, x);
@@ -414,12 +418,14 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             await Task.Run(() =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                SetAbsolutePositionMode(axisNumber);
+                cancellationToken.ThrowIfCancellationRequested();
                 AjinController.Check(
-                    CAXM.AxmMovePos(
+                    CAXM.AxmMoveStartPos(
                         axisNumber, position * 1000, velocityInUnits,
                         velocityInUnits / Settings.AccelerationSeconds,
                         velocityInUnits / Settings.DecelerationSeconds),
-                    $"{nameof(CAXM.AxmMovePos)} (axis={axisNumber})");
+                    $"{nameof(CAXM.AxmMoveStartPos)} (axis={axisNumber})");
             }).ConfigureAwait(false);
             await WaitForMoveAsync([axisNumber], cancellationToken).ConfigureAwait(false);
             CheckPosition(axisNumber, position);
@@ -432,6 +438,22 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         finally
         {
             EndMotion(axis != MotionAxis.Z);
+        }
+    }
+
+    private static void SetAbsolutePositionMode(int axis)
+    {
+        AjinController.Check(
+            CAXM.AxmMotSetAbsRelMode(axis, AbsolutePositionMode),
+            $"{nameof(CAXM.AxmMotSetAbsRelMode)} (axis={axis})");
+        var mode = uint.MaxValue;
+        AjinController.Check(
+            CAXM.AxmMotGetAbsRelMode(axis, ref mode),
+            $"{nameof(CAXM.AxmMotGetAbsRelMode)} (axis={axis})");
+        if (mode != AbsolutePositionMode)
+        {
+            throw new MotionInterlockException(
+                $"AJIN axis {axis} is not in absolute positioning mode (mode={mode}).");
         }
     }
 
@@ -492,7 +514,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             cancellationToken.ThrowIfCancellationRequested();
             var (moving, inPosition, faulted) = ReadMoveState(axes);
             if (faulted)
-                throw new InvalidOperationException("Motion stopped by an axis fault.");
+                throw new MotionInterlockException("Motion stopped by an axis fault.");
             if (!moving && inPosition)
                 return;
 
@@ -502,8 +524,8 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             {
                 stoppedAt ??= Stopwatch.GetTimestamp();
                 if (Stopwatch.GetElapsedTime(stoppedAt.Value).TotalMilliseconds >= _options.TimeoutMilliseconds)
-                    throw new TimeoutException(
-                        $"In-position feedback was not received within {_options.TimeoutMilliseconds} ms.");
+                    throw new MotionException("Move", new TimeoutException(
+                        $"In-position feedback was not received within {_options.TimeoutMilliseconds} ms."));
             }
 
             await Task.Delay(s_statusPollInterval, cancellationToken).ConfigureAwait(false);
@@ -631,7 +653,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         if (!DoAxisParametersMatch(axis, out var current))
         {
             var expected = _axisParameters[axis];
-            throw new InvalidOperationException(
+            throw new MotionInterlockException(
                 $"AJIN axis {axis} motion parameters do not match: "
                 + $"SDK Unit={current.Unit}, Pulse={current.Pulse}, AccelUnit={current.AccelerationUnit}; "
                 + $"configured Unit={expected.MoveUnit}, Pulse={expected.MovePulse}, "

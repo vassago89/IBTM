@@ -5,6 +5,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
 
@@ -20,7 +21,8 @@ public sealed class DiagnosticWindows
     private readonly ApplicationLog _applicationLog;
     private readonly ILogger<DiagnosticWindows> _log;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly IAdcBus? _adcBus;
+    private readonly IAdcBus? _pickupAdcBus;
+    private readonly IAdcBus? _shootingAdcBus;
     private InputWindow? _input;
     private OutputWindow? _output;
     private MotionWindow? _motion;
@@ -37,7 +39,8 @@ public sealed class DiagnosticWindows
         MotionWindowViewModel motionViewModel,
         ApplicationLog applicationLog,
         ILoggerFactory loggerFactory,
-        IAdcBus? adcBus = null)
+        [FromKeyedServices(FasteningHead.Pickup)] IAdcBus? pickupAdcBus = null,
+        [FromKeyedServices(FasteningHead.Shooting)] IAdcBus? shootingAdcBus = null)
     {
         _io = io;
         _signals = signals;
@@ -48,7 +51,8 @@ public sealed class DiagnosticWindows
         _applicationLog = applicationLog;
         _loggerFactory = loggerFactory;
         _log = loggerFactory.CreateLogger<DiagnosticWindows>();
-        _adcBus = adcBus;
+        _pickupAdcBus = pickupAdcBus;
+        _shootingAdcBus = shootingAdcBus;
     }
 
     public Window? Owner { private get; set; }
@@ -107,7 +111,8 @@ public sealed class DiagnosticWindows
             return;
         }
         _adcViewModel = new(
-            _adcBus ?? throw new System.InvalidOperationException("ADC diagnostics are unavailable for IO-only bolt controllers."),
+            _pickupAdcBus ?? throw new System.InvalidOperationException("ADC diagnostics are unavailable for IO-only bolt controllers."),
+            _shootingAdcBus ?? throw new System.InvalidOperationException("ADC diagnostics are unavailable for IO-only bolt controllers."),
             _hantasSettings,
             _machine,
             _state,

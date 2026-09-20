@@ -84,7 +84,8 @@ internal static class AjinSdk
             double Unit = 1,
             int Pulse = 1,
             uint InMotion = 0,
-            uint AccelerationUnit = 0);
+            uint AccelerationUnit = 0,
+            uint AbsRelMode = 0);
 
     internal sealed record HomeMethod(int Direction, uint Signal, uint ZPhase, double ClearTime, double Offset);
 

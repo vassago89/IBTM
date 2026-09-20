@@ -3,6 +3,20 @@ using System;
 // In-memory SDK stand-in only; no native declarations or equipment access.
 internal static partial class CAXM
 {
+    public static uint AxmMotSetAbsRelMode(int axis, uint mode)
+    {
+        var result = AjinSdk.Record(new(nameof(AxmMotSetAbsRelMode), Value: mode, Axis: axis));
+        if (result == 0)
+            AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { AbsRelMode = mode };
+        return result;
+    }
+
+    public static uint AxmMotGetAbsRelMode(int axis, ref uint mode)
+    {
+        mode = AjinSdk.MotionAxes[axis].AbsRelMode;
+        return AjinSdk.Record(new(nameof(AxmMotGetAbsRelMode), Axis: axis));
+    }
+
     public static uint AxmMotSetMoveUnitPerPulse(int axis, double unit, int pulse)
     {
         var result = AjinSdk.Record(new(nameof(AxmMotSetMoveUnitPerPulse), Axis: axis));
@@ -108,6 +122,29 @@ internal static partial class CAXM
     {
         AjinSdk.Moves.Add(new([axis], [position], [velocity], [acceleration], [deceleration]));
         return Command(new(nameof(AxmMovePos), Axis: axis));
+    }
+
+    public static uint AxmMoveStartMultiPos(
+        int count,
+        int[] axes,
+        double[] positions,
+        double[] velocities,
+        double[] accelerations,
+        double[] decelerations)
+    {
+        AjinSdk.Moves.Add(new(axes, positions, velocities, accelerations, decelerations));
+        return Command(new(nameof(AxmMoveStartMultiPos)));
+    }
+
+    public static uint AxmMoveStartPos(
+        int axis,
+        double position,
+        double velocity,
+        double acceleration,
+        double deceleration)
+    {
+        AjinSdk.Moves.Add(new([axis], [position], [velocity], [acceleration], [deceleration]));
+        return Command(new(nameof(AxmMoveStartPos), Axis: axis));
     }
 
     public static uint AxmMoveVel(int axis, double velocity, double acceleration, double deceleration)

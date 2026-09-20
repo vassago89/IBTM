@@ -20,13 +20,18 @@ public sealed class AdcBoltHead : IBoltHead
     private (ushort EventCount, ushort Preset)? _pendingFastening;
     private bool _feedUnconfirmed;
 
-    public AdcBoltHead(IAdcBus bus, HantasSettings connection, byte slaveAddress)
+    public AdcBoltHead(
+        IAdcBus bus,
+        HantasSettings connection,
+        byte slaveAddress,
+        string portName,
+        int baudRate)
     {
         _bus = bus;
         _connection = connection;
         _slaveAddress = slaveAddress;
-        _portName = _connection.PortName;
-        _baudRate = _connection.BaudRate;
+        _portName = portName;
+        _baudRate = baudRate;
     }
 
     public bool HasPendingResult => _pendingFastening is not null;

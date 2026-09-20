@@ -17,11 +17,11 @@ public sealed partial class AjinControllerTests
         var settings = new MotionSettings { AccelerationSeconds = 0.2, DecelerationSeconds = 0.75 };
         var motion = CreateHorizontalHome(controller, hasY: false, settings: settings);
         using var cancellation = new CancellationTokenSource();
-        AjinSdk.Results[new(nameof(CAXM.AxmMovePos), Axis: 9)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 9)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveVel), Axis: 9)] = 0;
         AjinSdk.BeforeCall = call =>
         {
-            if (call.Operation == nameof(CAXM.AxmMovePos))
+            if (call.Operation == nameof(CAXM.AxmMoveStartPos))
                 AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = 2500 };
             if (call.Operation == nameof(CAXM.AxmMoveVel))
                 cancellation.Cancel();
