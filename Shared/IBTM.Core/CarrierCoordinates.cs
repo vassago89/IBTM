@@ -30,7 +30,7 @@ public static class CarrierCoordinates
         return new AxisPosition
         {
             X = cameraPosition.X + targetCenterX - sourceCenterX,
-            Y = cameraPosition.Y + targetCenterY - sourceCenterY,
+            Y = cameraPosition.Y + sourceCenterY - targetCenterY,
             Z = cameraPosition.Z,
         };
     }

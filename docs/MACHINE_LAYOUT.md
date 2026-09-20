@@ -225,7 +225,8 @@ Gantry coordinates in millimetres. Record Position writes the captured axis XY d
 it does not subtract a reference pin. Station 3 teaches both locating pins on the carrier
 image; Station 2 teaches the same two pins separately for each fastening head. Each pair's
 midpoint is the average of its two taught coordinates. The Station 3-to-Station 2 conversion
-adds the head midpoint minus the camera midpoint directly to the recorded camera XY. This is a translation
+adds head-center X minus camera-center X to the recorded camera X. For Y, it adds
+camera-center Y minus head-center Y to the recorded camera Y. This is a translation
 without rotation or scaling. Stored bolt coordinates and SDK Unit/Pulse are unchanged. Each bolt
 point identifies Heat Sink 1 or Heat Sink 2 so the station can use its heat sink-present
 inputs as the work mask.

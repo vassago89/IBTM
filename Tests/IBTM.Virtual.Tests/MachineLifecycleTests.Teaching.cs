@@ -795,7 +795,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(TeachingTarget.BoltPosition, position.Position.Target);
         Assert.Same(bolt, position.Position.Bolt);
         Assert.True(position.Position.HasPosition);
-        Assert.Equal((360d, 620d, (double?)headSettings.FasteningZ), (position.X, position.Y, position.Z));
+        Assert.Equal((360d, -180d, (double?)headSettings.FasteningZ), (position.X, position.Y, position.Z));
         Assert.False(position.Position.IsTeachAllowed);
         Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
@@ -804,10 +804,10 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
         await teaching.MoveToPointCommand.ExecuteAsync(null);
         var fastening = services.GetRequiredService<BoltFasteningStation>();
-        Assert.Equal((360d, 620d, headSettings.FasteningZ), fastening.Feedback.GetPosition());
+        Assert.Equal((360d, -180d, headSettings.FasteningZ), fastening.Feedback.GetPosition());
         await fastening.MoveToXYAsync(250, 390);
         await fastening.MoveToBoltAsync(bolt);
-        Assert.Equal((360d, 620d, headSettings.FasteningZ), fastening.Feedback.GetPosition());
+        Assert.Equal((360d, -180d, headSettings.FasteningZ), fastening.Feedback.GetPosition());
 
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == (head == FasteningHead.Shooting
@@ -826,7 +826,7 @@ public sealed partial class MachineLifecycleTests
         var loaded = teaching.SelectedPoint!;
         Assert.Equal(TeachingTarget.BoltPosition, loaded.Position.Target);
         Assert.Equal(head, loaded.Position.Bolt!.Head);
-        Assert.Equal((360d, 620d, (double?)headSettings.FasteningZ), (loaded.X, loaded.Y, loaded.Z));
+        Assert.Equal((360d, -180d, (double?)headSettings.FasteningZ), (loaded.X, loaded.Y, loaded.Z));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipes.Current));
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;

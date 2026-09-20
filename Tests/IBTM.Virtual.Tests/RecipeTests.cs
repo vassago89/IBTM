@@ -22,11 +22,11 @@ namespace IBTM.Virtual.Tests;
 public sealed class RecipeTests
 {
     [Theory]
-    [InlineData(100, 200, 350, 600)]
-    [InlineData(200, 400, 450, 800)]
-    [InlineData(150, 300, 400, 700)]
-    [InlineData(110, 200, 360, 600)]
-    [InlineData(110, 220, 360, 620)]
+    [InlineData(100, 200, 350, -200)]
+    [InlineData(200, 400, 450, 0)]
+    [InlineData(150, 300, 400, -100)]
+    [InlineData(110, 200, 360, -200)]
+    [InlineData(110, 220, 360, -180)]
     public void FasteningCoordinatesAddCenterOffsetWithoutScaling(
         double cameraX, double cameraY, double expectedX, double expectedY)
     {
@@ -55,9 +55,9 @@ public sealed class RecipeTests
     }
 
     [Theory]
-    [InlineData(0, 100, 27, -1)]
-    [InlineData(100, 0, -23, 49)]
-    [InlineData(0, 0, 27, 49)]
+    [InlineData(0, 100, 27, 419)]
+    [InlineData(100, 0, -23, 369)]
+    [InlineData(0, 0, 27, 369)]
     public void FasteningCenterOffsetDoesNotRequireReferenceAxisSpans(
         double spanX, double spanY, double expectedX, double expectedY)
     {
@@ -174,7 +174,7 @@ public sealed class RecipeTests
         var secondHead = fastening.GetBoltPosition(targets[1], pins);
         Assert.Equal((13, 24), (firstCamera.X, firstCamera.Y));
         Assert.Equal(375, secondHead.X, 6);
-        Assert.Equal(430, secondHead.Y, 6);
+        Assert.Equal(30, secondHead.Y, 6);
 
         var database = VirtualTest.OpenMachineStore();
         var recipes = new RecipeManager(database, new());
@@ -366,7 +366,7 @@ public sealed class RecipeTests
         position.Refresh();
         Assert.True(position.Position.HasPosition);
         Assert.Equal(310, position.X, 6);
-        Assert.Equal(420, position.Y, 6);
+        Assert.Equal(20, position.Y, 6);
         Assert.Equal(fastening.ShootingHead.FasteningZ, position.Z);
         fastening.SafeZ = 7;
         position.Refresh();
