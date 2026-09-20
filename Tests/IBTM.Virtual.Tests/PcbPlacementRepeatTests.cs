@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Virtual;
@@ -161,25 +160,22 @@ public sealed class PcbPlacementRepeatTests
             var settings = new PcbPlacementHandlerSettings
             {
                 Motion = motion,
-                BufferHandoffPosition = new() { X = 50, Y = 10, Z = 8 },
+                HandoffPosition = new() { X = 50, Y = 10, Z = 8 },
             };
             var supplySettings = new PcbSupplySettings { Motion = motion };
             Io = new(
                 Outputs(new PcbPlacementHandlerHardwareSettings(), new PcbSupplyHardwareSettings(), new ConveyorHardwareSettings()),
                 new MachineOptions { TimeoutMilliseconds = 1_000 });
-            Motion = new(motion, new OperationCancellation(), horizontalZ: () => settings.BufferHandoffPosition.Z);
+            Motion = new(motion, new OperationCancellation(), horizontalZ: () => settings.HandoffPosition.Z);
             _supplyMotion = VirtualTest.Motion(motion, new());
             var simulation = new VirtualMachine(Io, [], incomingCarrierHasPcbs: () => loadPcbs);
             Motion.PositionChanged += (x, y, z) => simulation.UpdatePlacementPosition(
-                x, y, z, settings.BufferHandoffPosition,
+                x, y, z, settings.HandoffPosition,
                 Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition);
             Handler = new(Motion, Io, settings);
             var supply = new PcbSupplyHandler(_supplyMotion, Io, supplySettings);
-            var buffer = new BufferStage(
-                supply, Handler, supply.Motion, Handler.Motion,
-                supplySettings.BufferHandoffPosition, settings.BufferHandoffPosition, new());
             Work = new(ConveyorStation.CreatePcbPlacement(Io), new());
-            Placer = new(buffer, Handler, Work);
+            Placer = new(supply, Handler, Work, new());
         }
 
         public VirtualIoService Io { get; }

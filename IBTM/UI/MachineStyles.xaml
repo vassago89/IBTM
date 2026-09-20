@@ -492,7 +492,4 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="BufferStyle" TargetType="Border" BasedOn="{StaticResource DeviceBodyStyle}">
-        <Setter Property="Background" Value="Transparent"/>
-    </Style>
 </ResourceDictionary>

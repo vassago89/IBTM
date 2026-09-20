@@ -18,7 +18,6 @@
     <Project Path="Stations/IBTM.Conveyor/IBTM.Conveyor.csproj" />
     <Project Path="Stations/IBTM.Inspection/IBTM.Inspection.csproj" />
     <Project Path="Stations/IBTM.NgConveyor/IBTM.NgConveyor.csproj" />
-    <Project Path="Stations/IBTM.PcbBuffer/IBTM.PcbBuffer.csproj" />
     <Project Path="Stations/IBTM.PcbPlacement/IBTM.PcbPlacement.csproj" />
     <Project Path="Stations/IBTM.PcbSupply/IBTM.PcbSupply.csproj" />
   </Folder>

@@ -40,13 +40,13 @@ public sealed partial class MachineController
                 return HomeBlockReason.DoorOpen;
             case true when (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
                 || group is null
-                && BufferHandlersEnabled)
+                && PcbHandlersEnabled)
                 && _io.GetInput(InputIo.PcbPlacementPcbDetected)
                 && _placementHandler.IpmLift != PlacementCylinderState.Up:
                 return HomeBlockReason.PlacementHoldingPcb;
             case true when requireRaised
                 && (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
-                    || group is null && BufferHandlersEnabled)
+                    || group is null && PcbHandlersEnabled)
                 && (!_placementHandler.HandlerRaised
                     || _placementHandler.IpmLift != PlacementCylinderState.Up):
                 return HomeBlockReason.PlacementNotRaised;
@@ -182,7 +182,7 @@ public sealed partial class MachineController
 
         operation.Token.ThrowIfCancellationRequested();
         if (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
-            || group is null && BufferHandlersEnabled)
+            || group is null && PcbHandlersEnabled)
         {
             // A held PCB needs its IPM support during START. HOME admission checks this separately.
             var holdingPcb = _io.GetInput(InputIo.PcbPlacementPcbDetected);

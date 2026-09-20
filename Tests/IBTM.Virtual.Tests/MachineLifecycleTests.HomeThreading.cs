@@ -27,7 +27,7 @@ public sealed partial class MachineLifecycleTests
     public async Task AllUnitsHomeEndsAtHomeWithoutMovingToWorkHeights()
     {
         var settings = FlowSettings();
-        settings.PcbPlacementHandler.BufferHandoffPosition.Z = 8;
+        settings.PcbPlacementHandler.HandoffPosition.Z = 8;
         settings.BoltFastening.SafeZ = 12;
         settings.PcbSupply.RotationZ = 16;
         await using var services = CreateServices(settings);

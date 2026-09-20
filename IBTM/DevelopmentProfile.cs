@@ -40,10 +40,10 @@ internal static class DevelopmentProfile
 
         settings.PcbSupply.CarrierY = 10;
         settings.PcbSupply.RotationZ = 0;
-        settings.PcbSupply.BufferHandoffPosition = new() { X = 80, Y = 30 };
+        settings.PcbSupply.HandoffPosition = new() { X = 80, Y = 30 };
         settings.PcbSupply.Motion.HorizontalSpeed = 100;
         settings.PcbSupply.Motion.ZSpeed = 30;
-        settings.PcbPlacementHandler.BufferHandoffPosition = new() { X = 80, Y = 30, Z = 10 };
+        settings.PcbPlacementHandler.HandoffPosition = new() { X = 80, Y = 30, Z = 10 };
         settings.PcbPlacementHandler.Motion.HorizontalSpeed = 100;
         settings.PcbPlacementHandler.Motion.ZSpeed = 30;
         settings.BoltFastening.SafeZ = 0;

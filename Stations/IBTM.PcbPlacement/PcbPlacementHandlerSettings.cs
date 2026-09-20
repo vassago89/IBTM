@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -8,11 +9,12 @@ public sealed class PcbPlacementHandlerSettings : Setting
     public PcbPlacementHandlerSettings()
     {
         Motion = new();
-        BufferHandoffPosition = new();
+        HandoffPosition = new();
     }
 
     public MotionSettings Motion { get; set; }
-    public AxisPosition BufferHandoffPosition { get; set; }
+    [JsonPropertyName("BufferHandoffPosition")]
+    public AxisPosition HandoffPosition { get; set; }
 
     public TeachingPosition[] GetTeachingPositions(PcbPlacementRecipe recipe)
     {
@@ -32,17 +34,17 @@ public sealed class PcbPlacementHandlerSettings : Setting
         ];
     }
 
-    public TeachingPosition GetBufferTeachingPosition()
+    public TeachingPosition GetHandoffTeachingPosition()
     {
         return new(
-            TeachingTarget.PlacementBufferHandoff,
+            TeachingTarget.PlacementHandoff,
             MotionGroup.PcbPlacementHandler,
             TeachMode.Full,
-            () => BufferHandoffPosition,
+            () => HandoffPosition,
             p => (
-                BufferHandoffPosition.X,
-                BufferHandoffPosition.Y,
-                BufferHandoffPosition.Z) = (
+                HandoffPosition.X,
+                HandoffPosition.Y,
+                HandoffPosition.Z) = (
                     p.X,
                     p.Y,
                     p.Z),

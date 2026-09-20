@@ -141,7 +141,7 @@ public sealed partial class MachineController
         shootingBoltFeeder.Changed += state.RequestDisplayRefresh;
     }
 
-    private bool BufferHandlersEnabled => _units.PcbSupply || _units.PcbPlacement;
+    private bool PcbHandlersEnabled => _units.PcbSupply || _units.PcbPlacement;
 
     private bool InspectionGantryEnabled => _units.IsMotionEnabled(MotionGroup.InspectionGantry);
 

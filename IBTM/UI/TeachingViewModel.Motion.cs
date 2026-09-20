@@ -63,7 +63,7 @@ public partial class TeachingViewModel
                     return TeachingMotionHint.BoltAdjustment;
                 case MotionGroup.InspectionGantry when !_ngTransfer.IsRaised:
                     return TeachingMotionHint.RaiseNgPickup;
-                case MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.BufferHandoffPosition.Z):
+                case MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.HandoffPosition.Z):
                     return TeachingMotionHint.SafeZRequired;
                 default:
                     return TeachingMotionHint.None;

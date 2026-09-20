@@ -2,21 +2,23 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
-using IBTM.PcbBuffer;
+using IBTM.Device;
 
 namespace IBTM.PcbSupply;
 
 public sealed class PcbSupplier : AutoUnit
 {
     private readonly PcbSupplyHandler _handler;
-    private readonly BufferStage _buffer;
+    private readonly IPcbHandoffReceiver _placement;
+    private readonly UnitSettings _units;
     // Slot progress belongs only to the current run and upstream carrier.
     private PickStep _pickStep;
 
-    public PcbSupplier(PcbSupplyHandler handler, BufferStage buffer)
+    public PcbSupplier(PcbSupplyHandler handler, IPcbHandoffReceiver placement, UnitSettings units)
     {
         _handler = handler;
-        _buffer = buffer;
+        _placement = placement;
+        _units = units;
         _handler.Changed += OnHandlerChanged;
     }
 
@@ -25,13 +27,17 @@ public sealed class PcbSupplier : AutoUnit
         add
         {
             _handler.Changed += value;
-            _buffer.StateChanged += value;
+            _placement.Changed += value;
+            _handler.Feedback.StateChanged += value;
+            _placement.Feedback.StateChanged += value;
         }
 
         remove
         {
             _handler.Changed -= value;
-            _buffer.StateChanged -= value;
+            _placement.Changed -= value;
+            _handler.Feedback.StateChanged -= value;
+            _placement.Feedback.StateChanged -= value;
         }
     }
 
@@ -96,7 +102,7 @@ public sealed class PcbSupplier : AutoUnit
         {
             case PcbSupplyState.MovingToPickup:
                 var nextPick = _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition;
-                if (_buffer.IsSupplyAtHandoff())
+                if (_handler.IsAtHandoff())
                     await _handler.MoveFromHandoffAsync(nextPick, cancellationToken);
                 await _handler.SetRotatedAsync(true, cancellationToken);
                 if (!_handler.IsAtPickupXY(nextPick))
@@ -152,13 +158,13 @@ public sealed class PcbSupplier : AutoUnit
             case PcbSupplyState.ReleasingPcb:
                 if (_handler.IpmFixed)
                 {
-                    if (!_buffer.IsPlacementSecuredAtHandoff())
+                    if (!IsPlacementSecured)
                         throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
                     await _handler.SetIpmFixerAsync(false, cancellationToken);
                 }
                 if (_handler.Gripper != PcbSupplyCylinderState.Backward)
                 {
-                    if (!_buffer.IsPlacementSecuredAtHandoff())
+                    if (!IsPlacementSecured)
                         throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
                     await _handler.SetGripperClosedAsync(false, cancellationToken);
                 }
@@ -187,12 +193,12 @@ public sealed class PcbSupplier : AutoUnit
 
             switch (true)
             {
-                case true when _buffer.IsSupplyAtHandoff() && _handler.PcbReleased:
-                    return _buffer.IsSupplyExitAllowed
+                case true when _handler.IsAtHandoff() && _handler.PcbReleased:
+                    return _placement.HandlerRaised
                         ? PcbSupplyState.MovingToPickup
                         : PcbSupplyState.WaitingForPlacementLift;
-                case true when _buffer.IsSupplyAtHandoff():
-                    return _buffer.IsPlacementSecuredAtHandoff()
+                case true when _handler.IsAtHandoff():
+                    return IsPlacementSecured
                         ? PcbSupplyState.ReleasingPcb
                         : PcbSupplyState.WaitingForPlacement;
             }
@@ -212,6 +218,8 @@ public sealed class PcbSupplier : AutoUnit
             }
         }
     }
+
+    private bool IsPlacementSecured => _units.PcbPlacement && _placement.IsAtHandoff() && _placement.PcbSecured;
 
     private enum PickStep
     {

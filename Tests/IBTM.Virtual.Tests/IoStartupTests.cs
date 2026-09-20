@@ -1211,7 +1211,7 @@ public sealed class IoStartupTests
                 group == HardwareArea.InspectionGantry ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable,
                 station.MotionHint);
             Assert.False(station.GrabCommand.CanExecute(null));
-            foreach (var point in station.FilteredPoints.Where(point => point.Position.Storage == TeachingStorage.Buffer))
+            foreach (var point in station.FilteredPoints.Where(point => point.Position.Storage == TeachingStorage.Handoff))
             {
                 station.SelectedPoint = point;
                 Assert.Equal(TeachingMotionHint.MotionUnavailable, station.MotionHint);

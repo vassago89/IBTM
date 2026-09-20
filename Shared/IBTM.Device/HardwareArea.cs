@@ -13,11 +13,8 @@ public enum HardwareArea
     [Description("PCB Supply")]
     PcbSupply,
 
-    [Description("PCB Handoff")]
-    PcbBuffer,
-
     [Description("PCB Placement Handler")]
-    PcbPlacementHandler,
+    PcbPlacementHandler = 4,
 
     [Description("PCB Placement Station")]
     PcbPlacementStation,

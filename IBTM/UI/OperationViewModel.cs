@@ -15,7 +15,6 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
@@ -50,7 +49,6 @@ public partial class OperationViewModel : ObservableObject
         RecipeManager recipes,
         MachineMap map,
         MainConveyor conveyor,
-        BufferStage buffer,
         PickupBoltFeeder pickupFeeder,
         ShootingBoltFeeder shootingFeeder,
         NgCarrierConveyor ngConveyor,
@@ -87,7 +85,6 @@ public partial class OperationViewModel : ObservableObject
         NgConveyor = ngConveyor;
         NgShuttle = ngShuttle;
         Conveyor = conveyor;
-        Buffer = buffer;
         _pickupFeeder = pickupFeeder;
         _shootingFeeder = shootingFeeder;
         NgTransfer = ngTransfer;
@@ -103,7 +100,6 @@ public partial class OperationViewModel : ObservableObject
         fastening.Motion.PropertyChanged += OnBoltFasteningMotionChanged;
         fastening.Changed += OnBoltFasteningChanged;
         inspectionGantry.Motion.PropertyChanged += OnInspectionGantryMotionChanged;
-        buffer.StateChanged += OnPcbPlacementChanged;
         conveyor.Changed += OnMainConveyorChanged;
         pickupFeeder.Changed += OnBoltFasteningChanged;
         shootingFeeder.Changed += OnBoltFasteningChanged;
@@ -126,7 +122,6 @@ public partial class OperationViewModel : ObservableObject
     public BoltFasteningWork BoltFasteningWork { get; }
     public InspectionWork InspectionWork { get; }
     public MainConveyor Conveyor { get; }
-    public BufferStage Buffer { get; }
     public NgCarrierConveyor NgConveyor { get; }
     public NgShuttle NgShuttle { get; }
     public NgCarrierTransfer NgTransfer { get; }
@@ -533,7 +528,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PcbPlacementIpmDown));
         OnPropertyChanged(nameof(Placement));
         OnPropertyChanged(nameof(PcbPlacementIpmGripperClosed));
-        OnPropertyChanged(nameof(Buffer));
         OnPropertyChanged(nameof(PcbPlacementWork));
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));

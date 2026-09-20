@@ -10,7 +10,6 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using Microsoft.Extensions.Logging;
@@ -114,7 +113,6 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         MachineFeedbackMonitor feedback,
         MainConveyor conveyor,
         NgCarrierConveyor ngConveyor,
-        BufferStage buffer,
         PcbSupplyHandler pcbSupply,
         PcbPlacementHandler pcbPlacement,
         BoltFasteningGantry boltFastening,
@@ -132,7 +130,6 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
         _io = io;
         _conveyor = conveyor;
         _ngConveyor = ngConveyor;
-        Buffer = buffer;
         _feedback = feedback;
         _log = log;
 
@@ -150,8 +147,6 @@ public sealed class MachineState : IAsyncDisposable, INotifyPropertyChanged
     public event Action? Changed;
     public event Action? DisplayChanged;
     public event PropertyChangedEventHandler? PropertyChanged;
-
-    internal BufferStage Buffer { get; }
 
     public bool RepeatEnabled
     {

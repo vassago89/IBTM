@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -8,13 +9,14 @@ public sealed class PcbSupplySettings : Setting
     public PcbSupplySettings()
     {
         Motion = new();
-        BufferHandoffPosition = new();
+        HandoffPosition = new();
     }
 
     public MotionSettings Motion { get; set; }
     public double RotationZ { get; set; }
     public double CarrierY { get; set; }
-    public AxisPosition BufferHandoffPosition { get; set; }
+    [JsonPropertyName("BufferHandoffPosition")]
+    public AxisPosition HandoffPosition { get; set; }
 
     public TeachingPosition[] GetTeachingPositions(PcbSupplyRecipe recipe)
     {
@@ -36,11 +38,11 @@ public sealed class PcbSupplySettings : Setting
             Pick(TeachingTarget.SupplyPcb1Pick, recipe.Pcb1PickPosition),
             Pick(TeachingTarget.SupplyPcb2Pick, recipe.Pcb2PickPosition),
             new(
-                TeachingTarget.SupplyBufferHandoff,
+                TeachingTarget.SupplyHandoff,
                 MotionGroup.PcbSupply,
                 TeachMode.Full,
-                () => BufferHandoffPosition,
-                p => (BufferHandoffPosition.X, BufferHandoffPosition.Y, BufferHandoffPosition.Z) = (p.X, p.Y, p.Z),
+                () => HandoffPosition,
+                p => (HandoffPosition.X, HandoffPosition.Y, HandoffPosition.Z) = (p.X, p.Y, p.Z),
                 this) { Staged = true },
         ];
     }

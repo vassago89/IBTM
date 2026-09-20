@@ -182,7 +182,7 @@ public enum TeachingSaveBehavior
     [Description("Recipe position · Use Save Recipe after teaching.")]
     Recipe,
     [Description("PCB handoff · Apply & Save Handoff before leaving Teaching; otherwise staged changes are discarded.")]
-    Buffer,
+    Handoff,
     [Description("Center the bolt in Live, then Grab. Resize the centered square ROI. This heat sink is taught independently. Saves automatically.")]
     Image,
     [Description("Center the Data Matrix in Live, stop, then Grab. Resize the centered square ROI. Reading returns to the captured XY. Saves automatically.")]

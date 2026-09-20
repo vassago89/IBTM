@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using IBTM.Core;
 
 namespace IBTM.Device;
 
@@ -87,6 +88,20 @@ public sealed class MotionStatus : INotifyPropertyChanged
     {
         return !(live ? Feedback.IsMoving : IsMoving)
             && axes.All(axis => ReadAxisState(axis, live).InPosition);
+    }
+
+    public bool IsAt(AxisPosition target, bool live = true)
+    {
+        if (!IsReady(live)
+            || !ReadAxisState(MotionAxis.X, live).Homed
+            || !ReadAxisState(MotionAxis.Y, live).Homed
+            || !ReadAxisState(MotionAxis.Z, live).Homed
+            || !IsSettled(live, MotionAxis.X, MotionAxis.Y, MotionAxis.Z))
+            return false;
+        var current = ReadPosition(live);
+        return Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Z - target.Z) <= MotionService.PositionToleranceMillimeters;
     }
 
     public void InvalidateFeedback(Exception error)

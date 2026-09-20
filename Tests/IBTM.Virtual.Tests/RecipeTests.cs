@@ -10,7 +10,6 @@ using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.UI;
@@ -140,31 +139,31 @@ public sealed class RecipeTests
     public void SupplyHandoffStoresItsOwnZAndDropsTheObsoleteClearZ()
     {
         var supply = System.Text.Json.JsonSerializer.Deserialize<PcbSupplySettings>(
-            """{"RotationZ":3,"BufferHandoffPosition":{"X":50,"Y":10,"Z":8},"BufferClearZ":12}""")!;
+            """{"RotationZ":3,"HandoffPosition":{"X":50,"Y":10,"Z":8},"BufferClearZ":12}""")!;
         var definition = supply.GetTeachingPositions(new())
-            .Single(point => point.Target == TeachingTarget.SupplyBufferHandoff);
+            .Single(point => point.Target == TeachingTarget.SupplyHandoff);
         Assert.Equal(TeachMode.Full, definition.Mode);
-        Assert.Equal(8, supply.BufferHandoffPosition.Z);
+        Assert.Equal(8, supply.HandoffPosition.Z);
         definition.Apply(new() { X = 60, Y = 20, Z = 99 });
-        Assert.Equal((60, 20), (supply.BufferHandoffPosition.X, supply.BufferHandoffPosition.Y));
+        Assert.Equal((60, 20), (supply.HandoffPosition.X, supply.HandoffPosition.Y));
         Assert.Equal(3, supply.RotationZ);
-        Assert.Equal(99, supply.BufferHandoffPosition.Z);
+        Assert.Equal(99, supply.HandoffPosition.Z);
 
         using var saved = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(supply));
         Assert.False(saved.RootElement.TryGetProperty("BufferClearZ", out _));
-        Assert.Equal(99, saved.RootElement.GetProperty(nameof(supply.BufferHandoffPosition)).GetProperty("Z").GetDouble());
+        Assert.Equal(99, saved.RootElement.GetProperty(nameof(supply.HandoffPosition)).GetProperty("Z").GetDouble());
     }
 
     [Fact]
     public void PlacementHandoffLoadsTheCommonZAndDropsTheSeparateApproachHeight()
     {
         var placement = System.Text.Json.JsonSerializer.Deserialize<PcbPlacementHandlerSettings>(
-            """{"BufferEntryZ":3,"BufferHandoffPosition":{"X":50,"Y":10,"Z":8}}""")!;
-        var definition = placement.GetBufferTeachingPosition();
+            """{"BufferEntryZ":3,"HandoffPosition":{"X":50,"Y":10,"Z":8}}""")!;
+        var definition = placement.GetHandoffTeachingPosition();
         Assert.Equal(TeachMode.Full, definition.Mode);
-        Assert.Equal(8, placement.BufferHandoffPosition.Z);
+        Assert.Equal(8, placement.HandoffPosition.Z);
         definition.Apply(new() { X = 60, Y = 20, Z = 9 });
-        Assert.Equal(9, placement.BufferHandoffPosition.Z);
+        Assert.Equal(9, placement.HandoffPosition.Z);
 
         using var saved = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(placement));
         Assert.False(saved.RootElement.TryGetProperty("BufferEntryZ", out _));
@@ -176,29 +175,29 @@ public sealed class RecipeTests
         var supply = new PcbSupplySettings { CarrierY = 7 };
         var placement = new PcbPlacementHandlerSettings();
         var recipe = new PcbSupplyRecipe();
-        var supplyHandoff = supply.BufferHandoffPosition;
-        var placementHandoff = placement.BufferHandoffPosition;
+        var supplyHandoff = supply.HandoffPosition;
+        var placementHandoff = placement.HandoffPosition;
         TeachingPosition[] definitions = [
             .. supply.GetTeachingPositions(recipe),
-            placement.GetBufferTeachingPosition(),
+            placement.GetHandoffTeachingPosition(),
         ];
         var points = definitions.Select(p => new TeachingPoint(p)).ToArray();
         Assert.Equal(6, points.Length);
-        var staged = points.Where(p => p.Position.Storage == TeachingStorage.Buffer).ToArray();
+        var staged = points.Where(p => p.Position.Storage == TeachingStorage.Handoff).ToArray();
         foreach (var point in staged)
             point.Teach(10, 20, 30);
-        Assert.Equal(0, supply.BufferHandoffPosition.X);
-        Assert.Equal(0, placement.BufferHandoffPosition.X);
+        Assert.Equal(0, supply.HandoffPosition.X);
+        Assert.Equal(0, placement.HandoffPosition.X);
 
         var carrierY = points.Single(p => p.Position.Target == TeachingTarget.SupplyCarrierY);
         carrierY.Teach(0, 45, 0);
         carrierY.Apply();
-        foreach (var point in points.Where(p => p.Position.Storage != TeachingStorage.Buffer))
+        foreach (var point in points.Where(p => p.Position.Storage != TeachingStorage.Handoff))
             point.Refresh();
         var picks = points.Where(p => p.Position.Storage == TeachingStorage.Recipe).ToArray();
         Assert.All(picks, p => Assert.Equal(45, p.Y));
         Assert.Equal(10, staged[0].X);
-        Assert.Equal(0, supply.BufferHandoffPosition.X);
+        Assert.Equal(0, supply.HandoffPosition.X);
         Assert.Same(supply, carrierY.Position.Setting);
 
         foreach (var point in picks)
@@ -212,11 +211,11 @@ public sealed class RecipeTests
         Assert.Equal(45, supply.CarrierY);
         foreach (var point in staged)
             point.Apply();
-        Assert.Same(supplyHandoff, supply.BufferHandoffPosition);
-        Assert.Same(placementHandoff, placement.BufferHandoffPosition);
+        Assert.Same(supplyHandoff, supply.HandoffPosition);
+        Assert.Same(placementHandoff, placement.HandoffPosition);
         Assert.Equal((10, 20, 30), (supplyHandoff.X, supplyHandoff.Y, supplyHandoff.Z));
         Assert.Equal(TeachMode.Full,
-            staged.Single(point => point.Position.Target == TeachingTarget.SupplyBufferHandoff).Position.Mode);
+            staged.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff).Position.Mode);
         Assert.Equal(0, supply.RotationZ);
         Assert.Equal((10, 20, 30), (placementHandoff.X, placementHandoff.Y, placementHandoff.Z));
         Assert.Equal(2, staged.Select(p => p.Position.Setting).Distinct().Count());

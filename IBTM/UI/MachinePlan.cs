@@ -38,10 +38,6 @@ public static class MachinePlan
     public const double HeadTop = 84;
     public const double PickupHeadLeft = 20.5;
     public const double HeadPitch = 51;
-    public const double BufferLeft = 276;
-    public const double BufferTop = 236;
-    public const double BufferWidth = 116;
-    public const double BufferHeight = 84;
     public const double SupplyWidth = 100;
     public const double SupplyHeight = 112;
     public const double PlacementWidth = 104;
@@ -95,7 +91,7 @@ public static class MachinePlan
         SupplySlotGapWidth = new(SupplySlotGap);
         SupplyCarrierMargin = new(SupplyCarrierPadding);
         PlacementToolMargin = new(0, 0, 0, PlacementBottomMargin);
-        BufferCenter = (BufferLeft + BufferWidth / 2, BufferTop + BufferHeight / 2);
+        HandoffCenter = (334, 278);
         SupplyToolCenter = (SupplyWidth / 2, SupplyHeight - 1 - PcbHeight / 2);
         SupplyPcb1Center = (
             SupplyRailLeft
@@ -163,7 +159,7 @@ public static class MachinePlan
 
     public static Thickness PlacementToolMargin { get; }
 
-    public static (double X, double Y) BufferCenter { get; }
+    public static (double X, double Y) HandoffCenter { get; }
 
     public static (double X, double Y) SupplyToolCenter { get; }
 

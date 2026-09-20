@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.PcbBuffer;
 
 namespace IBTM.PcbSupply;
 
@@ -32,6 +31,11 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
     public MotionStatus Motion { get; }
 
     public IMotionFeedback Feedback => _motion;
+
+    public bool IsAtHandoff(bool live = true)
+    {
+        return Motion.IsAt(_settings.HandoffPosition, live);
+    }
 
     public bool UpstreamCarrierAvailable
     {
@@ -132,7 +136,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
                 case PcbSupplyRotationState.Rotated:
                     return _settings.RotationZ;
                 case PcbSupplyRotationState.Unrotated:
-                    return _settings.BufferHandoffPosition.Z;
+                    return _settings.HandoffPosition.Z;
                 default:
                     return null;
             }
@@ -192,7 +196,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
     {
         if (Rotation != PcbSupplyRotationState.Unrotated)
             throw new MotionInterlockException("Supply must be unrotated before moving to the handoff position.");
-        position ??= _settings.BufferHandoffPosition;
+        position ??= _settings.HandoffPosition;
         await _motion.MoveToXYAsync(
             position.X,
             position.Y,
@@ -226,7 +230,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
     {
         return point.Target switch
         {
-            TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Unrotated,
+            TeachingTarget.SupplyHandoff => Rotation == PcbSupplyRotationState.Unrotated,
             TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick
                 => Rotation == PcbSupplyRotationState.Rotated,
             _ => true,
@@ -272,7 +276,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
             _settings.CarrierY,
             _settings.Motion.HorizontalSpeed,
             cancellationToken,
-            travelZ: _settings.BufferHandoffPosition.Z);
+            travelZ: _settings.HandoffPosition.Z);
     }
 
     public Task SetIpmFixerAsync(bool forward, CancellationToken cancellationToken = default)

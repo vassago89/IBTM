@@ -13,7 +13,6 @@ using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
@@ -95,7 +94,7 @@ public sealed partial class MachineLifecycleTests
             Assert.NotEqual(BoltFasteningState.Waiting, display.FasteningState);
             Assert.NotEqual(InspectionStationState.Waiting, display.InspectionState);
             Assert.NotNull(display.FasteningBolt);
-            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => state.Buffer.IsSupplyAtHandoff()));
+            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => services.GetRequiredService<PcbSupplyHandler>().IsAtHandoff()));
             Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(
                 () => services.GetRequiredService<MainConveyor>().RunCommandOn));
 

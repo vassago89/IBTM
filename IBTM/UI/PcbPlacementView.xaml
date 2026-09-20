@@ -119,13 +119,6 @@
                 </Grid>
             </Grid>
 
-            <Border Canvas.Left="{x:Static ui:MachinePlan.BufferLeft}" Canvas.Top="{x:Static ui:MachinePlan.BufferTop}"
-                Width="{x:Static ui:MachinePlan.BufferWidth}" Height="{x:Static ui:MachinePlan.BufferHeight}"
-                Style="{StaticResource BufferStyle}">
-                <TextBlock Text="HANDOFF" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Foreground="{StaticResource TextMutedBrush}"/>
-            </Border>
-
             <Grid Width="{x:Static ui:MachinePlan.PlacementWidth}" Height="{x:Static ui:MachinePlan.PlacementHeight}"
                 Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
                 Panel.ZIndex="21">

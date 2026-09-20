@@ -44,7 +44,7 @@ public sealed partial class PcbPlacer
                 throw new InvalidOperationException("The repeat PCB lost its holding feedback before reaching handoff.");
             if (_handler.Lift == PlacementCylinderState.Up
                 && _handler.IsAtHorizontalZ()
-                && _handler.IsAtBufferXY())
+                && _handler.IsAtHandoffXY())
             {
                 trip.Phase = RepeatPcbPhase.Placing;
             }

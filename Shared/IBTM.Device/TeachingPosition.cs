@@ -37,7 +37,7 @@ public enum TeachingStorage
     Machine,
 
     [Description("Handoff setup")]
-    Buffer,
+    Handoff,
 }
 
 public enum TeachingTarget
@@ -55,10 +55,10 @@ public enum TeachingTarget
     SupplyPcb2Pick,
 
     [Description("PCB Give Position")]
-    SupplyBufferHandoff,
+    SupplyHandoff,
 
     [Description("PCB Receive Position")]
-    PlacementBufferHandoff,
+    PlacementHandoff,
 
     [Description("Heat Sink 1 PCB Placement")]
     HeatSink1PcbPlacement,
@@ -150,7 +150,7 @@ public sealed class TeachingPosition
             switch (true)
             {
                 case true when Staged:
-                    return TeachingStorage.Buffer;
+                    return TeachingStorage.Handoff;
                 case true when Setting is null:
                     return TeachingStorage.Recipe;
                 default:

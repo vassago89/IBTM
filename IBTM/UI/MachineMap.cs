@@ -20,8 +20,8 @@ public sealed class MachineMap
     private readonly NgCarrierTransferSettings _transfer;
     private static readonly (double X, double Y) SupplyPcb1;
     private static readonly (double X, double Y) SupplyPcb2;
-    private static readonly (double X, double Y) SupplyBuffer;
-    private static readonly (double X, double Y) PlacementBuffer;
+    private static readonly (double X, double Y) SupplyHandoff;
+    private static readonly (double X, double Y) PlacementHandoff;
     private static readonly (double X, double Y) PlacementHeatSink1;
     private static readonly (double X, double Y) PlacementHeatSink2;
     private static readonly (double X, double Y) ShootingUpperLeft;
@@ -37,11 +37,11 @@ public sealed class MachineMap
         SupplyPcb2 = MachinePlan.Offset(
             MachinePlan.SupplyPcb2Center,
             MachinePlan.SupplyToolCenter);
-        SupplyBuffer = MachinePlan.Offset(
-            MachinePlan.BufferCenter,
+        SupplyHandoff = MachinePlan.Offset(
+            MachinePlan.HandoffCenter,
             MachinePlan.SupplyToolCenter);
-        PlacementBuffer = MachinePlan.Offset(
-            MachinePlan.BufferCenter,
+        PlacementHandoff = MachinePlan.Offset(
+            MachinePlan.HandoffCenter,
             MachinePlan.PlacementToolCenter);
         PlacementHeatSink1 = MachinePlan.Offset(
             MachinePlan.PlacementHeatSink1,
@@ -86,7 +86,7 @@ public sealed class MachineMap
         get
         {
             return MachinePlan.GetSide(
-                (_supply.BufferHandoffPosition.X, _supply.BufferHandoffPosition.Y),
+                (_supply.HandoffPosition.X, _supply.HandoffPosition.Y),
                 (
                     _recipes.Current.PcbSupply.Pcb1PickPosition.X,
                     _supply.CarrierY),
@@ -102,8 +102,8 @@ public sealed class MachineMap
         {
             return MachinePlan.GetSide(
                 (
-                    _placement.BufferHandoffPosition.X,
-                    _placement.BufferHandoffPosition.Y),
+                    _placement.HandoffPosition.X,
+                    _placement.HandoffPosition.Y),
                 (
                     _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.X,
                     _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
@@ -143,11 +143,11 @@ public sealed class MachineMap
                 _recipes.Current.PcbSupply.Pcb2PickPosition.X,
                 _supply.CarrierY),
             (
-                _supply.BufferHandoffPosition.X,
-                _supply.BufferHandoffPosition.Y),
+                _supply.HandoffPosition.X,
+                _supply.HandoffPosition.Y),
             SupplyPcb1,
             SupplyPcb2,
-            SupplyBuffer);
+            SupplyHandoff);
     }
 
     public (double X, double Y)? GetPlacementPosition(MotionPosition current)
@@ -158,15 +158,15 @@ public sealed class MachineMap
             x,
             y,
             (
-                _placement.BufferHandoffPosition.X,
-                _placement.BufferHandoffPosition.Y),
+                _placement.HandoffPosition.X,
+                _placement.HandoffPosition.Y),
             (
                 _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.X,
                 _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
             (
                 _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.X,
                 _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.Y),
-            PlacementBuffer,
+            PlacementHandoff,
             PlacementHeatSink1,
             PlacementHeatSink2);
     }

@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.PcbBuffer;
 
 namespace IBTM.PcbPlacement;
 
@@ -27,6 +26,11 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
     public MotionStatus Motion { get; }
 
     public IMotionFeedback Feedback => _motion;
+
+    public bool IsAtHandoff(bool live = true)
+    {
+        return Motion.IsAt(_settings.HandoffPosition, live);
+    }
 
     public PlacementCylinderState Lift
     {
@@ -107,12 +111,12 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
                 && _motion.IsAtHorizontalZ
             : !Motion.IsMoving
                 && Motion.Axes[MotionAxis.Z].State is { InPosition: true }
-                && Motion.IsAtZ(_settings.BufferHandoffPosition.Z);
+                && Motion.IsAtZ(_settings.HandoffPosition.Z);
     }
 
-    public bool IsAtBufferXY(bool live = true)
+    public bool IsAtHandoffXY(bool live = true)
     {
-        return IsAtXY(_settings.BufferHandoffPosition, live);
+        return IsAtXY(_settings.HandoffPosition, live);
     }
 
     public void InitializeMotion()
@@ -170,9 +174,9 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
-    public Task MoveAboveBufferAsync(CancellationToken cancellationToken = default)
+    public Task MoveToHandoffXYAsync(CancellationToken cancellationToken = default)
     {
-        return MoveToXYAsync(_settings.BufferHandoffPosition, cancellationToken);
+        return MoveToXYAsync(_settings.HandoffPosition, cancellationToken);
     }
 
     public Task MoveAxisAsync(

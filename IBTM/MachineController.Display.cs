@@ -64,7 +64,7 @@ public sealed partial class MachineController
             AutomaticRunning = automatic,
             ConveyorState = _conveyor.GetState(mainRunning, live: false),
             NgConveyorState = _ngConveyor.GetState(ngRunning),
-            SupplyAtHandoff = _state.Buffer.IsSupplyAtHandoff(live: false),
+            SupplyAtHandoff = _units.PcbSupply && _supplyHandler.IsAtHandoff(live: false),
             EmergencyStopReleased = _state.EmergencyStopReleased,
             DoorClosed = _state.DoorClosed,
             AirPressureOk = _state.AirPressureOk,

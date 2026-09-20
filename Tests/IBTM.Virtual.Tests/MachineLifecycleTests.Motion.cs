@@ -14,7 +14,6 @@ using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
@@ -1146,7 +1145,7 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Equal(HomeBlockReason.None, machine.HomeBlock);
         Assert.Equal(
-            (20, 20, settings.PcbPlacementHandler.BufferHandoffPosition.Z),
+            (20, 20, settings.PcbPlacementHandler.HandoffPosition.Z),
             placement.Feedback.GetPosition());
         Assert.Equal(MachineAlarm.None, state.Alarm);
     }
@@ -1389,8 +1388,9 @@ public sealed partial class MachineLifecycleTests
 
         if (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler)
         {
-            var buffer = services.GetRequiredService<BufferStage>();
-            Assert.False(buffer.IsPlacementEntryAllowed());
+            var placer = services.GetRequiredService<PcbPlacer>();
+            Assert.NotEqual(PcbPlacementState.ReceivingPcb,
+                placer.GetState(services.GetRequiredService<RecipeManager>().Current.PcbPlacement));
         }
 
         foreach (var row in manual.Axes.Where(row => row.Group != group))

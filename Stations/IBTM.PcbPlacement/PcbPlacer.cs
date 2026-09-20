@@ -4,13 +4,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.PcbBuffer;
 
 namespace IBTM.PcbPlacement;
 
 public sealed partial class PcbPlacer : AutoUnit
 {
-    private readonly BufferStage _buffer;
+    private readonly IPcbHandoffSource _supply;
+    private readonly UnitSettings _units;
     private readonly PcbPlacementHandler _handler;
     private readonly PcbPlacementWork _work;
     private HeatSinkSlot[]? _runTargets;
@@ -18,9 +18,10 @@ public sealed partial class PcbPlacer : AutoUnit
     // Keep the press target only while this run owns the operation.
     private HeatSinkSlot? _pressingHeatSink;
 
-    public PcbPlacer(BufferStage buffer, PcbPlacementHandler handler, PcbPlacementWork work)
+    public PcbPlacer(IPcbHandoffSource supply, PcbPlacementHandler handler, PcbPlacementWork work, UnitSettings units)
     {
-        _buffer = buffer;
+        _supply = supply;
+        _units = units;
         _handler = handler;
         _work = work;
         _work.Station.CarrierChanged += OnCarrierChanged;
@@ -30,14 +31,18 @@ public sealed partial class PcbPlacer : AutoUnit
     {
         add
         {
-            _buffer.StateChanged += value;
+            _supply.Changed += value;
+            _supply.Feedback.StateChanged += value;
+            _handler.Feedback.StateChanged += value;
             _handler.Changed += value;
             _work.Changed += value;
         }
 
         remove
         {
-            _buffer.StateChanged -= value;
+            _supply.Changed -= value;
+            _supply.Feedback.StateChanged -= value;
+            _handler.Feedback.StateChanged -= value;
             _handler.Changed -= value;
             _work.Changed -= value;
         }
@@ -143,16 +148,16 @@ public sealed partial class PcbPlacer : AutoUnit
                 if (_repeatTrip?.Phase != RepeatPcbPhase.ToHandoff)
                     await _handler.SetIpmGripperAsync(false, cancellationToken);
                 await _handler.SetIpmLiftDownAsync(true, cancellationToken);
-                await _handler.MoveAboveBufferAsync(cancellationToken);
+                await _handler.MoveToHandoffXYAsync(cancellationToken);
                 break;
             case PcbPlacementState.ReceivingPcb:
-                if (!_buffer.IsPlacementEntryAllowed())
+                if (!IsSupplyReady())
                     return false;
                 if (_handler.IpmGripper != PlacementGripperState.Open)
                     await _handler.SetIpmGripperAsync(false, cancellationToken);
                 if (_handler.IpmLift != PlacementCylinderState.Down)
                     await _handler.SetIpmLiftDownAsync(true, cancellationToken);
-                if (!_buffer.IsPlacementEntryAllowed())
+                if (!IsSupplyReady())
                     return false;
                 await _handler.SetLiftDownAsync(true, cancellationToken);
                 await _handler.WaitForPcbAsync(cancellationToken);
@@ -289,9 +294,9 @@ public sealed partial class PcbPlacer : AutoUnit
             case true when pcb == PlacementPcbState.Secured:
                 switch (true)
                 {
-                    case true when !_repeat && _handler.IsAtBufferXY(live)
+                    case true when !_repeat && _handler.IsAtHandoffXY(live)
                         && _handler.IsAtHorizontalZ(live) && _handler.Lift != PlacementCylinderState.Up:
-                        return _buffer.IsPlacementRaiseAllowed(live)
+                        return _supply.PcbReleased && _handler.IsAtHandoff(live)
                             ? PcbPlacementState.PreparingPlacement
                             : PcbPlacementState.WaitingForSupplyRelease;
                     case true when _work.Station.CarrierSeated && heatSink is not null
@@ -311,8 +316,8 @@ public sealed partial class PcbPlacer : AutoUnit
                 return PcbPlacementState.WaitingForCarrier;
         }
 
-        var supplyReady = _buffer.IsPlacementEntryAllowed(live);
-        var atHandoff = _handler.IsAtBufferXY(live) && _handler.IsAtHorizontalZ(live);
+        var supplyReady = IsSupplyReady(live);
+        var atHandoff = _handler.IsAtHandoffXY(live) && _handler.IsAtHorizontalZ(live);
         switch (true)
         {
             case true when atHandoff && _handler.Lift != PlacementCylinderState.Up
@@ -326,6 +331,11 @@ public sealed partial class PcbPlacer : AutoUnit
             default:
                 return supplyReady ? PcbPlacementState.ReceivingPcb : PcbPlacementState.WaitingForSupply;
         }
+    }
+
+    private bool IsSupplyReady(bool live = true)
+    {
+        return _units.PcbSupply && _supply.IsAtHandoff(live) && _supply.PcbSecured;
     }
 
     private void OnCarrierChanged(bool _)

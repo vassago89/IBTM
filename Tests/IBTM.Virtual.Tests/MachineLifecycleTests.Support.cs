@@ -14,7 +14,6 @@ using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
@@ -187,13 +186,13 @@ public sealed partial class MachineLifecycleTests
         settings.PcbSupply.Motion = FastMotion();
         settings.PcbSupply.RotationZ = 0;
         settings.PcbSupply.CarrierY = 10;
-        settings.PcbSupply.BufferHandoffPosition = new()
+        settings.PcbSupply.HandoffPosition = new()
         {
             X = 80,
             Y = 30,
         };
         settings.PcbPlacementHandler.Motion = FastMotion();
-        settings.PcbPlacementHandler.BufferHandoffPosition = new()
+        settings.PcbPlacementHandler.HandoffPosition = new()
         {
             X = 80,
             Y = 30,

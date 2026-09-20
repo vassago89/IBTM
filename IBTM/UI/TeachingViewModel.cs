@@ -216,9 +216,9 @@ public partial class TeachingViewModel : ObservableObject
                     return TeachingSaveBehavior.FasteningZ;
                 case { Target: TeachingTarget.DataMatrix }:
                     return TeachingSaveBehavior.BarcodeFov;
-                case { Target: TeachingTarget.SupplyBufferHandoff }:
+                case { Target: TeachingTarget.SupplyHandoff }:
                     return TeachingSaveBehavior.SupplyHandoff;
-                case { Target: TeachingTarget.PlacementBufferHandoff }:
+                case { Target: TeachingTarget.PlacementHandoff }:
                     return TeachingSaveBehavior.PlacementHandoff;
                 case { Target: TeachingTarget.SupplyCarrierY }:
                     return TeachingSaveBehavior.SupplyCarrierY;
@@ -230,8 +230,8 @@ public partial class TeachingViewModel : ObservableObject
                     return TeachingSaveBehavior.CameraCenter;
                 case { Mode: TeachMode.Image }:
                     return TeachingSaveBehavior.Image;
-                case { Storage: TeachingStorage.Buffer }:
-                    return TeachingSaveBehavior.Buffer;
+                case { Storage: TeachingStorage.Handoff }:
+                    return TeachingSaveBehavior.Handoff;
                 case { Storage: TeachingStorage.Machine }:
                     return TeachingSaveBehavior.Machine;
                 default:
@@ -411,7 +411,7 @@ public partial class TeachingViewModel : ObservableObject
         TeachingPosition[] positions = SelectedTeachingUnit switch
         {
             HardwareArea.PcbSupply => _supplySettings.GetTeachingPositions(Recipes.Current.PcbSupply)
-                .Where(position => position.Storage != TeachingStorage.Buffer).ToArray(),
+                .Where(position => position.Storage != TeachingStorage.Handoff).ToArray(),
             HardwareArea.PcbPlacementHandler
                 => _placementSettings.GetTeachingPositions(Recipes.Current.PcbPlacement),
             HardwareArea.BoltFastening
@@ -447,7 +447,7 @@ public partial class TeachingViewModel : ObservableObject
         FilteredPoints = positions.Select(position => new TeachingPoint(position))
             .Concat(_handoffPoints.Where(point => point.Position.MotionGroup == ActiveMotionGroup))
             .OrderBy(point => point.Group)
-            .ThenBy(point => point.Position.Target == TeachingTarget.PlacementBufferHandoff ? 0 : 1)
+            .ThenBy(point => point.Position.Target == TeachingTarget.PlacementHandoff ? 0 : 1)
             .ToArray();
         SelectedPoint = FilteredPoints.FirstOrDefault(
             point => point.Position.Target == selectedTarget && point.BoltNumber == selectedBolt)
@@ -562,7 +562,7 @@ public partial class TeachingViewModel : ObservableObject
 
     private void RefreshPointPositions()
     {
-        foreach (var point in FilteredPoints.Where(point => point.Position.Storage != TeachingStorage.Buffer))
+        foreach (var point in FilteredPoints.Where(point => point.Position.Storage != TeachingStorage.Handoff))
             point.Refresh();
         OnPropertyChanged(nameof(FovRegion));
     }
@@ -571,8 +571,8 @@ public partial class TeachingViewModel : ObservableObject
     {
         TeachingPosition[] positions = [
             .. _supplySettings.GetTeachingPositions(Recipes.Current.PcbSupply)
-                .Where(position => position.Storage == TeachingStorage.Buffer),
-            _placementSettings.GetBufferTeachingPosition(),
+                .Where(position => position.Storage == TeachingStorage.Handoff),
+            _placementSettings.GetHandoffTeachingPosition(),
         ];
         _handoffPoints = positions.OrderBy(position => position.MotionGroup)
             .Select(position => new TeachingPoint(position)).ToArray();

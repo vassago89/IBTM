@@ -12,7 +12,6 @@ using IBTM.Hantas;
 using IBTM.Hik;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
@@ -123,7 +122,7 @@ public static class DependencyInjection
             services,
             settings.Drivers.Control,
             settings.PcbPlacementHandler.Motion,
-            () => settings.PcbPlacementHandler.BufferHandoffPosition.Z,
+            () => settings.PcbPlacementHandler.HandoffPosition.Z,
             settings.PcbPlacementHandlerHardware);
         AddXyMotion(
             services,
@@ -257,45 +256,6 @@ public static class DependencyInjection
                 })
             .AddSingleton<INgCarrierTransferFeedback>(
                 provider => provider.GetRequiredService<NgCarrierTransfer>());
-        services.AddSingleton(
-            provider =>
-            {
-                var supply = provider.GetRequiredService<PcbSupplyHandler>();
-                var placement = provider.GetRequiredService<PcbPlacementHandler>();
-                if (settings.Drivers.Control == ControlDriver.Virtual)
-                {
-                    var machine = provider.GetRequiredService<VirtualMachine>();
-                    var recipes = provider.GetRequiredService<RecipeManager>();
-                    supply.Feedback.PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
-                        x,
-                        y,
-                        z,
-                        settings.PcbSupply.CarrierY,
-                        (
-                            recipes.Current.PcbSupply.Pcb1PickPosition.X,
-                            recipes.Current.PcbSupply.Pcb1PickPosition.Z),
-                        (
-                            recipes.Current.PcbSupply.Pcb2PickPosition.X,
-                            recipes.Current.PcbSupply.Pcb2PickPosition.Z),
-                        settings.PcbSupply.BufferHandoffPosition);
-                    placement.Feedback.PositionChanged += (x, y, z) => machine.UpdatePlacementPosition(
-                        x,
-                        y,
-                        z,
-                        settings.PcbPlacementHandler.BufferHandoffPosition,
-                        recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition,
-                        recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition);
-                }
-
-                return new BufferStage(
-                    supply,
-                    placement,
-                    supply.Motion,
-                    placement.Motion,
-                    settings.PcbSupply.BufferHandoffPosition,
-                    settings.PcbPlacementHandler.BufferHandoffPosition,
-                    settings.Units);
-            });
 
         if (settings.Drivers.Bolt == BoltDriver.Io)
         {
@@ -369,16 +329,43 @@ public static class DependencyInjection
             .AddSingleton<BoltInspector>()
             .AddSingleton(
                 provider =>
-                    new PcbSupplyHandler(
+                {
+                    var supply = new PcbSupplyHandler(
                         provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply),
                         provider.GetRequiredService<IIoService>(),
-                        settings.PcbSupply))
+                        settings.PcbSupply);
+                    if (settings.Drivers.Control == ControlDriver.Virtual)
+                    {
+                        var machine = provider.GetRequiredService<VirtualMachine>();
+                        var recipes = provider.GetRequiredService<RecipeManager>();
+                        supply.Feedback.PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
+                            x, y, z, settings.PcbSupply.CarrierY,
+                            (recipes.Current.PcbSupply.Pcb1PickPosition.X, recipes.Current.PcbSupply.Pcb1PickPosition.Z),
+                            (recipes.Current.PcbSupply.Pcb2PickPosition.X, recipes.Current.PcbSupply.Pcb2PickPosition.Z),
+                            settings.PcbSupply.HandoffPosition);
+                    }
+                    return supply;
+                })
+            .AddSingleton<IPcbHandoffSource>(provider => provider.GetRequiredService<PcbSupplyHandler>())
             .AddSingleton(
                 provider =>
-                    new PcbPlacementHandler(
+                {
+                    var placement = new PcbPlacementHandler(
                         provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler),
                         provider.GetRequiredService<IIoService>(),
-                        settings.PcbPlacementHandler))
+                        settings.PcbPlacementHandler);
+                    if (settings.Drivers.Control == ControlDriver.Virtual)
+                    {
+                        var machine = provider.GetRequiredService<VirtualMachine>();
+                        var recipes = provider.GetRequiredService<RecipeManager>();
+                        placement.Feedback.PositionChanged += (x, y, z) => machine.UpdatePlacementPosition(
+                            x, y, z, settings.PcbPlacementHandler.HandoffPosition,
+                            recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition,
+                            recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition);
+                    }
+                    return placement;
+                })
+            .AddSingleton<IPcbHandoffReceiver>(provider => provider.GetRequiredService<PcbPlacementHandler>())
             .AddSingleton(
                 provider =>
                     new BoltFasteningGantry(

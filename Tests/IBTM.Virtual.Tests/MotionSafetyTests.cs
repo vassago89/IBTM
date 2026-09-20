@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Virtual;
@@ -198,15 +197,10 @@ public sealed class MotionSafetyTests
         var io = CreateIo();
         using var supply = Motion(settings, operations);
         using var placement = Motion(settings, operations);
-        var placementHandler = new PcbPlacementHandler(placement, io, new PcbPlacementHandlerSettings());
-        var buffer = new BufferStage(
-            new PcbSupplyHandler(supply, io, new PcbSupplySettings()),
-            placementHandler,
-            new MotionStatus(supply),
-            placementHandler.Motion,
-            new AxisPosition { X = handoff.X, Y = handoff.Y, Z = 3 },
-            handoff,
-            new());
+        var placementHandler = new PcbPlacementHandler(placement, io,
+            new PcbPlacementHandlerSettings { HandoffPosition = handoff });
+        var supplyHandler = new PcbSupplyHandler(supply, io,
+            new PcbSupplySettings { HandoffPosition = new() { X = handoff.X, Y = handoff.Y, Z = 3 } });
 
         io.Initialize();
         supply.Initialize();
@@ -217,27 +211,27 @@ public sealed class MotionSafetyTests
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        Assert.False(buffer.IsPlacementEntryAllowed());
+        Assert.False(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
 
         await supply.MoveToAsync(10, 10, 8);
-        Assert.False(buffer.IsSupplyAtHandoff());
-        Assert.False(buffer.IsPlacementEntryAllowed());
+        Assert.False(supplyHandler.IsAtHandoff());
+        Assert.False(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
         await supply.MoveAxisAsync(MotionAxis.Z, 3, settings.ZSpeed);
-        Assert.True(buffer.IsPlacementEntryAllowed());
+        Assert.True(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, true);
-        Assert.False(buffer.IsPlacementEntryAllowed());
+        Assert.False(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, false);
-        Assert.True(buffer.IsPlacementEntryAllowed());
+        Assert.True(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
 
         await placement.MoveToAsync(10, 10, 8);
-        Assert.True(buffer.IsPlacementAtHandoff());
-        Assert.False(buffer.IsPlacementSecuredAtHandoff());
+        Assert.True(placementHandler.IsAtHandoff());
+        Assert.False(placementHandler.IsAtHandoff() && placementHandler.PcbSecured);
         io.SetInputs(
             (InputIo.PcbPlacementPcbDetected, true),
             (InputIo.PcbPlacementVacuumDetected, true),
             (InputIo.PcbPlacementIpmGripperOpen, false),
             (InputIo.PcbPlacementIpmGripperClosed, true));
-        Assert.True(buffer.IsPlacementSecuredAtHandoff());
+        Assert.True(placementHandler.IsAtHandoff() && placementHandler.PcbSecured);
     }
 
     [Fact]
@@ -252,7 +246,7 @@ public sealed class MotionSafetyTests
                 ZSpeed = 1_000,
             },
             RotationZ = 3,
-            BufferHandoffPosition = new AxisPosition
+            HandoffPosition = new AxisPosition
             {
                 X = 20,
                 Y = 15,
@@ -273,7 +267,7 @@ public sealed class MotionSafetyTests
         await HomeAsync(motion, 1_000);
 
         var points = settings.GetTeachingPositions(new());
-        var handoff = Array.Find(points, point => point.Target == TeachingTarget.SupplyBufferHandoff)!;
+        var handoff = Array.Find(points, point => point.Target == TeachingTarget.SupplyHandoff)!;
         var pickups = Array.FindAll(points,
             point => point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick);
         await supply.SetRotatedAsync(true);
@@ -287,7 +281,7 @@ public sealed class MotionSafetyTests
         Assert.Equal(settings.RotationZ, motion.GetPosition().Z);
 
         var xyMovedTogether = false;
-        var yMovedInsideBuffer = false;
+        var yMovedAtHandoff = false;
         var movedAtWrongZ = false;
         motion.PositionChanged += (x, y, z) =>
         {
@@ -299,10 +293,10 @@ public sealed class MotionSafetyTests
                 xyMovedTogether = true;
             }
 
-            yMovedInsideBuffer |= x is >= 10 and <= 30
+            yMovedAtHandoff |= x is >= 10 and <= 30
                 && Math.Abs(y - 15) > MotionService.PositionToleranceMillimeters;
             movedAtWrongZ |= motion.IsMovingHorizontal
-                && Math.Abs(z - settings.BufferHandoffPosition.Z) > MotionService.PositionToleranceMillimeters;
+                && Math.Abs(z - settings.HandoffPosition.Z) > MotionService.PositionToleranceMillimeters;
         };
 
         await supply.SetRotatedAsync(false);
@@ -315,7 +309,7 @@ public sealed class MotionSafetyTests
 
         Assert.True(xyMovedTogether);
         Assert.False(movedAtWrongZ);
-        Assert.Equal((20, 15, settings.BufferHandoffPosition.Z), motion.GetPosition());
+        Assert.Equal((20, 15, settings.HandoffPosition.Z), motion.GetPosition());
         Assert.True(supply.IsAtTravelZ());
         Assert.Equal(TeachMode.Full, handoff.Mode);
 
@@ -325,10 +319,10 @@ public sealed class MotionSafetyTests
 
         // XY departure keeps handoff Z until the handler is outside.
         Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
-        await supply.MoveToHandoffAsync(default, new() { X = 0, Y = 0, Z = settings.BufferHandoffPosition.Z });
-        Assert.True(yMovedInsideBuffer);
+        await supply.MoveToHandoffAsync(default, new() { X = 0, Y = 0, Z = settings.HandoffPosition.Z });
+        Assert.True(yMovedAtHandoff);
         Assert.False(movedAtWrongZ);
-        Assert.Equal((0, 0, settings.BufferHandoffPosition.Z), motion.GetPosition());
+        Assert.Equal((0, 0, settings.HandoffPosition.Z), motion.GetPosition());
 
         io.SetInput(InputIo.PcbSupplyRotated, true); // Both inputs ON is unknown.
         Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));

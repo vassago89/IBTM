@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Virtual;
@@ -24,7 +23,7 @@ public sealed class PcbTransferTests
             Motion = FastMotion(),
             RotationZ = 3,
             CarrierY = 30,
-            BufferHandoffPosition = new() { X = 50, Y = 10 },
+            HandoffPosition = new() { X = 50, Y = 10 },
         };
         var placementSettings = new PcbPlacementHandlerSettings { Motion = FastMotion() };
         var io = new VirtualIoService(
@@ -32,10 +31,10 @@ public sealed class PcbTransferTests
             new MachineOptions());
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, new(), horizontalZ: () => placementSettings.BufferHandoffPosition.Z);
+            placementSettings.Motion, new(), horizontalZ: () => placementSettings.HandoffPosition.Z);
         var handler = new PcbSupplyHandler(motion, io, settings);
         var placement = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var supplier = new PcbSupplier(handler, Buffer(handler, placement, settings, placementSettings));
+        var supplier = new PcbSupplier(handler, placement, new());
         var recipe = new PcbSupplyRecipe
         {
             Pcb1PickPosition = new() { X = 10, Z = 5 },
@@ -129,23 +128,22 @@ public sealed class PcbTransferTests
         var supplySettings = new PcbSupplySettings
         {
             Motion = FastMotion(),
-            BufferHandoffPosition = new() { X = 50, Y = 10 },
+            HandoffPosition = new() { X = 50, Y = 10 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
         {
             Motion = FastMotion(),
-            BufferHandoffPosition = Position(50, 10, 8),
+            HandoffPosition = Position(50, 10, 8),
         };
         var io = new VirtualIoService(
             Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
             new MachineOptions());
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.BufferHandoffPosition.Z);
+            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
         var source = new PcbSupplyHandler(supplyMotion, io, supplySettings);
         var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var buffer = Buffer(source, recipient, supplySettings, placementSettings);
-        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()));
+        var placer = new PcbPlacer(source, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), new());
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -160,7 +158,7 @@ public sealed class PcbTransferTests
 
         var changedHandoffHeight = false;
         placementMotion.PositionChanged += (_, _, z) =>
-            changedHandoffHeight |= Math.Abs(z - placementSettings.BufferHandoffPosition.Z)
+            changedHandoffHeight |= Math.Abs(z - placementSettings.HandoffPosition.Z)
                 > MotionService.PositionToleranceMillimeters;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         if (supplyFirst)
@@ -174,12 +172,12 @@ public sealed class PcbTransferTests
         {
             movedWithCylinderDown |= moving && recipient.Lift != PlacementCylinderState.Up;
         };
-        for (var step = 0; step < 8 && !buffer.IsPlacementAtHandoff(); step++)
+        for (var step = 0; step < 8 && !recipient.IsAtHandoff(); step++)
         {
             await placer.PlaceAsync(new(), HeatSinkSlot.HeatSink1, timeout.Token)!;
         }
 
-        Assert.True(buffer.IsPlacementAtHandoff());
+        Assert.True(recipient.IsAtHandoff());
         Assert.Equal((50, 10, 8), placementMotion.GetPosition());
         Assert.Equal(PlacementCylinderState.Up, recipient.Lift);
         Assert.False(movedWithCylinderDown);
@@ -212,7 +210,7 @@ public sealed class PcbTransferTests
         Assert.False(receipt.IsCompleted);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.True(await receipt);
-        Assert.True(buffer.IsPlacementSecuredAtHandoff());
+        Assert.True(recipient.IsAtHandoff() && recipient.PcbSecured);
         Assert.False(axisMovedDuringReceipt);
         Assert.False(raisedDuringReceipt);
         Assert.False(changedHandoffHeight);
@@ -232,12 +230,12 @@ public sealed class PcbTransferTests
             Motion = FastMotion(),
             RotationZ = 3,
             CarrierY = 30,
-            BufferHandoffPosition = new() { X = 50, Y = 10, Z = 7 },
+            HandoffPosition = new() { X = 50, Y = 10, Z = 7 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
         {
             Motion = FastMotion(),
-            BufferHandoffPosition = Position(50, 10, 8),
+            HandoffPosition = Position(50, 10, 8),
         };
         var io = new VirtualIoService(
             Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
@@ -245,12 +243,11 @@ public sealed class PcbTransferTests
         using var supplyMotion = new VirtualMotionService(
             supplySettings.Motion, operations, horizontalZ: () => supplySettings.RotationZ);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.BufferHandoffPosition.Z);
+            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
         var source = new PcbSupplyHandler(supplyMotion, io, supplySettings);
         var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var buffer = Buffer(source, recipient, supplySettings, placementSettings);
-        var supplier = new PcbSupplier(source, buffer);
-        var placer = new PcbPlacer(buffer, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()));
+        var supplier = new PcbSupplier(source, recipient, new());
+        var placer = new PcbPlacer(source, recipient, new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), new());
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -259,9 +256,9 @@ public sealed class PcbTransferTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, false);
-        Assert.False(buffer.IsPlacementEntryAllowed());
+        Assert.False(source.IsAtHandoff() && source.PcbSecured);
         await source.MoveToHandoffAsync(CancellationToken.None);
-        Assert.True(buffer.IsPlacementEntryAllowed());
+        Assert.True(source.IsAtHandoff() && source.PcbSecured);
         await placementMotion.MoveToAsync(50, 10, 8);
         await recipient.SetIpmLiftDownAsync(true);
         await recipient.SetLiftDownAsync(true);
@@ -279,7 +276,7 @@ public sealed class PcbTransferTests
         {
             foreach (var signal in receipt)
                 io.SetInput(signal, signal != missing);
-            Assert.False(buffer.IsPlacementSecuredAtHandoff());
+            Assert.False(recipient.IsAtHandoff() && recipient.PcbSecured);
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             var waited = false;
             void OnTrace(string message)
@@ -300,7 +297,7 @@ public sealed class PcbTransferTests
 
         foreach (var signal in receipt)
             io.SetInput(signal, true);
-        Assert.True(buffer.IsPlacementSecuredAtHandoff());
+        Assert.True(recipient.IsAtHandoff() && recipient.PcbSecured);
         Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.GetState(recipe, HeatSinkSlot.HeatSink1));
         using var released = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var order = new System.Collections.Generic.List<OutputIo>();
@@ -308,7 +305,7 @@ public sealed class PcbTransferTests
         {
             if (!on && output is OutputIo.PcbSupplyIpmFixerForward or OutputIo.PcbSupplyGripperClosed)
             {
-                Assert.True(buffer.IsPlacementSecuredAtHandoff());
+                Assert.True(recipient.IsAtHandoff() && recipient.PcbSecured);
                 Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.GetState(recipe, HeatSinkSlot.HeatSink1));
                 order.Add(output);
                 if (output == OutputIo.PcbSupplyGripperClosed)
@@ -325,20 +322,20 @@ public sealed class PcbTransferTests
         supplier.Trace -= StopBeforePlacementLifts;
         Assert.Equal(new[] { OutputIo.PcbSupplyIpmFixerForward, OutputIo.PcbSupplyGripperClosed }, order);
         Assert.True(source.PcbReleased);
-        Assert.Equal((50, 10, supplySettings.BufferHandoffPosition.Z), supplyMotion.GetPosition());
+        Assert.Equal((50, 10, supplySettings.HandoffPosition.Z), supplyMotion.GetPosition());
         Assert.Equal(PcbPlacementState.PreparingPlacement, placer.GetState(recipe, HeatSinkSlot.HeatSink1));
         io.SetInput(InputIo.PcbSupplyGripperClosed, true); // Both endpoints ON is not released.
         Assert.False(source.PcbReleased);
         Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, placer.GetState(recipe, HeatSinkSlot.HeatSink1));
         io.SetInput(InputIo.PcbSupplyGripperClosed, false);
-        Assert.False(buffer.IsSupplyExitAllowed);
+        Assert.False(source.PcbReleased && recipient.HandlerRaised);
         io.SetInput(InputIo.PcbPlacementHandlerUp, true); // Down still ON is not confirmed Up.
-        Assert.False(buffer.IsSupplyExitAllowed);
+        Assert.False(source.PcbReleased && recipient.HandlerRaised);
         io.SetInput(InputIo.PcbPlacementHandlerUp, false);
         await placer.PlaceAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!;
-        Assert.True(buffer.IsSupplyExitAllowed);
+        Assert.True(source.PcbReleased && recipient.HandlerRaised);
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetState(recipe, HeatSinkSlot.HeatSink1));
-        Assert.True(buffer.IsSupplyAtHandoff());
+        Assert.True(source.IsAtHandoff());
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PcbPlacementVacuumEjector)
@@ -348,7 +345,7 @@ public sealed class PcbTransferTests
         io.SetOutput(OutputIo.PcbPlacementIpmGripperClose, true);
         await placer.PlaceAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None);
         Assert.Equal((70, 20, 8), placementMotion.GetPosition());
-        Assert.True(buffer.IsSupplyAtHandoff());
+        Assert.True(source.IsAtHandoff());
 
         var exitRecipe = new PcbSupplyRecipe { Pcb1PickPosition = new() { X = 15, Z = 5 } };
         using var exited = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -356,7 +353,7 @@ public sealed class PcbTransferTests
         supplyMotion.PositionChanged += (x, y, z) =>
         {
             if (supplyMotion.IsMovingHorizontal)
-                Assert.Equal(supplySettings.BufferHandoffPosition.Z, z);
+                Assert.Equal(supplySettings.HandoffPosition.Z, z);
             Assert.Equal(PlacementCylinderState.Up, recipient.Lift);
             diagonalExit |= x is > 15 and < 50 && y is > 10 and < 30;
         };
@@ -371,7 +368,7 @@ public sealed class PcbTransferTests
         Assert.Equal(PcbSupplyRotationState.Rotated, source.Rotation);
 
         source.Motion.InvalidateFeedback(new System.IO.IOException("Supply feedback disconnected."));
-        Assert.False(buffer.IsSupplyAtHandoff(live: false));
+        Assert.False(source.IsAtHandoff(live: false));
     }
 
     [Fact]
@@ -381,23 +378,22 @@ public sealed class PcbTransferTests
         var supplySettings = new PcbSupplySettings
         {
             Motion = FastMotion(),
-            BufferHandoffPosition = new() { X = 50, Y = 10 },
+            HandoffPosition = new() { X = 50, Y = 10 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
         {
             Motion = FastMotion(),
-            BufferHandoffPosition = Position(50, 10, 8),
+            HandoffPosition = Position(50, 10, 8),
         };
         var io = new VirtualIoService(
             Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
             new MachineOptions());
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.BufferHandoffPosition.Z);
+            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
         var source = new PcbSupplyHandler(supplyMotion, io, supplySettings);
         var recipient = new PcbPlacementHandler(placementMotion, io, placementSettings);
-        var buffer = Buffer(source, recipient, supplySettings, placementSettings);
-        var supplier = new PcbSupplier(source, buffer);
+        var supplier = new PcbSupplier(source, recipient, new());
         io.Initialize();
         supplyMotion.Initialize();
         placementMotion.Initialize();
@@ -421,7 +417,7 @@ public sealed class PcbTransferTests
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => supplier.RunAsync(new(), stop.Token));
         Assert.Contains("before supply opened its gripper", error.Message);
         Assert.True(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
-        Assert.True(buffer.IsSupplyAtHandoff());
+        Assert.True(source.IsAtHandoff());
         Assert.False(io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
     }
 
@@ -435,12 +431,12 @@ public sealed class PcbTransferTests
             Motion = FastMotion(),
             RotationZ = 0,
             CarrierY = 30,
-            BufferHandoffPosition = new() { X = 50, Y = 10 },
+            HandoffPosition = new() { X = 50, Y = 10 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
         {
             Motion = FastMotion(),
-            BufferHandoffPosition = Position(50, 10, 8),
+            HandoffPosition = Position(50, 10, 8),
         };
         var supplyRecipe = new PcbSupplyRecipe
         {
@@ -462,7 +458,7 @@ public sealed class PcbTransferTests
         io.SetInput(InputIo.AutoMode, false);
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.BufferHandoffPosition.Z);
+            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
         supplyMotion.PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
             x,
             y,
@@ -474,12 +470,12 @@ public sealed class PcbTransferTests
             (
                 supplyRecipe.Pcb2PickPosition.X,
                 supplyRecipe.Pcb2PickPosition.Z),
-            supplySettings.BufferHandoffPosition);
+            supplySettings.HandoffPosition);
         placementMotion.PositionChanged += (x, y, z) => machine.UpdatePlacementPosition(
             x,
             y,
             z,
-            placementSettings.BufferHandoffPosition,
+            placementSettings.HandoffPosition,
             placementRecipe.HeatSink1PcbPlacementPosition,
             placementRecipe.HeatSink2PcbPlacementPosition);
         var placementHandler = new PcbPlacementHandler(placementMotion, io, placementSettings);
@@ -487,10 +483,9 @@ public sealed class PcbTransferTests
             supplyMotion,
             io,
             supplySettings);
-        var buffer = Buffer(supplyHandler, placementHandler, supplySettings, placementSettings);
-        var supply = new PcbSupplier(supplyHandler, buffer);
+        var supply = new PcbSupplier(supplyHandler, placementHandler, new());
         var work = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new());
-        var placement = new PcbPlacer(buffer, placementHandler, work);
+        var placement = new PcbPlacer(supplyHandler, placementHandler, work, new());
         var returnedPositions = new System.Collections.Generic.List<(double X, double Y, double Z)>();
         io.OutputChanged += (output, on) =>
         {
@@ -499,11 +494,11 @@ public sealed class PcbTransferTests
             if (output == OutputIo.PcbSupplyRotate && on && supplyMotion.GetPosition().X > 0)
                 returnedPositions.Add(supplyMotion.GetPosition());
         };
-        var bufferEntries = 0;
-        var enteredBufferPrepared = true;
+        var handoffEntries = 0;
+        var enteredHandoffPrepared = true;
         var movedWithLoweredCylinder = false;
         var carriedWithIpmRaised = false;
-        var wasInsideBuffer = false;
+        var wasAtHandoff = false;
         var heatSinkChangedDuringMove = false;
         placementMotion.PositionChanged += (x, y, _) =>
         {
@@ -512,14 +507,14 @@ public sealed class PcbTransferTests
                 && placementHandler.Pcb == PlacementPcbState.Secured
                 && placementHandler.IpmLift != PlacementCylinderState.Down;
             var inside = x is >= 40 and <= 60 && y is >= 0 and <= 15;
-            if (inside && !wasInsideBuffer)
+            if (inside && !wasAtHandoff)
             {
-                bufferEntries++;
-                enteredBufferPrepared &= placementHandler.IpmGripper == PlacementGripperState.Open
+                handoffEntries++;
+                enteredHandoffPrepared &= placementHandler.IpmGripper == PlacementGripperState.Open
                     && placementHandler.IpmLift == PlacementCylinderState.Down;
             }
 
-            wasInsideBuffer = inside;
+            wasAtHandoff = inside;
             if (!heatSinkChangedDuringMove && x > 75 && y == 20)
             {
                 heatSinkChangedDuringMove = true;
@@ -618,8 +613,8 @@ public sealed class PcbTransferTests
         Assert.True(heatSinkChangedDuringMove);
         Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
         Assert.False(io.GetInput(InputIo.PcbPlacementHeatSink2Present));
-        Assert.True(bufferEntries >= 2);
-        Assert.True(enteredBufferPrepared);
+        Assert.True(handoffEntries >= 2);
+        Assert.True(enteredHandoffPrepared);
         var assembly = Assert.Single(work.Assemblies);
         Assert.Equal(HeatSinkSlot.HeatSink2, assembly.HeatSink);
         Assert.Equal(PlacementCylinderState.Down, placementHandler.IpmLift);
@@ -644,12 +639,12 @@ public sealed class PcbTransferTests
         {
             Motion = FastMotion(),
             CarrierY = 30,
-            BufferHandoffPosition = new() { X = 50, Y = 10 },
+            HandoffPosition = new() { X = 50, Y = 10 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
         {
             Motion = FastMotion(),
-            BufferHandoffPosition = Position(50, 10, 8),
+            HandoffPosition = Position(50, 10, 8),
         };
         var recipe = new PcbSupplyRecipe
         {
@@ -661,14 +656,13 @@ public sealed class PcbTransferTests
             new MachineOptions());
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.BufferHandoffPosition.Z);
+            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
         var placementHandler = new PcbPlacementHandler(placementMotion, io, placementSettings);
         var supplyHandler = new PcbSupplyHandler(
             supplyMotion,
             io,
             supplySettings);
-        var buffer = Buffer(supplyHandler, placementHandler, supplySettings, placementSettings);
-        var supply = new PcbSupplier(supplyHandler, buffer);
+        var supply = new PcbSupplier(supplyHandler, placementHandler, new());
         var pcb1Visited = false;
         var pcb2Visited = false;
         var pcb1Visits = 0;
@@ -786,12 +780,12 @@ public sealed class PcbTransferTests
         {
             Motion = new() { HorizontalSpeed = 100, ZSpeed = 20 },
             RotationZ = 3,
-            BufferHandoffPosition = new() { X = 50, Y = 10, Z = 7 },
+            HandoffPosition = new() { X = 50, Y = 10, Z = 7 },
         };
         var placementSettings = new PcbPlacementHandlerSettings
         {
             Motion = FastMotion(),
-            BufferHandoffPosition = Position(50, 10, 8),
+            HandoffPosition = Position(50, 10, 8),
         };
         var io = new VirtualIoService(
             Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
@@ -799,14 +793,13 @@ public sealed class PcbTransferTests
         using var supplyMotion = new VirtualMotionService(
             supplySettings.Motion, operations, horizontalZ: () => supplySettings.RotationZ);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.BufferHandoffPosition.Z);
+            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
         var placementHandler = new PcbPlacementHandler(placementMotion, io, placementSettings);
         var supplyHandler = new PcbSupplyHandler(
             supplyMotion,
             io,
             supplySettings);
-        var buffer = Buffer(supplyHandler, placementHandler, supplySettings, placementSettings);
-        var supply = new PcbSupplier(supplyHandler, buffer);
+        var supply = new PcbSupplier(supplyHandler, placementHandler, new());
 
         io.Initialize();
         supplyMotion.Initialize();
@@ -835,7 +828,7 @@ public sealed class PcbTransferTests
             enteredWithoutUnrotatedFeedback |= x >= 40
                 && supplyHandler.Rotation != PcbSupplyRotationState.Unrotated;
             changedHeightInside |= x >= 40
-                && Math.Abs(z - supplySettings.BufferHandoffPosition.Z) > MotionService.PositionToleranceMillimeters;
+                && Math.Abs(z - supplySettings.HandoffPosition.Z) > MotionService.PositionToleranceMillimeters;
             if (!interrupted && x >= 45)
             {
                 interrupted = true;
@@ -844,16 +837,16 @@ public sealed class PcbTransferTests
         };
         await supply.RunAsync(new PcbSupplyRecipe(), firstStop.Token);
         Assert.True(interrupted);
-        Assert.False(buffer.IsSupplyAtHandoff());
+        Assert.False(supplyHandler.IsAtHandoff());
         var stoppedPosition = supplyMotion.GetPosition();
-        Assert.InRange(stoppedPosition.Y, 0.1, supplySettings.BufferHandoffPosition.Y - 0.1);
+        Assert.InRange(stoppedPosition.Y, 0.1, supplySettings.HandoffPosition.Y - 0.1);
         Assert.False(supplyMotion.IsMoving);
         Assert.Equal(stoppedPosition, supplyMotion.GetPosition());
         Assert.False(io.GetOutput(OutputIo.PcbSupplyRotate));
 
         using var resumed = new CancellationTokenSource();
         var run = supply.RunAsync(new PcbSupplyRecipe(), resumed.Token);
-        var reachedHandoff = await WaitUntilAsync(() => buffer.IsSupplyAtHandoff(), TimeSpan.FromSeconds(5));
+        var reachedHandoff = await WaitUntilAsync(() => supplyHandler.IsAtHandoff(), TimeSpan.FromSeconds(5));
         resumed.Cancel();
         await run;
 
@@ -861,23 +854,7 @@ public sealed class PcbTransferTests
         Assert.True(unrotatedAtRotationZ);
         Assert.False(enteredWithoutUnrotatedFeedback);
         Assert.False(changedHeightInside);
-        Assert.Equal((50, 10, supplySettings.BufferHandoffPosition.Z), supplyMotion.GetPosition());
-    }
-
-    private static BufferStage Buffer(
-        PcbSupplyHandler supplyHandler,
-        PcbPlacementHandler placementHandler,
-        PcbSupplySettings supplySettings,
-        PcbPlacementHandlerSettings placementSettings)
-    {
-        return new(
-            supplyHandler,
-            placementHandler,
-            supplyHandler.Motion,
-            placementHandler.Motion,
-            supplySettings.BufferHandoffPosition,
-            placementSettings.BufferHandoffPosition,
-            new());
+        Assert.Equal((50, 10, supplySettings.HandoffPosition.Z), supplyMotion.GetPosition());
     }
 
     private static MotionSettings FastMotion()

@@ -194,7 +194,7 @@ public partial class TeachingViewModel
                     SaveError = null;
                     var current = Motion.Feedback.GetPosition();
                     point.Teach(current.X, current.Y, current.Z);
-                    if (point.Position.Storage == TeachingStorage.Buffer)
+                    if (point.Position.Storage == TeachingStorage.Handoff)
                         return;
                     point.Apply();
                     RefreshPointPositions();
