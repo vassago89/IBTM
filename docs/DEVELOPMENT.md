@@ -488,6 +488,14 @@ Watch에서 `GetPosition()`, `GetAxisState()` 같은 장치 읽기를 계속 평
 모션 오류가 `MotionUnavailable`로 분류돼도 앞 항목에 발생 유닛 이름이 남는다.
 `failed while stopping`은 정리 중 추가 오류이므로 최초 알람과 함께 확인한다.
 
+`AXL.dll` 내부의 `0xC0000005` 종료는 C# HOME 예외 처리만으로 복구할 수 없다.
+Visual Studio에서 `IBTM Native` 실행 프로필을 선택하고, 예외 설정의
+`Win32 Exceptions > 0xC0000005 Access violation`을 발생 시 중단하도록 설정한다.
+실장비 재현은 작업자가 수행하며, 중단 시 호출 스택을 외부 코드까지 표시해
+`AXL.dll` 프레임과 최초 C# 호출 위치, 해당 축 번호를 수집한다.
+이벤트 로그의 DLL 버전·타임스탬프·오류 오프셋도 함께 보관한다.
+오프셋만으로 특정 HOME 함수나 스레드 경합을 원인으로 확정하지 않는다.
+
 ## 피드백 감시와 화면 갱신의 경계
 
 DI·DO·모션의 상시 감시는 모두 `MachineFeedbackMonitor.StartAsync`에서 시작하고
