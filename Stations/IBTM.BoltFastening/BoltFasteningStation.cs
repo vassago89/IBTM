@@ -254,19 +254,60 @@ public sealed partial class BoltFasteningStation : AutoUnit
         await SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
     }
 
-    public Task MoveToTeachingPositionAsync(
+    public async Task MoveToTeachingPositionAsync(
         TeachingPosition point,
         AxisPosition position,
         CancellationToken cancellationToken = default)
     {
         switch (point)
         {
+            case { Target: TeachingTarget.BoltPosition, Bolt: { } bolt }:
+            {
+                if (!point.HasPosition)
+                    throw new MotionInterlockException("Record the bolt and reference pins before moving to its fastening position.");
+                var tableDown = bolt.Head == FasteningHead.Pickup;
+                EnsureCanMoveHorizontal(cancellationToken);
+                await MoveToSafeZAsync(cancellationToken);
+                EnsureCanMoveHorizontal(cancellationToken);
+                await SetPickupTableDownAsync(tableDown, cancellationToken);
+                using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                void CheckTeachingTable()
+                {
+                    if (PickupTablePosition != (tableDown ? BoltCylinderState.Down : BoltCylinderState.Up))
+                        move.Cancel();
+                }
+
+                Changed += CheckTeachingTable;
+                try
+                {
+                    CheckTeachingTable();
+                    EnsureCanMoveHorizontal(move.Token);
+                    await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, move.Token);
+                    CheckTeachingTable();
+                    EnsureCanMoveHorizontal(move.Token);
+                    await MoveZAsync(position.Z, move.Token);
+                    move.Token.ThrowIfCancellationRequested();
+                }
+                catch (OperationCanceledException) when (move.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                {
+                    throw new MotionInterlockException(
+                        $"Keep the pickup table {(tableDown ? "down" : "up")} while moving to the selected bolt's fastening position.");
+                }
+                finally
+                {
+                    Changed -= CheckTeachingTable;
+                }
+                break;
+            }
             case { Target: TeachingTarget.BoltPickup }:
-                return MoveToPickupPositionAsync(cancellationToken);
+                await MoveToPickupPositionAsync(cancellationToken);
+                break;
             case { Mode: TeachMode.XYOnly }:
-                return MoveToXYAsync(position.X, position.Y, cancellationToken);
+                await MoveToXYAsync(position.X, position.Y, cancellationToken);
+                break;
             case { Mode: TeachMode.ZOnly }:
-                return MoveZAsync(position.Z, cancellationToken);
+                await MoveZAsync(position.Z, cancellationToken);
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(point));
         }

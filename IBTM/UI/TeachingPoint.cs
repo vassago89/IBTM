@@ -35,8 +35,6 @@ public class TeachingPoint : ObservableObject
             {
                 case (TeachingTarget.SafeZ, MotionGroup.PcbSupply):
                     return "PCB Rotation Z";
-                case (TeachingTarget.SafeZ, MotionGroup.BoltFastening):
-                    return "Travel Z";
                 default:
                     return Position.Target.GetDescription();
             }
@@ -98,7 +96,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.PickupHeadFasteningZ:
                     return "Z used for fastening with the pickup head (Head 1).";
                 case TeachingTarget.BoltPosition:
-                    return "Calculated XY for this bolt. Its fastening Z is set separately for the selected head.";
+                    return "Calculated XY for this bolt and the selected head's fastening Z. Move to Position uses Safe Z, sets the table down for pickup or up for shooting, then moves XY and fastening Z.";
                 case TeachingTarget.BoltReference:
                     return "Camera XY and teaching image for inspecting this bolt.";
                 case TeachingTarget.DataMatrix:
@@ -218,7 +216,7 @@ public enum TeachingSaveBehavior
     [Description("Record Position saves this head's Z automatically. Move to Position moves only Z. Automatic fastening reaches this Z before lowering the head.")]
     FasteningZ,
 
-    [Description("Calculated from the recorded bolt and reference pins. Move to Position checks XY at Travel Z. Use Record Position in Inspection Gantry to record the bolt.")]
+    [Description("Move to Position: Safe Z → table down for pickup / up for shooting → bolt XY → fastening Z. Both heads must be raised. Record the bolt in Inspection Gantry.")]
     BoltPosition,
 
     [Description("Center this backup plate pin in Live, then press Record Position. Saves automatically.")]

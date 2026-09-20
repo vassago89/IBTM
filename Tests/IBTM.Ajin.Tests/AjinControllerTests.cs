@@ -298,12 +298,14 @@ public sealed partial class AjinControllerTests
     [Fact]
     public void MotionInitializationConfiguresOnlyTheStoppedAxisThatNeedsChanges()
     {
+        var log = new ApplicationLog();
+        using var loggerFactory = log.CreateLoggerFactory();
         using var controller = new AjinController(new());
         AjinSdk.MotionAxes[9] = new(Unit: 0.1, InMotion: 1);
         AjinSdk.MotionAxes[10] = new(Unit: 2, AccelerationUnit: 1);
         var motion = new AjinMotionService(
             controller, new() { Number = 9, MoveUnit = 0.1 }, new() { Number = 10 }, null,
-            new(), new(), new(), null);
+            new(), new(), new(), null, loggerFactory.CreateLogger<AjinMotionService>());
 
         motion.Initialize();
 
@@ -316,6 +318,66 @@ public sealed partial class AjinControllerTests
         Assert.All(
             AjinSdk.Calls.Where(call => call.Operation.StartsWith("AxmMotSet")),
             call => Assert.Equal(10, call.Axis));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMove"));
+        Assert.Contains(log.Entries, entry => entry.Message.Contains(
+            "axis 10 initialization: SDK Unit=2, Pulse=1, AccelUnit=1; configured Unit=1, Pulse=1, AccelUnit=0. Apply=true"));
+        Assert.Contains(log.Entries, entry => entry.Message.Contains("axis 10 unit settings applied and read back successfully"));
+    }
+
+    [Fact]
+    public async Task ChangedUnitsBlockTeachingCommandsWithoutRewritingTheScale()
+    {
+        using var controller = new AjinController(new());
+        AjinSdk.MotionAxes[6] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        var motion = new AjinMotionService(
+            controller, new() { Number = 6, MoveUnit = 10, MovePulse = 100 }, null, null,
+            new(), new(), new(), null);
+        motion.Initialize();
+        Assert.True(motion.IsReady);
+
+        // Simulate the SDK scale reverting after initialization, without changing configuration.
+        AjinSdk.MotionAxes[6] = AjinSdk.MotionAxes[6] with { Unit = 1, Pulse = 1 };
+        AjinSdk.Calls.Clear();
+        Assert.False(motion.IsReady);
+
+        var moveError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            motion.AdjustAxisAsync(MotionAxis.X, 2.5, 3));
+        var jogError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            motion.JogAsync(MotionAxis.X, 3));
+        var homeError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            motion.HomeAsync(MotionAxis.X, 3));
+
+        Assert.All(new[] { moveError, jogError, homeError }, error =>
+        {
+            Assert.Contains("axis 6", error.Message);
+            Assert.Contains("SDK Unit=1, Pulse=1, AccelUnit=0", error.Message);
+            Assert.Contains("configured Unit=10, Pulse=100, AccelUnit=0", error.Message);
+        });
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMotSet")
+            || call.Operation.StartsWith("AxmMove") || call.Operation.StartsWith("AxmHomeSet"));
+        Assert.Equal(1, AjinSdk.MotionAxes[6].Unit);
+        Assert.Equal(1, AjinSdk.MotionAxes[6].Pulse);
+    }
+
+    [Fact]
+    public void InitializationRejectsUnitsThatWereNotRetainedByTheSdk()
+    {
+        using var controller = new AjinController(new());
+        AjinSdk.MotionAxes[6] = new();
+        var motion = new AjinMotionService(
+            controller, new() { Number = 6, MoveUnit = 10, MovePulse = 100 }, null, null,
+            new(), new(), new(), null);
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmMotSetAccelUnit))
+                AjinSdk.MotionAxes[6] = AjinSdk.MotionAxes[6] with { Unit = 1, Pulse = 1 };
+        };
+
+        var error = Assert.Throws<InvalidOperationException>(motion.Initialize);
+
+        Assert.Contains("SDK Unit=1, Pulse=1, AccelUnit=0", error.Message);
+        Assert.Contains("configured Unit=10, Pulse=100, AccelUnit=0", error.Message);
+        Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMotSetMoveUnitPerPulse));
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMove"));
     }
 

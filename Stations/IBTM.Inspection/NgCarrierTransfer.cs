@@ -412,6 +412,9 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
                 if (Lift != NgTransferLiftState.Down)
                     await SetLiftUpAsync(false, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
+                // Descent can outlive the source's support or carrier feedback.
+                if (!IsSupportReady(source) || !allowEmpty && !IsCarrierPresent(source))
+                    return false;
                 IsTransferPending = true;
                 await SetGripperOpenAsync(false, cancellationToken);
                 if (!allowEmpty)

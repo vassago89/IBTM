@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.Ajin;
 
@@ -20,6 +21,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     private static readonly TimeSpan s_statusPollInterval;
 
     private readonly AjinController _controller;
+    private readonly ILogger<AjinMotionService>? _log;
     private readonly MachineOptions _options;
     private readonly int _axisX;
     private readonly int? _axisY;
@@ -39,7 +41,8 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         MotionSettings settings,
         MachineOptions options,
         OperationCancellation operationCancellation,
-        Func<double>? horizontalZ)
+        Func<double>? horizontalZ,
+        ILogger<AjinMotionService>? log = null)
         : base(
             settings,
             operationCancellation,
@@ -48,6 +51,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             horizontalZ: horizontalZ)
     {
         _controller = controller;
+        _log = log;
         _options = options;
         _axisX = axisX.Number;
         _axisY = axisY?.Number;
@@ -57,7 +61,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             .ToDictionary(axis => axis.Number);
     }
 
-    public override bool IsReady => _axisParameters.Keys.All(DoAxisParametersMatch);
+    public override bool IsReady => _axisParameters.Keys.All(axis => DoAxisParametersMatch(axis, out _));
 
     public override bool IsMoving => Axes.Any(axis => GetAxisState(axis).InMotion);
 
@@ -68,7 +72,13 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         _controller.Initialize();
         foreach (var axis in _axisParameters.Keys)
         {
-            if (DoAxisParametersMatch(axis))
+            var matches = DoAxisParametersMatch(axis, out var current);
+            var scale = _axisParameters[axis];
+            _log?.LogInformation(
+                "AJIN axis {Axis} initialization: SDK Unit={Unit}, Pulse={Pulse}, AccelUnit={AccelUnit}; configured Unit={ConfiguredUnit}, Pulse={ConfiguredPulse}, AccelUnit={ConfiguredAccelUnit}. Apply={Apply}.",
+                axis, current.Unit, current.Pulse, current.AccelerationUnit,
+                scale.MoveUnit, scale.MovePulse, AccelerationInUnitsPerSecondSquared, !matches);
+            if (matches)
             {
                 continue;
             }
@@ -83,13 +93,14 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                     $"Cannot change AJIN axis {axis} unit settings: AxmStatusReadInMotion={inMotion}.");
             }
 
-            var scale = _axisParameters[axis];
             AjinController.Check(
                 CAXM.AxmMotSetMoveUnitPerPulse(axis, scale.MoveUnit, scale.MovePulse),
                 $"{nameof(CAXM.AxmMotSetMoveUnitPerPulse)} (axis={axis})");
             AjinController.Check(
                 CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
                 $"{nameof(CAXM.AxmMotSetAccelUnit)} (axis={axis})");
+            EnsureAxisParameters(axis);
+            _log?.LogInformation("AJIN axis {Axis} unit settings applied and read back successfully.", axis);
         }
 
         // Communication readiness is independent of servo power and axis alarms.
@@ -595,7 +606,9 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             $"{operation} (axis={axis}) failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
     }
 
-    private bool DoAxisParametersMatch(int axis)
+    private bool DoAxisParametersMatch(
+        int axis,
+        out (double Unit, int Pulse, uint AccelerationUnit) current)
     {
         var unit = 0.0;
         var pulse = 0;
@@ -606,6 +619,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         AjinController.Check(
             CAXM.AxmMotGetAccelUnit(axis, ref accelerationUnit),
             $"{nameof(CAXM.AxmMotGetAccelUnit)} (axis={axis})");
+        current = (unit, pulse, accelerationUnit);
         var expected = _axisParameters[axis];
         return unit == expected.MoveUnit
             && pulse == expected.MovePulse
@@ -614,10 +628,14 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
     private void EnsureAxisParameters(int axis)
     {
-        if (!DoAxisParametersMatch(axis))
+        if (!DoAxisParametersMatch(axis, out var current))
         {
+            var expected = _axisParameters[axis];
             throw new InvalidOperationException(
-                $"AJIN axis {axis} unit settings changed. Initialize motion before issuing a move.");
+                $"AJIN axis {axis} motion parameters do not match: "
+                + $"SDK Unit={current.Unit}, Pulse={current.Pulse}, AccelUnit={current.AccelerationUnit}; "
+                + $"configured Unit={expected.MoveUnit}, Pulse={expected.MovePulse}, "
+                + $"AccelUnit={AccelerationInUnitsPerSecondSquared}. Check motion settings before moving.");
         }
     }
 

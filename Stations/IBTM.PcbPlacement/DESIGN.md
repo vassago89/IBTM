@@ -44,6 +44,9 @@ rises and moves to the original heat sink Y before allowing Supply to withdraw. 
 the same PCB without pressing. Repeat keeps IPM Up during pickup, both handoff directions,
 travel and placement; its handoff confirmation requires IPM Up instead of Down.
 PCB detection and vacuum still confirm holding. Normal production retains the IPM press.
+Repeat pickup confirms both signals after vacuum completes and only then enters
+`MovingToHandoff`. A missing PCB signal with vacuum ON stops at pickup instead of
+raising the handler and trying the pickup again.
 Supply keeps the PCB secured through its reverse travel
 at pickup travel height; it does not put the PCB into an upstream slot.
 After STOP, live holding feedback selects forward continuation: a PCB on Supply

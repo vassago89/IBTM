@@ -7,7 +7,7 @@ public enum BoltFasteningState
     [Description("Waiting")]
     Waiting,
 
-    [Description("Preparing First Shooting Bolt / Travel Z")]
+    [Description("Preparing First Shooting Bolt / Safe Z")]
     MovingToStandby,
 
     [Description("Feeding and Fastening Shooting Bolt")]

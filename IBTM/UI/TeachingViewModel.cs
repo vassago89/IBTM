@@ -591,10 +591,12 @@ public partial class TeachingViewModel : ObservableObject
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
             RecipeEditor.Error = null;
-            if (await SaveSettingsAsync(operation.Token, _supplySettings, _placementSettings)
+            if (await SaveSettingsAsync(operation.Token,
+                    _supplySettings, _placementSettings, _fasteningSettings,
+                    _inspectionGantrySettings, _carrierReference, _ngTransferSettings)
                 && !await RecipeEditor.SaveAsync(operation.Token))
             {
-                SaveError = "Handoff positions were saved, but the recipe was not saved. "
+                SaveError = "Teaching settings were saved, but the recipe was not saved. "
                     + (RecipeEditor.Error ?? "Save was cancelled. Save again to finish.");
             }
             NotifyManualTeachingCommands();

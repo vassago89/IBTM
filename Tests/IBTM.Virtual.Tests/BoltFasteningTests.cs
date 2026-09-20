@@ -1611,6 +1611,136 @@ public sealed class BoltFasteningTests
             motion.GetPosition().Z);
     }
 
+    [Theory]
+    [InlineData(FasteningHead.Pickup)]
+    [InlineData(FasteningHead.Shooting)]
+    [InlineData(FasteningHead.Pickup, true)]
+    [InlineData(FasteningHead.Shooting, false, true)]
+    [InlineData(FasteningHead.Pickup, false, false, true)]
+    [InlineData(FasteningHead.Shooting, false, false, false, true)]
+    public async Task TeachingBoltMoveWaitsForTableAtSafeZBeforeXyAndFasteningZ(
+        FasteningHead head,
+        bool stopAtTable = false,
+        bool conflictingTableFeedback = false,
+        bool loseTableDuringXy = false,
+        bool loseTableDuringFasteningZ = false)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = loseTableDuringFasteningZ ? 50 : 20_000 },
+            PickupHead = HeadSettings(),
+            ShootingHead = HeadSettings(),
+        };
+        settings.PickupHead.FasteningZ = 16;
+        settings.ShootingHead.FasteningZ = 12;
+        var reference = new CarrierReferenceSettings
+        {
+            UpperLeftLocatingPin = new(),
+            LowerRightLocatingPin = new() { X = 100 },
+        };
+        var bolt = Bolt(1, head, 20, 30);
+        var layout = new PcbLayout { BoltPoints = [bolt] };
+        var point = settings.GetTeachingPositions(layout, bolt.HeatSink, reference)
+            .Single(point => point.Bolt == bolt);
+        var destination = point.Read();
+        Assert.Equal(TeachMode.Full, point.Mode);
+        var tableDown = head == FasteningHead.Pickup;
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()),
+            new() { TimeoutMilliseconds = conflictingTableFeedback ? 250 : 2_000 })
+        { AutoResponseEnabled = false };
+        io.SetOutput(OutputIo.PickupTableDown, !tableDown);
+        io.SetInputs(
+            (InputIo.PickupTableUp, tableDown), (InputIo.PickupTableDown, !tableDown),
+            (InputIo.PickupHeadUp, true), (InputIo.PickupHeadDown, false),
+            (InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
+        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        var bus = new VirtualAdcBus();
+        var station = CreateFastening(
+            new AdcBoltHead(bus, new(), 2), new AdcBoltHead(bus, new(), 1), io, motion, settings, reference);
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        await motion.MoveAxisAsync(MotionAxis.Z, 9, 20_000);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var tableCommand = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var steps = new List<string>();
+        motion.MovingChanged += moving =>
+        {
+            if (!moving)
+                return;
+            steps.Add(motion.IsMovingHorizontal ? "XY" : "Z");
+            if (motion.IsMovingHorizontal)
+            {
+                Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                Assert.Equal(tableDown ? BoltCylinderState.Down : BoltCylinderState.Up, station.PickupTablePosition);
+            }
+        };
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (loseTableDuringXy && motion.IsMovingHorizontal)
+                io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
+            if (loseTableDuringFasteningZ && !motion.IsMovingHorizontal
+                && x == destination.X && y == destination.Y && z > settings.SafeZ + 0.05)
+                io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
+        };
+        io.OutputChanged += (output, on) =>
+        {
+            Assert.Equal(OutputIo.PickupTableDown, output);
+            Assert.Equal(tableDown, on);
+            Assert.Equal((0, 0, settings.SafeZ), motion.GetPosition());
+            steps.Add("Table");
+            tableCommand.TrySetResult();
+        };
+
+        var move = station.MoveToTeachingPositionAsync(point, destination, stop.Token);
+        await tableCommand.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(move.IsCompleted);
+        Assert.Equal(new[] { "Z", "Table" }, steps);
+        Assert.Equal((0, 0, settings.SafeZ), motion.GetPosition());
+        if (stopAtTable)
+        {
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => move);
+            Assert.Equal((0, 0, settings.SafeZ), motion.GetPosition());
+        }
+        else if (conflictingTableFeedback)
+        {
+            io.SetInputs((InputIo.PickupTableUp, true), (InputIo.PickupTableDown, true));
+            await Assert.ThrowsAsync<IoTimeoutException>(() => move);
+            Assert.Equal((0, 0, settings.SafeZ), motion.GetPosition());
+        }
+        else
+        {
+            io.SetInputs((InputIo.PickupTableUp, !tableDown), (InputIo.PickupTableDown, tableDown));
+            if (loseTableDuringXy || loseTableDuringFasteningZ)
+            {
+                await Assert.ThrowsAsync<MotionInterlockException>(() => move);
+                if (loseTableDuringFasteningZ)
+                {
+                    Assert.Equal(destination.X, motion.GetPosition().X);
+                    Assert.Equal(destination.Y, motion.GetPosition().Y);
+                    Assert.InRange(motion.GetPosition().Z, settings.SafeZ, destination.Z - 0.05);
+                }
+                else
+                {
+                    Assert.InRange(motion.GetPosition().X, 0, destination.X - 0.05);
+                    Assert.InRange(motion.GetPosition().Y, 0, destination.Y - 0.05);
+                    Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                }
+            }
+            else
+            {
+                await move;
+                Assert.Equal(new[] { "Z", "Table", "XY", "Z" }, steps);
+                Assert.Equal((destination.X, destination.Y, destination.Z), motion.GetPosition());
+            }
+        }
+        Assert.Equal((destination.X, destination.Y, destination.Z), (point.Read().X, point.Read().Y, point.Read().Z));
+        Assert.True(station.IsHorizontalMoveAllowed);
+        Assert.False(motion.IsMoving);
+    }
+
     private static BoltPoint Bolt(int number, FasteningHead head, double x, double y)
     {
         return new()

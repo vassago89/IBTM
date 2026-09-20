@@ -36,7 +36,7 @@
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                             <Setter Property="Content" Value="Save"/>
-                            <Setter Property="ToolTip" Value="Save the recorded handoff coordinates and the current product recipe. This does not record or change any position."/>
+                            <Setter Property="ToolTip" Value="Save the recorded machine coordinates and the current product recipe. This does not record or change any position."/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
                                     <Setter Property="Content" Value="Saving..."/>
@@ -136,7 +136,7 @@
                             <Button Content="Return from Bolt Pickup"
                                 Command="{Binding ReturnFromPickupCommand}"
                                 Margin="0,6,0,0" Style="{StaticResource SecondaryButtonStyle}"
-                                ToolTip="Move Z to Travel Z, then raise the pickup head (Head 1). XY and vacuum remain unchanged."
+                                ToolTip="Move Z to Safe Z, then raise the pickup head (Head 1). XY and vacuum remain unchanged."
                                 Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </ScrollViewer>

@@ -23,7 +23,7 @@ public partial class TeachingViewModel
                 case MotionGroup.PcbPlacementHandler:
                     return "Move Z to Standby Height";
                 default:
-                    return "Move Z to Travel Height";
+                    return "Move Z to Safe Z";
             }
         }
     }

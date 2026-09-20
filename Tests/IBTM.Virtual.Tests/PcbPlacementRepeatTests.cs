@@ -128,6 +128,39 @@ public sealed class PcbPlacementRepeatTests
     }
 
     [Fact]
+    public async Task RepeatDoesNotLiftWhenPcbDetectionDropsDuringVacuumPickup()
+    {
+        using var rig = new RepeatRig(loadPcbs: true);
+        await rig.InitializeAsync();
+        var lost = false;
+        var raisedAfterLoss = false;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PcbPlacementVacuumEjector && on)
+            {
+                lost = true;
+                rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, false);
+                rig.Io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
+            }
+            if (lost && output == OutputIo.PcbPlacementHandlerDown && !on)
+            {
+                raisedAfterLoss = true;
+                stop.Cancel();
+            }
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => rig.Placer.RunAsync(stop.Token, repeat: true));
+        Assert.True(lost);
+        Assert.False(raisedAfterLoss);
+        Assert.True(rig.Handler.VacuumDetected);
+        Assert.Equal(PlacementCylinderState.Down, rig.Handler.Lift);
+        Assert.Empty(rig.Work.Assemblies);
+        Assert.False(rig.Work.Completed);
+    }
+
+    [Fact]
     public async Task StoppedRepeatWithHeldPcbRestartsWithoutReset()
     {
         using var rig = new RepeatRig(loadPcbs: true);

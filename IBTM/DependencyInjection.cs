@@ -444,7 +444,8 @@ public static class DependencyInjection
                         settings,
                         provider.GetRequiredService<MachineOptions>(),
                         cancellation,
-                        horizontalZ);
+                        horizontalZ,
+                        provider.GetRequiredService<ILogger<AjinMotionService>>());
                 }
 
                 var io = provider.GetRequiredService<VirtualIoService>();

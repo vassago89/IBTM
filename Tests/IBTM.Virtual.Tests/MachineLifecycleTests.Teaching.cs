@@ -1578,6 +1578,50 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(123, store.LoadRecipe<Recipe>("Teaching retry").BoltInspection.LightLevel);
     }
 
+    [Fact]
+    public async Task TeachingSaveRetriesFailedBoltPositionRecordingWithoutReplacingCoordinates()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.BoltFastening.SafeZ = 5;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var store = services.GetRequiredService<MachineStore>();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
+        await settings.SaveAsync(store);
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SafeZ);
+        await motion.MoveAxisAsync(MotionAxis.Z, 8, 10_000);
+        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TRIGGER FailBoltTeaching BEFORE UPDATE ON Settings WHEN NEW.Key = 'BoltFasteningSettings' BEGIN SELECT RAISE(ABORT, 'bolt teaching write failed'); END";
+        command.ExecuteNonQuery();
+
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+
+        Assert.Contains("bolt teaching write failed", teaching.SaveError);
+        Assert.Equal(8, settings.BoltFastening.SafeZ);
+        Assert.Equal(5, store.LoadSettings().Get<BoltFasteningSettings>().SafeZ);
+        command.CommandText = "DROP TRIGGER FailBoltTeaching";
+        command.ExecuteNonQuery();
+        // Saving retries the recorded value, even after the physical axis has moved elsewhere.
+        await motion.MoveAxisAsync(MotionAxis.Z, 12, 10_000);
+        await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
+        await teaching.SaveCommand.ExecuteAsync(null);
+
+        Assert.Null(teaching.SaveError);
+        Assert.Equal(8, settings.BoltFastening.SafeZ);
+        Assert.Equal(8, store.LoadSettings().Get<BoltFasteningSettings>().SafeZ);
+        Assert.Equal(12, motion.GetPosition().Z);
+        teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+        Assert.Equal(8, teaching.SelectedPoint!.Z);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1694,6 +1738,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MotionCommand.Positioning, positioning);
         Assert.Equal(MotionCommand.None, gantry.Feedback.Command);
 
+        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XMinus));
         var fail = true;
         gantry.Feedback.PositionChanged += (_, _, _) =>
         {

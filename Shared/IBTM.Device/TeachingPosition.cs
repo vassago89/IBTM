@@ -39,7 +39,7 @@ public enum TeachingStorage
 
 public enum TeachingTarget
 {
-    [Description("Travel Z")]
+    [Description("Safe Z")]
     SafeZ,
 
     [Description("PCB 1 Pickup")]

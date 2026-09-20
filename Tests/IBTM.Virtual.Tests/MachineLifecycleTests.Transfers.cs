@@ -18,6 +18,67 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Theory]
+    [InlineData(NgTransferDestination.Shuttle, InputIo.InspectionHeatSink1Present)]
+    [InlineData(NgTransferDestination.Station, InputIo.NgShuttleUp)]
+    public async Task NgPickupRechecksSourceAfterDescent(
+        NgTransferDestination destination, InputIo lostInput)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var transfer = services.GetRequiredService<NgCarrierTransfer>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await transfer.Station.SeatAsync(CancellationToken.None);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
+        io.SetInput(destination == NgTransferDestination.Shuttle
+            ? InputIo.InspectionHeatSink1Present : InputIo.NgShuttleCarrierDetected, true);
+        // Detection can remain ON even though the pickup has not gripped anything.
+        io.SetInput(InputIo.NgCarrierDetected, true);
+        var lost = false;
+        var closed = false;
+        var raisedAfterLoss = false;
+        void LoseSourceDuringDescent(OutputIo output, bool on)
+        {
+            if (output == OutputIo.NgCarrierPickupDown && on && !lost)
+            {
+                lost = true;
+                io.SetInput(lostInput, false);
+            }
+            closed |= lost && output == OutputIo.NgCarrierGripperClose && on;
+            raisedAfterLoss |= lost && output == OutputIo.NgCarrierPickupDown && !on;
+        }
+
+        io.OutputChanged += LoseSourceDuringDescent;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        try
+        {
+            Assert.False(await transfer.ExecuteAsync(
+                destination, NgTransferState.PickingCarrier, timeout.Token));
+            Assert.True(lost);
+            Assert.False(closed);
+            Assert.False(raisedAfterLoss);
+            Assert.False(transfer.IsTransferPending);
+            Assert.Equal(NgTransferGripperState.Open, transfer.Gripper);
+
+            io.OutputChanged -= LoseSourceDuringDescent;
+            io.SetInput(lostInput, true);
+            Assert.True(await transfer.ExecuteAsync(
+                destination, transfer.GetState(destination, canPickUp: true), timeout.Token));
+            Assert.True(transfer.IsTransferPending);
+            Assert.True(transfer.IsRaised);
+            Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
+        }
+        finally
+        {
+            io.OutputChanged -= LoseSourceDuringDescent;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task NgTransferStopsBeforeLoweringAfterGripFeedbackLoss(bool opens)

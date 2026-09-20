@@ -48,9 +48,6 @@ public sealed partial class PcbPlacer
         if (!_work.Station.CarrierSeated)
             throw new InvalidOperationException("The repeat PCB carrier is no longer seated.");
 
-        if (trip.State == PcbPlacementState.PickingPcb && PcbSecured)
-            trip.State = PcbPlacementState.MovingToHandoff;
-
         if (trip.State == PcbPlacementState.MovingToHandoff)
         {
             if (!PcbSecured)
@@ -88,6 +85,11 @@ public sealed partial class PcbPlacer
                 await SetLiftDownAsync(true, operation.Token);
                 await WaitForPcbAsync(operation.Token);
                 await SetVacuumAsync(true, operation.Token);
+                operation.Token.ThrowIfCancellationRequested();
+                if (!PcbSecured)
+                    throw new InvalidOperationException("Repeat pickup requires both PCB detection and vacuum before raising the handler.");
+                trip.State = PcbPlacementState.MovingToHandoff;
+                Changed?.Invoke();
                 return;
             }
             if (_units.PcbSupply && trip.State == PcbPlacementState.MovingToHandoff

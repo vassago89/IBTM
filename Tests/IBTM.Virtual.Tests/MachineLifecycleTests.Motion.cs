@@ -1180,6 +1180,8 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(TeachingSaveBehavior.BoltPickup, teaching.SaveBehavior);
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
 
+        // Hold only the head feedback below; the table is already at its pickup position.
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, true);
         io.AutoResponseEnabled = false;
         io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
         var vacuumChanged = false;
@@ -1207,6 +1209,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(gantry.Feedback.IsMoving);
         Assert.True(io.GetOutput(OutputIo.PickupHeadDown)); // Stop keeps pneumatic outputs.
 
+        await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
         var retry = teaching.MoveToPointCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => io.GetOutput(OutputIo.PickupHeadDown));
         Assert.False(retry.IsCompleted);

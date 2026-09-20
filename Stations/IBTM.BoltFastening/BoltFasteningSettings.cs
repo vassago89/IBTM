@@ -115,7 +115,7 @@ public sealed class BoltFasteningSettings : Setting
         return new(
             TeachingTarget.BoltPosition,
             MotionGroup.BoltFastening,
-            TeachMode.XYOnly,
+            TeachMode.Full,
             () => HasBoltPosition(bolt, reference) ? GetBoltPosition(bolt, reference) : new(),
             null,
             isDefined: () => HasBoltPosition(bolt, reference))
