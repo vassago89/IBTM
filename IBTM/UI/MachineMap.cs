@@ -311,6 +311,8 @@ public sealed class MachineMap
             return (targetFirst.X + (x - first.X) * tx / dx, targetFirst.Y + (y - first.Y) * ty / dy);
 
         var lengthSquared = dx * dx + dy * dy;
+        if (lengthSquared == 0)
+            return default;
         var a = (tx * dx + ty * dy) / lengthSquared;
         var b = (ty * dx - tx * dy) / lengthSquared;
         return (
