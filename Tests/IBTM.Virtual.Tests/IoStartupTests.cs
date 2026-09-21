@@ -22,6 +22,55 @@ namespace IBTM.Virtual.Tests;
 public sealed class IoStartupTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResetWaitsForStoppedOperationCleanupAndRechecksLiveRunOutput(bool outputStillOn)
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        var initializations = io.Initializations;
+        using var owner = operations.TryBegin();
+        Assert.NotNull(owner);
+        state.AutomaticRunning = true;
+        state.SetError(MachineAlarm.MainConveyor);
+        owner.Cancel();
+        var acknowledged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.Buzzer && !on)
+                acknowledged.TrySetResult();
+        };
+        var reset = machine.ResetAsync();
+        try
+        {
+            await acknowledged.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(reset.IsCompleted);
+            Assert.Equal(initializations, io.Initializations);
+            Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
+            var repeatedClick = machine.ResetAsync();
+            io.SetOutput(OutputIo.MainConveyorRun, outputStillOn);
+            state.AutomaticRunning = false;
+            owner.Dispose();
+            await Task.WhenAll(reset, repeatedClick).WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(outputStillOn ? MachineAlarm.MainConveyor : MachineAlarm.None, state.Alarm);
+            Assert.Equal(initializations + (outputStillOn ? 0 : 1), io.Initializations);
+            Assert.Equal(outputStillOn, io.GetOutput(OutputIo.MainConveyorRun));
+        }
+        finally
+        {
+            owner.Dispose();
+            state.AutomaticRunning = false;
+            io.BeforeOutputWrite = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
     [InlineData(OutputIo.MainConveyorRun)]
     [InlineData(OutputIo.NgConveyorRun)]
     public async Task ResetRechecksRunOutputsWhenAcquiredFeedbackStillSaysStopped(OutputIo output)
@@ -1587,9 +1636,11 @@ public sealed class IoStartupTests
         public bool AllowWritesWhileUnavailable { get; set; }
         public int ReadsWhileUnavailable { get; private set; }
         public int WritesWhileUnavailable { get; private set; }
+        public int Initializations { get; private set; }
 
         public void Initialize()
         {
+            Initializations++;
             if (!FailCheckReady && InitializationError is { } error)
                 throw error;
             IsReady = true;

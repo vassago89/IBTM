@@ -521,19 +521,58 @@ public sealed partial class ConveyorTests
         }
     }
 
-    [Fact]
-    public async Task ReverseReturnStillStopsOnArrivalTimeout()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReverseReturnIgnoresTransferTimeoutAndStopsImmediatelyAtEntryOrStop(bool stopBeforeEntry)
     {
         var io = CreateIo();
         var conveyor = CreateConveyor(io,
             settings: new ConveyorSettings { TransferTimeoutSeconds = 0.05 });
         io.Initialize();
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.ReturnToStartAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            await Task.Delay(150);
+            Assert.False(run.IsCompleted);
+            Assert.True(conveyor.RunCommandOn);
+            if (stopBeforeEntry)
+                stop.Cancel();
+            else
+                io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            // RUN must already be OFF in the same input/cancellation callback.
+            Assert.False(conveyor.RunCommandOn);
+            if (stopBeforeEntry)
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+            else
+                await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+        finally
+        {
+            stop.Cancel();
+        }
+    }
+
+    [Fact]
+    public async Task EntryDuringReverseMotorSetupCannotTurnRunOn()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io);
+        io.Initialize();
+        io.SetOutput(OutputIo.MainConveyorForward, true);
         var started = false;
-        io.OutputChanged += (output, on) => started |= output == OutputIo.MainConveyorRun && on;
+        io.OutputChanged += (output, value) =>
+        {
+            if (output == OutputIo.MainConveyorForward && !value)
+                io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            started |= output == OutputIo.MainConveyorRun && value;
+        };
 
-        await Assert.ThrowsAsync<IoTimeoutException>(() => conveyor.ReturnToStartAsync(CancellationToken.None));
+        await conveyor.ReturnToStartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(1));
 
-        Assert.True(started);
+        Assert.False(started);
         Assert.False(conveyor.RunCommandOn);
     }
 

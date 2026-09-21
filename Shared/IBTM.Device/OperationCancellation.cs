@@ -141,11 +141,21 @@ public sealed class OperationCancellation
             source = _source;
             drained = _activeOperations == 0
                 ? Task.CompletedTask
-                : (_drained = new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+                : (_drained ??= new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
         }
 
         _ = CompleteShutdownAsync(source, drained, shutdown);
         return shutdown.Task;
+    }
+
+    public Task WaitForIdleAsync()
+    {
+        lock (_gate)
+        {
+            return _activeOperations == 0
+                ? Task.CompletedTask
+                : (_drained ??= new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+        }
     }
 
     private static async Task CompleteShutdownAsync(
@@ -182,6 +192,7 @@ public sealed class OperationCancellation
             if (becameIdle)
             {
                 _drained?.TrySetResult();
+                _drained = null;
             }
 
             // Shutdown may dispose subscribers once the drain completes.

@@ -14,29 +14,28 @@ public sealed partial class MachineController
     private readonly Lock _resetGate;
     private Task _resetTask = Task.CompletedTask;
 
-    public bool IsResetAllowed
+    public bool IsResetAllowed => IsResetAllowedFor(_state.IsRunning);
+
+    private bool IsResetAllowedFor(bool running)
     {
-        get
+        switch (true)
         {
-            switch (true)
-            {
-                case true when _operations.IsShuttingDown
-                    || _feedback.Failure is not null
-                    || _state.IsRunning:
-                    return false;
-                case true when _state.Alarm == MachineAlarm.IoCommunication:
-                    return true;
-                case true when !_state.SafetyReady || !(_state.ManualMode || _state.DoorInterlockReady):
-                    return false;
-                // Hardware recovery admission, not permission to acknowledge the buzzer.
-                // A failed feedback scan must leave recovery usable without another native read.
-                case true when _state.IsError
-                    || _feedback.ReadError is not null:
-                    return true;
-            }
-            var motion = _state.FeedbackReadiness;
-            return motion.Faulted || !motion.ServosOn || !_state.ServoMainContactorOn;
+            case true when _operations.IsShuttingDown
+                || _feedback.Failure is not null
+                || running:
+                return false;
+            case true when _state.Alarm == MachineAlarm.IoCommunication:
+                return true;
+            case true when !_state.SafetyReady || !(_state.ManualMode || _state.DoorInterlockReady):
+                return false;
+            // Hardware recovery admission, not permission to acknowledge the buzzer.
+            // A failed feedback scan must leave recovery usable without another native read.
+            case true when _state.IsError
+                || _feedback.ReadError is not null:
+                return true;
         }
+        var motion = _state.FeedbackReadiness;
+        return motion.Faulted || !motion.ServosOn || !_state.ServoMainContactorOn;
     }
 
     public async Task ResetAsync()
@@ -54,6 +53,9 @@ public sealed partial class MachineController
             {
                 case true when !_resetTask.IsCompleted:
                     return _resetTask;
+                case true when _state.IsError && _operations.HasActiveOperations
+                    && !_operations.IsShuttingDown && _feedback.Failure is null:
+                    return _resetTask = ResetHardwareAsync();
                 case true when !IsResetAllowed:
                     _log?.LogInformation("Machine RESET: buzzer silenced; hardware recovery conditions are not satisfied.");
                     return Task.CompletedTask;
@@ -65,13 +67,18 @@ public sealed partial class MachineController
 
     private async Task ResetHardwareAsync()
     {
+        if (_state.IsError && _operations.HasActiveOperations)
+        {
+            _log?.LogInformation("Machine RESET: waiting for stopped operation cleanup to finish.");
+            await _operations.WaitForIdleAsync();
+        }
         try
         {
             // Button availability uses acquired feedback; RESET must recheck the run outputs.
             // Disconnected I/O is initialized below without trying to read it first.
-            if (_state.IsRunningFor())
+            if (!IsResetAllowedFor(_state.IsRunningFor()))
             {
-                _log?.LogInformation("Machine RESET: hardware recovery blocked while equipment is running.");
+                _log?.LogInformation("Machine RESET: hardware recovery conditions are not satisfied after the stop check.");
                 return;
             }
         }

@@ -51,7 +51,27 @@ public sealed partial class MainConveyor
                     _runCancellation = null;
             };
             cancellationToken = runCancellation.Token;
-            using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+            using var entryStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, entryStop.Token, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+            var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            void StopAtEntry(InputIo input, bool value)
+            {
+                if (input != InputIo.MainConveyorEntryCarrierDetected || !value)
+                    return;
+                // Cancellation synchronously turns RUN off, before waking this sequence.
+                // It also prevents motor setup from turning RUN on after an early arrival.
+                try
+                {
+                    entryStop.Cancel();
+                    arrived.TrySetResult();
+                }
+                catch (Exception exception)
+                {
+                    arrived.TrySetException(exception);
+                }
+            }
+
+            _io.InputChanged += StopAtEntry;
             try
             {
                 await Task.WhenAll(
@@ -60,18 +80,31 @@ public sealed partial class MainConveyor
                     _inspectionWork.Station.ReleaseAsync(cancellationToken));
 
                 if (EntryCarrierDetected)
+                    StopAtEntry(InputIo.MainConveyorEntryCarrierDetected, true);
+                if (arrived.Task.IsCompleted)
+                {
+                    await arrived.Task;
                     return;
+                }
 
-                StartMotor(cancellationToken, reverse: true);
-                await _io.WaitForInputAsync(
-                    InputIo.MainConveyorEntryCarrierDetected,
-                    true,
-                    (int)(_settings.TransferTimeoutSeconds * 1000),
-                    cancellationToken);
+                try
+                {
+                    StartMotor(entryStop.Token, reverse: true);
+                }
+                catch (OperationCanceledException) when (
+                    entryStop.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                {
+                    await arrived.Task;
+                }
+                await arrived.Task.WaitAsync(cancellationToken);
             }
             catch (Exception exception)
             {
                 motor.Failure = exception;
+            }
+            finally
+            {
+                _io.InputChanged -= StopAtEntry;
             }
         }
         finally
