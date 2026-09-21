@@ -28,7 +28,6 @@ public sealed class BoltFeederUnit : AutoUnit
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
         io.InputChanged += OnInputChanged;
-        io.OutputChanged += OnOutputChanged;
     }
 
     public override event Action? Changed;
@@ -36,20 +35,8 @@ public sealed class BoltFeederUnit : AutoUnit
     private int TimeoutMilliseconds => _head == FasteningHead.Pickup
         ? _settings.PickupTimeoutMilliseconds : _settings.ShootingTimeoutMilliseconds;
 
-    public BoltFeederState State
-    {
-        get
-        {
-            if (_head == FasteningHead.Shooting
-                && (_io.GetOutput(OutputIo.ShootingEscapeForward)
-                    || !_io.GetInput(InputIo.ShootingEscapeBackward)
-                    || _io.GetInput(InputIo.ShootingEscapeForward)))
-                return BoltFeederState.WaitingForEscapeBackward;
-            return _io.GetInput(_boltDetected)
-                ? BoltFeederState.BoltReady
-                : BoltFeederState.WaitingForBolt;
-        }
-    }
+    public BoltFeederState State => _io.GetInput(_boltDetected)
+        ? BoltFeederState.BoltReady : BoltFeederState.WaitingForBolt;
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
@@ -57,81 +44,70 @@ public sealed class BoltFeederUnit : AutoUnit
         try
         {
             BeginRun();
-            try
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_head == FasteningHead.Shooting)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (_head == FasteningHead.Shooting)
+                _io.SetOutput(OutputIo.ShootingEscapeForward, false);
+                Interlocked.Exchange(ref _boltDetectedAt,
+                    _io.GetInput(_boltDetected) ? Stopwatch.GetTimestamp() : 0);
+            }
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var state = State;
+                TraceStep(state, _boltDetected.ToString());
+                switch (state)
                 {
-                    _io.SetOutput(OutputIo.ShootingEscapeForward, false);
-                    Interlocked.Exchange(ref _boltDetectedAt,
-                        _io.GetInput(_boltDetected) ? Stopwatch.GetTimestamp() : 0);
-                }
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    var state = State;
-                    TraceStep(state, _boltDetected.ToString());
-                    switch (state)
-                    {
-                        case BoltFeederState.WaitingForBolt:
-                            SetFeeding(true);
-                            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                    case BoltFeederState.WaitingForBolt:
+                        SetFeeding(true);
+                        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                        {
+                            // Keep feeding during escape travel; time out replenishment only after return.
+                            timeout.CancelAfter(_head == FasteningHead.Shooting
+                                && (!_io.GetInput(InputIo.ShootingEscapeBackward)
+                                    || _io.GetInput(InputIo.ShootingEscapeForward))
+                                ? Timeout.Infinite : TimeoutMilliseconds);
+                            try
                             {
-                                timeout.CancelAfter(TimeoutMilliseconds);
-                                try
-                                {
-                                    while (State == BoltFeederState.WaitingForBolt)
-                                        await WaitForChangeAsync(timeout.Token);
-                                }
-                                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                                {
-                                    throw new IoTimeoutException(_boltDetected, true, TimeoutMilliseconds);
-                                }
+                                await WaitForChangeAsync(timeout.Token);
                             }
-                            break;
-                        case BoltFeederState.BoltReady when _head == FasteningHead.Shooting:
-                            var boltDetectedAt = Volatile.Read(ref _boltDetectedAt);
-                            var remaining = boltDetectedAt == 0 ? TimeSpan.Zero
-                                : TimeSpan.FromMilliseconds(_settings.ShootingRunOnMilliseconds)
-                                    - Stopwatch.GetElapsedTime(boltDetectedAt);
-                            if (remaining <= TimeSpan.Zero)
+                            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                             {
-                                SetFeeding(false);
-                                await WaitForChangeAsync(cancellationToken);
-                                break;
+                                throw new IoTimeoutException(_boltDetected, true, TimeoutMilliseconds);
                             }
-                            if (_io.GetOutput(OutputIo.ShootingFeederOff))
-                                SetFeeding(true);
-                            using (var delay = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-                            {
-                                delay.CancelAfter(remaining);
-                                try
-                                {
-                                    await WaitForChangeAsync(delay.Token);
-                                }
-                                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                                {
-                                    // Recheck current detection and escape feedback before stopping the feeder.
-                                }
-                            }
-                            break;
-                        case BoltFeederState.WaitingForEscapeBackward:
-                            SetFeeding(true);
+                        }
+                        break;
+                    case BoltFeederState.BoltReady when _head == FasteningHead.Shooting:
+                        var boltDetectedAt = Volatile.Read(ref _boltDetectedAt);
+                        var remaining = boltDetectedAt == 0 ? TimeSpan.Zero
+                            : TimeSpan.FromMilliseconds(_settings.ShootingRunOnMilliseconds)
+                                - Stopwatch.GetElapsedTime(boltDetectedAt);
+                        SetFeeding(remaining > TimeSpan.Zero);
+                        if (remaining <= TimeSpan.Zero)
+                        {
                             await WaitForChangeAsync(cancellationToken);
                             break;
-                        case BoltFeederState.BoltReady:
-                            SetFeeding(false);
-                            await WaitForChangeAsync(cancellationToken);
-                            break;
-                    }
+                        }
+                        using (var delay = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                        {
+                            delay.CancelAfter(remaining);
+                            try
+                            {
+                                await WaitForChangeAsync(delay.Token);
+                            }
+                            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                            {
+                                // Recheck the latest detection before stopping the feeder.
+                            }
+                        }
+                        break;
+                    case BoltFeederState.BoltReady:
+                        await WaitForChangeAsync(cancellationToken);
+                        break;
                 }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
-            finally
-            {
-                EndRun(cancellationToken);
-            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception exception)
         {
@@ -140,6 +116,7 @@ public sealed class BoltFeederUnit : AutoUnit
         }
         finally
         {
+            EndRun(cancellationToken);
             try
             {
                 SetFeeding(false);
@@ -174,10 +151,4 @@ public sealed class BoltFeederUnit : AutoUnit
         }
     }
 
-    private void OnOutputChanged(OutputIo output, bool value)
-    {
-        if (_head == FasteningHead.Shooting
-            && output == OutputIo.ShootingEscapeForward)
-            Changed?.Invoke();
-    }
 }

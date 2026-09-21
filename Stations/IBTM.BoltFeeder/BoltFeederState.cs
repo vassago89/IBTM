@@ -10,6 +10,4 @@ public enum BoltFeederState
     [Description("Bolt Ready")]
     BoltReady,
 
-    [Description("Waiting for Escape Backward")]
-    WaitingForEscapeBackward,
 }

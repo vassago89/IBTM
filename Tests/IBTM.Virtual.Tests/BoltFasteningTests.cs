@@ -527,7 +527,7 @@ public sealed class BoltFasteningTests
             // Keep feeding while escape is forward, without starting the refill timeout yet.
             await Task.Delay(600);
             Assert.False(run.IsCompleted);
-            Assert.Equal(BoltFeederState.WaitingForEscapeBackward, feeder.State);
+            Assert.Equal(BoltFeederState.WaitingForBolt, feeder.State);
             Assert.False(io.GetInput(InputIo.ShootingFeederBoltDetected));
             Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
             Assert.Equal(2, runCount);

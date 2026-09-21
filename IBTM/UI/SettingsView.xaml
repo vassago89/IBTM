@@ -248,7 +248,7 @@
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFeeder.ShootingRunOnMilliseconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             Width="180" HorizontalAlignment="Left"/>
-                                        <TextBlock Text="Keep feeding during escape travel. After Bolt Detected turns ON, continue feeding for this time before stopping with escape BACKWARD. Default: 3,000 ms."
+                                        <TextBlock Text="Feed while no bolt is detected. After Bolt Detected turns ON, keep feeding for this time, then stop. Default: 3,000 ms."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </Border>
