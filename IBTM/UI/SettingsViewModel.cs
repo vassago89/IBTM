@@ -56,6 +56,7 @@ public partial class SettingsViewModel : ObservableObject
         LightDrivers = Enum.GetValues<LightDriver>();
 
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => IsSettingsEditAllowed);
+        BrowsePcbResultsFolderCommand = new RelayCommand(BrowsePcbResultsFolder, () => IsSettingsEditAllowed);
         LoadVirtualImageCommand = new AsyncRelayCommand<string?>(LoadVirtualImageAsync, _ => IsChangeVirtualImageAllowed);
         ClearVirtualImageCommand = new RelayCommand(ClearVirtualImage, () => IsClearVirtualImageAllowed);
         OffTestLightCommand = new AsyncRelayCommand(OffTestLightAsync, () => IsOffTestLightAllowed);
@@ -156,11 +157,35 @@ public partial class SettingsViewModel : ObservableObject
 
     public IAsyncRelayCommand SaveSettingsCommand { get; }
 
+    public IRelayCommand BrowsePcbResultsFolderCommand { get; }
+
+    public string PcbResultsDirectory
+    {
+        get => Settings.PcbHistory.Directory;
+        set
+        {
+            Settings.PcbHistory.Directory = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private void BrowsePcbResultsFolder()
+    {
+        var dialog = new OpenFolderDialog { Title = "PCB results folder" };
+        if (Directory.Exists(PcbResultsDirectory))
+            dialog.InitialDirectory = PcbResultsDirectory;
+        if (dialog.ShowDialog() == true)
+            PcbResultsDirectory = dialog.FolderName;
+    }
+
     private async Task SaveSettingsAsync()
     {
         DatabaseMessage = "Saving settings...";
         try
         {
+            if (string.IsNullOrWhiteSpace(PcbResultsDirectory) || !Path.IsPathFullyQualified(PcbResultsDirectory))
+                throw new InvalidOperationException("Choose an absolute folder path for PCB results.");
+            Directory.CreateDirectory(PcbResultsDirectory);
             foreach (var row in InputMappings)
             {
                 var hardware = (InputHardwareSettings)row.Hardware;
@@ -194,6 +219,7 @@ public partial class SettingsViewModel : ObservableObject
         TestLightCommand.NotifyCanExecuteChanged();
         OffTestLightCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsSettingsEditAllowed));
+        BrowsePcbResultsFolderCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsDriverChangeAllowed));
     }
 

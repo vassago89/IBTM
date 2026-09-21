@@ -128,6 +128,10 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | 표준 로거 연결·파일 저장·최근 로그 수신 | `Shared/IBTM.Core/ApplicationLog.cs`, `IBTM/ApplicationTraceListener.cs` |
 | 메인 컨베이어 이송·감지 후 밀착 시간 | `Stations/IBTM.Conveyor/MainConveyor.cs`, `ConveyorSettings.cs` |
 | 백업 플레이트·스토퍼 | `Shared/IBTM.Device/ConveyorStation.cs` |
+| 볼트 공급·헤드/테이블 I/O·피드백 | `Stations/IBTM.BoltFastening/BoltFasteningStation.cs` |
+| 볼트 자동 순서·체결 결과·표시 상태 | `Stations/IBTM.BoltFastening/BoltFasteningStation.Automatic.cs` |
+| 볼트 모션·티칭 이동 | `Stations/IBTM.BoltFastening/BoltFasteningStation.Motion.cs` |
+| 볼트 단독 Repeat | `Stations/IBTM.BoltFastening/BoltFasteningStation.Repeat.cs` |
 | Station 3 작업/NG 대기 | `Stations/IBTM.Inspection/InspectionStation.cs`, `InspectionWork.cs` |
 | NG 픽업·복귀·XY 이동·실린더·그리퍼 | `Stations/IBTM.Inspection/NgCarrierTransfer.cs` |
 | 셔틀·NG 벨트 | `Stations/IBTM.NgConveyor/NgShuttle.cs`, `NgCarrierConveyor.cs` |
@@ -200,7 +204,7 @@ Supply의 `PCB Handoff`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unr
 Placement는 핸들러 상승 → 대기 Z → 인계 XY에서 대기하고, 실린더 Up 상태로 `ReceiveZ`까지 이동해 받는다.
 Supply 해제 후 대기 Z로 복귀하고 선택한 히트싱크 Y까지 먼저 빠진 뒤 X 이동·안착한다. Supply는 Y 도착 후 복귀한다.
 Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 동작에서 회전하거나 회전 피드백을 기다리지 않는다. 티칭·OUTPUTS에서도 ON으로 전환할 수 없다.
-체결의 `Travel Z`은 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
+체결의 `Safe Z`는 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
 `Pickup Head Fastening Z`는 픽업 볼트의 체결 높이다. 볼트마다 한 번만 체결한다.
 자동 동작은 양쪽 헤드 상승 → Safe Z에서 XY 이동 → 선택 헤드의 체결 Z 이동 → 체결 START → 즉시 해당 헤드 하강 순서다.
 체결기는 회전을, 실린더는 볼트 전진을 담당한다. START 전송 성공 후 하강하며, 하강 중 오류·정지 시 체결기도 정지한다.
@@ -217,19 +221,28 @@ Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 �
 Safe Z → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다. 픽업 중에는 양쪽 헤드를 UP으로 유지하며, 픽업·슈팅 모두 체결 START 후에만 해당 헤드를 내린다.
 별도의 가체결·본체결 패스는 없다. 슈팅·픽업 모두 프리셋 1번으로 고정하며, 레시피에는 프리셋 속성이 없다.
 
+`BoltFasteningStation`은 한 클래스로 유지한다. 본체에는 공급·I/O, `.Motion.cs`에는 모션·티칭,
+`.Automatic.cs`에는 캐리어별 볼트 순회·체결·결과 기록을 둔다. 단독 Repeat 조건은 `.Repeat.cs`에 둔다.
+자동 루프는 현재 `BoltPoint`의 헤드별 공급·이동을 수행한 뒤 공통 체결·복귀 순서를 실행한다.
+별도의 상태 실행 중계를 두지 않으며, `_activeBolt`는 실행 중인 목적지 표시용이다. STOP 후 START는 다시 첫 볼트부터 시작한다.
+
 | 체결 상태 | 동작 / 완료 기준 |
 | --- | --- |
 | `MovingToStandby` → `Waiting` | 헤드 상승 → Safe Z → 픽업 테이블 상승 확인 → 첫 슈팅 볼트 XY → 착좌 대기 |
-| `FasteningPcb` | 테이블·헤드 상승 확인 → 볼트 위치 이동과 공급·도착 대기 병렬 → 튜브 해제·이스케이프 후진 → 체결 → 헤드·Safe Z 복귀 |
+| `FasteningPcb` | 테이블·헤드 상승 확인 → 볼트 위치 이동과 공급 병렬(튜브 통과 직후 이스케이프 후진·남은 도착 시간 대기) → 체결 → 헤드·Safe Z 복귀 |
 | `FasteningPickup` | 양쪽 헤드 UP → Safe Z → 테이블 하강 → Pickup XY → 볼트 준비 확인 → Pickup Z → 볼트 취득 → Safe Z → 체결 위치 → 체결·복귀 |
 | `WaitingForShootingFeeder` / `WaitingForPickupFeeder` | 각 피더의 볼트 감지를 기다린다. 픽업은 Safe Z·헤드 상승 상태에서 기다린다. Repeat·피더 OFF는 공급 대기를 생략한다. |
 | `CompletingCarrier` | 모든 결과와 헤드·Z 복귀 확인 후 작업 완료 |
 
 
-`Bolt Pickup`의 Z는 별도 픽업 높이로 유지한다. 체결의 B1/B2는 헤드별 계산 XY 위치이며
-Move to Position은 Travel Z에서 위치만 확인한다. 각 Z 티칭값은 설비 설정에 독립적으로 자동 저장된다.
-기존 공통 체결 Z는 두 헤드 체결 Z의 초기값으로 옮기며, 이후에는 서로 영향을 주지 않는다.
+`Bolt Pickup`의 Z는 별도 픽업 높이로 유지한다. 볼트 XY는 검사 좌표와 선택 헤드의 기준 핀으로 계산한다.
+볼트의 Move to Position은 Safe Z → 픽업 테이블 위치 확인(픽업 DOWN·슈팅 UP) → XY → 해당 헤드의 체결 Z 순서다.
+좌표 기록은 Record Position에서만 수행하며, 저장이나 이동 중 다른 포지션값을 덮어쓰지 않는다.
 검사 볼트는 Add Bolt로 생성하고 FOV/ROI를 연결한다. 좌표 없는 안내 항목은 목록에 넣지 않는다.
+검사 순서는 PCB 1의 Data Matrix → PCB 1 볼트 번호순 → PCB 2의 Data Matrix → PCB 2 볼트 번호순이다.
+Data Matrix 미판독과 볼트 검사 NG는 결과로 기록하고 나머지 검사를 계속한다. 미판독 문자열은 null로 유지하며,
+`PcbBarcodeResult`로 미검사(Pending)와 판독 실패(NG)를 구분한다. 최종 NG는 캐리어에 유지하고 화면에는 `NG · Not Read`로 표시한다.
+자동 검사와 수동 촬영은 같은 항목의 저장된 FOV 위치로 이동해 촬영한다. 로그·이미지 제목도 PCB와 Data Matrix/볼트를 구분한다.
 
 1. XAML의 `Command` / `IsEnabled` 바인딩 이름을 찾는다.
 2. ViewModel 생성자의 `new RelayCommand(...)` / `new AsyncRelayCommand(...)`에서 실행 메서드와 조건을 본다. 커맨드는 자동 생성 특성 없이 읽기 전용 속성으로 직접 선언하고, 취소 커맨드와 동시 실행 옵션도 생성자에서 연결한다.

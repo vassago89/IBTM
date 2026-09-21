@@ -166,6 +166,20 @@
                     <StackPanel MaxWidth="1480" Margin="0,0,8,0">
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
+                                <TextBlock Text="PCB Results" Style="{StaticResource SettingSectionTitle}"/>
+                                <TextBlock Text="Database folder" Style="{StaticResource SettingFieldLabel}"/>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0"
+                                        Command="{Binding BrowsePcbResultsFolderCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                        Text="{Binding PcbResultsDirectory, UpdateSourceTrigger=LostFocus}"/>
+                                </DockPanel>
+                                <TextBlock Text="Monthly files: PCB-yyyy-MM.db. PCB numbers continue across months. Save settings to keep this folder."
+                                    Style="{StaticResource SettingHelpText}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
                                 <TextBlock Text="Main Conveyor" Style="{StaticResource SettingSectionTitle}"/>
                                 <UniformGrid Columns="3">
                                     <StackPanel Margin="0,0,12,0">

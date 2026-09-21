@@ -29,6 +29,7 @@ public abstract partial class StationWork
     }
 
     public event Action? Changed;
+    public event Action<HeatSinkAssembly>? AssemblyCreated;
 
     public Job CurrentJob => _job;
 
@@ -55,11 +56,17 @@ public abstract partial class StationWork
 
     public HeatSinkAssembly GetAssembly(Job job, HeatSinkSlot heatSink)
     {
+        HeatSinkAssembly assembly;
         lock (s_jobGate)
         {
             RequireCurrentJob(job);
-            return job.Assemblies.GetOrAdd(heatSink, static slot => new HeatSinkAssembly(slot));
+            if (job.Assemblies.TryGetValue(heatSink, out var existing))
+                return existing;
+            assembly = new(heatSink);
+            job.Assemblies[heatSink] = assembly;
         }
+        AssemblyCreated?.Invoke(assembly);
+        return assembly;
     }
 
     public void RequireCurrentJob(Job job)

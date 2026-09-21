@@ -81,6 +81,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         [FromKeyedServices(FasteningHead.Pickup)] BoltFeederUnit pickupBoltFeeder,
         [FromKeyedServices(FasteningHead.Shooting)] BoltFeederUnit shootingBoltFeeder,
         NgCarrierTransfer ngTransfer,
+        PcbHistory pcbHistory,
         ILogger<MachineController>? log = null)
     {
         _resetGate = new();
@@ -103,6 +104,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _pickupBoltFeeder = pickupBoltFeeder;
         _shootingBoltFeeder = shootingBoltFeeder;
         _ngTransfer = ngTransfer;
+        PcbHistory = pcbHistory;
         _log = log;
         if (log is not null)
         {
@@ -123,6 +125,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public PcbHistory PcbHistory { get; }
 
     internal bool IsHomeAxisAllowed(MotionGroup group, MotionAxis axis)
     {

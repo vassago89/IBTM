@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -32,6 +33,10 @@ public sealed class HeatSinkAssembly
 
     public HeatSinkSlot HeatSink { get; }
 
+    public long? PcbNumber { get; set; }
+
+    public event Action<HeatSinkAssembly>? ResultsChanged;
+
     public IReadOnlyDictionary<int, BoltResult> PcbBoltResults => _pcbBoltResults;
 
     public IReadOnlyDictionary<int, BoltResult> PickupBoltResults => _pickupBoltResults;
@@ -40,7 +45,20 @@ public sealed class HeatSinkAssembly
 
     public AssemblyResult FasteningResult { get; private set; }
     public AssemblyResult InspectionResult { get; private set; }
-    public string? PcbBarcode { get; set; }
+    // Pending is untested; assigning a null barcode records a failed read.
+    public AssemblyResult PcbBarcodeResult { get; private set; }
+    public string? PcbBarcode
+    {
+        get;
+        set
+        {
+            field = value;
+            PcbBarcodeResult = string.IsNullOrEmpty(value) ? AssemblyResult.Ng : AssemblyResult.Ok;
+            if (PcbBarcodeResult == AssemblyResult.Ng)
+                InspectionResult = AssemblyResult.Ng;
+            ResultsChanged?.Invoke(this);
+        }
+    }
 
     public AssemblyResult Result => FasteningResult == AssemblyResult.Ng ? AssemblyResult.Ng : InspectionResult;
 
@@ -61,6 +79,7 @@ public sealed class HeatSinkAssembly
         {
             FasteningResult = AssemblyResult.Ng;
         }
+        ResultsChanged?.Invoke(this);
     }
 
     public void CompleteFastening()
@@ -69,6 +88,7 @@ public sealed class HeatSinkAssembly
         {
             FasteningResult = AssemblyResult.Ok;
         }
+        ResultsChanged?.Invoke(this);
     }
 
     public void RecordBoltPresence(int number, bool present)
@@ -78,6 +98,7 @@ public sealed class HeatSinkAssembly
         {
             InspectionResult = AssemblyResult.Ng;
         }
+        ResultsChanged?.Invoke(this);
     }
 
     public void CompleteInspection()
@@ -86,5 +107,6 @@ public sealed class HeatSinkAssembly
         {
             InspectionResult = AssemblyResult.Ok;
         }
+        ResultsChanged?.Invoke(this);
     }
 }

@@ -6,11 +6,47 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
+    xmlns:storage="clr-namespace:IBTM.Storage;assembly=IBTM.Storage"
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
     Background="{StaticResource AppBgBrush}">
     <UserControl.Resources>
+        <DataTemplate x:Key="PcbHistoryCard" DataType="{x:Type storage:PcbRecord}">
+            <StackPanel MinWidth="94" Margin="8,4">
+                <TextBlock Text="{Binding Number, StringFormat='PCB {0}'}" FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock x:Name="ResultText" Margin="0,4,0,0"
+                    Text="{Binding Result, Converter={StaticResource EnumDescriptionConverter}}"
+                    Foreground="{StaticResource TextMutedBrush}"/>
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Result}" Value="{x:Static core:AssemblyResult.Ok}">
+                    <Setter TargetName="ResultText" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Result}" Value="{x:Static core:AssemblyResult.Ng}">
+                    <Setter TargetName="ResultText" Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+        <DataTemplate x:Key="PcbFasteningResult">
+            <StackPanel Margin="0,4,12,6">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Key, StringFormat='Bolt {0} · '}"/>
+                    <TextBlock x:Name="Verdict" Text="NG" Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock Margin="8,0,0,0" Text="{Binding Value.Torque, StringFormat='Torque {0:0.###}', TargetNullValue='Torque —'}"/>
+                </StackPanel>
+                <TextBlock Text="{Binding Value.Source, Converter={StaticResource EnumDescriptionConverter}}"
+                    Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                <TextBlock Text="{Binding Value.Error}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap"/>
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Value.Success}" Value="True">
+                    <Setter TargetName="Verdict" Property="Text" Value="OK"/>
+                    <Setter TargetName="Verdict" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
         <DataTemplate x:Key="DoorSensorTemplate" DataType="{x:Type ui:DoorSensorDisplay}">
             <Border x:Name="DoorCard" Margin="4,0" Padding="10,7" CornerRadius="3"
                 Background="{StaticResource ControlBgBrush}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1">
@@ -88,6 +124,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Border Grid.ColumnSpan="2" Margin="0,0,0,8" Padding="10,8" MaxWidth="1602" HorizontalAlignment="Stretch"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="3">
@@ -261,6 +298,95 @@
                 </Border>
                 <TextBlock Margin="0,8,0,0" Text="Last captured inspection image"
                     Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+            </StackPanel>
+        </Border>
+        <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="12,8"
+            Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
+            BorderThickness="1" CornerRadius="3">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,6">
+                    <TextBlock Text="PCB History" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="New → Old" Margin="14,0,0,0" Foreground="{StaticResource TextMutedBrush}"/>
+                </DockPanel>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Older" Margin="8,0,0,0" VerticalAlignment="Center"
+                        Command="{Binding LoadOlderPcbsCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
+                    <ListBox ItemsSource="{Binding PcbRecords}" SelectedItem="{Binding SelectedPcb, Mode=TwoWay}"
+                        ItemTemplate="{StaticResource PcbHistoryCard}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
+                        Background="{StaticResource ControlBgBrush}" BorderThickness="0" Height="88"
+                        ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate><VirtualizingStackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                    </ListBox>
+                </DockPanel>
+                <TextBlock Text="{Binding PcbHistoryError}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap"/>
+                <Grid Margin="0,10,0,0">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedPcb}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <DockPanel Margin="0,0,0,8">
+                        <Button DockPanel.Dock="Right" Content="Close" Command="{Binding ClosePcbDetailsCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}"/>
+                        <TextBlock Text="{Binding SelectedPcb.Number, StringFormat='PCB {0}'}" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding SelectedPcb.CreatedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" Margin="16,3,0,0"/>
+                        <TextBlock Text="{Binding SelectedPcb.RecipeName, StringFormat='Recipe: {0}'}" Margin="16,3,0,0"/>
+                        <TextBlock Text="{Binding SelectedPcb.HeatSink, Converter={StaticResource EnumDescriptionConverter}}" Margin="16,3,0,0"/>
+                    </DockPanel>
+                    <ScrollViewer Grid.Row="1" MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                        <Grid TextBlock.Foreground="{StaticResource TextSecondaryBrush}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="Data Matrix" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding SelectedPcb.PcbBarcodeResult, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,6,0,4"/>
+                                <TextBlock Text="{Binding SelectedPcb.PcbBarcode, TargetNullValue='—'}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Shooting · Head 2" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding SelectedPcb.FasteningResult, Converter={StaticResource EnumDescriptionConverter}, StringFormat='Fastening: {0}'}"
+                                    Margin="0,4,0,4" Foreground="{StaticResource TextMutedBrush}"/>
+                                <ItemsControl ItemsSource="{Binding SelectedPcb.PcbBoltResults}" ItemTemplate="{StaticResource PcbFasteningResult}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Pickup · Head 1" FontWeight="SemiBold"/>
+                                <ItemsControl ItemsSource="{Binding SelectedPcb.PickupBoltResults}" ItemTemplate="{StaticResource PcbFasteningResult}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Text="Inspection" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding SelectedPcb.InspectionResult, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,4,0,4"/>
+                                <ItemsControl ItemsSource="{Binding SelectedPcb.BoltPresenceResults}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4">
+                                                <TextBlock Text="{Binding Key, StringFormat='Bolt {0} · '}"/>
+                                                <TextBlock x:Name="Presence" Text="NG · Missing" Foreground="{StaticResource AccentRedBrush}"/>
+                                            </StackPanel>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding Value}" Value="True">
+                                                    <Setter TargetName="Presence" Property="Text" Value="OK · Present"/>
+                                                    <Setter TargetName="Presence" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
             </StackPanel>
         </Border>
     </Grid>

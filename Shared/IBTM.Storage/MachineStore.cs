@@ -31,7 +31,7 @@ public sealed class SavedSettings
     }
 }
 
-public sealed class MachineStore
+public sealed partial class MachineStore
 {
     private readonly DbContextOptions<MachineDb> _options;
 
@@ -43,6 +43,14 @@ public sealed class MachineStore
         using var db = new MachineDb(_options);
         // Settings and recipes evolve inside JSON, not as database columns.
         db.Database.EnsureCreated();
+        // EnsureCreated does not add tables to an existing settings/recipe database.
+        db.Database.ExecuteSqlRaw("""
+            CREATE TABLE IF NOT EXISTS PcbCounter (
+                Id INTEGER NOT NULL PRIMARY KEY CHECK (Id = 1),
+                Number INTEGER NOT NULL
+            );
+            INSERT OR IGNORE INTO PcbCounter (Id, Number) VALUES (1, 0);
+            """);
     }
 
     public string DatabaseFile { get; }

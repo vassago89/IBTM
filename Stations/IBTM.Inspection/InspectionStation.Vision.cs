@@ -144,19 +144,14 @@ public sealed partial class InspectionStation
         }
     }
 
-    internal async Task<string> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
+    internal async Task<string?> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
     {
-        if (!HasBarcodeRegion(pcb))
-            throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
+        var image = await CaptureBarcodeAsync(pcb, cancellationToken);
         var region = GetBarcodeFov(pcb).Region!;
-        var image = await CaptureCurrentAsync(cancellationToken);
         InspectionCaptured?.Invoke(image, pcb, null);
         var text = await Task.Run(() => DataMatrixReader.Read(image, region), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        return !string.IsNullOrEmpty(text)
-            ? text
-            : throw new InvalidOperationException(
-                $"Data Matrix could not be read for {pcb.GetDescription()}. Check the PCB and camera image.");
+        return text;
     }
 
     public bool HasPosition(BoltPoint point)
@@ -236,11 +231,8 @@ public sealed partial class InspectionStation
 
     internal async Task<bool> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
-        if (!HasRegion(point))
-            throw new InvalidOperationException(
-                $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
+        var image = await CaptureAsync(point, cancellationToken).ConfigureAwait(false);
         var region = GetFov(point).Region!;
-        var image = await CaptureCurrentAsync(cancellationToken).ConfigureAwait(false);
         InspectionCaptured?.Invoke(image, point.HeatSink, point.Number);
         return await Task.Run(
             () =>

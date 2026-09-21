@@ -66,6 +66,7 @@ public static class DependencyInjection
             .AddSingleton(settings.Units)
             .AddSingleton(settings.Options)
             .AddSingleton(settings.RecipeSelection)
+            .AddSingleton(settings.PcbHistory)
             .AddSingleton(settings.CarrierReference)
             .AddSingleton(settings.PcbSupply)
             .AddSingleton(settings.PcbPlacementHandler)
@@ -400,6 +401,7 @@ public static class DependencyInjection
         services
             .AddSingleton<MachineFeedbackMonitor>()
             .AddSingleton<MachineState>()
+            .AddSingleton<PcbHistory>()
             .AddSingleton<MachineController>()
             .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
             .AddKeyedSingleton<BoltFeederUnit>(FasteningHead.Pickup,

@@ -866,7 +866,7 @@ public sealed class BoltFasteningTests
             ShootingArrivalDelaySeconds = preparationFailure == ShootingPreparationFailure.Motion
                 ? 1 : shootWithoutVacuum ? 0.3 : 0.05,
             ShootingDetectionTimeoutMilliseconds = preparationFailure == ShootingPreparationFailure.Supply ? 50 : 2_000,
-            Motion = new() { HorizontalSpeed = 200, ZSpeed = 20_000 },
+            Motion = new() { HorizontalSpeed = 50, ZSpeed = 20_000 },
             PickupPosition = new() { X = 100, Y = 100, Z = 10 },
             PickupHead = HeadSettings(),
             ShootingHead = HeadSettings(),
@@ -927,6 +927,7 @@ public sealed class BoltFasteningTests
         var supplyCommands = new List<string>();
         var shotElapsed = new Stopwatch();
         var shootingOverlappedMove = false;
+        var escapeReturnedDuringMove = false;
         motion.PositionChanged += (x, y, z) =>
         {
             if (motion.IsMovingHorizontal && io.GetOutput(OutputIo.ShootBolt))
@@ -946,6 +947,11 @@ public sealed class BoltFasteningTests
                 if (on)
                 {
                     Assert.True(io.GetInput(InputIo.ShootingFeederBoltDetected));
+                }
+                else
+                {
+                    Assert.False(io.GetInput(InputIo.ShootingTubeBoltDetected));
+                    escapeReturnedDuringMove = motion.IsMovingHorizontal;
                 }
                 supplyCommands.Add(on ? "ESCAPE FORWARD" : "ESCAPE BACKWARD");
                 io.SetInputs((InputIo.ShootingEscapeForward, on), (InputIo.ShootingEscapeBackward, !on));
@@ -1029,7 +1035,9 @@ public sealed class BoltFasteningTests
                 Assert.Empty(results);
                 return;
             }
-            await descending.Task.WaitAsync(TimeSpan.FromSeconds(1));
+            await descending.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            if (selectedHead == FasteningHead.Shooting)
+                Assert.True(escapeReturnedDuringMove);
             Assert.Equal(new[] { "START ON", "DOWN" }, commands);
             Assert.True(io.GetOutput(start));
             Assert.False(run.IsCompleted);

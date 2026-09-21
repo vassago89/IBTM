@@ -61,7 +61,8 @@ public sealed partial class InspectionStation : AutoUnit
             case NgTransferState.HoldingAtDestination:
                 return InspectionStationState.HoldingCarrierAtShuttle;
             default:
-                return GetNextInspectionState(GetNextBolt(bolts), live, mainConveyorRunning);
+                var target = GetNextTarget(bolts);
+                return GetNextInspectionState(target.Pcb, target.Bolt, live, mainConveyorRunning);
         }
     }
 
@@ -69,15 +70,14 @@ public sealed partial class InspectionStation : AutoUnit
     {
         return _work.Enabled
             && _work.IsReadyToInspect(mainConveyorRunning)
-            && NextBarcode is null
-            ? GetNextBolt(bolts)
+            ? GetNextTarget(bolts).Bolt
             : null;
     }
 
     public HeatSinkSlot? GetActivePcb(IReadOnlyList<BoltPoint> bolts, bool? mainConveyorRunning = null)
     {
         return _work.Enabled && _work.IsReadyToInspect(mainConveyorRunning)
-            ? NextBarcode ?? GetNextBolt(bolts)?.HeatSink
+            ? GetNextTarget(bolts).Pcb
             : null;
     }
 
@@ -138,7 +138,8 @@ public sealed partial class InspectionStation : AutoUnit
             return;
         }
 
-        var nextState = GetNextInspectionState(GetNextBolt(bolts));
+        var nextTarget = GetNextTarget(bolts);
+        var nextState = GetNextInspectionState(nextTarget.Pcb, nextTarget.Bolt);
         TraceStep(nextState, workId: _work.CurrentJob.Id,
             waitingFor: nextState is InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor
                 ? "carrier, supports and clear pickup" : null);
@@ -182,14 +183,16 @@ public sealed partial class InspectionStation : AutoUnit
 
             while (!operation.IsCancellationRequested)
             {
-                var bolt = GetNextBolt(bolts);
-                var inspectionState = GetNextInspectionState(bolt);
-                TraceStep(inspectionState, bolt?.ToString() ?? NextBarcode?.ToString(), job.Id);
+                var (pcb, bolt) = GetNextTarget(bolts);
+                var inspectionState = GetNextInspectionState(pcb, bolt);
+                var target = pcb is { } targetPcb
+                    ? $"{targetPcb.GetDescription()} / " + (bolt is null ? "Data Matrix" : $"Bolt {bolt.Number}")
+                    : null;
+                TraceStep(inspectionState, target, job.Id);
                 switch (inspectionState)
                 {
                     case InspectionStationState.ReadingBarcode:
-                        var barcodeAssembly = _work.GetAssembly(job, NextBarcode!.Value);
-                        await MoveToBarcodeAsync(barcodeAssembly.HeatSink, operation.Token);
+                        var barcodeAssembly = _work.GetAssembly(job, pcb!.Value);
                         var barcode = await ReadBarcodeAsync(barcodeAssembly.HeatSink, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
                         _work.RequireCurrentJob(job);
@@ -198,7 +201,6 @@ public sealed partial class InspectionStation : AutoUnit
                         break;
                     case InspectionStationState.InspectingBolt:
                         var assembly = _work.GetAssembly(job, bolt!.HeatSink);
-                        await MoveToAsync(bolt, operation.Token);
                         var present = await InspectAsync(bolt, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
                         _work.RequireCurrentJob(job);
@@ -255,30 +257,32 @@ public sealed partial class InspectionStation : AutoUnit
             allowEmpty: repeat && _transfer.IsEmptyRepeatAllowed);
     }
 
-    private InspectionStationState GetNextInspectionState(BoltPoint? bolt, bool live = true, bool? mainConveyorRunning = null)
+    private InspectionStationState GetNextInspectionState(
+        HeatSinkSlot? pcb,
+        BoltPoint? bolt,
+        bool live = true,
+        bool? mainConveyorRunning = null)
     {
         var enabled = _work.Enabled;
-        switch (true)
+        if (!enabled || !_work.IsReadyToInspect(mainConveyorRunning))
         {
-            case true when !enabled || !_work.IsReadyToInspect(mainConveyorRunning):
-                {
-                    var waiting = !enabled ? InspectionStationState.Disabled
-                        : _work.IsWaitingForConveyor
-                            ? InspectionStationState.WaitingForConveyor
-                            : InspectionStationState.Waiting;
-                    return WaitAtWaitingPosition(waiting, live);
-                }
-            case true when NextBarcode is { } pcb:
-                if (!HasBarcodeRegion(pcb))
-                    return WaitAtWaitingPosition(InspectionStationState.BarcodeTeachingRequired, live);
-                return InspectionStationState.ReadingBarcode;
-            case true when bolt is null:
-                return InspectionStationState.CompletingInspection;
-            case true when !HasRegion(bolt):
-                return WaitAtWaitingPosition(InspectionStationState.FovTeachingRequired, live);
-            default:
-                return InspectionStationState.InspectingBolt;
+            var waiting = !enabled ? InspectionStationState.Disabled
+                : _work.IsWaitingForConveyor
+                    ? InspectionStationState.WaitingForConveyor
+                    : InspectionStationState.Waiting;
+            return WaitAtWaitingPosition(waiting, live);
         }
+        if (pcb is null)
+            return InspectionStationState.CompletingInspection;
+        if (bolt is null)
+        {
+            return HasBarcodeRegion(pcb.Value)
+                ? InspectionStationState.ReadingBarcode
+                : WaitAtWaitingPosition(InspectionStationState.BarcodeTeachingRequired, live);
+        }
+        return HasRegion(bolt)
+            ? InspectionStationState.InspectingBolt
+            : WaitAtWaitingPosition(InspectionStationState.FovTeachingRequired, live);
     }
 
     private InspectionStationState WaitAtWaitingPosition(InspectionStationState waiting, bool live)
@@ -298,32 +302,21 @@ public sealed partial class InspectionStation : AutoUnit
             await _transfer.MoveToAsync(position, cancellationToken: cancellationToken);
     }
 
-    private HeatSinkSlot? NextBarcode
+    private (HeatSinkSlot? Pcb, BoltPoint? Bolt) GetNextTarget(IReadOnlyList<BoltPoint> bolts)
     {
-        get
+        foreach (var pcb in Enum.GetValues<HeatSinkSlot>()
+            .Where(pcb => _runTargets?.Contains(pcb) ?? _work.Station.IsHeatSinkPresent(pcb)))
         {
-            return Enum.GetValues<HeatSinkSlot>()
-                .Where(pcb => _runTargets?.Contains(pcb) ?? _work.Station.IsHeatSinkPresent(pcb))
-                .Where(pcb =>
-                    _work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode is null)
-                .Select(pcb => (HeatSinkSlot?)pcb)
-                .FirstOrDefault();
+            var assembly = _work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb);
+            if (assembly is null || assembly.PcbBarcodeResult == AssemblyResult.Pending)
+                return (pcb, null);
+            var bolt = bolts.Where(bolt => bolt.HeatSink == pcb)
+                .OrderBy(bolt => bolt.Number)
+                .FirstOrDefault(bolt => !assembly.BoltPresenceResults.ContainsKey(bolt.Number));
+            if (bolt is not null)
+                return (pcb, bolt);
         }
-    }
-
-    private BoltPoint? GetNextBolt(IReadOnlyList<BoltPoint> bolts)
-    {
-        var targets = _runTargets;
-        return bolts.Where(
-            bolt => targets?.Contains(bolt.HeatSink) ?? _work.Station.IsHeatSinkPresent(bolt.HeatSink))
-            .OrderBy(bolt => bolt.HeatSink)
-            .ThenBy(bolt => bolt.Number)
-            .FirstOrDefault(
-                bolt =>
-                    !_work.Assemblies.Any(
-                        assembly =>
-                            assembly.HeatSink == bolt.HeatSink
-                                && assembly.BoltPresenceResults.ContainsKey(bolt.Number)));
+        return (null, null);
     }
 
     private void NotifyChanged()

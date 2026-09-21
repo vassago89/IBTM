@@ -253,15 +253,20 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task DataMatrixFailureStopsInspectionAndResetAllowsARealRead()
+    [Theory]
+    [InlineData(HeatSinkSlot.HeatSink1)]
+    [InlineData(HeatSinkSlot.HeatSink2)]
+    public async Task InspectionRecordsNgAndFinishesEachPcbBeforeTheNext(HeatSinkSlot unreadPcb)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        recipe.Pcb.BoltPoints = [new() { Number = 1, X = 10, Y = 10 }
-
+        recipe.Pcb.BoltPoints = [
+            new() { Number = 4, HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 20 },
+            new() { Number = 3, HeatSink = HeatSinkSlot.HeatSink1, X = 10, Y = 20 },
+            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 10 },
+            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 10, Y = 10 },
         ];
         TeachInspectionFovs(settings, recipe);
         var machine = services.GetRequiredService<MachineController>();
@@ -296,39 +301,79 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
         Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
 
-        var frame = await camera.CaptureAsync();
-        camera.SourceImage = frame with { Pixels = new byte[frame.Pixels.Length] };
+        var blankImage = barcodeImage with { Pixels = new byte[barcodeImage.Pixels.Length] };
+        foreach (var bolt in recipe.Pcb.BoltPoints)
+        {
+            var position = inspector.GetFov(bolt).Center;
+            bolt.X = position.X;
+            bolt.Y = position.Y;
+        }
+        var view = services.GetRequiredService<OperationViewModel>();
+        var transfer = services.GetRequiredService<NgCarrierTransfer>();
+        var captures = new List<(HeatSinkSlot Pcb, int? Bolt)>();
+        inspector.Trace += message =>
+        {
+            if (message.Contains(": ReadingBarcode ", StringComparison.Ordinal))
+            {
+                Assert.Null(inspector.GetActiveBolt(recipe.Pcb.BoltPoints));
+                Assert.Contains("Data Matrix", message);
+                camera.SourceImage = inspector.GetActivePcb(recipe.Pcb.BoltPoints) == unreadPcb ? blankImage : null;
+            }
+            else if (message.Contains(": InspectingBolt ", StringComparison.Ordinal))
+            {
+                camera.SourceImage = inspector.GetActiveBolt(recipe.Pcb.BoltPoints)?.Number == 3 ? blankImage : null;
+            }
+        };
+        inspector.InspectionCaptured += (image, pcb, boltNumber) =>
+        {
+            captures.Add((pcb, boltNumber));
+            var fov = recipe.CarrierImages.Single(fov => fov.HeatSink == pcb
+                && (boltNumber is null ? fov.IsBarcode : !fov.IsBarcode && fov.BoltNumber == boltNumber));
+            Assert.Equal((fov.Center.X, fov.Center.Y, 0d), transfer.Feedback.GetPosition());
+            Assert.False(transfer.Feedback.IsMoving);
+            Assert.Equal(pcb, inspector.GetActivePcb(recipe.Pcb.BoltPoints));
+            Assert.Equal(boltNumber, inspector.GetActiveBolt(recipe.Pcb.BoltPoints)?.Number);
+            Assert.Equal($"{pcb.GetDescription()} · " + (boltNumber is null ? "Data Matrix" : $"Bolt {boltNumber}"),
+                view.InspectionImageCaption);
+            if (boltNumber is null && pcb != unreadPcb)
+                Assert.Equal(pcb == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2", DataMatrixReader.Read(image, fov.Region!));
+        };
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        io.SetInput(InputIo.InspectionBackupPlateUp, true);
-        io.SetInput(InputIo.InspectionBackupPlateDown, false);
-        io.SetInput(InputIo.InspectionStopperDown, true);
-        io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        io.SetInput(InputIo.InspectionHeatSink2Present, true);
+        await work.Station.PrepareToReceiveAsync(CancellationToken.None);
         io.SetInput(InputIo.AutoMode, false);
-        Assert.True(work.Station.CarrierSeated);
+        Assert.True(work.AtInspectionPosition);
         await WaitUntilAsync(() => state.Homed);
         Assert.True(machine.IsStartAllowed);
-        using var failureStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await machine.StartAsync(failureStop.Token);
-        Assert.True(state.Alarm == MachineAlarm.Inspection, $"{state.Alarm}: {state.AlarmDetail} {state.AlarmMessage}");
-        Assert.Contains("Data Matrix", state.AlarmDetail);
-        Assert.StartsWith("Data Matrix could not be read", state.AlarmMessage);
-        Assert.False(work.Completed);
-        Assert.Null(work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
-        Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
-        Assert.False(services.GetRequiredService<NgCarrierTransfer>().Feedback.IsMoving);
-
-        camera.SourceImage = null;
-        await machine.ResetAsync();
-        await WaitUntilAsync(() => state.Homed);
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var run = machine.StartAsync(stop.Token);
         try
         {
-            Assert.True(await VirtualTest.WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
-            Assert.Equal("PCB-1", work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
-            Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
-            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(3)),
+                $"Alarm={state.Alarm}; inspection={inspector.GetState(recipe.Pcb.BoltPoints)}; captures={string.Join(", ", captures)}; {state.AlarmDetail}");
+            Assert.Equal(new (HeatSinkSlot, int?)[] {
+                (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, 1), (HeatSinkSlot.HeatSink1, 3),
+                (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, 2), (HeatSinkSlot.HeatSink2, 4),
+            }, captures);
+            foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
+            {
+                var assembly = work.GetAssembly(pcb);
+                Assert.Equal(pcb == unreadPcb ? AssemblyResult.Ng : AssemblyResult.Ok, assembly.PcbBarcodeResult);
+                Assert.Equal(pcb == unreadPcb ? null : pcb == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2", assembly.PcbBarcode);
+                Assert.Equal(2, assembly.BoltPresenceResults.Count);
+                Assert.Equal(pcb == unreadPcb || pcb == HeatSinkSlot.HeatSink1 ? AssemblyResult.Ng : AssemblyResult.Ok,
+                    assembly.InspectionResult);
+            }
+            Assert.True(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults[1]);
+            Assert.False(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults[3]);
+            Assert.All(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Values, Assert.True);
+            Assert.Equal("NG · Not Read", unreadPcb == HeatSinkSlot.HeatSink1 ? view.InspectionPcb1Barcode : view.InspectionPcb2Barcode);
+            Assert.True(work.HasNg);
+            Assert.True(work.RouteToNg);
+            Assert.True(state.AutomaticRunning);
+            Assert.False(run.IsCompleted);
+            Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.Null(state.AlarmMessage);
         }
         finally

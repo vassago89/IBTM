@@ -59,11 +59,20 @@ public partial class OperationViewModel : ObservableObject
         PcbSupplier supply,
         PcbPlacer placement,
         BoltFasteningStation fastening,
-        InspectionStation inspectionStation)
+        InspectionStation inspectionStation,
+        MachineStore store,
+        PcbHistorySettings historySettings)
     {
         StartCommand = new AsyncRelayCommand(StartAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(HomeAsync);
+        LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync, () => HasOlderPcbs);
+        ClosePcbDetailsCommand = new RelayCommand(ClosePcbDetails);
+        PcbRecords = new();
+        _pcbHistoryLimit = PcbHistoryPageSize;
+        _store = store;
+        _historySettings = historySettings;
+        _pcbHistoryDirectory = historySettings.Directory;
 
         State = state;
         Signals = signals;
@@ -93,6 +102,7 @@ public partial class OperationViewModel : ObservableObject
         Supply = supply;
         Placement = placement;
         Fastening = fastening;
+        machine.PcbHistory.Saved += OnPcbSaved;
 
         supply.Motion.PropertyChanged += OnPcbSupplyMotionChanged;
         foreach (var axis in supply.Motion.Axes.Values)
@@ -321,14 +331,25 @@ public partial class OperationViewModel : ObservableObject
 
     private string? InspectionBarcode(HeatSinkSlot pcb)
     {
-        return InspectionWork.Station.CarrierPresent && InspectionWork.Station.IsHeatSinkPresent(pcb)
-            ? InspectionWork.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode
-            : null;
+        if (!InspectionWork.Station.CarrierPresent || !InspectionWork.Station.IsHeatSinkPresent(pcb))
+            return null;
+        var assembly = InspectionWork.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb);
+        return assembly?.PcbBarcodeResult == AssemblyResult.Ng ? "NG · Not Read" : assembly?.PcbBarcode;
     }
 
     public void Activate()
     {
         _active = true;
+        if (_pcbHistoryDirectory != _historySettings.Directory)
+        {
+            _pcbHistoryDirectory = _historySettings.Directory;
+            PcbRecords.Clear();
+            SelectedPcb = null;
+            HasOlderPcbs = true;
+            _pcbHistoryLimit = PcbHistoryPageSize;
+        }
+        if (PcbRecords.Count == 0 && LoadOlderPcbsCommand.CanExecute(null))
+            LoadOlderPcbsCommand.Execute(null);
         OnPropertyChanged(nameof(PcbSupplyMapLeft));
         OnPropertyChanged(nameof(PcbSupplyMapTop));
         OnPropertyChanged(nameof(PcbPlacementMapLeft));
@@ -356,7 +377,7 @@ public partial class OperationViewModel : ObservableObject
     {
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, StartCommand, HomeCommand]);
+            [StopCommand, StartCommand, HomeCommand, LoadOlderPcbsCommand]);
     }
 
     public IAsyncRelayCommand StartCommand { get; }
