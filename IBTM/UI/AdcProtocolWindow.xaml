@@ -3,6 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
+    xmlns:hantas="clr-namespace:IBTM.Hantas;assembly=IBTM.Hantas"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
@@ -179,7 +180,9 @@
             </Border>
         </Grid>
 
-        <Border Grid.Row="3" Padding="18,14" Style="{StaticResource CardStyle}">
+        <TabControl Grid.Row="3" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}">
+        <TabItem Header="Frame Log">
+        <Border Padding="18,14" Style="{StaticResource CardStyle}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -209,5 +212,31 @@
                 <TextBlock Grid.Row="3" Text="{Binding ClipboardError}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap"/>
             </Grid>
         </Border>
+        </TabItem>
+        <TabItem Header="오류 코드 / 조치">
+            <Grid Margin="12,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="{x:Static hantas:AdcControllerError.ReferenceNote}" TextWrapping="Wrap"
+                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                <TextBlock Grid.Row="1" Text="{x:Static hantas:AdcControllerError.OperationNote}" TextWrapping="Wrap"
+                    Foreground="{StaticResource AccentAmberBrush}" FontSize="12" Margin="0,4,0,8"/>
+                <DataGrid Grid.Row="2" ItemsSource="{x:Static hantas:AdcControllerError.All}" IsReadOnly="True"
+                    AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                    HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0"
+                    Background="{StaticResource ControlBgBrush}" Foreground="{StaticResource TextPrimaryBrush}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="코드 · 10진수 (16진수)" Binding="{Binding CodeText}" Width="155"/>
+                        <DataGridTextColumn Header="분류" Binding="{Binding Group}" Width="115"/>
+                        <DataGridTextColumn Header="의미" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="확인 / 조치" Binding="{Binding Action}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </TabItem>
+        </TabControl>
     </Grid>
 </Window>

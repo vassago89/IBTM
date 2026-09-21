@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Hantas;
 using IBTM.Storage;
 using Microsoft.Extensions.Logging;
 
@@ -131,6 +132,8 @@ public sealed record PcbBoltResultView(int Number, FasteningHead Head, BoltResul
         ? $"{((AdcEventStatus)data.StatusCode).GetDescription()} ({data.StatusCode})" : null;
     public string? Direction => Result.Controller is { } data
         ? $"{((AdcDirection)data.DirectionCode).GetDescription()} ({data.DirectionCode})" : null;
+    public string? ControllerErrorDescription => Result.Controller is { } data
+        ? AdcControllerError.Describe(data.ErrorCode) : null;
     public string RegisterText => Result.Controller?.Registers is { } registers
         ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}")) : "Not recorded";
 }

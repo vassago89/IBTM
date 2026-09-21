@@ -23,6 +23,7 @@ internal sealed class AdcControllerStub : IAdcBus
     public int ResultReceives { get; private set; }
 
     public ushort CurrentPreset { get; set; } = 3;
+    public ushort CurrentAlarm { get; set; }
     public AdcDirection CurrentDirection { get; set; }
     public bool IgnorePresetWrites { get; set; }
     public bool IgnoreDirectionWrites { get; init; }
@@ -127,7 +128,8 @@ internal sealed class AdcControllerStub : IAdcBus
                         StopPollsRemaining--;
                 }
                 return Task.FromResult<ushort[]>([
-                    CurrentPreset, 0, 0, (ushort)(Running ? 0 : 1), (ushort)(Running ? 1 : 0), 0, (ushort)CurrentDirection,
+                    CurrentPreset, 0, 0, (ushort)(Running || CurrentAlarm != 0 ? 0 : 1),
+                    (ushort)(Running ? 1 : 0), CurrentAlarm, (ushort)CurrentDirection,
                 ]);
             case (ushort)AdcResultRegister.EventCount:
                 return Task.FromResult(ResultRegisters);

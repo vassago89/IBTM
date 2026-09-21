@@ -501,7 +501,13 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             operation = BeginCommand(CancellationToken.None);
             var result = await Bus.ReadFasteningResultAsync(SlaveAddress, operation.Token);
             var current = await Bus.ReadControllerStatusAsync(SlaveAddress, operation.Token);
-            ResultMessage = $"Current: Ready {current.Ready}  Run {current.Running}  Alarm {current.Alarm}  Preset {current.Preset}\n" + $"Direction: {current.Direction.GetDescription()}\n" + $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n" + $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n" + $"Time {result.FasteningTimeMilliseconds} ms  Error {result.Error}";
+            ResultMessage = $"Current: Ready {current.Ready}  Run {current.Running}  Preset {current.Preset}\n"
+                + $"Alarm: {AdcControllerError.Describe(current.Alarm)}\n"
+                + $"Direction: {current.Direction.GetDescription()}\n"
+                + $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n"
+                + $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n"
+                + $"Time {result.FasteningTimeMilliseconds} ms\n"
+                + $"Result error: {AdcControllerError.Describe(result.Error)}";
         }
         catch (Exception exception)
         {

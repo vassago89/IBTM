@@ -327,6 +327,9 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <StackPanel>
+                    <TextBlock Text="{Binding Operation.AlarmMessage}" ToolTip="{Binding Operation.AlarmDetail}"
+                        Visibility="{Binding Operation.HasAlarm, Converter={StaticResource BoolToVis}}"
+                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                     <TextBlock Text="{Binding ResetError}"
                         Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                     <TextBlock Text="{Binding NavigationError}"

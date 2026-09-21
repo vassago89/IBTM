@@ -15,6 +15,26 @@ namespace IBTM.Virtual.Tests;
 public sealed class AdcBoltHeadTests
 {
     [Theory]
+    [InlineData(125, "0x007D", "문서에 없는 코드")]
+    [InlineData(42, "0x002A", "주전원 이상")]
+    public async Task ActiveControllerAlarmExplainsCodeAndStillBlocksNextStart(
+        ushort code, string hex, string description)
+    {
+        var bus = new AdcControllerStub { CurrentAlarm = code };
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "COM10", 115200);
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
+
+        Assert.Contains("COM10/1", failure.Message);
+        Assert.Contains($"{code} ({hex})", failure.Message);
+        Assert.Contains(description, failure.Message);
+        Assert.Contains("READY=False, RUN=False", failure.Message);
+        Assert.Equal(code, bus.CurrentAlarm);
+        Assert.Equal(0, bus.StartWrites);
+        Assert.Equal((ushort)3, bus.CurrentPreset);
+    }
+
+    [Theory]
     [InlineData(AdcEventStatus.FasteningOk, 0, true)]
     [InlineData(AdcEventStatus.FasteningNg, 0, false)]
     [InlineData(AdcEventStatus.Error, 42, false)]

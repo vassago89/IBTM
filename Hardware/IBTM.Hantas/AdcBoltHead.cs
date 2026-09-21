@@ -49,7 +49,9 @@ public sealed class AdcBoltHead : IBoltHead
     private void RequireReady(AdcControllerStatus status)
     {
         if (status.Alarm != 0)
-            throw new InvalidOperationException($"ADC {_slaveAddress} controller error: {status.Alarm}.");
+            throw new InvalidOperationException(
+                $"ADC {_portName}/{_slaveAddress} controller error: {AdcControllerError.Describe(status.Alarm)} "
+                + $"READY={status.Ready}, RUN={status.Running}, Preset={status.Preset}. 다음 START 불가.");
         if (!status.Ready || status.Running)
             throw new InvalidOperationException(
                 $"ADC {_slaveAddress} must be ready and stopped before starting.");
@@ -114,7 +116,7 @@ public sealed class AdcBoltHead : IBoltHead
                 var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
                 if (status.Alarm != 0)
                     throw new InvalidOperationException(
-                        $"ADC {_slaveAddress} controller error: {status.Alarm}.");
+                        $"ADC {_portName}/{_slaveAddress} controller error: {AdcControllerError.Describe(status.Alarm)}");
                 await Task.Delay(StatusPollMilliseconds, cancellationToken);
             }
         }
@@ -231,7 +233,10 @@ public sealed class AdcBoltHead : IBoltHead
         if (completed is not null)
         {
             var error = completed.Status == AdcEventStatus.Error || completed.Error != 0
-                ? $"ADC {_portName}/{_slaveAddress} controller error: {completed.Error}; event={completed.EventCount}, status={completed.Status}."
+                ? $"ADC {_portName}/{_slaveAddress} controller error: "
+                    + (completed.Error == 0 ? "Error 이벤트 수신; 상세 오류 코드 없음."
+                        : AdcControllerError.Describe(completed.Error))
+                    + $" event={completed.EventCount}, status={completed.Status}."
                 : null;
             return new BoltResult(completed.Status == AdcEventStatus.FasteningOk && error is null, completed.Torque,
                 Error: error)
