@@ -60,6 +60,14 @@ public sealed class AdcBoltHead : IBoltHead
     public async Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
     {
         var current = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
+        if (current.Alarm != 0)
+        {
+            _logger.LogWarning(
+                "ADC {Port}/{Slave} alarm before next bolt: {Error}. Resetting once before preset selection.",
+                _portName, _slaveAddress, AdcControllerError.Describe(current.Alarm));
+            await ResetAsync(cancellationToken);
+            current = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
+        }
         RequireReady(current);
         if (current.Preset != preset)
         {
@@ -96,7 +104,32 @@ public sealed class AdcBoltHead : IBoltHead
             await _bus.ResetAlarmAsync(_slaveAddress, cancellationToken);
         }
 
-        await CheckReadyAsync(cancellationToken);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_connection.ResponseTimeoutMilliseconds);
+        try
+        {
+            do
+            {
+                status = await _bus.ReadControllerStatusAsync(_slaveAddress, timeout.Token);
+                timeout.Token.ThrowIfCancellationRequested();
+                if (status.Alarm == 0 && status.Ready && !status.Running)
+                    break;
+                await Task.Delay(StatusPollMilliseconds, timeout.Token);
+            } while (true);
+        }
+        catch (OperationCanceledException exception) when (
+            timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException(
+                $"ADC {_portName}/{_slaveAddress} RESET 후 준비 상태가 확인되지 않았습니다 "
+                + $"({_connection.ResponseTimeoutMilliseconds} ms). "
+                + $"{AdcControllerError.Describe(status.Alarm)} "
+                + $"READY={status.Ready}, RUN={status.Running}, Preset={status.Preset}. 다음 START 불가.",
+                exception);
+        }
+        _logger.LogInformation(
+            "ADC {Port}/{Slave} RESET confirmed: Alarm={Alarm}, Ready={Ready}, RUN={Running}.",
+            _portName, _slaveAddress, status.Alarm, status.Ready, status.Running);
     }
 
     // Manual hold-to-run only. Cancellation stops rotation; it is not a loose-complete result.

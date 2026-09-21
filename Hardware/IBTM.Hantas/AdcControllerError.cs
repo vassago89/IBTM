@@ -9,7 +9,7 @@ namespace IBTM.Hantas;
 public sealed record AdcControllerError(ushort Code, string Group, string Description, string Action)
 {
     public const string ReferenceNote = "AD 매뉴얼 2017-03-21, 27-30쪽 기준. 문서에 없는 코드는 컨트롤러 모델·펌웨어별 확인이 필요합니다.";
-    public const string OperationNote = "체결 NG는 STOP 후 결과로 기록합니다. 다음 START는 현재 Alarm=0, Ready=ON, RUN=OFF일 때만 가능합니다. 아래 분류는 자동 리셋·계속 운전 허가가 아닙니다.";
+    public const string OperationNote = "체결 오류는 STOP 후 NG로 기록합니다. 다음 볼트 전에 알람이 남아 있으면 RESET을 1회 실행합니다. Alarm=0, Ready=ON, RUN=OFF 확인 시 진행하며, 실패하면 설비 알람으로 정지합니다.";
 
     static AdcControllerError()
     {
