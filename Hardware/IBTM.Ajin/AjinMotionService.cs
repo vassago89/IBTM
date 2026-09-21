@@ -110,6 +110,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             AjinController.Check(
                 CAXM.AxmMotSetMoveUnitPerPulse(axis, scale.MoveUnit, scale.MovePulse),
                 $"{nameof(CAXM.AxmMotSetMoveUnitPerPulse)} (axis={axis})");
+            
             AjinController.Check(
                 CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
                 $"{nameof(CAXM.AxmMotSetAccelUnit)} (axis={axis})");
@@ -327,20 +328,22 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                 var zPhase = 0U;
                 var clearTime = 1000d;
                 var offset = 0d;
-                if (axis != MotionAxis.Z)
-                {
-                    AjinController.Check(
-                        CAXM.AxmHomeGetMethod(
-                            axisNumber, ref direction, ref signal, ref zPhase, ref clearTime, ref offset),
-                        $"{nameof(CAXM.AxmHomeGetMethod)} (axis={axisNumber})");
-                }
+
+                AjinController.Check(
+                    CAXM.AxmHomeGetMethod(
+                        axisNumber, ref direction, ref signal, ref zPhase, ref clearTime, ref offset),
+                    $"{nameof(CAXM.AxmHomeGetMethod)} (axis={axisNumber})");
+
                 direction = _axisParameters[axisNumber].HomeDirection switch
                 {
                     HomeDirection.Negative => 0,
                     HomeDirection.Positive => 1,
                     var value => throw new InvalidOperationException($"Invalid home direction for axis {axisNumber}: {value}."),
                 };
-                if (CAXM.AxmHomeSetResult(axisNumber, (uint)AXT_MOTION_HOME_RESULT.HOME_ERR_UNKNOWN)
+                
+                if (CAXM.AxmStatusSetActPos(axisNumber, 0)
+                        != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
+                    || CAXM.AxmHomeSetResult(axisNumber, (uint)AXT_MOTION_HOME_RESULT.HOME_ERR_UNKNOWN)
                         != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
                     || CAXM.AxmHomeSetMethod(axisNumber, direction, signal, zPhase, clearTime, offset)
                         != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
@@ -360,6 +363,8 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
             return await Task.Run(async () =>
             {
+                await Task.Delay(100);
+
                 while (true)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -372,6 +377,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                             $"{nameof(CAXM.AxmHomeGetResult)} (axis={axisNumber})");
                         if (result == (uint)AXT_MOTION_HOME_RESULT.HOME_SUCCESS)
                             continue;
+
                         if (result != (uint)AXT_MOTION_HOME_RESULT.HOME_SEARCHING)
                         {
                             StopAxes(axisNumbers);

@@ -103,13 +103,13 @@
                 </Grid.ColumnDefinitions>
                 <Grid Grid.Column="1" Margin="2"
                     Visibility="{Binding Motion.Feedback.HasY, Converter={StaticResource BoolToVis}}">
-                    <ui:HoldButton Content="↑ Y−" Style="{StaticResource JogDirectionStyle}"
+                    <ui:HoldButton Content="↑ Y+" Style="{StaticResource JogDirectionStyle}"
                         PressCommand="{Binding JogCommand}"
                         ReleaseCommand="{Binding JogStopCommand}"
-                        CommandParameter="{x:Static ui:TeachingDirection.YMinus}"/>
-                    <Button Content="↑ Y−" Style="{StaticResource StepDirectionStyle}"
+                        CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
+                    <Button Content="↑ Y+" Style="{StaticResource StepDirectionStyle}"
                         Command="{Binding StepCommand}"
-                        CommandParameter="{x:Static ui:TeachingDirection.YMinus}"/>
+                        CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
                 </Grid>
                 <Grid Grid.Row="1" Margin="2">
                     <ui:HoldButton Content="← X−" Style="{StaticResource JogDirectionStyle}"
@@ -133,13 +133,13 @@
                 </Grid>
                 <Grid Grid.Row="2" Grid.Column="1" Margin="2"
                     Visibility="{Binding Motion.Feedback.HasY, Converter={StaticResource BoolToVis}}">
-                    <ui:HoldButton Content="↓ Y+" Style="{StaticResource JogDirectionStyle}"
+                    <ui:HoldButton Content="↓ Y-" Style="{StaticResource JogDirectionStyle}"
                         PressCommand="{Binding JogCommand}"
                         ReleaseCommand="{Binding JogStopCommand}"
-                        CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
-                    <Button Content="↓ Y+" Style="{StaticResource StepDirectionStyle}"
+                        CommandParameter="{x:Static ui:TeachingDirection.YMinus}"/>
+                    <Button Content="↓ Y-" Style="{StaticResource StepDirectionStyle}"
                         Command="{Binding StepCommand}"
-                        CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
+                        CommandParameter="{x:Static ui:TeachingDirection.YMinus}"/>
                 </Grid>
             </Grid>
             <StackPanel Grid.Column="1" Width="68" Margin="12,0,0,0"
