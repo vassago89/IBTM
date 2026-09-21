@@ -38,16 +38,16 @@ public sealed partial class NgShuttle
 
     public async Task CycleAsync(CancellationToken cancellationToken)
     {
-        if (!CarrierDetected || !_transfer.IsRaised)
+        if (!CarrierDetected || !IsTransferClear)
         {
-            throw new InvalidOperationException("Shuttle repeat requires a carrier on the shuttle and the NG pickup raised.");
+            throw new InvalidOperationException("Shuttle repeat requires a carrier on the shuttle and the NG transfer released with its open pickup raised.");
         }
 
         await SetDownAsync(true, cancellationToken);
 
-        if (!CarrierDetected || !_transfer.IsRaised)
+        if (!CarrierDetected || !IsTransferClear)
         {
-            throw new InvalidOperationException("Shuttle repeat lost its carrier or raised pickup feedback before ascent.");
+            throw new InvalidOperationException("Shuttle repeat lost its carrier or clear NG transfer before ascent.");
         }
 
         await SetDownAsync(false, cancellationToken);
@@ -56,12 +56,12 @@ public sealed partial class NgShuttle
 
     public async Task ReturnFromConveyorAsync(CancellationToken cancellationToken)
     {
-        if (!_transfer.IsRaised)
-            throw new InvalidOperationException("Raise the NG pickup before returning the conveyor carrier.");
+        if (!IsTransferClear)
+            throw new InvalidOperationException("Release the NG transfer and raise the open pickup before returning the conveyor carrier.");
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckPickup()
         {
-            if (!_transfer.IsRaised)
+            if (!IsTransferClear)
                 operation.Cancel();
         }
 

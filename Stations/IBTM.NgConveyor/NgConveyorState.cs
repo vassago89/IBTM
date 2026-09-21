@@ -50,7 +50,7 @@ public enum NgShuttleState
     [Description("Waiting for Carrier")]
     WaitingForCarrier,
 
-    [Description("Waiting for Carrier Pickup Up")]
+    [Description("Waiting for NG Transfer Release and Pickup Up")]
     WaitingForCarrierPickupUp,
 
     [Description("Lowering NG Shuttle")]

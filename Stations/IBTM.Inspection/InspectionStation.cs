@@ -43,6 +43,7 @@ public sealed partial class InspectionStation : AutoUnit
         camera.LiveViewFailed += OnCameraLiveViewFailed;
         work.Changed += NotifyChanged;
         transfer.Changed += NotifyChanged;
+        shuttle.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;

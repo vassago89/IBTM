@@ -29,6 +29,11 @@ public sealed partial class NgShuttle : AutoUnit
 
     public bool CarrierDetected => _io.GetInput(InputIo.NgShuttleCarrierDetected);
 
+    // Pending ownership is cleared by the release operation, never by presence DI.
+    private bool IsTransferClear => _transfer.IsClear
+        && _io.GetInput(InputIo.NgCarrierGripperOpen)
+        && !_io.GetInput(InputIo.NgCarrierGripperClosed);
+
     public NgShuttleLiftState Lift
     {
         get
@@ -49,6 +54,8 @@ public sealed partial class NgShuttle : AutoUnit
     {
         get
         {
+            if (!IsTransferClear)
+                return NgShuttleState.WaitingForCarrierPickupUp;
             switch (true)
             {
                 case true when Lift == NgShuttleLiftState.Down:
@@ -63,11 +70,6 @@ public sealed partial class NgShuttle : AutoUnit
                             return NgShuttleState.CarrierPositionUnknown;
                     }
                 case true when CarrierDetected:
-                    if (!_transfer.IsRaised)
-                    {
-                        return NgShuttleState.WaitingForCarrierPickupUp;
-                    }
-
                     return _conveyor.IsAcceptCarrierAllowed()
                         ? NgShuttleState.Lowering
                         : NgShuttleState.WaitingForConveyor;
@@ -120,12 +122,26 @@ public sealed partial class NgShuttle : AutoUnit
 
     public Task SetDownAsync(bool down, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsTransferClear)
+            throw new MotionInterlockException("Complete the NG transfer release and raise the open pickup before moving the shuttle.");
         return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, down, cancellationToken);
     }
 
-    public Task WaitForCarrierAsync(CancellationToken cancellationToken = default)
+    public async Task WaitForCarrierAsync(CancellationToken cancellationToken = default)
     {
-        return _io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true, cancellationToken);
+        var changed = new AsyncAutoResetEvent();
+        Changed += changed.Set;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            while (!CarrierDetected || !IsTransferClear)
+                await changed.WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            Changed -= changed.Set;
+        }
     }
 
     private void NotifyChanged()
