@@ -416,6 +416,32 @@ public sealed class BoltFasteningTests
     }
 
     [Fact]
+    public async Task ShootingFeederMissingBoltTimesOutAfterEscapeReturnsAndStopsFeeding()
+    {
+        var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new())
+        { AutoResponseEnabled = false };
+        var feeder = new BoltFeederUnit(FasteningHead.Shooting, io,
+            new() { ShootingTimeoutMilliseconds = 50 });
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var run = feeder.RunAsync(stop.Token);
+        try
+        {
+            await Task.Delay(100);
+            Assert.False(run.IsCompleted);
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+            io.SetInput(InputIo.ShootingEscapeBackward, true);
+            await Assert.ThrowsAsync<IoTimeoutException>(() => run);
+            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Fact]
     public async Task StopDuringShootingFeederRunOnStopsImmediately()
     {
         var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new())

@@ -116,7 +116,6 @@ public sealed class BoltFeederUnit : AutoUnit
         }
         finally
         {
-            EndRun(cancellationToken);
             try
             {
                 SetFeeding(false);
@@ -124,6 +123,10 @@ public sealed class BoltFeederUnit : AutoUnit
             catch (Exception cleanupFailure) when (failure is not null)
             {
                 throw new AggregateException(failure, cleanupFailure);
+            }
+            finally
+            {
+                EndRun(cancellationToken);
             }
         }
     }
@@ -150,5 +153,4 @@ public sealed class BoltFeederUnit : AutoUnit
             Changed?.Invoke();
         }
     }
-
 }

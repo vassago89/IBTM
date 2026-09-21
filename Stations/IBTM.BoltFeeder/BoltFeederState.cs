@@ -9,5 +9,4 @@ public enum BoltFeederState
 
     [Description("Bolt Ready")]
     BoltReady,
-
 }
