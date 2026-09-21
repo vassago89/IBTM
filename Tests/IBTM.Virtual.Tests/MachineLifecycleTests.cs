@@ -604,7 +604,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = selected == FasteningHead.Pickup;
-        settings.Units.ShootingBoltFeeder = selected == FasteningHead.Shooting;
+        settings.Units.ShootingBoltFeeder = false; // Supply is outside this result-ownership test.
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -693,11 +693,10 @@ public sealed partial class MachineLifecycleTests
         // Acknowledgement clears only this fastening operation, not other carriers.
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
-        io.SetInputs(
-            (InputIo.PickupHeadVacuumDetected, false),
-            (InputIo.ShootingHeadVacuumDetected, false));
+        io.SetInput(InputIo.PickupHeadVacuumDetected, false);
         await machine.ResetAsync();
         Assert.True(machine.IsTestBoltHeadAllowed);
+        Assert.True(io.GetInput(InputIo.ShootingHeadVacuumDetected)); // Stuck ON does not retain a removed carrier's result.
         Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
         await diagnostics.StartCommand.ExecuteAsync(null);
         Assert.StartsWith("OK", diagnostics.ResultMessage);

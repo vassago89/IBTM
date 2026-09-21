@@ -298,6 +298,7 @@ public sealed class MachineStoreTests
         settings.BoltFastening.ShootingArrivalDelaySeconds = 0.75;
         settings.BoltFastening.ShootingHead.FasteningZ = 14;
         settings.BoltFastening.PickupHead.FasteningZ = 18;
+        settings.Lighting.StabilizationDelayMilliseconds = 375;
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.IoBoltHardware.Inputs[InputIo.PickupBoltReady] = 112;
         settings.IoBoltHardware.Outputs[OutputIo.ShootingBoltStart].Number = 115;

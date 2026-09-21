@@ -711,7 +711,8 @@ public sealed class BoltFasteningTests
         var settings = new BoltFasteningSettings
         {
             SafeZ = 5,
-            ShootingArrivalDelaySeconds = 0.05,
+            ShootingArrivalDelaySeconds = preparationFailure == ShootingPreparationFailure.Motion
+                ? 1 : shootWithoutVacuum ? 0.3 : 0.05,
             ShootingDetectionTimeoutMilliseconds = preparationFailure == ShootingPreparationFailure.Supply ? 50 : 2_000,
             Motion = new() { HorizontalSpeed = 200, ZSpeed = 20_000 },
             PickupPosition = new() { X = 100, Y = 100, Z = 10 },
@@ -773,11 +774,12 @@ public sealed class BoltFasteningTests
         var commands = new List<string>();
         var supplyCommands = new List<string>();
         var shotElapsed = new Stopwatch();
+        var shootingOverlappedMove = false;
         motion.PositionChanged += (x, y, z) =>
         {
-            if (motion.IsMoving)
+            if (motion.IsMovingHorizontal && io.GetOutput(OutputIo.ShootBolt))
             {
-                Assert.False(io.GetOutput(OutputIo.ShootBolt));
+                shootingOverlappedMove = true;
                 if (preparationFailure == ShootingPreparationFailure.Motion && x > 0)
                     motion.Stop();
             }
@@ -802,8 +804,9 @@ public sealed class BoltFasteningTests
                 if (on)
                 {
                     Assert.True(io.GetInput(InputIo.ShootingEscapeForward));
-                    Assert.False(motion.IsMoving);
-                    Assert.Equal((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.GetPosition());
+                    Assert.True(gantry.IsHorizontalMoveAllowed);
+                    Assert.Equal(BoltCylinderState.Up, gantry.PickupTablePosition);
+                    Assert.NotEqual((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.GetPosition());
                     shotElapsed.Restart();
                     if (preparationFailure == ShootingPreparationFailure.Stop)
                         stop.Cancel();
@@ -816,8 +819,6 @@ public sealed class BoltFasteningTests
             }
             else if (!on && output == OutputIo.PickupHeadVacuumPump)
                 io.SetInput(InputIo.PickupHeadVacuumDetected, false);
-            else if (!on && output == OutputIo.ShootingHeadVacuumPump)
-                io.SetInput(InputIo.ShootingHeadVacuumDetected, false);
             else if (output == start)
             {
                 commands.Add(on ? "START ON" : "START OFF");
@@ -866,9 +867,10 @@ public sealed class BoltFasteningTests
                     await Assert.ThrowsAsync<IoTimeoutException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
                 else
                     await run.WaitAsync(TimeSpan.FromSeconds(1));
-                Assert.Equal(preparationFailure != ShootingPreparationFailure.Motion, shotElapsed.IsRunning);
-                if (preparationFailure == ShootingPreparationFailure.Motion)
-                    Assert.Empty(supplyCommands);
+                Assert.True(shotElapsed.IsRunning);
+                if (preparationFailure != ShootingPreparationFailure.Stop)
+                    Assert.True(shootingOverlappedMove);
+                Assert.NotEqual((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.GetPosition());
                 Assert.False(io.GetOutput(OutputIo.ShootBolt));
                 Assert.False(motion.IsMoving);
                 Assert.Empty(commands);
@@ -911,6 +913,12 @@ public sealed class BoltFasteningTests
                 Assert.True(results[1].Success);
                 Assert.Equal(BoltResultSource.IoAssumedOk, results[1].Source);
                 Assert.Null(results[1].Torque);
+                if (selectedHead == FasteningHead.Shooting)
+                {
+                    Assert.True(shootingOverlappedMove);
+                    Assert.False(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
+                    Assert.Equal(!shootWithoutVacuum, io.GetInput(InputIo.ShootingHeadVacuumDetected));
+                }
             }
         }
         finally

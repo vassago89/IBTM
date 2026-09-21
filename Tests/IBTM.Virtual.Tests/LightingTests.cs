@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -61,13 +62,18 @@ public sealed class LightingTests
     public async Task InspectionCleansUpTheOriginalLightChannelBeforeCompletionOrCancellation()
     {
         var light = new RecordingLight();
+        var camera = new TestCamera();
         var settings = new MachineSettings();
+        Assert.Equal(100, settings.Lighting.StabilizationDelayMilliseconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.Lighting.StabilizationDelayMilliseconds = -1);
+        settings.Lighting.StabilizationDelayMilliseconds = 250;
         light.OnStarted = () => settings.Lighting.InspectionChannel++;
         await using var services = new ServiceCollection().AddSingleton(
             VirtualTest.OpenMachineStore(
                 Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
             .AddIbtmApplication(settings)
             .AddSingleton<ILightController>(light)
+            .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
         var inspector = services.GetRequiredService<InspectionStation>();
         var reference = services.GetRequiredService<CarrierReferenceSettings>();
@@ -126,7 +132,13 @@ public sealed class LightingTests
             () => inspector.CaptureCarrierImageAsync(cancellation.Token));
         Assert.Equal(5, light.OffCalls); // An already-cancelled scan must not touch the light.
 
-        light.OnStarted = null;
+        var stabilization = new Stopwatch();
+        light.OnStarted = stabilization.Restart;
+        camera.OnCapture = () =>
+        {
+            Assert.True(light.IsOn);
+            Assert.True(stabilization.ElapsedMilliseconds >= settings.Lighting.StabilizationDelayMilliseconds);
+        };
         Assert.NotEmpty((await inspector.CaptureCurrentAsync()).Pixels);
         Assert.Equal(6, light.OffCalls);
 
@@ -260,6 +272,7 @@ public sealed class LightingTests
         public (int Width, int Height) FrameSize { get; } = (1, 1);
         public bool FailInitialize { get; set; }
         public IOException Failure { get; }
+        public Action? OnCapture { get; set; }
 
         public void Initialize()
         {
@@ -271,6 +284,7 @@ public sealed class LightingTests
         public Task<ImageFrame> CaptureAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            OnCapture?.Invoke();
             return Task.FromResult(new ImageFrame(1, 1, 3, [0, 0, 0]));
         }
 

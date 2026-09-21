@@ -387,9 +387,9 @@ public sealed partial class BoltFasteningStation : AutoUnit
         FasteningHead head,
         CancellationToken cancellationToken = default)
     {
-        _log?.LogInformation("Bolt {Head}: requesting vacuum OFF; waiting for vacuum release feedback.", head);
+        _log?.LogInformation("Bolt {Head}: requesting vacuum OFF.", head);
         await SetVacuumAsync(head, false, cancellationToken);
-        _log?.LogInformation("Bolt {Head}: vacuum OFF confirmed; requesting head UP.", head);
+        _log?.LogInformation("Bolt {Head}: vacuum OFF request completed; requesting head UP.", head);
         await SetHeadDownAsync(head, false, cancellationToken);
         _log?.LogInformation("Bolt {Head}: head UP confirmed.", head);
     }
@@ -589,19 +589,15 @@ public sealed partial class BoltFasteningStation : AutoUnit
         var output = head == FasteningHead.Pickup
             ? OutputIo.PickupHeadVacuumPump
             : OutputIo.ShootingHeadVacuumPump;
-        var input = head == FasteningHead.Pickup
-            ? InputIo.PickupHeadVacuumDetected
-            : InputIo.ShootingHeadVacuumDetected;
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(output, on);
-        if (waitForFeedback)
-            await _io.WaitForInputAsync(input, on, cancellationToken);
+        if (waitForFeedback && head == FasteningHead.Pickup)
+            await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, on, cancellationToken);
     }
 
     private void OnInputChanged(InputIo input, bool value)
     {
         if (input is InputIo.PickupHeadVacuumDetected
-            or InputIo.ShootingHeadVacuumDetected
             or InputIo.ShootingTubeBoltDetected
             or InputIo.PickupHeadUp
             or InputIo.PickupHeadDown
@@ -836,9 +832,22 @@ public sealed partial class BoltFasteningStation : AutoUnit
                 if (moveRequired || shootRequired)
                     await RaiseCylindersAsync(cancellationToken);
 
-                if (moveRequired)
+                if (moveRequired && shootRequired)
+                {
+                    using var preparation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    var moving = MoveToBoltAsync(bolt, preparation.Token);
+                    if (moving.IsCompleted)
+                        await moving;
+                    var shooting = ShootBoltAsync(preparation.Token);
+                    var first = await Task.WhenAny(moving, shooting);
+                    if (!first.IsCompletedSuccessfully)
+                        preparation.Cancel();
+                    // Both operations must finish, including STOP/air-OFF cleanup on failure.
+                    await Task.WhenAll(moving, shooting);
+                }
+                else if (moveRequired)
                     await MoveToBoltAsync(bolt, cancellationToken);
-                if (shootRequired)
+                else if (shootRequired)
                     await ShootBoltAsync(cancellationToken);
                 if (feeding)
                 {

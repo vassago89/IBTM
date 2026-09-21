@@ -302,19 +302,15 @@ After fastening, raise the heads before returning to Safe Z for the next X/Y mov
 Bolt Pickup retains its own Z. Existing settings initialize both head heights
 from the previous common Fastening Z, or Safe Z if no common Fastening Z was saved.
 Existing per-head values are retained; all heights are saved independently afterward.
-For the shooting head, loading happens while the head remains raised: wait for
-head-vacuum bolt detection, tube passage to clear and escape retraction, then start
-rotation and lower the head while tightening. After Stop, these same inputs determine the next action;
-a lowered head without a detected bolt is raised before loading again.
-Escape advance and shooting are separate states. With the escape backward, wait
-for feeder-ready before advancing; an intermediate position finishes advancing.
-Forward feedback selects shooting directly, without waiting for the next feeder
-bolt or retracting and advancing again. The vacuum is turned ON before shooting
-air. Tube-passage monitoring is armed before air ON to capture short pulses.
-Stop retains the escape output, so forward feedback may arrive while stopped;
-restart uses that feedback rather than replaying the loading sequence.
-Moving to a bolt position does not change the escape output. Tube detection
-blocks that X/Y move until the tube clears, including after manual repositioning.
+For the shooting head, both heads remain raised and the pickup table stays UP.
+Movement to Safe Z, bolt XY and fastening Z runs alongside bolt loading. Loading
+retracts the escape, waits for feeder-ready and tube-clear, then advances the escape
+and turns vacuum ON before shooting air. Tube monitoring starts before air ON;
+after the tube pulse, the configured arrival delay determines when air turns OFF.
+Both movement and loading must finish before tube-clear and escape retraction are
+confirmed and fastening starts. A failure cancels and joins the other operation.
+Shooting vacuum feedback is display-only; it neither skips loading nor blocks
+arrival, vacuum release or cleanup of results belonging to a removed carrier.
 This applies between individual bolts, including the shooting head's PCB pass;
 the shooting head no longer stays lowered while moving to the next bolt. On restart,
 the same live-DI states retract a lowered head before the next X/Y move.
@@ -345,8 +341,8 @@ exit cancel the remaining steps. Manual cylinder timeouts, whether from a moveme
 sequence or an IO button, report the owning unit's alarm through the common
 teaching execution boundary; backup-plate timeouts remain Main Conveyor alarms.
 
-Tube detection ON with no head-vacuum detection requires operator clearing;
-automatic operation waits for the tube to clear without feeding another bolt.
+Automatic operation waits for the tube to clear before feeding another bolt,
+independently of the shooting vacuum input.
 Station 2 teaching exposes a momentary HOLD button beside Shoot Bolt. It controls
 only shooting air, not the feeder, escape, head cylinder or vacuum. Release,
 navigation, Stop, shutdown or leaving Manual mode cancels the hold and turns the

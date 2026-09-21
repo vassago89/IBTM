@@ -662,6 +662,10 @@
                                                     Text="{Binding Settings.Lighting.InspectionChannel, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                         </UniformGrid>
+                                        <TextBlock Text="Stabilization Delay (ms)" Style="{StaticResource SettingFieldLabel}" Margin="0,12,0,4"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Text="{Binding Settings.Lighting.StabilizationDelayMilliseconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                            ToolTip="Delay from light ON to image capture. 0 disables the delay."/>
                                         <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,14,0,0"
                                             Padding="0,12,0,0">
                                             <StackPanel>

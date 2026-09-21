@@ -212,8 +212,7 @@ public sealed partial class MachineController
             if (_fasteningStation.HasUncollectedResults
                 && !_io.GetInput(InputIo.BoltFasteningHeatSink1Present)
                 && !_io.GetInput(InputIo.BoltFasteningHeatSink2Present)
-                && !_io.GetInput(InputIo.PickupHeadVacuumDetected)
-                && !_io.GetInput(InputIo.ShootingHeadVacuumDetected))
+                && !_io.GetInput(InputIo.PickupHeadVacuumDetected))
             {
                 _fasteningStation.DiscardRemovedCarrierResults();
             }
