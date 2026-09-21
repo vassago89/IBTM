@@ -17,6 +17,9 @@ public sealed partial class InspectionStation : AutoUnit
     private readonly NgShuttle _shuttle;
     private readonly UnitSettings _units;
     private HeatSinkSlot[]? _runTargets;
+    // Current loop destinations for display only; never resume them after STOP.
+    private HeatSinkSlot? _activePcb;
+    private BoltPoint? _activeBolt;
 
     public InspectionStation(
         InspectionWork work,
@@ -52,6 +55,8 @@ public sealed partial class InspectionStation : AutoUnit
         bool? conveyorRunning = null,
         bool? mainConveyorRunning = null)
     {
+        if (_work.CarrierSeatingRequested)
+            return InspectionStationState.SeatingCarrier;
         switch (GetTransferState(repeat, holdAtShuttle, live, conveyorRunning))
         {
             case NgTransferState.PreparingTransfer or NgTransferState.PickingCarrier or NgTransferState.PlacingCarrier:
@@ -61,7 +66,7 @@ public sealed partial class InspectionStation : AutoUnit
             case NgTransferState.HoldingAtDestination:
                 return InspectionStationState.HoldingCarrierAtShuttle;
             default:
-                var target = GetNextTarget(bolts);
+                var target = InspectionTarget;
                 return GetNextInspectionState(target.Pcb, target.Bolt, live, mainConveyorRunning);
         }
     }
@@ -70,14 +75,14 @@ public sealed partial class InspectionStation : AutoUnit
     {
         return _work.Enabled
             && _work.IsReadyToInspect(mainConveyorRunning)
-            ? GetNextTarget(bolts).Bolt
+            ? InspectionTarget.Bolt
             : null;
     }
 
     public HeatSinkSlot? GetActivePcb(IReadOnlyList<BoltPoint> bolts, bool? mainConveyorRunning = null)
     {
         return _work.Enabled && _work.IsReadyToInspect(mainConveyorRunning)
-            ? GetNextTarget(bolts).Pcb
+            ? InspectionTarget.Pcb
             : null;
     }
 
@@ -92,6 +97,8 @@ public sealed partial class InspectionStation : AutoUnit
         BeginRun();
         try
         {
+            if (_work.Enabled)
+                _work.Restart(_work.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (repeat && !_units.MainConveyor)
@@ -101,7 +108,7 @@ public sealed partial class InspectionStation : AutoUnit
                     var job = _work.CurrentJob;
                     if (_work.Station.CarrierSeated || _work.AtInspectionPosition)
                         _work.Complete(job);
-                    if (!_units.NgCarrierTransfer)
+                    if (!_units.NgCarrierTransfer && !_work.CarrierSeatingRequested)
                     {
                         TraceStep(InspectionStationState.Disabled, workId: job.Id,
                             waitingFor: _work.Completed ? "carrier transfer" : "carrier at station");
@@ -117,6 +124,7 @@ public sealed partial class InspectionStation : AutoUnit
         }
         finally
         {
+            _work.ClearCarrierSeatingRequest();
             EndRun(cancellationToken);
         }
     }
@@ -127,6 +135,13 @@ public sealed partial class InspectionStation : AutoUnit
         bool holdAtShuttle,
         CancellationToken cancellationToken)
     {
+        if (_work.CarrierSeatingRequested)
+        {
+            TraceStep(InspectionStationState.SeatingCarrier, workId: _work.CurrentJob.Id);
+            await _transfer.SeatStationAsync(cancellationToken);
+            _work.ClearCarrierSeatingRequest();
+            return;
+        }
         var transferState = GetTransferState(repeat, holdAtShuttle);
         if (transferState is not (NgTransferState.Idle or NgTransferState.Completed))
         {
@@ -138,7 +153,7 @@ public sealed partial class InspectionStation : AutoUnit
             return;
         }
 
-        var nextTarget = GetNextTarget(bolts);
+        var nextTarget = InspectionTarget;
         var nextState = GetNextInspectionState(nextTarget.Pcb, nextTarget.Bolt);
         TraceStep(nextState, workId: _work.CurrentJob.Id,
             waitingFor: nextState is InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor
@@ -181,46 +196,45 @@ public sealed partial class InspectionStation : AutoUnit
             }
             _runTargets = targets;
 
-            while (!operation.IsCancellationRequested)
+            foreach (var pcb in targets)
             {
-                var (pcb, bolt) = GetNextTarget(bolts);
-                var inspectionState = GetNextInspectionState(pcb, bolt);
-                var target = pcb is { } targetPcb
-                    ? $"{targetPcb.GetDescription()} / " + (bolt is null ? "Data Matrix" : $"Bolt {bolt.Number}")
-                    : null;
-                TraceStep(inspectionState, target, job.Id);
-                switch (inspectionState)
-                {
-                    case InspectionStationState.ReadingBarcode:
-                        var barcodeAssembly = _work.GetAssembly(job, pcb!.Value);
-                        var barcode = await ReadBarcodeAsync(barcodeAssembly.HeatSink, operation.Token);
-                        operation.Token.ThrowIfCancellationRequested();
-                        _work.RequireCurrentJob(job);
-                        barcodeAssembly.PcbBarcode = barcode;
-                        NotifyChanged();
-                        break;
-                    case InspectionStationState.InspectingBolt:
-                        var assembly = _work.GetAssembly(job, bolt!.HeatSink);
-                        var present = await InspectAsync(bolt, operation.Token);
-                        operation.Token.ThrowIfCancellationRequested();
-                        _work.RequireCurrentJob(job);
-                        assembly.RecordBoltPresence(bolt.Number, present);
-                        NotifyChanged();
-                        break;
-                    case InspectionStationState.CompletingInspection:
-                        await MoveToWaitingPositionAsync(operation.Token);
-                        operation.Token.ThrowIfCancellationRequested();
-                        foreach (var heatSink in targets)
-                        {
-                            _work.GetAssembly(job, heatSink).CompleteInspection();
-                        }
+                operation.Token.ThrowIfCancellationRequested();
+                _work.RequireCurrentJob(job);
+                _activePcb = pcb;
+                _activeBolt = null;
+                NotifyChanged();
+                await WaitForTeachingAsync(pcb, null, operation.Token);
+                TraceStep(InspectionStationState.ReadingBarcode, $"{pcb.GetDescription()} / Data Matrix", job.Id);
+                var assembly = _work.GetAssembly(job, pcb);
+                var barcode = await ReadBarcodeAsync(pcb, operation.Token);
+                operation.Token.ThrowIfCancellationRequested();
+                _work.RequireCurrentJob(job);
+                assembly.PcbBarcode = barcode;
 
-                        _work.Complete(job);
-                        return;
-                    default:
-                        return;
+                foreach (var bolt in bolts.Where(bolt => bolt.HeatSink == pcb).OrderBy(bolt => bolt.Number))
+                {
+                    operation.Token.ThrowIfCancellationRequested();
+                    _work.RequireCurrentJob(job);
+                    _activeBolt = bolt;
+                    NotifyChanged();
+                    await WaitForTeachingAsync(pcb, bolt, operation.Token);
+                    TraceStep(InspectionStationState.InspectingBolt, $"{pcb.GetDescription()} / Bolt {bolt.Number}", job.Id);
+                    var present = await InspectAsync(bolt, operation.Token);
+                    operation.Token.ThrowIfCancellationRequested();
+                    _work.RequireCurrentJob(job);
+                    assembly.RecordBoltPresence(bolt.Number, present);
                 }
             }
+
+            _activePcb = null;
+            _activeBolt = null;
+            NotifyChanged();
+            TraceStep(InspectionStationState.CompletingInspection, workId: job.Id);
+            await MoveToWaitingPositionAsync(operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
+            foreach (var heatSink in targets)
+                _work.GetAssembly(job, heatSink).CompleteInspection();
+            _work.Complete(job);
         }
         catch (OperationCanceledException) when (
             operation.IsCancellationRequested
@@ -231,6 +245,25 @@ public sealed partial class InspectionStation : AutoUnit
         {
             _work.Changed -= CheckWorkPosition;
             _runTargets = null;
+            _activePcb = null;
+            _activeBolt = null;
+            NotifyChanged();
+        }
+    }
+
+    private async Task WaitForTeachingAsync(HeatSinkSlot pcb, BoltPoint? bolt, CancellationToken cancellationToken)
+    {
+        while (bolt is null ? !HasBarcodeRegion(pcb) : !HasRegion(bolt))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var state = WaitAtWaitingPosition(bolt is null
+                ? InspectionStationState.BarcodeTeachingRequired
+                : InspectionStationState.FovTeachingRequired, live: true);
+            TraceStep(state, workId: _work.CurrentJob.Id);
+            if (state == InspectionStationState.ReturningToWaitingPosition)
+                await MoveToWaitingPositionAsync(cancellationToken);
+            else
+                await WaitForChangeAsync(cancellationToken);
         }
     }
 
@@ -302,21 +335,19 @@ public sealed partial class InspectionStation : AutoUnit
             await _transfer.MoveToAsync(position, cancellationToken: cancellationToken);
     }
 
-    private (HeatSinkSlot? Pcb, BoltPoint? Bolt) GetNextTarget(IReadOnlyList<BoltPoint> bolts)
+    private (HeatSinkSlot? Pcb, BoltPoint? Bolt) InspectionTarget
     {
-        foreach (var pcb in Enum.GetValues<HeatSinkSlot>()
-            .Where(pcb => _runTargets?.Contains(pcb) ?? _work.Station.IsHeatSinkPresent(pcb)))
+        get
         {
-            var assembly = _work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb);
-            if (assembly is null || assembly.PcbBarcodeResult == AssemblyResult.Pending)
-                return (pcb, null);
-            var bolt = bolts.Where(bolt => bolt.HeatSink == pcb)
-                .OrderBy(bolt => bolt.Number)
-                .FirstOrDefault(bolt => !assembly.BoltPresenceResults.ContainsKey(bolt.Number));
-            if (bolt is not null)
-                return (pcb, bolt);
+            if (_runTargets is not null)
+                return (_activePcb, _activeBolt);
+            foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
+            {
+                if (_work.Station.IsHeatSinkPresent(pcb))
+                    return (pcb, null);
+            }
+            return (null, null);
         }
-        return (null, null);
     }
 
     private void NotifyChanged()

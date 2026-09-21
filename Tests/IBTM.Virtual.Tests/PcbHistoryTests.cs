@@ -144,6 +144,17 @@ public sealed class PcbHistoryTests
         view.ClosePcbDetailsCommand.Execute(null);
         Assert.Null(view.SelectedPcb);
         await view.ShutdownAsync();
+
+        settings.PcbHistory.Directory = originalFolder;
+        await using var restarted = new ServiceCollection().AddSingleton(new MachineStore(store.DatabaseFile))
+            .AddIbtmApplication(settings).BuildServiceProvider();
+        var reopenedView = restarted.GetRequiredService<OperationViewModel>();
+        await reopenedView.LoadOlderPcbsCommand.ExecuteAsync(null);
+        Assert.Equal(new long[] { 3, 2, 1 }, reopenedView.PcbRecords.Select(record => record.Number));
+        Assert.Empty(restarted.GetRequiredService<PcbPlacementWork>().Assemblies);
+        reopenedView.SelectedPcb = reopenedView.PcbRecords[^1];
+        Assert.Equal("NG torque", reopenedView.SelectedPcb.PcbBoltResults[1].Error);
+        await reopenedView.ShutdownAsync();
     }
 
     [Fact]

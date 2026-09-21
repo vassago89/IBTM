@@ -28,7 +28,6 @@ public sealed partial class NgCarrierTransfer
 
     public async Task ReturnToStationAsync(CancellationToken cancellationToken)
     {
-        await Station.SeatAsync(cancellationToken);
         await RunToAsync(NgTransferDestination.Station, cancellationToken,
             allowEmpty: IsEmptyRepeatAllowed);
     }

@@ -105,7 +105,7 @@ public partial class OperationViewModel
         }
     }
 
-    public bool BoltFeederPositionKnown => _map.FasteningDefined;
+    public bool BoltFeederPositionKnown => _map.PickupFeederPosition is not null;
 
     public Enum PlacementStatus
     {

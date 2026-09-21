@@ -355,6 +355,16 @@ public sealed partial class MachineLifecycleTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         using var transferTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await move.RunToAsync(NgTransferDestination.Shuttle, transferTimeout.Token);
+        await move.Station.PrepareToReceiveAsync(transferTimeout.Token);
+        var raisedAtPickup = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.InspectionBackupPlateUp || !on)
+                return;
+            Assert.True(gantry.IsAt(settings.GetCarrierPickupPosition()!));
+            Assert.True(pickup.IsRaised);
+            raisedAtPickup = true;
+        };
         feedback.AxisMoves.Clear();
         var gripped = false;
         var movedBeforeGrip = false;
@@ -372,6 +382,7 @@ public sealed partial class MachineLifecycleTests
         await move.ReturnToStationAsync(transferTimeout.Token).WaitAsync(TimeSpan.FromSeconds(3));
 
         Assert.True(gripped);
+        Assert.True(raisedAtPickup);
         Assert.False(movedBeforeGrip);
         Assert.Empty(feedback.AxisMoves);
         Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));

@@ -19,6 +19,7 @@ using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -61,7 +62,8 @@ public partial class OperationViewModel : ObservableObject
         BoltFasteningStation fastening,
         InspectionStation inspectionStation,
         MachineStore store,
-        PcbHistorySettings historySettings)
+        PcbHistorySettings historySettings,
+        ILogger<OperationViewModel> log)
     {
         StartCommand = new AsyncRelayCommand(StartAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -73,6 +75,8 @@ public partial class OperationViewModel : ObservableObject
         _store = store;
         _historySettings = historySettings;
         _pcbHistoryDirectory = historySettings.Directory;
+        _log = log;
+        HasOlderPcbs = true;
 
         State = state;
         Signals = signals;
@@ -157,17 +161,25 @@ public partial class OperationViewModel : ObservableObject
 
     public double? PcbPlacementMapTop => _map.GetPlacementPosition(Placement.Motion.Position)?.Y;
 
-    public double? BoltFasteningMapLeft => _map.GetFasteningPosition(Fastening.Motion.Position)?.X;
+    public double? ShootingHeadMapLeft => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Shooting)?.X;
 
-    public double? BoltFasteningMapTop => _map.GetFasteningPosition(Fastening.Motion.Position)?.Y;
+    public double? ShootingHeadMapTop => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Shooting)?.Y;
 
-    public double BoltPickupFeederMapLeft => _map.PickupFeederPosition.X;
+    public double? PickupHeadMapLeft => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Pickup)?.X;
 
-    public double BoltPickupFeederMapTop => _map.PickupFeederPosition.Y;
+    public double? PickupHeadMapTop => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Pickup)?.Y;
+
+    public double? BoltPickupFeederMapLeft => _map.PickupFeederPosition?.X;
+
+    public double? BoltPickupFeederMapTop => _map.PickupFeederPosition?.Y;
 
     public double? InspectionGantryMapLeft => _map.GetInspectionPosition(NgTransfer.Motion.Position)?.X;
 
     public double? InspectionGantryMapTop => _map.GetInspectionPosition(NgTransfer.Motion.Position)?.Y;
+
+    public double? NgPickupMapLeft => _map.GetNgPickupPosition(NgTransfer.Motion.Position)?.X;
+
+    public double? NgPickupMapTop => _map.GetNgPickupPosition(NgTransfer.Motion.Position)?.Y;
 
     public bool PcbSupplyPcbDetected => Supply.Pcb != PcbSupplyPcbState.None;
 
@@ -274,11 +286,10 @@ public partial class OperationViewModel : ObservableObject
             var targets = new List<BoltTargetView>();
             foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
-                if (bolt.X is null || bolt.Y is null
-                    || !InspectionWork.Station.IsHeatSinkPresent(bolt.HeatSink))
+                if (!InspectionWork.Station.IsHeatSinkPresent(bolt.HeatSink)
+                    || _map.GetInspectionTargetPosition(bolt) is not { } position)
                     continue;
 
-                var position = _map.GetInspectionTargetPosition(bolt);
                 var state = bolt == active ? BoltTargetState.Active : GetInspectionTargetState(bolt);
                 targets.Add(new(bolt.Number, bolt.Head, position.X, position.Y, state));
             }
@@ -347,17 +358,22 @@ public partial class OperationViewModel : ObservableObject
             SelectedPcb = null;
             HasOlderPcbs = true;
             _pcbHistoryLimit = PcbHistoryPageSize;
+            _pcbHistoryLoaded = false;
         }
-        if (PcbRecords.Count == 0 && LoadOlderPcbsCommand.CanExecute(null))
+        if (!_pcbHistoryLoaded && LoadOlderPcbsCommand.CanExecute(null))
             LoadOlderPcbsCommand.Execute(null);
         OnPropertyChanged(nameof(PcbSupplyMapLeft));
         OnPropertyChanged(nameof(PcbSupplyMapTop));
         OnPropertyChanged(nameof(PcbPlacementMapLeft));
         OnPropertyChanged(nameof(PcbPlacementMapTop));
-        OnPropertyChanged(nameof(BoltFasteningMapLeft));
-        OnPropertyChanged(nameof(BoltFasteningMapTop));
+        OnPropertyChanged(nameof(ShootingHeadMapLeft));
+        OnPropertyChanged(nameof(ShootingHeadMapTop));
+        OnPropertyChanged(nameof(PickupHeadMapLeft));
+        OnPropertyChanged(nameof(PickupHeadMapTop));
         OnPropertyChanged(nameof(InspectionGantryMapLeft));
         OnPropertyChanged(nameof(InspectionGantryMapTop));
+        OnPropertyChanged(nameof(NgPickupMapLeft));
+        OnPropertyChanged(nameof(NgPickupMapTop));
         OnMachineStateChanged(this, new(null));
         OnRecipeChanged();
         OnPropertyChanged(nameof(ConveyorState));
@@ -512,8 +528,10 @@ public partial class OperationViewModel : ObservableObject
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
             OnPropertyChanged(nameof(FasteningPositionKnown));
-            OnPropertyChanged(nameof(BoltFasteningMapLeft));
-            OnPropertyChanged(nameof(BoltFasteningMapTop));
+            OnPropertyChanged(nameof(ShootingHeadMapLeft));
+            OnPropertyChanged(nameof(ShootingHeadMapTop));
+            OnPropertyChanged(nameof(PickupHeadMapLeft));
+            OnPropertyChanged(nameof(PickupHeadMapTop));
         }
     }
 
@@ -533,6 +551,8 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(nameof(InspectionPositionKnown));
             OnPropertyChanged(nameof(InspectionGantryMapLeft));
             OnPropertyChanged(nameof(InspectionGantryMapTop));
+            OnPropertyChanged(nameof(NgPickupMapLeft));
+            OnPropertyChanged(nameof(NgPickupMapTop));
         }
     }
 

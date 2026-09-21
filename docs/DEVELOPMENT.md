@@ -101,6 +101,12 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
   NG 배출 여부도 컨베이어가 검사 결과와 유닛 설정으로 판단한다. DI에는 객체 연결만 둔다.
 - `StationWork`는 현재 캐리어의 작업·결과 소유권을 관리한다. 위치와 착좌 여부는 `ConveyorStation`의 현재 I/O로 판단한다.
   사용 설정, 실행 중 명령, 결과 소유권을 물리 위치나 완료 피드백으로 대신하지 않는다.
+- `PcbHistory`는 PCB 결과 객체가 만들어질 때 기존 `Machine.db`의 `PcbCounter`를 증가시켜 번호를 발급한다.
+  결과는 Settings → Operation & Timing → PCB Results의 폴더에 `PCB-yyyy-MM.db`로 저장한다.
+  공정 이송·STOP/START는 같은 번호를 유지하며, Repeat의 새 작업은 새 번호를 받는다.
+  월 또는 저장 폴더가 바뀌어도 이미 등록된 PCB의 결과는 최초 파일에 누적한다.
+  운전 화면 아래에는 최신 번호부터 왼쪽에 표시하고, 선택하면 바코드·헤드별 체결·볼트 검사 결과를 펼친다.
+  과거 결과를 읽어도 현재 설비의 작업·점유 상태는 복원하지 않는다.
 - 장비의 동기 SDK 조회·정지는 장비 진입부에서 UI 스레드와 분리한다. 화면에서는 비동기 명령을 그대로 `await`한다.
   화면 값은 기존 observable 객체에 직접 바인딩하고, 표시를 위한 복사 속성과 알림 중계를 만들지 않는다.
 
@@ -151,9 +157,16 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | IO 번호·축 번호 기본값 | 각 유닛의 `*HardwareSettings.cs` |
 | 설정 구성·편집 화면 | `IBTM/MachineSettings.cs`, `IBTM/UI/SettingsViewModel.cs` |
 | DB JSON 저장 | `Shared/IBTM.Storage/MachineStore.cs` |
+| PCB 번호·월별 결과 DB / 하단 결과 목록 | `IBTM/PcbHistory.cs`, `Shared/IBTM.Storage/MachineStore.Pcbs.cs`, `IBTM/UI/OperationViewModel.Pcbs.cs` |
 | 현재 레시피·저장·이미지 교체 | `Shared/IBTM.Storage/RecipeManager.cs`, `IBTM/UI/RecipeEditor.cs` |
 
 ## 화면과 ViewModel 경계
+
+Operation의 카메라 위치와 검사 마커는 검사 기준 핀 좌표계로 표시한다. 검사 마커의 좌표는
+실제로 촬영할 FOV의 `Center`이며, 볼트 중심 좌표와 구분한다. NG 픽업·셔틀의 도식상 이송 위치로
+카메라 표시를 변형하지 않는다. 체결 마커는 원본 볼트 좌표를 사용하고, 픽업·슈팅 헤드의 현재 위치는
+각 헤드의 실제 이동 변환을 역변환해 동일한 캐리어 좌표계로 표시한다. 두 헤드를 고정 간격으로 그리기 위해
+기준 핀 좌표를 혼합하지 않는다. 이 화면 변환은 모션 명령이나 저장된 티칭값에 적용하지 않는다.
 
 모든 화면의 명령과 편집값은 XAML에서 해당 ViewModel에 바인딩한다. ADC 진단도 창 객체가 아니라
 `AdcProtocolViewModel`이 포트·슬레이브·레지스터 입력과 통신 작업을 소유한다. 프리셋 선택은 1번 고정이다.
@@ -525,8 +538,10 @@ RESET은 장치 알람을 해제하며 운전이나 작업 완료 처리를 하�
 NG 픽업은 현재 보유·지지·목적지 피드백으로 다음 동작을 판단한다.
 복구창, `StartPreparation`, `PrepareRecovery`, 수동 완료 결과 생성은 제거했다.
 
-검사 결과는 해당 캐리어 객체에만 기록한다. STOP 후 새 START에서 미완료 검사를 초기화해
-자동 재검사하던 경로는 없다. 새 캐리어 입력이 새 작업을 만든다.
+검사는 새 START마다 현재 대상 PCB의 첫 데이터 매트릭스부터 다시 촬영하고,
+PCB 1의 볼트 전체 → PCB 2의 데이터 매트릭스·볼트 전체 순서로 진행한다.
+저장된 바코드·볼트 결과로 다음 포인트를 선택하지 않는다. 결과와 PCB 번호는 같은 캐리어에 유지하며,
+현재 루프의 표시 대상은 실행 종료 시 버린다. 새 캐리어 입력이 새 작업을 만든다.
 체결은 새 START마다 첫 볼트부터 공급·체결한다. 완료 결과 딕셔너리는 품질 기록이며 실행할 볼트를 고르는 조건으로 쓰지 않는다.
 중단된 볼트 번호·픽업 시도·미수집 결과의 보관과 재수거 API는 없다. ADC 이벤트 번호와 IO FASTEN ON/OFF 이력은 현재 명령 안에서만 사용한다.
 픽업 차례에 현재 진공이 ON이면 픽업 위치 방문을 생략하고, OFF이면 픽업하러 간다. 별도 볼트 보유 플래그는 없다.
@@ -558,7 +573,11 @@ S1/S2는 동시에 착좌하고 각 유닛이 작업한다. S3는 검사 전에 
 이송·배출 직전 `ReleaseAsync`에서 명령하며, 벨트는 플레이트·스토퍼 하강 확인 후 구동한다.
 S3 캐리어가 벨트에 놓여 있으면 전단 Ready도 OFF로 유지한다. S3를 올려 다른 물류를
 이송할 수 있거나 S3가 비었을 때 기존 반입 조건에 따라 전단 Ready를 켠다.
-검사 완료 후 NG 픽업 위치 복귀를 확인하고, OK·후단 준비 시 바로 배출하거나 올려서 기다린다.
+검사 완료 후 Data Matrix 대기 위치로 복귀하고, OK·후단 준비 시 바로 배출한다.
+S3를 올릴 때 메인은 `CarrierSeatingRequested`로 요청하고 검사 루프의 `SeatingCarrier`에서
+NG 픽업 XY 이동 완료 → 백업 플레이트 상승 → 스토퍼 하강을 순서대로 기다린다.
+좌표 비교로 상승을 허가하지 않으며 요청은 STOP 시 버린다. 검사 전 물류 대기와 검사 후 NG/후단 대기도 같은 순서다.
+Repeat의 S3 역인계도 캐리어를 든 채 픽업 XY로 복귀한 후 플레이트를 올리고 픽업을 내린다.
 착좌 중 STOP 뒤에도 RESET 없이 현재 상승·하강 피드백으로 새 START를 실행한다.
 집중 검사는 `InterruptedSeatingRestartsFromCurrentPresenceWithoutReset`, `InterruptedPlateRaiseUsesFeedbackOnRestartWithoutLoweringSupport`,
 `InterruptedTransferKeepsPendingResultsWithoutMovingThemOnLaterInput`, `ActiveTransferKeepsOriginalResultsWhenSourceGetsAnotherCarrier`,

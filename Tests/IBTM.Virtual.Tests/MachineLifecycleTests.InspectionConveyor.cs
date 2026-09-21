@@ -18,6 +18,123 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Fact]
+    public async Task InspectionSeatingCancelledDuringPickupTravelDoesNotRaisePlate()
+    {
+        await using var services = CreateInspectionServices(enableConveyor: true, enableNgTransfer: true);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var work = services.GetRequiredService<InspectionWork>();
+        var station = services.GetRequiredService<InspectionStation>();
+        var transfer = services.GetRequiredService<NgCarrierTransfer>();
+        var settings = services.GetRequiredService<NgCarrierTransferSettings>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        await work.Station.PrepareToReceiveAsync(CancellationToken.None);
+        await transfer.MoveToAsync(new() { X = 100, Y = 100 }, 10_000);
+        settings.Speed = 1;
+        var raised = false;
+        io.OutputChanged += (output, on) => raised |= output == OutputIo.InspectionBackupPlateUp && on;
+        using var stop = new CancellationTokenSource();
+        work.RequestCarrierSeating(work.CurrentJob);
+        var run = station.RunAsync([], stop.Token);
+        try
+        {
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => transfer.Feedback.IsMoving, TimeSpan.FromSeconds(2)));
+            Assert.Equal(InspectionStationState.SeatingCarrier, station.GetState([]));
+            Assert.False(raised);
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(raised);
+            Assert.False(work.CarrierSeatingRequested);
+            Assert.Equal(StationCylinderState.Down, work.Station.BackupPlate);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InspectionStartRepeatsEveryPointFromTheFirstPcb(bool stopAfterCompletion)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.PcbHistory.Directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"PCB-inspection-{Guid.NewGuid():N}");
+        await using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        recipe.Pcb.BoltPoints = [
+            new() { Number = 4, HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 20 },
+            new() { Number = 3, HeatSink = HeatSinkSlot.HeatSink1, X = 10, Y = 20 },
+            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 10 },
+            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 10, Y = 10 },
+        ];
+        TeachInspectionFovs(settings, recipe);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var work = services.GetRequiredService<InspectionWork>();
+        var inspection = services.GetRequiredService<InspectionStation>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
+        await work.Station.PrepareToReceiveAsync(CancellationToken.None);
+        io.SetInput(InputIo.AutoMode, false);
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordPcbBolt(1, new(false, 0.5, Error: "Existing fastening NG"));
+        var number = assembly.PcbNumber;
+        var captures = new ConcurrentQueue<(HeatSinkSlot Pcb, int? Bolt)>();
+        using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var firstRun = true;
+        inspection.InspectionCaptured += (image, pcb, bolt) =>
+        {
+            captures.Enqueue((pcb, bolt));
+            if (firstRun && !stopAfterCompletion && pcb == HeatSinkSlot.HeatSink2 && bolt is null)
+                firstStop.Cancel();
+        };
+        var run = machine.StartAsync(firstStop.Token);
+        if (stopAfterCompletion)
+        {
+            Assert.True(await VirtualTest.WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(3)));
+            firstStop.Cancel();
+        }
+        await run.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(stopAfterCompletion, work.Completed);
+        Assert.Equal(2, assembly.BoltPresenceResults.Count);
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+
+        firstRun = false;
+        captures.Clear();
+        using var secondStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        run = machine.StartAsync(secondStop.Token);
+        try
+        {
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => captures.Count == 6 && work.Completed, TimeSpan.FromSeconds(3)), state.AlarmDetail);
+            Assert.Equal(new (HeatSinkSlot, int?)[] {
+                (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, 1), (HeatSinkSlot.HeatSink1, 3),
+                (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, 2), (HeatSinkSlot.HeatSink2, 4),
+            }, captures);
+            Assert.Same(assembly, work.GetAssembly(HeatSinkSlot.HeatSink1));
+            Assert.Equal(number, assembly.PcbNumber);
+            Assert.Equal("Existing fastening NG", assembly.PcbBoltResults[1].Error);
+            Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            secondStop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(false, true)]
     [InlineData(false, false)]
@@ -43,7 +160,8 @@ public sealed partial class MachineLifecycleTests
         // Start with an occupied, raised S3; the main sequence must lower it for inspection.
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
-        work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode = "PCB-1";
+        var inspectedAssembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        inspectedAssembly.PcbBarcode = "PCB-1";
 
         var inspected = false;
         var returned = false;
@@ -75,8 +193,10 @@ public sealed partial class MachineLifecycleTests
             if (output == OutputIo.InspectionBackupPlateUp && on)
             {
                 Assert.True(work.Completed);
-                Assert.True(work.IsTransferAtWaitingPosition());
-                Assert.True(pickup.IsAt(dataMatrixPosition));
+                Assert.Equal(InspectionStationState.SeatingCarrier, station.GetState([]));
+                Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.State);
+                Assert.False(conveyor.RunCommandOn);
+                Assert.True(pickup.IsAt(services.GetRequiredService<NgCarrierTransferSettings>().GetCarrierPickupPosition()!));
                 Interlocked.Increment(ref raises);
             }
             if (output == OutputIo.NgCarrierPickupDown && on && work.Station.CarrierPresent)
@@ -89,7 +209,10 @@ public sealed partial class MachineLifecycleTests
                 return;
             Assert.True(inspected);
             Assert.True(returned);
-            Assert.True(work.Completed);
+            // NG pickup can already have removed the completed carrier from S3.
+            Assert.Equal(ng ? AssemblyResult.Ng : AssemblyResult.Ok, inspectedAssembly.InspectionResult);
+            if (!ng)
+                Assert.True(work.Completed);
             if (conveyor.State == MainConveyorState.DischargingInspectionCarrier)
             {
                 Assert.False(ng);
@@ -168,7 +291,8 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
         await fastening.Station.SeatAsync(CancellationToken.None);
         var arrivingJob = fastening.CurrentJob;
-        fastening.GetAssembly(HeatSinkSlot.HeatSink2).PcbBarcode = "S2-CARRIER";
+        var arrivingAssembly = fastening.GetAssembly(HeatSinkSlot.HeatSink2);
+        arrivingAssembly.PcbBarcode = "S2-CARRIER";
         if (carrierWaitingAtS1)
         {
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
@@ -205,7 +329,8 @@ public sealed partial class MachineLifecycleTests
             Assert.True(fastening.Station.CarrierSeated);
             Assert.Equal(carrierWaitingAtS1, placement.Station.CarrierSeated);
             Assert.Equal(arrivingJob.Id, work.CurrentJob.Id);
-            Assert.Equal("S2-CARRIER", work.GetAssembly(HeatSinkSlot.HeatSink2).PcbBarcode);
+            Assert.Same(arrivingAssembly, work.GetAssembly(HeatSinkSlot.HeatSink2));
+            Assert.Equal("PCB-2", arrivingAssembly.PcbBarcode);
             Assert.Equal(new[] { true, false }, plateMovesBeforeInspection);
             Assert.Equal(expectedMoves, moves);
             inspected = true;
@@ -218,6 +343,14 @@ public sealed partial class MachineLifecycleTests
             {
                 Assert.False(work.InspectionRequested);
                 Assert.False(work.Completed);
+                if (on)
+                {
+                    Assert.Equal(InspectionStationState.SeatingCarrier, inspection.GetState([]));
+                    Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.State);
+                    Assert.False(conveyor.RunCommandOn);
+                    Assert.True(services.GetRequiredService<NgCarrierTransfer>()
+                        .IsAt(services.GetRequiredService<NgCarrierTransferSettings>().GetCarrierPickupPosition()!));
+                }
                 plateMovesBeforeInspection.Enqueue(on);
             }
             if (output != OutputIo.MainConveyorRun || !on)

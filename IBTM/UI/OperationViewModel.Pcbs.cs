@@ -1,12 +1,12 @@
 using System;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -15,8 +15,10 @@ public partial class OperationViewModel
     private const int PcbHistoryPageSize = 100;
     private readonly MachineStore _store;
     private readonly PcbHistorySettings _historySettings;
+    private readonly ILogger<OperationViewModel> _log;
     private string _pcbHistoryDirectory;
     private int _pcbHistoryLimit;
+    private bool _pcbHistoryLoaded;
 
     public ObservableCollection<PcbRecord> PcbRecords { get; }
     public IAsyncRelayCommand LoadOlderPcbsCommand { get; }
@@ -30,12 +32,12 @@ public partial class OperationViewModel
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LoadOlderPcbsCommand))]
-    public partial bool HasOlderPcbs { get; private set; } = true;
+    public partial bool HasOlderPcbs { get; private set; }
 
     private async Task LoadOlderPcbsAsync(CancellationToken cancellationToken)
     {
         PcbHistoryError = null;
-        var before = PcbRecords.Count == 0 ? (long?)null : PcbRecords[^1].Number;
+        var before = _pcbHistoryLoaded && PcbRecords.Count > 0 ? PcbRecords[^1].Number : (long?)null;
         var directory = _pcbHistoryDirectory;
         try
         {
@@ -44,11 +46,12 @@ public partial class OperationViewModel
             cancellationToken.ThrowIfCancellationRequested();
             if (directory != _pcbHistoryDirectory)
                 return;
-            _pcbHistoryLimit = PcbRecords.Count + records.Count;
-            _pcbHistoryLimit = Math.Max(PcbHistoryPageSize, _pcbHistoryLimit);
+            _pcbHistoryLimit = Math.Max(PcbHistoryPageSize,
+                before.HasValue ? PcbRecords.Count + records.Count : PcbRecords.Count);
             foreach (var record in records)
                 UpdatePcbRecord(record);
             HasOlderPcbs = records.Count == PcbHistoryPageSize;
+            _pcbHistoryLoaded = true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -56,7 +59,7 @@ public partial class OperationViewModel
         catch (Exception exception)
         {
             PcbHistoryError = $"PCB history could not be loaded: {exception.Message}";
-            Trace.TraceError("{0}", exception);
+            _log.LogError(exception, "PCB history load failed for {Directory}.", directory);
         }
     }
 

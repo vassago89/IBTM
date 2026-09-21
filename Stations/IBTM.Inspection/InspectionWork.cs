@@ -14,6 +14,7 @@ public sealed class InspectionWork : StationWork
     private readonly RecipeManager _recipes;
     // Scheduling ownership for this job only; never a physical position or restart checkpoint.
     private volatile Job? _inspectionRequestedJob;
+    private volatile Job? _carrierSeatingRequestedJob;
 
     public InspectionWork(
         IIoService io,
@@ -43,6 +44,8 @@ public sealed class InspectionWork : StationWork
     }
 
     public bool InspectionRequested => ReferenceEquals(_inspectionRequestedJob, CurrentJob);
+
+    public bool CarrierSeatingRequested => ReferenceEquals(_carrierSeatingRequestedJob, CurrentJob);
 
     public bool PickupClear => _transfer.IsClear;
 
@@ -105,6 +108,22 @@ public sealed class InspectionWork : StationWork
     public void ClearInspectionRequest()
     {
         _inspectionRequestedJob = null;
+        _carrierSeatingRequestedJob = null;
+        NotifyChanged();
+    }
+
+    public void RequestCarrierSeating(Job job)
+    {
+        RequireCurrentJob(job);
+        if (CarrierSeatingRequested)
+            return;
+        _carrierSeatingRequestedJob = job;
+        NotifyChanged();
+    }
+
+    public void ClearCarrierSeatingRequest()
+    {
+        _carrierSeatingRequestedJob = null;
         NotifyChanged();
     }
 

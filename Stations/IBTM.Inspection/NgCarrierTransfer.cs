@@ -300,6 +300,8 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
         var down = lift == NgTransferLiftState.Down;
         var open = gripper == NgTransferGripperState.Open;
         var destinationReady = holdAtShuttle || IsSupportReady(destination);
+        // S3 support can be prepared after XY travel, with the pickup still raised.
+        var canPrepareStation = destination == NgTransferDestination.Station && raised;
 
         if (atDestination)
         {
@@ -329,7 +331,7 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
                 return NgTransferState.PickingCarrier;
             if (!atDestination && !raised)
                 return NgTransferState.PreparingTransfer;
-            if (!destinationReady)
+            if (!destinationReady && !canPrepareStation)
                 return NgTransferState.WaitingForDestination;
             if (atDestination && !raised)
                 return NgTransferState.PlacingCarrier;
@@ -343,7 +345,7 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
             return open ? NgTransferState.Idle : NgTransferState.PreparingTransfer;
         if (!allowEmpty && !IsCarrierPresent(source))
             return NgTransferState.Idle;
-        if (destinationPresent || !IsSupportReady(source) || !destinationReady)
+        if (destinationPresent || !IsSupportReady(source) || !destinationReady && !canPrepareStation)
             return NgTransferState.WaitingForDestination;
         return (atSource && down) || open
             ? NgTransferState.PickingCarrier : NgTransferState.PreparingTransfer;
@@ -441,7 +443,9 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
                     {
                         CheckGrip();
                         carrying.Token.ThrowIfCancellationRequested();
-                        if (!IsAt(position))
+                        if (destination == NgTransferDestination.Station && !IsSupportReady(destination))
+                            await SeatStationAsync(carrying.Token);
+                        else if (!IsAt(position))
                             await MoveToAsync(position, _settings.Speed, carrying.Token);
                         // Recheck the support after XY travel before lowering.
                         if (!IsSupportReady(destination)
@@ -506,6 +510,17 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
         if (IsAt(position))
             return;
         await MoveToAsync(position, _settings.Speed, cancellationToken);
+    }
+
+    public async Task SeatStationAsync(CancellationToken cancellationToken)
+    {
+        var position = _settings.GetCarrierPickupPosition()
+            ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before raising the inspection backup plate.");
+        // This awaited sequence owns XY until the plate finishes rising.
+        // Do not infer permission to raise the plate from a coordinate comparison.
+        await MoveToAsync(position, _settings.Speed, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await Station.SeatAsync(cancellationToken);
     }
 
     private AxisPosition? GetTransferPosition(NgTransferDestination location)

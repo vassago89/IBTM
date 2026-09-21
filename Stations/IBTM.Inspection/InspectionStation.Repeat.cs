@@ -17,7 +17,10 @@ public sealed partial class InspectionStation
         {
             if (_work.Station.BackupPlate != StationCylinderState.Up
                 || _work.Station.Stopper != StationCylinderState.Down)
-                await _work.Station.SeatAsync(cancellationToken);
+            {
+                TraceStep(InspectionStationState.SeatingCarrier, workId: _work.CurrentJob.Id);
+                await _transfer.SeatStationAsync(cancellationToken);
+            }
         }
         else if (!_work.AtInspectionPosition)
         {

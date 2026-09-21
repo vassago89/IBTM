@@ -19,6 +19,8 @@ public sealed partial class MainConveyor
                 return executingTransfer;
             case true when runCommandOn:
                 return MainConveyorState.Running;
+            case true when _inspectionWork.CarrierSeatingRequested:
+                return MainConveyorState.WaitingForInspectionTransfer;
             // S1/S2 착좌는 벨트 이송보다 먼저 처리한다.
             case true when _boltFasteningWork.Station.CarrierPresent
                 && !_boltFasteningWork.Station.CarrierSeated:
@@ -39,15 +41,18 @@ public sealed partial class MainConveyor
                 {
                     case true when _inspectionWork.Station.CarrierSeated:
                         return transfer;
-                    case true when !_inspectionWork.IsTransferAtWaitingPosition(live):
-                        return MainConveyorState.WaitingForInspectionTransfer;
                     case true when !_repeat
                         && !IsNgTransferRequired
                         && _inspectionWork.IsTransferAllowedFor(live ? null : runCommandOn)
                         && DownstreamReady:
-                        return MainConveyorState.DischargingInspectionCarrier;
+                        return _inspectionWork.IsTransferAtWaitingPosition(live)
+                            ? MainConveyorState.DischargingInspectionCarrier
+                            : MainConveyorState.WaitingForInspectionTransfer;
                     default:
-                        return MainConveyorState.RaisingInspectionCarrier;
+                        return _inspectionWork.PickupClear
+                            && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
+                            ? MainConveyorState.RaisingInspectionCarrier
+                            : MainConveyorState.WaitingForInspectionTransfer;
                 }
             // 검사 전에는 S3를 올려 다른 물류를 먼저 처리한다.
             case true when !_inspectionWork.InspectionRequested
@@ -56,7 +61,8 @@ public sealed partial class MainConveyor
                     or MainConveyorState.ReceivingFrontCarrier:
                 if (_inspectionWork.Station.CarrierSeated)
                     return transfer;
-                return _inspectionWork.IsTransferAtWaitingPosition(live)
+                return _inspectionWork.PickupClear
+                    && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
                     ? MainConveyorState.RaisingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
             // 검사 요청 이후에는 검사와 데이터 매트릭스 대기 위치 복귀가 끝날 때까지 벨트를 정지한다.
@@ -155,9 +161,9 @@ public sealed partial class MainConveyor
                         "Entry carrier detected=ON OR Front 2 Available=ON (teaching: TEST, auto: DI)",
                     MainConveyorState.WaitingForRearEquipment => "Rear Ready=ON (teaching: TEST, auto: DI)",
                     MainConveyorState.WaitingForInspection =>
-                        "S3 inspection complete and transfer returned to NG pickup; conveyor remains stopped",
+                        "S3 inspection complete; conveyor remains stopped",
                     MainConveyorState.WaitingForInspectionTransfer =>
-                        "NG pickup raised, empty and at its waiting position",
+                        "inspection gantry operation complete; carrier seating moves to NG pickup before raising S3",
                     MainConveyorState.WaitingForPcbPlacement =>
                         $"S1 placement complete; enabled={_placementWork.Enabled}, completed={_placementWork.Completed}, "
                             + $"work={_placementWork.CurrentJob.Id}",
@@ -198,7 +204,8 @@ public sealed partial class MainConveyor
                             _inspectionWork.RequestInspection(inspectionJob);
                             break;
                         case MainConveyorState.RaisingInspectionCarrier:
-                            await _inspectionWork.Station.SeatAsync(cancellationToken);
+                            _inspectionWork.RequestCarrierSeating(_inspectionWork.CurrentJob);
+                            await WaitForChangeAsync(cancellationToken);
                             break;
                         case MainConveyorState.SeatingCarriers:
                             // S1/S2 can prepare their work without moving the belt.

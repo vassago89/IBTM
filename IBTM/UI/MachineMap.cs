@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
@@ -16,7 +17,6 @@ public sealed class MachineMap
     private readonly PcbPlacementHandlerSettings _placement;
     private readonly BoltFasteningSettings _fastening;
     private readonly CarrierReferenceSettings _carrier;
-    private readonly InspectionGantrySettings _inspection;
     private readonly NgCarrierTransferSettings _transfer;
     private static readonly (double X, double Y) s_supplyPcb1;
     private static readonly (double X, double Y) s_supplyPcb2;
@@ -24,9 +24,6 @@ public sealed class MachineMap
     private static readonly (double X, double Y) s_placementHandoff;
     private static readonly (double X, double Y) s_placementHeatSink1;
     private static readonly (double X, double Y) s_placementHeatSink2;
-    private static readonly (double X, double Y) s_shootingUpperLeft;
-    private static readonly (double X, double Y) s_shootingLowerRight;
-    private static readonly (double X, double Y) s_pickupUpperLeft;
     private static readonly (double X, double Y) s_pickupFeederOffset;
 
     static MachineMap()
@@ -49,15 +46,6 @@ public sealed class MachineMap
         s_placementHeatSink2 = MachinePlan.Offset(
             MachinePlan.PlacementHeatSink2,
             MachinePlan.PlacementToolCenter);
-        s_shootingUpperLeft = MachinePlan.Offset(
-            MachinePlan.FasteningUpperLeft,
-            MachinePlan.ShootingToolCenter);
-        s_shootingLowerRight = MachinePlan.Offset(
-            MachinePlan.FasteningLowerRight,
-            MachinePlan.ShootingToolCenter);
-        s_pickupUpperLeft = MachinePlan.Offset(
-            MachinePlan.FasteningUpperLeft,
-            MachinePlan.PickupToolCenter);
         s_pickupFeederOffset = (
             -MachinePlan.PickupFeederWidth / 2,
             -MachinePlan.PickupFeederHeight / 2);
@@ -69,7 +57,6 @@ public sealed class MachineMap
         PcbPlacementHandlerSettings placement,
         BoltFasteningSettings fastening,
         CarrierReferenceSettings carrier,
-        InspectionGantrySettings inspection,
         NgCarrierTransferSettings transfer)
     {
         _recipes = recipes;
@@ -77,7 +64,6 @@ public sealed class MachineMap
         _placement = placement;
         _fastening = fastening;
         _carrier = carrier;
-        _inspection = inspection;
         _transfer = transfer;
     }
 
@@ -176,17 +162,18 @@ public sealed class MachineMap
             s_placementHeatSink2);
     }
 
-    public (double X, double Y)? GetFasteningPosition(MotionPosition current)
+    public (double X, double Y)? GetFasteningPosition(MotionPosition current, FasteningHead head)
     {
-        return current is { X: { } x, Y: { } y } ? MapFastening(x, y) : null;
+        return current is { X: { } x, Y: { } y } ? MapFastening(x, y, head) : null;
     }
 
-    public (double X, double Y) PickupFeederPosition
+    public (double X, double Y)? PickupFeederPosition
     {
         get
         {
             var point = _fastening.PickupPosition;
-            var mapped = MapFastening(point.X, point.Y);
+            if (MapFastening(point.X, point.Y, FasteningHead.Pickup) is not { } mapped)
+                return null;
             return (
                 mapped.X + MachinePlan.PickupToolCenter.X + s_pickupFeederOffset.X,
                 mapped.Y + MachinePlan.PickupToolCenter.Y + s_pickupFeederOffset.Y);
@@ -195,66 +182,58 @@ public sealed class MachineMap
 
     public (double X, double Y) GetFasteningTargetPosition(BoltPoint bolt)
     {
-        var target = _fastening.GetBoltPosition(bolt, _carrier);
-        var mapped = MapFastening(target.X, target.Y);
-        var tool = bolt.Head == FasteningHead.Pickup
-            ? MachinePlan.PickupToolCenter
-            : MachinePlan.ShootingToolCenter;
-        return (
-            mapped.X + tool.X - MachinePlan.FasteningContentOrigin.X,
-            mapped.Y + tool.Y - MachinePlan.FasteningContentOrigin.Y);
+        var mapped = MapCarrier(bolt.X!.Value, bolt.Y!.Value,
+            MachinePlan.FasteningUpperLeft, MachinePlan.FasteningLowerRight);
+        return MachinePlan.Offset(mapped, MachinePlan.FasteningContentOrigin);
     }
 
     public (double X, double Y)? GetInspectionPosition(MotionPosition current)
     {
-        return current is { X: { } x, Y: { } y } ? MapInspection(x, y) : null;
+        return InspectionDefined && current is { X: { } x, Y: { } y }
+            ? MachinePlan.Offset(MapCarrier(x, y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight),
+                MachinePlan.CameraCenter)
+            : null;
     }
 
-    public (double X, double Y) GetInspectionTargetPosition(BoltPoint bolt)
+    public (double X, double Y)? GetNgPickupPosition(MotionPosition current)
     {
-        var target = _inspection.GetBoltPosition(bolt);
-        var mapped = MapInspection(target.X, target.Y);
-        return (
-            mapped.X + MachinePlan.CameraCenter.X - MachinePlan.InspectionContentOrigin.X,
-            mapped.Y + MachinePlan.CameraCenter.Y - MachinePlan.InspectionContentOrigin.Y);
+        return InspectionDefined && current is { X: { } x, Y: { } y } ? MapNgPickup(x, y) : null;
     }
 
-    private (double X, double Y) MapFastening(double x, double y)
+    public (double X, double Y)? GetInspectionTargetPosition(BoltPoint bolt)
     {
-        switch (true)
-        {
-            case true when !FasteningDefined:
-                return default;
-            case true when _fastening.ShootingHead.UpperLeftLocatingPin is { } first
-                && _fastening.ShootingHead.LowerRightLocatingPin is { } second
-                && _fastening.PickupHead.UpperLeftLocatingPin is { } pickup
-                && MachinePlan.GetSide((pickup.X, pickup.Y), (first.X, first.Y), (second.X, second.Y)) != 0:
-                return FromThreePoints(
-                    x,
-                    y,
-                    (first.X, first.Y),
-                    (second.X, second.Y),
-                    (pickup.X, pickup.Y),
-                    s_shootingUpperLeft,
-                    s_shootingLowerRight,
-                    s_pickupUpperLeft);
-        }
-
-        var shooting = HasPins(_fastening.ShootingHead);
-        var head = shooting ? _fastening.ShootingHead : _fastening.PickupHead;
-        var tool = shooting ? MachinePlan.ShootingToolCenter : MachinePlan.PickupToolCenter;
-        return FromTwoPoints(
-            x,
-            y,
-            (head.UpperLeftLocatingPin!.X, head.UpperLeftLocatingPin.Y),
-            (
-                head.LowerRightLocatingPin!.X,
-                head.LowerRightLocatingPin.Y),
-            MachinePlan.Offset(MachinePlan.FasteningUpperLeft, tool),
-            MachinePlan.Offset(MachinePlan.FasteningLowerRight, tool));
+        var fovs = _recipes.Current.CarrierImages.Where(fov => !fov.IsBarcode
+            && fov.HeatSink == bolt.HeatSink && fov.BoltNumber == bolt.Number).ToArray();
+        if (!InspectionDefined || fovs.Length != 1)
+            return null;
+        var center = fovs[0].Center;
+        var mapped = MapCarrier(center.X, center.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight);
+        return MachinePlan.Offset(mapped, MachinePlan.InspectionContentOrigin);
     }
 
-    private (double X, double Y) MapInspection(double x, double y)
+    private (double X, double Y)? MapFastening(double x, double y, FasteningHead head)
+    {
+        var settings = _fastening.GetHead(head);
+        if (!_carrier.IsDefined || !HasPins(settings))
+            return null;
+        // Reverse the same rigid transform used by the actual fastening move.
+        var carrier = CarrierCoordinates.ToMachine(new() { X = x, Y = y },
+            settings.UpperLeftLocatingPin!, settings.LowerRightLocatingPin!,
+            _carrier.UpperLeftLocatingPin!, _carrier.LowerRightLocatingPin!);
+        var mapped = MapCarrier(carrier.X, carrier.Y, MachinePlan.FasteningUpperLeft, MachinePlan.FasteningLowerRight);
+        return MachinePlan.Offset(mapped, head == FasteningHead.Pickup
+            ? MachinePlan.PickupToolCenter : MachinePlan.ShootingToolCenter);
+    }
+
+    private (double X, double Y) MapCarrier(double x, double y,
+        (double X, double Y) upperLeft, (double X, double Y) lowerRight)
+    {
+        var first = _carrier.UpperLeftLocatingPin!;
+        var second = _carrier.LowerRightLocatingPin!;
+        return FromTwoPoints(x, y, (first.X, first.Y), (second.X, second.Y), upperLeft, lowerRight);
+    }
+
+    private (double X, double Y) MapNgPickup(double x, double y)
     {
         if (!InspectionDefined)
             return default;

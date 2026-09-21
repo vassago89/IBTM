@@ -118,8 +118,8 @@
                 Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}"
                 Panel.ZIndex="20">
                 <StackPanel.RenderTransform>
-                    <TranslateTransform X="{Binding InspectionGantryMapLeft, TargetNullValue=0}"
-                        Y="{Binding InspectionGantryMapTop, TargetNullValue=0}"/>
+                    <TranslateTransform X="{Binding NgPickupMapLeft, TargetNullValue=0}"
+                        Y="{Binding NgPickupMapTop, TargetNullValue=0}"/>
                 </StackPanel.RenderTransform>
                 <Grid Width="{StaticResource CarrierWidth}" Height="{StaticResource CarrierHeight}"
                     VerticalAlignment="Top">
@@ -135,18 +135,21 @@
                         <TextBlock Margin="0,5,0,0" VerticalAlignment="Top" Text="NG Pick" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                     </Grid>
                 </Grid>
-                <Border Width="18" Height="{x:Static ui:MachinePlan.CameraGap}"
-                    Tag="{Binding NgTransfer.Motion.IsMoving}"
-                    Style="{StaticResource OverheadBodyStyle}"/>
-                <Grid x:Name="InspectionCamera" Width="{x:Static ui:MachinePlan.CameraSize}" Height="{x:Static ui:MachinePlan.CameraSize}">
-                    <Ellipse Width="42" Height="42" Fill="{StaticResource MachineGhostBrush}" Stroke="{StaticResource AccentBlueBrush}"
-                        StrokeThickness="2"/>
-                    <Ellipse Width="16" Height="16" Fill="Transparent" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1"/>
-                </Grid>
-                <StackPanel Margin="0,2,0,0" HorizontalAlignment="Center" VerticalAlignment="Top" Orientation="Horizontal">
-                    <TextBlock Text="Camera" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-                </StackPanel>
             </StackPanel>
+            <Canvas Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
+                <Canvas.RenderTransform>
+                    <TranslateTransform X="{Binding InspectionGantryMapLeft, TargetNullValue=0}"
+                        Y="{Binding InspectionGantryMapTop, TargetNullValue=0}"/>
+                </Canvas.RenderTransform>
+                <StackPanel Canvas.Left="{x:Static ui:MachinePlan.CameraLeft}" Canvas.Top="{x:Static ui:MachinePlan.CameraTop}">
+                    <Grid x:Name="InspectionCamera" Width="{x:Static ui:MachinePlan.CameraSize}" Height="{x:Static ui:MachinePlan.CameraSize}">
+                        <Ellipse Width="42" Height="42" Fill="{StaticResource MachineGhostBrush}" Stroke="{StaticResource AccentBlueBrush}"
+                            StrokeThickness="2"/>
+                        <Ellipse Width="16" Height="16" Fill="Transparent" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1"/>
+                    </Grid>
+                    <TextBlock Margin="0,2,0,0" Text="Camera" HorizontalAlignment="Center" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                </StackPanel>
+            </Canvas>
         </Canvas>
     </Grid>
 </UserControl>

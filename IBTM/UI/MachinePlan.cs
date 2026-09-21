@@ -13,6 +13,8 @@ public static class MachinePlan
     public const double PlatePadding = 8;
     public const double CameraSize = 48;
     public const double CameraGap = 20;
+    public const double CameraLeft = (CarrierWidth - CameraSize) / 2;
+    public const double CameraTop = CarrierHeight + CameraGap;
     public const double NgPositionGap = 6;
     public const double PositionLabelGap = 12;
     public const double CarrierWorkInset = 18;
