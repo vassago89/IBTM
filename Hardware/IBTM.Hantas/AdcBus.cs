@@ -1,18 +1,22 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IBTM.Hantas;
 
 public sealed class AdcBus : IAdcBus, IDisposable
 {
     private readonly HantasSettings _settings;
+    private readonly ILogger<AdcBus> _logger;
     private const byte ExceptionFunctionMask = 0x80;
 
     private readonly SemaphoreSlim _exchange;
@@ -20,9 +24,10 @@ public sealed class AdcBus : IAdcBus, IDisposable
     private bool _collectingResults;
     private SerialPort? _port;
 
-    public AdcBus(HantasSettings settings)
+    public AdcBus(HantasSettings settings, ILogger<AdcBus>? logger = null)
     {
         _settings = settings;
+        _logger = logger ?? NullLogger<AdcBus>.Instance;
         _exchange = new(1, 1);
         _fasteningResults = new();
     }
@@ -104,7 +109,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
         if (!request.AsSpan(0, 6).SequenceEqual(response.AsSpan(0, 6)))
         {
-            throw new InvalidDataException("ADC write response does not match the request.");
+            throw new InvalidDataException(
+                $"ADC write response does not match the request; TX={Convert.ToHexString(request)}; RX={Convert.ToHexString(response)}.");
         }
     }
 
@@ -241,6 +247,15 @@ public sealed class AdcBus : IAdcBus, IDisposable
             }
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(_settings.ResponseTimeoutMilliseconds);
+            var started = Stopwatch.GetTimestamp();
+            var receivedBytes = new List<byte>();
+            var receivedChunks = 0;
+            void OnResponseBytes(byte[] bytes)
+            {
+                receivedChunks++;
+                receivedBytes.AddRange(bytes);
+                FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes);
+            }
 
             byte[] response;
             try
@@ -256,7 +271,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     return await CaptureResponseAsync(
                         port.BaseStream,
                         port.DiscardInBuffer,
-                        bytes => FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes),
+                        OnResponseBytes,
                         duration,
                         cancellationToken);
                 }
@@ -264,17 +279,27 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 response = await ReadResponseAsync(
                     port.BaseStream,
                     port.DiscardInBuffer,
-                    bytes => FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes),
+                    OnResponseBytes,
                     slaveAddress,
                     function,
                     timeout.Token,
                     expectedByteCount,
                     OnFasteningResultReceived);
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception exception) when (
+                exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
-                throw new TimeoutException(
-                    $"ADC {slaveAddress} response timed out after {_settings.ResponseTimeoutMilliseconds} ms.");
+                var detail = $"ADC {port.PortName}/{slaveAddress}; baud={port.BaudRate}; "
+                    + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
+                    + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
+                    + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
+                _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
+                if (exception is AdcResponseException rejection)
+                    throw new AdcResponseException(rejection.ErrorCode, $"{detail} {rejection.Message}", rejection);
+                if (exception is OperationCanceledException)
+                    throw new TimeoutException(
+                        $"{detail} Response timed out after {_settings.ResponseTimeoutMilliseconds} ms.", exception);
+                throw;
             }
 
             return response;

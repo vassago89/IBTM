@@ -213,7 +213,7 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(0)]
     [InlineData(10)]
-    public async Task RejectedStopDoesNotReturnACompletedResult(int dryRunMilliseconds)
+    public async Task RepeatedStopRejectionDoesNotReturnACompletedResult(int dryRunMilliseconds)
     {
         // The equipment's 0x06 rejection, including the original CRC.
         using var response = new MemoryStream([0x01, 0x86, 0x03, 0x02, 0x61]);
@@ -226,9 +226,68 @@ public sealed class AdcBoltHeadTests
         Assert.Same(rejection, await Assert.ThrowsAsync<AdcResponseException>(
             () => head.TightenAsync(dryRunMilliseconds: dryRunMilliseconds)));
         Assert.True(bus.Running);
-        Assert.Equal(1, bus.StopWrites);
+        Assert.Equal(2, bus.StopWrites);
         Assert.Equal(0, bus.StopFeedbackReads);
         Assert.True((await ((IAdcBus)bus).ReadControllerStatusAsync(1)).Running);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10)]
+    public async Task StopLengthRejectionRetriesOnceAndWaitsForMotorStop(int dryRunMilliseconds)
+    {
+        var bus = new AdcControllerStub
+        {
+            StopWriteFailure = new AdcResponseException(3, "RX=0186030261"),
+            StopWriteFailuresRemaining = 1,
+            StopPollsRemaining = 2,
+        };
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
+
+        var result = await head.TightenAsync(dryRunMilliseconds: dryRunMilliseconds);
+
+        Assert.Equal(dryRunMilliseconds > 0 ? BoltResultSource.DryRun : BoltResultSource.Controller, result.Source);
+        Assert.Equal(1, bus.StartWrites);
+        Assert.Equal(2, bus.StopWrites);
+        Assert.Equal(3, bus.StopFeedbackReads);
+        Assert.False(bus.Running);
+    }
+
+    [Fact]
+    public async Task StopLengthRejectionAcceptsCurrentRunOffFeedback()
+    {
+        var bus = new AdcControllerStub { StopWriteFailure = new AdcResponseException(3, "RX=0186030261") };
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
+
+        await head.StopAsync();
+
+        Assert.Equal(1, bus.StopWrites);
+        Assert.False(bus.Running);
+    }
+
+    [Fact]
+    public async Task StopLengthRejectionDoesNotAssumeMissingFeedbackIsStopped()
+    {
+        var bus = new AdcControllerStub
+        {
+            StopWriteFailure = new AdcResponseException(3, "RX=0186030261"),
+            StopReadFailure = new IOException("RUN feedback unavailable."),
+        };
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
+
+        Assert.Same(bus.StopReadFailure, await Assert.ThrowsAsync<IOException>(() => head.StopAsync()));
+        Assert.Equal(1, bus.StopWrites);
+    }
+
+    [Fact]
+    public async Task StopAddressRejectionIsNotRetried()
+    {
+        var rejection = new AdcResponseException(2, "Invalid address.");
+        var bus = new AdcControllerStub { StopWriteFailure = rejection };
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
+
+        Assert.Same(rejection, await Assert.ThrowsAsync<AdcResponseException>(() => head.StopAsync()));
+        Assert.Equal(1, bus.StopWrites);
     }
 
     [Fact]

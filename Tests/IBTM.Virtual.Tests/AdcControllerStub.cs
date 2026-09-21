@@ -30,6 +30,7 @@ internal sealed class AdcControllerStub : IAdcBus
     public AdcDirection? ResultDirection { get; init; }
     public int StopPollsRemaining { get; set; }
     public IOException? StopWriteFailure { get; set; }
+    public int StopWriteFailuresRemaining { get; set; } = -1;
     public IOException? StopReadFailure { get; init; }
     public IOException? ResultReceiveFailure { get; set; }
     public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
@@ -92,8 +93,12 @@ internal sealed class AdcControllerStub : IAdcBus
                 else
                 {
                     StopWrites++;
-                    if (StopWriteFailure is not null)
+                    if (StopWriteFailure is not null && StopWriteFailuresRemaining != 0)
+                    {
+                        if (StopWriteFailuresRemaining > 0)
+                            StopWriteFailuresRemaining--;
                         throw StopWriteFailure;
+                    }
                     _stopRequested = true;
                 }
                 break;
@@ -107,11 +112,11 @@ internal sealed class AdcControllerStub : IAdcBus
         switch (address)
         {
             case (ushort)AdcStatusRegister.Preset:
+                if (StopWrites > 0 && StopReadFailure is not null)
+                    throw StopReadFailure;
                 if (_stopRequested)
                 {
                     StopFeedbackReads++;
-                    if (StopReadFailure is not null)
-                        throw StopReadFailure;
                     if (StopPollsRemaining == 0)
                     {
                         Running = false;

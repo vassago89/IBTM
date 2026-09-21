@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IBTM.Hantas;
 
@@ -11,6 +13,7 @@ public sealed class AdcBoltHead : IBoltHead
     private readonly IAdcBus _bus;
     private readonly HantasSettings _connection;
     private readonly byte _slaveAddress;
+    private readonly ILogger<AdcBoltHead> _logger;
     private const int StatusPollMilliseconds = 50;
     // Connection edits apply to a newly created head, together with its slave address.
     private readonly string _portName;
@@ -23,13 +26,15 @@ public sealed class AdcBoltHead : IBoltHead
         HantasSettings connection,
         byte slaveAddress,
         string portName,
-        int baudRate)
+        int baudRate,
+        ILogger<AdcBoltHead>? logger = null)
     {
         _bus = bus;
         _connection = connection;
         _slaveAddress = slaveAddress;
         _portName = portName;
         _baudRate = baudRate;
+        _logger = logger ?? NullLogger<AdcBoltHead>.Instance;
     }
 
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
@@ -237,8 +242,40 @@ public sealed class AdcBoltHead : IBoltHead
     public async Task StopAsync()
     {
         // Once STOP is requested, finish the bounded RUN OFF check even if the caller cancels.
-        await _bus.StopAsync(_slaveAddress, CancellationToken.None);
-        await WaitForStoppedAsync(CancellationToken.None);
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                await _bus.StopAsync(_slaveAddress, CancellationToken.None);
+                break;
+            }
+            catch (AdcResponseException exception) when (exception.ErrorCode == 0x03)
+            {
+                _logger.LogWarning(exception,
+                    "ADC {Port}/{Slave} STOP attempt {Attempt} was rejected; checking current RUN feedback.",
+                    _portName, _slaveAddress, attempt + 1);
+                var status = await _bus.ReadControllerStatusAsync(_slaveAddress, CancellationToken.None);
+                _logger.LogWarning(
+                    "ADC {Port}/{Slave} feedback after STOP rejection: RUN={Running}, Ready={Ready}, Alarm={Alarm}, Preset={Preset}, Direction={Direction}.",
+                    _portName, _slaveAddress, status.Running, status.Ready, status.Alarm, status.Preset, status.Direction);
+                if (!status.Running)
+                {
+                    _logger.LogWarning(
+                        "ADC {Port}/{Slave} STOP was rejected but current RUN is OFF; motor stop confirmed. Alarm={Alarm}.",
+                        _portName, _slaveAddress, status.Alarm);
+                    return;
+                }
+                if (attempt == 1)
+                    throw;
+                // STOP is idempotent. A rejected START must never take this retry path.
+                _logger.LogWarning(
+                    "ADC {Port}/{Slave} RUN is still ON; sending STOP once more.", _portName, _slaveAddress);
+            }
+        }
+        var stopped = await WaitForStoppedAsync(CancellationToken.None);
+        _logger.LogInformation(
+            "ADC {Port}/{Slave} STOP confirmed: RUN={Running}, Ready={Ready}, Alarm={Alarm}.",
+            _portName, _slaveAddress, stopped.Running, stopped.Ready, stopped.Alarm);
     }
 
     private async Task StopAfterOperationAsync(Exception? failure)

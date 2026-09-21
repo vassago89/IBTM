@@ -293,7 +293,8 @@ public static class DependencyInjection
                         settings.Hantas,
                         settings.Hantas.ShootingSlaveAddress,
                         settings.Hantas.ShootingPortName,
-                        settings.Hantas.ShootingBaudRate))
+                        settings.Hantas.ShootingBaudRate,
+                        provider.GetRequiredService<ILogger<AdcBoltHead>>()))
                 .AddKeyedSingleton<IBoltHead>(
                     FasteningHead.Pickup,
                     (provider, _) => new AdcBoltHead(
@@ -301,7 +302,8 @@ public static class DependencyInjection
                         settings.Hantas,
                         settings.Hantas.PickupSlaveAddress,
                         settings.Hantas.PickupPortName,
-                        settings.Hantas.PickupBaudRate));
+                        settings.Hantas.PickupBaudRate,
+                        provider.GetRequiredService<ILogger<AdcBoltHead>>()));
         }
 
         if (settings.Drivers.Camera == CameraDriver.Virtual)
