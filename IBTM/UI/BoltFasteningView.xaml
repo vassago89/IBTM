@@ -65,12 +65,12 @@
                         <Border Height="18" VerticalAlignment="Center" Background="{StaticResource EquipBgBrush}"
                             BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="1"/>
                         <Ellipse Width="18" Height="18"
-                            Tag="{Binding PickupFeederBoltDetected}"
+                            Tag="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}"
                             ToolTip="Pickup feeder bolt ready" Style="{StaticResource PresenceLedStyle}"/>
                     </Grid>
                 </Border>
                 <TextBlock Text="Pick Feeder"
-                    Tag="{Binding PickupFeederBoltDetected}"
+                    Tag="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}"
                     VerticalAlignment="Bottom" Style="{StaticResource FeederLabelStyle}"/>
             </Grid>
 
@@ -130,8 +130,7 @@
                     </Grid.RenderTransform>
                     <Canvas>
                         <TextBlock Canvas.Left="{x:Static ui:MachinePlan.ShootingHeadLeft}" Canvas.Top="65" Text="Shoot"
-                            Tag="{Binding ShootingFeederBoltDetected}" ToolTip="Shooting feeder bolt ready"
-                            FontSize="11" Style="{StaticResource FeederLabelStyle}"/>
+                            FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                         <TextBlock Canvas.Left="107" Canvas.Top="65" Text="{Binding BoltFasteningActiveBolt.Number}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource ActiveToolNumberStyle}">

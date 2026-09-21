@@ -9,7 +9,6 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
-using IBTM.BoltFeeder;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
@@ -18,7 +17,6 @@ using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
@@ -30,8 +28,6 @@ public partial class OperationViewModel : ObservableObject
     private readonly MachineOptions _options;
     private readonly RecipeManager _recipes;
     private readonly MachineMap _map;
-    private readonly BoltFeederUnit _pickupFeeder;
-    private readonly BoltFeederUnit _shootingFeeder;
     private volatile bool _active;
 
     [ObservableProperty]
@@ -52,8 +48,6 @@ public partial class OperationViewModel : ObservableObject
         RecipeManager recipes,
         MachineMap map,
         MainConveyor conveyor,
-        [FromKeyedServices(FasteningHead.Pickup)] BoltFeederUnit pickupFeeder,
-        [FromKeyedServices(FasteningHead.Shooting)] BoltFeederUnit shootingFeeder,
         NgCarrierConveyor ngConveyor,
         NgShuttle ngShuttle,
         NgCarrierTransfer ngTransfer,
@@ -102,8 +96,6 @@ public partial class OperationViewModel : ObservableObject
         NgConveyor = ngConveyor;
         NgShuttle = ngShuttle;
         Conveyor = conveyor;
-        _pickupFeeder = pickupFeeder;
-        _shootingFeeder = shootingFeeder;
         NgTransfer = ngTransfer;
         Supply = supply;
         Placement = placement;
@@ -194,10 +186,6 @@ public partial class OperationViewModel : ObservableObject
 
     public bool PcbSupplyGripperClosed => Supply.Gripper == PcbSupplyCylinderState.Forward;
 
-
-    public bool PickupFeederBoltDetected => _pickupFeeder.State == BoltFeederState.BoltReady;
-
-    public bool ShootingFeederBoltDetected => _shootingFeeder.State == BoltFeederState.BoltReady;
 
     public bool PcbPlacementHeatSink1Completed
     {
@@ -683,8 +671,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(FasteningPositionKnown));
         OnPropertyChanged(nameof(BoltFasteningWork));
         OnPropertyChanged(nameof(Fastening));
-        OnPropertyChanged(nameof(PickupFeederBoltDetected));
-        OnPropertyChanged(nameof(ShootingFeederBoltDetected));
         OnPropertyChanged(nameof(BoltFasteningActiveBolt));
         OnPropertyChanged(nameof(BoltTargets));
         OnPropertyChanged(nameof(FasteningStateVisible));

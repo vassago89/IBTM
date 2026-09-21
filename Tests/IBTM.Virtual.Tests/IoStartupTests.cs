@@ -831,6 +831,7 @@ public sealed class IoStartupTests
             Assert.Contains(OutputIo.MainConveyorAvailableToRear, writes);
             Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
             Assert.Contains(OutputIo.ShootingFeederOff, writes);
+            Assert.Contains(OutputIo.ShootingEscapeForward, writes); // Return backward even if air OFF fails.
             Assert.Contains(OutputIo.NgConveyorRun, writes);
             Assert.Contains(OutputIo.NgCarrierEjectLamp, writes);
             Assert.Contains(OutputIo.NgCarrierEjectCompleteLamp, writes);

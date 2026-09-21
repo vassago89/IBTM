@@ -12,6 +12,35 @@
     d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
     Background="{StaticResource AppBgBrush}" Unloaded="OnViewUnloaded">
     <UserControl.Resources>
+        <Style x:Key="FeederDetectionStyle" TargetType="TextBlock">
+            <Setter Property="Text" Value="UNKNOWN"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Style.Triggers>
+                <Trigger Property="Tag">
+                    <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
+                    <Setter Property="Text" Value="DETECTED"/>
+                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                </Trigger>
+                <Trigger Property="Tag">
+                    <Trigger.Value><sys:Boolean>False</sys:Boolean></Trigger.Value>
+                    <Setter Property="Text" Value="NOT DETECTED"/>
+                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="FeederEnabledStyle" TargetType="TextBlock">
+            <Setter Property="Text" Value="DISABLED"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Style.Triggers>
+                <Trigger Property="Tag">
+                    <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
+                    <Setter Property="Text" Value="ENABLED"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <DataTemplate x:Key="PcbHistoryCard" DataType="{x:Type storage:PcbRecord}">
             <StackPanel MinWidth="94" Margin="8,4">
                 <TextBlock Text="{Binding Number, StringFormat='PCB {0}'}" FontWeight="SemiBold"
@@ -268,19 +297,95 @@
             </Grid>
         </Border>
         </Viewbox>
-        <Border Grid.Row="1" Grid.Column="1" Margin="12,0,0,0" Padding="12" VerticalAlignment="Top"
+        <Border Grid.Row="1" Grid.Column="1" Margin="12,0,0,0" Padding="12"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
             BorderThickness="1" CornerRadius="3">
-            <StackPanel>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <TextBlock Text="Inspection Image" Style="{StaticResource TitleStyle}"/>
-                <TextBlock Margin="0,4,0,10" Text="{Binding InspectionImageCaption, TargetNullValue='Waiting for inspection'}"
+                <TextBlock Grid.Row="1" Margin="0,4,0,10" Text="{Binding InspectionImageCaption, TargetNullValue='Waiting for inspection'}"
                     Foreground="{StaticResource TextSecondaryBrush}"/>
-                <Border Height="240" Background="{StaticResource ControlBgBrush}">
+                <Border Grid.Row="2" MaxHeight="240" Background="{StaticResource ControlBgBrush}">
                     <Image Source="{Binding InspectionImage}" Stretch="Uniform"/>
                 </Border>
-                <TextBlock Margin="0,8,0,0" Text="Last captured inspection image"
+                <TextBlock Grid.Row="3" Margin="0,8,0,0" Text="Last captured inspection image"
                     Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
-            </StackPanel>
+                <Border Grid.Row="4" Margin="0,18,0,12" BorderThickness="0,1,0,0" BorderBrush="{StaticResource DividerBrush}"/>
+                <TextBlock Grid.Row="5" Text="Bolt Feeders" Style="{StaticResource TitleStyle}" Margin="0,0,0,10"/>
+                <Border Grid.Row="6" Padding="12" Background="{StaticResource ControlBgBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="3" Margin="0,0,0,8">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,8">
+                            <TextBlock Text="Pickup Feeder" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Tag="{Binding Units.PickupBoltFeeder}" Style="{StaticResource FeederEnabledStyle}"
+                                HorizontalAlignment="Right"/>
+                        </DockPanel>
+                        <TextBlock Tag="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}"
+                            Style="{StaticResource FeederDetectionStyle}"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="7" Padding="12" Background="{StaticResource ControlBgBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="3">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,8">
+                            <TextBlock Text="Shooting Feeder" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Tag="{Binding Units.ShootingBoltFeeder}" Style="{StaticResource FeederEnabledStyle}"
+                                HorizontalAlignment="Right"/>
+                        </DockPanel>
+                        <TextBlock Tag="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn}"
+                            Style="{StaticResource FeederDetectionStyle}"/>
+                        <TextBlock Margin="0,8,0,0" FontSize="12">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Feeder · UNKNOWN"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Signals.Outputs[ShootingFeederOff].IsOn}" Value="False">
+                                            <Setter Property="Text" Value="Feeder · RUN"/>
+                                            <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Signals.Outputs[ShootingFeederOff].IsOn}" Value="True">
+                                            <Setter Property="Text" Value="Feeder · STOP"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Escape · BETWEEN / UNKNOWN"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="True"/>
+                                                <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="False"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Text" Value="Escape · BACKWARD"/>
+                                        </MultiDataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="False"/>
+                                                <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="True"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Text" Value="Escape · FORWARD"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Border>
         <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="12,8"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
