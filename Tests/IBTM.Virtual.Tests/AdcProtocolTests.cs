@@ -1,4 +1,6 @@
 using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +16,58 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class AdcProtocolTests
 {
+    [Fact]
+    public async Task TighteningReceivesAutomaticResultWithoutPolling()
+    {
+        var bus = new VirtualAdcBus();
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
+        var started = false;
+        var resultReads = 0;
+        var receivedAfterStart = false;
+        bus.FrameTransferred += (direction, frame) =>
+        {
+            if (direction == AdcFrameDirection.Receive)
+            {
+                if (started && frame[1] == 4 && frame[2] == 28)
+                    receivedAfterStart = true;
+                return;
+            }
+            var address = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
+            if (frame[1] == 6 && address == (ushort)AdcRemoteRegister.RemoteStart)
+                started = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) != 0;
+            if (frame[1] == 4 && address == (ushort)AdcResultRegister.EventCount)
+            {
+                Assert.False(started); // One pre-START baseline, no result queries during fastening.
+                resultReads++;
+            }
+        };
+
+        Assert.True((await head.TightenAsync()).Success);
+        Assert.True(receivedAfterStart);
+        Assert.Equal(1, resultReads);
+    }
+
+    [Fact]
+    public async Task AutomaticOutputIgnoresOldAndNonCompletionEvents()
+    {
+        var bus = new ControllerBus();
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
+        var result = new AdcFasteningResult(0, 250, 3, 1, 0.8, 1000, 0, 0, 0, 1, 0,
+            AdcDirection.Fastening, AdcEventStatus.FasteningOk, 0);
+        bus.AutomaticResults.Enqueue(result); // Same event as the pre-START baseline.
+        bus.AutomaticResults.Enqueue(result with { EventCount = 1, Status = AdcEventStatus.DirectionChanged });
+        bus.AutomaticResults.Enqueue(result with { EventCount = 2, Status = AdcEventStatus.PresetChanged });
+        bus.AutomaticResults.Enqueue(result with { EventCount = 3, Status = AdcEventStatus.FasteningNg });
+
+        var completed = await head.TightenAsync();
+
+        Assert.False(completed.Success);
+        Assert.Equal(0.8, completed.Torque);
+        Assert.Equal(4, bus.ResultReceives);
+        Assert.False(bus.Running);
+        Assert.Equal(1, bus.StopWrites);
+    }
+
     [Fact]
     public void SeparateAdcSettingsPreserveTheExistingPortOnlyForPickup()
     {
@@ -114,7 +168,7 @@ public sealed class AdcProtocolTests
     {
         var bus = new ControllerBus
         {
-            ResultReadFailure = new AdcResponseException(3, "Controller rejected result read."),
+            ResultReceiveFailure = new AdcResponseException(3, "Controller rejected result output."),
             StopPollsRemaining = -1,
         };
         var head = new AdcBoltHead(bus, new HantasSettings { ResponseTimeoutMilliseconds = 40 }, 1, "Virtual", 115200);
@@ -128,7 +182,7 @@ public sealed class AdcProtocolTests
     [Fact]
     public async Task ResultCommunicationFailureStillStopsWithoutInventingNg()
     {
-        var bus = new ControllerBus { ResultReadFailure = new IOException("Serial connection lost.") };
+        var bus = new ControllerBus { ResultReceiveFailure = new IOException("Serial connection lost.") };
         var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         var failure = await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
         Assert.Equal("Serial connection lost.", failure.Message);
@@ -249,7 +303,15 @@ public sealed class AdcProtocolTests
     // Valid replies with independently controlled RUN feedback and command readback.
     internal sealed class ControllerBus : IAdcBus
     {
+        public ControllerBus()
+        {
+            AutomaticResults = new();
+        }
+
         public event Action<AdcFrameDirection, byte[]>? FrameTransferred { add { } remove { } }
+
+        public Queue<AdcFasteningResult> AutomaticResults { get; }
+        public int ResultReceives { get; private set; }
 
         public ushort CurrentPreset { get; set; } = 3;
         public AdcDirection CurrentDirection { get; set; }
@@ -259,7 +321,7 @@ public sealed class AdcProtocolTests
         public AdcDirection? ResultDirection { get; init; }
         public int StopPollsRemaining { get; set; }
         public IOException? StopReadFailure { get; init; }
-        public IOException? ResultReadFailure { get; set; }
+        public IOException? ResultReceiveFailure { get; set; }
         public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
         public ushort ResultError { get; set; }
         public Action? Started { get; init; }
@@ -336,17 +398,28 @@ public sealed class AdcProtocolTests
                         CurrentPreset, 0, 0, (ushort)(Running ? 0 : 1), (ushort)(Running ? 1 : 0), 0, (ushort)CurrentDirection,
                     ]);
                 case (ushort)AdcResultRegister.EventCount:
-                    if (StartWrites > StopWrites && ResultReadFailure is { } failure)
-                    {
-                        ResultReadFailure = null;
-                        throw failure;
-                    }
-                    return Task.FromResult<ushort[]>([
-                        (ushort)StartWrites, 250, ResultPreset ?? CurrentPreset, 100, 100, 1000, 0, 0, 0, (ushort)StartWrites, ResultError,
-                        (ushort)(ResultDirection ?? CurrentDirection), (ushort)(StartWrites == 0 ? AdcEventStatus.None : ResultStatus), 0,
-                    ]);
+                    return Task.FromResult(ResultRegisters);
             }
             throw new NotSupportedException();
         }
+
+        public Task<AdcFasteningResult> ReceiveFasteningResultAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ResultReceives++;
+            if (ResultReceiveFailure is { } failure)
+            {
+                ResultReceiveFailure = null;
+                throw failure;
+            }
+            return Task.FromResult(AutomaticResults.TryDequeue(out var result)
+                ? result
+                : AdcFasteningResult.FromRegisters(ResultRegisters));
+        }
+
+        private ushort[] ResultRegisters => [
+            (ushort)StartWrites, 250, ResultPreset ?? CurrentPreset, 100, 100, 1000, 0, 0, 0, (ushort)StartWrites, ResultError,
+            (ushort)(ResultDirection ?? CurrentDirection), (ushort)(StartWrites == 0 ? AdcEventStatus.None : ResultStatus), 0,
+        ];
     }
 }

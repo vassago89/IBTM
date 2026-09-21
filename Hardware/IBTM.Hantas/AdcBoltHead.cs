@@ -11,7 +11,7 @@ public sealed class AdcBoltHead : IBoltHead
     private readonly IAdcBus _bus;
     private readonly HantasSettings _connection;
     private readonly byte _slaveAddress;
-    private const int ResultPollMilliseconds = 50;
+    private const int StatusPollMilliseconds = 50;
     // Connection edits apply to a newly created head, together with its slave address.
     private readonly string _portName;
     private readonly int _baudRate;
@@ -110,7 +110,7 @@ public sealed class AdcBoltHead : IBoltHead
                 if (status.Alarm != 0)
                     throw new InvalidOperationException(
                         $"ADC {_slaveAddress} controller error: {status.Alarm}.");
-                await Task.Delay(ResultPollMilliseconds, cancellationToken);
+                await Task.Delay(StatusPollMilliseconds, cancellationToken);
             }
         }
         catch (Exception exception)
@@ -164,7 +164,7 @@ public sealed class AdcBoltHead : IBoltHead
             {
                 try
                 {
-                    var result = await _bus.ReadFasteningResultAsync(_slaveAddress, timeout.Token);
+                    var result = await _bus.ReceiveFasteningResultAsync(_slaveAddress, timeout.Token);
                     lastResult = result;
                     if (IsCompleted(result, fastening))
                     {
@@ -178,8 +178,6 @@ public sealed class AdcBoltHead : IBoltHead
                     failure = exception;
                     break;
                 }
-
-                await Task.Delay(ResultPollMilliseconds, timeout.Token);
             }
         }
         catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
@@ -191,6 +189,7 @@ public sealed class AdcBoltHead : IBoltHead
         {
             failure = new TimeoutException(
                 $"ADC {_portName}/{_slaveAddress} fastening timed out after {_connection.FasteningTimeoutMilliseconds} ms; "
+                + "waiting for Auto Data Output (check controller output enable/port); "
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
                 + $"direction={lastResult?.Direction}, error={lastResult?.Error}.");
@@ -256,7 +255,7 @@ public sealed class AdcBoltHead : IBoltHead
                 timeout.Token.ThrowIfCancellationRequested();
                 if (!status.Running)
                     return status;
-                await Task.Delay(ResultPollMilliseconds, timeout.Token);
+                await Task.Delay(StatusPollMilliseconds, timeout.Token);
             }
         }
         catch (OperationCanceledException exception) when (

@@ -280,6 +280,74 @@ public sealed class BoltFasteningTests
         Assert.Equal(partial[..receivedCount], chunks.SelectMany(chunk => chunk).ToArray());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdcAutomaticResultCanArriveBeforeOrAfterStartEcho(bool resultFirst)
+    {
+        var data = new byte[29];
+        data[0] = 28;
+        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(1), 7);
+        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(25), (ushort)AdcEventStatus.FasteningOk);
+        var automatic = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, data);
+        var echo = AdcRtuFrame.Build(1, AdcFunctionCode.WriteSingleRegister, [0x0F, 0xA3, 0, 1]);
+        byte[] incoming = resultFirst ? [.. automatic, .. echo] : [.. echo, .. automatic];
+        using var stream = new AdcResponseStream(incoming);
+        var queued = new Queue<byte[]>();
+        var chunks = new List<byte[]>();
+        var response = await AdcBus.ReadResponseAsync(stream, stream.Abort, chunks.Add,
+            1, AdcFunctionCode.WriteSingleRegister, CancellationToken.None, resultReceived: queued.Enqueue);
+        Assert.Equal(echo, response);
+
+        var received = queued.TryDequeue(out var early)
+            ? early
+            : await AdcBus.ReadResponseAsync(stream, stream.Abort, chunks.Add,
+                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, expectedByteCount: 28);
+
+        Assert.Equal(automatic, received);
+        Assert.Empty(queued);
+        Assert.Equal(incoming, chunks.SelectMany(chunk => chunk).ToArray());
+    }
+
+    [Fact]
+    public async Task AdcAutomaticEventIsNotMistakenForRunFeedback()
+    {
+        var data = new byte[29];
+        data[0] = 28;
+        var automatic = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, data);
+        var statusData = new byte[15];
+        statusData[0] = 14;
+        var status = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, statusData);
+        using var stream = new AdcResponseStream([.. automatic, .. status]);
+        var events = new List<byte[]>();
+
+        var response = await AdcBus.ReadResponseAsync(stream, stream.Abort, bytes => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14, events.Add);
+
+        Assert.Equal(status, response);
+        Assert.Equal(automatic, Assert.Single(events));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdcAutomaticEventValidatesAddressAndCrcBeforeQueuing(bool wrongAddress)
+    {
+        var data = new byte[29];
+        data[0] = 28;
+        var automatic = AdcRtuFrame.Build((byte)(wrongAddress ? 2 : 1), AdcFunctionCode.ReadInputRegisters, data);
+        if (!wrongAddress)
+            automatic[^1] ^= 0xFF;
+        using var stream = new AdcResponseStream(automatic);
+        var events = new List<byte[]>();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => AdcBus.ReadResponseAsync(
+            stream, stream.Abort, bytes => { }, 1, AdcFunctionCode.WriteSingleRegister,
+            CancellationToken.None, resultReceived: events.Add));
+
+        Assert.Empty(events);
+    }
+
     [Fact]
     public async Task AdcRawCaptureKeepsEchoAndLateResponseUntilDeadline()
     {
@@ -458,7 +526,7 @@ public sealed class BoltFasteningTests
         {
             // Exact exception reply in the equipment log, including CRC.
             using var response = new MemoryStream([0x01, 0x84, 0x03, 0x03, 0x01]);
-            bus.ResultReadFailure = await Assert.ThrowsAsync<AdcResponseException>(
+            bus.ResultReceiveFailure = await Assert.ThrowsAsync<AdcResponseException>(
                 () => AdcBus.ReadResponseAsync(response, () => { }, bytes => { },
                     1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None));
         }
@@ -634,13 +702,11 @@ public sealed class BoltFasteningTests
         {
             if (output == OutputIo.ShootingEscapeForward)
                 io.SetInputs((InputIo.ShootingEscapeForward, on), (InputIo.ShootingEscapeBackward, !on));
+            else if (output == OutputIo.ShootBolt && on && !value)
+                io.SetInput(InputIo.ShootingTubeBoltDetected, true);
         };
-        if (!value)
-            io.SetInput(InputIo.ShootingTubeBoltDetected, true);
 
-        var error = await Assert.ThrowsAsync<IoTimeoutException>(() => value
-            ? gantry.ShootBoltAsync()
-            : gantry.WaitForShootingTubeClearAsync(CancellationToken.None));
+        var error = await Assert.ThrowsAsync<IoTimeoutException>(() => gantry.ShootBoltAsync());
 
         Assert.Contains(input.GetDescription(), error.Message);
         Assert.Contains("timeout (50 ms)", error.Message);
@@ -681,9 +747,15 @@ public sealed class BoltFasteningTests
         Assert.False(shot.IsCompleted);
         var arrival = Stopwatch.StartNew();
         io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+        await Task.Delay(20);
+        Assert.True(io.GetInput(InputIo.ShootingEscapeForward));
         io.SetInput(InputIo.ShootingTubeBoltDetected, false);
         try
         {
+            Assert.True(await WaitUntilAsync(() => io.GetInput(InputIo.ShootingEscapeBackward),
+                TimeSpan.FromMilliseconds(100)));
+            Assert.False(shot.IsCompleted); // Escape returns on passage, before the head-arrival delay ends.
+            Assert.True(io.GetOutput(OutputIo.ShootBolt));
             if (stopDuringDelay)
             {
                 // Passage was observed, but the arrival delay has not completed.
@@ -914,7 +986,7 @@ public sealed class BoltFasteningTests
                         Assert.False(motion.IsMoving);
                         Assert.Equal(!shootWithoutVacuum, io.GetInput(InputIo.ShootingHeadVacuumDetected));
                         Assert.False(io.GetOutput(OutputIo.ShootBolt));
-                        Assert.Equal(new[] { "ESCAPE FORWARD", "SHOOT ON", "SHOOT OFF", "ESCAPE BACKWARD" }, supplyCommands);
+                        Assert.Equal(new[] { "ESCAPE FORWARD", "SHOOT ON", "ESCAPE BACKWARD", "SHOOT OFF" }, supplyCommands);
                     }
                 }
                 io.SetInput(fasten, on); // STOP-induced OFF must not become a successful result.

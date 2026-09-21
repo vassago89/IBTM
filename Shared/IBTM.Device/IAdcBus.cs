@@ -43,6 +43,11 @@ public interface IAdcBus
         int durationMilliseconds,
         CancellationToken cancellationToken = default);
 
+    // Wait for one Auto Data Output event; do not send a register-read request.
+    Task<AdcFasteningResult> ReceiveFasteningResultAsync(
+        byte slaveAddress,
+        CancellationToken cancellationToken = default);
+
     async Task<AdcFasteningResult> ReadFasteningResultAsync(
         byte slaveAddress,
         CancellationToken cancellationToken = default)
@@ -297,7 +302,7 @@ public sealed record AdcFasteningResult(
     public const ushort RegisterCount = (ushort)((ushort)AdcResultRegister.SnugAngle - FirstRegister + 1);
     private const double RegisterScale = 100.0;
 
-    internal static AdcFasteningResult FromRegisters(ushort[] values)
+    public static AdcFasteningResult FromRegisters(ushort[] values)
     {
         ushort Read(AdcResultRegister register)
         {

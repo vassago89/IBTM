@@ -1,5 +1,6 @@
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
@@ -15,12 +16,15 @@ public sealed class AdcBus : IAdcBus, IDisposable
     private const byte ExceptionFunctionMask = 0x80;
 
     private readonly SemaphoreSlim _exchange;
+    private readonly Queue<byte[]> _fasteningResults;
+    private bool _collectingResults;
     private SerialPort? _port;
 
     public AdcBus(HantasSettings settings)
     {
         _settings = settings;
         _exchange = new(1, 1);
+        _fasteningResults = new();
     }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
@@ -67,6 +71,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
         var port = _port;
         _port = null;
         port?.Dispose();
+        _fasteningResults.Clear();
+        _collectingResults = false;
     }
 
     internal static void VerifyConnectionSettings(SerialPort port, string portName, int baudRate)
@@ -154,7 +160,45 @@ public sealed class AdcBus : IAdcBus, IDisposable
             slaveAddress,
             function,
             AdcRtuFrame.Build(slaveAddress, function, data),
-            cancellationToken);
+            cancellationToken,
+            expectedByteCount: count * 2);
+        return DecodeRegisters(response, count);
+    }
+
+    public async Task<AdcFasteningResult> ReceiveFasteningResultAsync(
+        byte slaveAddress,
+        CancellationToken cancellationToken = default)
+    {
+        await _exchange.WaitAsync(cancellationToken);
+        try
+        {
+            var port = _port;
+            if (port?.IsOpen != true)
+                throw new InvalidOperationException("Hantas ADC is not connected. Open the configured COM port first.");
+
+            // START's echo may arrive after an automatic event. Keep that event,
+            // and leave serial bytes received during head DOWN untouched.
+            var response = _fasteningResults.Count > 0
+                ? _fasteningResults.Dequeue()
+                : await ReadResponseAsync(
+                    port.BaseStream,
+                    port.DiscardInBuffer,
+                    bytes => FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes),
+                    slaveAddress,
+                    AdcFunctionCode.ReadInputRegisters,
+                    cancellationToken,
+                    AdcFasteningResult.RegisterCount * 2);
+            ValidateFrame(response, slaveAddress, (byte)AdcFunctionCode.ReadInputRegisters);
+            return AdcFasteningResult.FromRegisters(DecodeRegisters(response, AdcFasteningResult.RegisterCount));
+        }
+        finally
+        {
+            _exchange.Release();
+        }
+    }
+
+    private static ushort[] DecodeRegisters(byte[] response, ushort count)
+    {
         var byteCount = response[2];
         if (byteCount != count * 2)
         {
@@ -175,7 +219,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
         AdcFunctionCode function,
         byte[] request,
         CancellationToken cancellationToken,
-        int? captureMilliseconds = null)
+        int? captureMilliseconds = null,
+        int? expectedByteCount = null)
     {
         await _exchange.WaitAsync(cancellationToken);
         try
@@ -187,7 +232,13 @@ public sealed class AdcBus : IAdcBus, IDisposable
             // allow at least 3.5 characters, with a conservative 2 ms minimum at higher baud rates.
             var frameGapMilliseconds = Math.Max(2, (int)Math.Ceiling(35_000.0 / port.BaudRate));
             await Task.Delay(frameGapMilliseconds, cancellationToken);
-            port.DiscardInBuffer();
+            if (function == AdcFunctionCode.WriteSingleRegister
+                && BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart)
+            {
+                // Results belong only to this START, never to a later restart.
+                _fasteningResults.Clear();
+                _collectingResults = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(4)) == 1;
+            }
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(_settings.ResponseTimeoutMilliseconds);
 
@@ -216,7 +267,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     bytes => FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes),
                     slaveAddress,
                     function,
-                    timeout.Token);
+                    timeout.Token,
+                    expectedByteCount,
+                    OnFasteningResultReceived);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -230,6 +283,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
         {
             _exchange.Release();
         }
+    }
+
+    private void OnFasteningResultReceived(byte[] response)
+    {
+        if (_collectingResults)
+            _fasteningResults.Enqueue(response);
     }
 
     internal static async Task<byte[]> CaptureResponseAsync(
@@ -272,7 +331,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
         Action<byte[]> received,
         byte slaveAddress,
         AdcFunctionCode function,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? expectedByteCount = null,
+        Action<byte[]>? resultReceived = null)
     {
         Task ReadAsync(byte[] bytes)
         {
@@ -293,39 +354,53 @@ public sealed class AdcBus : IAdcBus, IDisposable
             }
         }
 
-        var header = new byte[2];
-        await ReadAsync(header);
-
-        if ((header[1] & ExceptionFunctionMask) != 0)
+        while (true)
         {
-            var tail = new byte[3];
-            await ReadAsync(tail);
-            byte[] errorFrame = [.. header, .. tail];
-            ValidateFrame(errorFrame, slaveAddress, (byte)((byte)function | ExceptionFunctionMask));
-            var code = (AdcExceptionCode)tail[0];
-            throw new AdcResponseException(tail[0],
-                $"ADC controller returned {code} (0x{(byte)code:X2}); RX={Convert.ToHexString(errorFrame)}.");
-        }
+            var header = new byte[2];
+            await ReadAsync(header);
 
-        byte[] response;
-        if (header[1] == (byte)AdcFunctionCode.WriteSingleRegister)
-        {
-            var tail = new byte[6];
-            await ReadAsync(tail);
-            response = [.. header, .. tail];
-        }
-        else
-        {
-            var count = new byte[1];
-            await ReadAsync(count);
-            var byteCount = count[0];
-            var tail = new byte[byteCount + 2];
-            await ReadAsync(tail);
-            response = [.. header, byteCount, .. tail];
-        }
+            if ((header[1] & ExceptionFunctionMask) != 0)
+            {
+                var tail = new byte[3];
+                await ReadAsync(tail);
+                byte[] errorFrame = [.. header, .. tail];
+                ValidateFrame(errorFrame, slaveAddress, (byte)((byte)function | ExceptionFunctionMask));
+                var code = (AdcExceptionCode)tail[0];
+                throw new AdcResponseException(tail[0],
+                    $"ADC controller returned {code} (0x{(byte)code:X2}); RX={Convert.ToHexString(errorFrame)}.");
+            }
 
-        ValidateFrame(response, slaveAddress, (byte)function);
-        return response;
+            byte[] response;
+            if (header[1] == (byte)AdcFunctionCode.WriteSingleRegister)
+            {
+                var tail = new byte[6];
+                await ReadAsync(tail);
+                response = [.. header, .. tail];
+            }
+            else
+            {
+                var count = new byte[1];
+                await ReadAsync(count);
+                var tail = new byte[count[0] + 2];
+                await ReadAsync(tail);
+                response = [.. header, count[0], .. tail];
+            }
+
+            if (resultReceived is not null
+                && header[1] == (byte)AdcFunctionCode.ReadInputRegisters
+                && response[2] == AdcFasteningResult.RegisterCount * 2
+                && (function != AdcFunctionCode.ReadInputRegisters || expectedByteCount != response[2]))
+            {
+                ValidateFrame(response, slaveAddress, (byte)AdcFunctionCode.ReadInputRegisters);
+                resultReceived(response);
+                continue;
+            }
+
+            ValidateFrame(response, slaveAddress, (byte)function);
+            if (expectedByteCount is { } expected && response[2] != expected)
+                throw new InvalidDataException($"ADC returned {response[2]} data bytes; expected {expected}.");
+            return response;
+        }
     }
 
     internal static async Task AwaitSerialIoAsync(

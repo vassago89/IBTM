@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -459,7 +460,13 @@ public sealed partial class BoltFasteningStation : AutoUnit
             cancellationToken.ThrowIfCancellationRequested();
             _io.SetOutput(OutputIo.ShootBolt, true);
             await boltPassed;
-            await Task.Delay(TimeSpan.FromSeconds(_settings.ShootingArrivalDelaySeconds), cancellationToken);
+            var arrivalStartedAt = Stopwatch.GetTimestamp();
+            await WaitForShootingTubeClearAsync(cancellationToken);
+            await SetShootingEscapeForwardAsync(false, cancellationToken);
+            var arrivalRemaining = TimeSpan.FromSeconds(_settings.ShootingArrivalDelaySeconds)
+                - Stopwatch.GetElapsedTime(arrivalStartedAt);
+            if (arrivalRemaining > TimeSpan.Zero)
+                await Task.Delay(arrivalRemaining, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -801,12 +808,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     await MoveToBoltAsync(bolt, cancellationToken);
                 else if (shootRequired)
                     await ShootBoltAsync(cancellationToken);
-                if (feeding)
-                {
-                    await WaitForShootingTubeClearAsync(cancellationToken);
-                    if (ShootingEscape != BoltEscapeState.Backward)
-                        await SetShootingEscapeForwardAsync(false, cancellationToken);
-                }
                 await FastenAsync(bolt, cancellationToken);
                 await ClearHeadAsync(FasteningHead.Shooting, cancellationToken);
                 break;
