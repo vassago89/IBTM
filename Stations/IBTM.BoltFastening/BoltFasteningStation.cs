@@ -834,28 +834,10 @@ public sealed partial class BoltFasteningStation : AutoUnit
                 if (moveRequired || shootRequired)
                     await RaiseCylindersAsync(cancellationToken);
 
-                using var preparation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                var moving = moveRequired ? MoveToBoltAsync(bolt, preparation.Token) : Task.CompletedTask;
-                var shooting = shootRequired ? ShootBoltAsync(preparation.Token) : Task.CompletedTask;
-                var prepared = Task.WhenAll(moving, shooting);
-                try
-                {
-                    // Observe either failure immediately instead of waiting for the other operation.
-                    var completed = await Task.WhenAny(moving, shooting);
-                    await completed;
-                    await prepared;
-                }
-                finally
-                {
-                    try
-                    {
-                        preparation.Cancel();
-                    }
-                    finally
-                    {
-                        await prepared;
-                    }
-                }
+                if (moveRequired)
+                    await MoveToBoltAsync(bolt, cancellationToken);
+                if (shootRequired)
+                    await ShootBoltAsync(cancellationToken);
                 if (feeding)
                 {
                     await WaitForShootingTubeClearAsync(cancellationToken);

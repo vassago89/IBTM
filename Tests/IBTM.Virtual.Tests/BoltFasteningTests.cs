@@ -707,7 +707,7 @@ public sealed class BoltFasteningTests
         var settings = new BoltFasteningSettings
         {
             SafeZ = 5,
-            ShootingArrivalDelaySeconds = shootWithoutVacuum ? 0.4 : 0.05,
+            ShootingArrivalDelaySeconds = 0.05,
             ShootingDetectionTimeoutMilliseconds = preparationFailure == ShootingPreparationFailure.Supply ? 50 : 2_000,
             Motion = new() { HorizontalSpeed = 200, ZSpeed = 20_000 },
             PickupPosition = new() { X = 100, Y = 100, Z = 10 },
@@ -769,12 +769,14 @@ public sealed class BoltFasteningTests
         var commands = new List<string>();
         var supplyCommands = new List<string>();
         var shotElapsed = new Stopwatch();
-        var moveFinishedBeforeShot = false;
         motion.PositionChanged += (x, y, z) =>
         {
-            if (x == bolt.X && y == bolt.Y && z == settings.ShootingHead.FasteningZ
-                && io.GetOutput(OutputIo.ShootBolt))
-                moveFinishedBeforeShot = true;
+            if (motion.IsMoving)
+            {
+                Assert.False(io.GetOutput(OutputIo.ShootBolt));
+                if (preparationFailure == ShootingPreparationFailure.Motion && x > 0)
+                    motion.Stop();
+            }
         };
         var descending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -796,13 +798,10 @@ public sealed class BoltFasteningTests
                 if (on)
                 {
                     Assert.True(io.GetInput(InputIo.ShootingEscapeForward));
-                    Assert.True(motion.IsMoving);
-                    Assert.NotEqual(bolt.X, motion.GetPosition().X);
-                    Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                    Assert.False(motion.IsMoving);
+                    Assert.Equal((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.GetPosition());
                     shotElapsed.Restart();
-                    if (preparationFailure == ShootingPreparationFailure.Motion)
-                        motion.Stop();
-                    else if (preparationFailure == ShootingPreparationFailure.Stop)
+                    if (preparationFailure == ShootingPreparationFailure.Stop)
                         stop.Cancel();
                     else if (preparationFailure != ShootingPreparationFailure.Supply)
                     {
@@ -828,7 +827,6 @@ public sealed class BoltFasteningTests
                         Assert.True(shotElapsed.Elapsed >= TimeSpan.FromSeconds(settings.ShootingArrivalDelaySeconds - 0.005));
                         Assert.Equal((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.GetPosition());
                         Assert.False(motion.IsMoving);
-                        Assert.Equal(shootWithoutVacuum, moveFinishedBeforeShot);
                         Assert.Equal(!shootWithoutVacuum, io.GetInput(InputIo.ShootingHeadVacuumDetected));
                         Assert.False(io.GetOutput(OutputIo.ShootBolt));
                         Assert.Equal(new[] { "ESCAPE FORWARD", "SHOOT ON", "SHOOT OFF", "ESCAPE BACKWARD" }, supplyCommands);
@@ -864,7 +862,9 @@ public sealed class BoltFasteningTests
                     await Assert.ThrowsAsync<IoTimeoutException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
                 else
                     await run.WaitAsync(TimeSpan.FromSeconds(1));
-                Assert.True(shotElapsed.IsRunning);
+                Assert.Equal(preparationFailure != ShootingPreparationFailure.Motion, shotElapsed.IsRunning);
+                if (preparationFailure == ShootingPreparationFailure.Motion)
+                    Assert.Empty(supplyCommands);
                 Assert.False(io.GetOutput(OutputIo.ShootBolt));
                 Assert.False(motion.IsMoving);
                 Assert.Empty(commands);
