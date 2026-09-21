@@ -140,8 +140,8 @@ public sealed class AdcBoltHead : IBoltHead
         (ushort EventCount, ushort Preset)? started = null;
         AdcFasteningResult? completed = null;
         AdcFasteningResult? lastResult = null;
-        AdcResponseException? responseError = null;
         Exception? failure = null;
+        var waitingForResult = false;
         try
         {
             var current = dryRunMilliseconds > 0
@@ -171,6 +171,7 @@ public sealed class AdcBoltHead : IBoltHead
             }
             if (dryRunMilliseconds > 0)
                 await Task.Delay(dryRunMilliseconds, cancellationToken);
+            waitingForResult = dryRunMilliseconds == 0;
             while (dryRunMilliseconds == 0)
             {
                 try
@@ -185,7 +186,6 @@ public sealed class AdcBoltHead : IBoltHead
                 }
                 catch (AdcResponseException exception)
                 {
-                    responseError = exception;
                     failure = exception;
                     break;
                 }
@@ -204,7 +204,8 @@ public sealed class AdcBoltHead : IBoltHead
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
                 + $"direction={lastResult?.Direction}, error={lastResult?.Error}.");
-            throw failure;
+            if (!waitingForResult)
+                throw failure;
         }
         catch (Exception exception)
         {
@@ -220,11 +221,11 @@ public sealed class AdcBoltHead : IBoltHead
         if (dryRunMilliseconds > 0)
             return new BoltResult(true, null, BoltResultSource.DryRun);
 
-        if (responseError is not null)
+        if (failure is not null)
         {
             // STOP and RUN OFF have completed. No torque was received for this bolt.
             return new BoltResult(false, null,
-                Error: $"ADC {_portName}/{_slaveAddress}: {responseError.Message}");
+                Error: $"ADC {_portName}/{_slaveAddress}: {failure.Message}");
         }
 
         if (completed is not null)

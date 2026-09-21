@@ -21,6 +21,94 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltFasteningTests
 {
+    [Theory]
+    [InlineData(BoltDriver.Io)]
+    [InlineData(BoltDriver.HantasAdc)]
+    public async Task ResultTimeoutRecordsNgRaisesHeadAndContinuesToNextBolt(BoltDriver driver)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            ShootingArrivalDelaySeconds = 0,
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            PickupHead = HeadSettings(),
+            ShootingHead = HeadSettings(),
+        };
+        settings.ShootingHead.FasteningZ = 12;
+        var controllerSettings = new IoBoltHardwareSettings { FasteningTimeoutMilliseconds = 100 };
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings(), controllerSettings), new());
+        io.Initialize();
+        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var ioHead = new IoBoltHead(io, FasteningHead.Shooting, controllerSettings);
+        using var pickup = new IoBoltHead(io, FasteningHead.Pickup, controllerSettings);
+        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        IBoltHead head = driver == BoltDriver.Io ? ioHead
+            : new AdcBoltHead(bus, new HantasSettings { FasteningTimeoutMilliseconds = 100 }, 1, "Virtual", 115200);
+        var units = new UnitSettings();
+        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
+        var layout = new PcbLayout
+        {
+            BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 30, 40)],
+        };
+        var station = new BoltFasteningStation(head, pickup, io, motion, settings,
+            new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
+            work, new(FasteningHead.Pickup, io, new()), new(FasteningHead.Shooting, io, new()),
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        var raisedAfterTimeout = false;
+        var starts = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootBolt && on)
+            {
+                io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+            }
+            if (output == OutputIo.ShootingBoltStart && on)
+                starts++;
+            if (output == OutputIo.ShootingHeadDown && on && starts == 2)
+            {
+                io.SetInput(InputIo.ShootingBoltFasten, true);
+                io.SetInput(InputIo.ShootingBoltFasten, false);
+            }
+            if (output == OutputIo.ShootingHeadDown && !on && assembly.PcbBoltResults.ContainsKey(1))
+            {
+                Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+                Assert.False(bus.Running);
+                raisedAfterTimeout = true;
+                bus.SuppressAutomaticResults = false;
+            }
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = station.RunAsync(stop.Token);
+        try
+        {
+            Assert.True(await WaitUntilAsync(() => work.Completed || run.IsCompleted, TimeSpan.FromSeconds(4)));
+            Assert.True(work.Completed, run.Exception?.ToString());
+            Assert.True(raisedAfterTimeout);
+            Assert.Equal(2, driver == BoltDriver.Io ? starts : bus.StartWrites);
+            var failed = assembly.PcbBoltResults[1];
+            Assert.False(failed.Success);
+            Assert.Null(failed.Torque);
+            Assert.Null(failed.Controller);
+            Assert.Contains("timed out", failed.Error);
+            Assert.NotNull(failed.RecordedAt);
+            Assert.True(assembly.PcbBoltResults[2].Success);
+            Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
+            Assert.Equal(BoltCylinderState.Up, station.ShootingHeadPosition);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+    }
 
     [Theory]
     [InlineData(true, false)]

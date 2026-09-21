@@ -16,6 +16,9 @@ public enum BoltResultSource
 
     [Description("Dry run · Not measured")]
     DryRun,
+
+    [Description("IO · Result unavailable")]
+    IoResultUnavailable,
 }
 
 public sealed record BoltResult(

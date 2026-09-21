@@ -33,6 +33,7 @@ internal sealed class AdcControllerStub : IAdcBus
     public int StopWriteFailuresRemaining { get; set; } = -1;
     public IOException? StopReadFailure { get; init; }
     public IOException? ResultReceiveFailure { get; set; }
+    public bool SuppressAutomaticResults { get; set; }
     public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
     public ushort ResultError { get; set; }
     public Action? Started { get; init; }
@@ -134,18 +135,20 @@ internal sealed class AdcControllerStub : IAdcBus
         throw new NotSupportedException();
     }
 
-    public Task<AdcFasteningResult> ReceiveFasteningResultAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+    public async Task<AdcFasteningResult> ReceiveFasteningResultAsync(byte slaveAddress, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ResultReceives++;
+        if (SuppressAutomaticResults)
+            await Task.Delay(Timeout.Infinite, cancellationToken);
         if (ResultReceiveFailure is { } failure)
         {
             ResultReceiveFailure = null;
             throw failure;
         }
-        return Task.FromResult(AutomaticResults.TryDequeue(out var result)
+        return AutomaticResults.TryDequeue(out var result)
             ? result
-            : AdcFasteningResult.FromRegisters(ResultRegisters));
+            : AdcFasteningResult.FromRegisters(ResultRegisters);
     }
 
     private ushort[] ResultRegisters => [

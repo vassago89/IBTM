@@ -113,6 +113,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         if (dryRunMilliseconds == 0)
             timeout.CancelAfter(_settings.FasteningTimeoutMilliseconds);
         Exception? failure = null;
+        var waitingForResult = false;
         try
         {
             timeout.Token.ThrowIfCancellationRequested();
@@ -134,6 +135,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
             }
             if (dryRunMilliseconds > 0)
                 timeout.CancelAfter(dryRunMilliseconds);
+            waitingForResult = dryRunMilliseconds == 0;
             while (dryRunMilliseconds > 0 || Volatile.Read(ref _phase) != Completed)
             {
                 timeout.Token.ThrowIfCancellationRequested();
@@ -166,7 +168,8 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
             failure = new TimeoutException(
                 $"{_head} FASTEN ON/OFF cycle timed out after {_settings.FasteningTimeoutMilliseconds} ms; "
                 + $"waiting for {waitingFor}. START will be turned OFF.");
-            throw failure;
+            if (!waitingForResult || Volatile.Read(ref _phase) == Interrupted)
+                throw failure;
         }
         catch (Exception exception)
         {
@@ -188,6 +191,8 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         if (_io.GetOutput(_start))
             throw new InvalidOperationException($"{_head} START is still ON. Stop the controller before collecting the result.");
         cancellationToken.ThrowIfCancellationRequested();
+        if (failure is not null)
+            return new(false, null, BoltResultSource.IoResultUnavailable, failure.Message);
         return new(true, null, dryRunMilliseconds > 0 ? BoltResultSource.DryRun : BoltResultSource.IoAssumedOk);
     }
 

@@ -221,7 +221,7 @@ public sealed class IoBoltHeadTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task MissingEitherFastenEdgeTimesOutAndStops(bool sawOn)
+    public async Task MissingEitherFastenEdgeRecordsNgAndStops(bool sawOn)
     {
         var settings = new IoBoltHardwareSettings { FasteningTimeoutMilliseconds = 50 };
         var io = new VirtualIoService(settings.Outputs, new());
@@ -230,9 +230,46 @@ public sealed class IoBoltHeadTests
         var cycle = head.TightenAsync();
         if (sawOn)
             io.SetInput(InputIo.PickupBoltFasten, true);
-        var error = await Assert.ThrowsAsync<TimeoutException>(() => cycle);
-        Assert.Contains($"waiting for PickupBoltFasten={(sawOn ? "OFF" : "ON")}", error.Message);
+        var result = await cycle;
+        Assert.False(result.Success);
+        Assert.Null(result.Torque);
+        Assert.Equal(BoltResultSource.IoResultUnavailable, result.Source);
+        Assert.Contains($"waiting for PickupBoltFasten={(sawOn ? "OFF" : "ON")}", result.Error);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task ResultTimeoutDoesNotHideStopWriteFailure()
+    {
+        var settings = new IoBoltHardwareSettings { FasteningTimeoutMilliseconds = 50 };
+        var io = new VirtualIoService(settings.Outputs, new());
+        using var head = new IoBoltHead(io, FasteningHead.Shooting, settings);
+        await head.SelectPresetAsync(1);
+        var stopFailure = new IOException("START OFF write failed.");
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootingBoltStart && !on)
+                throw stopFailure;
+        };
+
+        var failure = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
+
+        Assert.IsType<TimeoutException>(failure.InnerExceptions[0]);
+        Assert.Same(stopFailure, failure.InnerExceptions[1]);
+    }
+
+    [Fact]
+    public async Task HeadCommandTimeoutStillFails()
+    {
+        var settings = new IoBoltHardwareSettings { FasteningTimeoutMilliseconds = 50 };
+        var io = new VirtualIoService(settings.Outputs, new());
+        using var head = new IoBoltHead(io, FasteningHead.Shooting, settings);
+        await head.SelectPresetAsync(1);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync(
+            feedAsync: token => Task.Delay(Timeout.Infinite, token)));
+
+        Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
     }
 
     [Theory]

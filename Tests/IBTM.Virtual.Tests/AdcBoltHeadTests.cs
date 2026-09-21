@@ -183,19 +183,42 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(1, feeds);
     }
 
-    [Fact]
-    public async Task RejectedResultCannotReleaseTheBoltBeforeMotorStopIsConfirmed()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MissingResultCannotReleaseTheBoltBeforeMotorStopIsConfirmed(bool timedOut)
     {
         var bus = new AdcControllerStub
         {
             ResultReceiveFailure = new AdcResponseException(3, "Controller rejected result output."),
+            SuppressAutomaticResults = timedOut,
             StopPollsRemaining = -1,
         };
-        var head = new AdcBoltHead(bus, new HantasSettings { ResponseTimeoutMilliseconds = 40 }, 1, "Virtual", 115200);
+        var head = new AdcBoltHead(bus,
+            new HantasSettings { ResponseTimeoutMilliseconds = 40, FasteningTimeoutMilliseconds = 50 },
+            1, "Virtual", 115200);
         var failure = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
-        Assert.IsType<AdcResponseException>(failure.InnerExceptions[0]);
+        if (timedOut)
+            Assert.IsType<TimeoutException>(failure.InnerExceptions[0]);
+        else
+            Assert.IsType<AdcResponseException>(failure.InnerExceptions[0]);
         Assert.IsType<TimeoutException>(failure.InnerExceptions[1]);
         Assert.True(bus.Running);
+        Assert.Equal(1, bus.StopWrites);
+    }
+
+    [Fact]
+    public async Task HeadCommandTimeoutStillFails()
+    {
+        var bus = new AdcControllerStub();
+        var head = new AdcBoltHead(bus, new HantasSettings { FasteningTimeoutMilliseconds = 50 },
+            1, "Virtual", 115200);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync(
+            feedAsync: token => Task.Delay(Timeout.Infinite, token)));
+
+        Assert.False(bus.Running);
+        Assert.Equal(0, bus.ResultReceives);
         Assert.Equal(1, bus.StopWrites);
     }
 
@@ -695,11 +718,14 @@ public sealed class AdcBoltHeadTests
         ((VirtualAdcBus)bus).SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
         if (timedOut)
         {
-            var error = await Assert.ThrowsAsync<TimeoutException>(() => tightening);
-            Assert.Contains("ADC Virtual/1", error.Message);
-            Assert.Contains("start event=1", error.Message);
-            Assert.Contains("last event=1", error.Message);
-            Assert.Contains("expected preset=3", error.Message);
+            var result = await tightening;
+            Assert.False(result.Success);
+            Assert.Null(result.Torque);
+            Assert.Null(result.Controller);
+            Assert.Contains("ADC Virtual/1", result.Error);
+            Assert.Contains("start event=1", result.Error);
+            Assert.Contains("last event=1", result.Error);
+            Assert.Contains("expected preset=3", result.Error);
         }
         else
         {
