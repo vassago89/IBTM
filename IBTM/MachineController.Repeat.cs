@@ -137,35 +137,26 @@ public sealed partial class MachineController
         {
             if (_units.PcbPlacement)
             {
-                switch (true)
-                {
-                    case true when !_pcbPlacement.HandlerRaised:
-                        return OutputBlockReason.PlacementNotRaised;
-                    case true when !_pcbPlacement.IsAtHorizontalZ():
-                        return OutputBlockReason.PlacementNotAtSafeZ;
-                }
+                if (!_pcbPlacement.HandlerRaised)
+                    return OutputBlockReason.PlacementNotRaised;
+                if (!_pcbPlacement.IsAtHorizontalZ())
+                    return OutputBlockReason.PlacementNotAtSafeZ;
             }
 
             if (_units.BoltFastening)
             {
-                switch (true)
-                {
-                    case true when !_fasteningStation.IsHorizontalMoveAllowed:
-                        return OutputBlockReason.FasteningNotRaised;
-                    case true when !_fasteningStation.IsAtSafeZ():
-                        return OutputBlockReason.FasteningNotAtSafeZ;
-                }
+                if (!_fasteningStation.IsHorizontalMoveAllowed)
+                    return OutputBlockReason.FasteningNotRaised;
+                if (!_fasteningStation.IsAtSafeZ())
+                    return OutputBlockReason.FasteningNotAtSafeZ;
             }
 
             if (_units.Inspection || _units.NgCarrierTransfer)
             {
-                switch (true)
-                {
-                    case true when !_ngTransfer.IsRaised:
-                        return OutputBlockReason.NgPickupNotRaised;
-                    case true when _ngTransfer.IsTransferPending:
-                        return OutputBlockReason.NgTransferPending;
-                }
+                if (!_ngTransfer.IsRaised)
+                    return OutputBlockReason.NgPickupNotRaised;
+                if (_ngTransfer.IsTransferPending)
+                    return OutputBlockReason.NgTransferPending;
             }
 
             return OutputBlockReason.None;

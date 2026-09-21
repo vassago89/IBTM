@@ -482,7 +482,8 @@ public partial class TeachingViewModel : ObservableObject
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
         CancelTeaching();
-        NotifyPointSelectionCommands();
+        SelectPreviousPointCommand.NotifyCanExecuteChanged();
+        SelectNextPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(SaveBehavior));
         NotifyManualTeachingCommands();
         CaptureInspectionCommand.Cancel();

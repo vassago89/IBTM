@@ -139,11 +139,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 && Motion.IsAtZ(_settings.HandoffPosition.Z);
     }
 
-    public bool IsAtHandoffXY(bool live = true)
-    {
-        return IsAtXY(_settings.HandoffPosition, live);
-    }
-
     public void InitializeMotion()
     {
         _motion.Initialize();
@@ -422,53 +417,47 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             BeginRun();
             _supply.Changed += OnChanged;
-            try
+            while (!cancellationToken.IsCancellationRequested)
             {
-                while (!cancellationToken.IsCancellationRequested)
+                if (!_work.Enabled)
                 {
-                    if (!_work.Enabled)
-                    {
-                        var job = _work.CurrentJob;
-                        if (_work.Station.CarrierSeated)
-                            _work.Complete(job);
-                        TraceStep(PcbPlacementState.Disabled, workId: job.Id,
-                            waitingFor: _work.Completed ? "carrier transfer" : "carrier seated");
-                        await WaitForChangeAsync(cancellationToken);
-                        continue;
-                    }
-                    if (!_work.Station.CarrierPresent || _work.Completed)
-                    {
-                        _runTargets = null;
-                    }
-                    if (_repeat && !_units.MainConveyor && _work.Completed
-                        && _work.Station.CarrierSeated && State == PcbPlacementState.WaitingForCarrier)
-                        _work.StartRepeat(_work.CurrentJob);
+                    var job = _work.CurrentJob;
                     if (_work.Station.CarrierSeated)
-                    {
-                        _runTargets ??= Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
-                    }
-
-                    var heatSink = TargetHeatSink;
-                    if (_repeat)
-                        await ExecuteRepeatAsync(heatSink, cancellationToken);
-                    else if (!await PlaceAsync(heatSink, cancellationToken))
-                        await WaitForChangeAsync(cancellationToken);
+                        _work.Complete(job);
+                    TraceStep(PcbPlacementState.Disabled, workId: job.Id,
+                        waitingFor: _work.Completed ? "carrier transfer" : "carrier seated");
+                    await WaitForChangeAsync(cancellationToken);
+                    continue;
                 }
+                if (!_work.Station.CarrierPresent || _work.Completed)
+                {
+                    _runTargets = null;
+                }
+                if (_repeat && !_units.MainConveyor && _work.Completed
+                    && _work.Station.CarrierSeated && State == PcbPlacementState.WaitingForCarrier)
+                    _work.StartRepeat(_work.CurrentJob);
+                if (_work.Station.CarrierSeated)
+                {
+                    _runTargets ??= Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
+                }
+
+                var heatSink = TargetHeatSink;
+                if (_repeat)
+                    await ExecuteRepeatAsync(heatSink, cancellationToken);
+                else if (!await PlaceAsync(heatSink, cancellationToken))
+                    await WaitForChangeAsync(cancellationToken);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
-            finally
-            {
-                _supply.Changed -= OnChanged;
-                EndRun(cancellationToken);
-            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         finally
         {
+            _supply.Changed -= OnChanged;
             _runTargets = null;
             _repeatTrip = null;
             _repeat = false;
+            EndRun(cancellationToken);
         }
     }
 

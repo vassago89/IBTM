@@ -1600,8 +1600,6 @@ public sealed partial class MachineLifecycleTests
                         settings.BoltFastening,
                         settings.CarrierReference,
                         provider.GetRequiredService<BoltFasteningWork>(),
-                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Pickup),
-                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Shooting),
                         provider.GetRequiredService<RecipeManager>(),
                         provider.GetRequiredService<UnitSettings>()))
             .BuildServiceProvider();
@@ -1671,8 +1669,6 @@ public sealed partial class MachineLifecycleTests
                         settings.BoltFastening,
                         settings.CarrierReference,
                         provider.GetRequiredService<BoltFasteningWork>(),
-                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Pickup),
-                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Shooting),
                         provider.GetRequiredService<RecipeManager>(),
                         provider.GetRequiredService<UnitSettings>());
                 })

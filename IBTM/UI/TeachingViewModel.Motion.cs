@@ -418,7 +418,17 @@ public partial class TeachingViewModel
             _ = RequestCameraStopAsync();
         }
 
-        NotifyMotionCommands();
+        HomeCommand.NotifyCanExecuteChanged();
+        JogCommand.NotifyCanExecuteChanged();
+        StepCommand.NotifyCanExecuteChanged();
+        MoveToHorizontalZCommand.NotifyCanExecuteChanged();
+        foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
+            row.ToggleOutputCommand.NotifyCanExecuteChanged();
+        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
+        MoveToPointCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ManualBlock));
+        OnPropertyChanged(nameof(IsTeachingEditAllowed));
+        OnPropertyChanged(nameof(MotionHint));
         SaveCommand.NotifyCanExecuteChanged();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();

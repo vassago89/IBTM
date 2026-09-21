@@ -43,29 +43,11 @@ public enum HandlerDisplayState
     [Description("Working")]
     Working,
 
-    [Description("Waiting for Placement")]
-    WaitingForPlacement,
-
-    [Description("Waiting for Placement Y Departure")]
-    WaitingForPlacementClear,
-
-    [Description("Waiting for Supply Release")]
-    WaitingForSupplyRelease,
-
-    [Description("Waiting for Carrier")]
-    WaitingForMainCarrier,
+    [Description("Waiting")]
+    Waiting,
 
     [Description("Disabled")]
     Disabled,
-
-    [Description("Waiting for PCB Carrier")]
-    WaitingForCarrier,
-
-    [Description("PCB Carrier Available")]
-    CarrierAvailable,
-
-    [Description("Waiting for Supply PCB")]
-    WaitingForSupply,
 
     [Description("Moving")]
     Moving,

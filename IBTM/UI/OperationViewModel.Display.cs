@@ -6,6 +6,7 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
+using IBTM.PcbSupply;
 
 namespace IBTM.UI;
 
@@ -62,7 +63,7 @@ public partial class OperationViewModel
                 && Machine.TeachingReady && InspectionPositionKnown && NgTransfer.Motion.IsReady(live: false)
                 && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } mainRunning
                 && Signals.Outputs[OutputIo.NgConveyorRun].IsOn is { } running
-                ? _inspectionStation.GetState(_recipes.Current.Pcb.BoltPoints, State.RepeatEnabled,
+                ? _inspectionStation.GetState(State.RepeatEnabled,
                     holdAtShuttle: State.RepeatEnabled && !Units.NgShuttle, live: false,
                     conveyorRunning: running, mainConveyorRunning: mainRunning)
                 : null;
@@ -107,13 +108,25 @@ public partial class OperationViewModel
 
     public bool BoltFeederPositionKnown => _map.PickupFeederPosition is not null;
 
+    public Enum SupplyStatus
+    {
+        get
+        {
+            var display = SupplyDisplayState;
+            return display is HandlerDisplayState.Working or HandlerDisplayState.Moving or HandlerDisplayState.Waiting
+                ? Supply.State
+                : display;
+        }
+    }
+
     public Enum PlacementStatus
     {
         get
         {
-            return PlacementDisplayState is HandlerDisplayState.Working or HandlerDisplayState.Moving
+            var display = PlacementDisplayState;
+            return display is HandlerDisplayState.Working or HandlerDisplayState.Moving or HandlerDisplayState.Waiting
                 ? PlacementState ?? (Enum)MachineDisplayState.Unavailable
-                : PlacementDisplayState;
+                : display;
         }
     }
 
@@ -219,16 +232,13 @@ public partial class OperationViewModel
                     return HandlerDisplayState.Moving;
                 case true when !State.AutomaticRunning:
                     return HandlerDisplayState.Stopped;
-                case true when Supply.IsAtHandoff(live: false):
-                    return Supply.PcbReleased
-                        ? HandlerDisplayState.WaitingForPlacementClear
-                        : HandlerDisplayState.WaitingForPlacement;
-                case true when Supply.PcbSecured:
-                    return HandlerDisplayState.Working;
                 default:
-                    return Supply.UpstreamCarrierAvailable
-                        ? HandlerDisplayState.CarrierAvailable
-                        : HandlerDisplayState.WaitingForCarrier;
+                    return Supply.State is PcbSupplyState.WaitingForCarrier
+                        or PcbSupplyState.WaitingForCarrierExit
+                        or PcbSupplyState.HandingOff
+                        or PcbSupplyState.WaitingForPlacementClear
+                        ? HandlerDisplayState.Waiting
+                        : HandlerDisplayState.Working;
             }
         }
     }
@@ -250,17 +260,11 @@ public partial class OperationViewModel
                 case true when !State.AutomaticRunning:
                     return HandlerDisplayState.Stopped;
                 default:
-                    switch (PlacementState)
-                    {
-                        case PcbPlacementState.WaitingForSupply:
-                            return HandlerDisplayState.WaitingForSupply;
-                        case PcbPlacementState.WaitingForSupplyRelease:
-                            return HandlerDisplayState.WaitingForSupplyRelease;
-                        case PcbPlacementState.WaitingForCarrier:
-                            return HandlerDisplayState.WaitingForMainCarrier;
-                        default:
-                            return HandlerDisplayState.Working;
-                    }
+                    return PlacementState is PcbPlacementState.WaitingForSupply
+                        or PcbPlacementState.WaitingForSupplyRelease
+                        or PcbPlacementState.WaitingForCarrier
+                        ? HandlerDisplayState.Waiting
+                        : HandlerDisplayState.Working;
             }
         }
     }
@@ -330,7 +334,7 @@ public partial class OperationViewModel
                     return StationDisplayState.Stopped;
                 case true when NgTransfer.Motion.IsMoving
                     || NgTransfer.IsTransferPending
-                    || InspectionTransferWorking:
+                    || InspectionState == InspectionStationState.TransferringNgCarrier:
                     return StationDisplayState.Working;
                 case true when !InspectionWork.Station.CarrierPresent:
                     return StationDisplayState.WaitingForCarrier;
@@ -344,11 +348,4 @@ public partial class OperationViewModel
         }
     }
 
-    private bool InspectionTransferWorking
-    {
-        get
-        {
-            return InspectionState == InspectionStationState.TransferringNgCarrier;
-        }
-    }
 }

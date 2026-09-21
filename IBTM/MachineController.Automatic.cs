@@ -275,19 +275,12 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        if (!cycle.IsCancellationRequested && !repeat && _units.PickupBoltFeeder)
+        if (!cycle.IsCancellationRequested && !repeat
+            && (_units.PickupBoltFeeder || _units.ShootingBoltFeeder))
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.PickupBoltFeeder,
-                _pickupBoltFeeder.RunAsync(cycle.Token),
-                cycle));
-        }
-
-        if (!cycle.IsCancellationRequested && !repeat && _units.ShootingBoltFeeder)
-        {
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.ShootingBoltFeeder,
-                _shootingBoltFeeder.RunAsync(cycle.Token),
+                _units.ShootingBoltFeeder ? MachineAlarm.ShootingBoltFeeder : MachineAlarm.PickupBoltFeeder,
+                _boltFeeder.RunAsync(cycle.Token),
                 cycle));
         }
 
@@ -366,6 +359,10 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
+            if (alarm is MachineAlarm.PickupBoltFeeder or MachineAlarm.ShootingBoltFeeder
+                && exception is IoTimeoutException timeout)
+                alarm = timeout.Input == InputIo.PickupFeederBoltDetected
+                    ? MachineAlarm.PickupBoltFeeder : MachineAlarm.ShootingBoltFeeder;
             if (!_state.IsError)
             {
                 // Keep the unit name even when the alarm is classified as MotionUnavailable.

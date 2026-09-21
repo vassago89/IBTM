@@ -55,7 +55,7 @@ public sealed class BoltFasteningTests
         };
         var station = new BoltFasteningStation(head, pickup, io, motion, settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
-            work, new(FasteningHead.Pickup, io, new()), new(FasteningHead.Shooting, io, new()),
+            work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
@@ -156,7 +156,7 @@ public sealed class BoltFasteningTests
         };
         var station = new BoltFasteningStation(head, pickup, io, motion, settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
-            work, new(FasteningHead.Pickup, io, new()), new(FasteningHead.Shooting, io, new()),
+            work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
@@ -362,6 +362,7 @@ public sealed class BoltFasteningTests
         { AutoResponseEnabled = false };
         io.SetInput(InputIo.ShootingEscapeForward, true);
         io.SetInput(InputIo.ShootingFeederBoltDetected, false);
+        io.SetInput(InputIo.PickupFeederBoltDetected, true);
         io.SetOutput(OutputIo.ShootingEscapeForward, true);
         io.SetOutput(OutputIo.ShootingFeederOff, true);
         var physicalEvents = new FeederWriteNotifyingIo(io);
@@ -372,7 +373,7 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.ShootingFeederOff && Interlocked.Increment(ref feederWrites) >= 50)
                 stop.Cancel(); // Bound a self-waking regression instead of hanging the test.
         };
-        var feeder = new BoltFeederUnit(FasteningHead.Shooting, physicalEvents, settings);
+        var feeder = new BoltFeederUnit(physicalEvents, settings, new());
         var run = feeder.RunAsync(stop.Token);
         try
         {
@@ -402,7 +403,13 @@ public sealed class BoltFasteningTests
             Assert.True(await WaitUntilAsync(() => io.GetOutput(OutputIo.ShootingFeederOff),
                 TimeSpan.FromSeconds(1)));
             Assert.True(detected.ElapsedMilliseconds >= 190);
-            Assert.Equal(BoltFeederState.BoltReady, feeder.State);
+            Assert.True(io.GetInput(InputIo.ShootingFeederBoltDetected));
+            // Other feeder and escape edges must not restart this bolt's run-on.
+            io.SetInput(InputIo.PickupFeederBoltDetected, false);
+            io.SetInput(InputIo.PickupFeederBoltDetected, true);
+            io.SetInputs((InputIo.ShootingEscapeBackward, false), (InputIo.ShootingEscapeForward, true));
+            await Task.Delay(50);
+            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
             var stoppedWrites = Volatile.Read(ref feederWrites);
             await Task.Delay(50);
             Assert.Equal(stoppedWrites, Volatile.Read(ref feederWrites));
@@ -420,8 +427,8 @@ public sealed class BoltFasteningTests
     {
         var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new())
         { AutoResponseEnabled = false };
-        var feeder = new BoltFeederUnit(FasteningHead.Shooting, io,
-            new() { ShootingTimeoutMilliseconds = 50 });
+        var feeder = new BoltFeederUnit(io,
+            new() { ShootingTimeoutMilliseconds = 50 }, new() { PickupBoltFeeder = false });
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var run = feeder.RunAsync(stop.Token);
         try
@@ -448,7 +455,7 @@ public sealed class BoltFasteningTests
         { AutoResponseEnabled = false };
         io.SetInput(InputIo.ShootingEscapeBackward, true);
         io.SetInput(InputIo.ShootingFeederBoltDetected, false);
-        var feeder = new BoltFeederUnit(FasteningHead.Shooting, io, new());
+        var feeder = new BoltFeederUnit(io, new(), new() { PickupBoltFeeder = false });
         using var stop = new CancellationTokenSource();
         var run = feeder.RunAsync(stop.Token);
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
@@ -468,7 +475,7 @@ public sealed class BoltFasteningTests
         { AutoResponseEnabled = false };
         io.SetInput(InputIo.ShootingEscapeBackward, true);
         io.SetInput(InputIo.ShootingFeederBoltDetected, false);
-        var feeder = new BoltFeederUnit(FasteningHead.Shooting, io, new());
+        var feeder = new BoltFeederUnit(io, new(), new() { PickupBoltFeeder = false });
         var settings = new BoltFasteningSettings { ShootingArrivalDelaySeconds = 0 };
         using var motion = new VirtualMotionService(settings.Motion, new());
         var bus = new VirtualAdcBus();
@@ -515,9 +522,9 @@ public sealed class BoltFasteningTests
             Outputs(new BoltFeederHardwareSettings(), new BoltFasteningHardwareSettings()), new MachineOptions());
         _ = new VirtualMachine(io, []);
         var feeder = new BoltFeederUnit(
-            FasteningHead.Shooting,
             io,
-            new BoltFeederSettings { ShootingTimeoutMilliseconds = 500, ShootingRunOnMilliseconds = 30 });
+            new BoltFeederSettings { ShootingTimeoutMilliseconds = 500, ShootingRunOnMilliseconds = 30 },
+            new() { PickupBoltFeeder = false });
         var refillCount = 0;
         var runCount = 0;
         io.OutputChanged += (output, value) =>
@@ -546,14 +553,13 @@ public sealed class BoltFasteningTests
         {
             Assert.True(await WaitUntilAsync(
                 () => runCount == 1
-                    && feeder.State == BoltFeederState.BoltReady
+                    && io.GetInput(InputIo.ShootingFeederBoltDetected)
                     && io.GetOutput(OutputIo.ShootingFeederOff),
                 TimeSpan.FromSeconds(1)));
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true);
             // Keep feeding while escape is forward, without starting the refill timeout yet.
             await Task.Delay(600);
             Assert.False(run.IsCompleted);
-            Assert.Equal(BoltFeederState.WaitingForBolt, feeder.State);
             Assert.False(io.GetInput(InputIo.ShootingFeederBoltDetected));
             Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
             Assert.Equal(2, runCount);
@@ -561,7 +567,7 @@ public sealed class BoltFasteningTests
             Assert.True(await WaitUntilAsync(
                 () => runCount == 2
                     && refillCount == 2
-                    && feeder.State == BoltFeederState.BoltReady
+                    && io.GetInput(InputIo.ShootingFeederBoltDetected)
                     && io.GetOutput(OutputIo.ShootingFeederOff),
                 TimeSpan.FromSeconds(1)));
             Assert.True(io.GetInput(InputIo.ShootingEscapeBackward));
@@ -630,8 +636,6 @@ public sealed class BoltFasteningTests
             settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work,
-            new BoltFeederUnit(FasteningHead.Pickup, io, new()),
-            new BoltFeederUnit(FasteningHead.Shooting, io, new()),
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
             new());
         var gantry = station;
@@ -861,8 +865,6 @@ public sealed class BoltFasteningTests
                 LowerRightLocatingPin = new() { X = 100, Y = 100 },
             },
             work,
-            new BoltFeederUnit(FasteningHead.Pickup, io, new()),
-            new BoltFeederUnit(FasteningHead.Shooting, io, new()),
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
             units);
         io.SetInputs(
@@ -979,7 +981,7 @@ public sealed class BoltFasteningTests
         };
         station = new(head, head, io, motion, settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
-            work, new(FasteningHead.Pickup, io, new()), new(FasteningHead.Shooting, io, new()),
+            work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
@@ -1060,8 +1062,6 @@ public sealed class BoltFasteningTests
                 LowerRightLocatingPin = new() { X = 100, Y = 100 },
             },
             work,
-            new BoltFeederUnit(FasteningHead.Pickup, io, new()),
-            new BoltFeederUnit(FasteningHead.Shooting, io, new()),
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
             new());
         var gantry = station;
@@ -1188,8 +1188,6 @@ public sealed class BoltFasteningTests
             settings,
             new() { UpperLeftLocatingPin = new() { X = 100, Y = 200 }, LowerRightLocatingPin = new() { X = 140, Y = 200 } },
             work,
-            new BoltFeederUnit(FasteningHead.Pickup, io, new()),
-            new BoltFeederUnit(FasteningHead.Shooting, io, new()),
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
             new() { PickupBoltFeeder = false, ShootingBoltFeeder = false });
         var gantry = station;
@@ -1307,16 +1305,6 @@ public sealed class BoltFasteningTests
                 new ConveyorHardwareSettings()),
             new MachineOptions());
         _ = new VirtualMachine(io, []);
-        io.OutputChanged += (output, value) =>
-        {
-            if (output == OutputIo.ShootBolt && value)
-            {
-                // The tube pulse may finish before the sequence's next poll.
-                io.SetInput(InputIo.ShootingTubeBoltDetected, true);
-                io.SetInput(InputIo.ShootingTubeBoltDetected, false);
-                io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
-            }
-        };
         var bus = new VirtualAdcBus();
         await ((IAdcBus)bus).SelectPresetAsync(2, 4);
         await ((IAdcBus)bus).SelectPresetAsync(1, 5);
@@ -1347,8 +1335,7 @@ public sealed class BoltFasteningTests
             operationCancellation: new());
 
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
-        var pickupFeeder = new BoltFeederUnit(FasteningHead.Pickup, io, new());
-        var shootingFeeder = new BoltFeederUnit(FasteningHead.Shooting, io, new());
+        var feeder = new BoltFeederUnit(io, new(), new());
         var layout = new PcbLayout
 
         {
@@ -1371,8 +1358,6 @@ public sealed class BoltFasteningTests
                 LowerRightLocatingPin = new AxisPosition { X = 100, Y = 100 },
             },
             work,
-            pickupFeeder,
-            shootingFeeder,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
             new());
         var gantry = station;
@@ -1429,9 +1414,7 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
 
         using var feederCancellation = new CancellationTokenSource();
-        var feederRuns = Task.WhenAll(
-            pickupFeeder.RunAsync(feederCancellation.Token),
-            shootingFeeder.RunAsync(feederCancellation.Token));
+        var feederRun = feeder.RunAsync(feederCancellation.Token);
         try
         {
             using (var stopDuringApproach = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
@@ -1500,16 +1483,17 @@ public sealed class BoltFasteningTests
             io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
             VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             var previousAssembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+            var carrierReplaced = false;
             using var carrierChange = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             afterStop = () =>
             {
                 VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
                 VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+                carrierReplaced = true;
                 carrierChange.Cancel();
             };
-            var changedCarrier = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => station.RunAsync(carrierChange.Token));
-            Assert.Contains("Carrier work changed", changedCarrier.Message);
+            await station.RunAsync(carrierChange.Token);
+            Assert.True(carrierReplaced);
             Assert.Empty(previousAssembly.PcbBoltResults);
             Assert.Empty(work.Assemblies);
             Assert.False(work.Completed);
@@ -1517,7 +1501,7 @@ public sealed class BoltFasteningTests
         finally
         {
             feederCancellation.Cancel();
-            await feederRuns;
+            await feederRun;
         }
     }
 
@@ -1553,7 +1537,6 @@ public sealed class BoltFasteningTests
         {
             BoltPoints = [Bolt(1, head, 10, 10)],
         };
-        var feederSettings = new BoltFeederSettings();
         var station = new BoltFasteningStation(new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200),
             new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200),
             io,
@@ -1561,8 +1544,6 @@ public sealed class BoltFasteningTests
             settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 }, },
             new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new()),
-            new BoltFeederUnit(FasteningHead.Pickup, io, feederSettings),
-            new BoltFeederUnit(FasteningHead.Shooting, io, feederSettings),
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
             new());
         var gantry = station;
@@ -1588,8 +1569,8 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         Assert.Equal(
             head == FasteningHead.Pickup
-                ? BoltFasteningState.WaitingForPickupFeeder
-                : BoltFasteningState.WaitingForShootingFeeder,
+                ? BoltFasteningState.FasteningPickup
+                : BoltFasteningState.FasteningPcb,
             station.GetState());
 
         using (var cancelled = new CancellationTokenSource())
@@ -1640,7 +1621,7 @@ public sealed class BoltFasteningTests
             if (head == FasteningHead.Pickup)
             {
                 Assert.True(await WaitUntilAsync(
-                    () => station.GetState() == BoltFasteningState.WaitingForPickupFeeder,
+                    () => station.IsAtPickupXY() && station.IsAtSafeZ(),
                     TimeSpan.FromSeconds(1)));
                 Assert.Equal(BoltCylinderState.Up, station.PickupHeadPosition);
                 Assert.Equal(settings.SafeZ, motion.GetPosition().Z);

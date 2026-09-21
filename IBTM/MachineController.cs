@@ -15,7 +15,6 @@ using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM;
@@ -39,8 +38,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly PcbPlacer _pcbPlacement;
     private readonly BoltFasteningStation _fasteningStation;
     private readonly InspectionStation _inspectionStation;
-    private readonly BoltFeederUnit _pickupBoltFeeder;
-    private readonly BoltFeederUnit _shootingBoltFeeder;
+    private readonly BoltFeederUnit _boltFeeder;
     private readonly NgCarrierTransfer _ngTransfer;
     private readonly ILogger<MachineController>? _log;
 
@@ -78,8 +76,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         PcbPlacer pcbPlacement,
         BoltFasteningStation fasteningStation,
         InspectionStation inspectionStation,
-        [FromKeyedServices(FasteningHead.Pickup)] BoltFeederUnit pickupBoltFeeder,
-        [FromKeyedServices(FasteningHead.Shooting)] BoltFeederUnit shootingBoltFeeder,
+        BoltFeederUnit boltFeeder,
         NgCarrierTransfer ngTransfer,
         PcbHistory pcbHistory,
         ILogger<MachineController>? log = null)
@@ -101,15 +98,14 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _pcbPlacement = pcbPlacement;
         _fasteningStation = fasteningStation;
         _inspectionStation = inspectionStation;
-        _pickupBoltFeeder = pickupBoltFeeder;
-        _shootingBoltFeeder = shootingBoltFeeder;
+        _boltFeeder = boltFeeder;
         _ngTransfer = ngTransfer;
         PcbHistory = pcbHistory;
         _log = log;
         if (log is not null)
         {
             AutoUnit[] automaticUnits = [conveyor, pcbSupply, pcbPlacement, fasteningStation,
-                inspectionStation, pickupBoltFeeder, shootingBoltFeeder, ngTransfer, ngConveyor, ngShuttle];
+                inspectionStation, boltFeeder, ngTransfer, ngConveyor, ngShuttle];
             foreach (var unit in automaticUnits)
                 unit.Trace += message => log.LogInformation("{Message}", message);
         }
@@ -484,7 +480,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         // One device's failed STOP must not skip STOP on the remaining devices.
         Action[] stops = [
             _conveyor.Stop,
-            _shootingBoltFeeder.Stop,
+            _boltFeeder.Stop,
             () => _fasteningStation.StopShooting(),
             () => _fasteningStation.StopIoStart(FasteningHead.Pickup),
             () => _fasteningStation.StopIoStart(FasteningHead.Shooting),

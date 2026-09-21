@@ -394,8 +394,6 @@ public static class DependencyInjection
                         settings.BoltFastening,
                         settings.CarrierReference,
                         provider.GetRequiredService<BoltFasteningWork>(),
-                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Pickup),
-                        provider.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Shooting),
                         provider.GetRequiredService<RecipeManager>(),
                         provider.GetRequiredService<UnitSettings>(),
                         provider.GetRequiredService<ILogger<BoltFasteningStation>>()));
@@ -407,12 +405,7 @@ public static class DependencyInjection
             .AddSingleton<PcbDetailsViewModel>()
             .AddSingleton<MachineController>()
             .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
-            .AddKeyedSingleton<BoltFeederUnit>(FasteningHead.Pickup,
-                (provider, _) => new(FasteningHead.Pickup,
-                    provider.GetRequiredService<IIoService>(), provider.GetRequiredService<BoltFeederSettings>()))
-            .AddKeyedSingleton<BoltFeederUnit>(FasteningHead.Shooting,
-                (provider, _) => new(FasteningHead.Shooting,
-                    provider.GetRequiredService<IIoService>(), provider.GetRequiredService<BoltFeederSettings>()))
+            .AddSingleton<BoltFeederUnit>()
             .AddSingleton<NgCarrierConveyor>();
 
         services

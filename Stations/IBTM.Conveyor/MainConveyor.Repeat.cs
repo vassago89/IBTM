@@ -42,14 +42,7 @@ public sealed partial class MainConveyor
         _repeat = true;
         try
         {
-            Stop();
-            using var runCancellation = _operations.Link(cancellationToken);
-            _runCancellation = runCancellation;
-            runCancellation.Disposed += () =>
-            {
-                if (ReferenceEquals(_runCancellation, runCancellation))
-                    _runCancellation = null;
-            };
+            using var runCancellation = BeginConveyorOperation(cancellationToken);
             cancellationToken = runCancellation.Token;
             using var entryStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, entryStop.Token, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);

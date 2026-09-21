@@ -42,14 +42,12 @@ public sealed partial class InspectionStation : AutoUnit
         _visionGate = new(1, 1);
         camera.LiveViewFailed += OnCameraLiveViewFailed;
         work.Changed += NotifyChanged;
-        transfer.Changed += NotifyChanged;
         shuttle.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;
 
     public InspectionStationState GetState(
-        IReadOnlyList<BoltPoint> bolts,
         bool repeat = false,
         bool holdAtShuttle = false,
         bool live = true,
@@ -72,7 +70,7 @@ public sealed partial class InspectionStation : AutoUnit
         }
     }
 
-    public BoltPoint? GetActiveBolt(IReadOnlyList<BoltPoint> bolts, bool? mainConveyorRunning = null)
+    public BoltPoint? GetActiveBolt(bool? mainConveyorRunning = null)
     {
         return _work.Enabled
             && _work.IsReadyToInspect(mainConveyorRunning)
@@ -80,7 +78,7 @@ public sealed partial class InspectionStation : AutoUnit
             : null;
     }
 
-    public HeatSinkSlot? GetActivePcb(IReadOnlyList<BoltPoint> bolts, bool? mainConveyorRunning = null)
+    public HeatSinkSlot? GetActivePcb(bool? mainConveyorRunning = null)
     {
         return _work.Enabled && _work.IsReadyToInspect(mainConveyorRunning)
             ? InspectionTarget.Pcb
@@ -102,8 +100,27 @@ public sealed partial class InspectionStation : AutoUnit
                 _work.Restart(_work.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (repeat && !_units.MainConveyor)
-                    await PrepareRepeatAsync(cancellationToken);
+                if (repeat && !_units.MainConveyor
+                    && (_transfer.IsEmptyRepeatAllowed || _work.Station.CarrierPresent)
+                    && _work.PickupClear)
+                {
+                    if (_work.Completed && !_units.NgCarrierTransfer && _work.Enabled)
+                        _work.StartRepeat(_work.CurrentJob);
+
+                    if (!_work.Enabled || _work.Completed && _units.NgCarrierTransfer)
+                    {
+                        if (_work.Station.BackupPlate != StationCylinderState.Up
+                            || _work.Station.Stopper != StationCylinderState.Down)
+                        {
+                            TraceStep(InspectionStationState.SeatingCarrier, workId: _work.CurrentJob.Id);
+                            await _transfer.SeatStationAsync(cancellationToken);
+                        }
+                    }
+                    else if (!_work.AtInspectionPosition)
+                    {
+                        await _work.Station.PrepareToReceiveAsync(cancellationToken);
+                    }
+                }
                 if (!_work.Enabled)
                 {
                     var job = _work.CurrentJob;

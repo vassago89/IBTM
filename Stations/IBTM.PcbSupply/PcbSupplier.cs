@@ -409,33 +409,25 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         {
             BeginRun();
             placement.Changed += OnChanged;
-            try
+            while (!cancellationToken.IsCancellationRequested)
             {
-                while (!cancellationToken.IsCancellationRequested)
+                // A partial grip is valid only during pickup or an active handoff.
+                if (Pcb == PcbSupplyPcbState.Detected && !PcbReleased
+                    && State != PcbSupplyState.PickingPcb
+                    && !(State == PcbSupplyState.HandingOff
+                        && placement.Handoff is PcbPlacementHandoff.Holding or PcbPlacementHandoff.Returning))
                 {
-                    // A partial grip is valid only during pickup or an active handoff.
-                    if (Pcb == PcbSupplyPcbState.Detected && !PcbReleased
-                        && State != PcbSupplyState.PickingPcb
-                        && !(State == PcbSupplyState.HandingOff
-                            && placement.Handoff is PcbPlacementHandoff.Holding or PcbPlacementHandoff.Returning))
-                    {
-                        throw new InvalidOperationException(
-                            "Supply PCB grip is incomplete away from a confirmed support. Check gripper and IPM fixation before moving or releasing it.");
-                    }
-                    if (repeat)
-                        await ExecuteRepeatAsync(recipe, placement, cancellationToken);
-                    else
-                        await ExecuteAsync(recipe, placement, cancellationToken);
+                    throw new InvalidOperationException(
+                        "Supply PCB grip is incomplete away from a confirmed support. Check gripper and IPM fixation before moving or releasing it.");
                 }
+                if (repeat)
+                    await ExecuteRepeatAsync(recipe, placement, cancellationToken);
+                else
+                    await ExecuteAsync(recipe, placement, cancellationToken);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
-            finally
-            {
-                placement.Changed -= OnChanged;
-                EndRun(cancellationToken);
-            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception exception)
         {
@@ -444,6 +436,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
         finally
         {
+            placement.Changed -= OnChanged;
             _pickStep = PickStep.Pcb1;
             _repeat = false;
             try
@@ -453,6 +446,10 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             catch (Exception cleanupFailure) when (failure is not null)
             {
                 throw new AggregateException(failure, cleanupFailure);
+            }
+            finally
+            {
+                EndRun(cancellationToken);
             }
         }
     }

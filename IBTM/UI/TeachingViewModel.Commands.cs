@@ -181,7 +181,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
-            if (!(State.SetupEditingEnabled))
+            if (!State.SetupEditingEnabled)
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => State.ManualMode,
@@ -297,12 +297,6 @@ public partial class TeachingViewModel
 
     private bool IsSelectNextPointAllowed => CurrentPointIndex < FilteredPoints.Count - 1;
 
-    private void NotifyPointSelectionCommands()
-    {
-        SelectPreviousPointCommand.NotifyCanExecuteChanged();
-        SelectNextPointCommand.NotifyCanExecuteChanged();
-    }
-
     private bool IsStepAllowed(TeachingDirection direction)
     {
         if (!IsMoveDirectionAllowed(direction))
@@ -397,21 +391,6 @@ public partial class TeachingViewModel
                 row.ToggleOutputCommand.NotifyCanExecuteChanged();
             }
         }
-    }
-
-    private void NotifyMotionCommands()
-    {
-        HomeCommand.NotifyCanExecuteChanged();
-        JogCommand.NotifyCanExecuteChanged();
-        StepCommand.NotifyCanExecuteChanged();
-        MoveToHorizontalZCommand.NotifyCanExecuteChanged();
-        foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
-            row.ToggleOutputCommand.NotifyCanExecuteChanged();
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        MoveToPointCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(ManualBlock));
-        OnPropertyChanged(nameof(IsTeachingEditAllowed));
-        OnPropertyChanged(nameof(MotionHint));
     }
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)

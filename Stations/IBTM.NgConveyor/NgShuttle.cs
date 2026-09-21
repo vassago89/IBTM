@@ -56,28 +56,21 @@ public sealed partial class NgShuttle : AutoUnit
         {
             if (!IsTransferClear)
                 return NgShuttleState.WaitingForCarrierPickupUp;
-            switch (true)
+            if (Lift == NgShuttleLiftState.Down)
             {
-                case true when Lift == NgShuttleLiftState.Down:
-                    switch (true)
-                    {
-                        case true when _conveyor.IsShuttleRaiseAllowed:
-                            return NgShuttleState.Raising;
-                        case true when _conveyor.Position3Occupied
-                            || _conveyor.RunCommandOn:
-                            return NgShuttleState.WaitingForConveyor;
-                        default:
-                            return NgShuttleState.CarrierPositionUnknown;
-                    }
-                case true when CarrierDetected:
-                    return _conveyor.IsAcceptCarrierAllowed()
-                        ? NgShuttleState.Lowering
-                        : NgShuttleState.WaitingForConveyor;
-                default:
-                    return Lift == NgShuttleLiftState.Up
-                        ? NgShuttleState.WaitingForCarrier
-                        : NgShuttleState.Raising;
+                if (_conveyor.IsShuttleRaiseAllowed)
+                    return NgShuttleState.Raising;
+                return _conveyor.Position3Occupied || _conveyor.RunCommandOn
+                    ? NgShuttleState.WaitingForConveyor
+                    : NgShuttleState.CarrierPositionUnknown;
             }
+            if (CarrierDetected)
+                return _conveyor.IsAcceptCarrierAllowed()
+                    ? NgShuttleState.Lowering
+                    : NgShuttleState.WaitingForConveyor;
+            return Lift == NgShuttleLiftState.Up
+                ? NgShuttleState.WaitingForCarrier
+                : NgShuttleState.Raising;
         }
     }
 

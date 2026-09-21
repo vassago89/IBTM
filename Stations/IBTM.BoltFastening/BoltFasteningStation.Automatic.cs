@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.BoltFeeder;
 using IBTM.Core;
 using IBTM.Device;
 using Microsoft.Extensions.Logging;
@@ -12,6 +11,7 @@ namespace IBTM.BoltFastening;
 
 public sealed partial class BoltFasteningStation
 {
+    private bool _repeat;
     private HeatSinkSlot[]? _runTargets;
     // Display the current loop destination only; never resume it after STOP.
     private BoltPoint? _activeBolt;
@@ -47,33 +47,29 @@ public sealed partial class BoltFasteningStation
             BeginRun();
             if (_work.Enabled)
                 _work.Restart(_work.CurrentJob);
-            try
+            while (!cancellationToken.IsCancellationRequested)
             {
-                while (!cancellationToken.IsCancellationRequested)
+                if (!_work.Enabled)
                 {
-                    if (!_work.Enabled)
-                    {
-                        var job = _work.CurrentJob;
-                        if (_work.Station.CarrierSeated)
-                            _work.Complete(job);
-                        TraceStep(BoltFasteningState.Disabled, workId: job.Id,
-                            waitingFor: _work.Completed ? "carrier transfer" : "carrier seated");
-                        await WaitForChangeAsync(cancellationToken);
-                        continue;
-                    }
-                    if (repeat)
-                        await RepeatCarrierAsync(cancellationToken);
-                    else
-                        await RunCarrierAsync(cancellationToken);
+                    var job = _work.CurrentJob;
+                    if (_work.Station.CarrierSeated)
+                        _work.Complete(job);
+                    TraceStep(BoltFasteningState.Disabled, workId: job.Id,
+                        waitingFor: _work.Completed ? "carrier transfer" : "carrier seated");
+                    await WaitForChangeAsync(cancellationToken);
+                    continue;
                 }
+                if (repeat && !_units.MainConveyor && _work.Completed)
+                {
+                    if (!_work.Station.CarrierSeated || !IsHorizontalMoveAllowed || !IsAtSafeZ())
+                        throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads at safe height.");
+                    _work.StartRepeat(_work.CurrentJob);
+                }
+                await RunCarrierAsync(cancellationToken);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
-            finally
-            {
-                EndRun(cancellationToken);
-            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception exception)
         {
@@ -84,8 +80,15 @@ public sealed partial class BoltFasteningStation
         {
             _repeat = false;
             _activeBolt = null;
-            if (_work.Enabled)
-                StopShooting(failure);
+            try
+            {
+                if (_work.Enabled)
+                    StopShooting(failure);
+            }
+            finally
+            {
+                EndRun(cancellationToken);
+            }
         }
     }
 
@@ -255,23 +258,9 @@ public sealed partial class BoltFasteningStation
         switch (bolt?.Head)
         {
             case FasteningHead.Shooting:
-                return !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Shooting)
-                    && PickupTablePosition == BoltCylinderState.Up
-                    && IsAt(bolt, live)
-                    && ShootingHeadPosition == BoltCylinderState.Up
-                    && !ShootingTubeBoltDetected
-                    && ShootingEscape == BoltEscapeState.Backward
-                    && _shootingFeeder.State != BoltFeederState.BoltReady
-                    ? BoltFasteningState.WaitingForShootingFeeder
-                    : BoltFasteningState.FasteningPcb;
+                return BoltFasteningState.FasteningPcb;
             case FasteningHead.Pickup:
-                return !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Pickup)
-                    && PickupTablePosition == BoltCylinderState.Down
-                    && IsAtPickupXY(live) && IsAtSafeZ(live)
-                    && PickupHeadPosition == BoltCylinderState.Up
-                    && !PickupBoltLoaded && _pickupFeeder.State != BoltFeederState.BoltReady
-                    ? BoltFasteningState.WaitingForPickupFeeder
-                    : BoltFasteningState.FasteningPickup;
+                return BoltFasteningState.FasteningPickup;
             default:
                 return BoltFasteningState.CompletingCarrier;
         }
@@ -283,8 +272,7 @@ public sealed partial class BoltFasteningStation
         {
             case BoltFasteningState.MovingToStandby:
                 return StandbyBolt;
-            case BoltFasteningState.FasteningPcb or BoltFasteningState.WaitingForShootingFeeder
-                or BoltFasteningState.FasteningPickup or BoltFasteningState.WaitingForPickupFeeder:
+            case BoltFasteningState.FasteningPcb or BoltFasteningState.FasteningPickup:
                 return _activeBolt ?? ApplicableBolts.FirstOrDefault();
             default:
                 return null;

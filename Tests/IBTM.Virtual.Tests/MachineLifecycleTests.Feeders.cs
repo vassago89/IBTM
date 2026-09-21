@@ -18,6 +18,53 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Theory]
+    [InlineData(InputIo.PickupFeederBoltDetected, MachineAlarm.PickupBoltFeeder)]
+    [InlineData(InputIo.ShootingFeederBoltDetected, MachineAlarm.ShootingBoltFeeder)]
+    public async Task SharedFeederReportsEmptySideDespiteOtherFeederChanges(InputIo emptyInput, MachineAlarm alarm)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PickupBoltFeeder);
+        settings.Units.ShootingBoltFeeder = true;
+        settings.BoltFeeder.PickupTimeoutMilliseconds = 200;
+        settings.BoltFeeder.ShootingTimeoutMilliseconds = 200;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        io.AutoResponseEnabled = false;
+        io.SetInput(InputIo.ShootingEscapeForward, false);
+        io.SetInput(InputIo.ShootingEscapeBackward, true);
+        var otherInput = emptyInput == InputIo.PickupFeederBoltDetected
+            ? InputIo.ShootingFeederBoltDetected : InputIo.PickupFeederBoltDetected;
+        io.SetInput(emptyInput, false);
+        io.SetInput(otherInput, true);
+        Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var run = machine.StartAsync(stop.Token);
+        try
+        {
+            // Repeated edges from one feeder cannot extend the other feeder's empty deadline.
+            for (var change = 0; change < 20 && !state.IsError; change++)
+            {
+                io.SetInput(otherInput, false);
+                io.SetInput(otherInput, true);
+                await Task.Delay(30);
+            }
+            Assert.Equal(alarm, state.Alarm);
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
+            Assert.Contains(emptyInput.GetDescription(), state.AlarmDetail);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
     [InlineData(false, true, false)]
     [InlineData(true, false, false)]
     [InlineData(false, false, false)]
@@ -52,10 +99,8 @@ public sealed partial class MachineLifecycleTests
         var descents = new ConcurrentQueue<(FasteningHead Head, double X, double Y, double Z)>();
         var pickups = new ConcurrentQueue<(double X, double Y, double Z)>();
         var visitedPickupFeeder = false;
-        var pickupFeederRan = false;
-        var shootingFeederRan = false;
-        services.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Pickup).Trace += message => pickupFeederRan = true;
-        services.GetRequiredKeyedService<BoltFeederUnit>(FasteningHead.Shooting).Trace += message => shootingFeederRan = true;
+        var feederRan = false;
+        services.GetRequiredService<BoltFeederUnit>().Trace += message => feederRan = true;
         await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(3));
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.PickupFeederBoltDetected, pickupFeeding);
@@ -152,8 +197,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(new[] { (100d, 50d, 10d), (100d, 50d, 10d) }, pickups.ToArray());
             Assert.Equal(pickupEnabled, settings.Units.PickupBoltFeeder);
             Assert.Equal(shootingEnabled, settings.Units.ShootingBoltFeeder);
-            Assert.Equal(pickupFeeding, pickupFeederRan);
-            Assert.Equal(shootingFeeding, shootingFeederRan);
+            Assert.Equal(pickupFeeding || shootingFeeding, feederRan);
             if (!pickupFeeding)
             {
                 Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));

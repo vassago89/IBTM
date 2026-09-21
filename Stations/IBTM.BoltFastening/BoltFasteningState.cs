@@ -13,14 +13,8 @@ public enum BoltFasteningState
     [Description("Feeding and Fastening Shooting Bolt")]
     FasteningPcb,
 
-    [Description("Waiting for Shooting Feeder")]
-    WaitingForShootingFeeder,
-
     [Description("Picking and Fastening Pickup Bolt")]
     FasteningPickup,
-
-    [Description("Waiting for Pickup Feeder")]
-    WaitingForPickupFeeder,
 
     [Description("Completing Carrier")]
     CompletingCarrier,

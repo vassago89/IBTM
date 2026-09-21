@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.BoltFeeder;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
@@ -20,8 +19,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
     private readonly BoltFasteningSettings _settings;
     private readonly CarrierReferenceSettings _carrierReference;
     private readonly BoltFasteningWork _work;
-    private readonly BoltFeederUnit _pickupFeeder;
-    private readonly BoltFeederUnit _shootingFeeder;
     private readonly RecipeManager _recipes;
     private readonly UnitSettings _units;
     private readonly ILogger<BoltFasteningStation>? _log;
@@ -34,8 +31,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
         BoltFasteningSettings settings,
         CarrierReferenceSettings carrierReference,
         BoltFasteningWork work,
-        BoltFeederUnit pickupFeeder,
-        BoltFeederUnit shootingFeeder,
         RecipeManager recipes,
         UnitSettings units,
         ILogger<BoltFasteningStation>? log = null)
@@ -47,16 +42,12 @@ public sealed partial class BoltFasteningStation : AutoUnit
         _settings = settings;
         _carrierReference = carrierReference;
         _work = work;
-        _pickupFeeder = pickupFeeder;
-        _shootingFeeder = shootingFeeder;
         _recipes = recipes;
         _units = units;
         _log = log;
         Motion = new(motion);
         io.InputChanged += OnInputChanged;
         work.Changed += NotifyChanged;
-        pickupFeeder.Changed += NotifyChanged;
-        shootingFeeder.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;

@@ -43,7 +43,7 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => transfer.Feedback.IsMoving, TimeSpan.FromSeconds(2)));
-            Assert.Equal(InspectionStationState.SeatingCarrier, station.GetState([]));
+            Assert.Equal(InspectionStationState.SeatingCarrier, station.GetState());
             Assert.False(raised);
             stop.Cancel();
             await run.WaitAsync(TimeSpan.FromSeconds(2));
@@ -193,7 +193,7 @@ public sealed partial class MachineLifecycleTests
             if (output == OutputIo.InspectionBackupPlateUp && on)
             {
                 Assert.True(work.Completed);
-                Assert.Equal(InspectionStationState.SeatingCarrier, station.GetState([]));
+                Assert.Equal(InspectionStationState.SeatingCarrier, station.GetState());
                 Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.State);
                 Assert.False(conveyor.RunCommandOn);
                 Assert.True(pickup.IsAt(services.GetRequiredService<NgCarrierTransferSettings>().GetCarrierPickupPosition()!));
@@ -345,7 +345,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.False(work.Completed);
                 if (on)
                 {
-                    Assert.Equal(InspectionStationState.SeatingCarrier, inspection.GetState([]));
+                    Assert.Equal(InspectionStationState.SeatingCarrier, inspection.GetState());
                     Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.State);
                     Assert.False(conveyor.RunCommandOn);
                     Assert.True(services.GetRequiredService<NgCarrierTransfer>()
@@ -416,7 +416,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => work.IsTransferAtWaitingPosition(), TimeSpan.FromSeconds(2)));
             Assert.True(gantry.IsAt(dataMatrixPosition));
-            Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
+            Assert.Equal(InspectionStationState.Waiting, station.GetState());
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
             var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
             assembly.PcbBarcode = "PCB-1";

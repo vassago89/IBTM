@@ -223,7 +223,7 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return InspectionStateVisible && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running
-                ? _inspectionStation.GetActiveBolt(_recipes.Current.Pcb.BoltPoints, running) : null;
+                ? _inspectionStation.GetActiveBolt(running) : null;
         }
     }
 
@@ -232,7 +232,7 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return InspectionStateVisible && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running
-                ? _inspectionStation.GetActivePcb(_recipes.Current.Pcb.BoltPoints, running) : null;
+                ? _inspectionStation.GetActivePcb(running) : null;
         }
     }
 
@@ -250,6 +250,7 @@ public partial class OperationViewModel : ObservableObject
                 return [];
 
             var active = BoltFasteningActiveBolt;
+            var assemblies = BoltFasteningWork.Assemblies;
             var targets = new List<BoltTargetView>();
             foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
@@ -259,7 +260,13 @@ public partial class OperationViewModel : ObservableObject
                     continue;
 
                 var position = _map.GetFasteningTargetPosition(bolt);
-                var state = bolt == active ? BoltTargetState.Active : GetFasteningTargetState(bolt);
+                var assembly = assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
+                var results = bolt.Head == FasteningHead.Shooting ? assembly?.PcbBoltResults : assembly?.PickupBoltResults;
+                var state = BoltTargetState.Pending;
+                if (bolt == active)
+                    state = BoltTargetState.Active;
+                else if (results is not null && results.TryGetValue(bolt.Number, out var result))
+                    state = result.Success ? BoltTargetState.Ok : BoltTargetState.Ng;
                 targets.Add(new(bolt.Number, bolt.Head, position.X, position.Y, state));
             }
             return targets;
@@ -274,6 +281,7 @@ public partial class OperationViewModel : ObservableObject
                 return [];
 
             var active = InspectionActiveBolt;
+            var assemblies = InspectionWork.Assemblies;
             var targets = new List<BoltTargetView>();
             foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
@@ -281,7 +289,12 @@ public partial class OperationViewModel : ObservableObject
                     || _map.GetInspectionTargetPosition(bolt) is not { } position)
                     continue;
 
-                var state = bolt == active ? BoltTargetState.Active : GetInspectionTargetState(bolt);
+                var assembly = assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
+                var state = BoltTargetState.Pending;
+                if (bolt == active)
+                    state = BoltTargetState.Active;
+                else if (assembly is not null && assembly.BoltPresenceResults.TryGetValue(bolt.Number, out var present))
+                    state = present ? BoltTargetState.Ok : BoltTargetState.Ng;
                 targets.Add(new(bolt.Number, bolt.Head, position.X, position.Y, state));
             }
             return targets;
@@ -426,40 +439,6 @@ public partial class OperationViewModel : ObservableObject
             default:
                 return assembly.FasteningResult;
         }
-    }
-
-    private BoltTargetState GetFasteningTargetState(BoltPoint bolt)
-    {
-        var assembly = BoltFasteningWork.Assemblies.FirstOrDefault(
-            item => item.HeatSink == bolt.HeatSink);
-        switch (true)
-        {
-            case true when assembly is null:
-                return BoltTargetState.Pending;
-            case true when bolt.Head == FasteningHead.Shooting:
-                return GetResultState(assembly.PcbBoltResults, bolt.Number);
-        }
-
-        return GetResultState(assembly.PickupBoltResults, bolt.Number);
-    }
-
-    private BoltTargetState GetInspectionTargetState(BoltPoint bolt)
-    {
-        var assembly = InspectionWork.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
-        if (assembly is null
-            || !assembly.BoltPresenceResults.TryGetValue(bolt.Number, out var present))
-        {
-            return BoltTargetState.Pending;
-        }
-
-        return present ? BoltTargetState.Ok : BoltTargetState.Ng;
-    }
-
-    private static BoltTargetState GetResultState(IReadOnlyDictionary<int, BoltResult> results, int number)
-    {
-        if (!results.TryGetValue(number, out var result))
-            return BoltTargetState.Pending;
-        return result.Success ? BoltTargetState.Ok : BoltTargetState.Ng;
     }
 
     private void OnPcbSupplyMotionChanged(object? sender, PropertyChangedEventArgs e)
@@ -630,6 +609,7 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(SupplyPositionKnown));
         OnPropertyChanged(nameof(Supply));
         OnPropertyChanged(nameof(SupplyDisplayState));
+        OnPropertyChanged(nameof(SupplyStatus));
     }
 
     private void OnPcbPlacementChanged()
@@ -648,7 +628,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));
         OnPropertyChanged(nameof(PlacementDisplayState));
-        OnPcbSupplyChanged();
     }
 
     private void OnMainConveyorChanged()

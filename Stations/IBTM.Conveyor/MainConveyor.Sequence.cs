@@ -136,14 +136,7 @@ public sealed partial class MainConveyor
 
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
-        Stop();
-        using var runCancellation = _operations.Link(cancellationToken);
-        _runCancellation = runCancellation;
-        runCancellation.Disposed += () =>
-        {
-            if (ReferenceEquals(_runCancellation, runCancellation))
-                _runCancellation = null;
-        };
+        using var runCancellation = BeginConveyorOperation(cancellationToken);
         cancellationToken = runCancellation.Token;
         using var motor = new ConveyorRun(
             _io, OutputIo.MainConveyorRun, cancellationToken,

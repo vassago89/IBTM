@@ -109,14 +109,7 @@ public sealed partial class MainConveyor : AutoUnit
 
     public async Task RunMotorAsync(CancellationToken cancellationToken = default)
     {
-        Stop();
-        using var runCancellation = _operations.Link(cancellationToken);
-        _runCancellation = runCancellation;
-        runCancellation.Disposed += () =>
-        {
-            if (ReferenceEquals(_runCancellation, runCancellation))
-                _runCancellation = null;
-        };
+        using var runCancellation = BeginConveyorOperation(cancellationToken);
         cancellationToken = runCancellation.Token;
         using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
         try
@@ -128,6 +121,19 @@ public sealed partial class MainConveyor : AutoUnit
         {
             motor.Failure = exception;
         }
+    }
+
+    private OperationCancellation.Operation BeginConveyorOperation(CancellationToken cancellationToken)
+    {
+        Stop();
+        var operation = _operations.Link(cancellationToken);
+        _runCancellation = operation;
+        operation.Disposed += () =>
+        {
+            if (ReferenceEquals(_runCancellation, operation))
+                _runCancellation = null;
+        };
+        return operation;
     }
 
     public void Stop()

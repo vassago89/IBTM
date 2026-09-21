@@ -93,7 +93,6 @@ public sealed partial class MachineLifecycleTests
             previousJob = work.CurrentJob.Id;
             completed++;
             Assert.NotEmpty(work.Assemblies);
-            if (unit == MachineUnit.BoltFastening)
             if (completed == 2)
                 stop.Cancel();
         };

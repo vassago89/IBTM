@@ -158,5 +158,8 @@ public sealed class IoTimeoutException : TimeoutException
         : base(
             $"{input.GetDescription()}={(inputValue ? "ON" : "OFF")} " + $"timeout ({timeoutMilliseconds} ms)")
     {
+        Input = input;
     }
+
+    public InputIo Input { get; }
 }

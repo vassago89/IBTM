@@ -38,7 +38,7 @@ internal static class VirtualTest
         var units = new UnitSettings();
         return new(shooting, pickup, io, motion, settings, reference,
             new(ConveyorStation.CreateBoltFastening(io), units),
-            new(FasteningHead.Pickup, io, new()), new(FasteningHead.Shooting, io, new()), new(OpenMachineStore(), new()), units);
+            new(OpenMachineStore(), new()), units);
     }
 
     public static NgCarrierTransfer CreateNgTransfer(

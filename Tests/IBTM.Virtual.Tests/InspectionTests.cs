@@ -265,8 +265,8 @@ public sealed class InspectionTests
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
 
         Assert.Empty(work.Assemblies);
-        Assert.Equal(HeatSinkSlot.HeatSink1, station.GetActivePcb(bolts));
-        _ = station.GetState(bolts);
+        Assert.Equal(HeatSinkSlot.HeatSink1, station.GetActivePcb());
+        _ = station.GetState();
         Assert.Empty(work.Assemblies);
 
         var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
@@ -297,12 +297,12 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
         camera.AfterCapture = () =>
         {
-            if (station.GetActiveBolt(bolts) is null)
+            if (station.GetActiveBolt() is null)
                 return;
             camera.AfterCapture = null;
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
             io.SetInput(InputIo.InspectionHeatSink2Present, false);
-            Assert.Equal(HeatSinkSlot.HeatSink2, station.GetActiveBolt(bolts)!.HeatSink);
+            Assert.Equal(HeatSinkSlot.HeatSink2, station.GetActiveBolt()!.HeatSink);
         };
         using var cancellation = new CancellationTokenSource();
         var run = station.RunAsync(bolts, cancellation.Token);
@@ -371,27 +371,27 @@ public sealed class InspectionTests
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
-        Assert.Equal(InspectionStationState.ReturningToWaitingPosition, transferStation.GetState([]));
+        Assert.Equal(InspectionStationState.ReturningToWaitingPosition, transferStation.GetState());
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionStopperDown, true);
         transferWork.Complete(transferWork.CurrentJob);
-        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState([]));
+        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState());
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
-        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState([]));
+        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState());
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState([]));
-        Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
+        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState());
+        Assert.Equal(InspectionStationState.Waiting, station.GetState());
 
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
-        Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
+        Assert.Equal(InspectionStationState.Waiting, station.GetState());
     }
 
     private sealed class MissingBoltCamera : ICamera

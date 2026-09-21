@@ -315,13 +315,13 @@ public sealed partial class MachineLifecycleTests
         {
             if (message.Contains(": ReadingBarcode ", StringComparison.Ordinal))
             {
-                Assert.Null(inspector.GetActiveBolt(recipe.Pcb.BoltPoints));
+                Assert.Null(inspector.GetActiveBolt());
                 Assert.Contains("Data Matrix", message);
-                camera.SourceImage = inspector.GetActivePcb(recipe.Pcb.BoltPoints) == unreadPcb ? blankImage : null;
+                camera.SourceImage = inspector.GetActivePcb() == unreadPcb ? blankImage : null;
             }
             else if (message.Contains(": InspectingBolt ", StringComparison.Ordinal))
             {
-                camera.SourceImage = inspector.GetActiveBolt(recipe.Pcb.BoltPoints)?.Number == 3 ? blankImage : null;
+                camera.SourceImage = inspector.GetActiveBolt()?.Number == 3 ? blankImage : null;
             }
         };
         inspector.InspectionCaptured += (image, pcb, boltNumber) =>
@@ -331,8 +331,8 @@ public sealed partial class MachineLifecycleTests
                 && (boltNumber is null ? fov.IsBarcode : !fov.IsBarcode && fov.BoltNumber == boltNumber));
             Assert.Equal((fov.Center.X, fov.Center.Y, 0d), transfer.Feedback.GetPosition());
             Assert.False(transfer.Feedback.IsMoving);
-            Assert.Equal(pcb, inspector.GetActivePcb(recipe.Pcb.BoltPoints));
-            Assert.Equal(boltNumber, inspector.GetActiveBolt(recipe.Pcb.BoltPoints)?.Number);
+            Assert.Equal(pcb, inspector.GetActivePcb());
+            Assert.Equal(boltNumber, inspector.GetActiveBolt()?.Number);
             Assert.Equal($"{pcb.GetDescription()} · " + (boltNumber is null ? "Data Matrix" : $"Bolt {boltNumber}"),
                 view.InspectionImageCaption);
             if (boltNumber is null && pcb != unreadPcb)
@@ -351,7 +351,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(await VirtualTest.WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(3)),
-                $"Alarm={state.Alarm}; inspection={inspector.GetState(recipe.Pcb.BoltPoints)}; captures={string.Join(", ", captures)}; {state.AlarmDetail}");
+                $"Alarm={state.Alarm}; inspection={inspector.GetState()}; captures={string.Join(", ", captures)}; {state.AlarmDetail}");
             Assert.Equal(new (HeatSinkSlot, int?)[] {
                 (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, 1), (HeatSinkSlot.HeatSink1, 3),
                 (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, 2), (HeatSinkSlot.HeatSink2, 4),
@@ -521,7 +521,7 @@ public sealed partial class MachineLifecycleTests
             lift == NgTransferLiftState.Up
                 ? InspectionStationState.ReturningToWaitingPosition
                 : InspectionStationState.TransferringNgCarrier,
-            station.GetState([]));
+            station.GetState());
 
         using var stop = new CancellationTokenSource();
         var run = station.RunAsync([], stop.Token);
@@ -537,7 +537,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
-        Assert.Equal(InspectionStationState.TransferringNgCarrier, station.GetState([]));
+        Assert.Equal(InspectionStationState.TransferringNgCarrier, station.GetState());
         await VerifyTransferReleaseAsync();
 
         async Task VerifyTransferReleaseAsync()
@@ -636,7 +636,7 @@ public sealed partial class MachineLifecycleTests
         assembly.CompleteInspection();
         work.Complete(work.CurrentJob);
 
-        Assert.Equal(expectNg, inspection.GetState([]) == InspectionStationState.TransferringNgCarrier);
+        Assert.Equal(expectNg, inspection.GetState() == InspectionStationState.TransferringNgCarrier);
         Assert.Equal(!expectNg, conveyor.State == MainConveyorState.DischargingInspectionCarrier);
         await machine.ShutdownAsync();
     }

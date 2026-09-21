@@ -7,7 +7,7 @@ using IBTM.Core;
 
 namespace IBTM.Device;
 
-public abstract partial class StationWork
+public abstract class StationWork
 {
     // Protect only result ownership changes, never device calls or notifications.
     private static readonly Lock s_jobGate;
@@ -115,6 +115,18 @@ public abstract partial class StationWork
             job.Completed = false;
         }
         // Keep recorded quality results with the carrier; they do not select sequence steps.
+        Changed?.Invoke();
+    }
+
+    public void StartRepeat(Job job)
+    {
+        lock (s_jobGate)
+        {
+            RequireCurrentJob(job);
+            if (!Station.CarrierPresent || !job.Completed)
+                throw new InvalidOperationException("Finish the current carrier work before starting another stationary repeat.");
+            _job = new();
+        }
         Changed?.Invoke();
     }
 
