@@ -348,7 +348,6 @@ public sealed partial class MachineLifecycleTests
         public TaskCompletionSource Stopping { get; }
         public TaskCompletionSource Stopped { get; }
 
-        public bool HasPendingResult => false;
 
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)
         {
@@ -365,14 +364,7 @@ public sealed partial class MachineLifecycleTests
             return Task.CompletedTask;
         }
 
-        public void DiscardPendingResult()
-        {
-        }
 
-        public Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<BoltResult?>(null);
-        }
 
         public async Task<BoltResult> TightenAsync(
             CancellationToken cancellationToken = default,
@@ -409,7 +401,6 @@ public sealed partial class MachineLifecycleTests
         public TaskCompletionSource ReadinessEntered { get; }
         public TaskCompletionSource ReadinessReleased { get; }
 
-        public bool HasPendingResult => false;
 
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)
         {
@@ -440,14 +431,7 @@ public sealed partial class MachineLifecycleTests
             throw new NotSupportedException();
         }
 
-        public void DiscardPendingResult()
-        {
-        }
 
-        public Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<BoltResult?>(null);
-        }
     }
 
     public class DisplayReadMotion : DispatchProxy, IMotionDiagnostics

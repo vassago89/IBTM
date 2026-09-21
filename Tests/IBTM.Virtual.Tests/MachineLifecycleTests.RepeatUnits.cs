@@ -94,7 +94,6 @@ public sealed partial class MachineLifecycleTests
             completed++;
             Assert.NotEmpty(work.Assemblies);
             if (unit == MachineUnit.BoltFastening)
-                Assert.False(services.GetRequiredService<BoltFasteningStation>().HasPendingResult);
             if (completed == 2)
                 stop.Cancel();
         };

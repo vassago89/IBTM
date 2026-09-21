@@ -112,7 +112,7 @@ public sealed class IoStartupTests
     }
 
     [Fact]
-    public async Task IoFasteningRetainsCompletedResultWhenStopWriteFails()
+    public async Task IoFasteningStopWriteFailureRequiresANewCycleAfterStopping()
     {
         var settings = new MachineSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
@@ -136,16 +136,22 @@ public sealed class IoStartupTests
         raw.SetInput(InputIo.PickupBoltFasten, true);
         raw.SetInput(InputIo.PickupBoltFasten, false);
         Assert.Same(stopError, await Assert.ThrowsAsync<IOException>(() => cycle));
-        Assert.True(head.HasPendingResult);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.ReadPendingResultAsync());
         io.BeforeOutputWrite = null;
         head.Stop();
-        var result = await head.TightenAsync();
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.PickupBoltStart && on)
+                starts++;
+        };
+        var next = head.TightenAsync();
+        Assert.False(next.IsCompleted);
+        raw.SetInput(InputIo.PickupBoltFasten, true);
+        raw.SetInput(InputIo.PickupBoltFasten, false);
+        var result = await next;
         Assert.True(result.Success);
         Assert.Null(result.Torque);
         Assert.Equal(BoltResultSource.IoAssumedOk, result.Source);
-        Assert.Equal(1, starts);
-        Assert.False(head.HasPendingResult);
+        Assert.Equal(2, starts);
     }
 
     [Fact]
@@ -175,8 +181,6 @@ public sealed class IoStartupTests
         var failure = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
         Assert.Contains(readError, failure.InnerExceptions);
         Assert.Contains(stopError, failure.InnerExceptions);
-        Assert.True(head.HasPendingResult);
-        Assert.Null(await head.ReadPendingResultAsync());
         io.BeforeInputRead = null;
         io.BeforeOutputWrite = null;
         ((IoBoltHead)head).Stop();

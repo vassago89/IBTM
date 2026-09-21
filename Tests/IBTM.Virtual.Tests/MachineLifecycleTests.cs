@@ -599,7 +599,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(FasteningHead.Pickup)]
     [InlineData(FasteningHead.Shooting)]
-    public async Task ManualBoltTestPreservesInterruptedProductionResult(FasteningHead selected)
+    public async Task ManualBoltTestIsAvailableAfterInterruptedProduction(FasteningHead selected)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
@@ -612,7 +612,6 @@ public sealed partial class MachineLifecycleTests
         var station = services.GetRequiredService<BoltFasteningStation>();
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = selected, X = 0, Y = 0 }];
-        var productionHead = services.GetRequiredKeyedService<IBoltHead>(selected);
         var bus = services.GetRequiredKeyedService<IAdcBus>(selected);
         var slave = selected == FasteningHead.Pickup
             ? settings.Hantas.PickupSlaveAddress
@@ -654,15 +653,10 @@ public sealed partial class MachineLifecycleTests
             stop.Cancel();
             bus.FrameTransferred -= StopWhenStarted;
         }
-
-        Assert.True(productionHead.HasPendingResult);
-        Assert.True(station.HasPendingResult);
         var interruptedEvent = (await bus.ReadFasteningResultAsync(slave)).EventCount;
 
         settings.Units.PickupBoltFeeder = false;
         settings.Units.ShootingBoltFeeder = false;
-        Assert.True(productionHead.HasPendingResult);
-        Assert.True(station.HasPendingResult);
 
         using var diagnostics = new AdcProtocolViewModel(
             services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup),
@@ -672,35 +666,18 @@ public sealed partial class MachineLifecycleTests
             SlaveText = slave.ToString(),
         };
         await diagnostics.StartCommand.ExecuteAsync(null);
-        Assert.Contains("production fastening result is still pending", diagnostics.ConnectionStatus);
-        Assert.False(machine.IsTestBoltHeadAllowed);
+        Assert.StartsWith("OK", diagnostics.ResultMessage);
+        Assert.True(machine.IsTestBoltHeadAllowed);
         Assert.True(machine.IsUseAdcProtocolAllowed);
         Assert.False(state.IsRunning);
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.True(productionHead.HasPendingResult);
-        Assert.Equal(interruptedEvent, (await bus.ReadFasteningResultAsync(slave)).EventCount);
-        Assert.Null(await productionHead.ReadPendingResultAsync());
+        Assert.Equal(interruptedEvent + 1, (await bus.ReadFasteningResultAsync(slave)).EventCount);
 
         state.SetError(MachineAlarm.BoltFastening);
         await machine.ResetAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.True(productionHead.HasPendingResult);
-        Assert.True(station.HasPendingResult);
         Assert.Equal(StartBlockReason.None, machine.StartBlock);
-        Assert.False(machine.IsTestBoltHeadAllowed);
-        Assert.Equal(interruptedEvent, (await bus.ReadFasteningResultAsync(slave)).EventCount);
-
-        // Acknowledgement clears only this fastening operation, not other carriers.
-        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
-        io.SetInput(InputIo.PickupHeadVacuumDetected, false);
-        await machine.ResetAsync();
         Assert.True(machine.IsTestBoltHeadAllowed);
-        Assert.True(io.GetInput(InputIo.ShootingHeadVacuumDetected)); // Stuck ON does not retain a removed carrier's result.
-        Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
-        await diagnostics.StartCommand.ExecuteAsync(null);
-        Assert.StartsWith("OK", diagnostics.ResultMessage);
-        Assert.False(productionHead.HasPendingResult);
         Assert.Equal(interruptedEvent + 1, (await bus.ReadFasteningResultAsync(slave)).EventCount);
     }
 

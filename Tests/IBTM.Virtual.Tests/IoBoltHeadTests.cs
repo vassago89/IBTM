@@ -39,8 +39,6 @@ public sealed class IoBoltHeadTests
             () => head.TightenAsync(feedAsync: FeedAsync)));
         Assert.False(fed);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(head.HasPendingResult);
-        Assert.Null(await head.ReadPendingResultAsync());
     }
 
     [Theory]
@@ -121,8 +119,6 @@ public sealed class IoBoltHeadTests
         Assert.Null(result.Torque);
         Assert.Equal(BoltResultSource.IoAssumedOk, result.Source);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.False(head.HasPendingResult);
-        Assert.Null(await head.ReadPendingResultAsync());
     }
 
     [Fact]
@@ -139,7 +135,6 @@ public sealed class IoBoltHeadTests
         io.SetInput(InputIo.PickupBoltFasten, true);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.False(head.HasPendingResult);
     }
 
     [Fact]
@@ -186,8 +181,6 @@ public sealed class IoBoltHeadTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.False(io.GetInput(InputIo.PickupBoltFasten));
-        Assert.True(head.HasPendingResult);
-        Assert.Null(await head.ReadPendingResultAsync());
         Assert.Equal(1, starts);
         var restarted = head.TightenAsync();
         Assert.Equal(2, starts);
@@ -196,7 +189,6 @@ public sealed class IoBoltHeadTests
         Assert.False(restarted.IsCompleted);
         io.SetInput(InputIo.PickupBoltFasten, false);
         Assert.True((await restarted.WaitAsync(TimeSpan.FromSeconds(2))).Success);
-        Assert.False(head.HasPendingResult);
     }
 
     [Theory]
@@ -225,8 +217,6 @@ public sealed class IoBoltHeadTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => cycle.WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(head.HasPendingResult);
-        Assert.Null(await head.ReadPendingResultAsync());
     }
 
     [Theory]
@@ -244,6 +234,5 @@ public sealed class IoBoltHeadTests
         var error = await Assert.ThrowsAsync<TimeoutException>(() => cycle);
         Assert.Contains($"waiting for PickupBoltFasten={(sawOn ? "OFF" : "ON")}", error.Message);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Null(await head.ReadPendingResultAsync());
     }
 }

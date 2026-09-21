@@ -96,9 +96,7 @@ public sealed class AdcProtocolTests
             () => head.TightenAsync(feedAsync: FeedAsync)));
         Assert.Equal(1, bus.StopWrites);
         Assert.False(bus.Running);
-        Assert.True(head.HasPendingResult);
         // A controller result cannot prove that the cylinder fed the bolt.
-        Assert.Null(await head.ReadPendingResultAsync());
         Assert.Equal(1, bus.StartWrites);
         var feeds = 0;
         Task ConfirmFeedAsync(CancellationToken token)
@@ -109,7 +107,6 @@ public sealed class AdcProtocolTests
         Assert.True((await head.TightenAsync(feedAsync: ConfirmFeedAsync)).Success);
         Assert.Equal(2, bus.StartWrites);
         Assert.Equal(1, feeds);
-        Assert.False(head.HasPendingResult);
     }
 
     [Fact]
@@ -124,7 +121,6 @@ public sealed class AdcProtocolTests
         var failure = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
         Assert.IsType<AdcResponseException>(failure.InnerExceptions[0]);
         Assert.IsType<TimeoutException>(failure.InnerExceptions[1]);
-        Assert.True(head.HasPendingResult);
         Assert.True(bus.Running);
         Assert.Equal(1, bus.StopWrites);
     }
@@ -136,7 +132,6 @@ public sealed class AdcProtocolTests
         var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         var failure = await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
         Assert.Equal("Serial connection lost.", failure.Message);
-        Assert.True(head.HasPendingResult);
         Assert.False(bus.Running);
         Assert.Equal(1, bus.StopWrites);
     }
@@ -149,31 +144,27 @@ public sealed class AdcProtocolTests
         var tightening = head.TightenAsync();
         Assert.Equal(1, bus.StopWrites);
         Assert.True(bus.Running);
-        Assert.True(head.HasPendingResult);
         Assert.False(tightening.IsCompleted);
 
         Assert.True((await tightening.WaitAsync(TimeSpan.FromSeconds(2))).Success);
         Assert.False(bus.Running);
         Assert.Equal(3, bus.StopFeedbackReads);
-        Assert.False(head.HasPendingResult);
     }
 
     [Fact]
-    public async Task UnconfirmedStopKeepsTheResultPendingAcrossRecoveryReads()
+    public async Task UnconfirmedStopRequiresPhysicalStopBeforeANewFastening()
     {
         var bus = new ControllerBus { StopPollsRemaining = -1 };
         var head = new AdcBoltHead(bus, new HantasSettings { ResponseTimeoutMilliseconds = 40 }, 1, "Virtual", 115200);
         var failure = await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync());
         Assert.Contains("motor stop was not confirmed", failure.Message);
-        Assert.True(head.HasPendingResult);
-        await Assert.ThrowsAsync<TimeoutException>(() => head.ReadPendingResultAsync());
-        Assert.True(head.HasPendingResult);
+        await Assert.ThrowsAsync<TimeoutException>(() => head.StopAsync());
 
         bus.StopPollsRemaining = 0;
-        Assert.True((await head.ReadPendingResultAsync())!.Success);
-        Assert.False(head.HasPendingResult);
-        Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(1, bus.StopWrites); // Recovery only reads feedback; it does not restart the motor.
+        await head.StopAsync();
+        Assert.True((await head.TightenAsync()).Success);
+        Assert.Equal(2, bus.StartWrites);
+        Assert.False(bus.Running);
     }
 
     [Fact]
@@ -183,7 +174,6 @@ public sealed class AdcProtocolTests
         var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         var failure = await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
         Assert.Same(bus.StopReadFailure, failure);
-        Assert.True(head.HasPendingResult);
         Assert.Equal(1, bus.StopWrites);
     }
 
@@ -197,18 +187,15 @@ public sealed class AdcProtocolTests
         var tightening = head.TightenAsync(stop.Token);
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
-        Assert.True(head.HasPendingResult);
 
         await bus.SelectPresetAsync(1, 7);
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Contains("preset", failure.Message);
-        Assert.True(head.HasPendingResult);
         Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
         Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
 
         await bus.SelectPresetAsync(1, 3);
         Assert.True((await head.TightenAsync()).Success);
-        Assert.False(head.HasPendingResult);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
         Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
     }
@@ -216,17 +203,14 @@ public sealed class AdcProtocolTests
     [Theory]
     [InlineData(7, AdcDirection.Fastening)]
     [InlineData(3, AdcDirection.Loosening)]
-    public async Task MismatchedResultIsNotRecordedOrDiscarded(ushort preset, AdcDirection direction)
+    public async Task MismatchedResultIsNotRecorded(ushort preset, AdcDirection direction)
     {
         var bus = new ControllerBus { ResultPreset = preset, ResultDirection = direction };
         var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
         await head.SelectPresetAsync(3);
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Contains("does not match this fastening", failure.Message);
-        Assert.True(head.HasPendingResult);
         Assert.False(bus.Running);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.ReadPendingResultAsync());
-        Assert.True(head.HasPendingResult);
         Assert.Equal(1, bus.StartWrites);
     }
 
@@ -243,7 +227,6 @@ public sealed class AdcProtocolTests
         bus.CurrentPreset = 7; // Controller-panel change after successful selection.
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Equal(0, bus.StartWrites);
-        Assert.False(head.HasPendingResult);
     }
 
     [Theory]

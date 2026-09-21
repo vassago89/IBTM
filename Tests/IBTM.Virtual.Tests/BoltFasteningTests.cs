@@ -381,7 +381,6 @@ public sealed class BoltFasteningTests
         Assert.False(running.Ready);
         Assert.Equal(AdcDirection.Loosening, running.Direction);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
-        Assert.False(head.HasPendingResult); // No local operation, but the physical head is running.
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(3));
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(4));
         Assert.Equal((ushort)3, (await bus.ReadControllerStatusAsync(1)).Preset);
@@ -430,11 +429,9 @@ public sealed class BoltFasteningTests
         await Assert.ThrowsAsync<IOException>(() => head.TightenAsync(feedAsync: FeedAsync));
         Assert.False(fed);
         Assert.Equal(1, stops);
-        Assert.False(head.HasPendingResult);
         Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
         Assert.True((await head.TightenAsync()).Success);
         Assert.Equal(2, stops);
-        Assert.False(head.HasPendingResult);
     }
 
     [Theory]
@@ -515,7 +512,6 @@ public sealed class BoltFasteningTests
                 Assert.False(assembly.PcbBoltResults[2].Success); // A second START must occur, not reuse the old Error event.
             Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
             Assert.Equal(BoltCylinderState.Up, station.ShootingHeadPosition);
-            Assert.False(head.HasPendingResult);
         }
         finally
         {
@@ -536,8 +532,6 @@ public sealed class BoltFasteningTests
         var result = await head.TightenAsync();
         Assert.False(result.Success);
         Assert.Contains("controller error", result.Error);
-
-        Assert.False(head.HasPendingResult);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
 
@@ -590,8 +584,6 @@ public sealed class BoltFasteningTests
         if (timedOut)
             settings.FasteningTimeoutMilliseconds = 20;
         var tightening = head.TightenAsync(stop.Token);
-
-        Assert.True(head.HasPendingResult);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
         ((VirtualAdcBus)bus).SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
         if (timedOut)
@@ -607,11 +599,8 @@ public sealed class BoltFasteningTests
             stop.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
         }
-
-        Assert.Null(await head.ReadPendingResultAsync());
         await Task.Delay(300);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        Assert.True(head.HasPendingResult);
         Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
 
         settings.FasteningTimeoutMilliseconds = 15_000;
@@ -619,7 +608,6 @@ public sealed class BoltFasteningTests
         var completed = await bus.ReadFasteningResultAsync(1);
         Assert.Equal(2, completed.EventCount);
         Assert.Equal(3, completed.Preset);
-        Assert.False(head.HasPendingResult);
         Assert.True((await head.TightenAsync()).Success);
     }
 
@@ -996,8 +984,6 @@ public sealed class BoltFasteningTests
             if (stopDuringDescent || loseTableUp)
             {
                 Assert.Empty(results);
-                Assert.True(selected.HasPendingResult);
-                Assert.True(station.HasPendingResult);
                 Assert.True(io.GetOutput(cylinder));
             }
             else
@@ -1024,7 +1010,7 @@ public sealed class BoltFasteningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task InterruptedFasteningRetriesSameBoltWithoutEmptyingOrReset(bool useIo)
+    public async Task RestartAtFirstPickupBoltUsesCurrentVacuumWithoutAnotherPickup(bool useIo)
     {
         var settings = new BoltFasteningSettings
         {
@@ -1091,13 +1077,10 @@ public sealed class BoltFasteningTests
         Assert.Equal(BoltFasteningState.FasteningPickup, station.GetState());
         await station.RunAsync(stop.Token);
         interruptDescent = false;
-        Assert.True(station.HasPendingResult);
-        Assert.True(pickup.HasPendingResult);
         Assert.Empty(assembly.PickupBoltResults);
 
-        // A new START keeps this carrier/bolt, including with the feeder OFF.
+        // This recipe has one bolt. Current vacuum confirms a bolt is still on the head.
         units.PickupBoltFeeder = false;
-        Assert.True(station.HasPendingResult);
         Assert.Empty(assembly.PickupBoltResults);
         Assert.True(io.GetOutput(OutputIo.PickupHeadDown));
         if (!useIo)
@@ -1140,7 +1123,94 @@ public sealed class BoltFasteningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PendingResultStaysWithItsCarrierAndBolt(bool replaceCarrier)
+    public async Task RestartBeginsAtBoltOneAndChecksVacuumAtThePickupTurn(bool pickupAlreadyLoaded)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            PickupPosition = new() { X = 100, Y = 100, Z = 10 },
+            PickupHead = HeadSettings(),
+            ShootingHead = HeadSettings(),
+        };
+        settings.PickupHead.FasteningZ = 12;
+        settings.ShootingHead.FasteningZ = 12;
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
+        io.Initialize();
+        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        BoltFasteningStation? station = null;
+        var starts = new List<int>();
+        var bus = new AdcProtocolTests.ControllerBus
+        {
+            Started = () =>
+            {
+                starts.Add(station!.GetActiveBolt()!.Number);
+                if (starts.Count == 2)
+                    firstStop.Cancel();
+            },
+        };
+        var head = new AdcBoltHead(bus, new(), 1, "Virtual", 115200);
+        var units = new UnitSettings { PickupBoltFeeder = false, ShootingBoltFeeder = false };
+        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
+        var layout = new PcbLayout
+        {
+            BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 40, 30),
+                Bolt(3, FasteningHead.Pickup, 60, 30)],
+        };
+        station = new(head, head, io, motion, settings,
+            new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
+            work, new(FasteningHead.Pickup, io, new()), new(FasteningHead.Shooting, io, new()),
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        await station.RunAsync(firstStop.Token);
+        Assert.Equal(new[] { 1, 2 }, starts);
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        Assert.Single(assembly.PcbBoltResults);
+        var firstResult = assembly.PcbBoltResults[1];
+
+        // The next run must ignore the recorded first bolt when choosing where to start.
+        io.SetOutput(OutputIo.PickupHeadVacuumPump, pickupAlreadyLoaded);
+        io.SetInput(InputIo.PickupHeadVacuumDetected, pickupAlreadyLoaded);
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupHeadVacuumPump && !on)
+                io.SetInput(InputIo.PickupHeadVacuumDetected, false);
+        };
+        var visitedPickup = false;
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (x == settings.PickupPosition.X && y == settings.PickupPosition.Y)
+            {
+                visitedPickup = true;
+                Assert.Equal(3, station.GetActiveBolt()!.Number);
+            }
+        };
+        using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        work.Changed += () =>
+        {
+            if (work.Completed)
+                finish.Cancel();
+        };
+        await station.RunAsync(finish.Token);
+        Assert.True(work.Completed,
+            $"State={station.GetState()}, starts={string.Join(',', starts)}, pickup={station.PickupHeadPosition}, "
+            + $"vacuum={station.PickupBoltLoaded}, XY={motion.GetPosition()}, visitedPickup={visitedPickup}");
+        Assert.Equal(new[] { 1, 2, 1, 2, 3 }, starts);
+        Assert.NotSame(firstResult, assembly.PcbBoltResults[1]);
+        Assert.Equal(!pickupAlreadyLoaded, visitedPickup);
+        Assert.Single(assembly.PickupBoltResults);
+        Assert.Equal(BoltCylinderState.Up, station.PickupHeadPosition);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RestartDoesNotCollectThePreviousBoltResult(bool replaceCarrier)
     {
         var settings = new BoltFasteningSettings
         {
@@ -1216,7 +1286,7 @@ public sealed class BoltFasteningTests
                 }
 
                 if (resuming
-                    && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(3)) == (replaceCarrier ? 2 : 1))
+                    && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(3)) == 2)
                 {
                     resumedStop.Cancel();
                 }
@@ -1236,16 +1306,13 @@ public sealed class BoltFasteningTests
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         Assert.Same(responseError, await Assert.ThrowsAsync<IOException>(
             () => station.RunAsync(firstStop.Token)));
-        Assert.True(pickupHead.HasPendingResult);
         Assert.Empty(originalAssembly.PickupBoltResults);
-        Assert.True(station.HasPendingResult);
         Assert.False((await ((IAdcBus)bus).ReadControllerStatusAsync(1)).Running);
 
         if (replaceCarrier)
         {
             VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
             VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-            Assert.False(station.HasPendingResult);
         }
         else
         {
@@ -1258,9 +1325,8 @@ public sealed class BoltFasteningTests
         resuming = true;
         await station.RunAsync(resumedStop.Token);
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-        Assert.Equal(replaceCarrier, assembly.PickupBoltResults[1].Success);
-        Assert.Equal(replaceCarrier ? 2 : 1, starts);
-        Assert.False(pickupHead.HasPendingResult);
+        Assert.True(assembly.PickupBoltResults[1].Success);
+        Assert.Equal(2, starts);
         if (replaceCarrier)
         {
             Assert.NotSame(originalAssembly, assembly);
@@ -1585,34 +1651,6 @@ public sealed class BoltFasteningTests
                 Assert.False(work.Completed);
             }
 
-            using (var stopAfterPickup = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
-            {
-                void StopWithPickedBolt(InputIo input, bool value)
-                {
-                    if (input == InputIo.PickupHeadVacuumDetected && value)
-                        stopAfterPickup.Cancel();
-                }
-
-                io.InputChanged += StopWithPickedBolt;
-                try
-                {
-                    await station.RunAsync(stopAfterPickup.Token);
-                }
-                finally
-                {
-                    io.InputChanged -= StopWithPickedBolt;
-                }
-
-                Assert.True(
-                    gantry.PickupBoltLoaded,
-                    $"State={station.GetState()}, Seated={work.Station.CarrierSeated}, Position={motion.GetPosition()}");
-                Assert.True(io.GetOutput(OutputIo.PickupHeadVacuumPump));
-                Assert.Equal(BoltCylinderState.Up, gantry.PickupHeadPosition);
-                Assert.Equal(settings.PickupPosition.Z, motion.GetPosition().Z);
-                Assert.DoesNotContain(tightenings, item => item.Head == 1);
-                Assert.False(work.Completed);
-            }
-
             using var cancellation = new CancellationTokenSource();
             var resumedRun = station.RunAsync(cancellation.Token);
             try
@@ -1635,8 +1673,6 @@ public sealed class BoltFasteningTests
             Assert.True(heatSink1.PickupBoltResults[1].Success);
             Assert.True(heatSink2.PcbBoltResults[2].Success);
             Assert.True(heatSink2.PickupBoltResults[1].Success);
-            Assert.False(pickupHead.HasPendingResult);
-            Assert.False(shootingHead.HasPendingResult);
             Assert.False(movedWithLoweredCylinder);
             Assert.False(movedBelowTravelZ);
             Assert.Equal(4, fasteningHeights.Count);

@@ -266,7 +266,6 @@ public sealed partial class MachineLifecycleTests
             else
                 Assert.Equal(useAdc ? BoltResultSource.Controller : BoltResultSource.IoAssumedOk,
                     Assert.Single(results).Value.Source);
-            Assert.Equal(stopDuringDescent, station.HasPendingResult);
             Assert.False(io.GetOutput(start));
         }
         finally
@@ -335,12 +334,10 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
             Assert.False(gantry.PickupBoltLoaded);
             Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults);
-            Assert.False(station.HasPendingResult);
 
             settings.Options.TimeoutMilliseconds = 2_000;
             io.AutoResponseEnabled = true;
             VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-            station.DiscardRemovedCarrierResults();
             await gantry.SetVacuumAsync(FasteningHead.Pickup, false, CancellationToken.None);
             VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));

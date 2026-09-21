@@ -824,7 +824,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                 }
 
                 var feeding = !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Pickup);
-                if (!feeding || !PickupBoltLoaded)
+                if (!PickupBoltLoaded)
                 {
                     await MoveToPickupXYAsync(cancellationToken);
                     if (feeding)
