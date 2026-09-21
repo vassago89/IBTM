@@ -17,20 +17,111 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(125, "0x007D", "문서에 없는 코드")]
     [InlineData(42, "0x002A", "주전원 이상")]
-    public async Task ActiveControllerAlarmExplainsCodeAndStillBlocksNextStart(
+    public async Task UnclearedControllerAlarmAfterOneResetExplainsCodeAndBlocksNextStart(
         ushort code, string hex, string description)
     {
-        var bus = new AdcControllerStub { CurrentAlarm = code };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "COM10", 115200);
+        var bus = new AdcControllerStub { CurrentAlarm = code, ResetPollsRemaining = -1 };
+        var settings = new HantasSettings { ResponseTimeoutMilliseconds = 100 };
+        var head = new AdcBoltHead(bus, settings, 1, "COM10", 115200);
 
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
 
         Assert.Contains("COM10/1", failure.Message);
         Assert.Contains($"{code} ({hex})", failure.Message);
         Assert.Contains(description, failure.Message);
+        Assert.Contains("RESET 후", failure.Message);
         Assert.Contains("READY=False, RUN=False", failure.Message);
         Assert.Equal(code, bus.CurrentAlarm);
+        Assert.Equal(1, bus.ResetWrites);
         Assert.Equal(0, bus.StartWrites);
+        Assert.Equal((ushort)3, bus.CurrentPreset);
+    }
+
+    [Fact]
+    public async Task ControllerAlarmRecordsNgStopsAndResetsOnceBeforeNextBolt()
+    {
+        var bus = new AdcControllerStub
+        {
+            ResultStatus = AdcEventStatus.Error,
+            ResultError = 125,
+            ResetPollsRemaining = 2,
+        };
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "COM10", 115200);
+        await head.SelectPresetAsync(1);
+
+        var ng = await head.TightenAsync();
+
+        Assert.False(ng.Success);
+        Assert.Equal((ushort)125, ng.Controller!.ErrorCode);
+        Assert.False(bus.Running);
+        Assert.Equal(1, bus.StopWrites);
+        Assert.Equal(0, bus.ResetWrites);
+        Assert.Equal((ushort)125, bus.CurrentAlarm);
+
+        var preparing = head.SelectPresetAsync(1);
+        Assert.False(preparing.IsCompleted);
+        Assert.Equal(1, bus.ResetWrites);
+        Assert.Equal(1, bus.StartWrites);
+        await preparing;
+
+        Assert.Equal((ushort)0, bus.CurrentAlarm);
+        bus.ResultStatus = AdcEventStatus.FasteningOk;
+        bus.ResultError = 0;
+        Assert.True((await head.TightenAsync()).Success);
+        Assert.Equal(2, bus.StartWrites);
+        Assert.Equal(1, bus.ResetWrites);
+        Assert.False(ng.Success);
+        Assert.Equal((ushort)125, ng.Controller.ErrorCode);
+        await head.SelectPresetAsync(1);
+        Assert.Equal(1, bus.ResetWrites);
+    }
+
+    [Fact]
+    public async Task ClearedAlarmWithoutReadyStillBlocksNextBolt()
+    {
+        var bus = new AdcControllerStub { CurrentAlarm = 125, NotReady = true };
+        var settings = new HantasSettings { ResponseTimeoutMilliseconds = 100 };
+        var head = new AdcBoltHead(bus, settings, 1, "COM10", 115200);
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
+
+        Assert.Equal((ushort)0, bus.CurrentAlarm);
+        Assert.Contains("READY=False", failure.Message);
+        Assert.Equal(1, bus.ResetWrites);
+        Assert.Equal(0, bus.StartWrites);
+        Assert.Equal((ushort)3, bus.CurrentPreset);
+    }
+
+    [Fact]
+    public async Task CancellationDuringAlarmResetDoesNotSelectOrStartNextBolt()
+    {
+        var bus = new AdcControllerStub { CurrentAlarm = 125, ResetPollsRemaining = -1 };
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "COM10", 115200);
+        using var stop = new CancellationTokenSource();
+        var preparing = head.SelectPresetAsync(1, stop.Token);
+        Assert.Equal(1, bus.ResetWrites);
+
+        stop.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => preparing);
+        Assert.Equal(1, bus.ResetWrites);
+        Assert.Equal(0, bus.StartWrites);
+        Assert.Equal((ushort)3, bus.CurrentPreset);
+    }
+
+    [Fact]
+    public async Task UnconfirmedMotorStopPreventsAutomaticAlarmReset()
+    {
+        var bus = new AdcControllerStub { CurrentAlarm = 125, StopPollsRemaining = -1 };
+        await ((IAdcBus)bus).StartAsync(1);
+        var settings = new HantasSettings { ResponseTimeoutMilliseconds = 100 };
+        var head = new AdcBoltHead(bus, settings, 1, "COM10", 115200);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => head.SelectPresetAsync(1));
+
+        Assert.True(bus.Running);
+        Assert.Equal(0, bus.ResetWrites);
+        Assert.Equal(1, bus.StartWrites);
         Assert.Equal((ushort)3, bus.CurrentPreset);
     }
 
@@ -671,7 +762,7 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task ControllerErrorIsRecordedAsNgAndHardwareReadinessIsStillRequired()
+    public async Task ReadinessChecksDoNotResetAlarmButNextBoltPreparationDoes()
     {
         IAdcBus bus = new VirtualAdcBus();
         var virtualBus = (VirtualAdcBus)bus;
@@ -686,7 +777,6 @@ public sealed class AdcBoltHeadTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
 
         virtualBus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(3));
         Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
         await bus.SetDirectionAsync(2, AdcDirection.Loosening);
         Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
@@ -697,8 +787,11 @@ public sealed class AdcBoltHeadTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);
 
-        await bus.ResetAlarmAsync(2);
+        await head.SelectPresetAsync(3);
         await head.CheckReadyAsync();
+        Assert.Equal((ushort)0, (await bus.ReadControllerStatusAsync(2)).Alarm);
+        Assert.False(result.Success);
+        Assert.Equal((ushort)AdcEventStatus.Error, result.Controller!.StatusCode);
         Assert.False((await head.TightenAsync()).Success);
         Assert.Equal(2, (await bus.ReadFasteningResultAsync(2)).EventCount);
     }

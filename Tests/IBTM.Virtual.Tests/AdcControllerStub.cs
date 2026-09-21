@@ -11,6 +11,7 @@ namespace IBTM.Virtual.Tests;
 internal sealed class AdcControllerStub : IAdcBus
 {
     private bool _stopRequested;
+    private bool _resetRequested;
 
     public AdcControllerStub()
     {
@@ -24,6 +25,9 @@ internal sealed class AdcControllerStub : IAdcBus
 
     public ushort CurrentPreset { get; set; } = 3;
     public ushort CurrentAlarm { get; set; }
+    public bool NotReady { get; set; }
+    public int ResetPollsRemaining { get; set; }
+    public int ResetWrites { get; private set; }
     public AdcDirection CurrentDirection { get; set; }
     public bool IgnorePresetWrites { get; set; }
     public bool IgnoreDirectionWrites { get; init; }
@@ -78,6 +82,10 @@ internal sealed class AdcControllerStub : IAdcBus
         cancellationToken.ThrowIfCancellationRequested();
         switch ((AdcRemoteRegister)address)
         {
+            case AdcRemoteRegister.AlarmReset:
+                ResetWrites++;
+                _resetRequested = true;
+                break;
             case AdcRemoteRegister.Preset when !IgnorePresetWrites:
                 CurrentPreset = value;
                 break;
@@ -127,8 +135,18 @@ internal sealed class AdcControllerStub : IAdcBus
                     else if (StopPollsRemaining > 0)
                         StopPollsRemaining--;
                 }
+                if (_resetRequested)
+                {
+                    if (ResetPollsRemaining == 0)
+                    {
+                        CurrentAlarm = 0;
+                        _resetRequested = false;
+                    }
+                    else if (ResetPollsRemaining > 0)
+                        ResetPollsRemaining--;
+                }
                 return Task.FromResult<ushort[]>([
-                    CurrentPreset, 0, 0, (ushort)(Running || CurrentAlarm != 0 ? 0 : 1),
+                    CurrentPreset, 0, 0, (ushort)(NotReady || Running || CurrentAlarm != 0 ? 0 : 1),
                     (ushort)(Running ? 1 : 0), CurrentAlarm, (ushort)CurrentDirection,
                 ]);
             case (ushort)AdcResultRegister.EventCount:
@@ -148,9 +166,12 @@ internal sealed class AdcControllerStub : IAdcBus
             ResultReceiveFailure = null;
             throw failure;
         }
-        return AutomaticResults.TryDequeue(out var result)
+        var received = AutomaticResults.TryDequeue(out var result)
             ? result
             : AdcFasteningResult.FromRegisters(ResultRegisters);
+        if (received.Status == AdcEventStatus.Error)
+            CurrentAlarm = received.Error;
+        return received;
     }
 
     private ushort[] ResultRegisters => [

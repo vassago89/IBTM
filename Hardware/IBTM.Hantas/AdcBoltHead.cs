@@ -97,8 +97,8 @@ public sealed class AdcBoltHead : IBoltHead
     {
         cancellationToken.ThrowIfCancellationRequested();
         _bus.Open(_portName, _baudRate);
-        await _bus.StopAsync(_slaveAddress, cancellationToken);
-        var status = await WaitForStoppedAsync(cancellationToken);
+        await StopAsync();
+        var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
         if (status.Alarm != 0)
         {
             await _bus.ResetAlarmAsync(_slaveAddress, cancellationToken);

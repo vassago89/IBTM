@@ -184,7 +184,8 @@ public sealed class BoltFasteningTests
             Assert.True(work.Completed, run.Exception?.ToString());
             Assert.True(raisedAfterError);
             Assert.Equal(2, bus.StartWrites);
-            Assert.Equal(2, bus.StopWrites);
+            Assert.Equal(rejectedResponse || dryRun ? 0 : 1, bus.ResetWrites);
+            Assert.Equal(2 + bus.ResetWrites, bus.StopWrites);
             Assert.Equal(2, assembly.PcbBoltResults.Count);
             if (dryRun)
             {
