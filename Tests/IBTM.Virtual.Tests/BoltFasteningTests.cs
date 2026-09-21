@@ -231,7 +231,7 @@ public sealed class BoltFasteningTests
         };
         byte[] data = responseKind switch
         {
-            AdcResponseKind.ControllerError => [0x02],
+            AdcResponseKind.ControllerError => [0x03],
             AdcResponseKind.WriteResponse => [0x0F, 0xA3, 0x00, 0x00],
             _ => [0x02, 0x12, 0x34],
         };
@@ -245,9 +245,12 @@ public sealed class BoltFasteningTests
         if (responseKind == AdcResponseKind.Valid)
             Assert.Equal(frame, await reading.WaitAsync(TimeSpan.FromSeconds(2)));
         else if (responseKind == AdcResponseKind.ControllerError)
-            Assert.Contains(
-                "IllegalAddress",
-                (await Assert.ThrowsAsync<IOException>(() => reading)).Message);
+        {
+            var error = await Assert.ThrowsAsync<AdcResponseException>(() => reading);
+            Assert.Equal(0x03, error.ErrorCode);
+            Assert.Contains("InvalidDataLength", error.Message);
+            Assert.Contains(Convert.ToHexString(frame), error.Message);
+        }
         else
             await Assert.ThrowsAsync<InvalidDataException>(
                 () => reading.WaitAsync(TimeSpan.FromSeconds(2)));
@@ -434,8 +437,95 @@ public sealed class BoltFasteningTests
         Assert.False(head.HasPendingResult);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AdcErrorRecordsNgRaisesHeadAndContinuesToNextBolt(bool rejectedResponse)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            PickupHead = HeadSettings(),
+            ShootingHead = HeadSettings(),
+        };
+        settings.ShootingHead.FasteningZ = 12;
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
+        io.Initialize();
+        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        var bus = new AdcProtocolTests.ControllerBus { StopPollsRemaining = 2 };
+        if (rejectedResponse)
+        {
+            // Exact exception reply in the equipment log, including CRC.
+            using var response = new MemoryStream([0x01, 0x84, 0x03, 0x03, 0x01]);
+            bus.ResultReadFailure = await Assert.ThrowsAsync<AdcResponseException>(
+                () => AdcBus.ReadResponseAsync(response, () => { }, bytes => { },
+                    1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None));
+        }
+        else
+        {
+            bus.ResultStatus = AdcEventStatus.Error;
+            bus.ResultError = 42;
+        }
+        var head = new AdcBoltHead(bus, new(), 1, "Virtual", 115200);
+        var pickup = new AdcBoltHead(new VirtualAdcBus(), new(), 2, "Virtual", 115200);
+        var units = new UnitSettings { ShootingBoltFeeder = false };
+        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
+        var layout = new PcbLayout
+        {
+            BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 30, 40)],
+        };
+        var station = new BoltFasteningStation(head, pickup, io, motion, settings,
+            new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
+            work, new(FasteningHead.Pickup, io, new()), new(FasteningHead.Shooting, io, new()),
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        var raisedAfterError = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootingHeadDown && !on && assembly.PcbBoltResults.ContainsKey(1))
+            {
+                Assert.False(bus.Running);
+                raisedAfterError = true;
+            }
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = station.RunAsync(stop.Token);
+        try
+        {
+            Assert.True(await WaitUntilAsync(() => work.Completed || run.IsCompleted, TimeSpan.FromSeconds(4)));
+            Assert.True(work.Completed, run.Exception?.ToString());
+            Assert.True(raisedAfterError);
+            Assert.Equal(2, bus.StartWrites);
+            Assert.Equal(2, bus.StopWrites);
+            Assert.Equal(2, assembly.PcbBoltResults.Count);
+            Assert.False(assembly.PcbBoltResults[1].Success);
+            Assert.Contains(rejectedResponse ? "0x03" : "42", assembly.PcbBoltResults[1].Error);
+            if (rejectedResponse)
+            {
+                Assert.Null(assembly.PcbBoltResults[1].Torque);
+                Assert.True(assembly.PcbBoltResults[2].Success);
+            }
+            else
+                Assert.False(assembly.PcbBoltResults[2].Success); // A second START must occur, not reuse the old Error event.
+            Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
+            Assert.Equal(BoltCylinderState.Up, station.ShootingHeadPosition);
+            Assert.False(head.HasPendingResult);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+    }
+
     [Fact]
-    public async Task ControllerErrorStopsUntilReset()
+    public async Task ControllerErrorIsRecordedAsNgAndHardwareReadinessIsStillRequired()
     {
         IAdcBus bus = new VirtualAdcBus();
         var virtualBus = (VirtualAdcBus)bus;
@@ -443,7 +533,9 @@ public sealed class BoltFasteningTests
         await head.CheckReadyAsync();
         virtualBus.SetNextFasteningResult(2, AdcEventStatus.Error);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+        var result = await head.TightenAsync();
+        Assert.False(result.Success);
+        Assert.Contains("controller error", result.Error);
 
         Assert.False(head.HasPendingResult);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);

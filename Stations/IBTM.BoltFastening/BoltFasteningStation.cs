@@ -26,10 +26,8 @@ public sealed partial class BoltFasteningStation : AutoUnit
     private readonly UnitSettings _units;
     private readonly ILogger<BoltFasteningStation>? _log;
     private HeatSinkSlot[]? _runTargets;
-    // The result belongs to this bolt until collection or removal of its carrier.
-    private PendingFastening? _pendingFastening;
-    // Command history when pickup confirmation is disabled, not a loaded-bolt state.
-    private PickupAttempt? _pickupAttempt;
+    // Display the current loop destination only; never resume it after STOP.
+    private BoltPoint? _activeBolt;
 
     public BoltFasteningStation(
         IBoltHead shootingHead,
@@ -551,12 +549,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
             false);
     }
 
-    internal void DiscardPendingResults()
-    {
-        _shootingHead.DiscardPendingResult();
-        _pickupHead.DiscardPendingResult();
-    }
-
     internal IBoltHead GetHead(FasteningHead head)
     {
         switch (head)
@@ -621,25 +613,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
         }
     }
 
-    public bool HasPendingResult => PendingResult is not null;
-
-    public bool HasUncollectedResults => HasPendingResult
-        || _pickupHead.HasPendingResult || _shootingHead.HasPendingResult;
-
-    private PendingFastening? PendingResult
-    {
-        get
-        {
-            var pending = _pendingFastening;
-            return pending is not null
-                && _work.Station.CarrierPresent
-                && ReferenceEquals(_work.CurrentJob, pending.Job)
-                && _work.Assemblies.Contains(pending.Assembly)
-                ? pending
-                : null;
-        }
-    }
-
     private BoltPoint? StandbyBolt
     {
         get
@@ -661,24 +634,16 @@ public sealed partial class BoltFasteningStation : AutoUnit
         }
     }
 
-    public void DiscardRemovedCarrierResults()
-    {
-        if (_work.Station.CarrierPresent)
-            throw new InvalidOperationException("Results still belong to the current fastening carrier.");
-        if (_pendingFastening is { } pending)
-            TraceStep(BoltFasteningState.Waiting, target: $"removed carrier: {pending.Bolt}", workId: pending.Job.Id);
-        _pendingFastening = null;
-        _pickupAttempt = null;
-        DiscardPendingResults();
-    }
-
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _repeat = repeat;
         Exception? failure = null;
         try
         {
             BeginRun();
+            if (_work.Enabled)
+                _work.Restart(_work.CurrentJob);
             try
             {
                 while (!cancellationToken.IsCancellationRequested)
@@ -715,7 +680,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         finally
         {
             _repeat = false;
-            _pickupAttempt = null;
+            _activeBolt = null;
             if (_work.Enabled)
                 StopShooting(failure);
         }
@@ -723,13 +688,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
     private async Task RunCarrierAsync(CancellationToken cancellationToken)
     {
-        if (_pendingFastening is not null
-            && PendingResult is null)
-        {
-            _pendingFastening = null;
-            DiscardPendingResults();
-        }
-
         if (!_work.IsReadyToFasten)
         {
             var state = GetState();
@@ -757,24 +715,22 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     throw new InvalidOperationException(
                         $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
             }
-            while (_work.IsReadyToFasten)
+            var job = _work.CurrentJob;
+            foreach (var bolt in ApplicableBolts)
             {
                 carrierOperation.Token.ThrowIfCancellationRequested();
-                if (PendingResult is { } pending)
-                {
-                    var head = GetHead(pending.Bolt.Head);
-                    var result = await head.ReadPendingResultAsync(carrierOperation.Token);
-                    if (result is not null)
-                    {
-                        RecordResult(pending, result);
-                        continue;
-                    }
-                }
-
-                var state = GetState();
-                TraceStep(state, GetActiveBolt(state)?.ToString(), _work.CurrentJob.Id);
+                _work.RequireCurrentJob(job);
+                _activeBolt = bolt;
+                var state = bolt.Head == FasteningHead.Shooting
+                    ? BoltFasteningState.FasteningPcb : BoltFasteningState.FasteningPickup;
+                TraceStep(state, bolt.ToString(), job.Id);
                 await ExecuteAsync(state, carrierOperation.Token);
             }
+            carrierOperation.Token.ThrowIfCancellationRequested();
+            _work.RequireCurrentJob(job);
+            _activeBolt = null;
+            TraceStep(BoltFasteningState.CompletingCarrier, workId: job.Id);
+            await ExecuteAsync(BoltFasteningState.CompletingCarrier, carrierOperation.Token);
         }
         catch (OperationCanceledException) when (carrierOperation.IsCancellationRequested
             && !cancellationToken.IsCancellationRequested)
@@ -784,11 +740,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         {
             _work.Changed -= CheckCarrier;
             _runTargets = null;
-            if (_pendingFastening is { } pending
-                && !GetHead(pending.Bolt.Head).HasPendingResult)
-            {
-                _pendingFastening = null;
-            }
+            _activeBolt = null;
         }
     }
 
@@ -816,7 +768,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                 break;
             case BoltFasteningState.FasteningPcb:
             {
-                var bolt = PendingResult?.Bolt ?? PendingPcbBolts.First();
+                var bolt = _activeBolt!;
                 var feeding = !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Shooting);
                 if (PickupTablePosition != BoltCylinderState.Up)
                 {
@@ -825,10 +777,10 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     await SetPickupTableDownAsync(false, cancellationToken);
                 }
                 if (ShootingHeadPosition != BoltCylinderState.Up
-                    && (!IsAt(bolt) || feeding && PendingResult is null))
+                    && (!IsAt(bolt) || feeding))
                     await ClearHeadAsync(FasteningHead.Shooting, cancellationToken);
                 var moveRequired = !IsAt(bolt);
-                var shootRequired = feeding && PendingResult is null;
+                var shootRequired = feeding;
                 if (moveRequired || shootRequired)
                     await RaiseCylindersAsync(cancellationToken);
 
@@ -855,13 +807,13 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     if (ShootingEscape != BoltEscapeState.Backward)
                         await SetShootingEscapeForwardAsync(false, cancellationToken);
                 }
-                await FastenAsync(FasteningHead.Shooting, cancellationToken);
+                await FastenAsync(bolt, cancellationToken);
                 await ClearHeadAsync(FasteningHead.Shooting, cancellationToken);
                 break;
             }
             case BoltFasteningState.FasteningPickup:
             {
-                var bolt = PendingResult?.Bolt ?? PendingPickupBolts.First();
+                var bolt = _activeBolt!;
                 if (ShootingHeadPosition != BoltCylinderState.Up)
                     await ClearHeadAsync(FasteningHead.Shooting, cancellationToken);
                 if (PickupTablePosition != BoltCylinderState.Down)
@@ -872,10 +824,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                 }
 
                 var feeding = !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Pickup);
-                var pickupAttempted = _pickupAttempt is { } attempt
-                    && ReferenceEquals(attempt.Job, _work.CurrentJob)
-                    && attempt.Bolt == bolt;
-                if (PendingResult is null && (feeding ? !PickupBoltLoaded : !pickupAttempted))
+                if (!feeding || !PickupBoltLoaded)
                 {
                     await MoveToPickupXYAsync(cancellationToken);
                     if (feeding)
@@ -886,8 +835,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
                         FasteningHead.Pickup, true, cancellationToken, waitForFeedback: feeding);
                     cancellationToken.ThrowIfCancellationRequested();
                     _work.RequireCurrentJob(job);
-                    if (!feeding)
-                        _pickupAttempt = new(job, bolt);
                 }
                 if (IsAtPickupXY())
                 {
@@ -899,7 +846,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     await RaiseCylindersAsync(cancellationToken);
                     await MoveToBoltAsync(bolt, cancellationToken);
                 }
-                await FastenAsync(FasteningHead.Pickup, cancellationToken);
+                await FastenAsync(bolt, cancellationToken);
                 await ClearHeadAsync(FasteningHead.Pickup, cancellationToken);
                 break;
             }
@@ -921,6 +868,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
     public BoltFasteningState GetState(bool live = true)
     {
+        var bolt = _activeBolt ?? ApplicableBolts.FirstOrDefault();
         switch (true)
         {
             case true when !_work.Enabled:
@@ -932,21 +880,17 @@ public sealed partial class BoltFasteningStation : AutoUnit
                         || PickupTablePosition != BoltCylinderState.Up)
                     ? BoltFasteningState.MovingToStandby
                     : BoltFasteningState.Waiting;
-            case true when PendingResult is { } pending:
-                return pending.Bolt.Head == FasteningHead.Shooting
-                    ? BoltFasteningState.FasteningPcb
-                    : BoltFasteningState.FasteningPickup;
-            case true when PendingPcbBolts.FirstOrDefault() is { } shooting:
+            case true when bolt?.Head == FasteningHead.Shooting:
                 return !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Shooting)
                     && PickupTablePosition == BoltCylinderState.Up
-                    && IsAt(shooting, live)
+                    && IsAt(bolt, live)
                     && ShootingHeadPosition == BoltCylinderState.Up
                     && !ShootingTubeBoltDetected
                     && ShootingEscape == BoltEscapeState.Backward
                     && _shootingFeeder.State != BoltFeederState.BoltReady
                     ? BoltFasteningState.WaitingForShootingFeeder
                     : BoltFasteningState.FasteningPcb;
-            case true when PendingPickupBolts.Any():
+            case true when bolt?.Head == FasteningHead.Pickup:
                 return !_repeat && _units.IsBoltFeederEnabled(FasteningHead.Pickup)
                     && PickupTablePosition == BoltCylinderState.Down
                     && IsAtPickupXY(live) && IsAtSafeZ(live)
@@ -961,47 +905,37 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
     public BoltPoint? GetActiveBolt(BoltFasteningState? state = null)
     {
-        if (PendingResult is { } pending)
-            return pending.Bolt;
         switch (state ?? GetState())
         {
             case BoltFasteningState.MovingToStandby:
                 return StandbyBolt;
-            case BoltFasteningState.FasteningPcb or BoltFasteningState.WaitingForShootingFeeder:
-                return PendingPcbBolts.FirstOrDefault();
-            case BoltFasteningState.FasteningPickup or BoltFasteningState.WaitingForPickupFeeder:
-                return PendingPickupBolts.FirstOrDefault();
+            case BoltFasteningState.FasteningPcb or BoltFasteningState.WaitingForShootingFeeder
+                or BoltFasteningState.FasteningPickup or BoltFasteningState.WaitingForPickupFeeder:
+                return _activeBolt ?? ApplicableBolts.FirstOrDefault();
             default:
                 return null;
         }
     }
 
     private async Task FastenAsync(
-        FasteningHead fasteningHead,
+        BoltPoint bolt,
         CancellationToken cancellationToken)
     {
-        var pending = PendingResult;
-        if (pending is null)
-        {
-            var bolt = fasteningHead == FasteningHead.Shooting ? PendingPcbBolts.First() : PendingPickupBolts.First();
-            var job = _work.CurrentJob;
-            pending = new(bolt, job, _work.GetAssembly(job, bolt.HeatSink));
-            await GetHead(bolt.Head).SelectPresetAsync(1, cancellationToken);
-        }
-
-        _pendingFastening = pending;
-        var head = GetHead(pending.Bolt.Head);
+        var job = _work.CurrentJob;
+        var assembly = _work.GetAssembly(job, bolt.HeatSink);
+        var head = GetHead(bolt.Head);
+        await head.SelectPresetAsync(1, cancellationToken);
         // The motor rotates only; the cylinder supplies the forward feed.
         // Raise before a new start, including a retry at the same XY.
         await RaiseCylindersAsync(cancellationToken);
-        _work.RequireCurrentJob(pending.Job);
-        if (!IsAt(pending.Bolt))
+        _work.RequireCurrentJob(job);
+        if (!IsAt(bolt))
             throw new InvalidOperationException("The head must be at the bolt's fastening XYZ before starting.");
 
         using var fastening = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckPickupTable()
         {
-            if (pending.Bolt.Head == FasteningHead.Shooting
+            if (bolt.Head == FasteningHead.Shooting
                 && PickupTablePosition != BoltCylinderState.Up)
                 fastening.Cancel();
         }
@@ -1012,12 +946,21 @@ public sealed partial class BoltFasteningStation : AutoUnit
             CheckPickupTable();
             _log?.LogInformation(
                 "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN and waiting for fastening result.",
-                pending.Bolt.Head, pending.Bolt.HeatSink, pending.Bolt.Number, head.GetType().Name);
+                bolt.Head, bolt.HeatSink, bolt.Number, head.GetType().Name);
             var completed = await head.TightenAsync(fastening.Token, LowerHeadWhileFasteningAsync);
             _log?.LogInformation(
-                "Bolt {Head}, {HeatSink}, point {Bolt}: result received; success={Success}, source={Source}.",
-                pending.Bolt.Head, pending.Bolt.HeatSink, pending.Bolt.Number, completed.Success, completed.Source);
-            RecordResult(pending, completed);
+                "Bolt {Head}, {HeatSink}, point {Bolt}: result received; success={Success}, source={Source}, error={Error}.",
+                bolt.Head, bolt.HeatSink, bolt.Number, completed.Success, completed.Source, completed.Error);
+            _work.RequireCurrentJob(job);
+            switch (bolt.Head)
+            {
+                case FasteningHead.Shooting:
+                    assembly.RecordPcbBolt(bolt.Number, completed);
+                    break;
+                case FasteningHead.Pickup:
+                    assembly.RecordPickupBolt(bolt.Number, completed);
+                    break;
+            }
         }
         catch (OperationCanceledException) when (fastening.IsCancellationRequested
             && !cancellationToken.IsCancellationRequested)
@@ -1032,31 +975,14 @@ public sealed partial class BoltFasteningStation : AutoUnit
         Task LowerHeadWhileFasteningAsync(CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            _log?.LogInformation("Bolt {Head}: motor START completed; requesting head DOWN.", pending.Bolt.Head);
+            _log?.LogInformation("Bolt {Head}: motor START completed; requesting head DOWN.", bolt.Head);
             // Screw contact can stop the cylinder before its DOWN sensor.
-            _io.SetOutput(pending.Bolt.Head == FasteningHead.Pickup
+            _io.SetOutput(bolt.Head == FasteningHead.Pickup
                 ? OutputIo.PickupHeadDown : OutputIo.ShootingHeadDown, true);
             token.ThrowIfCancellationRequested();
-            _log?.LogInformation("Bolt {Head}: head DOWN output sent; waiting for fastening result.", pending.Bolt.Head);
+            _log?.LogInformation("Bolt {Head}: head DOWN output sent; waiting for fastening result.", bolt.Head);
             return Task.CompletedTask;
         }
-    }
-
-    private void RecordResult(PendingFastening pending, BoltResult result)
-    {
-        _work.RequireCurrentJob(pending.Job);
-        switch (pending.Bolt.Head)
-        {
-            case FasteningHead.Shooting:
-                pending.Assembly.RecordPcbBolt(pending.Bolt.Number, result);
-                break;
-            case FasteningHead.Pickup:
-                pending.Assembly.RecordPickupBolt(pending.Bolt.Number, result);
-                _pickupAttempt = null;
-                break;
-        }
-
-        _pendingFastening = null;
     }
 
     private async Task ClearHeadAsync(FasteningHead head, CancellationToken cancellationToken)
@@ -1066,32 +992,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
         await MoveToSafeZAsync(cancellationToken);
     }
 
-    private IEnumerable<BoltPoint> PendingPcbBolts
-    {
-        get
-        {
-            return ApplicableBolts
-                .Where(bolt => bolt.Head == FasteningHead.Shooting)
-                .Where(bolt => FindAssembly(bolt.HeatSink)?.PcbBoltResults.ContainsKey(bolt.Number) != true);
-        }
-    }
-
-    private IEnumerable<BoltPoint> PendingPickupBolts
-    {
-        get
-        {
-            return ApplicableBolts
-                .Where(bolt => bolt.Head == FasteningHead.Pickup)
-                .Where(
-                    bolt => FindAssembly(bolt.HeatSink)?.PickupBoltResults.ContainsKey(bolt.Number) != true);
-        }
-    }
-
-    private HeatSinkAssembly? FindAssembly(HeatSinkSlot heatSink)
-    {
-        return _work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == heatSink);
-    }
-
     private IEnumerable<BoltPoint> ApplicableBolts
     {
         get
@@ -1099,13 +999,10 @@ public sealed partial class BoltFasteningStation : AutoUnit
             return _recipes.Current.Pcb
                 .BoltPoints
                 .Where(bolt => Targets.Contains(bolt.HeatSink))
-                .OrderBy(bolt => bolt.HeatSink)
+                .OrderBy(bolt => bolt.Head == FasteningHead.Shooting ? 0 : 1)
+                .ThenBy(bolt => bolt.HeatSink)
                 .ThenBy(bolt => bolt.Number);
         }
     }
 
-    private sealed record PendingFastening(
-            BoltPoint Bolt, StationWork.Job Job, HeatSinkAssembly Assembly);
-
-    private sealed record PickupAttempt(StationWork.Job Job, BoltPoint Bolt);
 }

@@ -15,10 +15,8 @@ public sealed class AdcBoltHead : IBoltHead
     // Connection edits apply to a newly created head, together with its slave address.
     private readonly string _portName;
     private readonly int _baudRate;
-    // Requested conditions and result ownership; never a substitute for controller feedback.
+    // Requested preset; never a substitute for controller feedback.
     private ushort? _requestedPreset;
-    private (ushort EventCount, ushort Preset)? _pendingFastening;
-    private bool _feedUnconfirmed;
 
     public AdcBoltHead(
         IAdcBus bus,
@@ -33,8 +31,6 @@ public sealed class AdcBoltHead : IBoltHead
         _portName = portName;
         _baudRate = baudRate;
     }
-
-    public bool HasPendingResult => _pendingFastening is not null;
 
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
@@ -93,7 +89,6 @@ public sealed class AdcBoltHead : IBoltHead
             await _bus.ResetAlarmAsync(_slaveAddress, cancellationToken);
         }
 
-        // Do not discard an interrupted fastening result when clearing a hardware alarm.
         await CheckReadyAsync(cancellationToken);
     }
 
@@ -134,49 +129,40 @@ public sealed class AdcBoltHead : IBoltHead
         Func<CancellationToken, Task>? feedAsync = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (HasPendingResult)
-        {
-            var result = await ReadPendingResultAsync(cancellationToken);
-            if (result is not null)
-                return result;
-        }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        (ushort EventCount, ushort Preset)? started = null;
         AdcFasteningResult? completed = null;
         AdcFasteningResult? lastResult = null;
+        AdcResponseException? responseError = null;
         Exception? failure = null;
         try
         {
             var current = await _bus.ReadFasteningResultAsync(_slaveAddress, cancellationToken);
             lastResult = current;
-            if (current.Status == AdcEventStatus.Error)
-            {
-                completed = current;
-            }
-            else
-            {
-                var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-                var fastening = (EventCount: current.EventCount, Preset: _requestedPreset ?? status.Preset);
-                RequireReady(status);
-                RequirePreset(status, fastening.Preset);
-                await _bus.SetDirectionAsync(_slaveAddress, AdcDirection.Fastening, cancellationToken);
-                status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-                RequireReady(status);
-                RequirePreset(status, fastening.Preset);
-                RequireDirection(status, AdcDirection.Fastening);
+            // The pre-START event is a baseline, including a previous bolt's error.
+            var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
+            var fastening = (EventCount: current.EventCount, Preset: _requestedPreset ?? status.Preset);
+            RequireReady(status);
+            RequirePreset(status, fastening.Preset);
+            await _bus.SetDirectionAsync(_slaveAddress, AdcDirection.Fastening, cancellationToken);
+            status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
+            RequireReady(status);
+            RequirePreset(status, fastening.Preset);
+            RequireDirection(status, AdcDirection.Fastening);
 
-                timeout.CancelAfter(_connection.FasteningTimeoutMilliseconds);
+            timeout.CancelAfter(_connection.FasteningTimeoutMilliseconds);
+            timeout.Token.ThrowIfCancellationRequested();
+            started = fastening;
+            // START may reach the controller even if its acknowledgement or feed fails.
+            await _bus.StartAsync(_slaveAddress, timeout.Token);
+            if (feedAsync is not null)
+            {
                 timeout.Token.ThrowIfCancellationRequested();
-                _pendingFastening = fastening;
-                // START may reach the controller even if its acknowledgement or feed fails.
-                _feedUnconfirmed = feedAsync is not null;
-                await _bus.StartAsync(_slaveAddress, timeout.Token);
-                if (feedAsync is not null)
-                {
-                    timeout.Token.ThrowIfCancellationRequested();
-                    await feedAsync(timeout.Token);
-                    _feedUnconfirmed = false;
-                }
-                while (true)
+                await feedAsync(timeout.Token);
+            }
+            while (true)
+            {
+                try
                 {
                     var result = await _bus.ReadFasteningResultAsync(_slaveAddress, timeout.Token);
                     lastResult = result;
@@ -185,22 +171,29 @@ public sealed class AdcBoltHead : IBoltHead
                         completed = result;
                         break;
                     }
-
-                    await Task.Delay(ResultPollMilliseconds, timeout.Token);
                 }
+                catch (AdcResponseException exception)
+                {
+                    responseError = exception;
+                    failure = exception;
+                    break;
+                }
+
+                await Task.Delay(ResultPollMilliseconds, timeout.Token);
             }
         }
         catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
         {
             failure = exception;
+            throw;
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             failure = new TimeoutException(
                 $"ADC {_portName}/{_slaveAddress} fastening timed out after {_connection.FasteningTimeoutMilliseconds} ms; "
-                + $"start event={_pendingFastening?.EventCount}, expected preset={_pendingFastening?.Preset}, "
+                + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
-                + $"direction={lastResult?.Direction}, error={lastResult?.Error}, feed unconfirmed={_feedUnconfirmed}.");
+                + $"direction={lastResult?.Direction}, error={lastResult?.Error}.");
             throw failure;
         }
         catch (Exception exception)
@@ -213,37 +206,23 @@ public sealed class AdcBoltHead : IBoltHead
             await StopAfterOperationAsync(failure);
         }
 
+        if (responseError is not null)
+        {
+            // STOP and RUN OFF have completed. No torque was received for this bolt.
+            return new BoltResult(false, null,
+                Error: $"ADC {_portName}/{_slaveAddress}: {responseError.Message}");
+        }
+
         if (completed is not null)
         {
-            return Complete(completed);
+            var error = completed.Status == AdcEventStatus.Error || completed.Error != 0
+                ? $"ADC {_portName}/{_slaveAddress} controller error: {completed.Error}; event={completed.EventCount}, status={completed.Status}."
+                : null;
+            return new BoltResult(completed.Status == AdcEventStatus.FasteningOk && error is null, completed.Torque,
+                Error: error);
         }
 
-        // Stop is already sent. Collect a late result without restarting the head.
-        return await ReadPendingResultAsync(CancellationToken.None)
-            ?? throw new OperationCanceledException(cancellationToken);
-    }
-
-    public async Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
-    {
-        if (_feedUnconfirmed || _pendingFastening is not { } pending)
-        {
-            return null;
-        }
-
-        var result = await _bus.ReadFasteningResultAsync(_slaveAddress, cancellationToken);
-        if (!IsCompleted(result, pending))
-            return null;
-        // A previous STOP may have failed. Confirm RUN OFF before releasing ownership.
-        // Once a result is received, finish this bounded check even if the operator cancels.
-        await WaitForStoppedAsync(CancellationToken.None);
-        return Complete(result);
-    }
-
-    public void DiscardPendingResult()
-    {
-        _pendingFastening = null;
-        _feedUnconfirmed = false;
-        _requestedPreset = null;
+        throw new InvalidOperationException("ADC fastening ended without a result.");
     }
 
     public async Task StopAsync()
@@ -290,26 +269,15 @@ public sealed class AdcBoltHead : IBoltHead
         }
     }
 
-    private BoltResult Complete(AdcFasteningResult result)
-    {
-        _pendingFastening = null;
-        _feedUnconfirmed = false;
-        if (result.Status == AdcEventStatus.Error)
-        {
-            throw new InvalidOperationException($"ADC {_slaveAddress} controller error: {result.Error}.");
-        }
-
-        return new BoltResult(result.Status == AdcEventStatus.FasteningOk, result.Torque);
-    }
-
     private bool IsCompleted(AdcFasteningResult result, (ushort EventCount, ushort Preset) pending)
     {
         switch (true)
         {
+            case true when result.EventCount == pending.EventCount:
+                return false;
             case true when result.Status == AdcEventStatus.Error:
                 return true;
-            case true when result.EventCount == pending.EventCount
-                || result.Status is not (AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg):
+            case true when result.Status is not (AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg):
                 return false;
         }
         if (result.Preset != pending.Preset

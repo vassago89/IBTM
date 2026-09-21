@@ -37,7 +37,7 @@ public sealed class LightingTests
         {
             var slave = services.GetRequiredService<MachineSettings>().Hantas.PickupSlaveAddress;
             bus.SetNextFasteningResult(slave, AdcEventStatus.Error);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+            Assert.False((await head.TightenAsync()).Success);
             await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
             motion.SetAlarm(MotionAxis.X, true);
             camera.FailInitialize = true;

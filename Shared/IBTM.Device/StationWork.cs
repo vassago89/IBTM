@@ -100,6 +100,17 @@ public abstract partial class StationWork
         Changed?.Invoke();
     }
 
+    public void Restart(Job job)
+    {
+        lock (s_jobGate)
+        {
+            RequireCurrentJob(job);
+            job.Completed = false;
+        }
+        // Keep recorded quality results with the carrier; they do not select sequence steps.
+        Changed?.Invoke();
+    }
+
     protected void NotifyChanged()
     {
         Changed?.Invoke();

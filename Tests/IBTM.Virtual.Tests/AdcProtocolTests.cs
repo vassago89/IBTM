@@ -113,6 +113,35 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
+    public async Task RejectedResultCannotReleaseTheBoltBeforeMotorStopIsConfirmed()
+    {
+        var bus = new ControllerBus
+        {
+            ResultReadFailure = new AdcResponseException(3, "Controller rejected result read."),
+            StopPollsRemaining = -1,
+        };
+        var head = new AdcBoltHead(bus, new HantasSettings { ResponseTimeoutMilliseconds = 40 }, 1, "Virtual", 115200);
+        var failure = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
+        Assert.IsType<AdcResponseException>(failure.InnerExceptions[0]);
+        Assert.IsType<TimeoutException>(failure.InnerExceptions[1]);
+        Assert.True(head.HasPendingResult);
+        Assert.True(bus.Running);
+        Assert.Equal(1, bus.StopWrites);
+    }
+
+    [Fact]
+    public async Task ResultCommunicationFailureStillStopsWithoutInventingNg()
+    {
+        var bus = new ControllerBus { ResultReadFailure = new IOException("Serial connection lost.") };
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
+        var failure = await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
+        Assert.Equal("Serial connection lost.", failure.Message);
+        Assert.True(head.HasPendingResult);
+        Assert.False(bus.Running);
+        Assert.Equal(1, bus.StopWrites);
+    }
+
+    [Fact]
     public async Task StopAcknowledgementWaitsForMotorFeedbackBeforeReleasingResult()
     {
         var bus = new ControllerBus { StopPollsRemaining = 2 };
@@ -247,6 +276,9 @@ public sealed class AdcProtocolTests
         public AdcDirection? ResultDirection { get; init; }
         public int StopPollsRemaining { get; set; }
         public IOException? StopReadFailure { get; init; }
+        public IOException? ResultReadFailure { get; set; }
+        public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
+        public ushort ResultError { get; set; }
         public Action? Started { get; init; }
         public bool Running { get; private set; }
         public int StartWrites { get; private set; }
@@ -321,9 +353,14 @@ public sealed class AdcProtocolTests
                         CurrentPreset, 0, 0, (ushort)(Running ? 0 : 1), (ushort)(Running ? 1 : 0), 0, (ushort)CurrentDirection,
                     ]);
                 case (ushort)AdcResultRegister.EventCount:
+                    if (StartWrites > StopWrites && ResultReadFailure is { } failure)
+                    {
+                        ResultReadFailure = null;
+                        throw failure;
+                    }
                     return Task.FromResult<ushort[]>([
-                        (ushort)StartWrites, 250, ResultPreset ?? CurrentPreset, 100, 100, 1000, 0, 0, 0, (ushort)StartWrites, 0,
-                        (ushort)(ResultDirection ?? CurrentDirection), (ushort)(StartWrites == 0 ? AdcEventStatus.None : AdcEventStatus.FasteningOk), 0,
+                        (ushort)StartWrites, 250, ResultPreset ?? CurrentPreset, 100, 100, 1000, 0, 0, 0, (ushort)StartWrites, ResultError,
+                        (ushort)(ResultDirection ?? CurrentDirection), (ushort)(StartWrites == 0 ? AdcEventStatus.None : ResultStatus), 0,
                     ]);
             }
             throw new NotSupportedException();

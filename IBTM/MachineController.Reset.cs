@@ -31,8 +31,7 @@ public sealed partial class MachineController
                 // Hardware recovery admission, not permission to acknowledge the buzzer.
                 // A failed feedback scan must leave recovery usable without another native read.
                 case true when _state.IsError
-                    || _feedback.ReadError is not null
-                    || _fasteningStation.HasUncollectedResults:
+                    || _feedback.ReadError is not null:
                     return true;
             }
             var motion = _state.FeedbackReadiness;
@@ -202,25 +201,6 @@ public sealed partial class MachineController
         if (failures.Count > 0)
         {
             _state.SetError(alarm, failures.Count == 1 ? failures[0] : new AggregateException(failures));
-            return;
-        }
-
-        try
-        {
-            // Discard only results for a carrier that has been removed. Results for
-            // the current carrier stay available to its next fastening command.
-            if (_fasteningStation.HasUncollectedResults
-                && !_io.GetInput(InputIo.BoltFasteningHeatSink1Present)
-                && !_io.GetInput(InputIo.BoltFasteningHeatSink2Present)
-                && !_io.GetInput(InputIo.PickupHeadVacuumDetected))
-            {
-                _fasteningStation.DiscardRemovedCarrierResults();
-            }
-        }
-        catch (Exception exception)
-        {
-            _log?.LogError(exception, "Removed carrier result cleanup failed.");
-            _state.SetError(MachineAlarm.BoltFastening, exception);
             return;
         }
 

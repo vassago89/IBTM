@@ -343,6 +343,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                 ResultMessage = "Fastening...";
                 var result = await head.TightenAsync(operation.Token);
                 ResultMessage = $"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}";
+                if (result.Error is not null)
+                    ResultMessage += $"\n{result.Error}";
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {

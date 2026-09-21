@@ -17,4 +17,5 @@ public enum BoltResultSource
 public sealed record BoltResult(
     bool Success,
     double? Torque,
-    BoltResultSource Source = BoltResultSource.Controller);
+    BoltResultSource Source = BoltResultSource.Controller,
+    string? Error = null);

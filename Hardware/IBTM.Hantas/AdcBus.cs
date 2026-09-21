@@ -303,7 +303,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
             byte[] errorFrame = [.. header, .. tail];
             ValidateFrame(errorFrame, slaveAddress, (byte)((byte)function | ExceptionFunctionMask));
             var code = (AdcExceptionCode)tail[0];
-            throw new IOException($"ADC controller returned {code} (0x{(byte)code:X2}).");
+            throw new AdcResponseException(tail[0],
+                $"ADC controller returned {code} (0x{(byte)code:X2}); RX={Convert.ToHexString(errorFrame)}.");
         }
 
         byte[] response;

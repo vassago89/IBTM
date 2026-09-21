@@ -19,8 +19,8 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
     private readonly OutputIo _start;
     private readonly OutputIo[] _presets;
     private readonly AsyncAutoResetEvent _changed;
-    // Observed edges for this command and its uncollected result, not motor state.
-    private int _pendingPhase;
+    // Observed edges during the current command only, not motor state.
+    private int _phase;
     private ushort? _requestedPreset;
 
     public IoBoltHead(IIoService io, FasteningHead head, IoBoltHardwareSettings settings)
@@ -44,8 +44,6 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         io.Faulted += OnIoFaulted;
     }
 
-    public bool HasPendingResult => Volatile.Read(ref _pendingPhase) != 0;
-
     public Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -58,7 +56,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
     public void Stop(Exception? operationFailure = null)
     {
         // A falling FASTEN caused by our STOP is not normal completion.
-        InterruptPending();
+        InterruptFastening();
         // Confirmed interface: START is held ON while running; OFF requests stop.
         try
         {
@@ -83,8 +81,6 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         if (preset is < 1 or > 3)
             throw new ArgumentOutOfRangeException(nameof(preset), "IO bolt presets are 1, 2 and 3.");
-        if (HasPendingResult)
-            throw new InvalidOperationException("Resolve the previous IO fastening before changing its preset.");
         await CheckReadyAsync(cancellationToken);
         _requestedPreset = null;
         foreach (var output in _presets)
@@ -98,13 +94,6 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         Func<CancellationToken, Task>? feedAsync = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (HasPendingResult)
-        {
-            var result = await ReadPendingResultAsync(cancellationToken);
-            if (result is not null)
-                return result;
-        }
-
         await CheckReadyAsync(cancellationToken);
         if (_requestedPreset is not { } preset)
             throw new InvalidOperationException("Select an IO fastening preset before starting.");
@@ -124,7 +113,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         try
         {
             timeout.Token.ThrowIfCancellationRequested();
-            Volatile.Write(ref _pendingPhase, WaitingForOn);
+            Volatile.Write(ref _phase, WaitingForOn);
             _io.SetOutput(_start, true);
             if (feedAsync is not null)
             {
@@ -136,18 +125,18 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
                 catch
                 {
                     // A failed head DOWN command must not become a successful fastening.
-                    Interlocked.Exchange(ref _pendingPhase, Interrupted);
+                    Interlocked.Exchange(ref _phase, Interrupted);
                     throw;
                 }
             }
-            while (Volatile.Read(ref _pendingPhase) != Completed)
+            while (Volatile.Read(ref _phase) != Completed)
             {
                 timeout.Token.ThrowIfCancellationRequested();
-                if (Volatile.Read(ref _pendingPhase) == Interrupted)
+                if (Volatile.Read(ref _phase) == Interrupted)
                     throw new OperationCanceledException($"{_head} fastening was stopped before completion.", cancellationToken);
                 // Read for availability; only the ordered input events advance the edge history.
                 _ = _io.GetInput(_fasten);
-                if (Volatile.Read(ref _pendingPhase) != Completed)
+                if (Volatile.Read(ref _phase) != Completed)
                     await _changed.WaitAsync(timeout.Token);
             }
             cancellationToken.ThrowIfCancellationRequested();
@@ -155,7 +144,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         catch (OperationCanceledException) when (timeout.IsCancellationRequested
             && !cancellationToken.IsCancellationRequested)
         {
-            var waitingFor = Volatile.Read(ref _pendingPhase) switch
+            var waitingFor = Volatile.Read(ref _phase) switch
             {
                 WaitingForOn => $"{_fasten}=ON (no rising edge received)",
                 WaitingForOff => $"{_fasten}=OFF (ON received; no falling edge received)",
@@ -173,29 +162,19 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         }
         finally
         {
-            Stop(failure);
+            try
+            {
+                Stop(failure);
+            }
+            finally
+            {
+                Volatile.Write(ref _phase, 0);
+            }
         }
 
-        return await ReadPendingResultAsync(CancellationToken.None)
-            ?? throw new InvalidOperationException("The completed IO fastening result was cleared before collection.");
-    }
-
-    public Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (Volatile.Read(ref _pendingPhase) != Completed)
-            return Task.FromResult<BoltResult?>(null);
         if (_io.GetOutput(_start))
             throw new InvalidOperationException($"{_head} START is still ON. Stop the controller before collecting the result.");
-
-        Volatile.Write(ref _pendingPhase, 0);
-        return Task.FromResult<BoltResult?>(new(true, null, BoltResultSource.IoAssumedOk));
-    }
-
-    public void DiscardPendingResult()
-    {
-        Volatile.Write(ref _pendingPhase, 0);
-        _requestedPreset = null;
+        return new(true, null, BoltResultSource.IoAssumedOk);
     }
 
     private void OnInputChanged(InputIo input, bool value)
@@ -203,12 +182,12 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         if (input != _fasten)
             return;
         if (value)
-            Interlocked.CompareExchange(ref _pendingPhase, WaitingForOff, WaitingForOn);
-        else if (Volatile.Read(ref _pendingPhase) == WaitingForOff)
+            Interlocked.CompareExchange(ref _phase, WaitingForOff, WaitingForOn);
+        else if (Volatile.Read(ref _phase) == WaitingForOff)
         {
             // FASTEN may fall before the direct START OFF write publishes OutputChanged.
             var phase = _io.GetOutput(_start) ? Completed : Interrupted;
-            Interlocked.CompareExchange(ref _pendingPhase, phase, WaitingForOff);
+            Interlocked.CompareExchange(ref _phase, phase, WaitingForOff);
         }
         _changed.Set();
     }
@@ -216,13 +195,13 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
     private void OnOutputChanged(OutputIo output, bool value)
     {
         if (output == _start && !value)
-            InterruptPending();
+            InterruptFastening();
     }
 
-    private void InterruptPending()
+    private void InterruptFastening()
     {
-        Interlocked.CompareExchange(ref _pendingPhase, Interrupted, WaitingForOn);
-        Interlocked.CompareExchange(ref _pendingPhase, Interrupted, WaitingForOff);
+        Interlocked.CompareExchange(ref _phase, Interrupted, WaitingForOn);
+        Interlocked.CompareExchange(ref _phase, Interrupted, WaitingForOff);
         _changed.Set();
     }
 
