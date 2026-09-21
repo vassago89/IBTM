@@ -869,6 +869,8 @@ public sealed class IoStartupTests
             VirtualTest.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
         if (step == TransferFailureStep.BoltFeeder)
             physicalIo.SetInput(InputIo.ShootingEscapeBackward, true);
+        if (step == TransferFailureStep.ShootBolt)
+            physicalIo.SetInput(InputIo.ShootingFeederBoltDetected, true);
 
         var output = step switch
         {

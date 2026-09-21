@@ -77,8 +77,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
     public bool PickupBoltLoaded => _io.GetInput(InputIo.PickupHeadVacuumDetected);
 
-    public bool ShootingBoltLoaded => _io.GetInput(InputIo.ShootingHeadVacuumDetected);
-
     internal bool ShootingTubeBoltDetected => _io.GetInput(InputIo.ShootingTubeBoltDetected);
 
     public BoltCylinderState PickupHeadPosition
@@ -438,17 +436,19 @@ public sealed partial class BoltFasteningStation : AutoUnit
         return MoveZAsync(_settings.PickupPosition.Z, cancellationToken);
     }
 
-    internal async Task SetShootingEscapeForwardAsync(bool forward, CancellationToken cancellationToken = default)
+    internal Task SetShootingEscapeForwardAsync(bool forward, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (forward)
-            _shootingFeeder.Stop();
-        await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, forward, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, forward, cancellationToken);
     }
 
     internal async Task ShootBoltAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (ShootingEscape != BoltEscapeState.Backward)
+            await SetShootingEscapeForwardAsync(false, cancellationToken);
+        await WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken);
+        await WaitForShootingTubeClearAsync(cancellationToken);
+        await SetShootingEscapeForwardAsync(true, cancellationToken);
         _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
         using var passage = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var boltPassed = _io.WaitForInputAsync(
@@ -488,40 +488,17 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
     internal async Task WaitForBoltSupplyAsync(FasteningHead head, CancellationToken cancellationToken)
     {
-        var changed = new AsyncAutoResetEvent();
-
-        bool WaitingForSupply()
+        var boltDetected = head switch
         {
-            switch (head)
-            {
-                case FasteningHead.Pickup:
-                    return !_io.GetInput(InputIo.PickupFeederBoltDetected);
-                case FasteningHead.Shooting:
-                    return !_io.GetInput(InputIo.ShootingFeederBoltDetected)
-                        && !ShootingBoltLoaded
-                        && !ShootingTubeBoltDetected
-                        && ShootingHeadPosition == BoltCylinderState.Up
-                        && ShootingEscape == BoltEscapeState.Backward;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(head));
-            }
-        }
+            FasteningHead.Pickup => InputIo.PickupFeederBoltDetected,
+            FasteningHead.Shooting => InputIo.ShootingFeederBoltDetected,
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
+        var changed = new AsyncAutoResetEvent();
 
         void OnSupplyInputChanged(InputIo input, bool value)
         {
-            var relevant = head switch
-            {
-                FasteningHead.Pickup => input == InputIo.PickupFeederBoltDetected,
-                FasteningHead.Shooting => input is InputIo.ShootingFeederBoltDetected
-                    or InputIo.ShootingHeadVacuumDetected
-                    or InputIo.ShootingTubeBoltDetected
-                    or InputIo.ShootingHeadUp
-                    or InputIo.ShootingHeadDown
-                    or InputIo.ShootingEscapeForward
-                    or InputIo.ShootingEscapeBackward,
-                _ => false,
-            };
-            if (relevant)
+            if (input == boltDetected)
                 changed.Set();
         }
 
@@ -530,7 +507,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            while (WaitingForSupply())
+            while (!_io.GetInput(boltDetected))
             {
                 await changed.WaitAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -850,30 +827,33 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     await SetPickupTableDownAsync(false, cancellationToken);
                 }
                 if (ShootingHeadPosition != BoltCylinderState.Up
-                    && (!IsAt(bolt) || feeding && !ShootingBoltLoaded))
+                    && (!IsAt(bolt) || feeding && PendingResult is null))
                     await ClearHeadAsync(FasteningHead.Shooting, cancellationToken);
-                if (feeding && ShootingTubeBoltDetected)
-                    await WaitForShootingTubeClearAsync(cancellationToken);
-                if (!IsAt(bolt))
-                {
+                var moveRequired = !IsAt(bolt);
+                var shootRequired = feeding && PendingResult is null;
+                if (moveRequired || shootRequired)
                     await RaiseCylindersAsync(cancellationToken);
-                    await MoveToBoltAsync(bolt, cancellationToken);
-                }
 
-                if (feeding && PendingResult is null && !ShootingBoltLoaded)
+                using var preparation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var moving = moveRequired ? MoveToBoltAsync(bolt, preparation.Token) : Task.CompletedTask;
+                var shooting = shootRequired ? ShootBoltAsync(preparation.Token) : Task.CompletedTask;
+                var prepared = Task.WhenAll(moving, shooting);
+                try
                 {
-                    if (ShootingEscape == BoltEscapeState.Backward)
-                        await WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken);
-                    // Late head feedback can complete feeding while waiting for the feeder.
-                    if (ShootingTubeBoltDetected)
-                        await WaitForShootingTubeClearAsync(cancellationToken);
-                    if (!ShootingBoltLoaded)
+                    // Observe either failure immediately instead of waiting for the other operation.
+                    var completed = await Task.WhenAny(moving, shooting);
+                    await completed;
+                    await prepared;
+                }
+                finally
+                {
+                    try
                     {
-                        if (ShootingHeadPosition != BoltCylinderState.Up)
-                            await RaiseCylindersAsync(cancellationToken);
-                        if (ShootingEscape != BoltEscapeState.Forward)
-                            await SetShootingEscapeForwardAsync(true, cancellationToken);
-                        await ShootBoltAsync(cancellationToken);
+                        preparation.Cancel();
+                    }
+                    finally
+                    {
+                        await prepared;
                     }
                 }
                 if (feeding)
@@ -969,7 +949,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     && PickupTablePosition == BoltCylinderState.Up
                     && IsAt(shooting, live)
                     && ShootingHeadPosition == BoltCylinderState.Up
-                    && !ShootingBoltLoaded && !ShootingTubeBoltDetected
+                    && !ShootingTubeBoltDetected
                     && ShootingEscape == BoltEscapeState.Backward
                     && _shootingFeeder.State != BoltFeederState.BoltReady
                     ? BoltFasteningState.WaitingForShootingFeeder

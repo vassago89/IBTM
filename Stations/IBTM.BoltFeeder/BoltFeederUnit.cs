@@ -57,16 +57,6 @@ public sealed class BoltFeederUnit : AutoUnit
                     switch (state)
                     {
                         case BoltFeederState.WaitingForBolt:
-                            if (_head == FasteningHead.Shooting
-                                && (_io.GetOutput(OutputIo.ShootingEscapeForward)
-                                    || !_io.GetInput(InputIo.ShootingEscapeBackward)
-                                    || _io.GetInput(InputIo.ShootingEscapeForward)))
-                            {
-                                SetFeeding(false);
-                                TraceStep(state, _boltDetected.ToString(), waitingFor: "shooting escape retracted");
-                                await WaitForChangeAsync(cancellationToken);
-                                break;
-                            }
                             SetFeeding(true);
                             await _io.WaitForInputAsync(_boltDetected, true, TimeoutMilliseconds, cancellationToken);
                             break;
@@ -116,9 +106,7 @@ public sealed class BoltFeederUnit : AutoUnit
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input == _boltDetected
-            || _head == FasteningHead.Shooting
-                && input is InputIo.ShootingEscapeForward or InputIo.ShootingEscapeBackward)
+        if (input == _boltDetected)
         {
             Changed?.Invoke();
         }

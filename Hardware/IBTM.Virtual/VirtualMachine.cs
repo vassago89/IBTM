@@ -420,10 +420,7 @@ public sealed class VirtualMachine
             () =>
             {
                 if (_shootingFeederVersion == version
-                    && !_io.GetOutput(OutputIo.ShootingFeederOff)
-                    && !_io.GetOutput(OutputIo.ShootingEscapeForward)
-                    && _io.GetInput(InputIo.ShootingEscapeBackward)
-                    && !_io.GetInput(InputIo.ShootingEscapeForward))
+                    && !_io.GetOutput(OutputIo.ShootingFeederOff))
                 {
                     _io.SetInput(InputIo.ShootingFeederBoltDetected, true);
                 }

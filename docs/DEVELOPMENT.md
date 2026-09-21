@@ -204,7 +204,10 @@ Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 �
 대기는 Heat Sink 1의 첫 슈팅 볼트 XY·Safe Z다. 백업 플레이트가 상승해 캐리어가 착좌되면 체결 Z로 내려간다.
 모든 Heat Sink의 슈팅 체결이 끝날 때까지 픽업 테이블을 상승 상태로 유지한다.
 슈팅 피더 DO 045는 `Shooting Feeder OFF (Linear)`다. ON은 공급 정지, OFF는 공급 허용이다.
-볼트 준비·이스케이프 전진/후진 중에는 ON을 유지하고, 후진 완료 후 볼트가 없을 때만 OFF로 재공급한다. 장비 STOP도 ON이다.
+독립 피더 루프가 볼트 감지 OFF이면 DO 045를 OFF로 공급하고, 감지 ON이면 DO 045를 ON으로 정지한다. 이스케이프 위치와 무관하며 장비 STOP도 ON이다.
+슈팅 공급은 이스케이프 후진 확인 → 피더 볼트 준비 확인 → 전진 → 발사·튜브 통과 감지·도착 시간 대기 → 후진 순서다.
+슈팅 포인트 이동과 볼트 보내기는 병렬로 수행하고, 이동·도착 대기가 모두 끝나야 체결한다. 한쪽 실패나 STOP 시 양쪽 작업을 취소·회수한다.
+헤드 진공 신호로 볼트 공급을 생략하지 않으며, 다른 헤드·이스케이프 신호가 바뀌어도 피더 준비 대기를 완료하지 않는다.
 슈팅 완료 후 헤드 상승 → Safe Z → 픽업 테이블 하강 확인 → Pickup XY → 피더 볼트 준비 확인 → 헤드 하강 → Pickup Z → 볼트 취득 →
 Safe Z → 헤드 상승 → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다.
 별도의 가체결·본체결 패스는 없다. 슈팅·픽업 모두 프리셋 1번으로 고정하며, 레시피에는 프리셋 속성이 없다.
@@ -212,9 +215,9 @@ Safe Z → 헤드 상승 → 볼트 XY → Pickup Head Fastening Z → 1회 체�
 | 체결 상태 | 동작 / 완료 기준 |
 | --- | --- |
 | `MovingToStandby` → `Waiting` | 헤드 상승 → Safe Z → 픽업 테이블 상승 확인 → 첫 슈팅 볼트 XY → 착좌 대기 |
-| `FasteningPcb` | 테이블 상승 확인 → 볼트 위치 → 공급·튜브 통과 확인 → 체결 → 헤드·이동 Z 복귀 |
+| `FasteningPcb` | 테이블·헤드 상승 확인 → 볼트 위치 이동과 공급·도착 대기 병렬 수행 → 체결 → 헤드·Safe Z 복귀 |
 | `FasteningPickup` | Safe Z → 테이블 하강 → Pickup XY → 볼트 준비 확인 → 헤드 하강·Pickup Z → 볼트 취득 → Safe Z·헤드 상승 → 체결 위치 → 체결·복귀 |
-| `WaitingForShootingFeeder` / `WaitingForPickupFeeder` | 슈팅은 공급·헤드 피드백을 재확인한다. 픽업은 Safe Z·헤드 상승 상태에서 피더 볼트 감지를 기다린다. Repeat·피더 OFF는 공급 대기를 생략한다. |
+| `WaitingForShootingFeeder` / `WaitingForPickupFeeder` | 각 피더의 볼트 감지를 기다린다. 픽업은 Safe Z·헤드 상승 상태에서 기다린다. Repeat·피더 OFF는 공급 대기를 생략한다. |
 | `CompletingCarrier` | 모든 결과와 헤드·Z 복귀 확인 후 작업 완료 |
 
 
