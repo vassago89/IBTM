@@ -249,6 +249,38 @@ public sealed class BoltFasteningTests
         Assert.Contains(input.GetDescription(), error.Message);
         Assert.Contains("timeout (50 ms)", error.Message);
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
+        Assert.False(io.GetOutput(OutputIo.ShootingEscapeForward));
+        Assert.True(io.GetInput(InputIo.ShootingEscapeBackward));
+    }
+
+    [Fact]
+    public async Task CancellingEscapeAdvanceReturnsItBackward()
+    {
+        var settings = new BoltFasteningSettings();
+        var io = new VirtualIoService(new BoltFasteningHardwareSettings().Outputs, new())
+        { AutoResponseEnabled = false };
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        var bus = new VirtualAdcBus();
+        var station = VirtualTest.CreateFastening(
+            new AdcBoltHead(bus, new(), 2, "Virtual", 115200),
+            new AdcBoltHead(bus, new(), 1, "Virtual", 115200), io, motion, settings, new());
+        io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+        io.SetInput(InputIo.ShootingEscapeBackward, true);
+        using var stop = new CancellationTokenSource();
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.ShootingEscapeForward)
+                return;
+            io.SetInput(InputIo.ShootingEscapeBackward, !on);
+            if (on)
+                stop.Cancel(); // Cancel before Forward completion feedback arrives.
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => station.ShootBoltAsync(stop.Token));
+
+        Assert.False(io.GetOutput(OutputIo.ShootingEscapeForward));
+        Assert.True(io.GetInput(InputIo.ShootingEscapeBackward));
+        Assert.False(io.GetOutput(OutputIo.ShootBolt));
     }
 
     [Theory]
@@ -334,6 +366,8 @@ public sealed class BoltFasteningTests
         {
             if (output == OutputIo.ShootingFeederOff && !value)
             {
+                Assert.True(io.GetInput(InputIo.ShootingEscapeBackward));
+                Assert.False(io.GetInput(InputIo.ShootingEscapeForward));
                 Interlocked.Increment(ref runCount);
             }
         };
@@ -346,36 +380,42 @@ public sealed class BoltFasteningTests
         };
 
         io.Initialize();
+        // Starting the independent feeder must also return an escape left forward.
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true);
         feeder.Stop();
         Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
         using var cancellation = new CancellationTokenSource();
         var run = feeder.RunAsync(cancellation.Token);
-        var firstBolt = await WaitUntilAsync(
-            () => runCount == 1
-                && feeder.State == BoltFeederState.BoltReady
-                && io.GetOutput(OutputIo.ShootingFeederOff),
-            TimeSpan.FromSeconds(1));
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true);
-        // The independent feeder refills as soon as detection clears, even while escape is forward.
-        Assert.True(await WaitUntilAsync(
-            () => runCount == 2 && !io.GetOutput(OutputIo.ShootingFeederOff),
-            TimeSpan.FromSeconds(1)));
-        var nextBolt = await WaitUntilAsync(
-            () => runCount == 2
-                && refillCount == 2
-                && feeder.State == BoltFeederState.BoltReady
-                && io.GetOutput(OutputIo.ShootingFeederOff),
-            TimeSpan.FromSeconds(1));
-        Assert.True(io.GetInput(InputIo.ShootingEscapeForward));
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false);
-        Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
-        Assert.Equal(2, runCount);
-
-        cancellation.Cancel();
-        await run;
-
-        Assert.True(firstBolt);
-        Assert.True(nextBolt);
+        try
+        {
+            Assert.True(await WaitUntilAsync(
+                () => runCount == 1
+                    && feeder.State == BoltFeederState.BoltReady
+                    && io.GetOutput(OutputIo.ShootingFeederOff),
+                TimeSpan.FromSeconds(1)));
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true);
+            // No replenishment or refill timeout while escape is sending the current bolt.
+            await Task.Delay(600);
+            Assert.False(run.IsCompleted);
+            Assert.Equal(BoltFeederState.WaitingForEscapeBackward, feeder.State);
+            Assert.False(io.GetInput(InputIo.ShootingFeederBoltDetected));
+            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
+            Assert.Equal(1, runCount);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false);
+            Assert.True(await WaitUntilAsync(
+                () => runCount == 2
+                    && refillCount == 2
+                    && feeder.State == BoltFeederState.BoltReady
+                    && io.GetOutput(OutputIo.ShootingFeederOff),
+                TimeSpan.FromSeconds(1)));
+            Assert.True(io.GetInput(InputIo.ShootingEscapeBackward));
+            Assert.False(io.GetOutput(OutputIo.ShootingEscapeForward));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await run;
+        }
         Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
     }
 

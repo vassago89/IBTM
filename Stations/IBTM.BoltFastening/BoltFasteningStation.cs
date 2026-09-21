@@ -231,14 +231,15 @@ public sealed partial class BoltFasteningStation : AutoUnit
             await SetShootingEscapeForwardAsync(false, cancellationToken);
         await WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken);
         await WaitForShootingTubeClearAsync(cancellationToken);
-        await SetShootingEscapeForwardAsync(true, cancellationToken);
-        _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
         using var passage = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var boltPassed = _io.WaitForInputAsync(
-            InputIo.ShootingTubeBoltDetected, true, _settings.ShootingDetectionTimeoutMilliseconds, passage.Token);
+        Task? boltPassed = null;
         Exception? failure = null;
         try
         {
+            await SetShootingEscapeForwardAsync(true, cancellationToken);
+            _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
+            boltPassed = _io.WaitForInputAsync(
+                InputIo.ShootingTubeBoltDetected, true, _settings.ShootingDetectionTimeoutMilliseconds, passage.Token);
             cancellationToken.ThrowIfCancellationRequested();
             _io.SetOutput(OutputIo.ShootBolt, true);
             await boltPassed;
@@ -264,7 +265,8 @@ public sealed partial class BoltFasteningStation : AutoUnit
             finally
             {
                 passage.Cancel();
-                await boltPassed.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                if (boltPassed is not null)
+                    await boltPassed.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             }
         }
     }
@@ -310,14 +312,25 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
     public void StopShooting(Exception? operationFailure = null)
     {
+        Exception? cleanupFailure = null;
         try
         {
             _io.SetOutput(OutputIo.ShootBolt, false);
         }
-        catch (Exception cleanupFailure) when (operationFailure is not null)
+        catch (Exception exception)
         {
-            throw new AggregateException(operationFailure, cleanupFailure);
+            cleanupFailure = exception;
         }
+        try
+        {
+            _io.SetOutput(OutputIo.ShootingEscapeForward, false);
+        }
+        catch (Exception exception)
+        {
+            cleanupFailure = cleanupFailure is null ? exception : new AggregateException(cleanupFailure, exception);
+        }
+        if (cleanupFailure is not null)
+            throw operationFailure is null ? cleanupFailure : new AggregateException(operationFailure, cleanupFailure);
     }
 
     public void StopIoStart(FasteningHead head)

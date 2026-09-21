@@ -25,6 +25,7 @@ public sealed class BoltFeederUnit : AutoUnit
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
         io.InputChanged += OnInputChanged;
+        io.OutputChanged += OnOutputChanged;
     }
 
     public override event Action? Changed;
@@ -36,6 +37,11 @@ public sealed class BoltFeederUnit : AutoUnit
     {
         get
         {
+            if (_head == FasteningHead.Shooting
+                && (_io.GetOutput(OutputIo.ShootingEscapeForward)
+                    || !_io.GetInput(InputIo.ShootingEscapeBackward)
+                    || _io.GetInput(InputIo.ShootingEscapeForward)))
+                return BoltFeederState.WaitingForEscapeBackward;
             return _io.GetInput(_boltDetected)
                 ? BoltFeederState.BoltReady
                 : BoltFeederState.WaitingForBolt;
@@ -50,6 +56,9 @@ public sealed class BoltFeederUnit : AutoUnit
             BeginRun();
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_head == FasteningHead.Shooting)
+                    _io.SetOutput(OutputIo.ShootingEscapeForward, false);
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     var state = State;
@@ -58,8 +67,21 @@ public sealed class BoltFeederUnit : AutoUnit
                     {
                         case BoltFeederState.WaitingForBolt:
                             SetFeeding(true);
-                            await _io.WaitForInputAsync(_boltDetected, true, TimeoutMilliseconds, cancellationToken);
+                            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                            {
+                                timeout.CancelAfter(TimeoutMilliseconds);
+                                try
+                                {
+                                    while (State == BoltFeederState.WaitingForBolt)
+                                        await WaitForChangeAsync(timeout.Token);
+                                }
+                                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                                {
+                                    throw new IoTimeoutException(_boltDetected, true, TimeoutMilliseconds);
+                                }
+                            }
                             break;
+                        case BoltFeederState.WaitingForEscapeBackward:
                         case BoltFeederState.BoltReady:
                             SetFeeding(false);
                             await WaitForChangeAsync(cancellationToken);
@@ -106,9 +128,17 @@ public sealed class BoltFeederUnit : AutoUnit
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input == _boltDetected)
+        if (input == _boltDetected
+            || _head == FasteningHead.Shooting
+                && input is InputIo.ShootingEscapeForward or InputIo.ShootingEscapeBackward)
         {
             Changed?.Invoke();
         }
+    }
+
+    private void OnOutputChanged(OutputIo output, bool value)
+    {
+        if (_head == FasteningHead.Shooting && output == OutputIo.ShootingEscapeForward)
+            Changed?.Invoke();
     }
 }
