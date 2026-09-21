@@ -353,25 +353,11 @@ public partial class OperationViewModel : ObservableObject
         }
         if (!_pcbHistoryLoaded && LoadOlderPcbsCommand.CanExecute(null))
             LoadOlderPcbsCommand.Execute(null);
-        OnPropertyChanged(nameof(PcbSupplyMapLeft));
-        OnPropertyChanged(nameof(PcbSupplyMapTop));
-        OnPropertyChanged(nameof(PcbPlacementMapLeft));
-        OnPropertyChanged(nameof(PcbPlacementMapTop));
-        OnPropertyChanged(nameof(ShootingHeadMapLeft));
-        OnPropertyChanged(nameof(ShootingHeadMapTop));
-        OnPropertyChanged(nameof(PickupHeadMapLeft));
-        OnPropertyChanged(nameof(PickupHeadMapTop));
-        OnPropertyChanged(nameof(InspectionGantryMapLeft));
-        OnPropertyChanged(nameof(InspectionGantryMapTop));
-        OnPropertyChanged(nameof(NgPickupMapLeft));
-        OnPropertyChanged(nameof(NgPickupMapTop));
         OnMachineStateChanged(this, new(null));
         OnRecipeChanged();
         OnPropertyChanged(nameof(ConveyorState));
         OnPropertyChanged(nameof(Conveyor));
         OnPropertyChanged(nameof(Units));
-        OnPropertyChanged(nameof(BoltPickupFeederMapLeft));
-        OnPropertyChanged(nameof(BoltPickupFeederMapTop));
         OnPropertyChanged(nameof(SafetyBypass));
     }
 
@@ -611,6 +597,20 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnRecipeChanged()
     {
+        OnPropertyChanged(nameof(PcbSupplyMapLeft));
+        OnPropertyChanged(nameof(PcbSupplyMapTop));
+        OnPropertyChanged(nameof(PcbPlacementMapLeft));
+        OnPropertyChanged(nameof(PcbPlacementMapTop));
+        OnPropertyChanged(nameof(ShootingHeadMapLeft));
+        OnPropertyChanged(nameof(ShootingHeadMapTop));
+        OnPropertyChanged(nameof(PickupHeadMapLeft));
+        OnPropertyChanged(nameof(PickupHeadMapTop));
+        OnPropertyChanged(nameof(InspectionGantryMapLeft));
+        OnPropertyChanged(nameof(InspectionGantryMapTop));
+        OnPropertyChanged(nameof(NgPickupMapLeft));
+        OnPropertyChanged(nameof(NgPickupMapTop));
+        OnPropertyChanged(nameof(BoltPickupFeederMapLeft));
+        OnPropertyChanged(nameof(BoltPickupFeederMapTop));
         OnPcbSupplyChanged();
         OnPcbPlacementChanged();
         OnBoltFasteningChanged();

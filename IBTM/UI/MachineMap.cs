@@ -230,7 +230,38 @@ public sealed class MachineMap
     {
         var first = _carrier.UpperLeftLocatingPin!;
         var second = _carrier.LowerRightLocatingPin!;
-        return FromTwoPoints(x, y, (first.X, first.Y), (second.X, second.Y), upperLeft, lowerRight);
+        // Locating pins are reference positions, not the outside edges of the carrier.
+        // Fit the whole taught carrier, independently of live position, active head and presence sensors.
+        var minX = Math.Min(first.X, second.X);
+        var maxX = Math.Max(first.X, second.X);
+        var minY = Math.Min(first.Y, second.Y);
+        var maxY = Math.Max(first.Y, second.Y);
+        foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
+        {
+            if (bolt is not { X: { } boltX, Y: { } boltY })
+                continue;
+            minX = Math.Min(minX, boltX);
+            maxX = Math.Max(maxX, boltX);
+            minY = Math.Min(minY, boltY);
+            maxY = Math.Max(maxY, boltY);
+        }
+        foreach (var fov in _recipes.Current.CarrierImages)
+        {
+            minX = Math.Min(minX, fov.Center.X);
+            maxX = Math.Max(maxX, fov.Center.X);
+            minY = Math.Min(minY, fov.Center.Y);
+            maxY = Math.Max(maxY, fov.Center.Y);
+        }
+        // Keep the carrier centre fixed so adding an outer bolt does not shift the HS1/HS2 boundary.
+        var centerX = (first.X + second.X) / 2;
+        var centerY = (first.Y + second.Y) / 2;
+        var halfWidth = Math.Max(centerX - minX, maxX - centerX);
+        var halfHeight = Math.Max(centerY - minY, maxY - centerY);
+        var sourceFirst = (centerX + (first.X <= second.X ? -halfWidth : halfWidth),
+            centerY + (first.Y <= second.Y ? -halfHeight : halfHeight));
+        var sourceSecond = (centerX + (first.X <= second.X ? halfWidth : -halfWidth),
+            centerY + (first.Y <= second.Y ? halfHeight : -halfHeight));
+        return FromTwoPoints(x, y, sourceFirst, sourceSecond, upperLeft, lowerRight);
     }
 
     private (double X, double Y) MapNgPickup(double x, double y)
@@ -246,10 +277,10 @@ public sealed class MachineMap
         var pickupSide = pickup is null ? 0 : MachinePlan.GetSide((pickup.X, pickup.Y), first, second);
         var shuttleSide = MachinePlan.GetSide((shuttle.X, shuttle.Y), first, second);
         var cameraUpperLeft = MachinePlan.Offset(
-            MachinePlan.InspectionUpperLeft,
+            MapCarrier(first.X, first.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight),
             MachinePlan.CameraCenter);
         var cameraLowerRight = MachinePlan.Offset(
-            MachinePlan.InspectionLowerRight,
+            MapCarrier(second.X, second.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight),
             MachinePlan.CameraCenter);
 
         if (pickup is not null && pickupSide * shuttleSide < 0)
