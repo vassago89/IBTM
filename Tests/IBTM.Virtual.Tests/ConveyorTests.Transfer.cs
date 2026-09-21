@@ -457,7 +457,10 @@ public sealed partial class ConveyorTests
         io.Initialize();
         await SetSeatedCarrierAsync(
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningStopperUp, true);
+        Assert.True(source.Station.CarrierSeated);
         source.Complete(source.CurrentJob);
+        Assert.True(source.IsTransferAllowed);
         io.AutoResponseEnabled = false;
         var inspectionWaiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         conveyor.Trace += message =>
@@ -485,6 +488,12 @@ public sealed partial class ConveyorTests
             io.SetInputs(
                 (InputIo.BoltFasteningBackupPlateUp, false),
                 (InputIo.BoltFasteningBackupPlateDown, true));
+            Assert.False(io.GetOutput(OutputIo.BoltFasteningStopperUp));
+            Assert.True(io.GetInput(InputIo.BoltFasteningStopperUp));
+            Assert.False(conveyor.RunCommandOn);
+            io.SetInputs(
+                (InputIo.BoltFasteningStopperUp, false),
+                (InputIo.BoltFasteningStopperDown, true));
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
             io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
             Assert.Equal(MainConveyorState.MovingBoltFasteningToInspection, conveyor.State);

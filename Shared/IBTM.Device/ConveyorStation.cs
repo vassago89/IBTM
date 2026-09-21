@@ -106,8 +106,7 @@ public sealed class ConveyorStation
         get
         {
             return CarrierPresent
-                && BackupPlate == StationCylinderState.Up
-                && Stopper == StationCylinderState.Down;
+                && BackupPlate == StationCylinderState.Up;
         }
     }
 

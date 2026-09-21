@@ -46,7 +46,7 @@ public abstract partial class StationWork
 
     public virtual bool HasNg => Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
 
-    public virtual bool IsTransferAllowed => Station.CarrierPresent && Completed && Station.Stopper == StationCylinderState.Down;
+    public virtual bool IsTransferAllowed => Station.CarrierPresent && Completed;
 
     public HeatSinkAssembly GetAssembly(HeatSinkSlot heatSink)
     {

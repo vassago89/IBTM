@@ -381,6 +381,18 @@ public sealed partial class ConveyorTests
         Assert.True(io.GetOutput(stopper));
         Assert.Equal(StationCylinderState.Up, station.Stopper);
 
+        var carrier = output switch
+        {
+            OutputIo.PcbPlacementBackupPlateUp => InputIo.PcbPlacementHeatSink1Present,
+            OutputIo.BoltFasteningBackupPlateUp => InputIo.BoltFasteningHeatSink1Present,
+            _ => InputIo.InspectionHeatSink1Present,
+        };
+        io.SetInput(carrier, true);
+        Assert.False(station.CarrierSeated);
+        await ((IIoService)io).SetOutputAndWaitAsync(output, true);
+        Assert.Equal(StationCylinderState.Up, station.Stopper);
+        Assert.True(station.CarrierSeated);
+
         await station.SeatAsync(CancellationToken.None);
         Assert.True(io.GetOutput(output));
         Assert.Equal(StationCylinderState.Up, station.BackupPlate);

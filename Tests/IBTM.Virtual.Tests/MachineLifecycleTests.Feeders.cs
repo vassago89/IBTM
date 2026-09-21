@@ -65,6 +65,8 @@ public sealed partial class MachineLifecycleTests
         state.RepeatEnabled = repeat;
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
+        // Standalone fastening starts from plate UP even if the stopper is still UP.
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningStopperUp, true);
         gantry.Feedback.PositionChanged += (x, y, _) =>
         {
             if (Math.Abs(x - settings.BoltFastening.PickupPosition.X) < 0.01
