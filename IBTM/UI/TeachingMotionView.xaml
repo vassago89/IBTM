@@ -243,7 +243,7 @@
                 ToolTip="Record the current coordinates for this point only. Inspection points also record their teaching image. The axes must be homed and stopped. See the saving instructions below."
                 ToolTipService.ShowOnDisabled="True"
                 Style="{StaticResource PrimaryButtonStyle}" Padding="8,7" Margin="0,0,3,0"/>
-            <Button Grid.Column="1" Content="Move to Position"
+            <ui:MoveToPositionButton Grid.Column="1" Content="Move to Position"
                 Command="{Binding MoveToPointCommand}"
                 Style="{StaticResource SecondaryButtonStyle}" Padding="8,7" Margin="3,0,0,0"
                 ToolTip="Move to the selected position using its teaching coordinates and the configured axis speed. See the movement sequence below."/>

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
@@ -14,15 +15,13 @@ public sealed class RecordPositionButton : Button
         var replacement = point.Position.Mode == TeachMode.Image
             ? "This will replace this point's teaching coordinates and image."
             : "This will replace this point's teaching coordinates.";
-        var result = MessageBox.Show(
+        var confirmed = WarningDialog.Confirm(
             Window.GetWindow(this),
-            $"Record the current axis position for \"{point.Name}\"?\n\n"
-                + $"Recorded position: {point.PositionLabel}\n\n{replacement}",
-            "Record Position",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning,
-            MessageBoxResult.Cancel);
-        if (result != MessageBoxResult.OK
+            "Overwrite teaching position?",
+            $"{replacement}\nCheck the selected point and current axis position before recording.",
+            $"Unit    {teaching.SelectedTeachingUnit.GetDescription()}\nPoint   {point.Name}\nStored  {point.PositionLabel} mm",
+            "Record Position");
+        if (!confirmed
             || !IsEnabled
             || !ReferenceEquals(DataContext, teaching)
             || !ReferenceEquals(teaching.SelectedPoint, point))

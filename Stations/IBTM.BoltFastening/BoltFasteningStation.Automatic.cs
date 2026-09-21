@@ -324,6 +324,7 @@ public sealed partial class BoltFasteningStation
                 "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
                 bolt.Head, bolt.HeatSink, bolt.Number, head.GetType().Name, dryRunMilliseconds);
             var completed = await head.TightenAsync(fastening.Token, LowerHeadWhileFasteningAsync, dryRunMilliseconds);
+            completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };
             _log?.LogInformation(
                 "Bolt {Head}, {HeatSink}, point {Bolt}: cycle completed; success={Success}, source={Source}, error={Error}.",
                 bolt.Head, bolt.HeatSink, bolt.Number, completed.Success, completed.Source, completed.Error);

@@ -61,11 +61,61 @@ public sealed partial class MachineStore
             {
                 var record = JsonSerializer.Deserialize<PcbRecord>(reader.GetString(1))
                     ?? throw new InvalidDataException($"PCB {reader.GetInt64(0)} has no result data.");
-                records.Add(record with { Number = reader.GetInt64(0) });
+                records.Add(record with { Number = reader.GetInt64(0), DatabaseFile = file });
             }
             if (records.Count == count)
                 break;
         }
         return records;
+    }
+
+    public void SavePcbImage(string databaseFile, long pcbNumber, PcbInspectionImage image)
+    {
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = databaseFile }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS PcbImages (
+                PcbNumber INTEGER NOT NULL, Target INTEGER NOT NULL,
+                Metadata TEXT NOT NULL, Png BLOB NOT NULL,
+                PRIMARY KEY (PcbNumber, Target))
+            """;
+        command.ExecuteNonQuery();
+        command.CommandText = """
+            INSERT INTO PcbImages (PcbNumber, Target, Metadata, Png) VALUES ($pcb, $target, $metadata, $png)
+            ON CONFLICT(PcbNumber, Target) DO UPDATE SET Metadata=excluded.Metadata, Png=excluded.Png
+            """;
+        command.Parameters.AddWithValue("$pcb", pcbNumber);
+        command.Parameters.AddWithValue("$target", image.BoltNumber ?? 0);
+        command.Parameters.AddWithValue("$metadata", JsonSerializer.Serialize(image));
+        command.Parameters.AddWithValue("$png", image.Png);
+        command.ExecuteNonQuery();
+    }
+
+    public IReadOnlyList<PcbInspectionImage> LoadPcbImages(PcbRecord record)
+    {
+        if (record.DatabaseFile is null)
+            return [];
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = record.DatabaseFile,
+            Mode = SqliteOpenMode.ReadOnly,
+        }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='PcbImages'";
+        if ((long)command.ExecuteScalar()! == 0)
+            return [];
+        command.CommandText = "SELECT Metadata, Png FROM PcbImages WHERE PcbNumber=$pcb ORDER BY Target";
+        command.Parameters.AddWithValue("$pcb", record.Number);
+        using var reader = command.ExecuteReader();
+        var images = new List<PcbInspectionImage>();
+        while (reader.Read())
+        {
+            var image = JsonSerializer.Deserialize<PcbInspectionImage>(reader.GetString(0))
+                ?? throw new InvalidDataException($"PCB {record.Number} has invalid inspection image metadata.");
+            images.Add(image with { Png = (byte[])reader[1] });
+        }
+        return images;
     }
 }

@@ -23,9 +23,27 @@ public partial class OperationViewModel
     public ObservableCollection<PcbRecord> PcbRecords { get; }
     public IAsyncRelayCommand LoadOlderPcbsCommand { get; }
     public IRelayCommand ClosePcbDetailsCommand { get; }
+    public PcbDetailsViewModel PcbDetails { get; }
 
     [ObservableProperty]
     public partial PcbRecord? SelectedPcb { get; set; }
+
+    partial void OnSelectedPcbChanged(PcbRecord? value)
+    {
+        PcbDetails.Record = value;
+    }
+
+    private void OnPcbImageSaved(long number)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => OnPcbImageSaved(number));
+            return;
+        }
+        if (SelectedPcb?.Number == number)
+            PcbDetails.RefreshImages();
+    }
 
     [ObservableProperty]
     public partial string? PcbHistoryError { get; private set; }

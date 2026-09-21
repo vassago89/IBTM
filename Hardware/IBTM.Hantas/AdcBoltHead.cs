@@ -233,7 +233,15 @@ public sealed class AdcBoltHead : IBoltHead
                 ? $"ADC {_portName}/{_slaveAddress} controller error: {completed.Error}; event={completed.EventCount}, status={completed.Status}."
                 : null;
             return new BoltResult(completed.Status == AdcEventStatus.FasteningOk && error is null, completed.Torque,
-                Error: error);
+                Error: error)
+            {
+                RecordedAt = DateTimeOffset.Now,
+                Controller = new(_portName, _slaveAddress, completed.EventCount,
+                    completed.FasteningTimeMilliseconds, completed.Preset, completed.TargetTorque,
+                    completed.TargetSpeedRpm, completed.Angle1, completed.Angle2, completed.Angle3,
+                    completed.ScrewCount, completed.Error, (ushort)completed.Direction, (ushort)completed.Status,
+                    completed.SnugAngle, completed.Registers),
+            };
         }
 
         throw new InvalidOperationException("ADC fastening ended without a result.");

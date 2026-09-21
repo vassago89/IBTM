@@ -144,14 +144,15 @@ public sealed partial class InspectionStation
         }
     }
 
-    internal async Task<string?> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
+    internal async Task<InspectionCapture> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
     {
         var image = await CaptureBarcodeAsync(pcb, cancellationToken);
+        var capturedAt = DateTimeOffset.Now;
         var region = GetBarcodeFov(pcb).Region!;
         InspectionCaptured?.Invoke(image, pcb, null);
         var text = await Task.Run(() => DataMatrixReader.Read(image, region), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        return text;
+        return new(null, capturedAt, image, region, !string.IsNullOrEmpty(text), Barcode: text);
     }
 
     public bool HasPosition(BoltPoint point)
@@ -229,19 +230,21 @@ public sealed partial class InspectionStation
         return await CaptureCurrentAsync(cancellationToken);
     }
 
-    internal async Task<bool> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
+    internal async Task<InspectionCapture> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
         var image = await CaptureAsync(point, cancellationToken).ConfigureAwait(false);
+        var capturedAt = DateTimeOffset.Now;
         var region = GetFov(point).Region!;
         InspectionCaptured?.Invoke(image, point.HeatSink, point.Number);
         return await Task.Run(
             () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var present = Check(image, region, point).BrightRatio
-                    >= (point.MinimumBrightRatio ?? _recipes.Current.BoltInspection.MinimumBrightRatio);
+                var ratio = Check(image, region, point).BrightRatio;
+                var minimum = point.MinimumBrightRatio ?? _recipes.Current.BoltInspection.MinimumBrightRatio;
                 cancellationToken.ThrowIfCancellationRequested();
-                return present;
+                return new InspectionCapture(point.Number, capturedAt, image, region, ratio >= minimum,
+                    BrightRatio: ratio, MinimumBrightRatio: minimum);
             },
             cancellationToken);
     }

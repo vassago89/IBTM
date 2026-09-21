@@ -36,6 +36,7 @@ public sealed class HeatSinkAssembly
     public long? PcbNumber { get; set; }
 
     public event Action<HeatSinkAssembly>? ResultsChanged;
+    public event Action<InspectionCapture>? InspectionCaptured;
 
     public IReadOnlyDictionary<int, BoltResult> PcbBoltResults => _pcbBoltResults;
 
@@ -108,5 +109,10 @@ public sealed class HeatSinkAssembly
             InspectionResult = AssemblyResult.Ok;
         }
         ResultsChanged?.Invoke(this);
+    }
+
+    public void RecordInspectionCapture(InspectionCapture capture)
+    {
+        InspectionCaptured?.Invoke(capture);
     }
 }

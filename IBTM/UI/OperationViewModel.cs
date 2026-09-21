@@ -63,6 +63,7 @@ public partial class OperationViewModel : ObservableObject
         InspectionStation inspectionStation,
         MachineStore store,
         PcbHistorySettings historySettings,
+        PcbDetailsViewModel pcbDetails,
         ILogger<OperationViewModel> log)
     {
         StartCommand = new AsyncRelayCommand(StartAsync);
@@ -76,6 +77,7 @@ public partial class OperationViewModel : ObservableObject
         _historySettings = historySettings;
         _pcbHistoryDirectory = historySettings.Directory;
         _log = log;
+        PcbDetails = pcbDetails;
         HasOlderPcbs = true;
 
         State = state;
@@ -107,6 +109,7 @@ public partial class OperationViewModel : ObservableObject
         Placement = placement;
         Fastening = fastening;
         machine.PcbHistory.Saved += OnPcbSaved;
+        machine.PcbHistory.ImageSaved += OnPcbImageSaved;
 
         supply.Motion.PropertyChanged += OnPcbSupplyMotionChanged;
         foreach (var axis in supply.Motion.Axes.Values)

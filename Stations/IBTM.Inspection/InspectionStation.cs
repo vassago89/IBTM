@@ -209,7 +209,8 @@ public sealed partial class InspectionStation : AutoUnit
                 var barcode = await ReadBarcodeAsync(pcb, operation.Token);
                 operation.Token.ThrowIfCancellationRequested();
                 _work.RequireCurrentJob(job);
-                assembly.PcbBarcode = barcode;
+                assembly.PcbBarcode = barcode.Barcode;
+                assembly.RecordInspectionCapture(barcode);
 
                 foreach (var bolt in bolts.Where(bolt => bolt.HeatSink == pcb).OrderBy(bolt => bolt.Number))
                 {
@@ -219,10 +220,11 @@ public sealed partial class InspectionStation : AutoUnit
                     NotifyChanged();
                     await WaitForTeachingAsync(pcb, bolt, operation.Token);
                     TraceStep(InspectionStationState.InspectingBolt, $"{pcb.GetDescription()} / Bolt {bolt.Number}", job.Id);
-                    var present = await InspectAsync(bolt, operation.Token);
+                    var capture = await InspectAsync(bolt, operation.Token);
                     operation.Token.ThrowIfCancellationRequested();
                     _work.RequireCurrentJob(job);
-                    assembly.RecordBoltPresence(bolt.Number, present);
+                    assembly.RecordBoltPresence(bolt.Number, capture.Success);
+                    assembly.RecordInspectionCapture(capture);
                 }
             }
 

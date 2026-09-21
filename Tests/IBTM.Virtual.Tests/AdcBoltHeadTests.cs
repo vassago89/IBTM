@@ -15,6 +15,42 @@ namespace IBTM.Virtual.Tests;
 public sealed class AdcBoltHeadTests
 {
     [Theory]
+    [InlineData(AdcEventStatus.FasteningOk, 0, true)]
+    [InlineData(AdcEventStatus.FasteningNg, 0, false)]
+    [InlineData(AdcEventStatus.Error, 42, false)]
+    public async Task FasteningRetainsEveryControllerResultRegister(AdcEventStatus status, ushort error, bool success)
+    {
+        ushort[] registers = [1, 1234, 3, 150, 147, 850, 3156, 19, 3175, 57, error, 0, (ushort)status, 123];
+        var received = AdcFasteningResult.FromRegisters(registers);
+        var bus = new AdcControllerStub();
+        bus.AutomaticResults.Enqueue(received);
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "COM10", 115200);
+
+        var result = await head.TightenAsync();
+
+        Assert.Equal(success, result.Success);
+        Assert.Equal(1.47, result.Torque);
+        Assert.NotNull(result.RecordedAt);
+        var data = Assert.IsType<BoltControllerData>(result.Controller);
+        Assert.Equal("COM10", data.Port);
+        Assert.Equal(1, data.SlaveAddress);
+        Assert.Equal(1, data.EventCount);
+        Assert.Equal(1234, data.FasteningTimeMilliseconds);
+        Assert.Equal(3, data.Preset);
+        Assert.Equal(1.5, data.TargetTorque);
+        Assert.Equal(850, data.TargetSpeedRpm);
+        Assert.Equal((3156.0, 19.0, 3175.0), (data.Angle1, data.Angle2, data.Angle3));
+        Assert.Equal((ushort)57, data.ScrewCount);
+        Assert.Equal(error, data.ErrorCode);
+        Assert.Equal((ushort)0, data.DirectionCode);
+        Assert.Equal((ushort)status, data.StatusCode);
+        Assert.Equal((ushort)123, data.SnugAngle);
+        Assert.Equal(registers, data.Registers);
+        registers[4] = 999;
+        Assert.Equal((ushort)147, data.Registers![4]);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(30)]
     public async Task FasteningAndDryRunWaitForMotorStopBeforeReturning(int dryRunMilliseconds)

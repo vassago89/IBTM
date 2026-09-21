@@ -64,6 +64,7 @@ public sealed class PcbHistoryTests
         var oldFile = Path.Combine(directory, "PCB-2026-09.db");
         var newFile = Path.Combine(directory, "PCB-2026-10.db");
         store.SavePcb(oldFile, first);
+        Assert.Empty(store.LoadPcbImages(first with { DatabaseFile = oldFile }));
         var second = first with { Number = store.NextPcbNumber(), CreatedAt = october, UpdatedAt = october };
         store.SavePcb(newFile, second);
         store.SavePcb(newFile, second with { Number = store.NextPcbNumber() });
@@ -73,7 +74,12 @@ public sealed class PcbHistoryTests
             FasteningResult = AssemblyResult.Ng, InspectionResult = AssemblyResult.Ng,
             PcbBoltResults = new System.Collections.Generic.Dictionary<int, BoltResult>
             {
-                [1] = new(false, 0.75, Error: "Controller error 42"),
+                [1] = new(false, 0.75, Error: "Controller error 42")
+                {
+                    RecordedAt = september,
+                    Controller = new("COM10", 1, 21, 876, 3, 1.2, 950, 3156, 19, 3175,
+                        9, 42, 0, 6, 87, [21, 876, 3, 120, 75, 950, 3156, 19, 3175, 9, 42, 0, 6, 87]),
+                },
             },
             PickupBoltResults = new System.Collections.Generic.Dictionary<int, BoltResult> { [2] = new(true, 1.2) },
             BoltPresenceResults = new System.Collections.Generic.Dictionary<int, bool> { [1] = false, [2] = true },
@@ -89,6 +95,10 @@ public sealed class PcbHistoryTests
         Assert.Equal("PCB-A", saved.PcbBarcode);
         Assert.Equal(AssemblyResult.Ng, saved.Result);
         Assert.Equal("Controller error 42", saved.PcbBoltResults[1].Error);
+        Assert.Equal(september, saved.PcbBoltResults[1].RecordedAt);
+        Assert.Equal(19, saved.PcbBoltResults[1].Controller!.Angle2);
+        Assert.Equal(new ushort[] { 21, 876, 3, 120, 75, 950, 3156, 19, 3175, 9, 42, 0, 6, 87 },
+            saved.PcbBoltResults[1].Controller!.Registers);
         Assert.Equal(1.2, saved.PickupBoltResults[2].Torque);
         Assert.False(saved.BoltPresenceResults[1]);
         Assert.Equal(2, Directory.GetFiles(directory, "*.db").Length);
@@ -122,6 +132,9 @@ public sealed class PcbHistoryTests
         Assert.Same(second, inspection.GetAssembly(HeatSinkSlot.HeatSink2));
         first.PcbBarcode = null;
         first.RecordBoltPresence(1, false);
+        first.RecordInspectionCapture(new(1, DateTimeOffset.Now,
+            new ImageFrame(2, 1, 6, [0, 0, 255, 0, 255, 0]), new PixelRegion(0, 0, 1, 1), false,
+            BrightRatio: 0.1, MinimumBrightRatio: 0.8));
         first.CompleteInspection();
         Assert.Equal(first.PcbNumber, view.SelectedPcb!.Number);
         Assert.Equal(AssemblyResult.Ng, view.SelectedPcb.PcbBarcodeResult);
@@ -131,6 +144,12 @@ public sealed class PcbHistoryTests
         await view.LoadOlderPcbsCommand.ExecuteAsync(null);
         Assert.Equal(3, view.PcbRecords.Count);
         Assert.Null(view.PcbHistoryError);
+        await view.PcbDetails.LoadImagesCommand.ExecuteAsync(null);
+        var image = Assert.Single(view.PcbDetails.Images);
+        Assert.Equal(1, image.Record.BoltNumber);
+        Assert.Equal(0.1, image.Record.BrightRatio);
+        Assert.Equal(2, image.Image.PixelWidth);
+        Assert.False(image.Record.Success);
         Assert.Equal(3, store.LoadPcbs(settings.PcbHistory.Directory).Count);
 
         var originalFolder = settings.PcbHistory.Directory;
@@ -154,6 +173,9 @@ public sealed class PcbHistoryTests
         Assert.Empty(restarted.GetRequiredService<PcbPlacementWork>().Assemblies);
         reopenedView.SelectedPcb = reopenedView.PcbRecords[^1];
         Assert.Equal("NG torque", reopenedView.SelectedPcb.PcbBoltResults[1].Error);
+        await reopenedView.PcbDetails.LoadImagesCommand.ExecuteAsync(null);
+        Assert.Single(reopenedView.PcbDetails.Images);
+        Assert.Empty(store.LoadPcbImages(reopenedView.PcbRecords[1]));
         await reopenedView.ShutdownAsync();
     }
 

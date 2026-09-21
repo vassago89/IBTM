@@ -298,6 +298,8 @@ public sealed record AdcFasteningResult(
     AdcEventStatus Status,
     ushort SnugAngle)
 {
+    public ushort[]? Registers { get; init; }
+
     private const ushort FirstRegister = (ushort)AdcResultRegister.EventCount;
     public const ushort RegisterCount = (ushort)((ushort)AdcResultRegister.SnugAngle - FirstRegister + 1);
     private const double RegisterScale = 100.0;
@@ -321,13 +323,16 @@ public sealed record AdcFasteningResult(
             ReadScaled(AdcResultRegister.TargetTorque),
             ReadScaled(AdcResultRegister.ConvertedTorque),
             Read(AdcResultRegister.TargetSpeed),
-            ReadScaled(AdcResultRegister.Angle1),
-            ReadScaled(AdcResultRegister.Angle2),
-            ReadScaled(AdcResultRegister.Angle3),
+            Read(AdcResultRegister.Angle1),
+            Read(AdcResultRegister.Angle2),
+            Read(AdcResultRegister.Angle3),
             Read(AdcResultRegister.ScrewCount),
             Read(AdcResultRegister.Error),
             (AdcDirection)Read(AdcResultRegister.Direction),
             (AdcEventStatus)Read(AdcResultRegister.Status),
-            Read(AdcResultRegister.SnugAngle));
+            Read(AdcResultRegister.SnugAngle))
+        {
+            Registers = (ushort[])values.Clone(),
+        };
     }
 }

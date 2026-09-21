@@ -404,6 +404,7 @@ public static class DependencyInjection
             .AddSingleton<MachineFeedbackMonitor>()
             .AddSingleton<MachineState>()
             .AddSingleton<PcbHistory>()
+            .AddSingleton<PcbDetailsViewModel>()
             .AddSingleton<MachineController>()
             .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
             .AddKeyedSingleton<BoltFeederUnit>(FasteningHead.Pickup,

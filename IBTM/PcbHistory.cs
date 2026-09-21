@@ -2,11 +2,13 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Windows.Media.Imaging;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.Storage;
+using IBTM.UI;
 
 namespace IBTM;
 
@@ -30,6 +32,7 @@ public sealed class PcbHistory
     }
 
     public event Action<PcbRecord>? Saved;
+    public event Action<long>? ImageSaved;
 
     private void OnAssemblyCreated(HeatSinkAssembly assembly)
     {
@@ -42,6 +45,7 @@ public sealed class PcbHistory
             assembly.PcbNumber = number;
             // Keep this PCB in its original file, even across midnight or a folder change.
             assembly.ResultsChanged += SaveResults;
+            assembly.InspectionCaptured += SaveImage;
             SaveResults(assembly);
 
             void SaveResults(HeatSinkAssembly source)
@@ -53,10 +57,27 @@ public sealed class PcbHistory
                         source.FasteningResult, source.InspectionResult,
                         source.PcbBoltResults.OrderBy(pair => pair.Key).ToDictionary(),
                         source.PickupBoltResults.OrderBy(pair => pair.Key).ToDictionary(),
-                        source.BoltPresenceResults.OrderBy(pair => pair.Key).ToDictionary());
+                        source.BoltPresenceResults.OrderBy(pair => pair.Key).ToDictionary())
+                    {
+                        DatabaseFile = file,
+                    };
                     _store.SavePcb(file, record);
                     Saved?.Invoke(record);
                 }
+            }
+
+            void SaveImage(InspectionCapture capture)
+            {
+                var bitmap = InspectionPreview.CreateBitmap(capture.Frame);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var output = new MemoryStream();
+                encoder.Save(output);
+                var image = new PcbInspectionImage(capture.BoltNumber, capture.CapturedAt, capture.Region,
+                    capture.Success, capture.Barcode, capture.BrightRatio, capture.MinimumBrightRatio, output.ToArray());
+                lock (_gate)
+                    _store.SavePcbImage(file, number, image);
+                ImageSaved?.Invoke(number);
             }
         }
     }

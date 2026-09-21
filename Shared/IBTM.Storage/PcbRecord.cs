@@ -20,6 +20,9 @@ public sealed record PcbRecord(
     IReadOnlyDictionary<int, bool> BoltPresenceResults)
 {
     [JsonIgnore]
+    public string? DatabaseFile { get; init; }
+
+    [JsonIgnore]
     public AssemblyResult Result => FasteningResult == AssemblyResult.Ng
         ? AssemblyResult.Ng : InspectionResult;
 }
