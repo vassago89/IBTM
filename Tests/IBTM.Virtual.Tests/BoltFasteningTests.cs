@@ -352,7 +352,7 @@ public sealed class BoltFasteningTests
     }
 
     [Fact]
-    public async Task ShootingFeederStopsAfterRunOnFromLatestDetection()
+    public async Task ShootingFeederRunsAfterEscapeBackwardWithoutRepeatedStopWrites()
     {
         var settings = new BoltFeederSettings();
         Assert.Equal(3_000, settings.ShootingRunOnMilliseconds);
@@ -360,27 +360,43 @@ public sealed class BoltFasteningTests
         settings.ShootingRunOnMilliseconds = 200;
         var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new())
         { AutoResponseEnabled = false };
-        io.SetInput(InputIo.ShootingEscapeBackward, true);
-        io.SetInput(InputIo.ShootingFeederBoltDetected, false);
-        var feeder = new BoltFeederUnit(FasteningHead.Shooting, io, settings);
+        io.SetInput(InputIo.ShootingEscapeForward, true);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+        io.SetOutput(OutputIo.ShootingEscapeForward, true);
+        io.SetOutput(OutputIo.ShootingFeederOff, true);
+        var physicalEvents = new FeederWriteNotifyingIo(io);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var feederWrites = 0;
+        physicalEvents.OutputChanged += (output, value) =>
+        {
+            if (output == OutputIo.ShootingFeederOff && Interlocked.Increment(ref feederWrites) >= 50)
+                stop.Cancel(); // Bound a self-waking regression instead of hanging the test.
+        };
+        var feeder = new BoltFeederUnit(FasteningHead.Shooting, physicalEvents, settings);
         var run = feeder.RunAsync(stop.Token);
         try
         {
-            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
-            io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+            Assert.False(run.IsCompleted);
+            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
+            var beforeReturn = Volatile.Read(ref feederWrites);
+            await Task.Delay(50);
+            Assert.Equal(beforeReturn, Volatile.Read(ref feederWrites));
+
+            // Detection is already ON: return to BACKWARD must still replenish for the full delay.
+            var returned = Stopwatch.StartNew();
+            io.SetInputs((InputIo.ShootingEscapeForward, false), (InputIo.ShootingEscapeBackward, true));
+            Assert.True(await WaitUntilAsync(() => !io.GetOutput(OutputIo.ShootingFeederOff),
+                TimeSpan.FromMilliseconds(100)));
             await Task.Delay(100);
-            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
-            // A short detection loss starts a fresh delay, even if the loop sees both edges together.
-            io.SetInput(InputIo.ShootingFeederBoltDetected, false);
-            io.SetInput(InputIo.ShootingFeederBoltDetected, true);
-            var detected = Stopwatch.StartNew();
-            await Task.Delay(120);
             Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
             Assert.True(await WaitUntilAsync(() => io.GetOutput(OutputIo.ShootingFeederOff),
                 TimeSpan.FromSeconds(1)));
-            Assert.True(detected.ElapsedMilliseconds >= 190);
+            Assert.True(returned.ElapsedMilliseconds >= 190);
             Assert.Equal(BoltFeederState.BoltReady, feeder.State);
+            var stoppedWrites = Volatile.Read(ref feederWrites);
+            await Task.Delay(50);
+            Assert.Equal(stoppedWrites, Volatile.Read(ref feederWrites));
+            Assert.False(run.IsCompleted);
         }
         finally
         {
@@ -1760,6 +1776,69 @@ public sealed class BoltFasteningTests
         Assert.Equal((destination.X, destination.Y, destination.Z), (point.Read().X, point.Read().Y, point.Read().Z));
         Assert.True(station.IsHorizontalMoveAllowed);
         Assert.False(motion.IsMoving);
+    }
+
+    // PhysicalIoService notifies every successful write, including an unchanged output.
+    private sealed class FeederWriteNotifyingIo : IIoService
+    {
+        private readonly VirtualIoService _inner;
+
+        public FeederWriteNotifyingIo(VirtualIoService inner)
+        {
+            _inner = inner;
+        }
+
+        public event Action<InputIo, bool>? InputChanged
+        {
+            add { _inner.InputChanged += value; }
+            remove { _inner.InputChanged -= value; }
+        }
+
+        public event Action<Exception>? Faulted
+        {
+            add { _inner.Faulted += value; }
+            remove { _inner.Faulted -= value; }
+        }
+
+        public event Action<OutputIo, bool>? OutputChanged;
+        public bool IsReady => _inner.IsReady;
+        public int TimeoutMilliseconds => _inner.TimeoutMilliseconds;
+
+        public void Initialize()
+        {
+            _inner.Initialize();
+        }
+
+        public void CheckReady()
+        {
+            _inner.CheckReady();
+        }
+
+        public void RefreshInputs()
+        {
+            _inner.RefreshInputs();
+        }
+
+        public bool GetInput(InputIo input)
+        {
+            return _inner.GetInput(input);
+        }
+
+        public bool GetOutput(OutputIo output)
+        {
+            return _inner.GetOutput(output);
+        }
+
+        public OutputFeedback? GetOutputFeedback(OutputIo output)
+        {
+            return _inner.GetOutputFeedback(output);
+        }
+
+        public void SetOutput(OutputIo output, bool value)
+        {
+            _inner.SetOutput(output, value);
+            OutputChanged?.Invoke(output, value);
+        }
     }
 
     private static BoltPoint Bolt(int number, FasteningHead head, double x, double y)

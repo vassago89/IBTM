@@ -13,8 +13,8 @@ public sealed class BoltFeederUnit : AutoUnit
     private readonly BoltFeederSettings _settings;
     private readonly FasteningHead _head;
     private readonly InputIo _boltDetected;
-    // Timing of the latest detection edge, not a remembered bolt-ready state.
-    private long _detectedAt;
+    // Replenishment timing only; escape and bolt readiness still use current feedback.
+    private long _escapeBackwardAt;
 
     public BoltFeederUnit(FasteningHead head, IIoService io, BoltFeederSettings settings)
     {
@@ -61,7 +61,11 @@ public sealed class BoltFeederUnit : AutoUnit
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (_head == FasteningHead.Shooting)
+                {
                     _io.SetOutput(OutputIo.ShootingEscapeForward, false);
+                    Interlocked.Exchange(ref _escapeBackwardAt,
+                        State == BoltFeederState.WaitingForEscapeBackward ? 0 : Stopwatch.GetTimestamp());
+                }
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     var state = State;
@@ -84,21 +88,19 @@ public sealed class BoltFeederUnit : AutoUnit
                                 }
                             }
                             break;
-                        case BoltFeederState.BoltReady when _head == FasteningHead.Shooting
-                            && !_io.GetOutput(OutputIo.ShootingFeederOff):
-                            var detectedAt = Volatile.Read(ref _detectedAt);
-                            if (detectedAt == 0)
-                            {
-                                Interlocked.CompareExchange(ref _detectedAt, Stopwatch.GetTimestamp(), 0);
-                                break;
-                            }
-                            var remaining = TimeSpan.FromMilliseconds(_settings.ShootingRunOnMilliseconds)
-                                - Stopwatch.GetElapsedTime(detectedAt);
+                        case BoltFeederState.BoltReady when _head == FasteningHead.Shooting:
+                            var escapeBackwardAt = Volatile.Read(ref _escapeBackwardAt);
+                            var remaining = escapeBackwardAt == 0 ? TimeSpan.Zero
+                                : TimeSpan.FromMilliseconds(_settings.ShootingRunOnMilliseconds)
+                                    - Stopwatch.GetElapsedTime(escapeBackwardAt);
                             if (remaining <= TimeSpan.Zero)
                             {
                                 SetFeeding(false);
+                                await WaitForChangeAsync(cancellationToken);
                                 break;
                             }
+                            if (_io.GetOutput(OutputIo.ShootingFeederOff))
+                                SetFeeding(true);
                             using (var delay = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                             {
                                 delay.CancelAfter(remaining);
@@ -108,7 +110,7 @@ public sealed class BoltFeederUnit : AutoUnit
                                 }
                                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                                 {
-                                    // Recheck detection, escape and the latest ON edge before stopping the feeder.
+                                    // Recheck current detection and escape feedback before stopping the feeder.
                                 }
                             }
                             break;
@@ -159,8 +161,8 @@ public sealed class BoltFeederUnit : AutoUnit
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (_head == FasteningHead.Shooting && input == _boltDetected)
-            Interlocked.Exchange(ref _detectedAt, value ? Stopwatch.GetTimestamp() : 0);
+        if (_head == FasteningHead.Shooting && input == InputIo.ShootingEscapeBackward)
+            Interlocked.Exchange(ref _escapeBackwardAt, value ? Stopwatch.GetTimestamp() : 0);
         if (input == _boltDetected
             || _head == FasteningHead.Shooting
                 && input is InputIo.ShootingEscapeForward or InputIo.ShootingEscapeBackward)
@@ -172,7 +174,7 @@ public sealed class BoltFeederUnit : AutoUnit
     private void OnOutputChanged(OutputIo output, bool value)
     {
         if (_head == FasteningHead.Shooting
-            && output is OutputIo.ShootingEscapeForward or OutputIo.ShootingFeederOff)
+            && output == OutputIo.ShootingEscapeForward)
             Changed?.Invoke();
     }
 }
