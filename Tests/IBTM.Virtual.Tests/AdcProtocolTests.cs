@@ -237,6 +237,45 @@ public sealed class AdcProtocolTests
     }
 
     [Theory]
+    [InlineData(1)] // Every byte arrives separately.
+    [InlineData(256)] // Several frames are already available in the receive buffer.
+    public async Task AdcStopRejectionBetweenAutomaticEventsKeepsFrameBoundaries(int chunkSize)
+    {
+        var data = new byte[29];
+        data[0] = 28;
+        // Header-like bytes inside a payload must not restart frame collection.
+        data[5] = 0x01;
+        data[6] = 0x86;
+        data[7] = 0x03;
+        var firstEvent = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, data);
+        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(1), 2);
+        var nextEvent = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, data);
+        byte[] rejection = [0x01, 0x86, 0x03, 0x02, 0x61];
+        byte[] incoming = [.. firstEvent, .. rejection, .. nextEvent];
+        using var stream = new AdcResponseStream(incoming, chunkSize: chunkSize);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var events = new List<byte[]>();
+        var chunks = new List<byte[]>();
+
+        var error = await Assert.ThrowsAsync<AdcResponseException>(() => AdcBus.ReadResponseAsync(
+            stream, stream.Abort, chunks.Add, 1, AdcFunctionCode.WriteSingleRegister,
+            timeout.Token, resultReceived: events.Add));
+
+        Assert.Equal(0x03, error.ErrorCode);
+        Assert.Contains("RX=0186030261", error.Message);
+        Assert.Equal(firstEvent, Assert.Single(events));
+        Assert.Equal(firstEvent.Length + rejection.Length, stream.Position);
+
+        var remaining = await AdcBus.ReadResponseAsync(
+            stream, stream.Abort, chunks.Add, 1, AdcFunctionCode.ReadInputRegisters,
+            timeout.Token, expectedByteCount: 28);
+
+        Assert.Equal(nextEvent, remaining);
+        Assert.Equal(incoming, chunks.SelectMany(chunk => chunk).ToArray());
+        Assert.False(stream.Aborted);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task AdcAutomaticEventValidatesAddressAndCrcBeforeQueuing(bool wrongAddress)
@@ -335,16 +374,19 @@ public sealed class AdcProtocolTests
     {
         private readonly int _pauseAtByte;
         private readonly int _delayMilliseconds;
+        private readonly int _chunkSize;
         private readonly TaskCompletionSource<int> _pending;
 
         public AdcResponseStream(
             byte[] bytes,
             int pauseAtByte = -1,
-            int delayMilliseconds = 0)
+            int delayMilliseconds = 0,
+            int chunkSize = 1)
             : base(bytes)
         {
             _pauseAtByte = pauseAtByte;
             _delayMilliseconds = delayMilliseconds;
+            _chunkSize = chunkSize;
             _pending = new(
                 TaskCreationOptions.RunContinuationsAsynchronously);
             Waiting = new(
@@ -364,7 +406,7 @@ public sealed class AdcProtocolTests
             }
 
             if (Position < Length)
-                return await base.ReadAsync(buffer[..1], cancellationToken);
+                return await base.ReadAsync(buffer[..Math.Min(buffer.Length, _chunkSize)], cancellationToken);
             Waiting.TrySetResult();
             return await _pending.Task; // Model Windows native IO ignoring cancellation.
         }

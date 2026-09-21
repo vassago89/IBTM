@@ -803,25 +803,16 @@ public sealed class BoltFasteningTests
         var loseResult = true;
         var starts = 0;
         using var resumedStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var resuming = false;
         bus.FrameTransferred += (direction, frame) =>
         {
             if (direction == AdcFrameDirection.Receive
                 && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters
                 && frame[2] == AdcFasteningResult.RegisterCount * 2
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(3)) != 0)
+                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(3)) != 0
+                && loseResult)
             {
-                if (loseResult)
-                {
-                    loseResult = false;
-                    throw responseError;
-                }
-
-                if (resuming
-                    && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(3)) == 2)
-                {
-                    resumedStop.Cancel();
-                }
+                loseResult = false;
+                throw responseError;
             }
 
             if (direction == AdcFrameDirection.Transmit
@@ -830,8 +821,6 @@ public sealed class BoltFasteningTests
             {
                 if (BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) != 0)
                     starts++;
-                else if (resuming)
-                    resumedStop.Cancel();
             }
         };
         bus.SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
@@ -854,9 +843,13 @@ public sealed class BoltFasteningTests
             Assert.Equal(1, station.GetActiveBolt()!.Number);
         }
 
-        resuming = true;
-        await station.RunAsync(resumedStop.Token);
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.ResultsChanged += updated =>
+        {
+            if (updated.PickupBoltResults.ContainsKey(1))
+                resumedStop.Cancel();
+        };
+        await station.RunAsync(resumedStop.Token);
         Assert.True(assembly.PickupBoltResults[1].Success);
         Assert.Equal(2, starts);
         if (replaceCarrier)
@@ -876,6 +869,7 @@ public sealed class BoltFasteningTests
         var settings = new BoltFasteningSettings
         {
             ShootingArrivalDelaySeconds = 0.05,
+            DryRunMilliseconds = 30,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
             SafeZ = 5,
             PickupPosition = new() { X = 100, Y = 50, Z = 10 },

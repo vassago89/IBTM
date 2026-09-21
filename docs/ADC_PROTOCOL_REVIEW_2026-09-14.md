@@ -56,7 +56,7 @@
 - 캐리어·볼트·공정별 결과 귀속 테스트도 포함한다. 복구 결과 수신 순간 취소가 들어오는 경우 발생한 회귀를 수정하고 해당 3개 경우와 새 회귀 9개를 다시 통과했다.
 - 관련 테스트가 의존 프로젝트를 빌드했다. 전체 MachineFlow와 실장비 프로그램은 실행하지 않았다.
 
-수정 전 별도 재현 기록: `artifacts/adc-protocol-review/Program.cs`. 아래 출력은 수정 전 동작이며, 현재 회귀 검증은 `Tests/IBTM.Virtual.Tests/AdcProtocolTests.cs`에서 수행한다.
+수정 전 별도 재현 기록: `artifacts/adc-protocol-review/Program.cs`. 아래 출력은 수정 전 동작이며, 현재 회귀 검증은 `Tests/IBTM.Virtual.Tests/AdcProtocolTests.cs`(통신)와 `Tests/IBTM.Virtual.Tests/AdcBoltHeadTests.cs`(헤드 동작)에서 수행한다. 실행 범위는 `Tests/README.md`를 참고한다.
 
 ```text
 RESUME_PRESET: originally requested 3; resumed preset=7, accepted success=True

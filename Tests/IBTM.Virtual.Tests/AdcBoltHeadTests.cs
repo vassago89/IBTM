@@ -64,6 +64,7 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(1, bus.StopWrites);
         Assert.False(bus.Running);
     }
+
     [Fact]
     public async Task TighteningReceivesAutomaticResultWithoutPolling()
     {
@@ -172,7 +173,6 @@ public sealed class AdcBoltHeadTests
         Assert.False(bus.Running);
         Assert.Equal(1, bus.StopWrites);
     }
-
 
     [Theory]
     [InlineData(0)]

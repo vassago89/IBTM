@@ -45,11 +45,20 @@ internal sealed class AdcControllerStub : IAdcBus
 
     public int BaudRate => 115200;
 
-    public string[] GetPortNames() { return []; }
+    public string[] GetPortNames()
+    {
+        return [];
+    }
 
-    public void Open(string portName, int baudRate) { IsOpen = true; }
+    public void Open(string portName, int baudRate)
+    {
+        IsOpen = true;
+    }
 
-    public void Close() { IsOpen = false; }
+    public void Close()
+    {
+        IsOpen = false;
+    }
 
     public Task<byte[]> ReadDeviceInformationAsync(byte slaveAddress, CancellationToken cancellationToken = default)
     {
