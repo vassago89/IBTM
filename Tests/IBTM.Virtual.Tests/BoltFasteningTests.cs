@@ -352,7 +352,7 @@ public sealed class BoltFasteningTests
     }
 
     [Fact]
-    public async Task ShootingFeederRunsAfterEscapeBackwardWithoutRepeatedStopWrites()
+    public async Task ShootingFeederRunsThroughEscapeTravelAndStopsAfterLatestDetection()
     {
         var settings = new BoltFeederSettings();
         Assert.Equal(3_000, settings.ShootingRunOnMilliseconds);
@@ -361,7 +361,7 @@ public sealed class BoltFasteningTests
         var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new())
         { AutoResponseEnabled = false };
         io.SetInput(InputIo.ShootingEscapeForward, true);
-        io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, false);
         io.SetOutput(OutputIo.ShootingEscapeForward, true);
         io.SetOutput(OutputIo.ShootingFeederOff, true);
         var physicalEvents = new FeederWriteNotifyingIo(io);
@@ -377,21 +377,31 @@ public sealed class BoltFasteningTests
         try
         {
             Assert.False(run.IsCompleted);
-            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
             var beforeReturn = Volatile.Read(ref feederWrites);
             await Task.Delay(50);
             Assert.Equal(beforeReturn, Volatile.Read(ref feederWrites));
+            // Keep feeding while the escape is between its end sensors, too.
+            io.SetInput(InputIo.ShootingEscapeForward, false);
+            await Task.Delay(30);
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
 
-            // Detection is already ON: return to BACKWARD must still replenish for the full delay.
-            var returned = Stopwatch.StartNew();
+            // Returning to BACKWARD does not start the run-on timer; detection does.
             io.SetInputs((InputIo.ShootingEscapeForward, false), (InputIo.ShootingEscapeBackward, true));
-            Assert.True(await WaitUntilAsync(() => !io.GetOutput(OutputIo.ShootingFeederOff),
-                TimeSpan.FromMilliseconds(100)));
+            await Task.Delay(250);
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+            io.SetInput(InputIo.ShootingFeederBoltDetected, true);
             await Task.Delay(100);
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+            // A detection loss restarts the full run-on period from the next ON edge.
+            io.SetInput(InputIo.ShootingFeederBoltDetected, false);
+            var detected = Stopwatch.StartNew();
+            io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+            await Task.Delay(120);
             Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
             Assert.True(await WaitUntilAsync(() => io.GetOutput(OutputIo.ShootingFeederOff),
                 TimeSpan.FromSeconds(1)));
-            Assert.True(returned.ElapsedMilliseconds >= 190);
+            Assert.True(detected.ElapsedMilliseconds >= 190);
             Assert.Equal(BoltFeederState.BoltReady, feeder.State);
             var stoppedWrites = Volatile.Read(ref feederWrites);
             await Task.Delay(50);
@@ -488,8 +498,6 @@ public sealed class BoltFasteningTests
         {
             if (output == OutputIo.ShootingFeederOff && !value)
             {
-                Assert.True(io.GetInput(InputIo.ShootingEscapeBackward));
-                Assert.False(io.GetInput(InputIo.ShootingEscapeForward));
                 Interlocked.Increment(ref runCount);
             }
         };
@@ -516,13 +524,13 @@ public sealed class BoltFasteningTests
                     && io.GetOutput(OutputIo.ShootingFeederOff),
                 TimeSpan.FromSeconds(1)));
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true);
-            // No replenishment or refill timeout while escape is sending the current bolt.
+            // Keep feeding while escape is forward, without starting the refill timeout yet.
             await Task.Delay(600);
             Assert.False(run.IsCompleted);
             Assert.Equal(BoltFeederState.WaitingForEscapeBackward, feeder.State);
             Assert.False(io.GetInput(InputIo.ShootingFeederBoltDetected));
-            Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
-            Assert.Equal(1, runCount);
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+            Assert.Equal(2, runCount);
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false);
             Assert.True(await WaitUntilAsync(
                 () => runCount == 2

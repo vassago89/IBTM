@@ -740,6 +740,9 @@ public sealed class VirtualMachine
                     case OutputIo.ShootingEscapeForward when value:
                         _io.SetInput(InputIo.ShootingFeederBoltDetected, false);
                         break;
+                    case OutputIo.ShootingEscapeForward when !_io.GetOutput(OutputIo.ShootingFeederOff):
+                        _ = FeedShootingBoltAsync(_shootingFeederVersion);
+                        break;
                     case OutputIo.NgCarrierPickupDown when _ngCarrierHeld:
                         if (_inspectionAtNgShuttle)
                             _io.SetInput(InputIo.NgShuttleCarrierDetected, value);
