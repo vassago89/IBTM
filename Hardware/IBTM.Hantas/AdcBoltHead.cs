@@ -142,10 +142,12 @@ public sealed class AdcBoltHead : IBoltHead
         }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         AdcFasteningResult? completed = null;
+        AdcFasteningResult? lastResult = null;
         Exception? failure = null;
         try
         {
             var current = await _bus.ReadFasteningResultAsync(_slaveAddress, cancellationToken);
+            lastResult = current;
             if (current.Status == AdcEventStatus.Error)
             {
                 completed = current;
@@ -177,6 +179,7 @@ public sealed class AdcBoltHead : IBoltHead
                 while (true)
                 {
                     var result = await _bus.ReadFasteningResultAsync(_slaveAddress, timeout.Token);
+                    lastResult = result;
                     if (IsCompleted(result, fastening))
                     {
                         completed = result;
@@ -194,7 +197,10 @@ public sealed class AdcBoltHead : IBoltHead
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             failure = new TimeoutException(
-                $"ADC {_slaveAddress} fastening timed out after {_connection.FasteningTimeoutMilliseconds} ms.");
+                $"ADC {_portName}/{_slaveAddress} fastening timed out after {_connection.FasteningTimeoutMilliseconds} ms; "
+                + $"start event={_pendingFastening?.EventCount}, expected preset={_pendingFastening?.Preset}, "
+                + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
+                + $"direction={lastResult?.Direction}, error={lastResult?.Error}, feed unconfirmed={_feedUnconfirmed}.");
             throw failure;
         }
         catch (Exception exception)
@@ -279,7 +285,7 @@ public sealed class AdcBoltHead : IBoltHead
             && !cancellationToken.IsCancellationRequested)
         {
             throw new TimeoutException(
-                $"ADC {_slaveAddress} motor stop was not confirmed within {_connection.ResponseTimeoutMilliseconds} ms.",
+                $"ADC {_portName}/{_slaveAddress} motor stop was not confirmed within {_connection.ResponseTimeoutMilliseconds} ms (waiting for RUN OFF).",
                 exception);
         }
     }

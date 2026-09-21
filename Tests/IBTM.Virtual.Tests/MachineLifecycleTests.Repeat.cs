@@ -88,7 +88,7 @@ public sealed partial class MachineLifecycleTests
             if (on && output == OutputIo.PickupHeadVacuumPump)
             {
                 Assert.True(gantry.IsAtPickupPosition());
-                Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
+                Assert.Equal(BoltCylinderState.Up, gantry.PickupHeadPosition);
                 Interlocked.Increment(ref pickupAttempts);
             }
             if (output == OutputIo.ShootingBoltStart)
@@ -119,12 +119,9 @@ public sealed partial class MachineLifecycleTests
             }
             if (output == OutputIo.PickupHeadDown && on)
             {
-                if (!gantry.IsAtPickupXY())
-                {
-                    Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
-                    Interlocked.Increment(ref pickupDescents);
-                    io.SetInput(InputIo.PickupBoltFasten, false);
-                }
+                Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+                Interlocked.Increment(ref pickupDescents);
+                io.SetInput(InputIo.PickupBoltFasten, false);
             }
         };
         state.RepeatEnabled = true;

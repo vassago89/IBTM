@@ -246,7 +246,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
     public async Task MoveToPickupPositionAsync(CancellationToken cancellationToken = default)
     {
         await MoveToPickupXYAsync(cancellationToken);
-        await SetHeadDownAsync(FasteningHead.Pickup, true, cancellationToken);
         await MoveToPickupZAsync(cancellationToken);
     }
 
@@ -388,9 +387,11 @@ public sealed partial class BoltFasteningStation : AutoUnit
         FasteningHead head,
         CancellationToken cancellationToken = default)
     {
+        _log?.LogInformation("Bolt {Head}: requesting vacuum OFF; waiting for vacuum release feedback.", head);
         await SetVacuumAsync(head, false, cancellationToken);
-
+        _log?.LogInformation("Bolt {Head}: vacuum OFF confirmed; requesting head UP.", head);
         await SetHeadDownAsync(head, false, cancellationToken);
+        _log?.LogInformation("Bolt {Head}: head UP confirmed.", head);
     }
 
     public Task SetHeadDownAsync(
@@ -433,6 +434,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
     internal Task MoveToPickupZAsync(CancellationToken cancellationToken = default)
     {
+        EnsureCanMoveHorizontal(cancellationToken);
         return MoveZAsync(_settings.PickupPosition.Z, cancellationToken);
     }
 
@@ -869,7 +871,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
                     await MoveToPickupXYAsync(cancellationToken);
                     if (feeding)
                         await WaitForBoltSupplyAsync(FasteningHead.Pickup, cancellationToken);
-                    await SetHeadDownAsync(FasteningHead.Pickup, true, cancellationToken);
                     await MoveToPickupZAsync(cancellationToken);
                     var job = _work.CurrentJob;
                     await SetVacuumAsync(
@@ -1000,7 +1001,13 @@ public sealed partial class BoltFasteningStation : AutoUnit
         try
         {
             CheckPickupTable();
+            _log?.LogInformation(
+                "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN and waiting for fastening result.",
+                pending.Bolt.Head, pending.Bolt.HeatSink, pending.Bolt.Number, head.GetType().Name);
             var completed = await head.TightenAsync(fastening.Token, LowerHeadWhileFasteningAsync);
+            _log?.LogInformation(
+                "Bolt {Head}, {HeatSink}, point {Bolt}: result received; success={Success}, source={Source}.",
+                pending.Bolt.Head, pending.Bolt.HeatSink, pending.Bolt.Number, completed.Success, completed.Source);
             RecordResult(pending, completed);
         }
         catch (OperationCanceledException) when (fastening.IsCancellationRequested
@@ -1015,7 +1022,14 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
         Task LowerHeadWhileFasteningAsync(CancellationToken token)
         {
-            return SetHeadDownAsync(pending.Bolt.Head, true, token);
+            token.ThrowIfCancellationRequested();
+            _log?.LogInformation("Bolt {Head}: motor START completed; requesting head DOWN.", pending.Bolt.Head);
+            // Screw contact can stop the cylinder before its DOWN sensor.
+            _io.SetOutput(pending.Bolt.Head == FasteningHead.Pickup
+                ? OutputIo.PickupHeadDown : OutputIo.ShootingHeadDown, true);
+            token.ThrowIfCancellationRequested();
+            _log?.LogInformation("Bolt {Head}: head DOWN output sent; waiting for fastening result.", pending.Bolt.Head);
+            return Task.CompletedTask;
         }
     }
 

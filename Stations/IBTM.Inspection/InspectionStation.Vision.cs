@@ -209,6 +209,7 @@ public sealed partial class InspectionStation
         try
         {
             await Task.Run(() => TurnLightOn(channel), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
             return await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)

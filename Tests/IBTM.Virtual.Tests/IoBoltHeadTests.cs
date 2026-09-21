@@ -241,7 +241,8 @@ public sealed class IoBoltHeadTests
         var cycle = head.TightenAsync();
         if (sawOn)
             io.SetInput(InputIo.PickupBoltFasten, true);
-        await Assert.ThrowsAsync<TimeoutException>(() => cycle);
+        var error = await Assert.ThrowsAsync<TimeoutException>(() => cycle);
+        Assert.Contains($"waiting for PickupBoltFasten={(sawOn ? "OFF" : "ON")}", error.Message);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.Null(await head.ReadPendingResultAsync());
     }

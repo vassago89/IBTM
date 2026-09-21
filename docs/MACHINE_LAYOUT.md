@@ -293,7 +293,9 @@ to Safe Z, travels to the bolt X/Y, and approaches the selected head's Fastening
 before starting rotation and immediately lowering that head to feed the bolt.
 The cylinder supplies axial feed; the fastening motor supplies rotation only.
 Both heads are raised before each new START, including the next pass at the same XY.
-START failure prevents descent; descent failure or cancellation stops the motor.
+START failure prevents descent; a failed DOWN output or cancellation stops the motor.
+During fastening, DOWN feedback is not awaited because screw contact can prevent
+full cylinder travel. Both heads still require UP feedback before X/Y travel.
 PCB bolts use Shooting Head Fastening Z; IPM seating
 and IPM final passes use Pickup Head Fastening Z.
 After fastening, raise the heads before returning to Safe Z for the next X/Y move.
@@ -317,15 +319,13 @@ This applies between individual bolts, including the shooting head's PCB pass;
 the shooting head no longer stays lowered while moving to the next bolt. On restart,
 the same live-DI states retract a lowered head before the next X/Y move.
 
-The pickup head approaches pickup XY at Safe Z with both heads raised. Head 1
-then lowers and confirms its Down input before the common Z axis moves to the
-taught pickup height. After feeder-ready detection, vacuum turns ON and its input
-confirms the picked bolt. Retreat keeps vacuum ON: common Z to Safe Z, Head 1 Up,
-then X/Y to the fastening point. Pickup Z is therefore taught with Head 1 lowered.
-Pickup approach, cylinder lowering, Z approach, feeder wait, vacuum pickup and
-retreat are separate live-feedback states. Clearing a completed fastening turns
-vacuum OFF; carrying a newly picked bolt does not. Every IPM seating bolt is picked
-anew, while the IPM final pass reuses the installed bolts.
+The pickup head approaches pickup XY at Safe Z with both heads raised and the
+pickup table lowered. After feeder-ready detection, the common Z axis moves to
+the taught pickup height while both heads stay UP. Vacuum turns ON and its input
+confirms the picked bolt. Retreat keeps vacuum ON: common Z to Safe Z, then X/Y
+to the fastening point. Pickup Z is taught with Head 1 raised. Both heads lower
+only for fastening, after their motor START. Clearing a completed fastening turns
+vacuum OFF; carrying a newly picked bolt does not.
 
 Feeder-wait states wake on relevant work, gantry and feeder feedback changes and
 reselect the next state. A delayed vacuum or escape input must not leave the
@@ -333,9 +333,9 @@ station waiting for another feeder bolt. These notifications coalesce into one
 wake-up; they do not start parallel actions. Feeders retain their own supply
 timeouts. Active motion and pneumatic actions still await their own completion.
 
-The Bolt Pickup teaching point's Move To uses the same gantry-owned pickup XY,
-Head 1 Down confirmation and pickup-Z actions as automatic operation. It finishes
-with Head 1 down at the pickup position without changing either vacuum output or
+The Bolt Pickup teaching point's Move To uses the same gantry-owned heads-UP,
+table-DOWN, pickup-XY and pickup-Z actions as automatic operation. It finishes
+with both heads UP at the pickup position without changing either vacuum output or
 waiting for a feeder bolt. Stop cancels any remaining action and keeps pneumatic
 outputs; ordinary saved-position admission still requires both heads raised.
 Return from Bolt Pickup is available throughout Bolt Fastening teaching, independently

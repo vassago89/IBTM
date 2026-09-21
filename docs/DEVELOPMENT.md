@@ -28,6 +28,7 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 `Shared/IBTM.Device/MOVSService.cs`에 그대로 포함한다. 컴파일에 필요한 using과 nullable 지시문만 덧붙였다.
 `MovsLightController`는 기존 `ILightController` 호출을 원본의 Connect/Set/On/Off/Disconnect에 연결한다.
 촬영·Live 점등 직전에 원본과 같이 Connect → Set → On 순서로 호출한다.
+단일 촬영은 조명 ON 완료 후 100ms 안정화 대기를 거친다. 대기 중 STOP되면 촬영하지 않고 조명을 끈다.
 검사 유닛 Disabled로 시작해 초기화에서 조명 연결을 생략했어도 수동 티칭 점등 시 연결한다.
 19200 통신, 문자 버퍼, 전송 뒤 50ms 대기, 빈 COM/미연결 처리도 원본을 따른다.
 추가했던 시리얼 세부 설정·쓰기 잠금·드라이버 예외 재포장은 제거했다. 설정에는 COM과 검사 채널만 남긴다.
@@ -208,15 +209,15 @@ Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 �
 슈팅 공급은 이스케이프 후진 확인 → 피더 볼트 준비 확인 → 전진 → 발사·튜브 통과 감지·도착 시간 대기 → 후진 순서다.
 슈팅 포인트의 XY·체결 Z 이동이 완료된 후 볼트를 보내고, 도착 시간 대기가 끝나야 체결한다.
 헤드 진공 신호로 볼트 공급을 생략하지 않으며, 다른 헤드·이스케이프 신호가 바뀌어도 피더 준비 대기를 완료하지 않는다.
-슈팅 완료 후 헤드 상승 → Safe Z → 픽업 테이블 하강 확인 → Pickup XY → 피더 볼트 준비 확인 → 헤드 하강 → Pickup Z → 볼트 취득 →
-Safe Z → 헤드 상승 → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다.
+슈팅 완료 후 양쪽 헤드 상승 → Safe Z → 픽업 테이블 하강 확인 → Pickup XY → 피더 볼트 준비 확인 → Pickup Z → 볼트 취득 →
+Safe Z → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다. 픽업 중에는 양쪽 헤드를 UP으로 유지하며, 픽업·슈팅 모두 체결 START 후에만 해당 헤드를 내린다.
 별도의 가체결·본체결 패스는 없다. 슈팅·픽업 모두 프리셋 1번으로 고정하며, 레시피에는 프리셋 속성이 없다.
 
 | 체결 상태 | 동작 / 완료 기준 |
 | --- | --- |
 | `MovingToStandby` → `Waiting` | 헤드 상승 → Safe Z → 픽업 테이블 상승 확인 → 첫 슈팅 볼트 XY → 착좌 대기 |
 | `FasteningPcb` | 테이블·헤드 상승 확인 → 볼트 위치 이동 완료 → 공급·도착 대기 → 체결 → 헤드·Safe Z 복귀 |
-| `FasteningPickup` | Safe Z → 테이블 하강 → Pickup XY → 볼트 준비 확인 → 헤드 하강·Pickup Z → 볼트 취득 → Safe Z·헤드 상승 → 체결 위치 → 체결·복귀 |
+| `FasteningPickup` | 양쪽 헤드 UP → Safe Z → 테이블 하강 → Pickup XY → 볼트 준비 확인 → Pickup Z → 볼트 취득 → Safe Z → 체결 위치 → 체결·복귀 |
 | `WaitingForShootingFeeder` / `WaitingForPickupFeeder` | 각 피더의 볼트 감지를 기다린다. 픽업은 Safe Z·헤드 상승 상태에서 기다린다. Repeat·피더 OFF는 공급 대기를 생략한다. |
 | `CompletingCarrier` | 모든 결과와 헤드·Z 복귀 확인 후 작업 완료 |
 
@@ -512,8 +513,8 @@ NG 픽업은 현재 보유·지지·목적지 피드백으로 다음 동작을 �
 체결의 `_pendingFastening`은 결과가 귀속될 원래 캐리어·볼트·패스만 보관한다.
 `ReadPendingResultAsync`는 모터 재기동 없이 확인된 결과만 회수한다.
 새 START에서 확인된 미수집 결과를 먼저 수집하고, 결과가 없으면 같은 볼트·패스를 다시 체결한다.
-재체결에는 현재 위치, 컨트롤러 정지·준비와 프리셋, 새 하강 피드백과 새 체결 결과가 필요하다.
-실린더 하강이 미확인된 이전 결과나 STOP으로 떨어진 FASTEN 신호를 OK로 기록하지 않는다.
+재체결에는 현재 위치, 컨트롤러 정지·준비와 프리셋, 새 하강 출력과 새 체결 결과가 필요하다.
+하강 출력에 실패한 이전 결과나 STOP으로 떨어진 FASTEN 신호를 OK로 기록하지 않는다.
 중단된 볼트에 새 볼트를 다시 공급하지 않으며, 결과를 다른 캐리어로 옮기지 않는다.
 수동 체결 테스트도 미완료 작업이 있으면 차단한다. 통신 상태·결과 읽기는 가능하다.
 
@@ -727,7 +728,7 @@ Repeat는 PCB가 이미 안착된 캐리어 하나를 메인 입구(첫 번째) 
 Placement는 기존 PCB를 집어 기존 인계 좌표까지 왕복한 뒤 원래 자리에 재안착·압착한다.
 Supply에서 새 PCB를 받지 않으며, Placement가 켜져 있으면 왕복 완료 후 다음 공정으로 보낸다.
 Repeat에서는 Enabled 설정값을 바꾸지 않고 Pickup/Shooting 피더를 모두 OFF로 취급하며 피더 자체를 실행하지 않는다.
-일반 운전은 각 피더 Enabled 설정을 따른다. Pickup Feeder OFF 또는 Repeat에서도 피더 XY 이동·실린더 하강·픽업 Z 이동·진공 ON·Safe Z 복귀·실린더 상승을 수행한다.
+일반 운전은 각 피더 Enabled 설정을 따른다. Pickup Feeder OFF 또는 Repeat에서도 양쪽 헤드 UP·테이블 DOWN 상태에서 피더 XY 이동·픽업 Z 이동·진공 ON·Safe Z 복귀를 수행한다.
 피더의 볼트 감지와 픽업 진공 ON 확인만 생략한다. 축 위치와 실린더 피드백, 진공 해제 확인은 유지한다.
 집힘 확인을 생략한 픽업 실행 이력은 현재 캐리어와 볼트에만 적용하며, 실제 볼트 보유 상태로 표시하지 않는다.
 Shooting Bolt Feeder OFF 또는 Repeat는 공급 대기·이스케이프·볼트 발사와 공급 관련 감지 대기를 생략한다.
@@ -738,11 +739,14 @@ Settings → Operation & Timing → Bolt Shooting · Arrival Timing → Head Arr
 STOP은 도착 시간 대기를 취소하고 발사 출력을 끈다. 공통 피드백·정지 및 피더 공급 타임아웃과 별개다.
 피더 ON/OFF와 관계없이 모든 볼트의 XY·헤드별 체결 Z로 이동하고, 프리셋 선택 → START → 실린더 하강 → 체결 결과 수거를 수행한다.
 IO형은 기존 FASTEN ON → OFF를 확인한 뒤 START를 끄고 IO · Assumed OK로 기록한다. 통신형은 체결기의 실제 OK/NG 결과를 기록한다.
+체결 중에는 볼트 접촉으로 헤드가 끝까지 내려가지 않을 수 있으므로 DOWN 출력만 보내고 하강 입력을 기다리지 않는다. 픽업·슈팅, 통신형·IO형 모두 동일하다.
+헤드 DOWN 출력 → 체결 결과 수신 → 진공 OFF 확인 → 헤드 UP 확인을 각각 로그로 남긴다. 체결 후 상승 및 이동 전 UP 피드백 확인은 유지한다.
+IO 체결 타임아웃은 FASTEN ON/OFF 중 받지 못한 신호를 표시하고, ADC 체결 타임아웃은 포트·주소와 시작/마지막 이벤트·상태·프리셋을 표시한다.
 픽업 볼트는 각 위치에서 한 번만 체결한다. 체결기 준비 확인과 검사도 유지한다.
 미수거 결과와 중단된 체결의 복구 조건, XY 이동에 필요한 양쪽 헤드 상승과 Safe Z도 유지한다.
-통신형도 START 후 실린더 하강이 확인되지 않으면 늦게 온 결과를 자동 반영하지 않는다.
-새 START로 재체결할 때 새 하강 피드백과 새 결과를 확인한다.
-하강이 확인된 뒤 결과 수신만 실패한 경우에는 기존 결과를 수거하며 다시 START하지 않는다.
+통신형도 START 후 하강 출력에 실패하면 늦게 온 결과를 자동 반영하지 않는다.
+새 START로 재체결할 때 새 하강 출력을 내보내고 새 결과를 확인한다.
+하강 출력을 보낸 뒤 결과 수신만 실패한 경우에는 기존 결과를 수거하며 다시 START하지 않는다.
 관련 코드는 `PcbPlacer.Repeat.cs`, `MainConveyor.ReturnToStartAsync`, `MachineController.Repeat.cs`다.
 
 NG Transfer까지만 켠 Repeat와 실제 셔틀에 놓는 동작은 다르다.

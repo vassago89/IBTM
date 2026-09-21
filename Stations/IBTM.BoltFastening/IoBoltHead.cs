@@ -135,7 +135,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
                 }
                 catch
                 {
-                    // FASTEN alone cannot establish OK when axial feed was not confirmed.
+                    // A failed head DOWN command must not become a successful fastening.
                     Interlocked.Exchange(ref _pendingPhase, Interrupted);
                     throw;
                 }
@@ -155,8 +155,15 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         catch (OperationCanceledException) when (timeout.IsCancellationRequested
             && !cancellationToken.IsCancellationRequested)
         {
+            var waitingFor = Volatile.Read(ref _pendingPhase) switch
+            {
+                WaitingForOn => $"{_fasten}=ON (no rising edge received)",
+                WaitingForOff => $"{_fasten}=OFF (ON received; no falling edge received)",
+                _ => "head DOWN command or an interrupted FASTEN cycle",
+            };
             failure = new TimeoutException(
-                $"{_head} FASTEN ON/OFF cycle timed out after {_settings.FasteningTimeoutMilliseconds} ms.");
+                $"{_head} FASTEN ON/OFF cycle timed out after {_settings.FasteningTimeoutMilliseconds} ms; "
+                + $"waiting for {waitingFor}. START will be turned OFF.");
             throw failure;
         }
         catch (Exception exception)
