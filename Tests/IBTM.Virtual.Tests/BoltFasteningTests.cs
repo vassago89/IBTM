@@ -3,7 +3,6 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Ports;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,494 +21,18 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltFasteningTests
 {
-    [Fact]
-    public void AdcConnectionMustMatchBothRequestedSettings()
-    {
-        // Constructing a SerialPort does not open it or access hardware.
-        using var port = new SerialPort("COM4", 19200);
-        AdcBus.VerifyConnectionSettings(port, "com4", 19200);
-        var wrongPort = Assert.Throws<InvalidOperationException>(
-            () => AdcBus.VerifyConnectionSettings(port, "COM3", 19200));
-        Assert.Contains("COM4", wrongPort.Message);
-        Assert.Contains("COM3", wrongPort.Message);
-        Assert.Throws<InvalidOperationException>(
-            () => AdcBus.VerifyConnectionSettings(port, "COM4", 9600));
-    }
-
-    [Fact]
-    public async Task AdcConnectionEditsApplyWhenHeadsAreRecreated()
-    {
-        var settings = new HantasSettings { PickupPortName = "Virtual", PickupBaudRate = 19200 };
-        var bus = new VirtualAdcBus();
-        var pickup = new AdcBoltHead(bus, settings, settings.PickupSlaveAddress, settings.PickupPortName, settings.PickupBaudRate);
-        var shooting = new AdcBoltHead(bus, settings, settings.ShootingSlaveAddress, settings.PickupPortName, settings.PickupBaudRate);
-        byte expectedSlave = 0;
-        var expectedBaudRate = 19200;
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction == AdcFrameDirection.Transmit)
-            {
-                Assert.Equal(expectedSlave, frame[0]);
-                Assert.Equal(expectedBaudRate, bus.BaudRate);
-            }
-        };
-
-        await pickup.CheckReadyAsync();
-        settings.PickupPortName = "COM5";
-        settings.PickupBaudRate = 115200;
-        settings.PickupSlaveAddress = 2;
-        settings.ShootingSlaveAddress = 3;
-
-        foreach (var head in new[] { pickup, shooting })
-        {
-            await head.CheckReadyAsync();
-            await head.ResetAsync();
-            bus.Close();
-            await head.ResetAsync();
-            expectedSlave++;
-        }
-
-        bus.Close();
-        expectedBaudRate = settings.PickupBaudRate;
-        pickup = new AdcBoltHead(bus, settings, settings.PickupSlaveAddress, settings.PickupPortName, settings.PickupBaudRate);
-        shooting = new AdcBoltHead(bus, settings, settings.ShootingSlaveAddress, settings.PickupPortName, settings.PickupBaudRate);
-        foreach (var head in new[] { pickup, shooting })
-        {
-            await head.CheckReadyAsync();
-            expectedSlave++;
-        }
-    }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task AdcPreservesTheOperationFailureWhenStopAlsoFails(bool reverse)
-    {
-        var bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 0, "Virtual", 115200);
-        var operationError = new IOException("Start response lost.");
-        var stopError = new IOException("Stop response lost.");
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction == AdcFrameDirection.Transmit
-                && frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart)
-            {
-                throw BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) == 1 ? operationError : stopError;
-            }
-        };
-
-        var error = await Assert.ThrowsAsync<AggregateException>(
-            () => reverse ? head.RunReverseAsync(CancellationToken.None) : head.TightenAsync());
-        Assert.Equal(new[] { operationError, stopError }, error.InnerExceptions);
-    }
-
-    [Fact]
-    public async Task AdcDisconnectedRequestsFailClearlyAndCancelledReadinessDoesNotOpenTheBus()
-    {
-        var settings = new HantasSettings();
-        Assert.Equal((byte)0, settings.PickupSlaveAddress);
-        Assert.Equal((byte)1, settings.ShootingSlaveAddress);
-        using var bus = new AdcBus(settings);
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => bus.ReadDeviceInformationAsync(0));
-        Assert.Contains("ADC is not connected", error.Message);
-
-        var virtualBus = new VirtualAdcBus();
-        var head = new AdcBoltHead(virtualBus, settings, 0, "Virtual", 115200);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => head.CheckReadyAsync(cancellation.Token));
-        Assert.False(virtualBus.IsOpen);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ManualReverseStopsOnReleaseOrCommunicationFailureWithoutACompletionResult(
-        bool communicationFailure)
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200);
-        var started = false;
-        var stops = 0;
-        var writes = new List<(byte Slave, ushort Address, ushort Value)>();
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction != AdcFrameDirection.Transmit)
-                return;
-            var address = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
-            if (frame[1] == (byte)AdcFunctionCode.WriteSingleRegister)
-            {
-                var value = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4));
-                writes.Add((frame[0], address, value));
-                if (address == (ushort)AdcRemoteRegister.RemoteStart)
-                {
-                    if (value == 0)
-                        stops++;
-                    else
-                        started = true;
-                }
-            }
-
-            if (communicationFailure
-                && started
-                && stops == 0
-                && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters)
-                throw new IOException("Reverse monitoring failed.");
-        };
-        using var release = new CancellationTokenSource();
-        var running = head.RunReverseAsync(release.Token);
-        Assert.True(started);
-        if (communicationFailure)
-            await Assert.ThrowsAsync<IOException>(() => running);
-        else
-        {
-            await Task.Delay(300);
-            Assert.False(running.IsCompleted);
-            var status = await bus.ReadControllerStatusAsync(2);
-            Assert.True(status.Running);
-            Assert.Equal(AdcDirection.Loosening, status.Direction);
-            release.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
-        }
-
-        Assert.Equal(
-            new (byte Slave, ushort Address, ushort Value)[]
-            {
-                (2, (ushort)AdcRemoteRegister.Direction, (ushort)AdcDirection.Loosening),
-                (2, (ushort)AdcRemoteRegister.RemoteStart, 1),
-                (2, (ushort)AdcRemoteRegister.RemoteStart, 0),
-            },
-            writes);
-        Assert.Equal(1, stops);
-        Assert.False((await bus.ReadControllerStatusAsync(2)).Running);
-        Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(2)).EventCount);
-        Assert.True((await head.TightenAsync()).Success); // Forward explicitly restores its own direction.
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SerialCancellationDrainsTheNativeOperationEvenWhenAbortFails(bool abortFails)
-    {
-        using var cancellation = new CancellationTokenSource();
-        var nativeIo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var abortCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var abortFailure = new IOException("Native serial abort failed.");
-        Action abort = () =>
-        {
-            abortCalled.SetResult();
-            if (abortFails)
-                throw abortFailure;
-        };
-        var wait = AdcBus.AwaitSerialIoAsync(nativeIo.Task, abort, cancellation.Token);
-        cancellation.Cancel();
-        await abortCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.False(wait.IsCompleted); // A following bus request must not overlap the aborted native IO.
-        nativeIo.SetException(new IOException("Native serial IO aborted."));
-        if (abortFails)
-            Assert.Same(abortFailure, await Assert.ThrowsAsync<IOException>(() => wait));
-        else
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
-    }
-
-    [Theory]
-    [InlineData(AdcResponseKind.Valid)]
-    [InlineData(AdcResponseKind.InvalidCrc)]
-    [InlineData(AdcResponseKind.WrongAddress)]
-    [InlineData(AdcResponseKind.WriteResponse)]
-    [InlineData(AdcResponseKind.ControllerError)]
-    public async Task AdcRawReceiveLogsBytesBeforeResponseValidation(AdcResponseKind responseKind)
-    {
-        var function = responseKind switch
-        {
-            AdcResponseKind.ControllerError => (AdcFunctionCode)0x84,
-            AdcResponseKind.WriteResponse => AdcFunctionCode.WriteSingleRegister,
-            _ => AdcFunctionCode.ReadInputRegisters,
-        };
-        byte[] data = responseKind switch
-        {
-            AdcResponseKind.ControllerError => [0x03],
-            AdcResponseKind.WriteResponse => [0x0F, 0xA3, 0x00, 0x00],
-            _ => [0x02, 0x12, 0x34],
-        };
-        var frame = AdcRtuFrame.Build((byte)(responseKind == AdcResponseKind.WrongAddress ? 1 : 0), function, data);
-        if (responseKind == AdcResponseKind.InvalidCrc)
-            frame[^1] ^= 0xFF;
-        using var stream = new AdcResponseStream(frame);
-        var chunks = new List<byte[]>();
-        var reading = ReadAdcResponseAsync(stream, chunks.Add, CancellationToken.None);
-
-        if (responseKind == AdcResponseKind.Valid)
-            Assert.Equal(frame, await reading.WaitAsync(TimeSpan.FromSeconds(2)));
-        else if (responseKind == AdcResponseKind.ControllerError)
-        {
-            var error = await Assert.ThrowsAsync<AdcResponseException>(() => reading);
-            Assert.Equal(0x03, error.ErrorCode);
-            Assert.Contains("InvalidDataLength", error.Message);
-            Assert.Contains(Convert.ToHexString(frame), error.Message);
-        }
-        else
-            await Assert.ThrowsAsync<InvalidDataException>(
-                () => reading.WaitAsync(TimeSpan.FromSeconds(2)));
-
-        Assert.Equal(frame, chunks.SelectMany(chunk => chunk).ToArray());
-        Assert.All(chunks, chunk => Assert.Single(chunk));
-    }
-
-    [Theory]
-    [InlineData(0)] // No response.
-    [InlineData(1)] // Partial header.
-    [InlineData(4)] // Header and partial payload.
-    public async Task AdcRawReceiveKeepsPartialBytesWhenTheReadIsAborted(int receivedCount)
-    {
-        byte[] partial = [0x00, 0x04, 0x02, 0x12];
-        using var stream = new AdcResponseStream(partial[..receivedCount]);
-        using var cancellation = new CancellationTokenSource();
-        var chunks = new List<byte[]>();
-        var reading = ReadAdcResponseAsync(stream, chunks.Add, cancellation.Token);
-        await stream.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        // Already visible before the incomplete response times out or is canceled.
-        Assert.Equal(partial[..receivedCount], chunks.SelectMany(chunk => chunk).ToArray());
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => reading.WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.True(stream.Aborted);
-        Assert.Equal(partial[..receivedCount], chunks.SelectMany(chunk => chunk).ToArray());
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task AdcAutomaticResultCanArriveBeforeOrAfterStartEcho(bool resultFirst)
-    {
-        var data = new byte[29];
-        data[0] = 28;
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(1), 7);
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(25), (ushort)AdcEventStatus.FasteningOk);
-        var automatic = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, data);
-        var echo = AdcRtuFrame.Build(1, AdcFunctionCode.WriteSingleRegister, [0x0F, 0xA3, 0, 1]);
-        byte[] incoming = resultFirst ? [.. automatic, .. echo] : [.. echo, .. automatic];
-        using var stream = new AdcResponseStream(incoming);
-        var queued = new Queue<byte[]>();
-        var chunks = new List<byte[]>();
-        var response = await AdcBus.ReadResponseAsync(stream, stream.Abort, chunks.Add,
-            1, AdcFunctionCode.WriteSingleRegister, CancellationToken.None, resultReceived: queued.Enqueue);
-        Assert.Equal(echo, response);
-
-        var received = queued.TryDequeue(out var early)
-            ? early
-            : await AdcBus.ReadResponseAsync(stream, stream.Abort, chunks.Add,
-                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, expectedByteCount: 28);
-
-        Assert.Equal(automatic, received);
-        Assert.Empty(queued);
-        Assert.Equal(incoming, chunks.SelectMany(chunk => chunk).ToArray());
-    }
-
-    [Fact]
-    public async Task AdcAutomaticEventIsNotMistakenForRunFeedback()
-    {
-        var data = new byte[29];
-        data[0] = 28;
-        var automatic = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, data);
-        var statusData = new byte[15];
-        statusData[0] = 14;
-        var status = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, statusData);
-        using var stream = new AdcResponseStream([.. automatic, .. status]);
-        var events = new List<byte[]>();
-
-        var response = await AdcBus.ReadResponseAsync(stream, stream.Abort, bytes => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14, events.Add);
-
-        Assert.Equal(status, response);
-        Assert.Equal(automatic, Assert.Single(events));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task AdcAutomaticEventValidatesAddressAndCrcBeforeQueuing(bool wrongAddress)
-    {
-        var data = new byte[29];
-        data[0] = 28;
-        var automatic = AdcRtuFrame.Build((byte)(wrongAddress ? 2 : 1), AdcFunctionCode.ReadInputRegisters, data);
-        if (!wrongAddress)
-            automatic[^1] ^= 0xFF;
-        using var stream = new AdcResponseStream(automatic);
-        var events = new List<byte[]>();
-
-        await Assert.ThrowsAsync<InvalidDataException>(() => AdcBus.ReadResponseAsync(
-            stream, stream.Abort, bytes => { }, 1, AdcFunctionCode.WriteSingleRegister,
-            CancellationToken.None, resultReceived: events.Add));
-
-        Assert.Empty(events);
-    }
-
-    [Fact]
-    public async Task AdcRawCaptureKeepsEchoAndLateResponseUntilDeadline()
-    {
-        byte[] echo = [0x00, 0x11, 0xC1, 0xBC];
-        var response = AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, [0x02, 0x01, 0xFF]);
-        byte[] incoming = [.. echo, .. response, 0xAB];
-        using var stream = new AdcResponseStream(incoming, pauseAtByte: echo.Length, delayMilliseconds: 1100);
-        var chunks = new List<byte[]>();
-        var capture = AdcBus.CaptureResponseAsync(
-            stream,
-            stream.Abort,
-            chunks.Add,
-            2200,
-            CancellationToken.None);
-
-        await stream.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.False(capture.IsCompleted);
-        Assert.Equal(incoming, chunks.SelectMany(chunk => chunk).ToArray());
-        Assert.Equal(incoming, await capture.WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.True(stream.Aborted);
-    }
-
-    [Fact]
-    public async Task AdcRawCaptureCancellationPreservesLoggedBytesAndAbortsRead()
-    {
-        byte[] echo = [0x00, 0x11, 0xC1, 0xBC];
-        using var stream = new AdcResponseStream(echo);
-        using var cancellation = new CancellationTokenSource();
-        var chunks = new List<byte[]>();
-        var capture = AdcBus.CaptureResponseAsync(
-            stream,
-            stream.Abort,
-            chunks.Add,
-            3000,
-            cancellation.Token);
-
-        await stream.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => capture.WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.True(stream.Aborted);
-        Assert.Equal(echo, chunks.SelectMany(chunk => chunk).ToArray());
-    }
-
-    [Fact]
-    public async Task AdcRawCaptureSendsOnlyDeviceInformationAndReturnsFullFrame()
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        bus.Open("Virtual", 57600);
-        var frames = new List<(AdcFrameDirection Direction, byte[] Bytes)>();
-        bus.FrameTransferred += (direction, bytes) => frames.Add((direction, bytes));
-
-        var captured = await bus.CaptureDeviceInformationAsync(0, 20);
-
-        Assert.Equal(2, frames.Count);
-        Assert.Equal(AdcFrameDirection.Transmit, frames[0].Direction);
-        Assert.Equal(new byte[] { 0x00, 0x11, 0xC1, 0xBC }, frames[0].Bytes);
-        Assert.Equal(AdcFrameDirection.Receive, frames[1].Direction);
-        Assert.Equal(frames[1].Bytes, captured);
-    }
-
-    private static Task<byte[]> ReadAdcResponseAsync(
-        AdcResponseStream stream,
-        Action<byte[]> received,
-        CancellationToken cancellationToken)
-    {
-        return AdcBus.ReadResponseAsync(
-            stream,
-            stream.Abort,
-            received,
-            0,
-            AdcFunctionCode.ReadInputRegisters,
-            cancellationToken);
-    }
-
-    [Fact]
-    public async Task AdcReadinessUsesLiveRunAndDoesNotCallReverseAFastening()
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        await head.CheckReadyAsync();
-        Assert.Equal((ushort)1, (await bus.ReadControllerStatusAsync(1)).Preset);
-        var statusReads = 0;
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction == AdcFrameDirection.Transmit
-                && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcStatusRegister.Preset)
-                statusReads++;
-        };
-        await head.SelectPresetAsync(3);
-        Assert.Equal(2, statusReads); // Selection is confirmed from the current preset register.
-        Assert.Equal((ushort)3, (await bus.ReadControllerStatusAsync(1)).Preset);
-
-        await bus.SetDirectionAsync(1, AdcDirection.Loosening);
-        await bus.StartAsync(1);
-        var running = await bus.ReadControllerStatusAsync(1);
-        Assert.True(running.Running);
-        Assert.False(running.Ready);
-        Assert.Equal(AdcDirection.Loosening, running.Direction);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(3));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(4));
-        Assert.Equal((ushort)3, (await bus.ReadControllerStatusAsync(1)).Preset);
-        await Task.Delay(300);
-        Assert.True((await bus.ReadControllerStatusAsync(1)).Running);
-        Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        await head.CheckReadyAsync();
-        Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
-    }
-
-    [Theory]
-    [InlineData(AdcFunctionCode.ReadInputRegisters)]
-    [InlineData(AdcFunctionCode.WriteSingleRegister)]
-    public async Task FailedFasteningPreparationStillStopsTheHead(AdcFunctionCode failingFunction)
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        await head.CheckReadyAsync();
-        var failed = false;
-        var stops = 0;
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction != AdcFrameDirection.Transmit)
-                return;
-            if (frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) == 0)
-            {
-                stops++;
-            }
-            else if (!failed && frame[1] == (byte)failingFunction)
-            {
-                failed = true;
-                throw new IOException("Injected ADC communication failure.");
-            }
-        };
-
-        var fed = false;
-        Task FeedAsync(CancellationToken token)
-        {
-            fed = true;
-            return Task.CompletedTask;
-        }
-        await Assert.ThrowsAsync<IOException>(() => head.TightenAsync(feedAsync: FeedAsync));
-        Assert.False(fed);
-        Assert.Equal(1, stops);
-        Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        Assert.True((await head.TightenAsync()).Success);
-        Assert.Equal(2, stops);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task AdcErrorRecordsNgRaisesHeadAndContinuesToNextBolt(bool rejectedResponse)
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task AdcResultOrDryRunRaisesHeadAndContinuesToNextBolt(bool rejectedResponse, bool dryRun)
     {
         var settings = new BoltFasteningSettings
         {
             SafeZ = 5,
+            DryRunMilliseconds = 30,
+            ShootingArrivalDelaySeconds = 0,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
             PickupHead = HeadSettings(),
             ShootingHead = HeadSettings(),
@@ -521,7 +44,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
         motion.Initialize();
         await HomeAsync(motion, 20_000);
-        var bus = new AdcProtocolTests.ControllerBus { StopPollsRemaining = 2 };
+        var bus = new AdcControllerStub { StopPollsRemaining = 2 };
         if (rejectedResponse)
         {
             // Exact exception reply in the equipment log, including CRC.
@@ -537,7 +60,7 @@ public sealed class BoltFasteningTests
         }
         var head = new AdcBoltHead(bus, new(), 1, "Virtual", 115200);
         var pickup = new AdcBoltHead(new VirtualAdcBus(), new(), 2, "Virtual", 115200);
-        var units = new UnitSettings { ShootingBoltFeeder = false };
+        var units = new UnitSettings { ShootingBoltFeeder = !dryRun };
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
         var layout = new PcbLayout
         {
@@ -548,11 +71,17 @@ public sealed class BoltFasteningTests
             work, new(FasteningHead.Pickup, io, new()), new(FasteningHead.Shooting, io, new()),
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, true);
         await work.Station.SeatAsync(CancellationToken.None);
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         var raisedAfterError = false;
         io.OutputChanged += (output, on) =>
         {
+            if (output == OutputIo.ShootBolt && on)
+            {
+                io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+            }
             if (output == OutputIo.ShootingHeadDown && !on && assembly.PcbBoltResults.ContainsKey(1))
             {
                 Assert.False(bus.Running);
@@ -569,6 +98,18 @@ public sealed class BoltFasteningTests
             Assert.Equal(2, bus.StartWrites);
             Assert.Equal(2, bus.StopWrites);
             Assert.Equal(2, assembly.PcbBoltResults.Count);
+            if (dryRun)
+            {
+                Assert.Equal(0, bus.ResultReceives);
+                Assert.All(assembly.PcbBoltResults.Values, result =>
+                {
+                    Assert.Equal(BoltResultSource.DryRun, result.Source);
+                    Assert.Null(result.Torque);
+                    Assert.Null(result.Error);
+                });
+                Assert.Equal(BoltCylinderState.Up, station.ShootingHeadPosition);
+                return;
+            }
             Assert.False(assembly.PcbBoltResults[1].Success);
             Assert.Contains(rejectedResponse ? "0x03" : "42", assembly.PcbBoltResults[1].Error);
             if (rejectedResponse)
@@ -586,97 +127,6 @@ public sealed class BoltFasteningTests
             stop.Cancel();
             await run;
         }
-    }
-
-    [Fact]
-    public async Task ControllerErrorIsRecordedAsNgAndHardwareReadinessIsStillRequired()
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var virtualBus = (VirtualAdcBus)bus;
-        var head = new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200);
-        await head.CheckReadyAsync();
-        virtualBus.SetNextFasteningResult(2, AdcEventStatus.Error);
-
-        var result = await head.TightenAsync();
-        Assert.False(result.Success);
-        Assert.Contains("controller error", result.Error);
-        Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
-
-        virtualBus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(3));
-        Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
-        await bus.SetDirectionAsync(2, AdcDirection.Loosening);
-        Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
-        await bus.StartAsync(2);
-        Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
-        await bus.StopAsync(2);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);
-
-        await bus.ResetAlarmAsync(2);
-        await head.CheckReadyAsync();
-        Assert.False((await head.TightenAsync()).Success);
-        Assert.Equal(2, (await bus.ReadFasteningResultAsync(2)).EventCount);
-    }
-
-    [Fact]
-    public async Task ResultQueuedDuringFasteningAppliesOnceToSelectedSlave()
-    {
-        var bus = new VirtualAdcBus();
-        var selected = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        var other = new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200);
-        var current = selected.TightenAsync();
-        Assert.False(current.IsCompleted);
-
-        bus.SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
-
-        Assert.True((await current).Success);
-        Assert.True((await other.TightenAsync()).Success);
-        Assert.False((await selected.TightenAsync()).Success);
-        Assert.True((await selected.TightenAsync()).Success);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task InterruptedFasteningStopsAndPreservesTheNextResult(bool timedOut)
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var settings = new HantasSettings();
-        var head = new AdcBoltHead(bus, settings, 1, "Virtual", 115200);
-        await head.SelectPresetAsync(3);
-        Assert.True((await head.TightenAsync()).Success);
-        using var stop = new CancellationTokenSource();
-        if (timedOut)
-            settings.FasteningTimeoutMilliseconds = 20;
-        var tightening = head.TightenAsync(stop.Token);
-        Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        ((VirtualAdcBus)bus).SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
-        if (timedOut)
-        {
-            var error = await Assert.ThrowsAsync<TimeoutException>(() => tightening);
-            Assert.Contains("ADC Virtual/1", error.Message);
-            Assert.Contains("start event=1", error.Message);
-            Assert.Contains("last event=1", error.Message);
-            Assert.Contains("expected preset=3", error.Message);
-        }
-        else
-        {
-            stop.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
-        }
-        await Task.Delay(300);
-        Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
-
-        settings.FasteningTimeoutMilliseconds = 15_000;
-        Assert.False((await head.TightenAsync()).Success);
-        var completed = await bus.ReadFasteningResultAsync(1);
-        Assert.Equal(2, completed.EventCount);
-        Assert.Equal(3, completed.Preset);
-        Assert.True((await head.TightenAsync()).Success);
     }
 
     [Theory]
@@ -1095,6 +545,7 @@ public sealed class BoltFasteningTests
         var settings = new BoltFasteningSettings
         {
             SafeZ = 5,
+            DryRunMilliseconds = 30,
             PickupHead = HeadSettings(),
             ShootingHead = HeadSettings(),
         };
@@ -1109,7 +560,7 @@ public sealed class BoltFasteningTests
         await HomeAsync(motion, 20_000);
         using var pickupIo = new IoBoltHead(io, FasteningHead.Pickup, controllerSettings);
         using var shooting = new IoBoltHead(io, FasteningHead.Shooting, controllerSettings);
-        var bus = new AdcProtocolTests.ControllerBus();
+        var bus = new AdcControllerStub();
         IBoltHead pickup = useIo ? pickupIo : new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
 
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
@@ -1191,7 +642,7 @@ public sealed class BoltFasteningTests
         Assert.Same(assembly, Assert.Single(work.Assemblies));
         Assert.True(work.Station.CarrierPresent);
         Assert.Equal(
-            useIo ? BoltResultSource.IoAssumedOk : BoltResultSource.Controller,
+            BoltResultSource.DryRun,
             assembly.PickupBoltResults[1].Source);
         Assert.True(assembly.PickupBoltResults[1].Success);
         if (useIo)
@@ -1208,6 +659,7 @@ public sealed class BoltFasteningTests
         var settings = new BoltFasteningSettings
         {
             SafeZ = 5,
+            DryRunMilliseconds = 30,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
             PickupPosition = new() { X = 100, Y = 100, Z = 10 },
             PickupHead = HeadSettings(),
@@ -1224,7 +676,7 @@ public sealed class BoltFasteningTests
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         BoltFasteningStation? station = null;
         var starts = new List<int>();
-        var bus = new AdcProtocolTests.ControllerBus
+        var bus = new AdcControllerStub
         {
             Started = () =>
             {
@@ -2102,51 +1554,6 @@ public sealed class BoltFasteningTests
         };
     }
 
-    private sealed class AdcResponseStream : MemoryStream
-    {
-        private readonly int _pauseAtByte;
-        private readonly int _delayMilliseconds;
-        private readonly TaskCompletionSource<int> _pending;
-
-        public AdcResponseStream(
-            byte[] bytes,
-            int pauseAtByte = -1,
-            int delayMilliseconds = 0)
-            : base(bytes)
-        {
-            _pauseAtByte = pauseAtByte;
-            _delayMilliseconds = delayMilliseconds;
-            _pending = new(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-            Waiting = new(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-        }
-
-        public TaskCompletionSource Waiting { get; }
-        public bool Aborted { get; private set; }
-
-        public override async ValueTask<int> ReadAsync(
-            Memory<byte> buffer,
-            CancellationToken cancellationToken = default)
-        {
-            if (Position == _pauseAtByte)
-            {
-                await Task.Delay(_delayMilliseconds, cancellationToken);
-            }
-
-            if (Position < Length)
-                return await base.ReadAsync(buffer[..1], cancellationToken);
-            Waiting.TrySetResult();
-            return await _pending.Task; // Model Windows native IO ignoring cancellation.
-        }
-
-        public void Abort()
-        {
-            Aborted = true;
-            _pending.TrySetException(new IOException("Native serial IO aborted."));
-        }
-    }
-
     public enum ShootingPreparationFailure
     {
         None,
@@ -2155,12 +1562,4 @@ public sealed class BoltFasteningTests
         Stop,
     }
 
-    public enum AdcResponseKind
-    {
-        Valid,
-        InvalidCrc,
-        WrongAddress,
-        WriteResponse,
-        ControllerError,
-    }
 }

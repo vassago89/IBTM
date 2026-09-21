@@ -45,6 +45,10 @@
                     <Setter TargetName="Verdict" Property="Text" Value="OK"/>
                     <Setter TargetName="Verdict" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                 </DataTrigger>
+                <DataTrigger Binding="{Binding Value.Source}" Value="{x:Static core:BoltResultSource.DryRun}">
+                    <Setter TargetName="Verdict" Property="Text" Value="DRY RUN"/>
+                    <Setter TargetName="Verdict" Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
         <DataTemplate x:Key="DoorSensorTemplate" DataType="{x:Type ui:DoorSensorDisplay}">

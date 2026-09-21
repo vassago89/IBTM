@@ -230,7 +230,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            var bus = new AdcProtocolTests.ControllerBus
+            var bus = new AdcControllerStub
             {
                 StopReadFailure = failure,
                 Started = () =>
@@ -273,7 +273,7 @@ public sealed partial class MachineLifecycleTests
             throw failure;
         }
 
-        var bus = new AdcProtocolTests.ControllerBus();
+        var bus = new AdcControllerStub();
         using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), settings.Hantas, machine, state);
         state.Changed += FailWhenTestingStarts;
         try

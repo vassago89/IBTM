@@ -64,7 +64,6 @@ public sealed class IoBoltHeadTests
         Assert.Null(services.GetService<IAdcBus>());
         var io = services.GetRequiredService<IIoService>();
         var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
         var inputs = new InputWindowViewModel(io, signals);
         var outputs = new OutputWindowViewModel(signals, machine);
         foreach (var signal in settings.IoBoltHardware.Inputs.Keys)
@@ -233,6 +232,55 @@ public sealed class IoBoltHeadTests
             io.SetInput(InputIo.PickupBoltFasten, true);
         var error = await Assert.ThrowsAsync<TimeoutException>(() => cycle);
         Assert.Contains($"waiting for PickupBoltFasten={(sawOn ? "OFF" : "ON")}", error.Message);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DryRunStopsOnTimeWithoutWaitingForFasten(bool fastenOn)
+    {
+        var settings = new IoBoltHardwareSettings { FasteningTimeoutMilliseconds = 1 };
+        var io = new VirtualIoService(settings.Outputs, new());
+        using var head = new IoBoltHead(io, FasteningHead.Pickup, settings);
+        await head.SelectPresetAsync(1);
+        io.SetInput(InputIo.PickupBoltFasten, fastenOn);
+        var fed = false;
+        Task FeedAsync(CancellationToken token)
+        {
+            Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+            fed = true;
+            return Task.CompletedTask;
+        }
+
+        var cycle = head.TightenAsync(feedAsync: FeedAsync, dryRunMilliseconds: 50);
+        Assert.True(fed);
+        Assert.False(cycle.IsCompleted);
+        var result = await cycle.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(BoltResultSource.DryRun, result.Source);
+        Assert.Null(result.Torque);
+        Assert.Equal(fastenOn, io.GetInput(InputIo.PickupBoltFasten));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DryRunCancellationDoesNotBecomeACompletedResult(bool directStop)
+    {
+        var settings = new IoBoltHardwareSettings();
+        var io = new VirtualIoService(settings.Outputs, new());
+        using var head = new IoBoltHead(io, FasteningHead.Pickup, settings);
+        await head.SelectPresetAsync(1);
+        using var stop = new CancellationTokenSource();
+        var cycle = head.TightenAsync(stop.Token, dryRunMilliseconds: 10_000);
+        if (directStop)
+            io.SetOutput(OutputIo.PickupBoltStart, false);
+        else
+            stop.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle.WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 }

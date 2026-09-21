@@ -25,7 +25,7 @@ public sealed class BoltFasteningSettings : Setting
                 throw new ArgumentOutOfRangeException(nameof(value), "Dry-run duration must be greater than zero.");
             field = value;
         }
-    } = 1_000;
+    } = 2_000;
     public int ShootingDetectionTimeoutMilliseconds { get; set; } = 3_000;
     public double ShootingArrivalDelaySeconds
     {

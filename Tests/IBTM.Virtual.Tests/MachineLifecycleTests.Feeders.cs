@@ -30,6 +30,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = pickupEnabled;
         settings.Units.ShootingBoltFeeder = shootingEnabled;
+        settings.IoBoltHardware.FasteningTimeoutMilliseconds = 10;
         var pickupFeeding = pickupEnabled && !repeat;
         var shootingFeeding = shootingEnabled && !repeat;
         await using var services = CreateServices(settings);
@@ -96,9 +97,9 @@ public sealed partial class MachineLifecycleTests
                 starts.Enqueue((output == OutputIo.ShootingBoltStart ? FasteningHead.Shooting : FasteningHead.Pickup,
                     position.X, position.Y, position.Z));
             }
-            if (output == OutputIo.ShootingBoltStart)
+            if (shootingFeeding && output == OutputIo.ShootingBoltStart)
                 io.SetInput(InputIo.ShootingBoltFasten, on);
-            if (output == OutputIo.PickupBoltStart)
+            if (pickupFeeding && output == OutputIo.PickupBoltStart)
                 io.SetInput(InputIo.PickupBoltFasten, on);
             if (on && output is OutputIo.ShootingHeadDown or OutputIo.PickupHeadDown)
             {
@@ -108,12 +109,12 @@ public sealed partial class MachineLifecycleTests
                 descents.Enqueue((output == OutputIo.ShootingHeadDown ? FasteningHead.Shooting : FasteningHead.Pickup,
                     position.X, position.Y, position.Z));
             }
-            if (output == OutputIo.ShootingHeadDown && on)
+            if (shootingFeeding && output == OutputIo.ShootingHeadDown && on)
             {
                 Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
                 io.SetInput(InputIo.ShootingBoltFasten, false);
             }
-            if (output == OutputIo.PickupHeadDown && on && io.GetOutput(OutputIo.PickupBoltStart))
+            if (pickupFeeding && output == OutputIo.PickupHeadDown && on && io.GetOutput(OutputIo.PickupBoltStart))
                 io.SetInput(InputIo.PickupBoltFasten, false);
         };
         work.Changed += () =>
@@ -130,11 +131,11 @@ public sealed partial class MachineLifecycleTests
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(work.Completed, services.GetRequiredService<BoltFasteningStation>().GetState().ToString());
             var assembly = Assert.Single(work.Assemblies);
-            Assert.Equal(BoltResultSource.IoAssumedOk,
+            Assert.Equal(shootingFeeding ? BoltResultSource.IoAssumedOk : BoltResultSource.DryRun,
                 Assert.Single(assembly.PcbBoltResults).Value.Source);
             Assert.Equal(2, assembly.PickupBoltResults.Count);
             Assert.All(assembly.PickupBoltResults.Values, result =>
-                Assert.Equal(BoltResultSource.IoAssumedOk, result.Source));
+                Assert.Equal(pickupFeeding ? BoltResultSource.IoAssumedOk : BoltResultSource.DryRun, result.Source));
             Assert.All(assembly.PcbBoltResults.Values.Concat(assembly.PickupBoltResults.Values), result => Assert.Null(result.Torque));
             Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
             var positions = new[]
@@ -179,24 +180,18 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(true, false, false)]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, true)]
-    [InlineData(false, false, false, FasteningHead.Pickup, true)]
-    [InlineData(false, false, false, FasteningHead.Shooting, true)]
+    [InlineData(FasteningHead.Shooting, BoltDriver.Io, DryRunEnd.Completed)]
+    [InlineData(FasteningHead.Shooting, BoltDriver.Io, DryRunEnd.Cancelled)]
+    [InlineData(FasteningHead.Shooting, BoltDriver.Io, DryRunEnd.MissingUpFeedback)]
+    [InlineData(FasteningHead.Pickup, BoltDriver.Virtual, DryRunEnd.Completed)]
     public async Task FasteningWithoutDownFeedbackStillRequiresUpFeedbackAndStopsOnCancellation(
-        bool stopDuringDescent,
-        bool missingUpFeedback,
-        bool repeat,
-        FasteningHead head = FasteningHead.Shooting,
-        bool useAdc = false)
+        FasteningHead head, BoltDriver driver, DryRunEnd end)
     {
         var settings = FlowSettings();
-        settings.Drivers.Bolt = useAdc ? BoltDriver.Virtual : BoltDriver.Io;
+        settings.Drivers.Bolt = driver;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
-        settings.Units.PickupBoltFeeder = repeat;
-        settings.Units.ShootingBoltFeeder = repeat;
+        var stopDuringDescent = end == DryRunEnd.Cancelled;
+        var missingUpFeedback = end == DryRunEnd.MissingUpFeedback;
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = head, X = 10, Y = 10 }];
@@ -215,27 +210,23 @@ public sealed partial class MachineLifecycleTests
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var descended = false;
         var raising = false;
-        var (start, fasten, cylinder, up, down) = head == FasteningHead.Pickup
-            ? (OutputIo.PickupBoltStart, InputIo.PickupBoltFasten, OutputIo.PickupHeadDown,
+        var (start, cylinder, up, down) = head == FasteningHead.Pickup
+            ? (OutputIo.PickupBoltStart, OutputIo.PickupHeadDown,
                 InputIo.PickupHeadUp, InputIo.PickupHeadDown)
-            : (OutputIo.ShootingBoltStart, InputIo.ShootingBoltFasten, OutputIo.ShootingHeadDown,
+            : (OutputIo.ShootingBoltStart, OutputIo.ShootingHeadDown,
                 InputIo.ShootingHeadUp, InputIo.ShootingHeadDown);
         io.OutputChanged += (output, on) =>
         {
-            if (output == start)
-                io.SetInput(fasten, on);
             if (output != cylinder)
                 return;
             if (on)
             {
-                if (!useAdc)
+                if (driver == BoltDriver.Io)
                     Assert.True(io.GetOutput(start));
                 descended = true;
                 io.SetInputs((up, false), (down, false));
                 if (stopDuringDescent)
                     stop.Cancel();
-                else if (!useAdc)
-                    io.SetInput(fasten, false);
             }
             else if (descended)
             {
@@ -250,7 +241,7 @@ public sealed partial class MachineLifecycleTests
         };
         try
         {
-            var run = station.RunAsync(stop.Token, repeat: repeat);
+            var run = station.RunAsync(stop.Token);
             if (missingUpFeedback)
                 await Assert.ThrowsAsync<IoTimeoutException>(() => run);
             else
@@ -264,7 +255,7 @@ public sealed partial class MachineLifecycleTests
             if (stopDuringDescent)
                 Assert.Empty(results);
             else
-                Assert.Equal(useAdc ? BoltResultSource.Controller : BoltResultSource.IoAssumedOk,
+                Assert.Equal(BoltResultSource.DryRun,
                     Assert.Single(results).Value.Source);
             Assert.False(io.GetOutput(start));
         }
@@ -273,6 +264,13 @@ public sealed partial class MachineLifecycleTests
             stop.Cancel();
             await machine.ShutdownAsync();
         }
+    }
+
+    public enum DryRunEnd
+    {
+        Completed,
+        Cancelled,
+        MissingUpFeedback,
     }
 
     [Fact]

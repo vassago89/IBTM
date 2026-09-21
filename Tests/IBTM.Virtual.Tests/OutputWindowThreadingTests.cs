@@ -885,7 +885,7 @@ public sealed class OutputWindowThreadingTests
     {
         foreach (var confirmsStop in new[] { true, false })
         {
-            var bus = new AdcProtocolTests.ControllerBus { StopPollsRemaining = -1 };
+            var bus = new AdcControllerStub { StopPollsRemaining = -1 };
             await ((IAdcBus)bus).StartAsync(1); // A run started outside this window.
             var adcModel = new AdcProtocolViewModel(
                 bus, new VirtualAdcBus(),
@@ -949,7 +949,7 @@ public sealed class OutputWindowThreadingTests
             }
         }
 
-        var presetBus = new AdcProtocolTests.ControllerBus { IgnorePresetWrites = true };
+        var presetBus = new AdcControllerStub { IgnorePresetWrites = true };
         var presetModel = new AdcProtocolViewModel(presetBus, new VirtualAdcBus(), new HantasSettings(), machine, state);
         var presetWindow = new AdcProtocolWindow(presetModel);
         var selectPreset = (Button)presetWindow.FindName("SelectPresetButton");

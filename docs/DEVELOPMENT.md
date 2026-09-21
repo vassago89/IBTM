@@ -778,9 +778,11 @@ Shooting Bolt Feeder OFF 또는 Repeat는 공급 대기·이스케이프·볼트
 Settings → Operation & Timing → Bolt Shooting · Arrival Timing → Head Arrival Delay (s)에서 수정한다.
 슈팅 튜브 ON·OFF 감지에는 기존 `ShootingDetectionTimeoutMilliseconds`를 각각 적용한다(기본 3,000ms).
 STOP은 도착 시간 대기를 취소하고 발사 출력을 끈다. 공통 피드백·정지 및 피더 공급 타임아웃과 별개다.
-피더 ON/OFF와 관계없이 모든 볼트의 XY·헤드별 체결 Z로 이동하고, 프리셋 선택 → START → 실린더 하강 → 체결 결과 수거를 수행한다.
-IO형은 기존 FASTEN ON → OFF를 확인한 뒤 START를 끄고 IO · Assumed OK로 기록한다. 통신형은 체결기의 실제 OK/NG 결과를 기록한다.
-ADC는 START 전 이전 이벤트 번호를 한 번 조회하고, 체결 중에는 Auto Data Output 결과를 수신한다(반복 결과 조회 없음).
+피더 ON/OFF와 관계없이 모든 볼트의 XY·헤드별 체결 Z로 이동하고, 프리셋 선택 → START → 실린더 하강을 수행한다.
+피더 OFF 또는 Repeat는 드라이런이다. 하강 출력 후 `BoltFasteningSettings.DryRunMilliseconds`(기본 2,000ms)만큼 기다린 뒤 모터를 정지하고 헤드를 올려 다음 볼트로 진행한다.
+Settings → Operation & Timing → Bolt Fastening · Timing에서 시간을 조정한다. FASTEN 완료나 ADC 자동 결과를 기다리지 않으며, `DryRun` 출처와 미측정 토크(null)로 동작 완료를 기록한다.
+피더 ON인 실제 체결에서 IO형은 FASTEN ON → OFF를 확인한 뒤 START를 끄고 IO · Assumed OK로 기록한다. 통신형은 체결기의 실제 OK/NG 결과를 기록한다.
+ADC 실제 체결은 START 전 이전 이벤트 번호를 한 번 조회하고, 체결 중에는 Auto Data Output 결과를 수신한다(반복 결과 조회 없음).
 START 응답과 자동 결과 프레임이 섞여 들어와도 구분하며, 이전 이벤트·방향 변경·프리셋 변경은 완료 결과로 기록하지 않는다.
 컨트롤러에서 Auto Data Output과 사용 중인 시리얼 출력 포트를 설정해야 한다. 공개 MDC/ADC COM Protocol Rev. 1.3의 33바이트 `04/1C` 프레임을 사용한다.
 자동 출력 설정 설명은 MDC용이므로 A297/A303을 ADC에 임의로 쓰지 않는다. 사용 중인 ADC의 자동 출력 및 원격 명령 병행 지원은 실장비 확인 대상이다.

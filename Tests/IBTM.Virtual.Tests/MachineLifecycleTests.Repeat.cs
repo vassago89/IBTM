@@ -147,8 +147,8 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(2, assemblies.Length);
                 foreach (var assembly in assemblies)
                 {
-                    Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(assembly.PcbBoltResults).Value.Source);
-                    Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(assembly.PickupBoltResults).Value.Source);
+                    Assert.Equal(BoltResultSource.DryRun, Assert.Single(assembly.PcbBoltResults).Value.Source);
+                    Assert.Equal(BoltResultSource.DryRun, Assert.Single(assembly.PickupBoltResults).Value.Source);
                     Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
                 }
             }
