@@ -423,15 +423,27 @@ public sealed class AdcBoltHeadTests
         Assert.False(bus.Running);
     }
 
-    [Fact]
-    public async Task StopLengthRejectionAcceptsCurrentRunOffFeedback()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopLengthRejectionAcceptsCurrentRunOffFeedback(bool resetBeforeNextBolt)
     {
-        var bus = new AdcControllerStub { StopWriteFailure = new AdcResponseException(3, "RX=0186030261") };
+        var bus = new AdcControllerStub
+        {
+            StopWriteFailure = new AdcResponseException(3, "RX=0186030261"),
+            CurrentAlarm = resetBeforeNextBolt ? (ushort)125 : (ushort)0,
+        };
         var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
 
-        await head.StopAsync();
+        if (resetBeforeNextBolt)
+            await head.SelectPresetAsync(1);
+        else
+            await head.StopAsync();
 
         Assert.Equal(1, bus.StopWrites);
+        Assert.Equal(resetBeforeNextBolt ? 1 : 0, bus.ResetWrites);
+        Assert.Equal((ushort)0, bus.CurrentAlarm);
+        Assert.Equal(0, bus.StartWrites);
         Assert.False(bus.Running);
     }
 

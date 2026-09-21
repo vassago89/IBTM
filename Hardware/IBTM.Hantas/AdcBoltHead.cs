@@ -108,14 +108,14 @@ public sealed class AdcBoltHead : IBoltHead
         timeout.CancelAfter(_connection.ResponseTimeoutMilliseconds);
         try
         {
-            do
+            while (true)
             {
                 status = await _bus.ReadControllerStatusAsync(_slaveAddress, timeout.Token);
                 timeout.Token.ThrowIfCancellationRequested();
                 if (status.Alarm == 0 && status.Ready && !status.Running)
                     break;
                 await Task.Delay(StatusPollMilliseconds, timeout.Token);
-            } while (true);
+            }
         }
         catch (OperationCanceledException exception) when (
             timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
