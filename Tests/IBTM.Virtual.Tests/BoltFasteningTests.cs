@@ -352,6 +352,111 @@ public sealed class BoltFasteningTests
     }
 
     [Fact]
+    public async Task ShootingFeederStopsAfterRunOnFromLatestDetection()
+    {
+        var settings = new BoltFeederSettings();
+        Assert.Equal(3_000, settings.ShootingRunOnMilliseconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.ShootingRunOnMilliseconds = -1);
+        settings.ShootingRunOnMilliseconds = 200;
+        var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new())
+        { AutoResponseEnabled = false };
+        io.SetInput(InputIo.ShootingEscapeBackward, true);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, false);
+        var feeder = new BoltFeederUnit(FasteningHead.Shooting, io, settings);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var run = feeder.RunAsync(stop.Token);
+        try
+        {
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+            io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+            await Task.Delay(100);
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+            // A short detection loss starts a fresh delay, even if the loop sees both edges together.
+            io.SetInput(InputIo.ShootingFeederBoltDetected, false);
+            io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+            var detected = Stopwatch.StartNew();
+            await Task.Delay(120);
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+            Assert.True(await WaitUntilAsync(() => io.GetOutput(OutputIo.ShootingFeederOff),
+                TimeSpan.FromSeconds(1)));
+            Assert.True(detected.ElapsedMilliseconds >= 190);
+            Assert.Equal(BoltFeederState.BoltReady, feeder.State);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+    }
+
+    [Fact]
+    public async Task StopDuringShootingFeederRunOnStopsImmediately()
+    {
+        var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new())
+        { AutoResponseEnabled = false };
+        io.SetInput(InputIo.ShootingEscapeBackward, true);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, false);
+        var feeder = new BoltFeederUnit(FasteningHead.Shooting, io, new());
+        using var stop = new CancellationTokenSource();
+        var run = feeder.RunAsync(stop.Token);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+        Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+
+        stop.Cancel();
+        await run.WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
+    }
+
+    [Fact]
+    public async Task ShootingEscapeDoesNotWaitForFeederRunOn()
+    {
+        var io = new VirtualIoService(
+            Outputs(new BoltFeederHardwareSettings(), new BoltFasteningHardwareSettings()), new())
+        { AutoResponseEnabled = false };
+        io.SetInput(InputIo.ShootingEscapeBackward, true);
+        io.SetInput(InputIo.ShootingFeederBoltDetected, false);
+        var feeder = new BoltFeederUnit(FasteningHead.Shooting, io, new());
+        var settings = new BoltFasteningSettings { ShootingArrivalDelaySeconds = 0 };
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        var bus = new VirtualAdcBus();
+        var station = CreateFastening(
+            new AdcBoltHead(bus, new(), 2, "Virtual", 115200), new AdcBoltHead(bus, new(), 1, "Virtual", 115200),
+            io, motion, settings, new());
+        var forwarded = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootingEscapeForward)
+            {
+                forwarded |= on;
+                io.SetInputs((InputIo.ShootingEscapeForward, on), (InputIo.ShootingEscapeBackward, !on));
+            }
+            if (output == OutputIo.ShootBolt && on)
+            {
+                io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+            }
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var run = feeder.RunAsync(stop.Token);
+        try
+        {
+            io.SetInput(InputIo.ShootingFeederBoltDetected, true);
+            Assert.False(io.GetOutput(OutputIo.ShootingFeederOff));
+            await station.ShootBoltAsync(stop.Token).WaitAsync(TimeSpan.FromSeconds(1));
+
+            Assert.True(forwarded);
+            Assert.True(io.GetInput(InputIo.ShootingEscapeBackward));
+            Assert.False(io.GetOutput(OutputIo.ShootBolt));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+    }
+
+    [Fact]
     public async Task ShootingFeederKeepsTheNextBoltReady()
     {
         var io = new VirtualIoService(
@@ -360,7 +465,7 @@ public sealed class BoltFasteningTests
         var feeder = new BoltFeederUnit(
             FasteningHead.Shooting,
             io,
-            new BoltFeederSettings { ShootingTimeoutMilliseconds = 500, });
+            new BoltFeederSettings { ShootingTimeoutMilliseconds = 500, ShootingRunOnMilliseconds = 30 });
         var refillCount = 0;
         var runCount = 0;
         io.OutputChanged += (output, value) =>

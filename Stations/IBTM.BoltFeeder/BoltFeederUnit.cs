@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -12,6 +13,8 @@ public sealed class BoltFeederUnit : AutoUnit
     private readonly BoltFeederSettings _settings;
     private readonly FasteningHead _head;
     private readonly InputIo _boltDetected;
+    // Timing of the latest detection edge, not a remembered bolt-ready state.
+    private long _detectedAt;
 
     public BoltFeederUnit(FasteningHead head, IIoService io, BoltFeederSettings settings)
     {
@@ -81,6 +84,34 @@ public sealed class BoltFeederUnit : AutoUnit
                                 }
                             }
                             break;
+                        case BoltFeederState.BoltReady when _head == FasteningHead.Shooting
+                            && !_io.GetOutput(OutputIo.ShootingFeederOff):
+                            var detectedAt = Volatile.Read(ref _detectedAt);
+                            if (detectedAt == 0)
+                            {
+                                Interlocked.CompareExchange(ref _detectedAt, Stopwatch.GetTimestamp(), 0);
+                                break;
+                            }
+                            var remaining = TimeSpan.FromMilliseconds(_settings.ShootingRunOnMilliseconds)
+                                - Stopwatch.GetElapsedTime(detectedAt);
+                            if (remaining <= TimeSpan.Zero)
+                            {
+                                SetFeeding(false);
+                                break;
+                            }
+                            using (var delay = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                            {
+                                delay.CancelAfter(remaining);
+                                try
+                                {
+                                    await WaitForChangeAsync(delay.Token);
+                                }
+                                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                                {
+                                    // Recheck detection, escape and the latest ON edge before stopping the feeder.
+                                }
+                            }
+                            break;
                         case BoltFeederState.WaitingForEscapeBackward:
                         case BoltFeederState.BoltReady:
                             SetFeeding(false);
@@ -128,6 +159,8 @@ public sealed class BoltFeederUnit : AutoUnit
 
     private void OnInputChanged(InputIo input, bool value)
     {
+        if (_head == FasteningHead.Shooting && input == _boltDetected)
+            Interlocked.Exchange(ref _detectedAt, value ? Stopwatch.GetTimestamp() : 0);
         if (input == _boltDetected
             || _head == FasteningHead.Shooting
                 && input is InputIo.ShootingEscapeForward or InputIo.ShootingEscapeBackward)
@@ -138,7 +171,8 @@ public sealed class BoltFeederUnit : AutoUnit
 
     private void OnOutputChanged(OutputIo output, bool value)
     {
-        if (_head == FasteningHead.Shooting && output == OutputIo.ShootingEscapeForward)
+        if (_head == FasteningHead.Shooting
+            && output is OutputIo.ShootingEscapeForward or OutputIo.ShootingFeederOff)
             Changed?.Invoke();
     }
 }
