@@ -368,7 +368,8 @@ public sealed partial class MachineLifecycleTests
 
         public async Task<BoltResult> TightenAsync(
             CancellationToken cancellationToken = default,
-            Func<CancellationToken, Task>? feedAsync = null)
+            Func<CancellationToken, Task>? feedAsync = null,
+            int dryRunMilliseconds = 0)
         {
             Started.SetResult();
             try
@@ -426,7 +427,8 @@ public sealed partial class MachineLifecycleTests
 
         public Task<BoltResult> TightenAsync(
             CancellationToken cancellationToken = default,
-            Func<CancellationToken, Task>? feedAsync = null)
+            Func<CancellationToken, Task>? feedAsync = null,
+            int dryRunMilliseconds = 0)
         {
             throw new NotSupportedException();
         }

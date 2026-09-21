@@ -126,9 +126,11 @@ public sealed class AdcBoltHead : IBoltHead
 
     public async Task<BoltResult> TightenAsync(
         CancellationToken cancellationToken = default,
-        Func<CancellationToken, Task>? feedAsync = null)
+        Func<CancellationToken, Task>? feedAsync = null,
+        int dryRunMilliseconds = 0)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ArgumentOutOfRangeException.ThrowIfNegative(dryRunMilliseconds);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         (ushort EventCount, ushort Preset)? started = null;
         AdcFasteningResult? completed = null;
@@ -137,11 +139,12 @@ public sealed class AdcBoltHead : IBoltHead
         Exception? failure = null;
         try
         {
-            var current = await _bus.ReadFasteningResultAsync(_slaveAddress, cancellationToken);
+            var current = dryRunMilliseconds > 0
+                ? null : await _bus.ReadFasteningResultAsync(_slaveAddress, cancellationToken);
             lastResult = current;
             // The pre-START event is a baseline, including a previous bolt's error.
             var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-            var fastening = (EventCount: current.EventCount, Preset: _requestedPreset ?? status.Preset);
+            var fastening = (EventCount: current?.EventCount ?? (ushort)0, Preset: _requestedPreset ?? status.Preset);
             RequireReady(status);
             RequirePreset(status, fastening.Preset);
             await _bus.SetDirectionAsync(_slaveAddress, AdcDirection.Fastening, cancellationToken);
@@ -150,7 +153,8 @@ public sealed class AdcBoltHead : IBoltHead
             RequirePreset(status, fastening.Preset);
             RequireDirection(status, AdcDirection.Fastening);
 
-            timeout.CancelAfter(_connection.FasteningTimeoutMilliseconds);
+            if (dryRunMilliseconds == 0)
+                timeout.CancelAfter(_connection.FasteningTimeoutMilliseconds);
             timeout.Token.ThrowIfCancellationRequested();
             started = fastening;
             // START may reach the controller even if its acknowledgement or feed fails.
@@ -160,7 +164,9 @@ public sealed class AdcBoltHead : IBoltHead
                 timeout.Token.ThrowIfCancellationRequested();
                 await feedAsync(timeout.Token);
             }
-            while (true)
+            if (dryRunMilliseconds > 0)
+                await Task.Delay(dryRunMilliseconds, cancellationToken);
+            while (dryRunMilliseconds == 0)
             {
                 try
                 {
@@ -204,6 +210,10 @@ public sealed class AdcBoltHead : IBoltHead
         {
             await StopAfterOperationAsync(failure);
         }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (dryRunMilliseconds > 0)
+            return new BoltResult(true, null, BoltResultSource.DryRun);
 
         if (responseError is not null)
         {

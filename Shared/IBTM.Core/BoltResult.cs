@@ -12,6 +12,9 @@ public enum BoltResultSource
 
     [Description("IO · Assumed OK")]
     IoAssumedOk,
+
+    [Description("Dry run · Not measured")]
+    DryRun,
 }
 
 public sealed record BoltResult(

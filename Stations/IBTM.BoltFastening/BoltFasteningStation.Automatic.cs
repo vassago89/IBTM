@@ -318,12 +318,14 @@ public sealed partial class BoltFasteningStation
         try
         {
             CheckPickupTable();
+            var dryRunMilliseconds = _repeat || !_units.IsBoltFeederEnabled(bolt.Head)
+                ? _settings.DryRunMilliseconds : 0;
             _log?.LogInformation(
-                "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN and waiting for fastening result.",
-                bolt.Head, bolt.HeatSink, bolt.Number, head.GetType().Name);
-            var completed = await head.TightenAsync(fastening.Token, LowerHeadWhileFasteningAsync);
+                "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
+                bolt.Head, bolt.HeatSink, bolt.Number, head.GetType().Name, dryRunMilliseconds);
+            var completed = await head.TightenAsync(fastening.Token, LowerHeadWhileFasteningAsync, dryRunMilliseconds);
             _log?.LogInformation(
-                "Bolt {Head}, {HeatSink}, point {Bolt}: result received; success={Success}, source={Source}, error={Error}.",
+                "Bolt {Head}, {HeatSink}, point {Bolt}: cycle completed; success={Success}, source={Source}, error={Error}.",
                 bolt.Head, bolt.HeatSink, bolt.Number, completed.Success, completed.Source, completed.Error);
             _work.RequireCurrentJob(job);
             switch (bolt.Head)
@@ -354,7 +356,7 @@ public sealed partial class BoltFasteningStation
             _io.SetOutput(bolt.Head == FasteningHead.Pickup
                 ? OutputIo.PickupHeadDown : OutputIo.ShootingHeadDown, true);
             token.ThrowIfCancellationRequested();
-            _log?.LogInformation("Bolt {Head}: head DOWN output sent; waiting for fastening result.", bolt.Head);
+            _log?.LogInformation("Bolt {Head}: head DOWN output sent.", bolt.Head);
             return Task.CompletedTask;
         }
     }

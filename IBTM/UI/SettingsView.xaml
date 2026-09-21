@@ -267,7 +267,13 @@
                             <StackPanel Grid.Column="2">
                                 <Border Style="{StaticResource SettingCard}">
                                     <StackPanel>
-                                        <TextBlock Text="Bolt Fastening · Completion Timeout" Style="{StaticResource SettingSectionTitle}"/>
+                                        <TextBlock Text="Bolt Fastening · Timing" Style="{StaticResource SettingSectionTitle}"/>
+                                        <TextBlock Text="Dry Run Motor Duration (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Text="{Binding Settings.BoltFastening.DryRunMilliseconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                            Width="180" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="Feeder OFF or Repeat: run after head DOWN, then STOP without waiting for a fastening result. Default: 1,000 ms."
+                                            Style="{StaticResource SettingHelpText}"/>
                                         <StackPanel>
                                             <StackPanel.Style>
                                                 <Style TargetType="StackPanel">

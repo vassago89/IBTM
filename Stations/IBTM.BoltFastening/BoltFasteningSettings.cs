@@ -16,6 +16,16 @@ public sealed class BoltFasteningSettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
+    public int DryRunMilliseconds
+    {
+        get;
+        set
+        {
+            if (value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "Dry-run duration must be greater than zero.");
+            field = value;
+        }
+    } = 1_000;
     public int ShootingDetectionTimeoutMilliseconds { get; set; } = 3_000;
     public double ShootingArrivalDelaySeconds
     {

@@ -91,9 +91,11 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
 
     public async Task<BoltResult> TightenAsync(
         CancellationToken cancellationToken = default,
-        Func<CancellationToken, Task>? feedAsync = null)
+        Func<CancellationToken, Task>? feedAsync = null,
+        int dryRunMilliseconds = 0)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ArgumentOutOfRangeException.ThrowIfNegative(dryRunMilliseconds);
         await CheckReadyAsync(cancellationToken);
         if (_requestedPreset is not { } preset)
             throw new InvalidOperationException("Select an IO fastening preset before starting.");
@@ -102,13 +104,14 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
             if (_io.GetOutput(_presets[index]) != (index == preset - 1))
                 throw new InvalidOperationException($"{_head} preset outputs no longer match preset {preset}.");
         }
-        if (_io.GetInput(_fasten))
+        if (dryRunMilliseconds == 0 && _io.GetInput(_fasten))
             throw new InvalidOperationException($"{_head} FASTEN is already ON. Confirm it is OFF before a new fastening.");
-        if (_settings.FasteningTimeoutMilliseconds <= 0)
+        if (dryRunMilliseconds == 0 && _settings.FasteningTimeoutMilliseconds <= 0)
             throw new InvalidOperationException("IO fastening timeout must be greater than zero.");
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(_settings.FasteningTimeoutMilliseconds);
+        if (dryRunMilliseconds == 0)
+            timeout.CancelAfter(_settings.FasteningTimeoutMilliseconds);
         Exception? failure = null;
         try
         {
@@ -129,17 +132,27 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
                     throw;
                 }
             }
-            while (Volatile.Read(ref _phase) != Completed)
+            if (dryRunMilliseconds > 0)
+                timeout.CancelAfter(dryRunMilliseconds);
+            while (dryRunMilliseconds > 0 || Volatile.Read(ref _phase) != Completed)
             {
                 timeout.Token.ThrowIfCancellationRequested();
-                if (Volatile.Read(ref _phase) == Interrupted)
+                if (Volatile.Read(ref _phase) == Interrupted
+                    || (dryRunMilliseconds > 0 && !_io.GetOutput(_start)))
                     throw new OperationCanceledException($"{_head} fastening was stopped before completion.", cancellationToken);
                 // Read for availability; only the ordered input events advance the edge history.
-                _ = _io.GetInput(_fasten);
-                if (Volatile.Read(ref _phase) != Completed)
+                if (dryRunMilliseconds == 0)
+                    _ = _io.GetInput(_fasten);
+                if (dryRunMilliseconds > 0 || Volatile.Read(ref _phase) != Completed)
                     await _changed.WaitAsync(timeout.Token);
             }
             cancellationToken.ThrowIfCancellationRequested();
+        }
+        catch (OperationCanceledException) when (dryRunMilliseconds > 0
+            && timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested
+            && Volatile.Read(ref _phase) != Interrupted)
+        {
+            // The dry-run timer requests normal STOP; no FASTEN result is expected.
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested
             && !cancellationToken.IsCancellationRequested)
@@ -174,7 +187,8 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
 
         if (_io.GetOutput(_start))
             throw new InvalidOperationException($"{_head} START is still ON. Stop the controller before collecting the result.");
-        return new(true, null, BoltResultSource.IoAssumedOk);
+        cancellationToken.ThrowIfCancellationRequested();
+        return new(true, null, dryRunMilliseconds > 0 ? BoltResultSource.DryRun : BoltResultSource.IoAssumedOk);
     }
 
     private void OnInputChanged(InputIo input, bool value)

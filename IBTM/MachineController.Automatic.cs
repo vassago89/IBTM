@@ -295,10 +295,10 @@ public sealed partial class MachineController
         {
             if (_units.BoltFastening && (repeat || !_units.PickupBoltFeeder))
                 _log?.LogInformation(
-                    "Pickup bolt feeding is disabled for this run; pickup motion and vacuum remain active without bolt detection waits. Motor START and fastening result collection remain active.");
+                    "Pickup bolt feeding is disabled for this run; pickup motion and vacuum remain active without bolt detection waits. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
             if (_units.BoltFastening && (repeat || !_units.ShootingBoltFeeder))
                 _log?.LogInformation(
-                    "Shooting bolt feeding is disabled for this run; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
+                    "Shooting bolt feeding is disabled for this run; bolt supply and shooting are skipped. The motor runs for the configured dry-run duration, then stops without waiting for a fastening result.");
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.BoltFastening,
                 _fasteningStation.RunAsync(cycle.Token, repeat),
