@@ -25,6 +25,7 @@ public sealed class MachineSettings
         Options = new();
         RecipeSelection = new();
         PcbHistory = new();
+        Logging = new();
         CarrierReference = new();
         Ajin = new();
         AlphaMotion = new();
@@ -60,6 +61,7 @@ public sealed class MachineSettings
     public MachineOptions Options { get; set; }
     public RecipeSelectionSettings RecipeSelection { get; set; }
     public PcbHistorySettings PcbHistory { get; set; }
+    public LogSettings Logging { get; set; }
     public CarrierReferenceSettings CarrierReference { get; set; }
     public AjinSettings Ajin { get; set; }
     public AlphaMotionSettings AlphaMotion { get; set; }
@@ -138,6 +140,7 @@ public sealed class MachineSettings
                 Options,
                 RecipeSelection,
                 PcbHistory,
+                Logging,
                 CarrierReference,
                 Ajin,
                 AlphaMotion,
@@ -177,6 +180,7 @@ public sealed class MachineSettings
             Options = values.Get<MachineOptions>(),
             RecipeSelection = values.Get<RecipeSelectionSettings>(),
             PcbHistory = values.Get<PcbHistorySettings>(),
+            Logging = values.Get<LogSettings>(),
             CarrierReference = values.Get<CarrierReferenceSettings>(),
             MachineHardware = values.Get<MachineHardwareSettings>(),
             ConveyorHardware = values.Get<ConveyorHardwareSettings>(),

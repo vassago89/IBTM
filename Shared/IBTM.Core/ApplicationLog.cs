@@ -33,8 +33,11 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
     private long _sequence;
     private string? _fileError;
 
-    public ApplicationLog(string? filePath = null, string? communicationFilePath = null)
+    public ApplicationLog(string? filePath = null, string? communicationFilePath = null, int? retentionDays = null)
     {
+        if (retentionDays is { } days)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(days);
+        RetentionDays = retentionDays;
         _entries = new();
         _messageFormatter = new("{Message:lj}", CultureInfo.InvariantCulture);
         SyncRoot = new();
@@ -48,6 +51,8 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
     public string? FilePath { get; }
 
     public string? CommunicationFilePath { get; }
+
+    private int? RetentionDays { get; }
 
     public ReadOnlyObservableCollection<LogEntry> Entries { get; }
 
@@ -84,21 +89,22 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
                 continue;
             try
             {
-                // AuditTo propagates file failures to the async sink's failure listener.
-                var fileLogger = new LoggerConfiguration().MinimumLevel.Verbose()
-                    .AuditTo.File(
-                        path,
-                        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u}] {Message:lj}{NewLine}{Exception}",
-                        formatProvider: CultureInfo.InvariantCulture)
-                    .CreateLogger();
                 configuration.WriteTo.Logger(route => route
                     .Filter.ByIncludingOnly(logEvent => communication
                         ? IsCommunication(logEvent) : !IsCommunicationDetail(logEvent))
-                    .WriteTo.Fallible(
-                        sink => sink.Async(
-                            file => file.Logger(fileLogger, attemptDispose: true),
-                            bufferSize: int.MaxValue),
-                        this));
+                    .WriteTo.Async(
+                        file => file.Fallible(
+                            sink => sink.File(
+                                path,
+                                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u}] {Message:lj}{NewLine}{Exception}",
+                                formatProvider: CultureInfo.InvariantCulture,
+                                rollingInterval: RetentionDays.HasValue ? RollingInterval.Day : RollingInterval.Infinite,
+                                fileSizeLimitBytes: 100 * 1024 * 1024,
+                                rollOnFileSizeLimit: true,
+                                retainedFileCountLimit: null,
+                                retainedFileTimeLimit: RetentionDays is { } days ? TimeSpan.FromDays(days) : null),
+                            this),
+                        bufferSize: int.MaxValue));
             }
             catch (Exception exception)
             {

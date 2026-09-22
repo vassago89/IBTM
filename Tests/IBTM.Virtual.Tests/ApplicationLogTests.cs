@@ -13,6 +13,73 @@ namespace IBTM.Virtual.Tests;
 public sealed class ApplicationLogTests
 {
     [Fact]
+    public async Task LogFolderAndRetentionPersistInMachineSettings()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var settings = await MachineSettings.LoadAsync(store);
+        Assert.Equal(30, settings.Logging.RetentionDays);
+        settings.Logging.Directory = Path.Combine(Path.GetTempPath(), "IBTM configured logs");
+        settings.Logging.RetentionDays = 14;
+        await settings.SaveAsync(store);
+
+        var reloaded = await MachineSettings.LoadAsync(store);
+        Assert.Equal(settings.Logging.Directory, reloaded.Logging.Directory);
+        Assert.Equal(14, reloaded.Logging.RetentionDays);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.Logging.RetentionDays = 0);
+    }
+
+    [Fact]
+    public async Task SerilogRetentionRemovesOnlyExpiredDailyLogsAndAppendsAfterRestart()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "IBTM-log-test-" + Guid.NewGuid().ToString("N"));
+        var communicationDirectory = Path.Combine(directory, "Communication");
+        var folders = new[] { directory, communicationDirectory };
+        var today = DateTime.Today;
+        try
+        {
+            foreach (var folder in folders)
+            {
+                Directory.CreateDirectory(folder);
+                File.WriteAllText(Path.Combine(folder, $"IBTM-{today.AddDays(-10):yyyyMMdd}.log"), "expired");
+                File.WriteAllText(Path.Combine(folder, $"IBTM-{today.AddDays(-2):yyyyMMdd}.log"), "retained");
+                File.WriteAllText(Path.Combine(folder, "IBTM-20000101-120000-000-123.log"), "legacy session");
+                File.WriteAllText(Path.Combine(folder, "other.log"), "unrelated");
+            }
+            for (var session = 1; session <= 2; session++)
+            {
+                var log = new ApplicationLog(Path.Combine(directory, "IBTM-.log"),
+                    Path.Combine(communicationDirectory, "IBTM-.log"), retentionDays: 7);
+                using var factory = log.CreateLoggerFactory();
+                factory.CreateLogger<ApplicationLogTests>().LogInformation("Session {Session}", session);
+                factory.CreateLogger<AdcBus>().LogInformation("Session {Session}", session);
+                await Task.Run(factory.Dispose);
+                Assert.Null(log.FileError);
+            }
+            foreach (var folder in folders)
+            {
+                Assert.False(File.Exists(Path.Combine(folder, $"IBTM-{today.AddDays(-10):yyyyMMdd}.log")));
+                Assert.True(File.Exists(Path.Combine(folder, $"IBTM-{today.AddDays(-2):yyyyMMdd}.log")));
+                Assert.True(File.Exists(Path.Combine(folder, "IBTM-20000101-120000-000-123.log")));
+                Assert.True(File.Exists(Path.Combine(folder, "other.log")));
+                var text = File.ReadAllText(Path.Combine(folder, $"IBTM-{today:yyyyMMdd}.log"));
+                Assert.Contains("Session 1", text);
+                Assert.Contains("Session 2", text);
+            }
+        }
+        finally
+        {
+            foreach (var folder in folders.Reverse())
+            {
+                if (!Directory.Exists(folder))
+                    continue;
+                foreach (var file in Directory.GetFiles(folder))
+                    File.Delete(file);
+                Directory.Delete(folder);
+            }
+        }
+    }
+
+    [Fact]
     public async Task CommunicationFilesKeepFramesOutOfMachineHistoryButRetainErrorsInBoth()
     {
         var directory = Path.Combine(Path.GetTempPath(), "IBTM-log-test-" + Guid.NewGuid().ToString("N"));

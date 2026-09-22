@@ -702,9 +702,11 @@ NG 셔틀·검사 작업처럼 연결된 객체를 통해 같은 변경 알림�
 ## 로그 라이브러리와 오프라인 패키지
 
 로그를 남기는 클래스는 `Microsoft.Extensions.Logging.ILogger<T>`를 주입받아 `LogInformation`·`LogError`를 직접 호출한다.
-일반 설비 로그는 `Logs/IBTM-*.log`, ADC 통신 로그는 같은 세션 이름의 `Logs/Communication/IBTM-*.log`로 분리한다.
+Settings → Operation & Timing → Logs에서 저장 폴더와 보관 일수(기본 30일)를 지정하며 `Machine.db`의 `LogSettings`에 저장한다. 저장 후 재시작 시 적용한다.
+일반 설비 로그는 `<지정 폴더>/IBTM-yyyyMMdd.log`, ADC 통신 로그는 `<지정 폴더>/Communication/IBTM-yyyyMMdd.log`로 분리한다. 기본 폴더는 실행 폴더의 `Logs`다.
+Serilog File sink의 `rollingInterval: Day`, `retainedFileTimeLimit`, `retainedFileCountLimit: null`을 사용한다. 100 MB 도달 시에도 다음 파일로 분할하며 자체 저장·삭제 루프는 없다. 오래된 파일 정리는 라이브러리가 파일을 열거나 분할할 때 수행한다. 이전 세션 형식(`IBTM-날짜-시간-PID.log`)의 파일은 새 일별 파일 정책 대상이 아니므로 그대로 남는다.
 `AdcBus`의 TX·RX RAW·프레임 해석은 통신 파일에만 기록하고 일반 화면 이력에서도 제외한다. 통신 Warning/Error는 양쪽 파일과 일반 화면 이력에 남긴다.
-파일은 Serilog의 File/Async sink가 기록하고, `ApplicationLog`는 화면에 표시할 최근 2,000건과 파일 오류만 보관한다.
+파일은 Serilog의 File/Async sink가 기록하고, `ApplicationLog`는 화면에 표시할 최근 2,000건과 파일 오류만 보관한다. File sink의 실패 리스너로 오류를 화면에 전달한다.
 별도의 파일 쓰기 큐나 로그 호출 래퍼를 만들지 않는다. 기존 `Trace` 메시지는 `ApplicationTraceListener`에서 표준 로거로 연결한다.
 파일 저장 실패는 화면 로그와 `FileError`에 남기며, 파일 저장 실패가 장비 호출로 전파되지 않는다.
 종료 시 팩터리의 동기 `Dispose`가 남은 파일 기록을 기다리므로 UI에서는 `Task.Run`으로 실행하고 완료를 기다린다.

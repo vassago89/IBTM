@@ -180,6 +180,25 @@
                         </Border>
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
+                                <TextBlock Text="Logs" Style="{StaticResource SettingSectionTitle}"/>
+                                <TextBlock Text="Log folder" Style="{StaticResource SettingFieldLabel}"/>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0"
+                                        Command="{Binding BrowseLogFolderCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                        Text="{Binding LogDirectory, UpdateSourceTrigger=LostFocus}"/>
+                                </DockPanel>
+                                <StackPanel MaxWidth="240" HorizontalAlignment="Left" Margin="0,12,0,0">
+                                    <TextBlock Text="Retention (days)" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                        Text="{Binding Settings.Logging.RetentionDays, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                </StackPanel>
+                                <TextBlock Text="Default: 30 days. Machine logs use this folder; ADC logs use its Communication subfolder. Files roll daily and at 100 MB. Save and restart to apply."
+                                    Style="{StaticResource SettingHelpText}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
                                 <TextBlock Text="Main Conveyor" Style="{StaticResource SettingSectionTitle}"/>
                                 <UniformGrid Columns="3">
                                     <StackPanel Margin="0,0,12,0">

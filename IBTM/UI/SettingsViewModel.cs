@@ -57,6 +57,7 @@ public partial class SettingsViewModel : ObservableObject
 
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => IsSettingsEditAllowed);
         BrowsePcbResultsFolderCommand = new RelayCommand(BrowsePcbResultsFolder, () => IsSettingsEditAllowed);
+        BrowseLogFolderCommand = new RelayCommand(BrowseLogFolder, () => IsSettingsEditAllowed);
         LoadVirtualImageCommand = new AsyncRelayCommand<string?>(LoadVirtualImageAsync, _ => IsChangeVirtualImageAllowed);
         ClearVirtualImageCommand = new RelayCommand(ClearVirtualImage, () => IsClearVirtualImageAllowed);
         OffTestLightCommand = new AsyncRelayCommand(OffTestLightAsync, () => IsOffTestLightAllowed);
@@ -159,6 +160,27 @@ public partial class SettingsViewModel : ObservableObject
 
     public IRelayCommand BrowsePcbResultsFolderCommand { get; }
 
+    public IRelayCommand BrowseLogFolderCommand { get; }
+
+    public string LogDirectory
+    {
+        get => Settings.Logging.Directory;
+        set
+        {
+            Settings.Logging.Directory = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private void BrowseLogFolder()
+    {
+        var dialog = new OpenFolderDialog { Title = "Log folder" };
+        if (Directory.Exists(LogDirectory))
+            dialog.InitialDirectory = LogDirectory;
+        if (dialog.ShowDialog() == true)
+            LogDirectory = dialog.FolderName;
+    }
+
     public string PcbResultsDirectory
     {
         get => Settings.PcbHistory.Directory;
@@ -183,6 +205,9 @@ public partial class SettingsViewModel : ObservableObject
         DatabaseMessage = "Saving settings...";
         try
         {
+            if (string.IsNullOrWhiteSpace(LogDirectory) || !Path.IsPathFullyQualified(LogDirectory))
+                throw new InvalidOperationException("Choose an absolute folder path for logs.");
+            _ = Path.GetFullPath(LogDirectory);
             if (string.IsNullOrWhiteSpace(PcbResultsDirectory) || !Path.IsPathFullyQualified(PcbResultsDirectory))
                 throw new InvalidOperationException("Choose an absolute folder path for PCB results.");
             Directory.CreateDirectory(PcbResultsDirectory);
@@ -193,9 +218,9 @@ public partial class SettingsViewModel : ObservableObject
             }
 
             await Settings.SaveAsync(_store);
-            DatabaseMessage = "Settings saved. Restart to apply hardware changes.";
+            DatabaseMessage = "Settings saved. Restart to apply hardware and logging changes.";
             Trace.TraceInformation(
-                "Settings saved to {0}. Restart required for hardware changes.",
+                "Settings saved to {0}. Restart required for hardware and logging changes.",
                 _store.DatabaseFile);
         }
         catch (Exception exception)
@@ -220,6 +245,7 @@ public partial class SettingsViewModel : ObservableObject
         OffTestLightCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsSettingsEditAllowed));
         BrowsePcbResultsFolderCommand.NotifyCanExecuteChanged();
+        BrowseLogFolderCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsDriverChangeAllowed));
     }
 

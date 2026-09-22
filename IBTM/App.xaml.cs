@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -58,25 +59,13 @@ public partial class App : System.Windows.Application
 
         _instanceMutex = instanceMutex;
 
-        var logDirectory = Path.Combine(AppContext.BaseDirectory, "Logs");
-        var logName = $"IBTM-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Environment.ProcessId}.log";
-        var applicationLog = new ApplicationLog(
-            Path.Combine(logDirectory, logName),
-            Path.Combine(logDirectory, "Communication", logName));
-        _loggerFactory = applicationLog.CreateLoggerFactory();
-        _log = _loggerFactory.CreateLogger<App>();
-        _traceListener = new ApplicationTraceListener(_loggerFactory.CreateLogger<ApplicationTraceListener>());
-        Trace.Listeners.Add(_traceListener);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-        _log.LogInformation("{Message}", $"Application starting. Base directory: {AppContext.BaseDirectory}");
 
         base.OnStartup(e);
 
-        var services = new ServiceCollection()
-            .AddSingleton(applicationLog)
-            .AddSingleton(_loggerFactory);
+        var services = new ServiceCollection();
         try
         {
             var database = await Task.Run(() => new MachineStore());
@@ -86,6 +75,10 @@ public partial class App : System.Windows.Application
             }
 
             var settings = await MachineSettings.LoadAsync(database);
+            var applicationLog = InitializeLogging(settings.Logging);
+            services
+                .AddSingleton(applicationLog)
+                .AddSingleton(_loggerFactory);
             if (DevelopmentProfile.IsEnabled)
             {
                 DevelopmentProfile.UseVirtualHardware(settings);
@@ -112,6 +105,8 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception)
         {
+            if (_log is null)
+                InitializeLogging(new LogSettings());
             _log.LogError(exception, "Startup configuration failed. Hardware was not initialized.");
             MessageBox.Show(
                 $"Startup configuration could not be prepared. Hardware was not initialized.\n\n{exception.GetBaseException().Message}",
@@ -133,6 +128,25 @@ public partial class App : System.Windows.Application
         var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
         _log.LogInformation("Main window opened.");
+    }
+
+    [MemberNotNull(nameof(_log), nameof(_loggerFactory))]
+    private ApplicationLog InitializeLogging(LogSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.Directory) || !Path.IsPathFullyQualified(settings.Directory))
+            throw new InvalidOperationException("Choose an absolute folder path for logs.");
+        var logDirectory = Path.GetFullPath(settings.Directory);
+        var applicationLog = new ApplicationLog(
+            Path.Combine(logDirectory, "IBTM-.log"),
+            Path.Combine(logDirectory, "Communication", "IBTM-.log"),
+            settings.RetentionDays);
+        _loggerFactory = applicationLog.CreateLoggerFactory();
+        _log = _loggerFactory.CreateLogger<App>();
+        _traceListener = new ApplicationTraceListener(_loggerFactory.CreateLogger<ApplicationTraceListener>());
+        Trace.Listeners.Add(_traceListener);
+        _log.LogInformation("Application starting. Base directory: {Directory}", AppContext.BaseDirectory);
+        _log.LogInformation("Log folder: {Directory}; retention: {Days} days.", logDirectory, settings.RetentionDays);
+        return applicationLog;
     }
 
     internal async Task CompleteExitAsync()
