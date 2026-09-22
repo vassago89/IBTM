@@ -376,7 +376,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(machine.IsStartAllowed);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.All(
-            services.GetRequiredService<NgCarrierTransfer>().Motion.Axes.Values,
+            services.GetRequiredService<InspectionStation>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
 
         var nextError = new IOException(error.Message, new InvalidOperationException());
@@ -403,7 +403,7 @@ public sealed partial class MachineLifecycleTests
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         var row = manual.Axes.Single(
             axis => axis.Group == MotionGroup.InspectionGantry && axis.Axis == MotionAxis.X);
-        var motion = services.GetRequiredService<NgCarrierTransfer>().Feedback;
+        var motion = services.GetRequiredService<InspectionStation>().Feedback;
         void FailOnce()
         {
             motion.StateChanged -= FailOnce;

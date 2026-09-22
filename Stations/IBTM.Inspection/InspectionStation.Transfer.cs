@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -7,119 +6,17 @@ using IBTM.Device;
 
 namespace IBTM.Inspection;
 
-public enum NgTransferDestination
+public sealed partial class InspectionStation
 {
-    [Description("Station 3")]
-    Station,
-    [Description("Shuttle")]
-    Shuttle,
-}
-
-public enum NgTransferState
-{
-    [Description("Waiting")]
-    Idle,
-
-    [Description("Waiting for Transfer Supports")]
-    WaitingForDestination,
-
-    [Description("Preparing Pickup")]
-    PreparingTransfer,
-
-    [Description("Picking Carrier")]
-    PickingCarrier,
-
-    [Description("Moving and Placing Carrier")]
-    PlacingCarrier,
-
-    [Description("Transfer Complete")]
-    Completed,
-
-    [Description("Carrier Held at Destination")]
-    HoldingAtDestination,
-}
-
-public enum NgTransferLiftState
-{
-    [Description("Up")]
-    Up,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Down")]
-    Down,
-}
-
-public enum NgTransferGripperState
-{
-    [Description("Open")]
-    Open,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Closed")]
-    Closed,
-}
-
-public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeedback
-{
-    private readonly IIoService _io;
-    private readonly IXyMotion _motion;
-    private readonly OperationCancellation _operations;
-    private readonly MotionSettings _motionSettings;
-    private readonly NgCarrierTransferSettings _settings;
-    private readonly UnitSettings _units;
-
-    public NgCarrierTransfer(
-        IIoService io,
-        IXyMotion motion,
-        OperationCancellation operations,
-        InspectionGantrySettings motionSettings,
-        NgCarrierTransferSettings settings,
-        UnitSettings units)
-    {
-        _io = io;
-        _motion = motion;
-        _operations = operations;
-        _motionSettings = motionSettings.Motion;
-        _settings = settings;
-        _units = units;
-        Motion = new(motion);
-        Station = ConveyorStation.CreateInspection(io);
-        io.InputChanged += OnInputChanged;
-        motion.StateChanged += NotifyChanged;
-        Station.Changed += NotifyChanged;
-    }
-
-    public override event Action? Changed;
-
-    public ConveyorStation Station { get; }
+    public ConveyorStation Station => _work.Station;
 
     public bool IsEmptyRepeatAllowed => !_units.MainConveyor && !_units.Inspection
         && !_units.NgShuttle && !_units.NgConveyor;
 
-    private void NotifyChanged()
-    {
-        Changed?.Invoke();
-    }
-
     // Presence near the pickup does not prove that its gripper holds the carrier.
     public bool CarrierDetected => _io.GetInput(InputIo.NgCarrierDetected);
 
-    // Unfinished pickup/release ownership, not proof that material is present.
-    public bool IsTransferPending
-    {
-        get;
-        private set
-        {
-            if (field == value)
-                return;
-            field = value;
-            Changed?.Invoke();
-        }
-    }
+    public bool IsTransferPending => _work.IsTransferPending;
 
     public NgTransferLiftState Lift
     {
@@ -155,9 +52,9 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
         }
     }
 
-    public bool IsRaised => Lift == NgTransferLiftState.Up;
+    public bool IsRaised => _work.IsRaised;
 
-    public bool IsClear => IsRaised && !IsTransferPending;
+    public bool IsClear => _work.IsClear;
 
     public Task SetLiftUpAsync(bool up, CancellationToken cancellationToken = default)
     {
@@ -170,104 +67,7 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
     {
         await _io.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, !open, cancellationToken);
         if (open && Gripper == NgTransferGripperState.Open)
-            IsTransferPending = false;
-    }
-
-    private void OnInputChanged(InputIo input, bool value)
-    {
-        // An unexpected Open is grip loss, not a completed release of the pending transfer.
-        if (input is InputIo.NgCarrierPickupUp
-            or InputIo.NgCarrierPickupDown
-            or InputIo.NgCarrierGripperOpen
-            or InputIo.NgCarrierGripperClosed
-            or InputIo.NgCarrierDetected
-            or InputIo.NgShuttleUp
-            or InputIo.NgShuttleDown
-            or InputIo.NgShuttleCarrierDetected)
-        {
-            Changed?.Invoke();
-        }
-    }
-
-    public MotionStatus Motion { get; }
-
-    public IMotionFeedback Feedback => _motion;
-
-    public void InitializeMotion()
-    {
-        _motion.Initialize();
-    }
-
-    public void StopMotion()
-    {
-        _motion.Stop();
-    }
-
-    public Task ResetMotionAsync(CancellationToken cancellationToken = default)
-    {
-        return _motion.ResetAsync(cancellationToken);
-    }
-
-    public void SetServo(MotionAxis axis, bool on)
-    {
-        _motion.SetServo(axis, on);
-    }
-
-    public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
-    {
-        using var operation = _operations.Link(cancellationToken);
-        EnsureCanMove(operation.Token);
-        return await _motion.HomeAsync(axis, _motionSettings.Home(axis).SearchSpeed, operation.Token);
-    }
-
-    public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
-    {
-        using var operation = _operations.Link(cancellationToken);
-        EnsureCanMove(operation.Token);
-        return await _motion.HomeHorizontalAsync(_motionSettings.HorizontalHome.SearchSpeed, operation.Token);
-    }
-
-    public Task MoveToAsync(
-        AxisPosition position,
-        double? velocity = null,
-        CancellationToken cancellationToken = default)
-    {
-        EnsureCanMove(cancellationToken);
-        return _motion.MoveToXYAsync(
-            position.X, position.Y, velocity ?? _motionSettings.HorizontalSpeed, cancellationToken);
-    }
-
-    public Task MoveAxisAsync(
-        MotionAxis axis,
-        double position,
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        EnsureCanMove(cancellationToken);
-        return _motion.MoveAxisAsync(axis, position, velocity, cancellationToken);
-    }
-
-    public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
-    {
-        EnsureCanMove(cancellationToken);
-        return _motion.JogAsync(axis, velocity, cancellationToken);
-    }
-
-    public bool IsAt(AxisPosition position, bool live = true)
-    {
-        var current = Motion.ReadPosition(live);
-        return Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y)
-            && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters;
-    }
-
-    private void EnsureCanMove(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!IsRaised)
-        {
-            throw new MotionInterlockException("NG carrier pickup must be raised before inspection XY movement.");
-        }
+            _work.IsTransferPending = false;
     }
 
     public bool IsCarrierPresent(NgTransferDestination location)
@@ -277,7 +77,7 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
             : _io.GetInput(InputIo.NgShuttleCarrierDetected);
     }
 
-    public NgTransferState GetState(
+    public InspectionStationState GetTransferState(
         NgTransferDestination destination,
         bool canPickUp,
         bool canReceive = true,
@@ -308,47 +108,47 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
             if (holdAtDestination && down && pending)
             {
                 if (!destinationReady)
-                    return NgTransferState.WaitingForDestination;
+                    return InspectionStationState.WaitingForDestination;
                 return gripper == NgTransferGripperState.Closed && (allowEmpty || CarrierDetected)
-                    ? NgTransferState.HoldingAtDestination : NgTransferState.PickingCarrier;
+                    ? InspectionStationState.HoldingAtDestination : InspectionStationState.PickingCarrier;
             }
 
             if (!holdAtShuttle)
             {
                 if (open && !pending && (destinationPresent || allowEmpty))
-                    return raised ? NgTransferState.Completed : NgTransferState.PlacingCarrier;
+                    return raised ? InspectionStationState.TransferCompleted : InspectionStationState.PlacingCarrier;
                 if (open && !pending && !raised && !IsCarrierPresent(source))
-                    return NgTransferState.PlacingCarrier;
+                    return InspectionStationState.PlacingCarrier;
                 // Supported release can resume even while the gripper is between its sensors.
                 if (down && (destinationPresent || allowEmpty))
-                    return destinationReady ? NgTransferState.PlacingCarrier : NgTransferState.WaitingForDestination;
+                    return destinationReady ? InspectionStationState.PlacingCarrier : InspectionStationState.WaitingForDestination;
             }
         }
 
         if (pending)
         {
             if (gripper != NgTransferGripperState.Closed || !allowEmpty && !CarrierDetected)
-                return NgTransferState.PickingCarrier;
+                return InspectionStationState.PickingCarrier;
             if (!atDestination && !raised)
-                return NgTransferState.PreparingTransfer;
+                return InspectionStationState.PreparingTransfer;
             if (!destinationReady && !canPrepareStation)
-                return NgTransferState.WaitingForDestination;
+                return InspectionStationState.WaitingForDestination;
             if (atDestination && !raised)
-                return NgTransferState.PlacingCarrier;
+                return InspectionStationState.PlacingCarrier;
             return destinationPresent || !canReceive
-                ? NgTransferState.WaitingForDestination : NgTransferState.PlacingCarrier;
+                ? InspectionStationState.WaitingForDestination : InspectionStationState.PlacingCarrier;
         }
 
         if (!raised && (!canPickUp || !atSource))
-            return NgTransferState.PreparingTransfer;
+            return InspectionStationState.PreparingTransfer;
         if (!canPickUp)
-            return open ? NgTransferState.Idle : NgTransferState.PreparingTransfer;
+            return open ? InspectionStationState.Waiting : InspectionStationState.PreparingTransfer;
         if (!allowEmpty && !IsCarrierPresent(source))
-            return NgTransferState.Idle;
+            return InspectionStationState.Waiting;
         if (destinationPresent || !IsSupportReady(source) || !destinationReady && !canPrepareStation)
-            return NgTransferState.WaitingForDestination;
+            return InspectionStationState.WaitingForDestination;
         return (atSource && down) || open
-            ? NgTransferState.PickingCarrier : NgTransferState.PreparingTransfer;
+            ? InspectionStationState.PickingCarrier : InspectionStationState.PreparingTransfer;
     }
 
     public async Task RunToAsync(
@@ -361,10 +161,10 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var state = GetState(destination, canPickUp: true, allowEmpty: allowEmpty);
-                if (state == NgTransferState.Completed)
+                var state = GetTransferState(destination, canPickUp: true, allowEmpty: allowEmpty);
+                if (state == InspectionStationState.TransferCompleted)
                     break;
-                if (!await ExecuteAsync(destination, state, cancellationToken,
+                if (!await ExecuteTransferAsync(destination, state, cancellationToken,
                     allowEmpty: allowEmpty))
                     await WaitForChangeAsync(cancellationToken);
             }
@@ -380,9 +180,9 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
     }
 
     // False means the caller can wait or perform inspection while the transfer is idle.
-    public async Task<bool> ExecuteAsync(
+    public async Task<bool> ExecuteTransferAsync(
         NgTransferDestination destination,
-        NgTransferState state,
+        InspectionStationState state,
         CancellationToken cancellationToken,
         bool holdAtDestination = false,
         bool allowEmpty = false)
@@ -391,13 +191,13 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
         TraceStep(state, destination.ToString());
         switch (state)
         {
-            case NgTransferState.PreparingTransfer:
+            case InspectionStationState.PreparingTransfer:
                 if (!IsRaised)
                     await SetLiftUpAsync(true, cancellationToken);
                 if (!IsTransferPending && Gripper != NgTransferGripperState.Open)
                     await SetGripperOpenAsync(true, cancellationToken);
                 break;
-            case NgTransferState.PickingCarrier:
+            case InspectionStationState.PickingCarrier:
                 var source = GetOppositeDestination(destination);
                 if (IsTransferPending
                     && (!IsSupportReady(source)
@@ -417,13 +217,13 @@ public sealed partial class NgCarrierTransfer : AutoUnit, INgCarrierTransferFeed
                 // Descent can outlive the source's support or carrier feedback.
                 if (!IsSupportReady(source) || !allowEmpty && !IsCarrierPresent(source))
                     return false;
-                IsTransferPending = true;
+                _work.IsTransferPending = true;
                 await SetGripperOpenAsync(false, cancellationToken);
                 if (!allowEmpty)
                     await _io.WaitForInputAsync(InputIo.NgCarrierDetected, true, cancellationToken);
                 await SetLiftUpAsync(true, cancellationToken);
                 break;
-            case NgTransferState.PlacingCarrier:
+            case InspectionStationState.PlacingCarrier:
             {
                 var position = GetTransferPosition(destination)
                     ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before returning to Station 3.");

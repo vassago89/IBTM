@@ -144,7 +144,7 @@ public sealed partial class MachineController
                     _fasteningStation.SetServo(axis, on);
                     break;
                 case MotionGroup.InspectionGantry:
-                    _ngTransfer.SetServo(axis, on);
+                    _inspectionStation.SetServo(axis, on);
                     break;
             }
         }

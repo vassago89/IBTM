@@ -179,8 +179,8 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var pickup = services.GetRequiredService<NgCarrierTransfer>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var pickup = services.GetRequiredService<InspectionStation>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         if (!shuttleEnabled)

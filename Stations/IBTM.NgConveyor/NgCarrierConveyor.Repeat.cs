@@ -33,4 +33,93 @@ public sealed partial class NgCarrierConveyor
         await SetStopperDownAsync(true, cancellationToken);
         await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, true, cancellationToken);
     }
+
+    public async Task RunShuttleRepeatAsync(bool useConveyor, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!useConveyor)
+            {
+                await WaitForCarrierAsync(cancellationToken);
+                await CycleShuttleAsync(cancellationToken);
+                continue;
+            }
+            using var forward = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var conveyor = RunAsync(forward.Token, repeat: true);
+            var end = WaitForRepeatEndAsync(forward.Token);
+            try
+            {
+                var completed = await Task.WhenAny(conveyor, end);
+                await completed;
+            }
+            finally
+            {
+                forward.Cancel();
+                await Task.WhenAll(conveyor, end);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            await ReturnFromConveyorAsync(cancellationToken);
+        }
+    }
+
+    public async Task CycleShuttleAsync(CancellationToken cancellationToken)
+    {
+        if (!Position3Occupied || !IsTransferClear)
+        {
+            throw new InvalidOperationException("Shuttle repeat requires a carrier on the shuttle and the NG transfer released with its open pickup raised.");
+        }
+
+        await SetShuttleDownAsync(true, cancellationToken);
+
+        if (!Position3Occupied || !IsTransferClear)
+        {
+            throw new InvalidOperationException("Shuttle repeat lost its carrier or clear NG transfer before ascent.");
+        }
+
+        await SetShuttleDownAsync(false, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    public async Task ReturnFromConveyorAsync(CancellationToken cancellationToken)
+    {
+        if (!IsTransferClear)
+            throw new InvalidOperationException("Release the NG transfer and raise the open pickup before returning the conveyor carrier.");
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        void CheckPickup()
+        {
+            if (!IsTransferClear)
+                operation.Cancel();
+        }
+
+        _transfer.Changed += CheckPickup;
+        Exception? failure = null;
+        try
+        {
+            CheckPickup();
+            operation.Token.ThrowIfCancellationRequested();
+            if (!Position3Occupied)
+                await SetShuttleDownAsync(true, operation.Token);
+            await ReturnToShuttleAsync(operation.Token);
+            await SetShuttleDownAsync(false, operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
+        finally
+        {
+            _transfer.Changed -= CheckPickup;
+            try
+            {
+                Stop();
+            }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
+        }
+    }
 }

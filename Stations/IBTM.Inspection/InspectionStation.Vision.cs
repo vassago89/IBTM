@@ -107,12 +107,12 @@ public sealed partial class InspectionStation
 
     public bool IsAtBarcode(HeatSinkSlot pcb, bool live = true)
     {
-        return _transfer.IsAt(GetBarcodeFov(pcb).Center, live);
+        return IsAt(GetBarcodeFov(pcb).Center, live);
     }
 
     public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
     {
-        return _transfer.MoveToAsync(GetBarcodeFov(pcb).Center, cancellationToken: cancellationToken);
+        return MoveToAsync(GetBarcodeFov(pcb).Center, cancellationToken: cancellationToken);
     }
 
     public async Task<ImageFrame> CaptureBarcodeAsync(
@@ -189,12 +189,12 @@ public sealed partial class InspectionStation
 
     internal bool IsAt(BoltPoint point, bool live = true)
     {
-        return _transfer.IsAt(GetFov(point).Center, live);
+        return IsAt(GetFov(point).Center, live);
     }
 
-    public Task MoveToAsync(BoltPoint point, CancellationToken cancellationToken = default)
+    public Task MoveToBoltAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
-        return _transfer.MoveToAsync(GetFov(point).Center, cancellationToken: cancellationToken);
+        return MoveToAsync(GetFov(point).Center, cancellationToken: cancellationToken);
     }
 
     private async Task<ImageFrame> CaptureWithLightAsync(CancellationToken cancellationToken)
@@ -226,7 +226,7 @@ public sealed partial class InspectionStation
         if (!HasRegion(point))
             throw new InvalidOperationException(
                 $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
-        await MoveToAsync(point, cancellationToken);
+        await MoveToBoltAsync(point, cancellationToken);
         return await CaptureCurrentAsync(cancellationToken);
     }
 
@@ -258,7 +258,7 @@ public sealed partial class InspectionStation
             var image = await Task.Run(
                 async () =>
                 {
-                    var feedback = _transfer.Feedback;
+                    var feedback = Feedback;
                     if (feedback.IsMoving
                         || !feedback.GetAxisState(MotionAxis.X).InPosition
                         || !feedback.GetAxisState(MotionAxis.Y).InPosition)
@@ -269,7 +269,7 @@ public sealed partial class InspectionStation
                     var frame = _camera.IsLiveView
                         ? await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false)
                         : await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
-                    if (!_transfer.IsAt(center))
+                    if (!IsAt(center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);
                 },

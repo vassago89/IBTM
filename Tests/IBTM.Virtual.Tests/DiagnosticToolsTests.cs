@@ -204,11 +204,9 @@ public sealed class DiagnosticToolsTests
             collection =>
                 collection.AddSingleton(
                     provider =>
-                        new IBTM.Inspection.NgCarrierTransfer(
+                        new IBTM.Inspection.InspectionWork(
                             provider.GetRequiredService<IIoService>(),
                             probe,
-                            provider.GetRequiredService<OperationCancellation>(),
-                            provider.GetRequiredService<IBTM.Inspection.InspectionGantrySettings>(),
                             provider.GetRequiredService<IBTM.Inspection.NgCarrierTransferSettings>(),
                             provider.GetRequiredService<UnitSettings>())));
         var machine = services.GetRequiredService<MachineController>();
@@ -225,7 +223,7 @@ public sealed class DiagnosticToolsTests
             var y = Assert.Single(
                 view.Axes,
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.Y);
-            var position = services.GetRequiredService<IBTM.Inspection.NgCarrierTransfer>().Motion;
+            var position = services.GetRequiredService<IBTM.Inspection.InspectionStation>().Motion;
             Assert.False(x.Enabled);
             Assert.NotNull(x.Diagnostics.Snapshot.State);
             Assert.False(x.ToggleServoCommand.CanExecute(null));

@@ -33,13 +33,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
     private readonly NgCarrierConveyor _ngConveyor;
-    private readonly NgShuttle _ngShuttle;
     private readonly PcbSupplier _pcbSupply;
     private readonly PcbPlacer _pcbPlacement;
     private readonly BoltFasteningStation _fasteningStation;
     private readonly InspectionStation _inspectionStation;
     private readonly BoltFeederUnit _boltFeeder;
-    private readonly NgCarrierTransfer _ngTransfer;
     private readonly ILogger<MachineController>? _log;
 
     static MachineController()
@@ -71,13 +69,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
         IIoService io,
         MainConveyor conveyor,
         NgCarrierConveyor ngConveyor,
-        NgShuttle ngShuttle,
         PcbSupplier pcbSupply,
         PcbPlacer pcbPlacement,
         BoltFasteningStation fasteningStation,
         InspectionStation inspectionStation,
         BoltFeederUnit boltFeeder,
-        NgCarrierTransfer ngTransfer,
         PcbHistory pcbHistory,
         ILogger<MachineController>? log = null)
     {
@@ -93,19 +89,17 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _io = io;
         _conveyor = conveyor;
         _ngConveyor = ngConveyor;
-        _ngShuttle = ngShuttle;
         _pcbSupply = pcbSupply;
         _pcbPlacement = pcbPlacement;
         _fasteningStation = fasteningStation;
         _inspectionStation = inspectionStation;
         _boltFeeder = boltFeeder;
-        _ngTransfer = ngTransfer;
         PcbHistory = pcbHistory;
         _log = log;
         if (log is not null)
         {
             AutoUnit[] automaticUnits = [conveyor, pcbSupply, pcbPlacement, fasteningStation,
-                inspectionStation, boltFeeder, ngTransfer, ngConveyor, ngShuttle];
+                inspectionStation, boltFeeder, ngConveyor];
             foreach (var unit in automaticUnits)
                 unit.Trace += message => log.LogInformation("{Message}", message);
         }
@@ -117,7 +111,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         feedback.IoFaulted += OnIoFaulted;
         pcbPlacement.Feedback.MovingChanged += _ => CheckMotionInterlocks();
         fasteningStation.Feedback.StateChanged += CheckMotionInterlocks;
-        ngTransfer.Feedback.MovingChanged += _ => CheckMotionInterlocks();
+        inspectionStation.Feedback.MovingChanged += _ => CheckMotionInterlocks();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -184,7 +178,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             _pcbSupply.StopMotion,
             _pcbPlacement.StopMotion,
             _fasteningStation.StopMotion,
-            _ngTransfer.StopMotion,
+            _inspectionStation.StopMotion,
         ];
         foreach (var stop in stops)
         {
@@ -405,12 +399,12 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 + $"shooting head: {_fasteningStation.ShootingHeadPosition}.";
         }
         else if (InspectionGantryEnabled
-            && _ngTransfer.Feedback.IsMoving
-            && !_ngTransfer.IsRaised)
+            && _inspectionStation.Feedback.IsMoving
+            && !_inspectionStation.IsRaised)
         {
             alarm = MachineAlarm.NgCarrierTransfer;
             interlockDetail = "Inspection/NG horizontal movement requires the pickup Up. "
-                + $"Current lift: {_ngTransfer.Lift}.";
+                + $"Current lift: {_inspectionStation.Lift}.";
         }
 
         if (alarm != MachineAlarm.None)

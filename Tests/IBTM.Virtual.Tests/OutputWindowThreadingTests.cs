@@ -689,7 +689,7 @@ public sealed class OutputWindowThreadingTests
             var reference = services.GetRequiredService<CarrierReferenceSettings>();
             reference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
             reference.LowerRightLocatingPin = new() { X = 1, Y = 1 };
-            await services.GetRequiredService<NgCarrierTransfer>().HomeHorizontalAsync();
+            await services.GetRequiredService<InspectionStation>().HomeHorizontalAsync();
             teaching.RecipeEditor.Name = "ThreadingScan";
             teaching.AddBoltPointCommand.Execute(null);
             var firstBolt = teaching.SelectedPoint!;
@@ -757,7 +757,7 @@ public sealed class OutputWindowThreadingTests
             reference.LowerRightLocatingPin = lowerPin;
 
             // Only Record Position replaces the selected point's image, capture XY and bolt coordinates.
-            var gantry = services.GetRequiredService<NgCarrierTransfer>();
+            var gantry = services.GetRequiredService<InspectionStation>();
             await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             var liveLightOnCalls = light.OnCalls;

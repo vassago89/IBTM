@@ -468,7 +468,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Contains("Home feedback read failed.", state.AlarmDetail);
         Assert.False(state.IsHoming);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-        Assert.False(services.GetRequiredService<NgCarrierTransfer>().Feedback.IsMoving);
+        Assert.False(services.GetRequiredService<InspectionStation>().Feedback.IsMoving);
     }
 
     [Theory]
@@ -554,7 +554,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -662,7 +662,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         await machine.InitializeAsync();
         try
@@ -719,7 +719,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         try
@@ -770,7 +770,7 @@ public sealed partial class MachineLifecycleTests
             services.GetRequiredService<PcbSupplier>().Feedback,
             services.GetRequiredService<PcbPlacer>().Feedback,
             services.GetRequiredService<BoltFasteningStation>().Feedback,
-            services.GetRequiredService<NgCarrierTransfer>().Feedback,
+            services.GetRequiredService<InspectionStation>().Feedback,
         };
         var moved = false;
         var movedBeforeRaised = false;
@@ -1012,7 +1012,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         IIoService signals = io;
         await machine.InitializeAsync();
         await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, true);
@@ -1024,7 +1024,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
         Assert.False(state.Homed);
 
-        var transfer = services.GetRequiredService<NgCarrierTransfer>();
+        var transfer = services.GetRequiredService<InspectionStation>();
         Assert.False(transfer.IsRaised);
         Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
 

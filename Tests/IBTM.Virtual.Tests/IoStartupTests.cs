@@ -1400,7 +1400,7 @@ public sealed class IoStartupTests
             entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
         Assert.True(machine.IsResetAllowed);
         Assert.All(
-            services.GetRequiredService<NgCarrierTransfer>().Motion.Axes.Values,
+            services.GetRequiredService<InspectionStation>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Equal(0, io.ReadsWhileUnavailable);
         await Assert.ThrowsAsync<AggregateException>(machine.ShutdownAsync);
@@ -1427,7 +1427,7 @@ public sealed class IoStartupTests
 
         AssertUnavailable(state, machine, error);
         Assert.All(
-            services.GetRequiredService<NgCarrierTransfer>().Motion.Axes.Values,
+            services.GetRequiredService<InspectionStation>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Equal(0, io.ReadsWhileUnavailable);
         await Assert.ThrowsAsync<AggregateException>(machine.ShutdownAsync);

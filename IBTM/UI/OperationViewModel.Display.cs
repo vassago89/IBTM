@@ -60,10 +60,10 @@ public partial class OperationViewModel
         get
         {
             return State.Available && Units.Inspection
-                && Machine.TeachingReady && InspectionPositionKnown && NgTransfer.Motion.IsReady(live: false)
+                && Machine.TeachingReady && InspectionPositionKnown && Inspection.Motion.IsReady(live: false)
                 && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } mainRunning
                 && Signals.Outputs[OutputIo.NgConveyorRun].IsOn is { } running
-                ? _inspectionStation.GetState(State.RepeatEnabled,
+                ? Inspection.GetState(State.RepeatEnabled,
                     holdAtShuttle: State.RepeatEnabled && !Units.NgShuttle, live: false,
                     conveyorRunning: running, mainConveyorRunning: mainRunning)
                 : null;
@@ -101,8 +101,8 @@ public partial class OperationViewModel
     {
         get
         {
-            return NgTransfer.Motion.XyHomed && _map.InspectionDefined
-                && NgTransfer.Motion.Position is { X: not null, Y: not null };
+            return Inspection.Motion.XyHomed && _map.InspectionDefined
+                && Inspection.Motion.Position is { X: not null, Y: not null };
         }
     }
 
@@ -308,7 +308,7 @@ public partial class OperationViewModel
                 case StationDisplayState.Working when InspectionStateVisible:
                     return InspectionState ?? (Enum)MachineDisplayState.Unavailable;
                 case StationDisplayState.WaitingForTransfer when Units.NgCarrierTransfer && InspectionWork.RouteToNg:
-                    return InspectionStationState.WaitingForShuttleReady;
+                    return InspectionStationState.WaitingForDestination;
                 case StationDisplayState.WaitingForTransfer when Units.MainConveyor
                         && ConveyorState == MainConveyorState.WaitingForRearEquipment:
                     return ConveyorState ?? (Enum)MachineDisplayState.Unavailable;
@@ -330,11 +330,12 @@ public partial class OperationViewModel
                     return StationDisplayState.IoAlarm;
                 case true when !InspectionPositionKnown:
                     return StationDisplayState.PositionUnknown;
-                case true when !State.AutomaticRunning && !NgTransfer.Motion.IsMoving:
+                case true when !State.AutomaticRunning && !Inspection.Motion.IsMoving:
                     return StationDisplayState.Stopped;
-                case true when NgTransfer.Motion.IsMoving
-                    || NgTransfer.IsTransferPending
-                    || InspectionState == InspectionStationState.TransferringNgCarrier:
+                case true when Inspection.Motion.IsMoving
+                    || Inspection.IsTransferPending
+                    || InspectionState is InspectionStationState.PreparingTransfer
+                        or InspectionStationState.PickingCarrier or InspectionStationState.PlacingCarrier:
                     return StationDisplayState.Working;
                 case true when !InspectionWork.Station.CarrierPresent:
                     return StationDisplayState.WaitingForCarrier;

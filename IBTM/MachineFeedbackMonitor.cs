@@ -56,7 +56,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         PcbSupplier supply,
         PcbPlacer placement,
         BoltFasteningStation fastening,
-        NgCarrierTransfer inspection,
+        InspectionStation inspection,
         ILogger<MachineFeedbackMonitor>? log = null)
     {
         _lifetime = new();

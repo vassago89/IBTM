@@ -2,34 +2,53 @@ using System;
 using System.Linq;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Storage;
 
 namespace IBTM.Inspection;
 
-public sealed class InspectionWork : StationWork
+public sealed class InspectionWork : StationWork, INgCarrierTransferFeedback
 {
     private readonly IIoService _io;
-    private readonly NgCarrierTransfer _transfer;
     private readonly NgCarrierTransferSettings _transferSettings;
-    private readonly RecipeManager _recipes;
     // Scheduling ownership for this job only; never a physical position or restart checkpoint.
     private volatile Job? _inspectionRequestedJob;
     private volatile Job? _carrierSeatingRequestedJob;
 
     public InspectionWork(
         IIoService io,
-        NgCarrierTransfer transfer,
+        IXyMotion motion,
         NgCarrierTransferSettings transferSettings,
-        RecipeManager recipes,
-        UnitSettings units) : base(transfer.Station, units)
+        UnitSettings units) : base(ConveyorStation.CreateInspection(io), units)
     {
         _io = io;
-        _transfer = transfer;
+        Feedback = motion;
+        Motion = new(motion);
         _transferSettings = transferSettings;
-        _recipes = recipes;
-        transfer.Changed += NotifyChanged;
+        motion.StateChanged += NotifyChanged;
+        io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
     }
+
+    public IXyMotion Feedback { get; }
+
+    public MotionStatus Motion { get; }
+
+    // Unfinished pickup/release ownership, not proof that material is present.
+    public bool IsTransferPending
+    {
+        get;
+        internal set
+        {
+            if (field == value)
+                return;
+            field = value;
+            NotifyChanged();
+        }
+    }
+
+    public bool IsRaised => _io.GetInput(InputIo.NgCarrierPickupUp)
+        && !_io.GetInput(InputIo.NgCarrierPickupDown);
+
+    public bool IsClear => IsRaised && !IsTransferPending;
 
     public override bool Enabled => Units.Inspection;
 
@@ -47,11 +66,9 @@ public sealed class InspectionWork : StationWork
 
     public bool CarrierSeatingRequested => ReferenceEquals(_carrierSeatingRequestedJob, CurrentJob);
 
-    public bool PickupClear => _transfer.IsClear;
+    public bool PickupClear => IsClear;
 
-    public AxisPosition? WaitingPosition => Enabled
-        ? _recipes.Current.InspectionWaitingPosition
-        : _transferSettings.GetCarrierPickupPosition();
+    public AxisPosition? WaitingPosition => _transferSettings.GetCarrierPickupPosition();
 
     public override bool IsTransferAllowed => IsTransferAllowedFor();
 
@@ -62,7 +79,7 @@ public sealed class InspectionWork : StationWork
     }
 
     public override bool IsReceiveAllowed => base.IsReceiveAllowed
-        && (!Units.NgCarrierTransfer || !_transfer.IsTransferPending);
+        && (!Units.NgCarrierTransfer || !IsTransferPending);
 
     public bool RouteToNg => !Enabled || HasNg;
 
@@ -84,16 +101,24 @@ public sealed class InspectionWork : StationWork
     {
         return Station.CarrierPresent && !Completed
             && (!Units.MainConveyor || InspectionRequested)
-            && IsAtInspectionPosition(conveyorRunning) && _transfer.IsClear;
+            && IsAtInspectionPosition(conveyorRunning) && IsClear;
     }
 
     public bool IsTransferAtWaitingPosition(bool live = true)
     {
         if (!Units.IsMotionEnabled(MotionGroup.InspectionGantry))
             return true;
-        return _transfer.IsClear
+        return IsClear
             && WaitingPosition is { } position
-            && _transfer.IsAt(position, live);
+            && IsAt(position, live);
+    }
+
+    public bool IsAt(AxisPosition position, bool live = true)
+    {
+        var current = Motion.ReadPosition(live);
+        return Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y)
+            && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters;
     }
 
     public void RequestInspection(Job job)
@@ -125,6 +150,22 @@ public sealed class InspectionWork : StationWork
     {
         _carrierSeatingRequestedJob = null;
         NotifyChanged();
+    }
+
+    private void OnInputChanged(InputIo input, bool value)
+    {
+        // An unexpected Open is grip loss, not a completed release of the pending transfer.
+        if (input is InputIo.NgCarrierPickupUp
+            or InputIo.NgCarrierPickupDown
+            or InputIo.NgCarrierGripperOpen
+            or InputIo.NgCarrierGripperClosed
+            or InputIo.NgCarrierDetected
+            or InputIo.NgShuttleUp
+            or InputIo.NgShuttleDown
+            or InputIo.NgShuttleCarrierDetected)
+        {
+            NotifyChanged();
+        }
     }
 
     private void OnOutputChanged(OutputIo output, bool value)

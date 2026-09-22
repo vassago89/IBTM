@@ -57,7 +57,7 @@ public sealed partial class MachineController
             case true when requireRaised && (group == MotionGroup.InspectionGantry
                 || group is null
                 && InspectionGantryEnabled)
-                && !_ngTransfer.IsRaised:
+                && !_inspectionStation.IsRaised:
                 return HomeBlockReason.NgPickupNotRaised;
             default:
                 return HomeBlockReason.None;
@@ -130,8 +130,8 @@ public sealed partial class MachineController
                             break;
                         case MotionGroup.InspectionGantry:
                             homed = axis is { } selectedAxis
-                                ? await _ngTransfer.HomeAxisAsync(selectedAxis, operation.Token)
-                                : await _ngTransfer.HomeHorizontalAsync(operation.Token);
+                                ? await _inspectionStation.HomeAxisAsync(selectedAxis, operation.Token)
+                                : await _inspectionStation.HomeHorizontalAsync(operation.Token);
                             break;
                         default:
                             throw new ArgumentOutOfRangeException(nameof(group));
@@ -197,7 +197,7 @@ public sealed partial class MachineController
             await ObserveRaiseAsync(_fasteningStation.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening);
         if (group == MotionGroup.InspectionGantry || group is null && InspectionGantryEnabled)
             await ObserveRaiseAsync(
-                _ngTransfer.SetLiftUpAsync(true, operation.Token), MachineAlarm.NgCarrierTransfer);
+                _inspectionStation.SetLiftUpAsync(true, operation.Token), MachineAlarm.NgCarrierTransfer);
         operation.Token.ThrowIfCancellationRequested();
     }
 
@@ -289,7 +289,7 @@ public sealed partial class MachineController
                     ? CheckHomeAsync(_fasteningStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask,
                 InspectionGantryEnabled
-                    ? CheckHomeAsync(_ngTransfer.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                    ? CheckHomeAsync(_inspectionStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask);
         }
         catch (OperationCanceledException)

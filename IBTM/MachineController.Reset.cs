@@ -143,9 +143,9 @@ public sealed partial class MachineController
                         await _fasteningStation.ResetMotionAsync(operation.Token);
                         break;
                     case MotionGroup.InspectionGantry:
-                        _ngTransfer.InitializeMotion();
+                        _inspectionStation.InitializeMotion();
                         operation.Token.ThrowIfCancellationRequested();
-                        await _ngTransfer.ResetMotionAsync(operation.Token);
+                        await _inspectionStation.ResetMotionAsync(operation.Token);
                         break;
                 }
             }
@@ -303,7 +303,7 @@ public sealed partial class MachineController
             {
                 stage = "Inspection motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
-                _ngTransfer.InitializeMotion();
+                _inspectionStation.InitializeMotion();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 

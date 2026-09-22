@@ -60,7 +60,7 @@ public partial class TeachingViewModel
                     return TeachingMotionHint.RaisePlacementCylinders;
                 case MotionGroup.BoltFastening:
                     return TeachingMotionHint.BoltAdjustment;
-                case MotionGroup.InspectionGantry when !_ngTransfer.IsRaised:
+                case MotionGroup.InspectionGantry when !Inspection.IsRaised:
                     return TeachingMotionHint.RaiseNgPickup;
                 default:
                     return TeachingMotionHint.None;
@@ -109,7 +109,7 @@ public partial class TeachingViewModel
             {
                 MotionGroup.PcbSupply or MotionGroup.BoltFastening => true,
                 MotionGroup.PcbPlacementHandler => axis == MotionAxis.Z || _pcbPlacement.HandlerRaised,
-                MotionGroup.InspectionGantry => _ngTransfer.IsRaised,
+                MotionGroup.InspectionGantry => Inspection.IsRaised,
                 _ => false,
             };
     }
@@ -147,7 +147,7 @@ public partial class TeachingViewModel
                     await _fasteningStation.JogAsync(axis, velocity, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await _ngTransfer.JogAsync(axis, velocity, operation.Token);
+                    await Inspection.JogAsync(axis, velocity, operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(group));
@@ -252,7 +252,7 @@ public partial class TeachingViewModel
                     await _fasteningStation.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await _ngTransfer.MoveAxisAsync(axis, target, TeachingXySpeed, operation.Token);
+                    await Inspection.MoveAxisAsync(axis, target, TeachingXySpeed, operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup));
@@ -343,16 +343,16 @@ public partial class TeachingViewModel
                     await _fasteningStation.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup:
-                    await _ngTransfer.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
+                    await Inspection.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt:
-                    await Inspection.MoveToAsync(bolt, operation.Token);
+                    await Inspection.MoveToBoltAsync(bolt, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.DataMatrix:
                     await Inspection.MoveToBarcodeAsync(SelectedPcb, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await _ngTransfer.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, TeachingXySpeed, operation.Token);
+                    await Inspection.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, TeachingXySpeed, operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(point));
@@ -403,7 +403,7 @@ public partial class TeachingViewModel
                 case MotionGroup.BoltFastening:
                     return _fasteningStation.IsHorizontalMoveAllowed;
                 case MotionGroup.InspectionGantry:
-                    return _ngTransfer.IsRaised;
+                    return Inspection.IsRaised;
                 default:
                     return false;
             }

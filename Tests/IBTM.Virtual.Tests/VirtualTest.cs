@@ -41,7 +41,7 @@ internal static class VirtualTest
             new(OpenMachineStore(), new()), units);
     }
 
-    public static NgCarrierTransfer CreateNgTransfer(
+    public static InspectionStation CreateNgTransfer(
         IIoService io, IXyMotion? motion = null, OperationCancellation? operations = null,
         InspectionGantrySettings? motionSettings = null, NgCarrierTransferSettings? settings = null,
         UnitSettings? units = null)
@@ -49,7 +49,13 @@ internal static class VirtualTest
         operations ??= new();
         motionSettings ??= new();
         motion ??= new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);
-        return new(io, motion, operations, motionSettings, settings ?? new(), units ?? new());
+        settings ??= new();
+        units ??= new();
+        var work = new InspectionWork(io, motion, settings, units);
+        var conveyor = new NgCarrierConveyor(io, new(), work, units);
+        return new(work, conveyor, operations, motionSettings, settings, io, units,
+            new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(),
+            new RecipeManager(OpenMachineStore(), new()));
     }
 
     private sealed class UnavailableSupply : IPcbSupplyHandoff

@@ -39,7 +39,7 @@ public sealed partial class MachineController
             if (_units.NgShuttle && !_units.NgCarrierTransfer)
                 independentUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.NgShuttle,
-                    _ngShuttle.RunRepeatAsync(_units.NgConveyor, repeat.Token),
+                    _ngConveyor.RunShuttleRepeatAsync(_units.NgConveyor, repeat.Token),
                     repeat));
             if (!_units.MainConveyor && !_units.NgCarrierTransfer)
             {
@@ -56,23 +56,21 @@ public sealed partial class MachineController
                 if (_units.NgCarrierTransfer && _units.NgConveyor)
                 {
                     RepeatDisplayPhase = RepeatPhase.ReturnToShuttle;
-                    await _ngTransfer.SetLiftUpAsync(true, cancellationToken);
-                    await _ngShuttle.ReturnFromConveyorAsync(cancellationToken);
+                    await _inspectionStation.SetLiftUpAsync(true, cancellationToken);
+                    await _ngConveyor.ReturnFromConveyorAsync(cancellationToken);
                 }
                 else if (_units.NgCarrierTransfer && _units.NgShuttle)
                 {
                     RepeatDisplayPhase = RepeatPhase.CycleShuttle;
-                    await _ngShuttle.CycleAsync(cancellationToken);
+                    await _ngConveyor.CycleShuttleAsync(cancellationToken);
                 }
 
                 if (_units.NgCarrierTransfer)
                 {
                     RepeatDisplayPhase = RepeatPhase.ReturnToStation3;
-                    await _ngTransfer.ReturnToStationAsync(cancellationToken);
+                    await _inspectionStation.ReturnToStationAsync(cancellationToken);
                     RepeatDisplayPhase = RepeatPhase.ClearStation3;
-                    await _ngTransfer.ClearStationAsync(
-                        _recipes.Current.InspectionWaitingPosition,
-                        cancellationToken);
+                    await _inspectionStation.ClearStationAsync(cancellationToken);
                 }
                 if (_units.MainConveyor)
                 {
@@ -119,7 +117,7 @@ public sealed partial class MachineController
             else if (_units.NgConveyor)
                 await _ngConveyor.WaitForRepeatEndAsync(cycle.Token);
             else
-                await _ngTransfer.WaitForRepeatEndAsync(!_units.NgShuttle, cycle.Token);
+                await _inspectionStation.WaitForRepeatEndAsync(!_units.NgShuttle, cycle.Token);
         }
         finally
         {
@@ -153,9 +151,9 @@ public sealed partial class MachineController
 
             if (_units.Inspection || _units.NgCarrierTransfer)
             {
-                if (!_ngTransfer.IsRaised)
+                if (!_inspectionStation.IsRaised)
                     return OutputBlockReason.NgPickupNotRaised;
-                if (_ngTransfer.IsTransferPending)
+                if (_inspectionStation.IsTransferPending)
                     return OutputBlockReason.NgTransferPending;
             }
 
@@ -175,7 +173,7 @@ public sealed partial class MachineController
         _state.Changed += CheckPath;
         _pcbPlacement.Changed += CheckPath;
         _fasteningStation.Changed += CheckPath;
-        _ngTransfer.Changed += CheckPath;
+        _inspectionStation.Changed += CheckPath;
         try
         {
             CheckPath();
@@ -188,7 +186,7 @@ public sealed partial class MachineController
             _state.Changed -= CheckPath;
             _pcbPlacement.Changed -= CheckPath;
             _fasteningStation.Changed -= CheckPath;
-            _ngTransfer.Changed -= CheckPath;
+            _inspectionStation.Changed -= CheckPath;
         }
     }
 

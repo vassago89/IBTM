@@ -155,7 +155,7 @@ public sealed partial class MachineLifecycleTests
         settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 1;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
@@ -263,7 +263,7 @@ public sealed partial class MachineLifecycleTests
         transferSettings.Speed = 1_234;
         transferSettings.PickupSafeX = null;
         var machine = services.GetRequiredService<MachineController>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -441,7 +441,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var operations = services.GetRequiredService<OperationCancellation>();
-        var motion = services.GetRequiredService<NgCarrierTransfer>().Feedback;
+        var motion = services.GetRequiredService<InspectionStation>().Feedback;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -537,7 +537,7 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -582,7 +582,7 @@ public sealed partial class MachineLifecycleTests
         {
             MotionGroup.PcbSupply => services.GetRequiredService<PcbSupplier>().Feedback,
             MotionGroup.PcbPlacementHandler => services.GetRequiredService<PcbPlacer>().Feedback,
-            _ => services.GetRequiredService<NgCarrierTransfer>().Feedback,
+            _ => services.GetRequiredService<InspectionStation>().Feedback,
         };
 
         teaching.JogSpeed = 1;
@@ -629,7 +629,7 @@ public sealed partial class MachineLifecycleTests
         var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
         var settingsBefore = JsonSerializer.Serialize(settings);
         var moves = 0;
-        services.GetRequiredService<NgCarrierTransfer>().Feedback.PositionChanged += (_, _, _) => moves++;
+        services.GetRequiredService<InspectionStation>().Feedback.PositionChanged += (_, _, _) => moves++;
 
         Assert.Empty(teaching.CarrierImages);
         Assert.True(teaching.GrabCommand.CanExecute(null));
@@ -712,7 +712,7 @@ public sealed partial class MachineLifecycleTests
         var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
         var settingsBefore = JsonSerializer.Serialize(settings);
         var moves = 0;
-        services.GetRequiredService<NgCarrierTransfer>().Feedback.PositionChanged += (_, _, _) => moves++;
+        services.GetRequiredService<InspectionStation>().Feedback.PositionChanged += (_, _, _) => moves++;
 
         if (live)
             await teaching.Inspection.StartLiveViewAsync();
@@ -790,7 +790,7 @@ public sealed partial class MachineLifecycleTests
         var bolt = teaching.SelectedPoint!.Position.Bolt!;
         teaching.MillimetersPerPixel = 0.5;
         teaching.FovRegion = new(10, 20, 65, 65);
-        await services.GetRequiredService<NgCarrierTransfer>().MoveToAsync(new() { X = 110, Y = 220 });
+        await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 110, Y = 220 });
         await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
@@ -870,7 +870,7 @@ public sealed partial class MachineLifecycleTests
         var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
         var store = services.GetRequiredService<MachineStore>();
         var imageBefore = store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number);
-        await services.GetRequiredService<NgCarrierTransfer>().MoveToAsync(new() { X = 17, Y = 29 });
+        await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 17, Y = 29 });
         using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
         connection.Open();
         using var command = connection.CreateCommand();
@@ -965,7 +965,7 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedFov = images[0];
         var roi = teaching.FovRegion;
         var moves = 0;
-        services.GetRequiredService<NgCarrierTransfer>().Feedback.PositionChanged += (_, _, _) => moves++;
+        services.GetRequiredService<InspectionStation>().Feedback.PositionChanged += (_, _, _) => moves++;
 
         teaching.IsMeasuring = true;
         Assert.False(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
@@ -1026,7 +1026,7 @@ public sealed partial class MachineLifecycleTests
             ]);
             var fov = recipe.CarrierImages.Single(item => item.IsBarcode == barcode && item.HeatSink == HeatSinkSlot.HeatSink1);
             var teaching = services.GetRequiredService<TeachingViewModel>();
-            var gantry = services.GetRequiredService<NgCarrierTransfer>();
+            var gantry = services.GetRequiredService<InspectionStation>();
             teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point =>
                 barcode ? point.Position.Target == TeachingTarget.DataMatrix : point.Position.Bolt == bolt);
@@ -1056,7 +1056,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(teaching.MoveToPointCommand.CanExecute(null));
             await Assert.ThrowsAsync<MotionInterlockException>(() => barcode
                 ? teaching.Inspection.MoveToBarcodeAsync(HeatSinkSlot.HeatSink1)
-                : teaching.Inspection.MoveToAsync(bolt));
+                : teaching.Inspection.MoveToBoltAsync(bolt));
             await gantry.SetLiftUpAsync(true);
 
             recipe.CarrierImages.Remove(fov);
@@ -1064,7 +1064,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(teaching.MoveToPointCommand.CanExecute(null));
             await Assert.ThrowsAsync<InvalidOperationException>(() => barcode
                 ? teaching.Inspection.MoveToBarcodeAsync(HeatSinkSlot.HeatSink1)
-                : teaching.Inspection.MoveToAsync(bolt));
+                : teaching.Inspection.MoveToBoltAsync(bolt));
         }
         finally
         {
@@ -1127,7 +1127,7 @@ public sealed partial class MachineLifecycleTests
         var otherImage = await Task.Run(() => InspectionPreview.CreateBitmap(new ImageFrame(2, 1, 6, [60, 60, 60, 160, 160, 160])));
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var moves = 0;
-        services.GetRequiredService<NgCarrierTransfer>().Feedback.PositionChanged += (_, _, _) => moves++;
+        services.GetRequiredService<InspectionStation>().Feedback.PositionChanged += (_, _, _) => moves++;
         teaching.CarrierImages = metadata.Select(tile => new CarrierImageTileView(tile, tile.Number == 1 ? image : otherImage)).ToArray();
         var first = teaching.FilteredPoints.Single(point => point.BoltNumber == 1);
         var second = teaching.FilteredPoints.Single(point => point.BoltNumber == 2);

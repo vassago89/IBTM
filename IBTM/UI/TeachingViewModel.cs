@@ -30,7 +30,6 @@ public partial class TeachingViewModel : ObservableObject
     private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly BoltFasteningSettings _fasteningSettings;
     private readonly NgCarrierTransferSettings _ngTransferSettings;
-    private readonly NgCarrierTransfer _ngTransfer;
     private CancellationTokenSource _recipeImageCancellation;
     private Task _recipeImageUpdate = Task.CompletedTask;
     [ObservableProperty]
@@ -77,7 +76,6 @@ public partial class TeachingViewModel : ObservableObject
         PcbPlacementHandlerSettings placementSettings,
         BoltFasteningSettings fasteningSettings,
         NgCarrierTransferSettings ngTransferSettings,
-        NgCarrierTransfer ngTransfer,
         RecipeEditor recipeEditor,
         RecipeManager recipes,
         MachineStore store,
@@ -160,7 +158,6 @@ public partial class TeachingViewModel : ObservableObject
         _placementSettings = placementSettings;
         _fasteningSettings = fasteningSettings;
         _ngTransferSettings = ngTransferSettings;
-        _ngTransfer = ngTransfer;
         RecipeEditor = recipeEditor;
         Recipes = recipes;
         Preview = new(inspectionStation, recipes);

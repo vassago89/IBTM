@@ -221,7 +221,6 @@ public static class DependencyInjection
                 provider => new BoltFasteningWork(
                     ConveyorStation.CreateBoltFastening(provider.GetRequiredService<IIoService>()),
                     provider.GetRequiredService<UnitSettings>()))
-            .AddSingleton<InspectionWork>()
             .AddSingleton(
                 provider => new MainConveyor(
                     provider.GetRequiredService<IIoService>(),
@@ -236,27 +235,25 @@ public static class DependencyInjection
             .AddSingleton(
                 provider =>
                 {
-                    var gantry = new NgCarrierTransfer(
+                    var work = new InspectionWork(
                         provider.GetRequiredService<IIoService>(),
                         provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry),
-                        provider.GetRequiredService<OperationCancellation>(),
-                        settings.InspectionGantry,
                         settings.NgCarrierTransfer,
                         provider.GetRequiredService<UnitSettings>());
                     if (settings.Drivers.Control == ControlDriver.Virtual)
                     {
                         var machine = provider.GetRequiredService<VirtualMachine>();
-                        gantry.Feedback.PositionChanged += (x, y, _) => machine.UpdateInspectionPosition(
+                        work.Feedback.PositionChanged += (x, y, _) => machine.UpdateInspectionPosition(
                             x,
                             y,
                             settings.NgCarrierTransfer.GetCarrierPickupPosition(),
                             settings.NgCarrierTransfer.ShuttlePlacePosition);
                     }
 
-                    return gantry;
+                    return work;
                 })
             .AddSingleton<INgCarrierTransferFeedback>(
-                provider => provider.GetRequiredService<NgCarrierTransfer>());
+                provider => provider.GetRequiredService<InspectionWork>());
 
         if (settings.Drivers.Bolt == BoltDriver.Io)
         {
@@ -314,7 +311,7 @@ public static class DependencyInjection
                     {
                         var recipes = provider.GetRequiredService<RecipeManager>();
                         return new VirtualCamera(
-                            provider.GetRequiredService<NgCarrierTransfer>().Feedback.GetPosition,
+                            provider.GetRequiredService<InspectionWork>().Feedback.GetPosition,
                             () => recipes.Current.Pcb.BoltPoints
                                 .Where(bolt => bolt.X is not null && bolt.Y is not null)
                                 .Select(settings.InspectionGantry.GetBoltPosition),
@@ -406,10 +403,7 @@ public static class DependencyInjection
             .AddSingleton<MachineController>()
             .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
             .AddSingleton<BoltFeederUnit>()
-            .AddSingleton<NgCarrierConveyor>();
-
-        services
-            .AddSingleton<NgShuttle>()
+            .AddSingleton<NgCarrierConveyor>()
             .AddSingleton<InspectionStation>();
 
         services

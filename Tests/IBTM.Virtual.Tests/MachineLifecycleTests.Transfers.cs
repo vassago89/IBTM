@@ -28,7 +28,7 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var transfer = services.GetRequiredService<NgCarrierTransfer>();
+        var transfer = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await transfer.Station.SeatAsync(CancellationToken.None);
@@ -55,8 +55,8 @@ public sealed partial class MachineLifecycleTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
         try
         {
-            Assert.False(await transfer.ExecuteAsync(
-                destination, NgTransferState.PickingCarrier, timeout.Token));
+            Assert.False(await transfer.ExecuteTransferAsync(
+                destination, InspectionStationState.PickingCarrier, timeout.Token));
             Assert.True(lost);
             Assert.False(closed);
             Assert.False(raisedAfterLoss);
@@ -65,8 +65,8 @@ public sealed partial class MachineLifecycleTests
 
             io.OutputChanged -= LoseSourceDuringDescent;
             io.SetInput(lostInput, true);
-            Assert.True(await transfer.ExecuteAsync(
-                destination, transfer.GetState(destination, canPickUp: true), timeout.Token));
+            Assert.True(await transfer.ExecuteTransferAsync(
+                destination, transfer.GetTransferState(destination, canPickUp: true), timeout.Token));
             Assert.True(transfer.IsTransferPending);
             Assert.True(transfer.IsRaised);
             Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
@@ -89,15 +89,15 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var move = services.GetRequiredService<NgCarrierTransfer>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
-        var pickup = services.GetRequiredService<NgCarrierTransfer>();
+        var move = services.GetRequiredService<InspectionStation>();
+        var gantry = services.GetRequiredService<InspectionStation>();
+        var pickup = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-        await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, timeout.Token);
+        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, timeout.Token);
         var lost = false;
         var lowered = false;
         gantry.Feedback.PositionChanged += (x, y, z) =>
@@ -111,8 +111,8 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += (output, on) => lowered |= output == OutputIo.NgCarrierPickupDown && on;
         try
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteAsync(
-                NgTransferDestination.Shuttle, NgTransferState.PlacingCarrier, timeout.Token));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteTransferAsync(
+                NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, timeout.Token));
             Assert.True(lost);
             Assert.False(lowered);
             Assert.False(gantry.Feedback.IsMoving);
@@ -121,9 +121,9 @@ public sealed partial class MachineLifecycleTests
             io.OutputChanged += (output, on) => restarted |= output is OutputIo.NgCarrierGripperClose
                 or OutputIo.NgCarrierPickupDown;
             gantry.Feedback.MovingChanged += moving => restarted |= moving;
-            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteAsync(
+            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteTransferAsync(
                 NgTransferDestination.Shuttle,
-                move.GetState(NgTransferDestination.Shuttle, canPickUp: true), timeout.Token));
+                move.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true), timeout.Token));
             Assert.False(restarted);
         }
         finally
@@ -334,14 +334,14 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReverseNgPickupStaysAtShuttleAndClearsStationOnlyWithWaitingPosition(bool hasWaitingPosition)
+    public async Task ReverseNgPickupReturnsToPickupWaitingPosition(bool hasWaitingPosition)
     {
         await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
-        var move = services.GetRequiredService<NgCarrierTransfer>();
+        var move = services.GetRequiredService<InspectionStation>();
         var settings = services.GetRequiredService<NgCarrierTransferSettings>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
-        var pickup = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
+        var pickup = services.GetRequiredService<InspectionStation>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -394,35 +394,18 @@ public sealed partial class MachineLifecycleTests
         {
             var position = settings.GetCarrierPickupPosition()!;
             settings.PickupSafeX = null;
-            await move.ClearStationAsync(null, CancellationToken.None);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => move.ClearStationAsync(CancellationToken.None));
             Assert.Empty(feedback.AxisMoves);
             Assert.True(gantry.IsAt(position));
             return;
         }
 
-        var waitingPosition = new AxisPosition { X = 30, Y = 40 };
-        var pickupPosition = settings.GetCarrierPickupPosition()!;
-        settings.Speed = 100;
-        using var cancellation = new CancellationTokenSource();
-        void StopDuringWaitingPositionMove(double x, double y, double z)
-        {
-            if (x > pickupPosition.X + 1 && x < waitingPosition.X
-                && y > pickupPosition.Y + 1 && y < waitingPosition.Y)
-                cancellation.Cancel();
-        }
-        gantry.Feedback.PositionChanged += StopDuringWaitingPositionMove;
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => move.ClearStationAsync(waitingPosition, cancellation.Token));
-        gantry.Feedback.PositionChanged -= StopDuringWaitingPositionMove;
+        var movedAfterReturn = false;
+        gantry.Feedback.PositionChanged += (x, y, z) => movedAfterReturn = true;
+        await move.ClearStationAsync(CancellationToken.None);
+        Assert.False(movedAfterReturn);
         Assert.Empty(feedback.AxisMoves);
-        var stopped = gantry.Feedback.GetPosition();
-        Assert.InRange(stopped.X, pickupPosition.X + 0.01, waitingPosition.X - 0.01);
-        Assert.InRange(stopped.Y, pickupPosition.Y + 0.01, waitingPosition.Y - 0.01);
-
-        feedback.AxisMoves.Clear();
-        await move.ClearStationAsync(waitingPosition, CancellationToken.None);
-        Assert.Empty(feedback.AxisMoves);
-        Assert.True(gantry.IsAt(waitingPosition));
+        Assert.True(gantry.IsAt(settings.GetCarrierPickupPosition()!));
         Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
         Assert.False(pickup.CarrierDetected);
     }
@@ -432,9 +415,9 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
-        var move = services.GetRequiredService<NgCarrierTransfer>();
+        var move = services.GetRequiredService<InspectionStation>();
         var settings = services.GetRequiredService<NgCarrierTransferSettings>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -442,7 +425,7 @@ public sealed partial class MachineLifecycleTests
 
         settings.PickupSafeX = null;
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None)!);
+            () => move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None)!);
         Assert.Empty(feedback.AxisMoves);
         Assert.Equal((50, 60, 0), gantry.Feedback.GetPosition());
 
@@ -458,7 +441,7 @@ public sealed partial class MachineLifecycleTests
         }
         gantry.Feedback.PositionChanged += StopDuringPickupMove;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, cancellation.Token)!);
+            () => move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, cancellation.Token)!);
         gantry.Feedback.PositionChanged -= StopDuringPickupMove;
         Assert.Empty(feedback.AxisMoves);
         var stopped = gantry.Feedback.GetPosition();
@@ -468,8 +451,8 @@ public sealed partial class MachineLifecycleTests
         Assert.False(io.GetInput(InputIo.NgCarrierDetected));
 
         feedback.AxisMoves.Clear();
-        Assert.False(await move.ExecuteAsync(
-            NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None));
+        Assert.False(await move.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None));
         Assert.Empty(feedback.AxisMoves);
         Assert.True(gantry.IsAt(pickupPosition));
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
@@ -478,16 +461,16 @@ public sealed partial class MachineLifecycleTests
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        Assert.Equal(NgTransferState.PickingCarrier, move.GetState(NgTransferDestination.Shuttle, canPickUp: true));
-        await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None)!;
-        Assert.Equal(NgTransferState.PlacingCarrier, move.GetState(NgTransferDestination.Shuttle, canPickUp: true));
+        Assert.Equal(InspectionStationState.PickingCarrier, move.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
+        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None)!;
+        Assert.Equal(InspectionStationState.PlacingCarrier, move.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.Equal(5, gantry.Feedback.GetPosition().X);
         Assert.Empty(feedback.AxisMoves);
 
         feedback.AxisMoves.Clear();
-        await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.PlacingCarrier, CancellationToken.None)!;
+        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, CancellationToken.None)!;
         Assert.Empty(feedback.AxisMoves);
         Assert.True(gantry.IsAt(settings.ShuttlePlacePosition));
     }
@@ -702,15 +685,15 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var move = services.GetRequiredService<NgCarrierTransfer>();
+        var move = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         // Establish pickup ownership through the real sequence, independently of presence DI.
-        await move.ExecuteAsync(destination, NgTransferState.PickingCarrier,
+        await move.ExecuteTransferAsync(destination, InspectionStationState.PickingCarrier,
             CancellationToken.None, allowEmpty: true);
-        await services.GetRequiredService<NgCarrierTransfer>()
+        await services.GetRequiredService<InspectionStation>()
             .MoveToAsync(
                 destination == NgTransferDestination.Station
                     ? settings.NgCarrierTransfer.GetCarrierPickupPosition()!
@@ -724,67 +707,67 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
         Assert.Equal(
-            NgTransferState.WaitingForDestination,
-            move.GetState(destination, canPickUp: true, canReceive: false));
+            InspectionStationState.WaitingForDestination,
+            move.GetTransferState(destination, canPickUp: true, canReceive: false));
         io.SetInput(destinationSensor, true);
-        AssertState(NgTransferState.WaitingForDestination);
+        AssertState(InspectionStationState.WaitingForDestination);
         // The descending held carrier can enter the support sensor before Down.
         io.SetInput(InputIo.NgCarrierPickupUp, false);
-        AssertState(NgTransferState.PlacingCarrier);
+        AssertState(InspectionStationState.PlacingCarrier);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
-        AssertState(NgTransferState.PlacingCarrier);
+        AssertState(InspectionStationState.PlacingCarrier);
         if (destination == NgTransferDestination.Shuttle)
         {
             io.SetInput(InputIo.NgShuttleUp, false);
             io.SetInput(InputIo.NgShuttleDown, false);
-            Assert.Equal(NgTransferState.HoldingAtDestination,
-                move.GetState(destination, canPickUp: true, holdAtDestination: true));
-            AssertState(NgTransferState.WaitingForDestination);
+            Assert.Equal(InspectionStationState.HoldingAtDestination,
+                move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
+            AssertState(InspectionStationState.WaitingForDestination);
             io.SetInput(InputIo.NgCarrierDetected, false);
-            Assert.Equal(NgTransferState.PickingCarrier,
-                move.GetState(destination, canPickUp: true, holdAtDestination: true));
+            Assert.Equal(InspectionStationState.PickingCarrier,
+                move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierDetected, true);
             io.SetInput(InputIo.NgCarrierPickupDown, false);
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             io.SetInput(InputIo.NgCarrierGripperOpen, true);
             // Unexpected opening above an unsupported destination must retain the failed transfer.
-            Assert.Equal(NgTransferState.PickingCarrier,
-                move.GetState(destination, canPickUp: true, holdAtDestination: true));
+            Assert.Equal(InspectionStationState.PickingCarrier,
+                move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierPickupDown, true);
             io.SetInput(InputIo.NgCarrierGripperClosed, true);
             io.SetInput(InputIo.NgCarrierGripperOpen, false);
             io.SetInput(InputIo.NgShuttleUp, true);
             var gripperOutput = io.GetOutput(OutputIo.NgCarrierGripperClose);
-            Assert.False(await move.ExecuteAsync(
-                destination, NgTransferState.HoldingAtDestination, CancellationToken.None));
+            Assert.False(await move.ExecuteTransferAsync(
+                destination, InspectionStationState.HoldingAtDestination, CancellationToken.None));
             Assert.Equal(gripperOutput, io.GetOutput(OutputIo.NgCarrierGripperClose));
         }
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
-        AssertState(NgTransferState.PlacingCarrier);
+        AssertState(InspectionStationState.PlacingCarrier);
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
-        var pickup = services.GetRequiredService<NgCarrierTransfer>();
+        var pickup = services.GetRequiredService<InspectionStation>();
         Assert.True(pickup.IsTransferPending);
         using (var stop = new CancellationTokenSource())
         {
-            var placing = move.ExecuteAsync(destination, NgTransferState.PlacingCarrier, stop.Token);
+            var placing = move.ExecuteTransferAsync(destination, InspectionStationState.PlacingCarrier, stop.Token);
             Assert.False(pickup.IsTransferPending);
             Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
             stop.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => placing);
         }
         io.SetInput(destinationSensor, false);
-        AssertState(NgTransferState.PlacingCarrier);
+        AssertState(InspectionStationState.PlacingCarrier);
         io.SetInput(destinationSensor, true);
-        AssertState(NgTransferState.PlacingCarrier);
+        AssertState(InspectionStationState.PlacingCarrier);
         io.SetInput(InputIo.NgCarrierPickupDown, false);
         io.SetInput(InputIo.NgCarrierPickupUp, true);
-        AssertState(NgTransferState.Completed);
+        AssertState(InspectionStationState.TransferCompleted);
         await machine.ShutdownAsync();
 
-        void AssertState(NgTransferState expected)
+        void AssertState(InspectionStationState expected)
         {
-            Assert.Equal(expected, move.GetState(destination, canPickUp: false));
-            Assert.Equal(expected, move.GetState(destination, canPickUp: true));
+            Assert.Equal(expected, move.GetTransferState(destination, canPickUp: false));
+            Assert.Equal(expected, move.GetTransferState(destination, canPickUp: true));
         }
     }
 }

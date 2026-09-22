@@ -341,13 +341,13 @@ public sealed partial class MachineController
                     await _fasteningStation.SetVacuumAsync(FasteningHead.Shooting, value, operation.Token);
                     break;
                 case OutputIo.NgCarrierPickupDown:
-                    await _ngTransfer.SetLiftUpAsync(!value, operation.Token);
+                    await _inspectionStation.SetLiftUpAsync(!value, operation.Token);
                     break;
                 case OutputIo.NgCarrierGripperClose:
-                    await _ngTransfer.SetGripperOpenAsync(!value, operation.Token);
+                    await _inspectionStation.SetGripperOpenAsync(!value, operation.Token);
                     break;
                 case OutputIo.NgShuttleDown:
-                    await _ngShuttle.SetDownAsync(value, operation.Token);
+                    await _ngConveyor.SetShuttleDownAsync(value, operation.Token);
                     break;
                 case OutputIo.PickupTableDown:
                 case OutputIo.PcbPlacementBackupPlateUp:

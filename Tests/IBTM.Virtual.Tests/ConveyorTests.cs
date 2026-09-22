@@ -9,7 +9,6 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
-using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
@@ -720,12 +719,8 @@ public sealed partial class ConveyorTests
         var operations = new OperationCancellation();
         var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
-        var transfer = VirtualTest.CreateNgTransfer(io, motion, operations, settings);
-        var recipes = new RecipeManager(OpenMachineStore(), new());
-        recipes.Current.CarrierImages =
-            [new() { Number = 1, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new() }];
         return new InspectionWork(
-            io, transfer, new NgCarrierTransferSettings { PickupSafeX = 0 }, recipes,
+            io, motion, new NgCarrierTransferSettings { PickupSafeX = 0 },
             units ?? new UnitSettings { MainConveyor = false, NgCarrierTransfer = false });
     }
 

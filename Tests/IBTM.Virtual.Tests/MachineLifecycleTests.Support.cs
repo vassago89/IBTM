@@ -56,10 +56,8 @@ public sealed partial class MachineLifecycleTests
                         y,
                         transfer.GetCarrierPickupPosition(),
                         transfer.ShuttlePlacePosition);
-                    return new NgCarrierTransfer(provider.GetRequiredService<IIoService>(),
+                    return new InspectionWork(provider.GetRequiredService<IIoService>(),
                         motion,
-                        provider.GetRequiredService<OperationCancellation>(),
-                        provider.GetRequiredService<InspectionGantrySettings>(),
                         provider.GetRequiredService<NgCarrierTransferSettings>(),
                         provider.GetRequiredService<UnitSettings>());
                 })
@@ -134,12 +132,10 @@ public sealed partial class MachineLifecycleTests
                         provider.GetRequiredService<UnitSettings>()))
             .AddSingleton(
                 provider =>
-                    new NgCarrierTransfer(provider.GetRequiredService<IIoService>(),
+                    new InspectionWork(provider.GetRequiredService<IIoService>(),
                         Wrap(
                             MotionGroup.InspectionGantry,
                             provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry)),
-                        provider.GetRequiredService<OperationCancellation>(),
-                        settings.InspectionGantry,
                         provider.GetRequiredService<NgCarrierTransferSettings>(),
                         provider.GetRequiredService<UnitSettings>()));
         configure?.Invoke(services);

@@ -12,14 +12,23 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 {
     private readonly IIoService _io;
     private readonly NgConveyorSettings _settings;
+    private readonly INgCarrierTransferFeedback _transfer;
+    private readonly UnitSettings _units;
     private volatile Movement _movement;
     private volatile EjectionPhase _ejectionPhase;
     private bool _repeat;
 
-    public NgCarrierConveyor(IIoService io, NgConveyorSettings settings)
+    public NgCarrierConveyor(
+        IIoService io,
+        NgConveyorSettings settings,
+        INgCarrierTransferFeedback transfer,
+        UnitSettings units)
     {
         _io = io;
         _settings = settings;
+        _transfer = transfer;
+        _units = units;
+        transfer.Changed += NotifyChanged;
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
     }
@@ -34,7 +43,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 
     public bool Position3Occupied => _io.GetInput(InputIo.NgShuttleCarrierDetected);
 
-    private NgShuttleLiftState ShuttleLift
+    public NgShuttleLiftState ShuttleLift
     {
         get
         {
@@ -70,7 +79,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                 && ((!Position3Occupied
                         && (_movement == Movement.ToPosition1 && Position1Occupied
                             || _movement == Movement.ToPosition2 && Position2Occupied))
-                    || State == NgConveyorState.Full);
+                    || GetConveyorState(RunCommandOn) == NgConveyorState.Full);
         }
     }
 
@@ -89,6 +98,31 @@ public sealed partial class NgCarrierConveyor : AutoUnit
     }
 
     public NgConveyorState GetState(bool runCommandOn)
+    {
+        if (_units.NgShuttle)
+        {
+            if (ShuttleLift == NgShuttleLiftState.Down && IsShuttleRaiseAllowed)
+                return IsTransferClear
+                    ? NgConveyorState.RaisingShuttle : NgConveyorState.WaitingForTransferRelease;
+            if (ShuttleLift != NgShuttleLiftState.Down
+                && (Position3Occupied && IsAcceptCarrierAllowed(runCommandOn)
+                    || !Position3Occupied && ShuttleLift != NgShuttleLiftState.Up))
+            {
+                if (!IsTransferClear)
+                    return NgConveyorState.WaitingForTransferRelease;
+                return Position3Occupied
+                    ? NgConveyorState.LoweringShuttle : NgConveyorState.RaisingShuttle;
+            }
+        }
+        if (_units.NgConveyor)
+            return GetConveyorState(runCommandOn);
+        if (_units.NgShuttle && ShuttleLift == NgShuttleLiftState.Down)
+            return Position3Occupied || runCommandOn
+                ? NgConveyorState.WaitingForShuttleUp : NgConveyorState.CarrierPositionUnknown;
+        return NgConveyorState.WaitingForCarrier;
+    }
+
+    private NgConveyorState GetConveyorState(bool runCommandOn)
     {
         // A stopped transfer with no presence feedback has no known physical location.
         // The saved destination is work history, not permission to guess and resume.
@@ -180,7 +214,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         using var motor = new ConveyorRun(_io, OutputIo.NgConveyorRun, cancellationToken, OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         try
         {
-            if (!repeat && _ejectionPhase == EjectionPhase.Idle && EjectRequested)
+            if (_units.NgConveyor && !repeat && _ejectionPhase == EjectionPhase.Idle && EjectRequested)
             {
                 _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
                 Changed?.Invoke();
@@ -189,7 +223,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             BeginRun();
             while (!cancellationToken.IsCancellationRequested)
             {
-                var alarm = AlarmRequired && _ejectionPhase == EjectionPhase.Idle;
+                var alarm = _units.NgConveyor && AlarmRequired && _ejectionPhase == EjectionPhase.Idle;
                 _io.SetOutput(
                     OutputIo.NgCarrierEjectCompleteLamp,
                     _ejectionPhase == EjectionPhase.WaitingForConfirmation);
@@ -199,6 +233,12 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                 TraceStep(state);
                 switch (state)
                 {
+                    case NgConveyorState.LoweringShuttle:
+                        await SetShuttleDownAsync(true, cancellationToken);
+                        break;
+                    case NgConveyorState.RaisingShuttle:
+                        await SetShuttleDownAsync(false, cancellationToken);
+                        break;
                     case NgConveyorState.MovingToPosition1 or NgConveyorState.MovingToPosition2:
                         var toPosition1 = state == NgConveyorState.MovingToPosition1;
                         _movement = toPosition1 ? Movement.ToPosition1 : Movement.ToPosition2;

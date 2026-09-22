@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -6,7 +6,7 @@ using IBTM.Device;
 
 namespace IBTM.Inspection;
 
-public sealed partial class NgCarrierTransfer
+public sealed partial class InspectionStation
 {
     public async Task WaitForRepeatEndAsync(bool holdAtShuttle, CancellationToken cancellationToken)
     {
@@ -14,8 +14,8 @@ public sealed partial class NgCarrierTransfer
         Changed += changed.Set;
         try
         {
-            var endState = holdAtShuttle ? NgTransferState.HoldingAtDestination : NgTransferState.Completed;
-            while (GetState(NgTransferDestination.Shuttle,
+            var endState = holdAtShuttle ? InspectionStationState.HoldingAtDestination : InspectionStationState.TransferCompleted;
+            while (GetTransferState(NgTransferDestination.Shuttle,
                 canPickUp: true, holdAtDestination: holdAtShuttle,
                 allowEmpty: IsEmptyRepeatAllowed) != endState)
                 await changed.WaitAsync(cancellationToken);
@@ -32,16 +32,18 @@ public sealed partial class NgCarrierTransfer
             allowEmpty: IsEmptyRepeatAllowed);
     }
 
-    public async Task ClearStationAsync(AxisPosition? waitingPosition, CancellationToken cancellationToken)
+    public async Task ClearStationAsync(CancellationToken cancellationToken)
     {
-        if (waitingPosition is null)
-            return;
+        cancellationToken.ThrowIfCancellationRequested();
+        var waitingPosition = _settings.GetCarrierPickupPosition()
+            ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to the inspection waiting position.");
         if ((!IsEmptyRepeatAllowed && !Station.CarrierPresent)
             || IsTransferPending
             || Gripper != NgTransferGripperState.Open
             || !IsRaised)
-            throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the Data Matrix waiting position.");
+            throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the waiting position.");
 
-        await MoveToAsync(waitingPosition, _settings.Speed, cancellationToken);
+        if (!IsAt(waitingPosition))
+            await MoveToAsync(waitingPosition, _settings.Speed, cancellationToken);
     }
 }

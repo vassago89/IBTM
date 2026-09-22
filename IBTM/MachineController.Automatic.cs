@@ -310,19 +310,11 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        if (!cycle.IsCancellationRequested && _units.NgShuttle
+        if (!cycle.IsCancellationRequested && (_units.NgShuttle || _units.NgConveyor)
             && (!repeat || _units.NgCarrierTransfer && _units.NgConveyor))
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.NgShuttle,
-                _ngShuttle.RunAsync(cycle.Token),
-                cycle));
-        }
-
-        if (!cycle.IsCancellationRequested && _units.NgConveyor && (!repeat || _units.NgCarrierTransfer))
-        {
-            runningUnits.Add(ObserveAutomaticUnitAsync(
-                MachineAlarm.NgConveyor,
+                _units.NgConveyor ? MachineAlarm.NgConveyor : MachineAlarm.NgShuttle,
                 _ngConveyor.RunAsync(cycle.Token, repeat),
                 cycle));
         }

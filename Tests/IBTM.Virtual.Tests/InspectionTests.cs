@@ -95,8 +95,6 @@ public sealed class InspectionTests
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
         motion.Initialize();
-        var gantry = VirtualTest.CreateNgTransfer(io, motion, operations, settings);
-        Assert.True(await gantry.HomeHorizontalAsync());
         var recipe = new BoltInspectionRecipe();
         var fov = new CarrierImageTile
         {
@@ -111,10 +109,9 @@ public sealed class InspectionTests
         {
             Current = { BoltInspection = recipe, CarrierImages = [fov] },
         };
+        var work = new InspectionWork(io, motion, new(), units);
         var inspector = new InspectionStation(
-            new InspectionWork(io, gantry, new(), recipes, units),
-            gantry,
-            new NgShuttle(io, new NgCarrierConveyor(io, new()), gantry),
+            work, new NgCarrierConveyor(io, new(), work, units), operations, settings, new(), io,
             units,
             new VirtualCamera(
                 motion.GetPosition,
@@ -123,6 +120,7 @@ public sealed class InspectionTests
             new VirtualLightController(),
             new LightingSettings(),
             recipes);
+        Assert.True(await inspector.HomeHorizontalAsync());
         if (live)
             await inspector.StartLiveViewAsync();
 
@@ -130,11 +128,11 @@ public sealed class InspectionTests
         motion.PositionChanged += (_, _, _) => movements++;
         foreach (var center in new[] { new AxisPosition { X = 12, Y = 9 }, new AxisPosition { X = 27, Y = 16 } })
         {
-            await gantry.MoveToAsync(center, 1_000);
+            await inspector.MoveToAsync(center, 1_000);
             movements = 0;
             var image = await inspector.CaptureCarrierImageAsync();
             Assert.Equal((center.X, center.Y), (image.Center.X, image.Center.Y));
-            Assert.True(gantry.IsAt(center));
+            Assert.True(inspector.IsAt(center));
             Assert.Equal(live, inspector.IsLiveView);
             Assert.Equal(0, movements);
             Assert.NotEmpty(image.Frame.Pixels);
@@ -142,7 +140,7 @@ public sealed class InspectionTests
 
         var bolt = new BoltPoint { Number = 1, X = 999, Y = 999 };
         var capturedFov = await inspector.CaptureAsync(bolt);
-        Assert.True(gantry.IsAt(fov.Center)); // Never move the camera center to the bolt / ROI center.
+        Assert.True(inspector.IsAt(fov.Center)); // Never move the camera center to the bolt / ROI center.
         Assert.Equal(fov.Region!.Width, inspector.Check(capturedFov, fov.Region, bolt).Image.Width);
         Assert.True(inspector.HasPosition(bolt));
         Assert.True(inspector.HasRegion(bolt));
@@ -163,7 +161,7 @@ public sealed class InspectionTests
         fov.BoltNumber = null;
         fov.Region = new(180, 40, 80, 80);
         var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink1);
-        Assert.True(gantry.IsAt(fov.Center));
+        Assert.True(inspector.IsAt(fov.Center));
         Assert.Equal("PCB-000123", DataMatrixReader.Read(barcodeImage, fov.Region));
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
         Assert.True(inspector.HasBarcodePosition(HeatSinkSlot.HeatSink1));
@@ -202,10 +200,8 @@ public sealed class InspectionTests
             hasZ: false);
         var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0 };
         var units = new UnitSettings { MainConveyor = false, NgCarrierTransfer = false };
-        var transfer = VirtualTest.CreateNgTransfer(io, motion, operations, gantrySettings, transferSettings, units);
-        var gantry = transfer;
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        var work = new InspectionWork(io, transfer, transferSettings, recipes, units);
+        var work = new InspectionWork(io, motion, transferSettings, units);
         BoltPoint[] bolts = [
             new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 9 },
             new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 21 },
@@ -241,12 +237,9 @@ public sealed class InspectionTests
                     IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(180, 40, 80, 80),
                 },
             ];
-        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings());
-        var shuttle = new NgShuttle(io, conveyor, transfer);
+        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), work, units);
         var station = new InspectionStation(
-            work,
-            transfer,
-            shuttle,
+            work, conveyor, operations, gantrySettings, transferSettings, io,
             units,
             camera,
             new VirtualLightController(),
@@ -273,7 +266,7 @@ public sealed class InspectionTests
         Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
         Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
         var boltImage = await inspector.CaptureAsync(bolts[0]);
-        Assert.True(gantry.IsAt(gantrySettings.GetBoltPosition(bolts[0])));
+        Assert.True(inspector.IsAt(gantrySettings.GetBoltPosition(bolts[0])));
         Assert.NotEmpty(boltImage.Pixels);
         Assert.Empty(work.Assemblies);
 
@@ -355,14 +348,12 @@ public sealed class InspectionTests
         var transferUnits = new UnitSettings { Inspection = false, MainConveyor = false };
         var transferWork = new InspectionWork(
             io,
-            transfer,
+            motion,
             transferSettings,
-            recipes,
             transferUnits);
         var transferStation = new InspectionStation(
-            transferWork,
-            transfer,
-            shuttle,
+            transferWork, new NgCarrierConveyor(io, new(), transferWork, transferUnits),
+            operations, gantrySettings, transferSettings, io,
             transferUnits,
             camera,
             new VirtualLightController(),
@@ -377,16 +368,16 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionStopperDown, true);
         transferWork.Complete(transferWork.CurrentJob);
-        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState());
+        Assert.Equal(InspectionStationState.PickingCarrier, transferStation.GetState());
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
-        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState());
+        Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.GetState());
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.Equal(InspectionStationState.TransferringNgCarrier, transferStation.GetState());
+        Assert.Equal(InspectionStationState.PlacingCarrier, transferStation.GetState());
         Assert.Equal(InspectionStationState.Waiting, station.GetState());
 
         io.SetInput(InputIo.NgCarrierGripperOpen, false);

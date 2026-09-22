@@ -13,8 +13,12 @@ namespace IBTM.Inspection;
 public sealed partial class InspectionStation : AutoUnit
 {
     private readonly InspectionWork _work;
-    private readonly NgCarrierTransfer _transfer;
-    private readonly NgShuttle _shuttle;
+    private readonly IIoService _io;
+    private readonly IXyMotion _motion;
+    private readonly OperationCancellation _operations;
+    private readonly MotionSettings _motionSettings;
+    private readonly NgCarrierTransferSettings _settings;
+    private readonly NgCarrierConveyor _ngConveyor;
     private readonly UnitSettings _units;
     private HeatSinkSlot[]? _runTargets;
     // Current loop destinations for display only; never resume them after STOP.
@@ -23,8 +27,11 @@ public sealed partial class InspectionStation : AutoUnit
 
     public InspectionStation(
         InspectionWork work,
-        NgCarrierTransfer transfer,
-        NgShuttle shuttle,
+        NgCarrierConveyor ngConveyor,
+        OperationCancellation operations,
+        InspectionGantrySettings motionSettings,
+        NgCarrierTransferSettings settings,
+        IIoService io,
         UnitSettings units,
         ICamera camera,
         ILightController light,
@@ -32,8 +39,12 @@ public sealed partial class InspectionStation : AutoUnit
         RecipeManager recipes)
     {
         _work = work;
-        _transfer = transfer;
-        _shuttle = shuttle;
+        _io = io;
+        _motion = work.Feedback;
+        _operations = operations;
+        _motionSettings = motionSettings.Motion;
+        _settings = settings;
+        _ngConveyor = ngConveyor;
         _units = units;
         _camera = camera;
         _light = light;
@@ -42,7 +53,7 @@ public sealed partial class InspectionStation : AutoUnit
         _visionGate = new(1, 1);
         camera.LiveViewFailed += OnCameraLiveViewFailed;
         work.Changed += NotifyChanged;
-        shuttle.Changed += NotifyChanged;
+        ngConveyor.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;
@@ -56,18 +67,11 @@ public sealed partial class InspectionStation : AutoUnit
     {
         if (_work.CarrierSeatingRequested)
             return InspectionStationState.SeatingCarrier;
-        switch (GetTransferState(repeat, holdAtShuttle, live, conveyorRunning))
-        {
-            case NgTransferState.PreparingTransfer or NgTransferState.PickingCarrier or NgTransferState.PlacingCarrier:
-                return InspectionStationState.TransferringNgCarrier;
-            case NgTransferState.WaitingForDestination:
-                return InspectionStationState.WaitingForShuttleReady;
-            case NgTransferState.HoldingAtDestination:
-                return InspectionStationState.HoldingCarrierAtShuttle;
-            default:
-                var target = InspectionTarget;
-                return GetNextInspectionState(target.Pcb, target.Bolt, live, mainConveyorRunning);
-        }
+        var transferState = GetTransferState(repeat, holdAtShuttle, live, conveyorRunning);
+        if (transferState is not InspectionStationState.Waiting and not InspectionStationState.TransferCompleted)
+            return transferState;
+        var target = InspectionTarget;
+        return GetNextInspectionState(target.Pcb, target.Bolt, live, mainConveyorRunning);
     }
 
     public BoltPoint? GetActiveBolt(bool? mainConveyorRunning = null)
@@ -101,7 +105,7 @@ public sealed partial class InspectionStation : AutoUnit
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (repeat && !_units.MainConveyor
-                    && (_transfer.IsEmptyRepeatAllowed || _work.Station.CarrierPresent)
+                    && (IsEmptyRepeatAllowed || _work.Station.CarrierPresent)
                     && _work.PickupClear)
                 {
                     if (_work.Completed && !_units.NgCarrierTransfer && _work.Enabled)
@@ -113,7 +117,7 @@ public sealed partial class InspectionStation : AutoUnit
                             || _work.Station.Stopper != StationCylinderState.Down)
                         {
                             TraceStep(InspectionStationState.SeatingCarrier, workId: _work.CurrentJob.Id);
-                            await _transfer.SeatStationAsync(cancellationToken);
+                            await SeatStationAsync(cancellationToken);
                         }
                     }
                     else if (!_work.AtInspectionPosition)
@@ -156,16 +160,16 @@ public sealed partial class InspectionStation : AutoUnit
         if (_work.CarrierSeatingRequested)
         {
             TraceStep(InspectionStationState.SeatingCarrier, workId: _work.CurrentJob.Id);
-            await _transfer.SeatStationAsync(cancellationToken);
+            await SeatStationAsync(cancellationToken);
             _work.ClearCarrierSeatingRequest();
             return;
         }
         var transferState = GetTransferState(repeat, holdAtShuttle);
-        if (transferState is not (NgTransferState.Idle or NgTransferState.Completed))
+        if (transferState is not (InspectionStationState.Waiting or InspectionStationState.TransferCompleted))
         {
-            if (!await _transfer.ExecuteAsync(
+            if (!await ExecuteTransferAsync(
                 NgTransferDestination.Shuttle, transferState, cancellationToken, holdAtShuttle,
-                allowEmpty: repeat && _transfer.IsEmptyRepeatAllowed))
+                allowEmpty: repeat && IsEmptyRepeatAllowed))
                 await WaitForChangeAsync(cancellationToken);
 
             return;
@@ -287,27 +291,27 @@ public sealed partial class InspectionStation : AutoUnit
         }
     }
 
-    private NgTransferState GetTransferState(
+    private InspectionStationState GetTransferState(
         bool repeat,
         bool holdAtShuttle,
         bool live = true,
         bool? conveyorRunning = null)
     {
         if (!_units.NgCarrierTransfer)
-            return NgTransferState.Idle;
+            return InspectionStationState.Waiting;
 
         var canReceive = holdAtShuttle
-            || _shuttle.IsReceiveAllowed(useConveyor: !repeat || _units.NgConveyor, conveyorRunning);
-        return _transfer.GetState(
+            || _ngConveyor.IsReceiveAllowed(useConveyor: !repeat || _units.NgConveyor, conveyorRunning);
+        return GetTransferState(
             NgTransferDestination.Shuttle,
-            canPickUp: (repeat && _transfer.IsEmptyRepeatAllowed || _work.Station.CarrierSeated
+            canPickUp: (repeat && IsEmptyRepeatAllowed || _work.Station.CarrierSeated
                 && _work.Completed
                 && (repeat || _work.RouteToNg))
                 && canReceive,
             canReceive: canReceive,
             holdAtDestination: holdAtShuttle,
             live: live,
-            allowEmpty: repeat && _transfer.IsEmptyRepeatAllowed);
+            allowEmpty: repeat && IsEmptyRepeatAllowed);
     }
 
     private InspectionStationState GetNextInspectionState(
@@ -340,8 +344,6 @@ public sealed partial class InspectionStation : AutoUnit
 
     private InspectionStationState WaitAtWaitingPosition(InspectionStationState waiting, bool live)
     {
-        if (_work.Enabled && _work.WaitingPosition is null)
-            return InspectionStationState.BarcodeTeachingRequired;
         return _work.PickupClear && !_work.IsTransferAtWaitingPosition(live)
             ? InspectionStationState.ReturningToWaitingPosition
             : waiting;
@@ -350,9 +352,9 @@ public sealed partial class InspectionStation : AutoUnit
     private async Task MoveToWaitingPositionAsync(CancellationToken cancellationToken)
     {
         var position = _work.WaitingPosition
-            ?? throw new InvalidOperationException("Record the inspection waiting position before moving.");
-        if (!_transfer.IsAt(position))
-            await _transfer.MoveToAsync(position, cancellationToken: cancellationToken);
+            ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to the inspection waiting position.");
+        if (!IsAt(position))
+            await MoveToAsync(position, cancellationToken: cancellationToken);
     }
 
     private (HeatSinkSlot? Pcb, BoltPoint? Bolt) InspectionTarget

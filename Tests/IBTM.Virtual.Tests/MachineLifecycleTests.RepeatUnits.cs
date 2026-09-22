@@ -124,8 +124,8 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var pickup = services.GetRequiredService<NgCarrierTransfer>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var pickup = services.GetRequiredService<InspectionStation>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         var work = services.GetRequiredService<InspectionWork>();
         var dataMatrixPosition = new AxisPosition { X = 35, Y = 45 };
         services.GetRequiredService<RecipeManager>().Current.CarrierImages =
@@ -145,8 +145,8 @@ public sealed partial class MachineLifecycleTests
         if (startsWithCarrierHeld)
         {
             await work.Station.SeatAsync(CancellationToken.None);
-            await services.GetRequiredService<NgCarrierTransfer>().ExecuteAsync(
-                NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None);
+            await services.GetRequiredService<InspectionStation>().ExecuteTransferAsync(
+                NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
             Assert.True(pickup.CarrierDetected);
             Assert.False(work.Station.CarrierPresent);
         }
@@ -193,7 +193,7 @@ public sealed partial class MachineLifecycleTests
                 || machine.RepeatDisplayPhase != RepeatPhase.Automatic
                 || descents.Count != expectedDescents.Length || stop.IsCancellationRequested)
                 return;
-            returnedTwice = gantry.IsAt(dataMatrixPosition)
+            returnedTwice = gantry.IsAt(settings.NgCarrierTransfer.GetCarrierPickupPosition()!)
                 && work.Station.CarrierPresent == startsWithCarrierHeld
                 && work.Station.BackupPlate == StationCylinderState.Up && pickup.IsClear
                 && pickup.Gripper == NgTransferGripperState.Open;
@@ -230,13 +230,13 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var gantry = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
-        await services.GetRequiredService<NgCarrierTransfer>().ExecuteAsync(
-            NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None);
+        await services.GetRequiredService<InspectionStation>().ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
         await gantry.MoveToAsync(new() { X = 50, Y = 30 }, 10_000);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         var lowered = false;

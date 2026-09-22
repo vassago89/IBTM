@@ -4,6 +4,15 @@ namespace IBTM.NgConveyor;
 
 public enum NgConveyorState
 {
+    [Description("Waiting for NG Transfer Release and Pickup Up")]
+    WaitingForTransferRelease,
+
+    [Description("Lowering NG Shuttle")]
+    LoweringShuttle,
+
+    [Description("Raising NG Shuttle")]
+    RaisingShuttle,
+
     [Description("Waiting for NG Carrier")]
     WaitingForCarrier,
 
@@ -43,27 +52,6 @@ public enum NgConveyorState
     [Description("Carrier Position Unknown")]
     CarrierPositionUnknown,
 
-}
-
-public enum NgShuttleState
-{
-    [Description("Waiting for Carrier")]
-    WaitingForCarrier,
-
-    [Description("Waiting for NG Transfer Release and Pickup Up")]
-    WaitingForCarrierPickupUp,
-
-    [Description("Lowering NG Shuttle")]
-    Lowering,
-
-    [Description("Waiting for NG Conveyor")]
-    WaitingForConveyor,
-
-    [Description("Raising NG Shuttle")]
-    Raising,
-
-    [Description("Carrier Position Unknown")]
-    CarrierPositionUnknown,
 }
 
 public enum NgShuttleLiftState

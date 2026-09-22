@@ -123,15 +123,15 @@
                 </StackPanel.RenderTransform>
                 <Grid Width="{StaticResource CarrierWidth}" Height="{StaticResource CarrierHeight}"
                     VerticalAlignment="Top">
-                    <ui:CarrierView Visibility="{Binding NgTransfer.CarrierDetected, Converter={StaticResource BoolToVis}}"
+                    <ui:CarrierView Visibility="{Binding Inspection.CarrierDetected, Converter={StaticResource BoolToVis}}"
                         ToolTip="Carrier detected near NG pickup. This does not confirm grip."/>
                     <Grid x:Name="CarrierPicker" Width="{x:Static ui:MachinePlan.NgPickerWidth}" HorizontalAlignment="Center">
                         <Border Margin="-8,-6" Background="{StaticResource MachineGhostBrush}"
-                            Tag="{Binding NgTransfer.Motion.IsMoving}"
+                            Tag="{Binding Inspection.Motion.IsMoving}"
                             Style="{StaticResource OverheadBodyStyle}"/>
-                        <Border Tag="{Binding NgTransfer.Lift}" Style="{StaticResource DownFootprintStyle}"/>
-                        <Border Tag="{Binding NgTransfer.Gripper}" Style="{StaticResource CarrierPickerTopJawStyle}"/>
-                        <Border Tag="{Binding NgTransfer.Gripper}" Style="{StaticResource CarrierPickerBottomJawStyle}"/>
+                        <Border Tag="{Binding Inspection.Lift}" Style="{StaticResource DownFootprintStyle}"/>
+                        <Border Tag="{Binding Inspection.Gripper}" Style="{StaticResource CarrierPickerTopJawStyle}"/>
+                        <Border Tag="{Binding Inspection.Gripper}" Style="{StaticResource CarrierPickerBottomJawStyle}"/>
                         <TextBlock Margin="0,5,0,0" VerticalAlignment="Top" Text="NG Pick" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                     </Grid>
                 </Grid>

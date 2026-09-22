@@ -23,10 +23,10 @@ public sealed class NgHandoffTests
         var system = await CreateAsync();
         using var motion = system.Motion;
         var io = system.Io;
-        var transfer = system.Transfer;
+        var transfer = system.Inspection;
         io.SetInput(InputIo.NgCarrierDetected, true);
         Assert.False(transfer.IsTransferPending); // Presence alone never establishes pickup ownership.
-        await transfer.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.PickingCarrier, CancellationToken.None);
+        await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
         await transfer.MoveToAsync(new() { X = 10, Y = 10 });
         io.AutoResponseEnabled = false;
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
@@ -45,33 +45,33 @@ public sealed class NgHandoffTests
             lowering.TrySetResult();
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var run = repeat ? system.Shuttle.RunRepeatAsync(useConveyor: false, stop.Token)
-            : system.Shuttle.RunAsync(stop.Token);
+        var run = repeat ? system.Conveyor.RunShuttleRepeatAsync(useConveyor: false, stop.Token)
+            : system.Conveyor.RunAsync(stop.Token);
         try
         {
-            Assert.Equal(NgShuttleState.WaitingForCarrierPickupUp, system.Shuttle.State);
+            Assert.Equal(NgConveyorState.WaitingForTransferRelease, system.Conveyor.State);
             Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
-            await Assert.ThrowsAsync<MotionInterlockException>(() => system.Shuttle.SetDownAsync(true));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => system.Shuttle.CycleAsync(stop.Token));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => system.Shuttle.ReturnFromConveyorAsync(stop.Token));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => system.Conveyor.SetShuttleDownAsync(true));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.CycleShuttleAsync(stop.Token));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.ReturnFromConveyorAsync(stop.Token));
 
             // Unexpected Open feedback is not a commanded handoff.
             io.SetInputs((InputIo.NgCarrierGripperClosed, false), (InputIo.NgCarrierGripperOpen, true));
             Assert.True(transfer.IsTransferPending);
-            Assert.Equal(NgShuttleState.WaitingForCarrierPickupUp, system.Shuttle.State);
+            Assert.Equal(NgConveyorState.WaitingForTransferRelease, system.Conveyor.State);
             Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
 
             io.SetInputs((InputIo.NgCarrierPickupUp, false), (InputIo.NgCarrierPickupDown, true));
-            var placing = transfer.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.PlacingCarrier, stop.Token);
+            var placing = transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
             Assert.False(transfer.IsTransferPending); // Only the completed release command clears it.
             Assert.False(placing.IsCompleted);
-            Assert.Equal(NgShuttleState.WaitingForCarrierPickupUp, system.Shuttle.State);
+            Assert.Equal(NgConveyorState.WaitingForTransferRelease, system.Conveyor.State);
 
             // Contradictory gripper feedback must still block even after release and ascent.
             io.SetInput(InputIo.NgCarrierGripperClosed, true);
             io.SetInputs((InputIo.NgCarrierPickupDown, false), (InputIo.NgCarrierPickupUp, true));
             await placing.WaitAsync(TimeSpan.FromSeconds(1));
-            Assert.Equal(NgShuttleState.WaitingForCarrierPickupUp, system.Shuttle.State);
+            Assert.Equal(NgConveyorState.WaitingForTransferRelease, system.Conveyor.State);
             Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             await lowering.Task.WaitAsync(TimeSpan.FromSeconds(1));
@@ -94,7 +94,7 @@ public sealed class NgHandoffTests
         var io = system.Io;
         io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
         io.SetInput(InputIo.NgCarrierEjectButton, true);
-        Assert.False(system.Shuttle.IsReceiveAllowed(useConveyor: true));
+        Assert.False(system.Conveyor.IsReceiveAllowed(useConveyor: true));
         var lowering = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         io.OutputChanged += (output, on) =>
         {
@@ -109,7 +109,7 @@ public sealed class NgHandoffTests
             Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
             // No transfer or carrier sensor changes: releasing the button alone must wake the loop.
             io.SetInput(InputIo.NgCarrierEjectButton, false);
-            Assert.True(system.Shuttle.IsReceiveAllowed(useConveyor: true));
+            Assert.True(system.Conveyor.IsReceiveAllowed(useConveyor: true));
             await lowering.Task.WaitAsync(TimeSpan.FromSeconds(2));
         }
         finally
@@ -119,8 +119,8 @@ public sealed class NgHandoffTests
         }
     }
 
-    private static async Task<(VirtualIoService Io, VirtualMotionService Motion, NgCarrierTransfer Transfer,
-        NgShuttle Shuttle, InspectionStation Inspection)> CreateAsync()
+    private static async Task<(VirtualIoService Io, VirtualMotionService Motion, InspectionStation Inspection,
+        NgCarrierConveyor Conveyor)> CreateAsync()
     {
         var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(),
             new NgShuttleHardwareSettings(), new NgConveyorHardwareSettings(), new ConveyorHardwareSettings()), new());
@@ -133,15 +133,13 @@ public sealed class NgHandoffTests
         motion.Initialize();
         await motion.HomeAsync(MotionAxis.X, 1_000);
         await motion.HomeAsync(MotionAxis.Y, 1_000);
-        var transfer = new NgCarrierTransfer(io, motion, operations, motionSettings, settings, units);
-        var conveyor = new NgCarrierConveyor(io, new());
-        var shuttle = new NgShuttle(io, conveyor, transfer);
+        var work = new InspectionWork(io, motion, settings, units);
+        var conveyor = new NgCarrierConveyor(io, new(), work, units);
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        var work = new InspectionWork(io, transfer, settings, recipes, units);
-        var inspection = new InspectionStation(work, transfer, shuttle, units,
+        var inspection = new InspectionStation(work, conveyor, operations, motionSettings, settings, io, units,
             new VirtualCamera(() => (0, 0, 0), () => []), new VirtualLightController(), new(), recipes);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
-        await transfer.Station.SeatAsync(CancellationToken.None);
-        return (io, motion, transfer, shuttle, inspection);
+        await inspection.Station.SeatAsync(CancellationToken.None);
+        return (io, motion, inspection, conveyor);
     }
 }
