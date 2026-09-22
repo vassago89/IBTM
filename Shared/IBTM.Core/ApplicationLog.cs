@@ -33,18 +33,21 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
     private long _sequence;
     private string? _fileError;
 
-    public ApplicationLog(string? filePath = null)
+    public ApplicationLog(string? filePath = null, string? communicationFilePath = null)
     {
         _entries = new();
         _messageFormatter = new("{Message:lj}", CultureInfo.InvariantCulture);
         SyncRoot = new();
         Entries = new ReadOnlyObservableCollection<LogEntry>(_entries);
         FilePath = filePath;
+        CommunicationFilePath = communicationFilePath;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string? FilePath { get; }
+
+    public string? CommunicationFilePath { get; }
 
     public ReadOnlyObservableCollection<LogEntry> Entries { get; }
 
@@ -71,31 +74,50 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
 
     public ILoggerFactory CreateLoggerFactory()
     {
-        var configuration = new LoggerConfiguration().MinimumLevel.Verbose().WriteTo.Sink(this);
-        if (FilePath is not null)
+        var configuration = new LoggerConfiguration().MinimumLevel.Verbose()
+            .WriteTo.Logger(screen => screen
+                .Filter.ByExcluding(IsCommunicationDetail)
+                .WriteTo.Sink(this));
+        foreach (var (path, communication) in new[] { (FilePath, false), (CommunicationFilePath, true) })
         {
+            if (path is null)
+                continue;
             try
             {
                 // AuditTo propagates file failures to the async sink's failure listener.
                 var fileLogger = new LoggerConfiguration().MinimumLevel.Verbose()
                     .AuditTo.File(
-                        FilePath,
+                        path,
                         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u}] {Message:lj}{NewLine}{Exception}",
                         formatProvider: CultureInfo.InvariantCulture)
                     .CreateLogger();
-                configuration.WriteTo.Fallible(
-                    sink => sink.Async(
-                        file => file.Logger(fileLogger, attemptDispose: true),
-                        bufferSize: int.MaxValue),
-                    this);
+                configuration.WriteTo.Logger(route => route
+                    .Filter.ByIncludingOnly(logEvent => communication
+                        ? IsCommunication(logEvent) : !IsCommunicationDetail(logEvent))
+                    .WriteTo.Fallible(
+                        sink => sink.Async(
+                            file => file.Logger(fileLogger, attemptDispose: true),
+                            bufferSize: int.MaxValue),
+                        this));
             }
             catch (Exception exception)
             {
-                OnLoggingFailed(this, LoggingFailureKind.Final, "Unable to open the log file.", null, exception);
+                OnLoggingFailed(this, LoggingFailureKind.Final, $"Unable to open the log file: {path}", null, exception);
             }
         }
 
         return new SerilogLoggerFactory(configuration.CreateLogger(), dispose: true);
+    }
+
+    private static bool IsCommunication(LogEvent logEvent)
+    {
+        return logEvent.Properties.TryGetValue("SourceContext", out var source)
+            && source is ScalarValue { Value: "IBTM.Hantas.AdcBus" };
+    }
+
+    private static bool IsCommunicationDetail(LogEvent logEvent)
+    {
+        return logEvent.Level < LogEventLevel.Warning && IsCommunication(logEvent);
     }
 
     public void Emit(LogEvent logEvent)

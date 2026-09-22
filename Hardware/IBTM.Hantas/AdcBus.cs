@@ -138,6 +138,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
         {
             // Log actual event chunks before interpreting their contents.
             FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes);
+            _logger.LogInformation("ADC [{Port}] RX RAW {Frame}", PortName, Convert.ToHexString(bytes));
             if (_response is { } receiving)
             {
                 receiving.Bytes.AddRange(bytes);
@@ -412,6 +413,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
             try
             {
                 FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
+                _logger.LogInformation("ADC [{Port}] TX {Frame}", port.PortName, Convert.ToHexString(request));
                 await AwaitSerialIoAsync(
                     port.BaseStream.WriteAsync(request, timeout.Token).AsTask(),
                     port.DiscardOutBuffer,

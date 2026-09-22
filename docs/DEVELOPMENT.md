@@ -177,7 +177,7 @@ Operation의 카메라 위치와 검사 마커는 검사 기준 핀 좌표계로
 COM 포트·Baud Rate·Slave ID는 헤드별로 설정하며, 서로 다른 포트에서는 Slave ID가 같아도 된다.
 기존 `HantasSettings`의 JSON `PortName`·`BaudRate`는 픽업 설정으로 유지한다. 슈팅 COM 포트는 별도로 입력한다.
 ADC 진단창의 헤드 선택은 해당 포트에만 연결·해제·명령을 적용한다. 실행 중에는 선택을 바꿀 수 없고,
-프레임 로그는 Pickup/Shooting과 실제 포트를 함께 기록한다.
+ADC 프레임 로그는 실제 COM 포트와 함께 `Logs/Communication/IBTM-*.log`에 기록한다.
 `BeginAdcProtocol`에서 실행권을 얻은 뒤 ViewModel의 명령 본문이 통신과 헤드 동작을 직접 호출한다.
 체결 테스트의 시작 조건은 `EnsureBoltTestAvailable`에서 확인하고, 실행과 결과 처리는 명령 본문에 둔다.
 ADC는 별도 busy 플래그 없이 현재 작업의 취소 소스로 실행 중 여부를 판단한다.
@@ -702,6 +702,8 @@ NG 셔틀·검사 작업처럼 연결된 객체를 통해 같은 변경 알림�
 ## 로그 라이브러리와 오프라인 패키지
 
 로그를 남기는 클래스는 `Microsoft.Extensions.Logging.ILogger<T>`를 주입받아 `LogInformation`·`LogError`를 직접 호출한다.
+일반 설비 로그는 `Logs/IBTM-*.log`, ADC 통신 로그는 같은 세션 이름의 `Logs/Communication/IBTM-*.log`로 분리한다.
+`AdcBus`의 TX·RX RAW·프레임 해석은 통신 파일에만 기록하고 일반 화면 이력에서도 제외한다. 통신 Warning/Error는 양쪽 파일과 일반 화면 이력에 남긴다.
 파일은 Serilog의 File/Async sink가 기록하고, `ApplicationLog`는 화면에 표시할 최근 2,000건과 파일 오류만 보관한다.
 별도의 파일 쓰기 큐나 로그 호출 래퍼를 만들지 않는다. 기존 `Trace` 메시지는 `ApplicationTraceListener`에서 표준 로거로 연결한다.
 파일 저장 실패는 화면 로그와 `FileError`에 남기며, 파일 저장 실패가 장비 호출로 전파되지 않는다.

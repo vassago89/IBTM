@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Hantas;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
@@ -11,6 +12,59 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class ApplicationLogTests
 {
+    [Fact]
+    public async Task CommunicationFilesKeepFramesOutOfMachineHistoryButRetainErrorsInBoth()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "IBTM-log-test-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "session.log");
+        var communicationDirectory = Path.Combine(directory, "Communication");
+        var communicationPath = Path.Combine(communicationDirectory, "session.log");
+        try
+        {
+            var log = new ApplicationLog(path, communicationPath);
+            using (var factory = log.CreateLoggerFactory())
+            {
+                var communication = factory.CreateLogger<AdcBus>();
+                Parallel.For(0, 64, index => communication.LogInformation(
+                    "ADC [{Port}] RX RAW {Frame}", "COM9", $"FRAME-{index}"));
+                communication.LogDebug("RTU response decoded");
+                communication.LogWarning("ADC request rejected");
+                communication.LogError(new IOException("Response timed out"), "ADC exchange failed");
+                factory.CreateLogger<ApplicationLogTests>().LogInformation("Machine cycle completed");
+
+                Assert.Equal(3, log.Snapshot().Length);
+                Assert.DoesNotContain(log.Snapshot(), entry => entry.Message.Contains("RX RAW"));
+                await Task.Run(factory.Dispose);
+            }
+
+            var machine = File.ReadAllText(path);
+            var communicationText = File.ReadAllText(communicationPath);
+            Assert.Contains("Machine cycle completed", machine);
+            Assert.DoesNotContain("RX RAW", machine);
+            Assert.DoesNotContain("RTU response decoded", machine);
+            Assert.DoesNotContain("Machine cycle completed", communicationText);
+            Assert.Equal(64, File.ReadAllLines(communicationPath).Count(line => line.Contains("RX RAW")));
+            Assert.Contains("RTU response decoded", communicationText);
+            foreach (var text in new[] { machine, communicationText })
+            {
+                Assert.Contains("ADC request rejected", text);
+                Assert.Contains("ADC exchange failed", text);
+                Assert.Contains("Response timed out", text);
+            }
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+            if (File.Exists(communicationPath))
+                File.Delete(communicationPath);
+            if (Directory.Exists(communicationDirectory))
+                Directory.Delete(communicationDirectory);
+            if (Directory.Exists(directory))
+                Directory.Delete(directory);
+        }
+    }
+
     [Fact]
     public void RetainsFullExceptionDetails()
     {

@@ -65,7 +65,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public int StartWrites { get; private set; }
     public int StopWrites { get; private set; }
     public int StopFeedbackReads { get; private set; }
-    public bool IsOpen { get; private set; } = true;
+    public bool IsOpen { get; private set; }
 
     public string PortName => "Controller test bus";
 
@@ -78,6 +78,10 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
 
     public void Open(string portName, int baudRate)
     {
+        if (IsOpen)
+            return;
+        // The physical bus clears the old connection before opening the port.
+        Close();
         IsOpen = true;
     }
 

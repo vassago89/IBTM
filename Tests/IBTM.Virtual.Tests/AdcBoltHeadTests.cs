@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -85,6 +86,7 @@ public sealed class AdcBoltHeadTests
         using var bus = new AdcControllerStub { StatusReadDelayMilliseconds = 15 };
         var (io, head) = Create(bus, new() { StatusPollMilliseconds = 20 });
         await head.CheckReadyAsync();
+        Assert.Null(head.Monitor.Error);
         await Task.WhenAll(bus.Monitor.StartAsync(1, CancellationToken.None),
             bus.Monitor.StartAsync(1, CancellationToken.None));
         var reads = bus.StatusReads;
@@ -98,13 +100,18 @@ public sealed class AdcBoltHeadTests
         Assert.Null(head.Monitor.Status);
         bus.StatusReadFailure = null;
         Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Status is not null, TimeSpan.FromSeconds(2)));
+        using var disconnectTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var pending = head.Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), disconnectTimeout.Token);
         bus.Close();
+        var disconnected = await Assert.ThrowsAsync<IOException>(() => pending);
+        Assert.Contains("Controller test bus/1", disconnected.Message);
         Assert.Null(head.Monitor.Status);
         reads = bus.StatusReads;
         await Task.Delay(80);
         Assert.Equal(reads, bus.StatusReads);
         await head.CheckReadyAsync();
         Assert.True(head.Monitor.Status!.Ready);
+        Assert.Null(head.Monitor.Error);
         Assert.False(bus.ConcurrentStatusReadsDetected);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }

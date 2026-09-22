@@ -21,8 +21,6 @@ public partial class App : System.Windows.Application
     private ILogger<App>? _log;
     private ILoggerFactory? _loggerFactory;
     private ApplicationTraceListener? _traceListener;
-    private IAdcBus? _pickupAdcBus;
-    private IAdcBus? _shootingAdcBus;
     private IDisposable? _camera;
     private object? _displayedError;
     private int _exitCode;
@@ -60,11 +58,11 @@ public partial class App : System.Windows.Application
 
         _instanceMutex = instanceMutex;
 
+        var logDirectory = Path.Combine(AppContext.BaseDirectory, "Logs");
+        var logName = $"IBTM-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Environment.ProcessId}.log";
         var applicationLog = new ApplicationLog(
-            Path.Combine(
-                AppContext.BaseDirectory,
-                "Logs",
-                $"IBTM-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Environment.ProcessId}.log"));
+            Path.Combine(logDirectory, logName),
+            Path.Combine(logDirectory, "Communication", logName));
         _loggerFactory = applicationLog.CreateLoggerFactory();
         _log = _loggerFactory.CreateLogger<App>();
         _traceListener = new ApplicationTraceListener(_loggerFactory.CreateLogger<ApplicationTraceListener>());
@@ -130,12 +128,6 @@ public partial class App : System.Windows.Application
             new ServiceProviderOptions { ValidateOnBuild = true, });
         _serviceProvider = serviceProvider;
         _camera = serviceProvider.GetRequiredService<ICamera>() as IDisposable;
-        _pickupAdcBus = serviceProvider.GetKeyedService<IAdcBus>(FasteningHead.Pickup);
-        _shootingAdcBus = serviceProvider.GetKeyedService<IAdcBus>(FasteningHead.Shooting);
-        if (_pickupAdcBus is not null)
-            _pickupAdcBus.FrameTransferred += OnPickupAdcFrameTransferred;
-        if (_shootingAdcBus is not null)
-            _shootingAdcBus.FrameTransferred += OnShootingAdcFrameTransferred;
 
         await serviceProvider.GetRequiredService<MachineController>().InitializeAsync();
         var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
@@ -187,10 +179,6 @@ public partial class App : System.Windows.Application
             DispatcherUnhandledException -= OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
             TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
-            if (_pickupAdcBus is not null)
-                _pickupAdcBus.FrameTransferred -= OnPickupAdcFrameTransferred;
-            if (_shootingAdcBus is not null)
-                _shootingAdcBus.FrameTransferred -= OnShootingAdcFrameTransferred;
             if (_traceListener is not null)
                 Trace.Listeners.Remove(_traceListener);
             _traceListener?.Dispose();
@@ -286,17 +274,5 @@ public partial class App : System.Windows.Application
             "IBTM Error",
             MessageBoxButton.OK,
             MessageBoxImage.Error);
-    }
-
-    private void OnPickupAdcFrameTransferred(AdcFrameDirection direction, byte[] frame)
-    {
-        _log?.LogInformation("{Message}", $"ADC Pickup [{_pickupAdcBus?.PortName}] {(direction == AdcFrameDirection.Transmit ? "TX" : "RX RAW")} {Convert.ToHexString(
-                    frame)}");
-    }
-
-    private void OnShootingAdcFrameTransferred(AdcFrameDirection direction, byte[] frame)
-    {
-        _log?.LogInformation("{Message}", $"ADC Shooting [{_shootingAdcBus?.PortName}] {(direction == AdcFrameDirection.Transmit ? "TX" : "RX RAW")} {Convert.ToHexString(
-                    frame)}");
     }
 }

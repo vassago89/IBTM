@@ -66,6 +66,9 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 _lifetime?.Dispose();
                 _lifetime = new();
                 SlaveAddress = slaveAddress;
+                // Open clears the previous connection. Its disconnect sample is not
+                // feedback from this new session; stay unknown until the first reply.
+                Publish(new(Stopwatch.GetTimestamp(), null, null));
                 var token = _lifetime.Token;
                 _completion = Task.Run(() => RunAsync(token), CancellationToken.None);
             }
@@ -81,7 +84,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         lock (_stateGate)
         {
             _lifetime?.Cancel();
-            Publish(new(Stopwatch.GetTimestamp(), null, new IOException("ADC status monitor is disconnected.")));
+            Publish(new(Stopwatch.GetTimestamp(), null,
+                new IOException($"ADC {_bus.PortName}/{SlaveAddress} status monitor is disconnected.")));
         }
     }
 
