@@ -396,7 +396,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             operation = BeginCommand(CancellationToken.None);
             operation.Token.ThrowIfCancellationRequested();
-            ResultMessage = "Stopping — waiting for RUN OFF...";
+            ResultMessage = "Turning START OFF...";
             await CreateHead().StopAsync();
             ResultMessage = "Stopped";
         }

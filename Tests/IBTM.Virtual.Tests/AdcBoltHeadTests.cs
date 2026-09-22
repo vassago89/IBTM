@@ -14,140 +14,87 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class AdcBoltHeadTests
 {
+    private static (VirtualIoService Io, AdcBoltHead Head) Create(
+        IAdcBus bus, HantasSettings? settings = null, FasteningHead head = FasteningHead.Pickup)
+    {
+        var io = new VirtualIoService(VirtualTest.Outputs(), new());
+        var controller = VirtualTest.CreateAdcHead(bus, io, head, settings ?? new(), 1, "Virtual", 115200);
+        return (io, controller);
+    }
+
     [Theory]
-    [InlineData(125, "0x007D", "문서에 없는 코드")]
-    [InlineData(42, "0x002A", "주전원 이상")]
-    public async Task UnclearedControllerAlarmAfterOneResetExplainsCodeAndBlocksNextStart(
-        ushort code, string hex, string description)
+    [InlineData(FasteningHead.Pickup)]
+    [InlineData(FasteningHead.Shooting)]
+    public async Task UsesIoControlsAndReceivesAdcResultWithoutRunOrResultPolling(FasteningHead selected)
     {
-        var bus = new AdcControllerStub { CurrentAlarm = code, ResetPollsRemaining = -1 };
-        var settings = new HantasSettings { ResponseTimeoutMilliseconds = 100 };
-        var head = new AdcBoltHead(bus, settings, 1, "COM10", 115200);
-
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
-
-        Assert.Contains("COM10/1", failure.Message);
-        Assert.Contains($"{code} ({hex})", failure.Message);
-        Assert.Contains(description, failure.Message);
-        Assert.Contains("RESET 후", failure.Message);
-        Assert.Contains("READY=False, RUN=False", failure.Message);
-        Assert.Equal(code, bus.CurrentAlarm);
-        Assert.Equal(1, bus.ResetWrites);
-        Assert.Equal(0, bus.StartWrites);
-        Assert.Equal((ushort)3, bus.CurrentPreset);
-    }
-
-    [Fact]
-    public async Task ControllerAlarmRecordsNgStopsAndResetsOnceBeforeNextBolt()
-    {
-        var bus = new AdcControllerStub
+        using var bus = new VirtualAdcBus();
+        var (io, head) = Create(bus, head: selected);
+        var start = selected == FasteningHead.Pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart;
+        var otherStart = selected == FasteningHead.Pickup ? OutputIo.ShootingBoltStart : OutputIo.PickupBoltStart;
+        var reads = 0;
+        bus.FrameTransferred += (direction, frame) =>
         {
-            ResultStatus = AdcEventStatus.Error,
-            ResultError = 125,
-            ResetPollsRemaining = 2,
+            if (direction != AdcFrameDirection.Transmit)
+                return;
+            Assert.Equal((byte)AdcFunctionCode.ReadInputRegisters, frame[1]);
+            Assert.Equal((ushort)AdcResultRegister.EventCount, BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)));
+            Assert.False(io.GetOutput(start));
+            reads++;
         };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "COM10", 115200);
         await head.SelectPresetAsync(1);
-
-        var ng = await head.TightenAsync();
-
-        Assert.False(ng.Success);
-        Assert.Equal((ushort)125, ng.Controller!.ErrorCode);
-        Assert.False(bus.Running);
-        Assert.Equal(1, bus.StopWrites);
-        Assert.Equal(0, bus.ResetWrites);
-        Assert.Equal((ushort)125, bus.CurrentAlarm);
-
-        var preparing = head.SelectPresetAsync(1);
-        Assert.False(preparing.IsCompleted);
-        Assert.Equal(1, bus.ResetWrites);
-        Assert.Equal(1, bus.StartWrites);
-        await preparing;
-
-        Assert.Equal((ushort)0, bus.CurrentAlarm);
-        bus.ResultStatus = AdcEventStatus.FasteningOk;
-        bus.ResultError = 0;
-        Assert.True((await head.TightenAsync()).Success);
-        Assert.Equal(2, bus.StartWrites);
-        Assert.Equal(1, bus.ResetWrites);
-        Assert.False(ng.Success);
-        Assert.Equal((ushort)125, ng.Controller.ErrorCode);
-        await head.SelectPresetAsync(1);
-        Assert.Equal(1, bus.ResetWrites);
+        var fed = false;
+        var result = await head.TightenAsync(feedAsync: async token =>
+        {
+            Assert.True(io.GetOutput(start));
+            Assert.False(io.GetOutput(otherStart));
+            fed = true;
+            // The result may arrive while the head DOWN callback is still running.
+            await Task.Delay(300, token);
+        });
+        Assert.True(result.Success);
+        Assert.True(fed);
+        Assert.NotNull(result.Controller);
+        Assert.Equal(1, reads);
+        Assert.False(io.GetOutput(start));
     }
 
     [Fact]
-    public async Task ClearedAlarmWithoutReadyStillBlocksNextBolt()
+    public async Task FastenInputOffAloneDoesNotCompleteWithoutAdcResult()
     {
-        var bus = new AdcControllerStub { CurrentAlarm = 125, NotReady = true };
-        var settings = new HantasSettings { ResponseTimeoutMilliseconds = 100 };
-        var head = new AdcBoltHead(bus, settings, 1, "COM10", 115200);
-
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
-
-        Assert.Equal((ushort)0, bus.CurrentAlarm);
-        Assert.Contains("READY=False", failure.Message);
-        Assert.Equal(1, bus.ResetWrites);
-        Assert.Equal(0, bus.StartWrites);
-        Assert.Equal((ushort)3, bus.CurrentPreset);
-    }
-
-    [Fact]
-    public async Task CancellationDuringAlarmResetDoesNotSelectOrStartNextBolt()
-    {
-        var bus = new AdcControllerStub { CurrentAlarm = 125, ResetPollsRemaining = -1 };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "COM10", 115200);
+        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
         using var stop = new CancellationTokenSource();
-        var preparing = head.SelectPresetAsync(1, stop.Token);
-        Assert.Equal(1, bus.ResetWrites);
-
+        var running = head.TightenAsync(stop.Token);
+        io.SetInput(InputIo.PickupBoltFasten, false);
+        await Task.Delay(60);
+        Assert.False(running.IsCompleted);
         stop.Cancel();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => preparing);
-        Assert.Equal(1, bus.ResetWrites);
-        Assert.Equal(0, bus.StartWrites);
-        Assert.Equal((ushort)3, bus.CurrentPreset);
-    }
-
-    [Fact]
-    public async Task UnconfirmedMotorStopPreventsAutomaticAlarmReset()
-    {
-        var bus = new AdcControllerStub { CurrentAlarm = 125, StopPollsRemaining = -1 };
-        await ((IAdcBus)bus).StartAsync(1);
-        var settings = new HantasSettings { ResponseTimeoutMilliseconds = 100 };
-        var head = new AdcBoltHead(bus, settings, 1, "COM10", 115200);
-
-        await Assert.ThrowsAsync<TimeoutException>(() => head.SelectPresetAsync(1));
-
-        Assert.True(bus.Running);
-        Assert.Equal(0, bus.ResetWrites);
-        Assert.Equal(1, bus.StartWrites);
-        Assert.Equal((ushort)3, bus.CurrentPreset);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
     [Theory]
     [InlineData(AdcEventStatus.FasteningOk, 0, true)]
     [InlineData(AdcEventStatus.FasteningNg, 0, false)]
     [InlineData(AdcEventStatus.Error, 42, false)]
-    public async Task FasteningRetainsEveryControllerResultRegister(AdcEventStatus status, ushort error, bool success)
+    public async Task RetainsEveryControllerResultRegister(AdcEventStatus status, ushort error, bool success)
     {
-        ushort[] registers = [1, 1234, 3, 150, 147, 850, 3156, 19, 3175, 57, error, 0, (ushort)status, 123];
-        var received = AdcFasteningResult.FromRegisters(registers);
+        ushort[] registers = [1, 1234, 1, 150, 147, 850, 3156, 19, 3175, 57, error, 0, (ushort)status, 123];
         var bus = new AdcControllerStub();
-        bus.AutomaticResults.Enqueue(received);
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "COM10", 115200);
-
+        bus.AutomaticResults.Enqueue(AdcFasteningResult.FromRegisters(registers));
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
         var result = await head.TightenAsync();
-
         Assert.Equal(success, result.Success);
         Assert.Equal(1.47, result.Torque);
         Assert.NotNull(result.RecordedAt);
         var data = Assert.IsType<BoltControllerData>(result.Controller);
-        Assert.Equal("COM10", data.Port);
+        Assert.Equal("Virtual", data.Port);
         Assert.Equal(1, data.SlaveAddress);
         Assert.Equal(1, data.EventCount);
         Assert.Equal(1234, data.FasteningTimeMilliseconds);
-        Assert.Equal(3, data.Preset);
+        Assert.Equal(1, data.Preset);
         Assert.Equal(1.5, data.TargetTorque);
         Assert.Equal(850, data.TargetSpeedRpm);
         Assert.Equal((3156.0, 19.0, 3175.0), (data.Angle1, data.Angle2, data.Angle3));
@@ -159,713 +106,239 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(registers, data.Registers);
         registers[4] = 999;
         Assert.Equal((ushort)147, data.Registers![4]);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(30)]
-    public async Task FasteningAndDryRunWaitForMotorStopBeforeReturning(int dryRunMilliseconds)
-    {
-        var bus = new AdcControllerStub
-        {
-            ResultReceiveFailure = dryRunMilliseconds > 0
-                ? new IOException("No automatic result output in dry run.") : null,
-            StopPollsRemaining = 2,
-        };
-        var settings = new HantasSettings { FasteningTimeoutMilliseconds = dryRunMilliseconds > 0 ? 1 : 1_000 };
-        var head = new AdcBoltHead(bus, settings, 1, "Virtual", 115200);
-        var fed = false;
-        Task FeedAsync(CancellationToken token)
-        {
-            Assert.True(bus.Running);
-            fed = true;
-            return Task.CompletedTask;
-        }
-
-        var cycle = head.TightenAsync(feedAsync: FeedAsync, dryRunMilliseconds: dryRunMilliseconds);
-        Assert.True(fed);
-        Assert.True(bus.Running);
-        Assert.False(cycle.IsCompleted);
-        var result = await cycle.WaitAsync(TimeSpan.FromSeconds(2));
-
-        Assert.Equal(dryRunMilliseconds > 0 ? BoltResultSource.DryRun : BoltResultSource.Controller, result.Source);
-        Assert.Equal(dryRunMilliseconds > 0 ? null : (double?)1, result.Torque);
-        Assert.Equal(dryRunMilliseconds > 0 ? 0 : 1, bus.ResultReceives);
-        Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(1, bus.StopWrites);
-        Assert.Equal(3, bus.StopFeedbackReads);
-        Assert.False(bus.Running);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
     [Fact]
-    public async Task DryRunCancellationStopsMotorWithoutReturningAResult()
+    public async Task IgnoresOldAndNonCompletionEvents()
     {
         var bus = new AdcControllerStub();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        using var stop = new CancellationTokenSource();
-        var cycle = head.TightenAsync(stop.Token, dryRunMilliseconds: 10_000);
-        stop.Cancel();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
-        Assert.Equal(0, bus.ResultReceives);
-        Assert.Equal(1, bus.StopWrites);
-        Assert.False(bus.Running);
-    }
-
-    [Fact]
-    public async Task TighteningReceivesAutomaticResultWithoutPolling()
-    {
-        var bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        var started = false;
-        var resultReads = 0;
-        var receivedAfterStart = false;
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction == AdcFrameDirection.Receive)
-            {
-                if (started && frame[1] == 4 && frame[2] == 28)
-                    receivedAfterStart = true;
-                return;
-            }
-            var address = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
-            if (frame[1] == 6 && address == (ushort)AdcRemoteRegister.RemoteStart)
-                started = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) != 0;
-            if (frame[1] == 4 && address == (ushort)AdcResultRegister.EventCount)
-            {
-                Assert.False(started); // One pre-START baseline, no result queries during fastening.
-                resultReads++;
-            }
-        };
-
-        Assert.True((await head.TightenAsync()).Success);
-        Assert.True(receivedAfterStart);
-        Assert.Equal(1, resultReads);
-    }
-
-    [Fact]
-    public async Task AutomaticOutputIgnoresOldAndNonCompletionEvents()
-    {
-        var bus = new AdcControllerStub();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        var result = new AdcFasteningResult(0, 250, 3, 1, 0.8, 1000, 0, 0, 0, 1, 0,
-            AdcDirection.Fastening, AdcEventStatus.FasteningOk, 0);
-        bus.AutomaticResults.Enqueue(result); // Same event as the pre-START baseline.
+        var result = AdcFasteningResult.FromRegisters([0, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]);
+        bus.AutomaticResults.Enqueue(result);
+        bus.AutomaticResults.Enqueue(result with { EventCount = ushort.MaxValue });
         bus.AutomaticResults.Enqueue(result with { EventCount = 1, Status = AdcEventStatus.DirectionChanged });
         bus.AutomaticResults.Enqueue(result with { EventCount = 2, Status = AdcEventStatus.PresetChanged });
         bus.AutomaticResults.Enqueue(result with { EventCount = 3, Status = AdcEventStatus.FasteningNg });
-
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
         var completed = await head.TightenAsync();
-
         Assert.False(completed.Success);
         Assert.Equal(0.8, completed.Torque);
-        Assert.Equal(4, bus.ResultReceives);
-        Assert.False(bus.Running);
-        Assert.Equal(1, bus.StopWrites);
-    }
-
-    [Fact]
-    public async Task FailedFeedRequiresANewConfirmedFeedBeforeRecordingResult()
-    {
-        var bus = new AdcControllerStub();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        var failure = new IoTimeoutException(InputIo.PickupHeadDown, true, 100);
-        Task FeedAsync(CancellationToken token)
-        {
-            Assert.True(bus.Running);
-            Assert.Equal(1, bus.StartWrites);
-            throw failure;
-        }
-
-        Assert.Same(failure, await Assert.ThrowsAsync<IoTimeoutException>(
-            () => head.TightenAsync(feedAsync: FeedAsync)));
-        Assert.Equal(1, bus.StopWrites);
-        Assert.False(bus.Running);
-        // A controller result cannot prove that the cylinder fed the bolt.
-        Assert.Equal(1, bus.StartWrites);
-        var feeds = 0;
-        Task ConfirmFeedAsync(CancellationToken token)
-        {
-            feeds++;
-            return Task.CompletedTask;
-        }
-        Assert.True((await head.TightenAsync(feedAsync: ConfirmFeedAsync)).Success);
-        Assert.Equal(2, bus.StartWrites);
-        Assert.Equal(1, feeds);
+        Assert.Equal(5, bus.ResultReceives);
+        Assert.False(io.GetInput(InputIo.PickupBoltFasten));
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task MissingResultCannotReleaseTheBoltBeforeMotorStopIsConfirmed(bool timedOut)
-    {
-        var bus = new AdcControllerStub
-        {
-            ResultReceiveFailure = new AdcResponseException(3, "Controller rejected result output."),
-            SuppressAutomaticResults = timedOut,
-            StopPollsRemaining = -1,
-        };
-        var head = new AdcBoltHead(bus,
-            new HantasSettings { ResponseTimeoutMilliseconds = 40, FasteningTimeoutMilliseconds = 50 },
-            1, "Virtual", 115200);
-        var failure = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
-        if (timedOut)
-            Assert.IsType<TimeoutException>(failure.InnerExceptions[0]);
-        else
-            Assert.IsType<AdcResponseException>(failure.InnerExceptions[0]);
-        Assert.IsType<TimeoutException>(failure.InnerExceptions[1]);
-        Assert.True(bus.Running);
-        Assert.Equal(1, bus.StopWrites);
-    }
-
-    [Fact]
-    public async Task HeadCommandTimeoutStillFails()
-    {
-        var bus = new AdcControllerStub();
-        var head = new AdcBoltHead(bus, new HantasSettings { FasteningTimeoutMilliseconds = 50 },
-            1, "Virtual", 115200);
-
-        await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync(
-            feedAsync: token => Task.Delay(Timeout.Infinite, token)));
-
-        Assert.False(bus.Running);
-        Assert.Equal(0, bus.ResultReceives);
-        Assert.Equal(1, bus.StopWrites);
-    }
-
-    [Fact]
-    public async Task ResultCommunicationFailureStillStopsWithoutInventingNg()
-    {
-        var bus = new AdcControllerStub { ResultReceiveFailure = new IOException("Serial connection lost.") };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        var failure = await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
-        Assert.Equal("Serial connection lost.", failure.Message);
-        Assert.False(bus.Running);
-        Assert.Equal(1, bus.StopWrites);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(10)]
-    public async Task UnconfirmedStopRequiresPhysicalStopBeforeANewFastening(int dryRunMilliseconds)
-    {
-        var bus = new AdcControllerStub { StopPollsRemaining = -1 };
-        var head = new AdcBoltHead(bus, new HantasSettings { ResponseTimeoutMilliseconds = 40 }, 1, "Virtual", 115200);
-        var failure = await Assert.ThrowsAsync<TimeoutException>(
-            () => head.TightenAsync(dryRunMilliseconds: dryRunMilliseconds));
-        Assert.Contains("motor stop was not confirmed", failure.Message);
-        Assert.True(bus.Running);
-        Assert.Equal(dryRunMilliseconds > 0 ? 0 : 1, bus.ResultReceives);
-        await Assert.ThrowsAsync<TimeoutException>(() => head.StopAsync());
-
-        bus.StopPollsRemaining = 0;
-        await head.StopAsync();
-        async Task ConfirmRunningAsync(CancellationToken token)
-        {
-            // The preceding STOP must not make this new START read back as stopped.
-            Assert.True((await ((IAdcBus)bus).ReadControllerStatusAsync(1, token)).Running);
-        }
-        Assert.True((await head.TightenAsync(feedAsync: ConfirmRunningAsync, dryRunMilliseconds: dryRunMilliseconds)).Success);
-        Assert.Equal(2, bus.StartWrites);
-        Assert.False(bus.Running);
-    }
-
-    [Fact]
-    public async Task MissingStopFeedbackDoesNotBecomeStopped()
-    {
-        var bus = new AdcControllerStub { StopReadFailure = new IOException("RUN feedback unavailable.") };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        var failure = await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
-        Assert.Same(bus.StopReadFailure, failure);
-        Assert.Equal(1, bus.StopWrites);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(10)]
-    public async Task RepeatedStopRejectionDoesNotReturnACompletedResult(int dryRunMilliseconds)
-    {
-        // The equipment's 0x06 rejection, including the original CRC.
-        using var response = new MemoryStream([0x01, 0x86, 0x03, 0x02, 0x61]);
-        var rejection = await Assert.ThrowsAsync<AdcResponseException>(
-            () => AdcBus.ReadResponseAsync(response, () => { }, bytes => { },
-                1, AdcFunctionCode.WriteSingleRegister, CancellationToken.None));
-        var bus = new AdcControllerStub { StopWriteFailure = rejection };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-
-        Assert.Same(rejection, await Assert.ThrowsAsync<AdcResponseException>(
-            () => head.TightenAsync(dryRunMilliseconds: dryRunMilliseconds)));
-        Assert.True(bus.Running);
-        Assert.Equal(2, bus.StopWrites);
-        Assert.Equal(0, bus.StopFeedbackReads);
-        Assert.True((await ((IAdcBus)bus).ReadControllerStatusAsync(1)).Running);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(10)]
-    public async Task StopLengthRejectionRetriesOnceAndWaitsForMotorStop(int dryRunMilliseconds)
-    {
-        var bus = new AdcControllerStub
-        {
-            StopWriteFailure = new AdcResponseException(3, "RX=0186030261"),
-            StopWriteFailuresRemaining = 1,
-            StopPollsRemaining = 2,
-        };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-
-        var result = await head.TightenAsync(dryRunMilliseconds: dryRunMilliseconds);
-
-        Assert.Equal(dryRunMilliseconds > 0 ? BoltResultSource.DryRun : BoltResultSource.Controller, result.Source);
-        Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(2, bus.StopWrites);
-        Assert.Equal(3, bus.StopFeedbackReads);
-        Assert.False(bus.Running);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task StopLengthRejectionAcceptsCurrentRunOffFeedback(bool resetBeforeNextBolt)
-    {
-        var bus = new AdcControllerStub
-        {
-            StopWriteFailure = new AdcResponseException(3, "RX=0186030261"),
-            CurrentAlarm = resetBeforeNextBolt ? (ushort)125 : (ushort)0,
-        };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-
-        if (resetBeforeNextBolt)
-            await head.SelectPresetAsync(1);
-        else
-            await head.StopAsync();
-
-        Assert.Equal(1, bus.StopWrites);
-        Assert.Equal(resetBeforeNextBolt ? 1 : 0, bus.ResetWrites);
-        Assert.Equal((ushort)0, bus.CurrentAlarm);
-        Assert.Equal(0, bus.StartWrites);
-        Assert.False(bus.Running);
-    }
-
-    [Fact]
-    public async Task StopLengthRejectionDoesNotAssumeMissingFeedbackIsStopped()
-    {
-        var bus = new AdcControllerStub
-        {
-            StopWriteFailure = new AdcResponseException(3, "RX=0186030261"),
-            StopReadFailure = new IOException("RUN feedback unavailable."),
-        };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-
-        Assert.Same(bus.StopReadFailure, await Assert.ThrowsAsync<IOException>(() => head.StopAsync()));
-        Assert.Equal(1, bus.StopWrites);
-    }
-
-    [Fact]
-    public async Task StopAddressRejectionIsNotRetried()
-    {
-        var rejection = new AdcResponseException(2, "Invalid address.");
-        var bus = new AdcControllerStub { StopWriteFailure = rejection };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-
-        Assert.Same(rejection, await Assert.ThrowsAsync<AdcResponseException>(() => head.StopAsync()));
-        Assert.Equal(1, bus.StopWrites);
-    }
-
-    [Fact]
-    public async Task InterruptedFasteningRestartsOnlyWithMatchingPreset()
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        await head.SelectPresetAsync(3);
-        using var stop = new CancellationTokenSource();
-        var tightening = head.TightenAsync(stop.Token);
-        stop.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
-
-        await bus.SelectPresetAsync(1, 7);
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.Contains("preset", failure.Message);
-        Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
-
-        await bus.SelectPresetAsync(1, 3);
-        Assert.True((await head.TightenAsync()).Success);
-        Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
-    }
-
-    [Theory]
-    [InlineData(7, AdcDirection.Fastening)]
-    [InlineData(3, AdcDirection.Loosening)]
-    public async Task MismatchedResultIsNotRecorded(ushort preset, AdcDirection direction)
+    [InlineData(2, AdcDirection.Fastening)]
+    [InlineData(1, AdcDirection.Loosening)]
+    public async Task MismatchedResultCannotBeRecorded(ushort preset, AdcDirection direction)
     {
         var bus = new AdcControllerStub { ResultPreset = preset, ResultDirection = direction };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        await head.SelectPresetAsync(3);
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.Contains("does not match this fastening", failure.Message);
-        Assert.False(bus.Running);
-        Assert.Equal(1, bus.StartWrites);
-    }
-
-    [Fact]
-    public async Task PresetRequiresReadbackAndMustStillMatchAtStart()
-    {
-        var bus = new AdcControllerStub { CurrentPreset = 1, IgnorePresetWrites = true };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(3));
-        Assert.Equal(0, bus.StartWrites);
-
-        bus.IgnorePresetWrites = false;
-        await head.SelectPresetAsync(3);
-        bus.CurrentPreset = 7; // Controller-panel change after successful selection.
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.Equal(0, bus.StartWrites);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task DirectionMustBeConfirmedBeforeStarting(bool reverse)
+    public async Task ResultAndDryRunTurnStartOffWithoutWaitingForFastenInput(bool dryRun)
     {
-        var bus = new AdcControllerStub
-        {
-            CurrentDirection = reverse ? AdcDirection.Fastening : AdcDirection.Loosening,
-            IgnoreDirectionWrites = true,
-        };
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => reverse ? head.RunReverseAsync(CancellationToken.None) : head.TightenAsync());
-        Assert.Equal(0, bus.StartWrites);
-        Assert.Equal(1, bus.StopWrites);
+        var bus = new AdcControllerStub { StopPollsRemaining = -1 };
+        var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 80 });
+        await head.SelectPresetAsync(1);
+        Assert.True((await head.TightenAsync(dryRunMilliseconds: dryRun ? 20 : 0)).Success);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.True(io.GetInput(InputIo.PickupBoltFasten));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
     }
 
     [Fact]
-    public async Task AdcConnectionEditsApplyWhenHeadsAreRecreated()
+    public async Task MissingResultRecordsNgOnlyAfterIoStop()
     {
-        var settings = new HantasSettings { PickupPortName = "Virtual", PickupBaudRate = 19200 };
-        var bus = new VirtualAdcBus();
-        var pickup = new AdcBoltHead(bus, settings, settings.PickupSlaveAddress, settings.PickupPortName, settings.PickupBaudRate);
-        var shooting = new AdcBoltHead(bus, settings, settings.ShootingSlaveAddress, settings.PickupPortName, settings.PickupBaudRate);
-        byte expectedSlave = 0;
-        var expectedBaudRate = 19200;
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction == AdcFrameDirection.Transmit)
-            {
-                Assert.Equal(expectedSlave, frame[0]);
-                Assert.Equal(expectedBaudRate, bus.BaudRate);
-            }
-        };
-
-        await pickup.CheckReadyAsync();
-        settings.PickupPortName = "COM5";
-        settings.PickupBaudRate = 115200;
-        settings.PickupSlaveAddress = 2;
-        settings.ShootingSlaveAddress = 3;
-
-        foreach (var head in new[] { pickup, shooting })
-        {
-            await head.CheckReadyAsync();
-            await head.ResetAsync();
-            bus.Close();
-            await head.ResetAsync();
-            expectedSlave++;
-        }
-
-        bus.Close();
-        expectedBaudRate = settings.PickupBaudRate;
-        pickup = new AdcBoltHead(bus, settings, settings.PickupSlaveAddress, settings.PickupPortName, settings.PickupBaudRate);
-        shooting = new AdcBoltHead(bus, settings, settings.ShootingSlaveAddress, settings.PickupPortName, settings.PickupBaudRate);
-        foreach (var head in new[] { pickup, shooting })
-        {
-            await head.CheckReadyAsync();
-            expectedSlave++;
-        }
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task AdcPreservesTheOperationFailureWhenStopAlsoFails(bool reverse)
-    {
-        var bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 0, "Virtual", 115200);
-        var operationError = new IOException("Start response lost.");
-        var stopError = new IOException("Stop response lost.");
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction == AdcFrameDirection.Transmit
-                && frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart)
-            {
-                throw BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) == 1 ? operationError : stopError;
-            }
-        };
-
-        var error = await Assert.ThrowsAsync<AggregateException>(
-            () => reverse ? head.RunReverseAsync(CancellationToken.None) : head.TightenAsync());
-        Assert.Equal(new[] { operationError, stopError }, error.InnerExceptions);
-    }
-
-    [Fact]
-    public async Task AdcDisconnectedRequestsFailClearlyAndCancelledReadinessDoesNotOpenTheBus()
-    {
-        var settings = new HantasSettings();
-        Assert.Equal((byte)0, settings.PickupSlaveAddress);
-        Assert.Equal((byte)1, settings.ShootingSlaveAddress);
-        using var bus = new AdcBus(settings);
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => bus.ReadDeviceInformationAsync(0));
-        Assert.Contains("ADC is not connected", error.Message);
-
-        var virtualBus = new VirtualAdcBus();
-        var head = new AdcBoltHead(virtualBus, settings, 0, "Virtual", 115200);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => head.CheckReadyAsync(cancellation.Token));
-        Assert.False(virtualBus.IsOpen);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ManualReverseStopsOnReleaseOrCommunicationFailureWithoutACompletionResult(
-        bool communicationFailure)
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200);
-        var started = false;
-        var stops = 0;
-        var writes = new List<(byte Slave, ushort Address, ushort Value)>();
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction != AdcFrameDirection.Transmit)
-                return;
-            var address = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
-            if (frame[1] == (byte)AdcFunctionCode.WriteSingleRegister)
-            {
-                var value = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4));
-                writes.Add((frame[0], address, value));
-                if (address == (ushort)AdcRemoteRegister.RemoteStart)
-                {
-                    if (value == 0)
-                        stops++;
-                    else
-                        started = true;
-                }
-            }
-
-            if (communicationFailure
-                && started
-                && stops == 0
-                && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters)
-                throw new IOException("Reverse monitoring failed.");
-        };
-        using var release = new CancellationTokenSource();
-        var running = head.RunReverseAsync(release.Token);
-        Assert.True(started);
-        if (communicationFailure)
-            await Assert.ThrowsAsync<IOException>(() => running);
-        else
-        {
-            await Task.Delay(300);
-            Assert.False(running.IsCompleted);
-            var status = await bus.ReadControllerStatusAsync(2);
-            Assert.True(status.Running);
-            Assert.Equal(AdcDirection.Loosening, status.Direction);
-            release.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
-        }
-
-        Assert.Equal(
-            new (byte Slave, ushort Address, ushort Value)[]
-            {
-                (2, (ushort)AdcRemoteRegister.Direction, (ushort)AdcDirection.Loosening),
-                (2, (ushort)AdcRemoteRegister.RemoteStart, 1),
-                (2, (ushort)AdcRemoteRegister.RemoteStart, 0),
-            },
-            writes);
-        Assert.Equal(1, stops);
-        Assert.False((await bus.ReadControllerStatusAsync(2)).Running);
-        Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(2)).EventCount);
-        Assert.True((await head.TightenAsync()).Success); // Forward explicitly restores its own direction.
-    }
-
-    [Fact]
-    public async Task AdcReadinessUsesLiveRunAndDoesNotCallReverseAFastening()
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        await head.CheckReadyAsync();
-        Assert.Equal((ushort)1, (await bus.ReadControllerStatusAsync(1)).Preset);
-        var statusReads = 0;
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction == AdcFrameDirection.Transmit
-                && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcStatusRegister.Preset)
-                statusReads++;
-        };
-        await head.SelectPresetAsync(3);
-        Assert.Equal(2, statusReads); // Selection is confirmed from the current preset register.
-        Assert.Equal((ushort)3, (await bus.ReadControllerStatusAsync(1)).Preset);
-
-        await bus.SetDirectionAsync(1, AdcDirection.Loosening);
-        await bus.StartAsync(1);
-        var running = await bus.ReadControllerStatusAsync(1);
-        Assert.True(running.Running);
-        Assert.False(running.Ready);
-        Assert.Equal(AdcDirection.Loosening, running.Direction);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(3));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(4));
-        Assert.Equal((ushort)3, (await bus.ReadControllerStatusAsync(1)).Preset);
-        await Task.Delay(300);
-        Assert.True((await bus.ReadControllerStatusAsync(1)).Running);
-        Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        await head.CheckReadyAsync();
-        Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
-    }
-
-    [Theory]
-    [InlineData(AdcFunctionCode.ReadInputRegisters)]
-    [InlineData(AdcFunctionCode.WriteSingleRegister)]
-    public async Task FailedFasteningPreparationStillStopsTheHead(AdcFunctionCode failingFunction)
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        await head.CheckReadyAsync();
-        var failed = false;
-        var stops = 0;
-        bus.FrameTransferred += (direction, frame) =>
-        {
-            if (direction != AdcFrameDirection.Transmit)
-                return;
-            if (frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) == 0)
-            {
-                stops++;
-            }
-            else if (!failed && frame[1] == (byte)failingFunction)
-            {
-                failed = true;
-                throw new IOException("Injected ADC communication failure.");
-            }
-        };
-
-        var fed = false;
-        Task FeedAsync(CancellationToken token)
-        {
-            fed = true;
-            return Task.CompletedTask;
-        }
-        await Assert.ThrowsAsync<IOException>(() => head.TightenAsync(feedAsync: FeedAsync));
-        Assert.False(fed);
-        Assert.Equal(1, stops);
-        Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        Assert.True((await head.TightenAsync()).Success);
-        Assert.Equal(2, stops);
-    }
-
-    [Fact]
-    public async Task ReadinessChecksDoNotResetAlarmButNextBoltPreparationDoes()
-    {
-        IAdcBus bus = new VirtualAdcBus();
-        var virtualBus = (VirtualAdcBus)bus;
-        var head = new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200);
-        await head.CheckReadyAsync();
-        virtualBus.SetNextFasteningResult(2, AdcEventStatus.Error);
-
+        var bus = new AdcControllerStub { SuppressAutomaticResults = true, StopPollsRemaining = -1 };
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60 });
+        await head.SelectPresetAsync(1);
         var result = await head.TightenAsync();
         Assert.False(result.Success);
-        Assert.Contains("controller error", result.Error);
-        Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
-
-        virtualBus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
-        Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
-        await bus.SetDirectionAsync(2, AdcDirection.Loosening);
-        Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
-        await bus.StartAsync(2);
-        Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
-        await bus.StopAsync(2);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);
-
-        await head.SelectPresetAsync(3);
-        await head.CheckReadyAsync();
-        Assert.Equal((ushort)0, (await bus.ReadControllerStatusAsync(2)).Alarm);
-        Assert.False(result.Success);
-        Assert.Equal((ushort)AdcEventStatus.Error, result.Controller!.StatusCode);
-        Assert.False((await head.TightenAsync()).Success);
-        Assert.Equal(2, (await bus.ReadFasteningResultAsync(2)).EventCount);
+        Assert.Null(result.Torque);
+        Assert.Null(result.Controller);
+        Assert.Contains("timed out", result.Error);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.True(io.GetInput(InputIo.PickupBoltFasten));
     }
 
     [Fact]
-    public async Task ResultQueuedDuringFasteningAppliesOnceToSelectedSlave()
+    public async Task TimeoutAndIoOutputFailureAreBothPreserved()
     {
-        var bus = new VirtualAdcBus();
-        var selected = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
-        var other = new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200);
-        var current = selected.TightenAsync();
-        Assert.False(current.IsCompleted);
+        var bus = new AdcControllerStub { SuppressAutomaticResults = true, StopWriteFailure = new IOException("I/O write failed") };
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 50, ResponseTimeoutMilliseconds = 60 });
+        await head.SelectPresetAsync(1);
+        var error = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
+        Assert.IsType<TimeoutException>(error.InnerExceptions[0]);
+        Assert.IsType<IOException>(error.InnerExceptions[1]);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
 
-        bus.SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
+    [Fact]
+    public async Task SerialReceiveFailureStillTurnsStartOff()
+    {
+        var bus = new AdcControllerStub { ResultReceiveFailure = new IOException("Serial disconnected") };
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
+        await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.False(io.GetInput(InputIo.PickupBoltFasten));
+    }
 
-        Assert.True((await current).Success);
-        Assert.True((await other.TightenAsync()).Success);
-        Assert.False((await selected.TightenAsync()).Success);
-        Assert.True((await selected.TightenAsync()).Success);
+    [Fact]
+    public async Task FailedHeadDownStillStopsAndDoesNotRecordAResult()
+    {
+        var bus = new AdcControllerStub();
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync(
+            feedAsync: token => throw new InvalidOperationException("Head output failed")));
+        Assert.Equal(0, bus.ResultReceives);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.True((await head.TightenAsync()).Success);
+    }
+
+    [Fact]
+    public async Task DryRunNeedsNoAdcResultAndCancellationStopsMotor()
+    {
+        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
+        var result = await head.TightenAsync(dryRunMilliseconds: 30);
+        Assert.Equal(BoltResultSource.DryRun, result.Source);
+        Assert.Equal(0, bus.ResultReceives);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        using var stop = new CancellationTokenSource();
+        var cycle = head.TightenAsync(stop.Token, dryRunMilliseconds: 2000);
+        stop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task ControllerErrorRecordsNgThenPulsesIoResetBeforeNextBolt()
+    {
+        var bus = new AdcControllerStub { ResultStatus = AdcEventStatus.Error, ResultError = 125 };
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
+        var ng = await head.TightenAsync();
+        Assert.False(ng.Success);
+        Assert.Equal((ushort)125, ng.Controller!.ErrorCode);
+        Assert.Equal(0, bus.ResetWrites);
+        var edges = new List<(bool On, long Time)>();
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupBoltReset)
+                edges.Add((on, Environment.TickCount64));
+        };
+        await head.SelectPresetAsync(1);
+        Assert.Equal(2, edges.Count);
+        Assert.True(edges[0].On);
+        Assert.False(edges[1].On);
+        Assert.True(edges[1].Time - edges[0].Time >= 90);
+        Assert.Equal(1, bus.ResetWrites);
+        Assert.False(io.GetInput(InputIo.PickupBoltAlarm));
+        Assert.True(io.GetInput(InputIo.PickupBoltReady));
+        bus.ResultStatus = AdcEventStatus.FasteningOk;
+        bus.ResultError = 0;
+        Assert.True((await head.TightenAsync()).Success);
+    }
+
+    [Fact]
+    public async Task AlarmWithoutAdcResultStopsImmediatelyAndRecordsNg()
+    {
+        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 100 });
+        await head.SelectPresetAsync(1);
+        var cycle = head.TightenAsync();
+        io.SetInput(InputIo.PickupBoltAlarm, true);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        var result = await cycle;
+        Assert.False(result.Success);
+        Assert.Contains("ALARM", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task InterruptedFasteningStopsAndPreservesTheNextResult(bool timedOut)
+    public async Task ResetWithoutClearedAlarmAndReadyBlocksNextStart(bool alarmClears)
     {
-        IAdcBus bus = new VirtualAdcBus();
-        var settings = new HantasSettings();
-        var head = new AdcBoltHead(bus, settings, 1, "Virtual", 115200);
-        await head.SelectPresetAsync(3);
-        Assert.True((await head.TightenAsync()).Success);
-        using var stop = new CancellationTokenSource();
-        if (timedOut)
-            settings.FasteningTimeoutMilliseconds = 20;
-        var tightening = head.TightenAsync(stop.Token);
-        Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        ((VirtualAdcBus)bus).SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
-        if (timedOut)
-        {
-            var result = await tightening;
-            Assert.False(result.Success);
-            Assert.Null(result.Torque);
-            Assert.Null(result.Controller);
-            Assert.Contains("ADC Virtual/1", result.Error);
-            Assert.Contains("start event=1", result.Error);
-            Assert.Contains("last event=1", result.Error);
-            Assert.Contains("expected preset=3", result.Error);
-        }
-        else
-        {
-            stop.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
-        }
-        await Task.Delay(300);
-        Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
+        var bus = new AdcControllerStub { CurrentAlarm = 42, ResetPollsRemaining = alarmClears ? 0 : -1, NotReady = alarmClears };
+        var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 60 });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
+        Assert.Equal(1, bus.ResetWrites);
+        Assert.Equal(0, bus.StartWrites);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltReset));
+    }
 
-        settings.FasteningTimeoutMilliseconds = 15_000;
-        Assert.False((await head.TightenAsync()).Success);
-        var completed = await bus.ReadFasteningResultAsync(1);
-        Assert.Equal(2, completed.EventCount);
-        Assert.Equal(3, completed.Preset);
+    [Fact]
+    public async Task CancellationDuringResetAlwaysTurnsResetOff()
+    {
+        var bus = new AdcControllerStub();
+        var (io, head) = Create(bus);
+        using var stop = new CancellationTokenSource();
+        var reset = head.ResetAsync(stop.Token);
+        Assert.True(io.GetOutput(OutputIo.PickupBoltReset));
+        stop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reset);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltReset));
+        Assert.Equal(0, bus.StartWrites);
+    }
+
+    [Fact]
+    public async Task PresetOutputChangeAndLiveNotReadyBlockStart()
+    {
+        var bus = new AdcControllerStub();
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
+        io.SetOutput(OutputIo.PickupBoltPreset2, true);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+        Assert.Equal(0, bus.StartWrites);
+        await head.SelectPresetAsync(1);
+        io.SetInput(InputIo.PickupBoltReady, false);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+        Assert.Equal(0, bus.StartWrites);
+    }
+
+    [Fact]
+    public async Task ManualReverseUsesIoAndReleaseStopsIt()
+    {
+        using var bus = new VirtualAdcBus();
+        var (io, head) = Create(bus);
+        using var release = new CancellationTokenSource();
+        var cycle = head.RunReverseAsync(release.Token);
+        Assert.True(io.GetOutput(OutputIo.PickupBoltDirection));
+        Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+        release.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
+        Assert.False(io.GetInput(InputIo.PickupBoltFasten));
+        await head.SelectPresetAsync(1);
         Assert.True((await head.TightenAsync()).Success);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltDirection));
+    }
+
+    [Fact]
+    public async Task SeparatePortsWithSameSlaveNeverMixHeads()
+    {
+        var io = new VirtualIoService(VirtualTest.Outputs(), new());
+        using var pickupBus = new VirtualAdcBus(io, FasteningHead.Pickup, 1);
+        using var shootingBus = new VirtualAdcBus(io, FasteningHead.Shooting, 1);
+        var pickup = new AdcBoltHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Pickup", 115200);
+        var shooting = new AdcBoltHead(shootingBus, io, FasteningHead.Shooting, new(), 1, "Shooting", 115200);
+        pickupBus.SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
+        await pickup.SelectPresetAsync(1);
+        await shooting.SelectPresetAsync(1);
+        var results = await Task.WhenAll(pickup.TightenAsync(), shooting.TightenAsync());
+        Assert.False(results[0].Success);
+        Assert.Equal("Pickup", results[0].Controller!.Port);
+        Assert.True(results[1].Success);
+        Assert.Equal("Shooting", results[1].Controller!.Port);
     }
 }
