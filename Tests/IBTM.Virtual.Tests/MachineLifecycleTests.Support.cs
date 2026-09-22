@@ -342,7 +342,7 @@ public sealed partial class MachineLifecycleTests
         public TaskCompletionSource Stopped { get; }
 
 
-        public AdcControllerStatus? LastStatus => null;
+        public AdcStatusMonitor? Monitor => null;
 
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)
         {
@@ -398,7 +398,7 @@ public sealed partial class MachineLifecycleTests
         public TaskCompletionSource ReadinessReleased { get; }
 
 
-        public AdcControllerStatus? LastStatus => null;
+        public AdcStatusMonitor? Monitor => null;
 
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)
         {

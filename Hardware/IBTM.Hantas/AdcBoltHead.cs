@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using System.ComponentModel;
+using System.Diagnostics;
 using IBTM.Core;
 using IBTM.Device;
 using Microsoft.Extensions.Logging;
@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IBTM.Hantas;
 
-public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
+public sealed class AdcBoltHead : IBoltHead
 {
     private readonly IAdcBus _bus;
     private readonly IIoService _io;
@@ -55,18 +55,8 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         _logger = logger ?? NullLogger<AdcBoltHead>.Instance;
     }
 
-    // Latest ADC sample: after commands and while monitoring a fastening cycle.
-    public AdcControllerStatus? LastStatus
-    {
-        get;
-        private set
-        {
-            field = value;
-            PropertyChanged?.Invoke(this, new(nameof(LastStatus)));
-        }
-    }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
+    public AdcStatusMonitor Monitor => _bus.Monitor;
+    public AdcControllerStatus? LastStatus => Monitor.Status;
 
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
@@ -82,22 +72,20 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
 
     private async Task<AdcControllerStatus> ReadStatusAsync(CancellationToken cancellationToken)
     {
+        // Wait for the shared acquisition loop, never issue a second status query here.
+        var after = Stopwatch.GetTimestamp();
+        _bus.Open(_portName, _baudRate);
+        Monitor.IntervalMilliseconds = _connection.StatusPollMilliseconds;
+        await Monitor.StartAsync(_slaveAddress, cancellationToken);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_connection.ResponseTimeoutMilliseconds + _connection.StatusPollMilliseconds);
         try
         {
-            _bus.Open(_portName, _baudRate);
-            var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-            if (LastStatus != status)
-            {
-                LastStatus = status;
-                _logger.LogInformation("ADC {Port}/{Slave} status: READY={Ready}, RUN={Running}, ALARM={Alarm}.",
-                    _portName, _slaveAddress, status.Ready, status.Running, status.Alarm);
-            }
-            return status;
+            return await Monitor.WaitForSampleAsync(after, timeout.Token);
         }
-        catch
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            LastStatus = null;
-            throw;
+            throw new TimeoutException($"ADC {_portName}/{_slaveAddress}: no fresh controller status from the monitor.");
         }
     }
 
@@ -115,7 +103,6 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         _io.CheckReady();
         if (_io.GetOutput(_start))
             throw new InvalidOperationException("Turn START OFF before selecting a preset.");
-        LastStatus = null;
         _requestedPreset = null;
         foreach (var output in _presets)
             _io.SetOutput(output, false);
@@ -127,7 +114,6 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
     public async Task ResetAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        LastStatus = null;
         _io.SetOutput(_start, false);
         cancellationToken.ThrowIfCancellationRequested();
         try
@@ -162,8 +148,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         {
             _io.SetOutput(_direction, true);
             await CheckReadyAsync(operation.Token);
-            LastStatus = null;
-            _io.SetOutput(_start, true);
+                _io.SetOutput(_start, true);
             await Task.Delay(Timeout.Infinite, operation.Token);
         }
         catch (OperationCanceledException) when (ioFailure is not null)
@@ -195,6 +180,8 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         AdcFasteningResult? completed = null;
         AdcFasteningResult? lastResult = null;
         var runObserved = false;
+        var startedAt = long.MaxValue;
+        var stopped = new TaskCompletionSource<AdcControllerStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
         Exception? failure = null;
         var waitingForResult = false;
         Exception? ioFailure = null;
@@ -202,6 +189,22 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         {
             Interlocked.CompareExchange(ref ioFailure, exception, null);
             timeout.Cancel();
+        }
+        void OnStatusSampled(AdcStatusSample sample)
+        {
+            if (sample.StartedAt < Interlocked.Read(ref startedAt))
+                return;
+            if (sample.Error is { } error)
+            {
+                stopped.TrySetException(error);
+                return;
+            }
+            if (sample.Status is not { } status)
+                return;
+            if (status.Running)
+                runObserved = true;
+            if (status.Alarm != 0 || runObserved && !status.Running)
+                stopped.TrySetResult(status);
         }
         _io.Faulted += OnIoFaulted;
         try
@@ -223,12 +226,14 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
             // One pre-START baseline excludes previously received bolt results.
             var fastening = (EventCount: initialEvent?[0] ?? (ushort)0, Preset: preset);
             _io.SetOutput(_direction, false);
-            LastStatus = null;
-
+    
             if (dryRunMilliseconds == 0)
                 timeout.CancelAfter(_connection.FasteningTimeoutMilliseconds);
             timeout.Token.ThrowIfCancellationRequested();
             started = fastening;
+            if (dryRunMilliseconds == 0)
+                Monitor.Sampled += OnStatusSampled;
+            Interlocked.Exchange(ref startedAt, Stopwatch.GetTimestamp());
             // Own STOP cleanup before requesting START or lowering the head.
             _io.SetOutput(_start, true);
             if (feedAsync is not null && ioFailure is null)
@@ -243,20 +248,10 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
             {
                 try
                 {
-                    while (true)
-                    {
-                        var status = await ReadStatusAsync(timeout.Token);
-                        runObserved |= status.Running;
-                        // Initial RUN=OFF can precede motor startup; it is not completion.
-                        if (!status.Running && (runObserved || status.Alarm != 0))
-                            break;
-                        if (status.Alarm != 0)
-                        {
-                            failure = new InvalidOperationException(AdcControllerError.Describe(status.Alarm));
-                            break;
-                        }
-                        await Task.Delay(_connection.StatusPollMilliseconds, timeout.Token);
-                    }
+                    var status = await stopped.Task.WaitAsync(timeout.Token);
+                    Monitor.Sampled -= OnStatusSampled;
+                    if (status.Alarm != 0 && status.Running)
+                        failure = new InvalidOperationException(AdcControllerError.Describe(status.Alarm));
                     if (failure is null)
                     {
                         _logger.LogInformation(
@@ -306,6 +301,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         }
         finally
         {
+            Monitor.Sampled -= OnStatusSampled;
             _io.Faulted -= OnIoFaulted;
             await StopAfterOperationAsync(failure);
         }

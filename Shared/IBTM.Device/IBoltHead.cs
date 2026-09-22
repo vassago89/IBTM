@@ -23,7 +23,7 @@ public enum BoltDriver
 
 public interface IBoltHead
 {
-    AdcControllerStatus? LastStatus { get; }
+    AdcStatusMonitor? Monitor { get; }
 
     Task CheckReadyAsync(CancellationToken cancellationToken = default);
     Task ResetAsync(CancellationToken cancellationToken = default);
