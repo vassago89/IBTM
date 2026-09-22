@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -232,12 +233,13 @@ public sealed class LightingTests
                 recipes.Current.ApplyInspectionSettings(edited);
         };
 
-        var first = await inspector.InspectAsync(bolt);
+        var inspect = typeof(InspectionStation).GetMethod("InspectAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var first = await (Task<InspectionCapture>)inspect.Invoke(inspector, [bolt, CancellationToken.None])!;
         Assert.Equal(23, light.LastLevel);
         Assert.False(first.Success);
         Assert.Equal(0.5, first.MinimumBrightRatio);
         camera.OnCapture = null;
-        var second = await inspector.InspectAsync(bolt);
+        var second = await (Task<InspectionCapture>)inspect.Invoke(inspector, [bolt, CancellationToken.None])!;
         Assert.Equal(87, light.LastLevel);
         Assert.True(second.Success);
         Assert.Equal(0, second.MinimumBrightRatio);
