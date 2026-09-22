@@ -18,13 +18,14 @@ internal sealed class AdcControllerStub : IAdcBus
 
     public AdcControllerStub()
     {
-        AutomaticResults = new();
+        ResultReplies = new();
     }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred { add { } remove { } }
 
-    public Queue<AdcFasteningResult> AutomaticResults { get; }
-    public int ResultReceives { get; private set; }
+    public Queue<AdcFasteningResult> ResultReplies { get; }
+    public int ResultReads { get; private set; }
+    public int ResultPolls { get; private set; }
     public int StatusReads { get; private set; }
 
     public ushort CurrentPreset { get; set; } = 3;
@@ -41,8 +42,8 @@ internal sealed class AdcControllerStub : IAdcBus
     public IOException? StopWriteFailure { get; set; }
     public int StopWriteFailuresRemaining { get; set; } = -1;
     public IOException? StopReadFailure { get; init; }
-    public IOException? ResultReceiveFailure { get; set; }
-    public bool SuppressAutomaticResults { get; set; }
+    public IOException? ResultReadFailure { get; set; }
+    public bool SuppressCompletion { get; set; }
     public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
     public ushort ResultError { get; set; }
     public Action? Started { get; init; }
@@ -199,25 +200,33 @@ internal sealed class AdcControllerStub : IAdcBus
         throw new NotSupportedException();
     }
 
-    public async Task<AdcFasteningResult> ReceiveFasteningResultAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+    public Task<AdcFasteningResult> ReceiveFasteningResultAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("This controller only returns results when queried.");
+    }
+
+    public Task<AdcFasteningResult> ReadFasteningResultAsync(byte slaveAddress, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ResultReceives++;
-        if (SuppressAutomaticResults)
-            await Task.Delay(Timeout.Infinite, cancellationToken);
-        if (ResultReceiveFailure is { } failure)
+        ResultReads++;
+        var received = AdcFasteningResult.FromRegisters(ResultRegisters);
+        if (StartWrites == 0 || _stopRequested)
+            return Task.FromResult(received);
+        ResultPolls++;
+        if (ResultReadFailure is { } failure)
         {
-            ResultReceiveFailure = null;
+            ResultReadFailure = null;
             throw failure;
         }
-        var received = AutomaticResults.TryDequeue(out var result)
-            ? result
-            : AdcFasteningResult.FromRegisters(ResultRegisters);
+        if (SuppressCompletion)
+            received = received with { Status = AdcEventStatus.None };
+        else if (ResultReplies.TryDequeue(out var result))
+            received = result;
         if (received.Status == AdcEventStatus.Error)
         {
             CurrentAlarm = received.Error;
-            }
-        return received;
+        }
+        return Task.FromResult(received);
     }
 
     private ushort[] ResultRegisters => [

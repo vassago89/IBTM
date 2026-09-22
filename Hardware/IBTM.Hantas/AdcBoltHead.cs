@@ -232,7 +232,9 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
             {
                 try
                 {
-                    var result = await _bus.ReceiveFasteningResultAsync(_slaveAddress, timeout.Token);
+                    // Keep one request in flight; wait this interval before the next query.
+                    await Task.Delay(_connection.ResultPollingIntervalMilliseconds, timeout.Token);
+                    var result = await _bus.ReadFasteningResultAsync(_slaveAddress, timeout.Token);
                     lastResult = result;
                     if (IsCompleted(result, fastening))
                     {
@@ -261,7 +263,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         {
             failure = new TimeoutException(
                 $"ADC {_portName}/{_slaveAddress} fastening timed out after {_connection.FasteningTimeoutMilliseconds} ms; "
-                + "waiting for Auto Data Output (check controller output enable/port); "
+                + $"waiting for a new fastening result (query interval={_connection.ResultPollingIntervalMilliseconds} ms); "
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
                 + $"direction={lastResult?.Direction}, error={lastResult?.Error}.");
@@ -341,7 +343,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
     {
         switch (true)
         {
-            case true when unchecked((ushort)(result.EventCount - pending.EventCount)) is 0 or >= 32768:
+            case true when result.EventCount == pending.EventCount:
                 return false;
             case true when result.Status == AdcEventStatus.Error:
                 return true;

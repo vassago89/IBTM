@@ -738,7 +738,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         var io = new VirtualIoService(VirtualTest.Outputs(), new());
-        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        var bus = new AdcControllerStub { SuppressCompletion = true };
         bus.BindIo(io, FasteningHead.Pickup);
         using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), io, settings.Hantas, machine, state);
         var testing = diagnostics.StartCommand.ExecuteAsync(null);

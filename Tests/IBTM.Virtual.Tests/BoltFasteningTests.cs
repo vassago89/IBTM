@@ -42,8 +42,9 @@ public sealed class BoltFasteningTests
         await HomeAsync(motion, 20_000);
         using var pickupBus = new VirtualAdcBus();
         var pickup = CreateAdcHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
-        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
-        IBoltHead head = CreateAdcHead(bus, io, FasteningHead.Shooting, new HantasSettings { FasteningTimeoutMilliseconds = 100 }, 1, "Virtual", 115200);
+        var bus = new AdcControllerStub { SuppressCompletion = true };
+        IBoltHead head = CreateAdcHead(bus, io, FasteningHead.Shooting,
+            new HantasSettings { FasteningTimeoutMilliseconds = 100, ResultPollingIntervalMilliseconds = 10 }, 1, "Virtual", 115200);
         var units = new UnitSettings();
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
         var layout = new PcbLayout
@@ -74,7 +75,7 @@ public sealed class BoltFasteningTests
                 Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
                 Assert.False(bus.Running);
                 raisedAfterTimeout = true;
-                bus.SuppressAutomaticResults = false;
+                bus.SuppressCompletion = false;
             }
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -128,7 +129,7 @@ public sealed class BoltFasteningTests
         if (rejectedResponse)
         {
             // Exact exception reply in the equipment log, including CRC.
-            bus.ResultReceiveFailure = Assert.Throws<AdcResponseException>(
+            bus.ResultReadFailure = Assert.Throws<AdcResponseException>(
                 () => AdcBus.ValidateResponse([0x01, 0x84, 0x03, 0x03, 0x01],
                     1, AdcFunctionCode.ReadInputRegisters));
         }
@@ -180,7 +181,7 @@ public sealed class BoltFasteningTests
             Assert.Equal(2, assembly.PcbBoltResults.Count);
             if (dryRun)
             {
-                Assert.Equal(0, bus.ResultReceives);
+                Assert.Equal(0, bus.ResultPolls);
                 Assert.All(assembly.PcbBoltResults.Values, result =>
                 {
                     Assert.Equal(BoltResultSource.DryRun, result.Source);

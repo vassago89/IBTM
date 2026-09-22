@@ -287,6 +287,12 @@
                                                 Width="180" HorizontalAlignment="Left"/>
                                             <TextBlock Text="Maximum wait for the controller result after fastening starts."
                                                 Style="{StaticResource SettingHelpText}"/>
+                                            <TextBlock Text="ADC · Result Query Interval (ms)" Style="{StaticResource SettingFieldLabel}" Margin="0,10,0,0"/>
+                                            <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                                Text="{Binding Settings.Hantas.ResultPollingIntervalMilliseconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                                Width="180" HorizontalAlignment="Left"/>
+                                            <TextBlock Text="Pickup and shooting: query only during fastening. Wait this interval before the first query and after each incomplete result. Default: 100 ms."
+                                                Style="{StaticResource SettingHelpText}"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>

@@ -1,7 +1,9 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -25,7 +27,7 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(FasteningHead.Pickup)]
     [InlineData(FasteningHead.Shooting)]
-    public async Task UsesIoControlsAndReceivesAdcResultWithoutRunOrResultPolling(FasteningHead selected)
+    public async Task UsesIoControlsAndQueriesAdcResultOnlyDuringFastening(FasteningHead selected)
     {
         using var bus = new VirtualAdcBus();
         var (io, head) = Create(bus, head: selected);
@@ -40,13 +42,16 @@ public sealed class AdcBoltHeadTests
             Assert.Equal((byte)AdcFunctionCode.ReadInputRegisters, frame[1]);
             var address = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
             if (address == (ushort)AdcResultRegister.EventCount)
+            {
                 resultReads++;
+                Assert.Equal(resultReads > 1, io.GetOutput(start));
+            }
             else
             {
                 Assert.Equal((ushort)AdcStatusRegister.Preset, address);
                 statusReads++;
+                Assert.False(io.GetOutput(start));
             }
-            Assert.False(io.GetOutput(start));
         };
         await head.SelectPresetAsync(1);
         var fed = false;
@@ -55,32 +60,49 @@ public sealed class AdcBoltHeadTests
             Assert.True(io.GetOutput(start));
             Assert.False(io.GetOutput(otherStart));
             fed = true;
-            // The result may arrive while the head DOWN callback is still running.
+            // The controller can finish before the first query after head DOWN.
             await Task.Delay(300, token);
         });
         Assert.True(result.Success);
         Assert.True(fed);
         Assert.NotNull(result.Controller);
-        Assert.Equal(1, resultReads);
+        Assert.Equal(2, resultReads); // Pre-START baseline and the completed result.
         Assert.Equal(2, statusReads); // Preset command and STOP: one sample each.
         Assert.False(io.GetOutput(start));
     }
 
     [Fact]
-    public async Task WaitsForAutomaticResultWithoutStatusPolling()
+    public async Task ResultQueriesUseConfiguredIntervalWithoutStatusPolling()
     {
-        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
-        var (io, head) = Create(bus);
+        var bus = new AdcControllerStub();
+        var previous = AdcFasteningResult.FromRegisters([0, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]);
+        bus.ResultReplies.Enqueue(previous);
+        bus.ResultReplies.Enqueue(previous);
+        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 80 });
         await head.SelectPresetAsync(1);
-        using var stop = new CancellationTokenSource();
-        var running = head.TightenAsync(stop.Token);
+        var elapsed = Stopwatch.StartNew();
+        var running = head.TightenAsync();
         Assert.Null(head.LastStatus);
-        await Task.Delay(60);
         Assert.False(running.IsCompleted);
         Assert.Equal(1, bus.StatusReads);
-        stop.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+        Assert.True((await running).Success);
+        Assert.True(elapsed.ElapsedMilliseconds >= 230); // Three separate 80 ms waits.
+        Assert.Equal(3, bus.ResultPolls);
+        Assert.Equal(4, bus.ResultReads); // Includes the baseline before START.
+        Assert.Equal(2, bus.StatusReads); // No RUN/READY polling during fastening.
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public void ResultQueryIntervalPersistsAndMustBePositive()
+    {
+        var oldSettings = JsonSerializer.Deserialize<HantasSettings>("{}")!;
+        Assert.Equal(100, oldSettings.ResultPollingIntervalMilliseconds);
+        oldSettings.ResultPollingIntervalMilliseconds = 375;
+        var loaded = JsonSerializer.Deserialize<HantasSettings>(JsonSerializer.Serialize(oldSettings))!;
+        Assert.Equal(375, loaded.ResultPollingIntervalMilliseconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => loaded.ResultPollingIntervalMilliseconds = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => loaded.ResultPollingIntervalMilliseconds = -1);
     }
 
     [Theory]
@@ -91,7 +113,7 @@ public sealed class AdcBoltHeadTests
     {
         ushort[] registers = [1, 1234, 1, 150, 147, 850, 3156, 19, 3175, 57, error, 0, (ushort)status, 123];
         var bus = new AdcControllerStub();
-        bus.AutomaticResults.Enqueue(AdcFasteningResult.FromRegisters(registers));
+        bus.ResultReplies.Enqueue(AdcFasteningResult.FromRegisters(registers));
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         var result = await head.TightenAsync();
@@ -119,21 +141,52 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task IgnoresOldAndNonCompletionEvents()
+    public async Task IgnoresUnchangedAndNonCompletionEvents()
     {
         var bus = new AdcControllerStub();
         var result = AdcFasteningResult.FromRegisters([0, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]);
-        bus.AutomaticResults.Enqueue(result);
-        bus.AutomaticResults.Enqueue(result with { EventCount = ushort.MaxValue });
-        bus.AutomaticResults.Enqueue(result with { EventCount = 1, Status = AdcEventStatus.DirectionChanged });
-        bus.AutomaticResults.Enqueue(result with { EventCount = 2, Status = AdcEventStatus.PresetChanged });
-        bus.AutomaticResults.Enqueue(result with { EventCount = 3, Status = AdcEventStatus.FasteningNg });
+        bus.ResultReplies.Enqueue(result);
+        bus.ResultReplies.Enqueue(result with { EventCount = 1, Status = AdcEventStatus.DirectionChanged });
+        bus.ResultReplies.Enqueue(result with { EventCount = 2, Status = AdcEventStatus.PresetChanged });
+        bus.ResultReplies.Enqueue(result with { EventCount = 3, Status = AdcEventStatus.FasteningNg });
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         var completed = await head.TightenAsync();
         Assert.False(completed.Success);
         Assert.Equal(0.8, completed.Torque);
-        Assert.Equal(5, bus.ResultReceives);
+        Assert.Equal(4, bus.ResultPolls);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task ChangedEventIsAcceptedWithoutAssumingAnIncrementOrOrdering()
+    {
+        var bus = new AdcControllerStub();
+        bus.ResultReplies.Enqueue(AdcFasteningResult.FromRegisters(
+            [ushort.MaxValue, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]));
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
+        var result = await head.TightenAsync();
+        Assert.True(result.Success);
+        Assert.Equal(ushort.MaxValue, result.Controller!.EventCount);
+        Assert.Equal(1, bus.ResultPolls);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task EveryStartUsesANewBaselineAndCannotReuseThePreviousBoltResult()
+    {
+        var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        Assert.Equal((ushort)1, (await head.TightenAsync()).Controller!.EventCount);
+        bus.ResultReplies.Enqueue(AdcFasteningResult.FromRegisters(
+            [1, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]));
+        await head.SelectPresetAsync(1);
+        var next = await head.TightenAsync();
+        Assert.Equal((ushort)2, next.Controller!.EventCount);
+        Assert.Equal(3, bus.ResultPolls); // First bolt, unchanged result, second bolt.
+        Assert.Equal(5, bus.ResultReads); // A fresh baseline for each START.
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -167,7 +220,7 @@ public sealed class AdcBoltHeadTests
     [Fact]
     public async Task MissingResultRecordsNgOnlyAfterIoStop()
     {
-        var bus = new AdcControllerStub { SuppressAutomaticResults = true, StopPollsRemaining = -1 };
+        var bus = new AdcControllerStub { SuppressCompletion = true, StopPollsRemaining = -1 };
         var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60 });
         await head.SelectPresetAsync(1);
         var result = await head.TightenAsync();
@@ -183,7 +236,7 @@ public sealed class AdcBoltHeadTests
     [Fact]
     public async Task TimeoutAndIoOutputFailureAreBothPreserved()
     {
-        var bus = new AdcControllerStub { SuppressAutomaticResults = true, StopWriteFailure = new IOException("I/O write failed") };
+        var bus = new AdcControllerStub { SuppressCompletion = true, StopWriteFailure = new IOException("I/O write failed") };
         var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 50, ResponseTimeoutMilliseconds = 60 });
         await head.SelectPresetAsync(1);
         var error = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
@@ -193,20 +246,19 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task SerialReceiveFailureStillTurnsStartOff()
+    public async Task SerialQueryFailureStillTurnsStartOff()
     {
-        var bus = new AdcControllerStub { ResultReceiveFailure = new IOException("Serial disconnected") };
+        var bus = new AdcControllerStub { ResultReadFailure = new IOException("Serial disconnected") };
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
-        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
     [Fact]
     public async Task IoFaultIsReportedAsEquipmentFailureAfterStartOff()
     {
-        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        var bus = new AdcControllerStub { SuppressCompletion = true };
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         var cycle = head.TightenAsync();
@@ -224,7 +276,7 @@ public sealed class AdcBoltHeadTests
         await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync(
             feedAsync: token => Task.Delay(Timeout.Infinite, token)));
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal(0, bus.ResultReceives);
+        Assert.Equal(0, bus.ResultPolls);
     }
 
     [Fact]
@@ -235,7 +287,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync(
             feedAsync: token => throw new InvalidOperationException("Head output failed")));
-        Assert.Equal(0, bus.ResultReceives);
+        Assert.Equal(0, bus.ResultPolls);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.True((await head.TightenAsync()).Success);
     }
@@ -243,12 +295,12 @@ public sealed class AdcBoltHeadTests
     [Fact]
     public async Task DryRunNeedsNoAdcResultAndCancellationStopsMotor()
     {
-        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        var bus = new AdcControllerStub { SuppressCompletion = true };
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         var result = await head.TightenAsync(dryRunMilliseconds: 30);
         Assert.Equal(BoltResultSource.DryRun, result.Source);
-        Assert.Equal(0, bus.ResultReceives);
+        Assert.Equal(0, bus.ResultPolls);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         using var stop = new CancellationTokenSource();
         var cycle = head.TightenAsync(stop.Token, dryRunMilliseconds: 2000);
@@ -288,9 +340,9 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task AlarmWithoutAutomaticResultIsCollectedAtStopWithoutPolling()
+    public async Task AlarmWithoutCompletionResultIsSampledAtStop()
     {
-        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        var bus = new AdcControllerStub { SuppressCompletion = true };
         var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 80 });
         await head.SelectPresetAsync(1);
         var cycle = head.TightenAsync();
