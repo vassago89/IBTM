@@ -30,6 +30,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     public AdcBus(HantasSettings settings, ILogger<AdcBus>? logger = null)
     {
+        Monitor = new(this);
         _settings = settings;
         _logger = logger ?? NullLogger<AdcBus>.Instance;
         _exchange = new(1, 1);
@@ -37,6 +38,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
         _receiveBuffer = [];
         _fasteningResults = Channel.CreateUnbounded<byte[]>();
     }
+
+    public AdcStatusMonitor Monitor { get; }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
@@ -83,6 +86,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     public void Close()
     {
+        Monitor.Stop();
         SerialPort? port;
         lock (_receiveLock)
         {

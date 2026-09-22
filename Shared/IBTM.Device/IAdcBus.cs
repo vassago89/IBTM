@@ -7,6 +7,7 @@ namespace IBTM.Device;
 
 public interface IAdcBus
 {
+    AdcStatusMonitor Monitor { get; }
     bool IsOpen { get; }
 
     string PortName { get; }

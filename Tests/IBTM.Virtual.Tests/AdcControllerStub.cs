@@ -19,10 +19,13 @@ internal sealed class AdcControllerStub : IAdcBus
 
     public AdcControllerStub()
     {
+        Monitor = new(this);
         ResultReplies = new();
         RunReplies = new();
         ResultReadFailuresRemaining = 1;
     }
+
+    public AdcStatusMonitor Monitor { get; }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred { add { } remove { } }
 
@@ -77,6 +80,7 @@ internal sealed class AdcControllerStub : IAdcBus
 
     public void Close()
     {
+        Monitor.Stop();
         IsOpen = false;
     }
 

@@ -21,8 +21,11 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     public VirtualAdcBus()
     {
+        Monitor = new(this);
         _controllers = [];
     }
+
+    public AdcStatusMonitor Monitor { get; }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
@@ -63,6 +66,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     public void Close()
     {
+        Monitor.Stop();
         IsOpen = false;
         PortName = string.Empty;
         BaudRate = 0;
@@ -106,6 +110,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     public void Dispose()
     {
+        Close();
         if (_io is not null)
             _io.OutputChanged -= OnOutputChanged;
     }
