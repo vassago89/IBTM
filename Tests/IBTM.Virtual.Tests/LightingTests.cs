@@ -203,6 +203,47 @@ public sealed class LightingTests
     }
 
     [Fact]
+    public async Task InspectionSettingsChangedDuringCaptureApplyStartingWithTheNextPoint()
+    {
+        var light = new RecordingLight { FailOn = false };
+        var camera = new TestCamera();
+        var settings = new MachineSettings();
+        settings.Lighting.StabilizationDelayMilliseconds = 0;
+        await using var services = new ServiceCollection()
+            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(settings)
+            .AddSingleton<ILightController>(light)
+            .AddSingleton<ICamera>(camera)
+            .BuildServiceProvider();
+        var inspector = services.GetRequiredService<InspectionStation>();
+        var recipes = services.GetRequiredService<RecipeManager>();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+        motion.Initialize();
+        Assert.True(await inspector.HomeHorizontalAsync());
+        var bolt = new BoltPoint { Number = 1, X = 0, Y = 0, LightLevel = 23, BrightnessThreshold = 128, MinimumBrightRatio = 0.5 };
+        recipes.Current.Pcb.BoltPoints.Add(bolt);
+        recipes.Current.CarrierImages = [new() { BoltNumber = 1, Region = new(0, 0, 1, 1) }];
+        var edited = new Recipe();
+        edited.Pcb.BoltPoints.Add(new() { Number = 1, LightLevel = 87, BrightnessThreshold = 0, MinimumBrightRatio = 0 });
+        edited.CarrierImages = [new() { BoltNumber = 1, Region = new(0, 0, 1, 1) }];
+        camera.OnCapture = () =>
+        {
+            lock (recipes.InspectionSync)
+                recipes.Current.ApplyInspectionSettings(edited);
+        };
+
+        var first = await inspector.InspectAsync(bolt);
+        Assert.Equal(23, light.LastLevel);
+        Assert.False(first.Success);
+        Assert.Equal(0.5, first.MinimumBrightRatio);
+        camera.OnCapture = null;
+        var second = await inspector.InspectAsync(bolt);
+        Assert.Equal(87, light.LastLevel);
+        Assert.True(second.Success);
+        Assert.Equal(0, second.MinimumBrightRatio);
+    }
+
+    [Fact]
     public async Task VisionRecoveryAndLiveFailureDoNotDependOnATeachingView()
     {
         var light = new RecordingLight { FailOn = false, Connected = false };

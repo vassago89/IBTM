@@ -99,9 +99,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public bool IsBusy => _commands.Any(command => command.IsRunning);
     public bool IsIdle => !IsBusy;
     public bool IsDataMatrixSelected => SelectedPoint?.Metadata.IsBarcode == true;
-    public bool IsBoltSelected => SelectedPoint is not null && !IsDataMatrixSelected;
+    public bool IsBoltSelected => SelectedBolt is not null;
     public BoltPoint? SelectedBolt => SelectedPoint is { Metadata.IsBarcode: false } point
-        ? Draft.Pcb.BoltPoints.Single(bolt => bolt.HeatSink == point.Metadata.HeatSink && bolt.Number == point.Metadata.BoltNumber)
+        ? Draft.Pcb.BoltPoints.SingleOrDefault(bolt => bolt.HeatSink == point.Metadata.HeatSink && bolt.Number == point.Metadata.BoltNumber)
         : null;
     public DataMatrixInspectionRecipe? DataMatrix => IsDataMatrixSelected
         ? Draft.BoltInspection.GetDataMatrix(SelectedPoint!.Metadata.HeatSink) : null;
@@ -200,6 +200,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
     private void ShowRecipeImage()
     {
         InspectCommand.Cancel();
+        Error = null;
+        ImageSource = null;
         Ruler = null;
         RulerMillimeters = null;
         OriginalResult = null;
@@ -208,7 +210,15 @@ public partial class InspectionTeachingViewModel : ObservableObject
             return;
         var region = point.Metadata.Region ?? PixelRegion.CenteredSquare(point.Image.PixelWidth, point.Image.PixelHeight,
             Math.Min(point.Image.PixelWidth, point.Image.PixelHeight) / 4);
-        Preview.SetSavedImage(point.Image, region);
+        try
+        {
+            Preview.SetSavedImage(point.Image, region);
+        }
+        catch (Exception exception)
+        {
+            Error = exception.Message;
+            _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata.Number);
+        }
         ImageSource = $"Recipe · {Draft.Name} · {point.Metadata.HeatSink.GetDescription()} · "
             + (point.Metadata.IsBarcode ? "Data Matrix" : $"Bolt {point.Metadata.BoltNumber}");
     }
@@ -341,10 +351,20 @@ public partial class InspectionTeachingViewModel : ObservableObject
             Error = "Saved result image dimensions differ from the recipe image. Select an image with the same resolution.";
             return;
         }
+        Error = null;
         SelectedPoint = target;
         InspectCommand.Cancel();
         Preview.Clear(IsDataMatrixSelected ? target.Metadata.HeatSink : null, SelectedBolt);
-        Preview.SetSavedImage(saved.Image, target.Metadata.Region ?? saved.Record.Region);
+        try
+        {
+            Preview.SetSavedImage(saved.Image, target.Metadata.Region ?? saved.Record.Region);
+        }
+        catch (Exception exception)
+        {
+            Error = exception.Message;
+            _log.LogError(exception, "Inspection history preview failed for PCB {Number}.", LoadedRecord!.Number);
+            return;
+        }
         ImageSource = $"PCB {LoadedRecord!.Number} · {saved.Title} · {saved.Record.CapturedAt:yyyy-MM-dd HH:mm:ss}";
         OriginalResult = $"Recorded {saved.Verdict} · {saved.Details}";
         Ruler = null;

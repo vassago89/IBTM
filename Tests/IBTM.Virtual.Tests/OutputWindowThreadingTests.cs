@@ -744,12 +744,13 @@ public sealed class OutputWindowThreadingTests
             Assert.True(light.IsOn);
             Assert.Equal(liveLightOnCalls, light.OnCalls);
             Assert.Single(teaching.CarrierImages);
-            Assert.NotSame(firstImage.Image, VirtualTest.RecordedImage(teaching)!.Image);
-            Assert.Equal(firstImage.Metadata.Number, VirtualTest.RecordedImage(teaching).Metadata.Number);
-            Assert.Equal(10, VirtualTest.RecordedImage(teaching).Metadata.Center.X);
-            Assert.Equal(firstImage.Metadata.Region, VirtualTest.RecordedImage(teaching).Metadata.Region);
-            Assert.Equal(10, firstBolt.Position.Bolt.X);
-            var firstMetadata = VirtualTest.RecordedImage(teaching).Metadata;
+            var recordedImage = VirtualTest.RecordedImage(teaching)!;
+            Assert.NotSame(firstImage.Image, recordedImage.Image);
+            Assert.Equal(firstImage.Metadata.Number, recordedImage.Metadata.Number);
+            Assert.Equal(10, recordedImage.Metadata.Center.X);
+            Assert.Equal(firstImage.Metadata.Region, recordedImage.Metadata.Region);
+            Assert.Equal(10, firstBolt.Position.Bolt!.X);
+            var firstMetadata = recordedImage.Metadata;
 
             // The other heat sink and Data Matrix each own one independent image.
             teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
