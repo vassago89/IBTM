@@ -137,7 +137,7 @@ public partial class MainViewModel : ObservableObject
     // Window access follows selector mode only, not alarm/busy output admission.
     public bool OutputsWindowEnabled => !_shuttingDown && !IsClosing && !_state.AutoMode;
 
-    public bool AdcProtocolEnabled => !_shuttingDown && _settingsViewModel.ActiveBoltDriver != BoltDriver.Io;
+    public bool AdcProtocolEnabled => !_shuttingDown;
 
     public bool CurrentPageEnabled
     {

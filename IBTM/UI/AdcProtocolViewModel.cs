@@ -341,7 +341,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             {
                 _state.BoltTestRunning = true;
                 var head = CreateHead();
-                await head.CheckReadyAsync(operation.Token);
                 await head.SelectPresetAsync(1, operation.Token);
                 ResultMessage = "Fastening...";
                 var result = await head.TightenAsync(operation.Token);

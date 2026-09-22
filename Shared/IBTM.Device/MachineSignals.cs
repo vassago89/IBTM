@@ -261,18 +261,6 @@ public enum InputIo
     [JsonStringEnumMemberName("NgConveyorAutoMode")]
     NgConveyorManualMode = 82,
 
-    [Description("Pickup Controller Ready (Head 1)")]
-    PickupBoltReady = 83,
-    [Description("Pickup Controller Alarm (Head 1)")]
-    PickupBoltAlarm = 84,
-    [Description("Pickup Controller FASTEN (Head 1)")]
-    PickupBoltFasten = 85,
-    [Description("Shooting Controller Ready (Head 2)")]
-    ShootingBoltReady = 86,
-    [Description("Shooting Controller Alarm (Head 2)")]
-    ShootingBoltAlarm = 87,
-    [Description("Shooting Controller FASTEN (Head 2)")]
-    ShootingBoltFasten = 88,
 
     [Description("Pickup Table Down (Head 1)")]
     PickupTableDown = 89,

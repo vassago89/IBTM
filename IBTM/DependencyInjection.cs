@@ -246,59 +246,44 @@ public static class DependencyInjection
             .AddSingleton<INgCarrierTransferFeedback>(
                 provider => provider.GetRequiredService<InspectionWork>());
 
-        if (settings.Drivers.Bolt == BoltDriver.Io)
+        if (settings.Drivers.Bolt == BoltDriver.Virtual)
         {
             services
-                .AddKeyedSingleton<IBoltHead>(
-                    FasteningHead.Pickup,
-                    (provider, _) => new IoBoltHead(
-                        provider.GetRequiredService<IIoService>(), FasteningHead.Pickup, settings.IoBoltHardware))
-                .AddKeyedSingleton<IBoltHead>(
-                    FasteningHead.Shooting,
-                    (provider, _) => new IoBoltHead(
-                        provider.GetRequiredService<IIoService>(), FasteningHead.Shooting, settings.IoBoltHardware));
+                .AddKeyedSingleton<IAdcBus>(FasteningHead.Pickup,
+                    (provider, _) => new VirtualAdcBus(
+                        provider.GetRequiredService<IIoService>(), FasteningHead.Pickup, settings.Hantas.PickupSlaveAddress))
+                .AddKeyedSingleton<IAdcBus>(FasteningHead.Shooting,
+                    (provider, _) => new VirtualAdcBus(
+                        provider.GetRequiredService<IIoService>(), FasteningHead.Shooting, settings.Hantas.ShootingSlaveAddress));
         }
         else
         {
-            if (settings.Drivers.Bolt == BoltDriver.Virtual)
-            {
-                services
-                    .AddKeyedSingleton<IAdcBus>(FasteningHead.Pickup,
-                        (provider, _) => new VirtualAdcBus(
-                            provider.GetRequiredService<IIoService>(), FasteningHead.Pickup, settings.Hantas.PickupSlaveAddress))
-                    .AddKeyedSingleton<IAdcBus>(FasteningHead.Shooting,
-                        (provider, _) => new VirtualAdcBus(
-                            provider.GetRequiredService<IIoService>(), FasteningHead.Shooting, settings.Hantas.ShootingSlaveAddress));
-            }
-            else
-            {
-                services
-                    .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Pickup)
-                    .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Shooting);
-            }
-
             services
-                .AddKeyedSingleton<IBoltHead>(
-                    FasteningHead.Shooting,
-                    (provider, _) => new AdcBoltHead(
-                        provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting),
-                        provider.GetRequiredService<IIoService>(), FasteningHead.Shooting,
-                        settings.Hantas,
-                        settings.Hantas.ShootingSlaveAddress,
-                        settings.Hantas.ShootingPortName,
-                        settings.Hantas.ShootingBaudRate,
-                        provider.GetRequiredService<ILogger<AdcBoltHead>>()))
-                .AddKeyedSingleton<IBoltHead>(
-                    FasteningHead.Pickup,
-                    (provider, _) => new AdcBoltHead(
-                        provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup),
-                        provider.GetRequiredService<IIoService>(), FasteningHead.Pickup,
-                        settings.Hantas,
-                        settings.Hantas.PickupSlaveAddress,
-                        settings.Hantas.PickupPortName,
-                        settings.Hantas.PickupBaudRate,
-                        provider.GetRequiredService<ILogger<AdcBoltHead>>()));
+                .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Pickup)
+                .AddKeyedSingleton<IAdcBus, AdcBus>(FasteningHead.Shooting);
         }
+
+        services
+            .AddKeyedSingleton<IBoltHead>(
+                FasteningHead.Shooting,
+                (provider, _) => new AdcBoltHead(
+                    provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting),
+                    provider.GetRequiredService<IIoService>(), FasteningHead.Shooting,
+                    settings.Hantas,
+                    settings.Hantas.ShootingSlaveAddress,
+                    settings.Hantas.ShootingPortName,
+                    settings.Hantas.ShootingBaudRate,
+                    provider.GetRequiredService<ILogger<AdcBoltHead>>()))
+            .AddKeyedSingleton<IBoltHead>(
+                FasteningHead.Pickup,
+                (provider, _) => new AdcBoltHead(
+                    provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup),
+                    provider.GetRequiredService<IIoService>(), FasteningHead.Pickup,
+                    settings.Hantas,
+                    settings.Hantas.PickupSlaveAddress,
+                    settings.Hantas.PickupPortName,
+                    settings.Hantas.PickupBaudRate,
+                    provider.GetRequiredService<ILogger<AdcBoltHead>>()));
 
         if (settings.Drivers.Camera == CameraDriver.Virtual)
         {

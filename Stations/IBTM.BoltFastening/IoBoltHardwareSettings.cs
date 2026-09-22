@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using IBTM.Device;
 
 namespace IBTM.BoltFastening;
@@ -7,16 +9,8 @@ public sealed class IoBoltHardwareSettings : IoHardwareSettings
 {
     public IoBoltHardwareSettings()
     {
+        Inputs = [];
         // Final 260913 map. Keep the existing head assignment: 1=pickup, 2=shooting.
-        Inputs = new()
-        {
-            [InputIo.PickupBoltReady] = 11,
-            [InputIo.PickupBoltAlarm] = 12,
-            [InputIo.PickupBoltFasten] = 13,
-            [InputIo.ShootingBoltReady] = 93,
-            [InputIo.ShootingBoltAlarm] = 94,
-            [InputIo.ShootingBoltFasten] = 95,
-        };
         Outputs = new()
         {
             [OutputIo.PickupBoltPreset1] = CreateOutput(80),
@@ -36,7 +30,9 @@ public sealed class IoBoltHardwareSettings : IoHardwareSettings
         };
     }
 
-    public int FasteningTimeoutMilliseconds { get; set; } = 15_000;
+    // Ignore retired input mappings in existing settings; preserve the output addresses.
+    [JsonIgnore]
+    public override Dictionary<InputIo, int> Inputs { get; set; }
 
     public override HardwareArea Area => HardwareArea.BoltFastening;
 
@@ -44,9 +40,6 @@ public sealed class IoBoltHardwareSettings : IoHardwareSettings
     {
         switch (signal)
         {
-            case InputIo.PickupBoltReady:
-            case InputIo.PickupBoltAlarm:
-            case InputIo.PickupBoltFasten:
             case OutputIo.PickupBoltPreset1:
             case OutputIo.PickupBoltPreset2:
             case OutputIo.PickupBoltPreset3:
@@ -55,9 +48,6 @@ public sealed class IoBoltHardwareSettings : IoHardwareSettings
             case OutputIo.PickupBoltLock:
             case OutputIo.PickupBoltReset:
                 return IoSection.BoltPickupController;
-            case InputIo.ShootingBoltReady:
-            case InputIo.ShootingBoltAlarm:
-            case InputIo.ShootingBoltFasten:
             case OutputIo.ShootingBoltPreset1:
             case OutputIo.ShootingBoltPreset2:
             case OutputIo.ShootingBoltPreset3:

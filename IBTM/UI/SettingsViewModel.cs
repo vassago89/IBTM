@@ -84,7 +84,7 @@ public partial class SettingsViewModel : ObservableObject
         MotionGroups = _motions.Keys.ToArray();
         ControlDrivers = Enum.GetValues<ControlDriver>();
         CameraDrivers = Enum.GetValues<CameraDriver>();
-        BoltDrivers = Enum.GetValues<BoltDriver>();
+        BoltDrivers = [BoltDriver.Virtual, BoltDriver.HantasAdc];
         var hardware = settings.HardwareSections;
         InputMappings = hardware.OfType<InputHardwareSettings>()
             .SelectMany(
