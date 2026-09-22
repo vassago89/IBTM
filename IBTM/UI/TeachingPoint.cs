@@ -49,6 +49,8 @@ public class TeachingPoint : ObservableObject
             {
                 case TeachingTarget.BoltPosition:
                     return TeachingPointGroup.Calculated;
+                case TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
+                    return TeachingPointGroup.CarrierTransfer;
                 case TeachingTarget.SafeZ:
                 case TeachingTarget.ShootingHeadFasteningZ:
                 case TeachingTarget.PickupHeadFasteningZ:
@@ -96,7 +98,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.PickupHeadFasteningZ:
                     return "Z used for fastening with the pickup head (Head 1).";
                 case TeachingTarget.BoltPosition:
-                    return "Bolt recorded in Inspection Gantry. XY rotates around the camera Upper reference to match the selected head's Upper/Lower direction, then translates to that head's Upper reference; Z uses the head's fastening Z. Position recording is available only in Inspection Gantry. Move to Position uses Safe Z, sets the table down for pickup or up for shooting, then moves XY and fastening Z.";
+                    return "Bolt recorded in Inspection Station. XY rotates around the camera Upper reference to match the selected head's Upper/Lower direction, then translates to that head's Upper reference; Z uses the head's fastening Z. Position recording is available only in Inspection Station. Move to Position uses Safe Z, sets the table down for pickup or up for shooting, then moves XY and fastening Z.";
                 case TeachingTarget.BoltReference:
                     return "Camera XY and teaching image for inspecting this bolt.";
                 case TeachingTarget.DataMatrix:
@@ -114,7 +116,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.PickupHeadLowerRightLocatingPin:
                     return "Pickup head XY aligned with the backup plate's lower-right reference pin.";
                 case TeachingTarget.NgCarrierPickup:
-                    return "XY where the transfer grips the carrier at Station 3. X and Y move together.";
+                    return "Waiting position and carrier pickup XY at Station 3. X and Y move together.";
                 case TeachingTarget.NgShuttlePlace:
                     return "XY where the transfer places the carrier on the NG shuttle.";
                 default:
@@ -132,7 +134,7 @@ public class TeachingPoint : ObservableObject
                 if (Position.Target == TeachingTarget.BoltPosition)
                     return Position.Bolt is { X: not null, Y: not null }
                         ? "Teach camera and head Upper / Lower references"
-                        : "Record bolt position in Inspection Gantry";
+                        : "Record bolt position in Inspection Station";
                 return "Not taught";
             }
             switch (Position.Mode)
@@ -199,9 +201,11 @@ public enum TeachingPointGroup
 {
     [Description("Work positions")]
     Work,
+    [Description("Carrier transfer positions")]
+    CarrierTransfer,
     [Description("Reference positions")]
     MachineReference,
-    [Description("Bolts from Inspection Gantry")]
+    [Description("Bolts from Inspection Station")]
     Calculated,
 }
 
@@ -222,7 +226,7 @@ public enum TeachingSaveBehavior
     [Description("Record Position saves this head's Z automatically. Move to Position moves only Z. Automatic fastening reaches this Z before lowering the head.")]
     FasteningZ,
 
-    [Description("Move to Position: Safe Z → table down for pickup / up for shooting → bolt XY → fastening Z. Both heads must be raised. Record the bolt in Inspection Gantry.")]
+    [Description("Move to Position: Safe Z → table down for pickup / up for shooting → bolt XY → fastening Z. Both heads must be raised. Record the bolt in Inspection Station.")]
     BoltPosition,
 
     [Description("Center this backup plate pin in Live, then press Record Position. Saves automatically.")]

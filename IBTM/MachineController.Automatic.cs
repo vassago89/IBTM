@@ -74,9 +74,6 @@ public sealed partial class MachineController
                 return StartBlockReason.TeachingMode;
             case true when !TeachingReady:
                 return StartBlockReason.TeachingIncomplete;
-            case true when _state.RepeatEnabled
-                && _units.NgConveyor && !_units.NgShuttle:
-                return StartBlockReason.RepeatRouteUnavailable;
             default:
                 return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
         }
@@ -301,20 +298,20 @@ public sealed partial class MachineController
         if (!cycle.IsCancellationRequested)
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
-                _units.Inspection ? MachineAlarm.Inspection : MachineAlarm.NgCarrierTransfer,
+                MachineAlarm.Inspection,
                 _inspectionStation.RunAsync(
                     _recipes.Current.Pcb.BoltPoints.ToArray(),
                     cycle.Token,
                     repeat,
-                    holdAtShuttle: repeat && !_units.NgShuttle),
+                    holdAtShuttle: repeat && !_units.NgConveyor),
                 cycle));
         }
 
-        if (!cycle.IsCancellationRequested && (_units.NgShuttle || _units.NgConveyor)
-            && (!repeat || _units.NgCarrierTransfer && _units.NgConveyor))
+        if (!cycle.IsCancellationRequested && _units.NgConveyor
+            && (!repeat || _units.Inspection))
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
-                _units.NgConveyor ? MachineAlarm.NgConveyor : MachineAlarm.NgShuttle,
+                MachineAlarm.NgConveyor,
                 _ngConveyor.RunAsync(cycle.Token, repeat),
                 cycle));
         }

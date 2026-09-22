@@ -50,8 +50,7 @@ public partial class TeachingViewModel
                         return TeachingMotionHint.HomeRequired;
                 }
             }
-            if (SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
-                && SelectedPoint?.Position.Target == TeachingTarget.NgCarrierPickup
+            if (SelectedPoint?.Position.Target == TeachingTarget.NgCarrierPickup
                 && _ngTransferSettings.PickupSafeX is null)
                 return TeachingMotionHint.NgPickupPositionRequired;
             switch (ActiveMotionGroup)
@@ -74,7 +73,7 @@ public partial class TeachingViewModel
     {
         get
         {
-            return SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
+            return SelectedPoint?.Position.Target is TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace
                 ? _ngTransferSettings.Speed
                 : _inspectionGantrySettings.Motion.HorizontalSpeed;
         }
@@ -92,7 +91,7 @@ public partial class TeachingViewModel
                     return MotionGroup.PcbPlacementHandler;
                 case HardwareArea.BoltFastening:
                     return MotionGroup.BoltFastening;
-                case HardwareArea.InspectionGantry or HardwareArea.NgCarrierTransfer:
+                case HardwareArea.InspectionGantry:
                     return MotionGroup.InspectionGantry;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit));

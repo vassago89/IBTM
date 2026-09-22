@@ -374,16 +374,10 @@
                                     <StackPanel>
                                         <TextBlock Text="Inspection / NG" Style="{StaticResource SettingFieldLabel}" Margin="0,0,0,8"/>
                                         <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Content="Inspection"
+                                            Content="Inspection Station (Inspection + NG Transfer)"
                                             IsChecked="{Binding Settings.Units.Inspection}"/>
                                         <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Content="NG Carrier Transfer"
-                                            IsChecked="{Binding Settings.Units.NgCarrierTransfer}"/>
-                                        <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Content="NG Shuttle"
-                                            IsChecked="{Binding Settings.Units.NgShuttle}"/>
-                                        <CheckBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Content="NG Conveyor"
+                                            Content="NG Conveyor (Shuttle + Belt)"
                                             IsChecked="{Binding Settings.Units.NgConveyor}"/>
                                     </StackPanel>
                                 </UniformGrid>

@@ -99,7 +99,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 
     public NgConveyorState GetState(bool runCommandOn)
     {
-        if (_units.NgShuttle)
+        if (_units.NgConveyor)
         {
             if (ShuttleLift == NgShuttleLiftState.Down && IsShuttleRaiseAllowed)
                 return IsTransferClear
@@ -116,9 +116,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         }
         if (_units.NgConveyor)
             return GetConveyorState(runCommandOn);
-        if (_units.NgShuttle && ShuttleLift == NgShuttleLiftState.Down)
-            return Position3Occupied || runCommandOn
-                ? NgConveyorState.WaitingForShuttleUp : NgConveyorState.CarrierPositionUnknown;
         return NgConveyorState.WaitingForCarrier;
     }
 

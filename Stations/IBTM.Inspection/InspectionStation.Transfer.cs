@@ -10,8 +10,7 @@ public sealed partial class InspectionStation
 {
     public ConveyorStation Station => _work.Station;
 
-    public bool IsEmptyRepeatAllowed => !_units.MainConveyor && !_units.Inspection
-        && !_units.NgShuttle && !_units.NgConveyor;
+    public bool IsEmptyRepeatAllowed => !_units.MainConveyor && !_units.NgConveyor;
 
     // Presence near the pickup does not prove that its gripper holds the carrier.
     public bool CarrierDetected => _io.GetInput(InputIo.NgCarrierDetected);

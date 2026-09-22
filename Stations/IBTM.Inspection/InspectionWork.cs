@@ -79,7 +79,7 @@ public sealed class InspectionWork : StationWork, INgCarrierTransferFeedback
     }
 
     public override bool IsReceiveAllowed => base.IsReceiveAllowed
-        && (!Units.NgCarrierTransfer || !IsTransferPending);
+        && (!Units.Inspection || !IsTransferPending);
 
     public bool RouteToNg => !Enabled || HasNg;
 

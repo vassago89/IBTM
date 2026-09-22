@@ -93,7 +93,6 @@ public partial class TeachingViewModel : ObservableObject
             HardwareArea.PcbPlacementHandler,
             HardwareArea.BoltFastening,
             HardwareArea.InspectionGantry,
-            HardwareArea.NgCarrierTransfer,
         ];
         FasteningHeads = Enum.GetValues<FasteningHead>();
         HeatSinkSlots = Enum.GetValues<HeatSinkSlot>();
@@ -421,6 +420,7 @@ public partial class TeachingViewModel : ObservableObject
             HardwareArea.InspectionGantry
                 => [
                     .. _inspectionGantrySettings.GetTeachingPositions(_carrierReference),
+                    .. _ngTransferSettings.GetTeachingPositions(),
                     new(
                         TeachingTarget.DataMatrix,
                         MotionGroup.InspectionGantry,
@@ -440,7 +440,6 @@ public partial class TeachingViewModel : ObservableObject
                         isDefined: () => Inspection.HasPosition(bolt))
                     { Bolt = bolt }),
             ],
-            HardwareArea.NgCarrierTransfer => _ngTransferSettings.GetTeachingPositions(),
             _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
         };
         FilteredPoints = positions.Select(position => new TeachingPoint(position))

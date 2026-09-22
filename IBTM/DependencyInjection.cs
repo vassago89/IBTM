@@ -166,10 +166,6 @@ public static class DependencyInjection
                     ],
                     [HardwareArea.InspectionGantry] = [
                         new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer),
-                        new(OutputIo.InspectionBackupPlateUp, HardwareArea.MainConveyor),
-                    ],
-                    [HardwareArea.NgCarrierTransfer] = [
-                        new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer),
                         new(OutputIo.NgCarrierGripperClose, HardwareArea.NgCarrierTransfer),
                         new(OutputIo.NgShuttleDown, HardwareArea.NgShuttle),
                         new(OutputIo.InspectionStopperUp, HardwareArea.MainConveyor),
@@ -199,11 +195,6 @@ public static class DependencyInjection
                             settings.BoltFeederHardware.CreateIoStatus(io),
                         ],
                         [HardwareArea.InspectionGantry] = [
-                            provider.GetRequiredService<InspectionWork>()
-                                .Station.CreateIoStatus(HardwareArea.InspectionStation, io),
-                            settings.NgCarrierTransferHardware.CreateIoStatus(io),
-                        ],
-                        [HardwareArea.NgCarrierTransfer] = [
                             provider.GetRequiredService<InspectionWork>()
                                 .Station.CreateIoStatus(HardwareArea.InspectionStation, io),
                             settings.NgCarrierTransferHardware.CreateIoStatus(io),

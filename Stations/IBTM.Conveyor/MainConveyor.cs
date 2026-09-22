@@ -52,7 +52,7 @@ public sealed partial class MainConveyor : AutoUnit
 
     public MainConveyorState State => GetState(RunCommandOn);
 
-    private bool IsNgTransferRequired => _units.NgCarrierTransfer && _inspectionWork.RouteToNg;
+    private bool IsNgTransferRequired => _units.Inspection && _inspectionWork.RouteToNg;
 
     public bool UpstreamCarrierAvailable
     {

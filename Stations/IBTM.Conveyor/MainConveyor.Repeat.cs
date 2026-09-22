@@ -12,7 +12,7 @@ public sealed partial class MainConveyor
     {
         get
         {
-            if (_units.Inspection || _units.NgCarrierTransfer
+            if (_units.Inspection
                 || _inspectionWork.Station.CarrierPresent
                 || !_units.BoltFastening && !_units.PcbPlacement)
                 return _inspectionWork;

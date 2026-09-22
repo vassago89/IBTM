@@ -14,7 +14,7 @@ public enum MotionGroup
     [Description("Bolt Fastening")]
     BoltFastening,
 
-    [Description("Inspection Gantry")]
+    [Description("Inspection Station")]
     InspectionGantry,
 }
 

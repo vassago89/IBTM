@@ -28,10 +28,10 @@ public enum HardwareArea
     [Description("Bolt Fastening Station")]
     BoltFasteningStation,
 
-    [Description("Inspection Station")]
+    [Description("Inspection S3 Support")]
     InspectionStation,
 
-    [Description("Inspection Gantry")]
+    [Description("Inspection Station")]
     InspectionGantry,
 
     [Description("NG Carrier Transfer")]

@@ -12,8 +12,6 @@ public sealed class UnitSettings : Setting
     public bool ShootingBoltFeeder { get; set; } = true;
     public bool BoltFastening { get; set; } = true;
     public bool Inspection { get; set; } = true;
-    public bool NgCarrierTransfer { get; set; } = true;
-    public bool NgShuttle { get; set; } = true;
     public bool NgConveyor { get; set; } = true;
 
     public bool IsBoltFeederEnabled(FasteningHead head)
@@ -41,7 +39,7 @@ public sealed class UnitSettings : Setting
                 return BoltFastening;
             // Inspection and NG transfer use the same physical XY gantry.
             case MotionGroup.InspectionGantry:
-                return Inspection || NgCarrierTransfer;
+                return Inspection;
             default:
                 return false;
         }
@@ -58,8 +56,6 @@ public sealed class UnitSettings : Setting
                 || ShootingBoltFeeder
                 || BoltFastening
                 || Inspection
-                || NgCarrierTransfer
-                || NgShuttle
                 || NgConveyor;
         }
     }

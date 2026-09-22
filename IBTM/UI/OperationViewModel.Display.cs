@@ -64,7 +64,7 @@ public partial class OperationViewModel
                 && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } mainRunning
                 && Signals.Outputs[OutputIo.NgConveyorRun].IsOn is { } running
                 ? Inspection.GetState(State.RepeatEnabled,
-                    holdAtShuttle: State.RepeatEnabled && !Units.NgShuttle, live: false,
+                    holdAtShuttle: State.RepeatEnabled && !Units.NgConveyor, live: false,
                     conveyorRunning: running, mainConveyorRunning: mainRunning)
                 : null;
         }
@@ -307,7 +307,7 @@ public partial class OperationViewModel
             {
                 case StationDisplayState.Working when InspectionStateVisible:
                     return InspectionState ?? (Enum)MachineDisplayState.Unavailable;
-                case StationDisplayState.WaitingForTransfer when Units.NgCarrierTransfer && InspectionWork.RouteToNg:
+                case StationDisplayState.WaitingForTransfer when Units.Inspection && InspectionWork.RouteToNg:
                     return InspectionStationState.WaitingForDestination;
                 case StationDisplayState.WaitingForTransfer when Units.MainConveyor
                         && ConveyorState == MainConveyorState.WaitingForRearEquipment:
@@ -324,7 +324,7 @@ public partial class OperationViewModel
         {
             switch (true)
             {
-                case true when !Units.Inspection && !Units.NgCarrierTransfer:
+                case true when !Units.Inspection:
                     return StationDisplayState.Disabled;
                 case true when Alarm is MachineAlarm.Inspection or MachineAlarm.NgCarrierTransfer:
                     return StationDisplayState.IoAlarm;

@@ -108,10 +108,7 @@ public sealed partial class InspectionStation : AutoUnit
                     && (IsEmptyRepeatAllowed || _work.Station.CarrierPresent)
                     && _work.PickupClear)
                 {
-                    if (_work.Completed && !_units.NgCarrierTransfer && _work.Enabled)
-                        _work.StartRepeat(_work.CurrentJob);
-
-                    if (!_work.Enabled || _work.Completed && _units.NgCarrierTransfer)
+                    if (_work.Completed || IsEmptyRepeatAllowed && !_work.Station.CarrierPresent)
                     {
                         if (_work.Station.BackupPlate != StationCylinderState.Up
                             || _work.Station.Stopper != StationCylinderState.Down)
@@ -130,7 +127,7 @@ public sealed partial class InspectionStation : AutoUnit
                     var job = _work.CurrentJob;
                     if (_work.Station.CarrierSeated || _work.AtInspectionPosition)
                         _work.Complete(job);
-                    if (!_units.NgCarrierTransfer && !_work.CarrierSeatingRequested)
+                    if (!_work.CarrierSeatingRequested)
                     {
                         TraceStep(InspectionStationState.Disabled, workId: job.Id,
                             waitingFor: _work.Completed ? "carrier transfer" : "carrier at station");
@@ -297,14 +294,15 @@ public sealed partial class InspectionStation : AutoUnit
         bool live = true,
         bool? conveyorRunning = null)
     {
-        if (!_units.NgCarrierTransfer)
+        if (!_units.Inspection)
             return InspectionStationState.Waiting;
 
         var canReceive = holdAtShuttle
             || _ngConveyor.IsReceiveAllowed(useConveyor: !repeat || _units.NgConveyor, conveyorRunning);
         return GetTransferState(
             NgTransferDestination.Shuttle,
-            canPickUp: (repeat && IsEmptyRepeatAllowed || _work.Station.CarrierSeated
+            canPickUp: (repeat && IsEmptyRepeatAllowed && !_work.Station.CarrierPresent
+                || _work.Station.CarrierSeated
                 && _work.Completed
                 && (repeat || _work.RouteToNg))
                 && canReceive,
