@@ -197,11 +197,14 @@ public sealed partial class BoltFasteningStation
                             if (feeding)
                                 await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
                             await MoveToPickupZAsync(token);
-                            await SetVacuumAsync(FasteningHead.Pickup, true, token, waitForFeedback: feeding);
+                            await SetVacuumAsync(FasteningHead.Pickup, true, token, waitForFeedback: false);
+                            await ReturnFromPickupAsync(token);
+                            if (feeding)
+                                await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, true, token);
                             token.ThrowIfCancellationRequested();
                             _work.RequireCurrentJob(job);
                         }
-                        if (IsAtPickupXY())
+                        else if (IsAtPickupXY())
                             await ReturnFromPickupAsync(token);
                         if (!IsAt(bolt))
                         {
