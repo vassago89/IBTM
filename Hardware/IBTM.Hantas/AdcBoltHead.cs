@@ -11,6 +11,15 @@ namespace IBTM.Hantas;
 public sealed class AdcBoltHead : IBoltHead
 {
     private readonly IAdcBus _bus;
+    private readonly IIoService _io;
+    private readonly InputIo _ready;
+    private readonly InputIo _alarm;
+    private readonly InputIo _fasten;
+    private readonly OutputIo _start;
+    private readonly OutputIo _direction;
+    private readonly OutputIo _reset;
+    private readonly OutputIo[] _presets;
+    private const int ResetPulseMilliseconds = 100;
     private readonly HantasSettings _connection;
     private readonly byte _slaveAddress;
     private readonly ILogger<AdcBoltHead> _logger;
@@ -23,6 +32,8 @@ public sealed class AdcBoltHead : IBoltHead
 
     public AdcBoltHead(
         IAdcBus bus,
+        IIoService io,
+        FasteningHead head,
         HantasSettings connection,
         byte slaveAddress,
         string portName,
@@ -30,6 +41,18 @@ public sealed class AdcBoltHead : IBoltHead
         ILogger<AdcBoltHead>? logger = null)
     {
         _bus = bus;
+        _io = io;
+        (_ready, _alarm, _fasten, _start, _direction, _reset) = head switch
+        {
+            FasteningHead.Pickup => (InputIo.PickupBoltReady, InputIo.PickupBoltAlarm, InputIo.PickupBoltFasten,
+                OutputIo.PickupBoltStart, OutputIo.PickupBoltDirection, OutputIo.PickupBoltReset),
+            FasteningHead.Shooting => (InputIo.ShootingBoltReady, InputIo.ShootingBoltAlarm, InputIo.ShootingBoltFasten,
+                OutputIo.ShootingBoltStart, OutputIo.ShootingBoltDirection, OutputIo.ShootingBoltReset),
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
+        _presets = head == FasteningHead.Pickup
+            ? [OutputIo.PickupBoltPreset1, OutputIo.PickupBoltPreset2, OutputIo.PickupBoltPreset3]
+            : [OutputIo.ShootingBoltPreset1, OutputIo.ShootingBoltPreset2, OutputIo.ShootingBoltPreset3];
         _connection = connection;
         _slaveAddress = slaveAddress;
         _portName = portName;
@@ -37,99 +60,70 @@ public sealed class AdcBoltHead : IBoltHead
         _logger = logger ?? NullLogger<AdcBoltHead>.Instance;
     }
 
-    public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
+    public Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         _bus.Open(_portName, _baudRate);
-        await _bus.ReadDeviceInformationAsync(_slaveAddress, cancellationToken);
-        var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-        RequireReady(status);
-    }
-
-    private void RequireReady(AdcControllerStatus status)
-    {
-        if (status.Alarm != 0)
+        _io.CheckReady();
+        if (_io.GetInput(_alarm) || !_io.GetInput(_ready)
+            || _io.GetInput(_fasten) || _io.GetOutput(_start))
             throw new InvalidOperationException(
-                $"ADC {_portName}/{_slaveAddress} controller error: {AdcControllerError.Describe(status.Alarm)} "
-                + $"READY={status.Ready}, RUN={status.Running}, Preset={status.Preset}. 다음 START 불가.");
-        if (!status.Ready || status.Running)
-            throw new InvalidOperationException(
-                $"ADC {_slaveAddress} must be ready and stopped before starting.");
+                $"ADC {_portName}/{_slaveAddress} I/O not ready: "
+                + $"ALARM={_io.GetInput(_alarm)}, READY={_io.GetInput(_ready)}, "
+                + $"FASTEN={_io.GetInput(_fasten)}, START={_io.GetOutput(_start)}.");
+        return Task.CompletedTask;
     }
 
     public async Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
     {
-        var current = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-        if (current.Alarm != 0)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (preset is < 1 or > 3)
+            throw new ArgumentOutOfRangeException(nameof(preset), "IO bolt presets are 1, 2 and 3.");
+        if (_io.GetInput(_alarm))
         {
-            _logger.LogWarning(
-                "ADC {Port}/{Slave} alarm before next bolt: {Error}. Resetting once before preset selection.",
-                _portName, _slaveAddress, AdcControllerError.Describe(current.Alarm));
+            _logger.LogWarning("ADC {Port}/{Slave} ALARM input ON; resetting once before the next bolt.",
+                _portName, _slaveAddress);
             await ResetAsync(cancellationToken);
-            current = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
         }
-        RequireReady(current);
-        if (current.Preset != preset)
-        {
-            await _bus.SelectPresetAsync(_slaveAddress, preset, cancellationToken);
-            current = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-            RequireReady(current);
-            RequirePreset(current, preset);
-        }
+        await CheckReadyAsync(cancellationToken);
+        _requestedPreset = null;
+        foreach (var output in _presets)
+            _io.SetOutput(output, false);
+        _io.SetOutput(_presets[preset - 1], true);
         _requestedPreset = preset;
-    }
-
-    private void RequirePreset(AdcControllerStatus status, ushort preset)
-    {
-        if (status.Preset != preset)
-            throw new InvalidOperationException(
-                $"ADC {_slaveAddress} preset is {status.Preset}; this fastening requires preset {preset}.");
-    }
-
-    private void RequireDirection(AdcControllerStatus status, AdcDirection direction)
-    {
-        if (status.Direction != direction)
-            throw new InvalidOperationException(
-                $"ADC {_slaveAddress} direction is {status.Direction}; expected {direction}.");
     }
 
     public async Task ResetAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _bus.Open(_portName, _baudRate);
         await StopAsync();
-        var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-        if (status.Alarm != 0)
+        cancellationToken.ThrowIfCancellationRequested();
+        try
         {
-            await _bus.ResetAlarmAsync(_slaveAddress, cancellationToken);
+            _io.SetOutput(_reset, true);
+            await Task.Delay(ResetPulseMilliseconds, cancellationToken);
         }
-
+        finally
+        {
+            _io.SetOutput(_reset, false);
+        }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_connection.ResponseTimeoutMilliseconds);
         try
         {
-            while (true)
-            {
-                status = await _bus.ReadControllerStatusAsync(_slaveAddress, timeout.Token);
-                timeout.Token.ThrowIfCancellationRequested();
-                if (status.Alarm == 0 && status.Ready && !status.Running)
-                    break;
+            while (_io.GetInput(_alarm) || !_io.GetInput(_ready) || _io.GetInput(_fasten))
                 await Task.Delay(StatusPollMilliseconds, timeout.Token);
-            }
         }
-        catch (OperationCanceledException exception) when (
-            timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
             throw new InvalidOperationException(
-                $"ADC {_portName}/{_slaveAddress} RESET 후 준비 상태가 확인되지 않았습니다 "
-                + $"({_connection.ResponseTimeoutMilliseconds} ms). "
-                + $"{AdcControllerError.Describe(status.Alarm)} "
-                + $"READY={status.Ready}, RUN={status.Running}, Preset={status.Preset}. 다음 START 불가.",
+                $"ADC {_portName}/{_slaveAddress} I/O RESET 후 준비 상태가 확인되지 않았습니다 "
+                + $"({_connection.ResponseTimeoutMilliseconds} ms): "
+                + $"ALARM={_io.GetInput(_alarm)}, READY={_io.GetInput(_ready)}, FASTEN={_io.GetInput(_fasten)}.",
                 exception);
         }
-        _logger.LogInformation(
-            "ADC {Port}/{Slave} RESET confirmed: Alarm={Alarm}, Ready={Ready}, RUN={Running}.",
-            _portName, _slaveAddress, status.Alarm, status.Ready, status.Running);
+        _logger.LogInformation("ADC {Port}/{Slave} I/O RESET confirmed: ALARM OFF, READY ON, FASTEN OFF.",
+            _portName, _slaveAddress);
     }
 
     // Manual hold-to-run only. Cancellation stops rotation; it is not a loose-complete result.
@@ -139,17 +133,13 @@ public sealed class AdcBoltHead : IBoltHead
         Exception? failure = null;
         try
         {
-            await _bus.SetDirectionAsync(_slaveAddress, AdcDirection.Loosening, cancellationToken);
-            var ready = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-            RequireReady(ready);
-            RequireDirection(ready, AdcDirection.Loosening);
-            await _bus.StartAsync(_slaveAddress, cancellationToken);
+            _io.SetOutput(_direction, true);
+            _io.SetOutput(_start, true);
             while (true)
             {
-                var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-                if (status.Alarm != 0)
-                    throw new InvalidOperationException(
-                        $"ADC {_portName}/{_slaveAddress} controller error: {AdcControllerError.Describe(status.Alarm)}");
+                if (_io.GetInput(_alarm))
+                    throw new InvalidOperationException($"{_alarm.GetDescription()}=ON during loosening.");
+                _io.CheckReady();
                 await Task.Delay(StatusPollMilliseconds, cancellationToken);
             }
         }
@@ -177,28 +167,58 @@ public sealed class AdcBoltHead : IBoltHead
         AdcFasteningResult? lastResult = null;
         Exception? failure = null;
         var waitingForResult = false;
+        Exception? ioFailure = null;
+        void OnInputChanged(InputIo input, bool value)
+        {
+            if (input == _alarm && value)
+            {
+                Interlocked.CompareExchange(ref ioFailure,
+                    new InvalidOperationException($"{_alarm.GetDescription()}=ON during fastening."), null);
+                try
+                {
+                    _io.SetOutput(_start, false);
+                }
+                catch (Exception exception)
+                {
+                    Interlocked.Exchange(ref ioFailure, exception);
+                    timeout.Cancel();
+                    return;
+                }
+                // Allow the controller's error result to arrive after its ALARM input.
+                timeout.CancelAfter(_connection.ResponseTimeoutMilliseconds);
+            }
+        }
+        void OnIoFaulted(Exception exception)
+        {
+            Interlocked.CompareExchange(ref ioFailure, exception, null);
+            timeout.Cancel();
+        }
+        _io.InputChanged += OnInputChanged;
+        _io.Faulted += OnIoFaulted;
         try
         {
+            await CheckReadyAsync(cancellationToken);
+            if (_requestedPreset is not { } preset)
+                throw new InvalidOperationException("Select an I/O fastening preset before starting.");
+            for (var index = 0; index < _presets.Length; index++)
+            {
+                if (_io.GetOutput(_presets[index]) != (index == preset - 1))
+                    throw new InvalidOperationException($"Preset outputs no longer match preset {preset}.");
+            }
             var current = dryRunMilliseconds > 0
                 ? null : await _bus.ReadFasteningResultAsync(_slaveAddress, cancellationToken);
             lastResult = current;
-            // The pre-START event is a baseline, including a previous bolt's error.
-            var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-            var fastening = (EventCount: current?.EventCount ?? (ushort)0, Preset: _requestedPreset ?? status.Preset);
-            RequireReady(status);
-            RequirePreset(status, fastening.Preset);
-            await _bus.SetDirectionAsync(_slaveAddress, AdcDirection.Fastening, cancellationToken);
-            status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-            RequireReady(status);
-            RequirePreset(status, fastening.Preset);
-            RequireDirection(status, AdcDirection.Fastening);
+            // One pre-START baseline excludes previously received bolt results.
+            var fastening = (EventCount: current?.EventCount ?? (ushort)0, Preset: preset);
+            _io.SetOutput(_direction, false);
+            await CheckReadyAsync(cancellationToken);
 
             if (dryRunMilliseconds == 0)
                 timeout.CancelAfter(_connection.FasteningTimeoutMilliseconds);
             timeout.Token.ThrowIfCancellationRequested();
             started = fastening;
-            // START may reach the controller even if its acknowledgement or feed fails.
-            await _bus.StartAsync(_slaveAddress, timeout.Token);
+            // Own STOP cleanup before requesting START or lowering the head.
+            _io.SetOutput(_start, true);
             if (feedAsync is not null)
             {
                 timeout.Token.ThrowIfCancellationRequested();
@@ -231,6 +251,12 @@ public sealed class AdcBoltHead : IBoltHead
             failure = exception;
             throw;
         }
+        catch (OperationCanceledException) when (ioFailure is not null)
+        {
+            failure = ioFailure;
+            if (!waitingForResult)
+                throw failure;
+        }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             failure = new TimeoutException(
@@ -249,19 +275,22 @@ public sealed class AdcBoltHead : IBoltHead
         }
         finally
         {
+            _io.InputChanged -= OnInputChanged;
+            _io.Faulted -= OnIoFaulted;
             await StopAfterOperationAsync(failure);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        if (dryRunMilliseconds > 0)
-            return new BoltResult(true, null, BoltResultSource.DryRun);
-
+        failure ??= completed is null ? ioFailure : null;
         if (failure is not null)
         {
-            // STOP and RUN OFF have completed. No torque was received for this bolt.
+            // START OFF and FASTEN OFF have completed. No torque was received for this bolt.
             return new BoltResult(false, null,
                 Error: $"ADC {_portName}/{_slaveAddress}: {failure.Message}");
         }
+
+        if (dryRunMilliseconds > 0)
+            return new BoltResult(true, null, BoltResultSource.DryRun);
 
         if (completed is not null)
         {
@@ -288,41 +317,13 @@ public sealed class AdcBoltHead : IBoltHead
 
     public async Task StopAsync()
     {
-        // Once STOP is requested, finish the bounded RUN OFF check even if the caller cancels.
-        for (var attempt = 0; attempt < 2; attempt++)
-        {
-            try
-            {
-                await _bus.StopAsync(_slaveAddress, CancellationToken.None);
-                break;
-            }
-            catch (AdcResponseException exception) when (exception.ErrorCode == 0x03)
-            {
-                _logger.LogWarning(exception,
-                    "ADC {Port}/{Slave} STOP attempt {Attempt} was rejected; checking current RUN feedback.",
-                    _portName, _slaveAddress, attempt + 1);
-                var status = await _bus.ReadControllerStatusAsync(_slaveAddress, CancellationToken.None);
-                _logger.LogWarning(
-                    "ADC {Port}/{Slave} feedback after STOP rejection: RUN={Running}, Ready={Ready}, Alarm={Alarm}, Preset={Preset}, Direction={Direction}.",
-                    _portName, _slaveAddress, status.Running, status.Ready, status.Alarm, status.Preset, status.Direction);
-                if (!status.Running)
-                {
-                    _logger.LogWarning(
-                        "ADC {Port}/{Slave} STOP was rejected but current RUN is OFF; motor stop confirmed. Alarm={Alarm}.",
-                        _portName, _slaveAddress, status.Alarm);
-                    return;
-                }
-                if (attempt == 1)
-                    throw;
-                // STOP is idempotent. A rejected START must never take this retry path.
-                _logger.LogWarning(
-                    "ADC {Port}/{Slave} RUN is still ON; sending STOP once more.", _portName, _slaveAddress);
-            }
-        }
-        var stopped = await WaitForStoppedAsync(CancellationToken.None);
-        _logger.LogInformation(
-            "ADC {Port}/{Slave} STOP confirmed: RUN={Running}, Ready={Ready}, Alarm={Alarm}.",
-            _portName, _slaveAddress, stopped.Running, stopped.Ready, stopped.Alarm);
+        // START OFF is sent even if serial communication has failed.
+        _io.SetOutput(_start, false);
+        // FASTEN is the controller's running input. ADC data alone cannot confirm a stop.
+        await _io.WaitForInputAsync(_fasten, false, _connection.ResponseTimeoutMilliseconds, CancellationToken.None);
+        if (_io.GetInput(_fasten))
+            throw new InvalidOperationException($"{_fasten.GetDescription()} is still ON after STOP.");
+        _logger.LogInformation("ADC {Port}/{Slave} I/O STOP confirmed: FASTEN OFF.", _portName, _slaveAddress);
     }
 
     private async Task StopAfterOperationAsync(Exception? failure)
@@ -333,32 +334,7 @@ public sealed class AdcBoltHead : IBoltHead
         }
         catch (Exception stopError) when (failure is not null)
         {
-            throw new AggregateException("ADC operation and STOP both failed.", failure, stopError);
-        }
-    }
-
-    private async Task<AdcControllerStatus> WaitForStoppedAsync(CancellationToken cancellationToken)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(_connection.ResponseTimeoutMilliseconds);
-        try
-        {
-            while (true)
-            {
-                var status = await _bus.ReadControllerStatusAsync(_slaveAddress, timeout.Token);
-                timeout.Token.ThrowIfCancellationRequested();
-                if (!status.Running)
-                    return status;
-                await Task.Delay(StatusPollMilliseconds, timeout.Token);
-            }
-        }
-        catch (OperationCanceledException exception) when (
-            timeout.IsCancellationRequested
-            && !cancellationToken.IsCancellationRequested)
-        {
-            throw new TimeoutException(
-                $"ADC {_portName}/{_slaveAddress} motor stop was not confirmed within {_connection.ResponseTimeoutMilliseconds} ms (waiting for RUN OFF).",
-                exception);
+            throw new AggregateException("ADC operation and I/O STOP both failed.", failure, stopError);
         }
     }
 
@@ -366,7 +342,7 @@ public sealed class AdcBoltHead : IBoltHead
     {
         switch (true)
         {
-            case true when result.EventCount == pending.EventCount:
+            case true when unchecked((ushort)(result.EventCount - pending.EventCount)) is 0 or >= 32768:
                 return false;
             case true when result.Status == AdcEventStatus.Error:
                 return true;

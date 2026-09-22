@@ -272,8 +272,12 @@ public static class DependencyInjection
             if (settings.Drivers.Bolt == BoltDriver.Virtual)
             {
                 services
-                    .AddKeyedSingleton<IAdcBus, VirtualAdcBus>(FasteningHead.Pickup)
-                    .AddKeyedSingleton<IAdcBus, VirtualAdcBus>(FasteningHead.Shooting);
+                    .AddKeyedSingleton<IAdcBus>(FasteningHead.Pickup,
+                        (provider, _) => new VirtualAdcBus(
+                            provider.GetRequiredService<IIoService>(), FasteningHead.Pickup, settings.Hantas.PickupSlaveAddress))
+                    .AddKeyedSingleton<IAdcBus>(FasteningHead.Shooting,
+                        (provider, _) => new VirtualAdcBus(
+                            provider.GetRequiredService<IIoService>(), FasteningHead.Shooting, settings.Hantas.ShootingSlaveAddress));
             }
             else
             {
@@ -287,6 +291,7 @@ public static class DependencyInjection
                     FasteningHead.Shooting,
                     (provider, _) => new AdcBoltHead(
                         provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting),
+                        provider.GetRequiredService<IIoService>(), FasteningHead.Shooting,
                         settings.Hantas,
                         settings.Hantas.ShootingSlaveAddress,
                         settings.Hantas.ShootingPortName,
@@ -296,6 +301,7 @@ public static class DependencyInjection
                     FasteningHead.Pickup,
                     (provider, _) => new AdcBoltHead(
                         provider.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup),
+                        provider.GetRequiredService<IIoService>(), FasteningHead.Pickup,
                         settings.Hantas,
                         settings.Hantas.PickupSlaveAddress,
                         settings.Hantas.PickupPortName,

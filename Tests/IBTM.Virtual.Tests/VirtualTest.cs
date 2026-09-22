@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Hantas;
 using IBTM.Device;
 using IBTM.Virtual;
 using IBTM.Inspection;
@@ -19,6 +20,17 @@ namespace IBTM.Virtual.Tests;
 
 internal static class VirtualTest
 {
+    public static AdcBoltHead CreateAdcHead(
+        IAdcBus bus, VirtualIoService io, FasteningHead head, HantasSettings settings,
+        byte slave, string port, int baud)
+    {
+        if (bus is VirtualAdcBus virtualBus)
+            virtualBus.BindIo(io, head, slave);
+        else if (bus is AdcControllerStub stub)
+            stub.BindIo(io, head);
+        return new(bus, io, head, settings, slave, port, baud);
+    }
+
     public static PcbSupplier CreateSupplier(IXyMotion motion, IIoService io, PcbSupplySettings settings)
     {
         return new(motion, io, settings, new());
@@ -90,7 +102,10 @@ internal static class VirtualTest
     public static IReadOnlyDictionary<OutputIo, OutputHardware> Outputs(
         params IoHardwareSettings[] settings)
     {
-        return settings.SelectMany(section => section.Outputs).ToDictionary();
+        var outputs = settings.SelectMany(section => section.Outputs).ToDictionary();
+        foreach (var (signal, hardware) in new IoBoltHardwareSettings().Outputs)
+            outputs.TryAdd(signal, hardware);
+        return outputs;
     }
 
     public static async Task HomeAsync(VirtualMotionService motion, double speed)

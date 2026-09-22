@@ -4,12 +4,16 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Device;
+using IBTM.Core;
+using IBTM.Virtual;
 
 namespace IBTM.Virtual.Tests;
 
 // Valid replies with independently controlled RUN feedback and command readback.
 internal sealed class AdcControllerStub : IAdcBus
 {
+    private VirtualIoService? _io;
+    private FasteningHead _head;
     private bool _stopRequested;
     private bool _resetRequested;
 
@@ -80,6 +84,12 @@ internal sealed class AdcControllerStub : IAdcBus
     public Task WriteRegisterAsync(byte slaveAddress, ushort address, ushort value, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ApplyControl(address, value);
+        return Task.CompletedTask;
+    }
+
+    private void ApplyControl(ushort address, ushort value)
+    {
         switch ((AdcRemoteRegister)address)
         {
             case AdcRemoteRegister.AlarmReset:
@@ -113,7 +123,52 @@ internal sealed class AdcControllerStub : IAdcBus
                 }
                 break;
         }
-        return Task.CompletedTask;
+    }
+
+    public void BindIo(VirtualIoService io, FasteningHead head)
+    {
+        _io = io;
+        _head = head;
+        io.OutputChanged += OnOutputChanged;
+        UpdateIo();
+    }
+
+    public void UpdateIo()
+    {
+        var pickup = _head == FasteningHead.Pickup;
+        _io?.SetInputs(
+            (pickup ? InputIo.PickupBoltFasten : InputIo.ShootingBoltFasten, Running),
+            (pickup ? InputIo.PickupBoltReady : InputIo.ShootingBoltReady, !Running && !NotReady && CurrentAlarm == 0),
+            (pickup ? InputIo.PickupBoltAlarm : InputIo.ShootingBoltAlarm, CurrentAlarm != 0));
+    }
+
+    private void OnOutputChanged(OutputIo output, bool value)
+    {
+        var pickup = _head == FasteningHead.Pickup;
+        if (output == (pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart))
+        {
+            ApplyControl((ushort)AdcRemoteRegister.RemoteStart, (ushort)(value ? 1 : 0));
+            if (!value && StopPollsRemaining == 0)
+                Running = false;
+        }
+        else if (output == (pickup ? OutputIo.PickupBoltReset : OutputIo.ShootingBoltReset) && value)
+        {
+            ApplyControl((ushort)AdcRemoteRegister.AlarmReset, 1);
+            if (ResetPollsRemaining >= 0)
+                CurrentAlarm = 0;
+        }
+        else if (output == (pickup ? OutputIo.PickupBoltDirection : OutputIo.ShootingBoltDirection))
+            ApplyControl((ushort)AdcRemoteRegister.Direction, (ushort)(value ? 1 : 0));
+        else if (value)
+        {
+            OutputIo[] presets = pickup
+                ? [OutputIo.PickupBoltPreset1, OutputIo.PickupBoltPreset2, OutputIo.PickupBoltPreset3]
+                : [OutputIo.ShootingBoltPreset1, OutputIo.ShootingBoltPreset2, OutputIo.ShootingBoltPreset3];
+            var index = Array.IndexOf(presets, output);
+            if (index >= 0)
+                ApplyControl((ushort)AdcRemoteRegister.Preset, (ushort)(index + 1));
+        }
+        UpdateIo();
     }
 
     public Task<ushort[]> ReadRegistersAsync(byte slaveAddress, AdcFunctionCode function, ushort address, ushort count, CancellationToken cancellationToken = default)
@@ -170,7 +225,10 @@ internal sealed class AdcControllerStub : IAdcBus
             ? result
             : AdcFasteningResult.FromRegisters(ResultRegisters);
         if (received.Status == AdcEventStatus.Error)
+        {
             CurrentAlarm = received.Error;
+            UpdateIo();
+        }
         return received;
     }
 

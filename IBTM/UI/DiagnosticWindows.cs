@@ -113,6 +113,7 @@ public sealed class DiagnosticWindows
         _adcViewModel = new(
             _pickupAdcBus ?? throw new System.InvalidOperationException("ADC diagnostics are unavailable for IO-only bolt controllers."),
             _shootingAdcBus ?? throw new System.InvalidOperationException("ADC diagnostics are unavailable for IO-only bolt controllers."),
+            _io,
             _hantasSettings,
             _machine,
             _state,

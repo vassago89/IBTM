@@ -46,7 +46,7 @@ public sealed class BoltFasteningTests
         using var pickup = new IoBoltHead(io, FasteningHead.Pickup, controllerSettings);
         var bus = new AdcControllerStub { SuppressAutomaticResults = true };
         IBoltHead head = driver == BoltDriver.Io ? ioHead
-            : new AdcBoltHead(bus, new HantasSettings { FasteningTimeoutMilliseconds = 100 }, 1, "Virtual", 115200);
+            : CreateAdcHead(bus, io, FasteningHead.Shooting, new HantasSettings { FasteningTimeoutMilliseconds = 100 }, 1, "Virtual", 115200);
         var units = new UnitSettings();
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
         var layout = new PcbLayout
@@ -146,8 +146,8 @@ public sealed class BoltFasteningTests
             bus.ResultStatus = AdcEventStatus.Error;
             bus.ResultError = 42;
         }
-        var head = new AdcBoltHead(bus, new(), 1, "Virtual", 115200);
-        var pickup = new AdcBoltHead(new VirtualAdcBus(), new(), 2, "Virtual", 115200);
+        var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
+        var pickup = CreateAdcHead(new VirtualAdcBus(), io, FasteningHead.Pickup, new(), 2, "Virtual", 115200);
         var units = new UnitSettings { ShootingBoltFeeder = !dryRun };
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
         var layout = new PcbLayout
@@ -231,8 +231,8 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         var bus = new VirtualAdcBus();
         var gantry = VirtualTest.CreateFastening(
-            new AdcBoltHead(bus, new(), 2, "Virtual", 115200),
-            new AdcBoltHead(bus, new(), 1, "Virtual", 115200),
+            CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 2, "Virtual", 115200),
+            CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200),
             io, motion, settings, new());
         io.Initialize();
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
@@ -263,8 +263,8 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         var bus = new VirtualAdcBus();
         var station = VirtualTest.CreateFastening(
-            new AdcBoltHead(bus, new(), 2, "Virtual", 115200),
-            new AdcBoltHead(bus, new(), 1, "Virtual", 115200), io, motion, settings, new());
+            CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 2, "Virtual", 115200),
+            CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200), io, motion, settings, new());
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
         io.SetInput(InputIo.ShootingEscapeBackward, true);
         using var stop = new CancellationTokenSource();
@@ -301,7 +301,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         var bus = new VirtualAdcBus();
         var gantry = VirtualTest.CreateFastening(
-            new AdcBoltHead(bus, new(), 2, "Virtual", 115200), new AdcBoltHead(bus, new(), 1, "Virtual", 115200),
+            CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 2, "Virtual", 115200), CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200),
             io, motion, settings, new());
         io.Initialize();
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
@@ -480,7 +480,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         var bus = new VirtualAdcBus();
         var station = CreateFastening(
-            new AdcBoltHead(bus, new(), 2, "Virtual", 115200), new AdcBoltHead(bus, new(), 1, "Virtual", 115200),
+            CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 2, "Virtual", 115200), CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200),
             io, motion, settings, new());
         var forwarded = false;
         io.OutputChanged += (output, on) =>
@@ -849,7 +849,7 @@ public sealed class BoltFasteningTests
         using var pickupIo = new IoBoltHead(io, FasteningHead.Pickup, controllerSettings);
         using var shooting = new IoBoltHead(io, FasteningHead.Shooting, controllerSettings);
         var bus = new AdcControllerStub();
-        IBoltHead pickup = useIo ? pickupIo : new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
+        IBoltHead pickup = useIo ? pickupIo : CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200);
 
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         var layout = new PcbLayout { BoltPoints = [Bolt(1, FasteningHead.Pickup, 10, 10)] };
@@ -971,7 +971,7 @@ public sealed class BoltFasteningTests
                     firstStop.Cancel();
             },
         };
-        var head = new AdcBoltHead(bus, new(), 1, "Virtual", 115200);
+        var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
         var units = new UnitSettings { PickupBoltFeeder = false, ShootingBoltFeeder = false };
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
         var layout = new PcbLayout
@@ -1044,14 +1044,14 @@ public sealed class BoltFasteningTests
         motion.Initialize();
         await HomeAsync(motion, 20_000);
         var bus = new VirtualAdcBus();
-        var pickupHead = new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200);
+        var pickupHead = CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200);
 
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
         var layout = new PcbLayout
         {
             BoltPoints = [Bolt(1, FasteningHead.Pickup, 0, 0)],
         };
-        var station = new BoltFasteningStation(new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200),
+        var station = new BoltFasteningStation(CreateAdcHead(bus, io, FasteningHead.Shooting, new HantasSettings(), 2, "Virtual", 115200),
             pickupHead,
             io,
             motion,
@@ -1181,8 +1181,8 @@ public sealed class BoltFasteningTests
             ],
         };
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
-        var station = new BoltFasteningStation(new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200),
-            new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200),
+        var station = new BoltFasteningStation(CreateAdcHead(bus, io, FasteningHead.Shooting, new HantasSettings(), 2, "Virtual", 115200),
+            CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200),
             io,
             motion,
             settings,
@@ -1327,8 +1327,8 @@ public sealed class BoltFasteningTests
                 afterStop?.Invoke();
         };
         var connection = new HantasSettings { PickupPortName = "Virtual" };
-        var pickupHead = new AdcBoltHead(bus, connection, 1, "Virtual", 115200);
-        var shootingHead = new AdcBoltHead(bus, connection, 2, "Virtual", 115200);
+        var pickupHead = CreateAdcHead(bus, io, FasteningHead.Pickup, connection, 1, "Virtual", 115200);
+        var shootingHead = CreateAdcHead(bus, io, FasteningHead.Shooting, connection, 2, "Virtual", 115200);
         using var motion = new VirtualMotionService(
             settings.Motion,
             horizontalZ: () => settings.SafeZ,
@@ -1537,8 +1537,8 @@ public sealed class BoltFasteningTests
         {
             BoltPoints = [Bolt(1, head, 10, 10)],
         };
-        var station = new BoltFasteningStation(new AdcBoltHead(bus, new HantasSettings(), 2, "Virtual", 115200),
-            new AdcBoltHead(bus, new HantasSettings(), 1, "Virtual", 115200),
+        var station = new BoltFasteningStation(CreateAdcHead(bus, io, FasteningHead.Shooting, new HantasSettings(), 2, "Virtual", 115200),
+            CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200),
             io,
             motion,
             settings,
@@ -1710,7 +1710,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
         var bus = new VirtualAdcBus();
         var station = CreateFastening(
-            new AdcBoltHead(bus, new(), 2, "Virtual", 115200), new AdcBoltHead(bus, new(), 1, "Virtual", 115200), io, motion, settings, reference);
+            CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 2, "Virtual", 115200), CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200), io, motion, settings, reference);
         motion.Initialize();
         await HomeAsync(motion, 20_000);
         await motion.MoveAxisAsync(MotionAxis.Z, 9, 20_000);

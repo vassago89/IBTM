@@ -7,15 +7,17 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using IBTM.Device;
+using IBTM.Core;
 
 namespace IBTM.Virtual;
 
-public sealed class VirtualAdcBus : IAdcBus
+public sealed class VirtualAdcBus : IAdcBus, IDisposable
 {
     private const string VirtualPort = "Virtual";
     private const int FasteningMilliseconds = 250;
 
     private readonly ConcurrentDictionary<byte, Controller> _controllers;
+    private IIoService? _io;
 
     public VirtualAdcBus()
     {
@@ -73,6 +75,83 @@ public sealed class VirtualAdcBus : IAdcBus
     {
         cancellationToken.ThrowIfCancellationRequested();
         var controller = GetController(slaveAddress);
+        ApplyControl(controller, address, value);
+
+        var data = new byte[4];
+        BinaryPrimitives.WriteUInt16BigEndian(data, address);
+        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), value);
+        var frame = AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.WriteSingleRegister, data);
+        Transfer(frame, frame);
+        return Task.CompletedTask;
+    }
+
+    public VirtualAdcBus(IIoService io, FasteningHead head, byte slaveAddress) : this()
+    {
+        BindIo(io, head, slaveAddress);
+    }
+
+    public void BindIo(IIoService io, FasteningHead head, byte slaveAddress)
+    {
+        if (_io is not null && !ReferenceEquals(_io, io))
+            throw new InvalidOperationException("Virtual ADC is already wired to another I/O service.");
+        if (_io is null)
+        {
+            _io = io;
+            _io.OutputChanged += OnOutputChanged;
+        }
+        var controller = GetController(slaveAddress);
+        controller.Head = head;
+        controller.Io = io as VirtualIoService;
+        UpdateIo(controller);
+    }
+
+    public void Dispose()
+    {
+        if (_io is not null)
+            _io.OutputChanged -= OnOutputChanged;
+    }
+
+    private void OnOutputChanged(OutputIo output, bool value)
+    {
+        foreach (var controller in _controllers.Values)
+        {
+            if (controller.Head is not { } head)
+                continue;
+            var pickup = head == FasteningHead.Pickup;
+            if (output == (pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart))
+                ApplyControl(controller, (ushort)AdcRemoteRegister.RemoteStart, (ushort)(value ? 1 : 0));
+            else if (output == (pickup ? OutputIo.PickupBoltReset : OutputIo.ShootingBoltReset) && value)
+                ApplyControl(controller, (ushort)AdcRemoteRegister.AlarmReset, 1);
+            else if (output == (pickup ? OutputIo.PickupBoltDirection : OutputIo.ShootingBoltDirection))
+                ApplyControl(controller, (ushort)AdcRemoteRegister.Direction, (ushort)(value ? 1 : 0));
+            else if (value)
+            {
+                OutputIo[] presets = pickup
+                    ? [OutputIo.PickupBoltPreset1, OutputIo.PickupBoltPreset2, OutputIo.PickupBoltPreset3]
+                    : [OutputIo.ShootingBoltPreset1, OutputIo.ShootingBoltPreset2, OutputIo.ShootingBoltPreset3];
+                var index = Array.IndexOf(presets, output);
+                if (index >= 0)
+                    ApplyControl(controller, (ushort)AdcRemoteRegister.Preset, (ushort)(index + 1));
+            }
+        }
+    }
+
+    private static void UpdateIo(Controller controller)
+    {
+        if (controller.Io is { } io && controller.Head is { } head)
+        {
+            var pickup = head == FasteningHead.Pickup;
+            io.SetInputs(
+                (pickup ? InputIo.PickupBoltFasten : InputIo.ShootingBoltFasten, controller.Running),
+                (pickup ? InputIo.PickupBoltReady : InputIo.ShootingBoltReady,
+                    !controller.Running && controller.Status != AdcEventStatus.Error),
+                (pickup ? InputIo.PickupBoltAlarm : InputIo.ShootingBoltAlarm,
+                    controller.Status == AdcEventStatus.Error));
+        }
+    }
+
+    private static void ApplyControl(Controller controller, ushort address, ushort value)
+    {
         lock (controller)
         {
             controller.Registers[address] = value;
@@ -82,7 +161,8 @@ public sealed class VirtualAdcBus : IAdcBus
                     controller.Status = AdcEventStatus.AlarmReset;
                     break;
                 case AdcRemoteRegister.RemoteStart:
-                    while (controller.AutomaticResults.Reader.TryRead(out _)) { }
+                    if (value != 0)
+                        while (controller.AutomaticResults.Reader.TryRead(out _)) { }
                     var version = ++controller.FasteningVersion;
                     controller.Running = value != 0 && controller.Status != AdcEventStatus.Error;
                     if (value != 0 && controller.Status != AdcEventStatus.Error)
@@ -116,12 +196,7 @@ public sealed class VirtualAdcBus : IAdcBus
             }
         }
 
-        var data = new byte[4];
-        BinaryPrimitives.WriteUInt16BigEndian(data, address);
-        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), value);
-        var frame = AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.WriteSingleRegister, data);
-        Transfer(frame, frame);
-        return Task.CompletedTask;
+        UpdateIo(controller);
     }
 
     public Task<byte[]> ReadDeviceInformationAsync(
@@ -233,6 +308,7 @@ public sealed class VirtualAdcBus : IAdcBus
             for (var index = 0; index < values.Length; index++)
                 values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
             controller.AutomaticResults.Writer.TryWrite(values);
+            UpdateIo(controller);
         }
     }
 
@@ -301,6 +377,8 @@ public sealed class VirtualAdcBus : IAdcBus
             AutomaticResults = Channel.CreateUnbounded<ushort[]>();
         }
 
+        public FasteningHead? Head { get; set; }
+        public VirtualIoService? Io { get; set; }
         public Dictionary<ushort, ushort> Registers { get; }
         public Channel<ushort[]> AutomaticResults { get; }
         public ushort EventCount { get; set; }

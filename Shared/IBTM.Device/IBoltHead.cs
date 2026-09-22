@@ -13,7 +13,7 @@ public enum BoltDriver
     [Description("Virtual")]
     Virtual,
 
-    [Description("ADC communication")]
+    [Description("I/O control + ADC results")]
     HantasAdc,
 
     [Description("IO only")]

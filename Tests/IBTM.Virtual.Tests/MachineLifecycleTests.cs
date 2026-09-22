@@ -705,7 +705,7 @@ public sealed partial class MachineLifecycleTests
 
         using var diagnostics = new AdcProtocolViewModel(
             services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup),
-            services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting), settings.Hantas, machine, state)
+            services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting), services.GetRequiredService<IIoService>(), settings.Hantas, machine, state)
         {
             SelectedHead = selected,
             SlaveText = slave.ToString(),
@@ -739,7 +739,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var bus = new AdcControllerStub { StopPollsRemaining = -1 };
         await machine.InitializeAsync();
-        using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), settings.Hantas, machine, state);
+        using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), io, settings.Hantas, machine, state);
         var testing = diagnostics.StartCommand.ExecuteAsync(null);
         Assert.True(state.IsRunning);
         Assert.Throws<InvalidOperationException>(() => diagnostics.SelectedHead = FasteningHead.Shooting);
@@ -774,7 +774,7 @@ public sealed partial class MachineLifecycleTests
         var shooting = services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Shooting);
         await machine.InitializeAsync();
         using var diagnostics = new AdcProtocolViewModel(
-            pickup, shooting, settings.Hantas, machine, services.GetRequiredService<MachineState>());
+            pickup, shooting, services.GetRequiredService<IIoService>(), settings.Hantas, machine, services.GetRequiredService<MachineState>());
         try
         {
             diagnostics.SelectedPort = "Virtual";

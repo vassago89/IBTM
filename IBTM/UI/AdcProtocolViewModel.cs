@@ -27,6 +27,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private readonly ListCollectionView _frameLogView;
     private string _pausedFrameLogText = "";
 
+    private readonly IIoService _io;
     private readonly IAdcBus _pickupBus;
     private readonly IAdcBus _shootingBus;
     private readonly HantasSettings _settings;
@@ -81,6 +82,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     public AdcProtocolViewModel(
         IAdcBus pickupBus,
         IAdcBus shootingBus,
+        IIoService io,
         HantasSettings settings,
         MachineController machine,
         MachineState state,
@@ -119,6 +121,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         CopyAllLogCommand = new RelayCommand(CopyAllLog);
         RefreshPortsCommand = new RelayCommand(RefreshPorts, () => PortSelectionEnabled);
 
+        _io = io;
         _pickupBus = pickupBus;
         _shootingBus = shootingBus;
         _settings = settings;
@@ -413,6 +416,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     {
         return new(
             Bus,
+            _io, SelectedHead,
             _settings,
             SlaveAddress,
             Bus.PortName,
@@ -475,8 +479,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         try
         {
             operation = BeginCommand(CancellationToken.None);
-            await Bus.ResetAlarmAsync(SlaveAddress, operation.Token);
-            ResultMessage = "Alarm reset sent";
+            await CreateHead().ResetAsync(operation.Token);
+            ResultMessage = "I/O reset confirmed";
         }
         catch (Exception exception)
         {
