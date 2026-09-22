@@ -1099,13 +1099,11 @@ public sealed class BoltFasteningTests
                 throw responseError;
             }
 
-            if (direction == AdcFrameDirection.Transmit
-                && frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart)
-            {
-                if (BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) != 0)
-                    starts++;
-            }
+        };
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupBoltStart && on)
+                starts++;
         };
         bus.SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -1201,20 +1199,18 @@ public sealed class BoltFasteningTests
         var starts = new List<(byte Head, double X, double Y, double Z)>();
         var pickups = 0;
         var tableDescents = 0;
-        bus.FrameTransferred += (direction, frame) =>
+        io.OutputChanged += (output, on) =>
         {
-            if (direction != AdcFrameDirection.Transmit
-                || frame[1] != (byte)AdcFunctionCode.WriteSingleRegister)
+            if (!on)
                 return;
-            var register = (AdcRemoteRegister)BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
-            var value = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4));
-            if (register == AdcRemoteRegister.Preset)
-                presets.Add((frame[0], value));
-            if (register != AdcRemoteRegister.RemoteStart || value == 0)
+            if (output is OutputIo.PickupBoltPreset1 or OutputIo.ShootingBoltPreset1)
+                presets.Add(((byte)(output == OutputIo.PickupBoltPreset1 ? 1 : 2), 1));
+            if (output is not (OutputIo.PickupBoltStart or OutputIo.ShootingBoltStart))
                 return;
+            var head = (byte)(output == OutputIo.PickupBoltStart ? 1 : 2);
             var position = motion.GetPosition();
-            starts.Add((frame[0], position.X, position.Y, position.Z));
-            Assert.Equal(frame[0] == 2 ? BoltCylinderState.Up : BoltCylinderState.Down, gantry.PickupTablePosition);
+            starts.Add((head, position.X, position.Y, position.Z));
+            Assert.Equal(head == 2 ? BoltCylinderState.Up : BoltCylinderState.Down, gantry.PickupTablePosition);
         };
         io.OutputChanged += (output, on) =>
         {
@@ -1311,19 +1307,16 @@ public sealed class BoltFasteningTests
         var presets = new Dictionary<byte, ushort>();
         var tightenings = new List<(byte Head, ushort Preset)>();
         Action? afterStop = null;
-        bus.FrameTransferred += (direction, frame) =>
+        io.OutputChanged += (output, on) =>
         {
-            if (direction != AdcFrameDirection.Transmit
-                || frame[1] != (byte)AdcFunctionCode.WriteSingleRegister)
+            if (on && output is OutputIo.PickupBoltPreset1 or OutputIo.ShootingBoltPreset1)
+                presets[(byte)(output == OutputIo.PickupBoltPreset1 ? 1 : 2)] = 1;
+            if (output is not (OutputIo.PickupBoltStart or OutputIo.ShootingBoltStart))
                 return;
-
-            var register = (AdcRemoteRegister)BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
-            var value = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4));
-            if (register == AdcRemoteRegister.Preset)
-                presets[frame[0]] = value;
-            else if (register == AdcRemoteRegister.RemoteStart && value != 0)
-                tightenings.Add((frame[0], presets[frame[0]]));
-            else if (register == AdcRemoteRegister.RemoteStart)
+            var head = (byte)(output == OutputIo.PickupBoltStart ? 1 : 2);
+            if (on)
+                tightenings.Add((head, presets[head]));
+            else
                 afterStop?.Invoke();
         };
         var connection = new HantasSettings { PickupPortName = "Virtual" };
@@ -1369,21 +1362,19 @@ public sealed class BoltFasteningTests
         motion.PositionChanged += (_, _, _) =>
             movedWithLoweredCylinder |= motion.IsMovingHorizontal
                 && !gantry.IsHorizontalMoveAllowed;
-        bus.FrameTransferred += (direction, frame) =>
+        io.OutputChanged += (output, on) =>
         {
-            if (direction == AdcFrameDirection.Transmit
-                && frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart)
+            if (output is not (OutputIo.PickupBoltStart or OutputIo.ShootingBoltStart))
+                return;
+            var head = (byte)(output == OutputIo.PickupBoltStart ? 1 : 2);
+            if (on)
             {
-                if (BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) != 0)
-                {
-                    Assert.True(gantry.IsHorizontalMoveAllowed); // START precedes descent.
-                    runningHeads.Add(frame[0]);
-                    fasteningHeights.Add((frame[0], motion.GetPosition().Z));
-                }
-                else
-                    runningHeads.Remove(frame[0]);
+                Assert.True(gantry.IsHorizontalMoveAllowed);
+                runningHeads.Add(head);
+                fasteningHeights.Add((head, motion.GetPosition().Z));
             }
+            else
+                runningHeads.Remove(head);
         };
         io.OutputChanged += (output, on) =>
         {

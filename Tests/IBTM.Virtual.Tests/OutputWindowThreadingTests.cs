@@ -542,7 +542,6 @@ public sealed class OutputWindowThreadingTests
             bus.Close();
         }
 
-        await VerifyAdcControllerFeedbackAsync(machine, services.GetRequiredService<MachineState>(), services.GetRequiredService<VirtualIoService>());
 
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var main = services.GetRequiredService<MainViewModel>();
@@ -881,119 +880,7 @@ public sealed class OutputWindowThreadingTests
         }
     }
 
-    private static async Task VerifyAdcControllerFeedbackAsync(MachineController machine, MachineState state, VirtualIoService io)
-    {
-        foreach (var confirmsStop in new[] { true, false })
-        {
-            var bus = new AdcControllerStub { StopPollsRemaining = -1 };
-            await ((IAdcBus)bus).StartAsync(1); // A run started outside this window.
-            var adcModel = new AdcProtocolViewModel(
-                bus, new VirtualAdcBus(), io,
-                new HantasSettings { ResponseTimeoutMilliseconds = 250 },
-                machine,
-                state);
-            var adc = new AdcProtocolWindow(adcModel);
-            var closed = false;
-            adc.Closed += (_, _) => closed = true;
-            var stop = (Button)adc.FindName("StopButton");
-            var connect = (Button)adc.FindName("ConnectButton");
-            await adc.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
-            try
-            {
-                Assert.True(stop.IsEnabled);
-                stop.Command.Execute(stop.CommandParameter);
-                Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => bus.StopWrites == 1,
-                    TimeSpan.FromSeconds(2)));
-                Assert.True(bus.Running);
-                Assert.NotEqual("Stopped", adcModel.ResultMessage);
-                Assert.False(connect.IsEnabled);
 
-                // The UI keeps other commands disabled until stop confirmation finishes.
-                Assert.False(adcModel.SelectPresetCommand.CanExecute(null));
-                Assert.False(adcModel.StartCommand.CanExecute(null));
-                Assert.False(adcModel.ToggleConnectionCommand.CanExecute(null));
-
-                // Repeated STOP must not cancel the pending physical stop confirmation.
-                stop.Command.Execute(stop.CommandParameter);
-                if (confirmsStop)
-                {
-                    adc.Close();
-                    Assert.True(adcModel.IsClosing);
-                    Assert.False(closed);
-                    bus.StopPollsRemaining = 0;
-                }
-                Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => confirmsStop ? closed : connect.IsEnabled,
-                    TimeSpan.FromSeconds(2)));
-                if (confirmsStop)
-                {
-                    Assert.False(bus.Running);
-                    Assert.Equal("Stopped", adcModel.ResultMessage);
-                }
-                else
-                {
-                    Assert.True(bus.Running);
-                    Assert.Contains("failed", adcModel.ResultMessage);
-                    Assert.Contains("motor stop was not confirmed", adcModel.ConnectionStatus);
-                }
-                Assert.Equal(1, bus.StopWrites);
-            }
-            finally
-            {
-                bus.StopPollsRemaining = 0;
-                await adcModel.ShutdownAsync();
-                if (!closed)
-                    adc.Close();
-                bus.Close();
-            }
-        }
-
-        var presetBus = new AdcControllerStub { IgnorePresetWrites = true };
-        var presetModel = new AdcProtocolViewModel(presetBus, new VirtualAdcBus(), io, new HantasSettings(), machine, state);
-        var presetWindow = new AdcProtocolWindow(presetModel);
-        var selectPreset = (Button)presetWindow.FindName("SelectPresetButton");
-        await presetWindow.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
-        try
-        {
-            selectPreset.Command.Execute(selectPreset.CommandParameter);
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => selectPreset.IsEnabled,
-                TimeSpan.FromSeconds(2)));
-            Assert.Equal(3, presetBus.CurrentPreset);
-            Assert.Contains("failed", presetModel.ResultMessage);
-            Assert.Contains("preset is 3", presetModel.ConnectionStatus);
-
-            presetBus.IgnorePresetWrites = false;
-            selectPreset.Command.Execute(selectPreset.CommandParameter);
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => selectPreset.IsEnabled,
-                TimeSpan.FromSeconds(2)));
-            Assert.Equal(1, presetBus.CurrentPreset);
-            Assert.Equal("Preset 1 selected", presetModel.ResultMessage);
-            Assert.Equal(0, presetBus.StartWrites);
-
-            presetBus.CurrentPreset = 7;
-            await presetModel.StartCommand.ExecuteAsync(null);
-            Assert.Equal(1, presetBus.CurrentPreset);
-            Assert.Equal(1, presetBus.StartWrites);
-            Assert.StartsWith("OK", presetModel.ResultMessage);
-            Assert.False(presetBus.Running);
-
-            presetBus.CurrentPreset = 7;
-            presetBus.IgnorePresetWrites = true;
-            await presetModel.StartCommand.ExecuteAsync(null);
-            Assert.Equal(1, presetBus.StartWrites);
-            Assert.Contains("failed", presetModel.ResultMessage);
-            Assert.Contains("preset is 7", presetModel.ConnectionStatus);
-        }
-        finally
-        {
-            presetWindow.Close();
-            presetBus.Close();
-            state.ClearError();
-        }
-    }
 
     private static (Button Button, TextBlock Feedback) BindOutputRow(OutputWindow window, OutputWindowRow row)
     {

@@ -226,13 +226,13 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var failure = new IOException("Bolt head STOP feedback failed.");
+        var failure = new IOException("Bolt head STOP output failed.");
         await machine.InitializeAsync();
         try
         {
             var bus = new AdcControllerStub
             {
-                StopReadFailure = failure,
+                StopWriteFailure = failure,
                 Started = () =>
                 {
                     Assert.True(state.BoltTestRunning);
@@ -240,7 +240,9 @@ public sealed partial class MachineLifecycleTests
                         io.SetInput(InputIo.EmergencyStop1Pressed, true);
                 },
             };
-            using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), services.GetRequiredService<IIoService>(), settings.Hantas, machine, state);
+            var headIo = new VirtualIoService(VirtualTest.Outputs(), new());
+            bus.BindIo(headIo, FasteningHead.Pickup);
+            using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), headIo, settings.Hantas, machine, state);
             await diagnostics.StartCommand.ExecuteAsync(null);
             Assert.Contains("failed", diagnostics.ResultMessage);
             Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.BoltFastening, state.Alarm);

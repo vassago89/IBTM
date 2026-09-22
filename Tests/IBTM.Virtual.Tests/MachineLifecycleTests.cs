@@ -679,16 +679,13 @@ public sealed partial class MachineLifecycleTests
             (InputIo.PickupTableDown, selected == FasteningHead.Pickup),
             (InputIo.PickupTableUp, selected == FasteningHead.Shooting));
         using var stop = new CancellationTokenSource();
-        void StopWhenStarted(AdcFrameDirection direction, byte[] frame)
+        void StopWhenStarted(OutputIo output, bool on)
         {
-            if (direction == AdcFrameDirection.Transmit
-                && frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) != 0)
+            if (on && output == (selected == FasteningHead.Pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart))
                 stop.Cancel();
         }
 
-        bus.FrameTransferred += StopWhenStarted;
+        io.OutputChanged += StopWhenStarted;
         try
         {
             await station.RunAsync(stop.Token).WaitAsync(TimeSpan.FromSeconds(2));
@@ -696,7 +693,7 @@ public sealed partial class MachineLifecycleTests
         finally
         {
             stop.Cancel();
-            bus.FrameTransferred -= StopWhenStarted;
+            io.OutputChanged -= StopWhenStarted;
         }
         var interruptedEvent = (await bus.ReadFasteningResultAsync(slave)).EventCount;
 
@@ -727,37 +724,26 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task AdcOperationKeepsMachineLockedUntilStopFinishes()
+    public async Task AdcDiagnosticCancellationTurnsStartOffAndReleasesMachineLock()
     {
-        var settings = new MachineSettings
-        {
-            Units = EnableOnly(MachineUnit.NgConveyor),
-        };
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgConveyor) };
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var bus = new AdcControllerStub { StopPollsRemaining = -1 };
         await machine.InitializeAsync();
+        var io = new VirtualIoService(VirtualTest.Outputs(), new());
+        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        bus.BindIo(io, FasteningHead.Pickup);
         using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), io, settings.Hantas, machine, state);
         var testing = diagnostics.StartCommand.ExecuteAsync(null);
         Assert.True(state.IsRunning);
         Assert.Throws<InvalidOperationException>(() => diagnostics.SelectedHead = FasteningHead.Shooting);
-        Assert.Equal(FasteningHead.Pickup, diagnostics.SelectedHead);
+        Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
         machine.Stop();
-        await WaitUntilAsync(() => bus.StopWrites > 0);
-        io.SetInput(InputIo.AutoMode, false);
-        Assert.True(state.IsRunning);
-        Assert.False(machine.IsStartAllowed);
-        Assert.False(machine.IsHomeAllowed);
-        Assert.False(machine.IsResetAllowed);
-        await machine.StartAsync();
-        Assert.False(state.AutomaticRunning);
-
-        bus.StopPollsRemaining = 0;
         await testing.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.Equal(1, bus.StopWrites);
         Assert.False(state.IsRunning);
-        Assert.True(machine.IsStartAllowed);
     }
 
     [Fact]

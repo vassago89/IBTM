@@ -308,8 +308,8 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             for (var index = 0; index < values.Length; index++)
                 values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
             controller.AutomaticResults.Writer.TryWrite(values);
-            UpdateIo(controller);
         }
+        UpdateIo(controller);
     }
 
     private static ushort ReadStatusRegister(Controller controller, ushort address)
