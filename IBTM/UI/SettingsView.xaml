@@ -563,7 +563,7 @@
                                             <StackPanel Margin="4,10,0,0">
                                                 <TextBlock Text="RUN Status Poll (ms)" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                    ToolTip="Wait between status responses and the next request during fastening. Read the result once after RUN turns OFF."
+                                                    ToolTip="Interval for the shared controller status monitor, including idle time. Fastening uses these samples and reads the result once after RUN turns OFF."
                                                     Text="{Binding Settings.Hantas.StatusPollMilliseconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                             </StackPanel>
                                         </UniformGrid>

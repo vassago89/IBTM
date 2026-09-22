@@ -48,18 +48,27 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         await _startGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_lifetime is { IsCancellationRequested: false })
+            lock (_stateGate)
             {
-                if (SlaveAddress != slaveAddress)
-                    throw new InvalidOperationException("Close the ADC connection before changing the monitored slave.");
-                return;
+                if (_lifetime is { IsCancellationRequested: false })
+                {
+                    if (SlaveAddress != slaveAddress)
+                        throw new InvalidOperationException("Close the ADC connection before changing the monitored slave.");
+                    return;
+                }
             }
             await _completion.ConfigureAwait(false);
-            _lifetime?.Dispose();
-            _lifetime = new();
-            SlaveAddress = slaveAddress;
-            var token = _lifetime.Token;
-            _completion = Task.Run(() => RunAsync(token), CancellationToken.None);
+            lock (_stateGate)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!_bus.IsOpen)
+                    throw new IOException("Open the ADC connection before starting its status monitor.");
+                _lifetime?.Dispose();
+                _lifetime = new();
+                SlaveAddress = slaveAddress;
+                var token = _lifetime.Token;
+                _completion = Task.Run(() => RunAsync(token), CancellationToken.None);
+            }
         }
         finally
         {
@@ -111,9 +120,11 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
 
     private void Publish(AdcStatusSample sample)
     {
-        Volatile.Write(ref _sample, sample);
-        PropertyChanged?.Invoke(this, new(nameof(Status)));
-        PropertyChanged?.Invoke(this, new(nameof(Error)));
+        var previous = Interlocked.Exchange(ref _sample, sample);
+        if (previous?.Status != sample.Status)
+            PropertyChanged?.Invoke(this, new(nameof(Status)));
+        if (previous?.Error != sample.Error)
+            PropertyChanged?.Invoke(this, new(nameof(Error)));
         Sampled?.Invoke(sample);
     }
 

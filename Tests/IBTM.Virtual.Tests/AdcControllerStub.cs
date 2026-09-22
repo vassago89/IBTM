@@ -16,6 +16,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     private bool _stopRequested;
     private bool _resetRequested;
     private int _runSamples;
+    private int _activeStatusReads;
 
     public AdcControllerStub()
     {
@@ -33,7 +34,9 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public int ResultReads { get; private set; }
     public Queue<bool> RunReplies { get; }
     public bool ResultReadWhileRunning { get; private set; }
-    public IOException? StatusReadFailure { get; init; }
+    public IOException? StatusReadFailure { get; set; }
+    public int StatusReadDelayMilliseconds { get; set; }
+    public bool ConcurrentStatusReadsDetected { get; private set; }
     public int EventReads { get; private set; }
     public int StatusReads { get; private set; }
 
@@ -178,56 +181,67 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         }
     }
 
-    public Task<ushort[]> ReadRegistersAsync(byte slaveAddress, AdcFunctionCode function, ushort address, ushort count, CancellationToken cancellationToken = default)
+    public async Task<ushort[]> ReadRegistersAsync(byte slaveAddress, AdcFunctionCode function, ushort address, ushort count, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         switch (address)
         {
             case (ushort)AdcStatusRegister.Preset:
-                StatusReads++;
-                if (StartWrites > 0 && !_stopRequested)
+                if (Interlocked.Increment(ref _activeStatusReads) > 1)
+                    ConcurrentStatusReadsDetected = true;
+                try
                 {
+                    StatusReads++;
+                    if (StatusReadDelayMilliseconds > 0)
+                        await Task.Delay(StatusReadDelayMilliseconds, cancellationToken);
                     if (StatusReadFailure is { } statusFailure)
                         throw statusFailure;
-                    if (RunReplies.TryDequeue(out var running))
-                        Running = running;
-                    else if (_runSamples++ > 0 && !SuppressCompletion)
-                        Running = false;
-                }
-                if (StopWrites > 0 && StopReadFailure is not null)
-                    throw StopReadFailure;
-                if (_stopRequested)
-                {
-                    StopFeedbackReads++;
-                    if (StopPollsRemaining == 0)
+                    if (StartWrites > 0 && !_stopRequested)
                     {
-                        Running = false;
-                        _stopRequested = false;
+                        if (RunReplies.TryDequeue(out var running))
+                            Running = running;
+                        else if (_runSamples++ > 0 && !SuppressCompletion)
+                            Running = false;
                     }
-                    else if (StopPollsRemaining > 0)
-                        StopPollsRemaining--;
-                }
-                if (_resetRequested)
-                {
-                    if (ResetPollsRemaining == 0)
+                    if (StopWrites > 0 && StopReadFailure is not null)
+                        throw StopReadFailure;
+                    if (_stopRequested)
                     {
-                        CurrentAlarm = 0;
-                        _resetRequested = false;
+                        StopFeedbackReads++;
+                        if (StopPollsRemaining == 0)
+                        {
+                            Running = false;
+                            _stopRequested = false;
+                        }
+                        else if (StopPollsRemaining > 0)
+                            StopPollsRemaining--;
                     }
-                    else if (ResetPollsRemaining > 0)
-                        ResetPollsRemaining--;
+                    if (_resetRequested)
+                    {
+                        if (ResetPollsRemaining == 0)
+                        {
+                            CurrentAlarm = 0;
+                            _resetRequested = false;
+                        }
+                        else if (ResetPollsRemaining > 0)
+                            ResetPollsRemaining--;
+                    }
+                    return [
+                        CurrentPreset, 0, 0, (ushort)(NotReady || Running || CurrentAlarm != 0 ? 0 : 1),
+                        (ushort)(Running ? 1 : 0), CurrentAlarm, (ushort)CurrentDirection,
+                    ];
                 }
-                return Task.FromResult<ushort[]>([
-                    CurrentPreset, 0, 0, (ushort)(NotReady || Running || CurrentAlarm != 0 ? 0 : 1),
-                    (ushort)(Running ? 1 : 0), CurrentAlarm, (ushort)CurrentDirection,
-                ]);
+                finally
+                {
+                    Interlocked.Decrement(ref _activeStatusReads);
+                }
             case (ushort)AdcResultRegister.EventCount when count == 1:
                 EventReads++;
                 if (BaselineReadFailure is { } baselineFailure)
                     throw baselineFailure;
-                return Task.FromResult<ushort[]>([(ushort)StartWrites]);
+                return [(ushort)StartWrites];
             case (ushort)AdcResultRegister.EventCount:
-                return Task.FromResult(ResultRegisters);
+                return ResultRegisters;
         }
         throw new NotSupportedException();
     }
