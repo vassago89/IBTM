@@ -221,7 +221,7 @@ public sealed class AdcBoltHeadTests
     public async Task MissingResultRecordsNgOnlyAfterIoStop()
     {
         var bus = new AdcControllerStub { SuppressCompletion = true, StopPollsRemaining = -1 };
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60, ResultPollingIntervalMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         var result = await head.TightenAsync();
         Assert.False(result.Success);
@@ -237,7 +237,7 @@ public sealed class AdcBoltHeadTests
     public async Task TimeoutAndIoOutputFailureAreBothPreserved()
     {
         var bus = new AdcControllerStub { SuppressCompletion = true, StopWriteFailure = new IOException("I/O write failed") };
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 50, ResponseTimeoutMilliseconds = 60 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 50, ResponseTimeoutMilliseconds = 60, ResultPollingIntervalMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         var error = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
         Assert.IsType<TimeoutException>(error.InnerExceptions[0]);
@@ -271,7 +271,7 @@ public sealed class AdcBoltHeadTests
     public async Task HeadCommandTimeoutStillFailsAndTurnsStartOff()
     {
         var bus = new AdcControllerStub();
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60, ResultPollingIntervalMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync(
             feedAsync: token => Task.Delay(Timeout.Infinite, token)));
@@ -343,7 +343,7 @@ public sealed class AdcBoltHeadTests
     public async Task AlarmWithoutCompletionResultIsSampledAtStop()
     {
         var bus = new AdcControllerStub { SuppressCompletion = true };
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 80 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 80, ResultPollingIntervalMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         var cycle = head.TightenAsync();
         bus.CurrentAlarm = 125;

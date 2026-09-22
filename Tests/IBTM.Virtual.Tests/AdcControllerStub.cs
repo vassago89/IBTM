@@ -210,7 +210,7 @@ internal sealed class AdcControllerStub : IAdcBus
         cancellationToken.ThrowIfCancellationRequested();
         ResultReads++;
         var received = AdcFasteningResult.FromRegisters(ResultRegisters);
-        if (StartWrites == 0 || _stopRequested)
+        if (!Running || _stopRequested)
             return Task.FromResult(received);
         ResultPolls++;
         if (ResultReadFailure is { } failure)
