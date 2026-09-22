@@ -7,7 +7,6 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 using IBTM.Inspection;
-using IBTM.Storage;
 
 namespace IBTM.UI;
 // One captured frame, shared by ROI edits and reinspection. Never moves hardware.
@@ -82,18 +81,6 @@ public partial class InspectionPreview : ObservableObject
         OnPropertyChanged(nameof(HasImage));
         OnPropertyChanged(nameof(BrightnessThreshold));
         OnPropertyChanged(nameof(MinimumBrightPercent));
-    }
-
-    public async Task SetImageAsync(ImageFrame frame, CancellationToken token, PixelRegion? region = null)
-    {
-        var image = await Task.Run(() => CreateBitmap(frame), token);
-        token.ThrowIfCancellationRequested();
-        _frame = frame;
-        _sourceRegion = region;
-        Image = image;
-        ClearResult();
-        RefreshRegion();
-        OnPropertyChanged(nameof(HasImage));
     }
 
     public void SetSavedImage(BitmapSource image, PixelRegion? region)

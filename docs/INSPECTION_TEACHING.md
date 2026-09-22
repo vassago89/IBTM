@@ -1,95 +1,74 @@
 # Inspection 티칭
 
-기준: 2026-09-19. 캐리어 전체 맵과 PCB 영역은 사용하지 않는다.
-**볼트·Data Matrix 포인트마다 티칭 영상 한 장을 저장한다.**
+기준: 2026-09-22. 위치 티칭과 저장 이미지의 검사 설정을 별도 메뉴로 구분한다.
+볼트·Data Matrix 포인트마다 티칭 영상 한 장을 저장한다.
 
-## 티칭 순서
+## 위치 티칭 — Teaching → Inspection Gantry
 
-1. Teaching → Inspection Gantry → Heat Sink 1 또는 2를 선택한다.
-2. 볼트는 왼쪽 **Add Bolt**로 추가한 뒤 **Bolt N Inspection**을 선택한다. 바코드는 **Data Matrix Inspection**을 선택한다.
-3. **Live**로 보면서 조그로 이동해 볼트 또는 Data Matrix를 가운데 십자선에 맞춘다.
-4. 축을 멈추고 **Record Position**을 누른다. 선택 포인트의 영상과 촬영 XY를 저장한다. 다시 Record Position하면 같은 한 장을 교체하며 Live는 유지된다.
-5. 처음 셋업할 때는 아래 **Ruler**로 해상도를 보정한다. 아래 보정 순서를 따른다.
-6. Ruler를 끄면 아래 저장 이미지 가운데 정사각형 ROI가 표시된다.
-   중심에서 멀어지거나 가까워지는 방향으로 드래그해 크기만 조절한다. 이미지 바깥으로는 커지지 않는다.
-   선택 대상이 준비되어 있으면 드래그 종료 시 자동 저장된다. 기본 크기를 쓰거나 대상을 나중에 선택했다면 **Apply ROI**를 누른다.
-7. 다른 위치도 같은 순서로 반복한다. Heat Sink 1과 2는 각각 티칭한다.
+1. Heat Sink 1 또는 2를 선택한다. 볼트는 Add Bolt로 추가하고, Data Matrix는 해당 티칭 항목을 선택한다.
+2. Live로 보면서 조그로 이동해 대상을 가운데 십자선에 맞춘다.
+3. 축을 멈추고 Record Position을 누른다. 선택 포인트의 촬영 XY와 기준 영상을 함께 저장한다.
+4. 같은 포인트를 다시 기록하면 이미지와 좌표를 교체하며 기존 ROI는 유지한다. Live는 계속 표시한다.
 
-왼쪽 볼트/Data Matrix를 선택하면 해당 포인트의 영상·촬영 XY·ROI가 자동으로 표시된다.
-별도의 FOV 선택 콤보박스는 없다. 영상이 없는 포인트에서는 Record Position으로 촬영한다.
-선택만으로 축을 이동하거나 새로 촬영하지 않으며, 다른 포인트의 영상은 교체하지 않는다.
-재촬영 시 기존 ROI 크기를 유지하고 촬영 XY에 맞춰 볼트 좌표도 함께 저장한다.
-카메라 해상도가 바뀌어 기존 ROI가 영상 밖으로 벗어난 경우에는 ROI를 다시 지정한다.
+이 화면은 수동 모드의 위치 티칭 전용이다. ROI·판독 설정·저장 영상 재검사는 Inspection Teaching 메뉴에서 한다.
+좌표 기록은 Record Position만 수행한다. Save, 포인트 선택, ROI 편집, 해상도 변경으로 좌표를 바꾸지 않는다.
 
-## 확인 버튼
+## 검사 설정 — Inspection Teaching
 
-| 버튼 | 동작 |
-| --- | --- |
-| Record Position | 선택 포인트의 영상 한 장과 촬영 XY 저장·교체. 축 이동 없음 |
-| Move & Inspect | 해당 FOV의 원래 촬영 XY로 이동 → 새 촬영 → 선택 ROI 검사 |
-| Reinspect | 마지막 검사 이미지, 없으면 선택한 저장 FOV를 다시 판정. 축 이동 없음 |
-| Read Data Matrix | 저장 FOV의 바코드 ROI만 읽고 바로 결과 표시. 축 이동 없음 |
-| Ruler | 저장 이미지에서 두 점 사이의 원본 픽셀 거리 측정. ROI를 변경하지 않음 |
-| Apply & Save Resolution | 실제 거리 ÷ 픽셀 거리로 해상도 보정, 해상도만 레시피에 저장. 기록된 좌표는 유지 |
+설비 운전 여부와 무관하게 사용할 수 있는 저장 이미지 편집 화면이다. 카메라·축·조명 장치를 직접 호출하지 않는다.
 
-Data Matrix 결과는 화면의 읽기 전용 텍스트 박스에서 복사할 수 있다.
-모션을 쓰는 버튼의 준비 조건과 이미지 재판정 조건은 구분되어 있다.
+1. 레시피를 선택하고 Load Recipe를 누른다. 설비의 활성 레시피 선택은 바뀌지 않는다.
+2. 왼쪽에서 PCB별 Data Matrix 또는 볼트를 선택한다. DB에 저장된 기준 영상과 ROI가 표시된다.
+3. 영상에서 드래그해 중앙 정사각형 ROI의 크기를 조절한다. 기존 비중앙 ROI는 선택만으로 바꾸지 않는다.
+4. 볼트는 Threshold와 Minimum bright (%), Data Matrix는 판독 옵션과 Binary threshold를 조정한다.
+5. Inspect Image로 화면에 불러온 영상을 다시 판정한다. 이 결과는 생산 결과에 기록하지 않는다.
+6. Save Inspection으로 편집한 검사 설정을 저장한다.
 
-볼트 ROI는 밝기 임계값 이상인 픽셀의 비율로 판정한다. **Bright %**를 보며
-저장 FOV 옆에서 밝기 임계값(0–255)과 최소 밝은 비율(화면에서는 0–100%)을 맞추고 **Save**로 저장한다.
-두 값은 선택한 볼트별로 저장한다. 선택·ROI·임계값을 바꾸면 이진화 ROI와 실제 Bright %·OK/NG가 즉시 갱신된다.
-Data Matrix를 선택하면 볼트 조정 패널이 숨겨지고 바코드 읽기 기능이 표시된다.
-임계값과 같은 밝기도 밝은 픽셀로 세며, 측정 비율이 최소 비율과 같으면 합격이다.
+조명은 Data Matrix 1/2와 각 볼트별로 0–255를 설정한다. 빈 값은 Recipe default light를 사용한다.
+저장 이미지 자체의 밝기는 변하지 않는다. 새 밝기는 실제 다음 촬영 또는 Live 시작에 사용한다.
+카메라 노출·게인 설정은 추가하지 않는다.
+
+Data Matrix 옵션은 Try harder, Try inverted, Rotate search, Pure barcode, Binary threshold다.
+Binary threshold가 비어 있으면 자동 임계값을 사용한다.
+볼트는 임계값 이상인 픽셀의 비율이 Minimum bright 이상이면 OK다.
 자세한 계산은 [밝은 면적 비율 검사](../Stations/IBTM.Inspection/README.md)를 참고한다.
 
-## 좌표와 기준핀
+## 저장과 적용 시점
 
-- 검사 위치는 **촬영 당시 XY**다. ROI 중심으로 카메라를 다시 이동시키지 않는다.
-- 새로 추가하거나 수정한 ROI는 영상 중앙의 정사각형이며 크기만 조절한다. 좌표는 원본 이미지 픽셀 기준이다.
-- 기존에 저장한 비중앙 ROI는 선택·검사만으로 바꾸지 않는다. 다시 크기를 조절하거나 Apply ROI를 누르면 중앙 정사각형으로 저장된다.
-- Resolution은 mm/px이며 기존 비중앙 ROI의 중심 오프셋을 볼트 좌표로 환산할 때도 사용한다.
-- 기준핀이 정의되어 있으면 환산 결과를 볼트 체결 좌표로 저장할 수 있다.
-- 기준핀이 없어도 Inspection FOV/ROI 저장과 검사는 가능하다.
-  볼트 체결기의 기준핀·헤드 좌표 준비 조건과 혼동하지 않는다.
-- Inspection용 볼트 포인트도 Record Position으로 영상과 좌표를 함께 기록한다. ROI 변경은 기록된 좌표를 바꾸지 않는다.
+편집은 별도 레시피 복사본에서 한다. Save Inspection이 성공하기 전에는 자동 검사 설정이 바뀌지 않는다.
+DB 저장에 성공하면 활성 레시피와 이름이 같은 경우 다음 검사 포인트부터 즉시 반영한다.
+이미 시작한 포인트는 시작 시 읽은 조명·ROI·판독 설정으로 끝낸다.
 
-## 줄자로 Resolution 보정
+저장 대상은 ROI, 조명, 볼트 판정값, Data Matrix 옵션, 이미지 해상도(mm/px)다.
+저장 직전의 DB 레시피에 이 항목만 합치므로 이후 Record Position으로 기록한 좌표·헤드 지정·기준 이미지와 다른 유닛 설정을 덮어쓰지 않는다.
+다른 레시피를 편집·저장해도 현재 운전 레시피는 바뀌지 않는다.
 
-1. 볼트와 같은 높이에서 실제 거리를 알고 있는 두 기준점이 보이도록 Record Position으로 촬영한다.
-2. **Ruler**를 켜고 첫 점에서 둘째 점까지 드래그한다. 수평·수직·대각선 모두 원본 픽셀 거리를 사용한다.
-   화면 표시 크기는 계산에 영향을 주지 않는다. 드래그 중 Esc를 누르면 측정을 취소한다.
-3. **Actual distance (mm)**에 두 점 사이의 실제 거리를 입력한다.
-   예를 들어 5 mm가 100 px이면 0.05 mm/px이다. 가능한 한 거리가 긴 기준점을 사용하면 점 선택 오차를 줄일 수 있다.
-4. 계산값을 확인하고 **Apply & Save Resolution**을 누른다.
-   해상도는 레시피 공통값이며, 기존 볼트 좌표는 다시 계산하지 않는다.
-   원래 촬영 XY, 이미지, ROI와 Data Matrix 위치는 유지하고 축은 움직이지 않는다.
-   새 해상도를 위치 계산에 반영하려면 해당 포인트에서 Record Position을 다시 실행한다. 저장 오류 표시를 확인한다.
-5. **Ruler**를 끄면 다시 ROI 크기를 조절할 수 있다. 포인트나 티칭 영상을 바꾸면 이전 측정선과 실제 거리 입력은 지워진다.
+## 저장된 생산 결과 이미지 불러오기
 
-이 보정은 픽셀과 실제 길이의 비율을 맞춘다. 카메라 축 방향이나 회전·렌즈 왜곡을 보정하는 기능은 아니다.
-검사는 기존처럼 원래 촬영 XY에서 저장 ROI를 사용한다.
+하단 Saved inspection results의 폴더는 설정된 월별 DB 저장 폴더를 기본으로 사용한다.
+Refresh Results로 PCB 목록을 읽고, Older로 이전 결과를 추가로 불러온다.
+PCB를 선택하고 Load Selected PCB를 누르면 저장된 검사 이미지와 당시 판정이 표시된다.
+같은 레시피를 연 상태에서 Use Image for Reinspection을 누르면 PCB·볼트 번호가 맞는 편집 포인트에 연결한다.
+기준 영상과 해상도가 같은 이미지를 사용한다.
 
-## 화면 표시와 원본
+화면에는 원래 저장된 판정과 재검사 판정을 구분해 표시한다.
+재검사하거나 설정을 저장해도 생산 DB의 결과·검사 이미지와 레시피 기준 이미지는 교체하지 않는다.
+Recipe Image를 누르면 해당 포인트의 기준 영상으로 돌아간다.
 
-위쪽 카메라 화면과 아래 저장 FOV의 가운데 십자선은 티칭 보조 표시다.
-Live 화면에는 저장 영상의 ROI나 이진화 오버레이를 겹치지 않는다. 아래 저장 이미지와 검사 미리보기는 유지한다.
-십자선·ROI 테두리·판정 오버레이·줄자는 `ImageTeachingView` 컨트롤이 그리며,
-원본 프레임이나 DB의 PNG 픽셀에 합성하지 않는다.
+## 줄자와 표시
 
-조명은 Live 또는 촬영 중 켜고 종료·실패 시 끈다. 조명 밝기는 다음 촬영 또는 Live 시작에 적용하며,
-Teaching 상단의 **Save**로 저장한다. **New Recipe**도 같은 위치에 있다.
-노출·게인·프레임 속도는 카메라 설정을 그대로 사용한다. 별도 FPS 제한이나 카메라 파라미터 조정은 하지 않는다.
-상단 영상은 Live 전용이다. 티칭 포인트와 저장 FOV를 선택해도 상단 영상을 바꾸지 않으며, 저장 영상·ROI는 하단에서 편집한다.
-FOV 이미지·ROI 티칭은 저장 동작이 완료됐는지 오류 표시까지 확인한다.
+Ruler를 켜서 두 점 사이를 드래그하고 Distance (mm)를 입력한다.
+Apply Resolution은 실제 거리 ÷ 원본 픽셀 거리로 편집본의 mm/px를 변경한다. Save Inspection으로 저장한다.
+기록된 좌표는 다시 계산하지 않는다. 포인트나 영상을 바꾸면 측정선과 거리 입력은 지워진다.
+
+십자선·ROI 테두리·이진화 오버레이·줄자는 화면 표시이며 원본 PNG 픽셀에 합성하지 않는다.
+Live는 위치 티칭에서만 사용하며 저장 이미지 편집 화면과 공유하지 않는다.
 
 ## 수정 위치
 
-- 화면·버튼: `IBTM/UI/TeachingView.xaml`
-- FOV 선택·ROI·카메라 명령: `IBTM/UI/TeachingViewModel.Camera.cs`
-- 왼쪽 티칭 목록: `IBTM/UI/TeachingViewModel.cs`
-- 검사 위치와 ROI 사용: `Stations/IBTM.Inspection/InspectionStation.Vision.cs`
-- 픽셀 변환/표시: `IBTM/UI/InspectionPreview.cs`, `ImageTeachingView.cs`
+- 위치 티칭/Live: `IBTM/UI/TeachingView.xaml`, `TeachingViewModel.Camera.cs`
+- 검사 편집/결과 이미지: `IBTM/UI/InspectionTeachingView.xaml`, `InspectionTeachingViewModel.cs`
+- 저장 이미지 판정: `IBTM/UI/InspectionPreview.cs`
+- 자동 검사 포인트별 설정: `Stations/IBTM.Inspection/InspectionStation.Vision.cs`
+- 검사 설정 저장: `Shared/IBTM.Storage/RecipeManager.cs`, `MachineStore.cs`, `Recipes/Recipe.cs`
 - DB/이미지: [설정과 저장](SETTINGS_STORAGE.md)
-
-현장에서는 저장 후 재시작, Heat Sink/FOV 전환, Data Matrix 결과,
-낮은 속도의 Move & Inspect를 차례로 확인한다. Virtual 검사로 실제 간섭을 보장하지 않는다.
