@@ -253,11 +253,6 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         throw new NotSupportedException();
     }
 
-    public Task<AdcFasteningResult> ReceiveFasteningResultAsync(byte slaveAddress, CancellationToken cancellationToken = default)
-    {
-        throw new NotSupportedException("This controller only returns results when queried.");
-    }
-
     public Task<AdcFasteningResult> ReadFasteningResultAsync(byte slaveAddress, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

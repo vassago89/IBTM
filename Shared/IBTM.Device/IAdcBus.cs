@@ -44,11 +44,6 @@ public interface IAdcBus
         int durationMilliseconds,
         CancellationToken cancellationToken = default);
 
-    // Wait for one Auto Data Output event; do not send a register-read request.
-    Task<AdcFasteningResult> ReceiveFasteningResultAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default);
-
     async Task<AdcFasteningResult> ReadFasteningResultAsync(
         byte slaveAddress,
         CancellationToken cancellationToken = default)

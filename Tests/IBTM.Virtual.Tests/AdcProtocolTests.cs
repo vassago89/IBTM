@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Channels;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
@@ -133,7 +134,7 @@ public sealed class AdcProtocolTests
     [InlineData(AdcResponseKind.WrongAddress)]
     [InlineData(AdcResponseKind.WriteResponse)]
     [InlineData(AdcResponseKind.ControllerError)]
-    public async Task EventReceiveLogsEachChunkBeforeFrameValidation(AdcResponseKind kind)
+    public async Task RequestReadLogsEachChunkBeforeFrameValidation(AdcResponseKind kind)
     {
         var function = kind switch
         {
@@ -150,17 +151,11 @@ public sealed class AdcProtocolTests
         var frame = AdcRtuFrame.Build((byte)(kind == AdcResponseKind.WrongAddress ? 1 : 0), function, data);
         if (kind == AdcResponseKind.InvalidCrc)
             frame[^1] ^= 0xFF;
-        using var bus = new AdcBus(new());
+        using var stream = new ReplyStream { MaximumRead = 1 };
         var chunks = new List<byte[]>();
-        bus.FrameTransferred += (direction, bytes) =>
-        {
-            Assert.Equal(AdcFrameDirection.Receive, direction);
-            chunks.Add(bytes);
-        };
-        var pending = bus.BeginResponse(0, AdcFunctionCode.ReadInputRegisters, 2);
-        var waiting = bus.WaitForResponseAsync(pending, CancellationToken.None);
-        foreach (var value in frame)
-            bus.ReceiveBytes([value]);
+        stream.Feed(frame);
+        var waiting = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, chunks.Add,
+            0, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 2);
 
         if (kind == AdcResponseKind.Valid)
             Assert.Equal(frame, await waiting.WaitAsync(TimeSpan.FromSeconds(2)));
@@ -186,15 +181,15 @@ public sealed class AdcProtocolTests
     [Fact]
     public async Task Logged8C03ReplyIsInterpretedAsAModbusExceptionForADifferentFunction()
     {
-        using var bus = new AdcBus(new());
-        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
+        using var stream = new ReplyStream();
         // Exact equipment reply: CRC is valid, but the expected exception function was 0x84.
         byte[] frame = [0x01, 0x8C, 0x03, 0x04, 0xC1];
-        bus.ReceiveBytes(frame[..2]);
-        Assert.False(pending.Completion.Task.IsCompleted);
-        bus.ReceiveBytes(frame[2..]);
-        var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(
-            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
+        stream.Feed(frame[..2]);
+        var waiting = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28);
+        Assert.False(waiting.IsCompleted);
+        stream.Feed(frame[2..]);
+        var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() => waiting);
         Assert.Contains("RX=018C0304C1", error.Message);
         Assert.Contains("function=0x8C", error.Message);
         Assert.Contains("base function=0x0C (Get Comm Event Log)", error.Message);
@@ -234,21 +229,19 @@ public sealed class AdcProtocolTests
     public async Task DifferentRtuResponseShapesAreReassembledAndInterpreted(
         byte function, string data, string functionName, string interpretedData)
     {
-        using var bus = new AdcBus(new());
-        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
+        using var stream = new ReplyStream { MaximumRead = 1 };
         var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)function, Convert.FromHexString(data));
-        foreach (var value in frame)
-            bus.ReceiveBytes([value]);
-        var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(
-            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
+        var result = ResultFrame(31);
+        stream.Feed([.. frame, .. result]);
+        var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() =>
+            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28));
         Assert.Contains(functionName, error.Message);
         Assert.Contains(interpretedData, error.Message);
         Assert.Contains($"RX={Convert.ToHexString(frame)}", error.Message);
-        // The next normal reply keeps its boundary and request ownership.
-        var next = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
-        var result = AutomaticFrame(31);
-        bus.ReceiveBytes(result);
-        Assert.Equal(result, await bus.WaitForResponseAsync(next, CancellationToken.None));
+        // Read only the first frame, leaving the following frame intact.
+        Assert.Equal(result, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28));
     }
 
     [Fact]
@@ -260,26 +253,12 @@ public sealed class AdcProtocolTests
             frame, 1, AdcFunctionCode.ReadInputRegisters, 28));
     }
 
-    [Fact]
-    public async Task DifferentFunctionAndResultInOneChunkKeepTheirBoundaries()
-    {
-        using var bus = new AdcBus(new());
-        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
-        var unrelated = AdcRtuFrame.Build(1, (AdcFunctionCode)0x0B, [0, 0, 0, 1]);
-        var result = AutomaticFrame(32);
-        bus.ReceiveBytes([.. unrelated, .. result]);
-        await Assert.ThrowsAsync<AdcUnexpectedResponseException>(
-            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
-        Assert.Equal((ushort)32, (await bus.WaitForFasteningResultAsync(1, CancellationToken.None)).EventCount);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task NonstandardExceptionWithBadCrcOrAddressRemainsACommunicationFailure(bool wrongAddress)
     {
-        using var bus = new AdcBus(new());
-        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
+        using var stream = new ReplyStream();
         byte[] frame = [0x01, 0x8C, 0x03, 0x04, 0xC1];
         if (wrongAddress)
         {
@@ -288,9 +267,10 @@ public sealed class AdcProtocolTests
         }
         else
             frame[^1] ^= 0xFF;
-        bus.ReceiveBytes(frame);
-        var error = await Assert.ThrowsAsync<InvalidDataException>(
-            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
+        stream.Feed(frame);
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28));
         Assert.Contains(wrongAddress ? "address=2" : "CRC is invalid", error.Message);
         Assert.Contains($"RX={Convert.ToHexString(frame)}", error.Message);
         Assert.Contains(wrongAddress ? "CRC valid" : "calculated=", error.Message);
@@ -300,200 +280,182 @@ public sealed class AdcProtocolTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(4)]
-    public async Task CancellationKeepsLoggedBytesAndDoesNotAssignAnOldPartialFrameToTheNextRequest(int receivedCount)
+    public async Task CancelledReadKeepsLoggedBytesAndNextRequestUsesANewBuffer(int receivedCount)
     {
         var oldFrame = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [2, 0x12, 0x34]);
         var nextFrame = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, [2, 0x56, 0x78]);
-        using var bus = new AdcBus(new());
+        using var stream = new ReplyStream();
         using var cancellation = new CancellationTokenSource();
-        var logged = new List<byte>();
-        bus.FrameTransferred += (direction, bytes) => logged.AddRange(bytes);
-        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 2);
-        var waiting = bus.WaitForResponseAsync(pending, cancellation.Token);
+        var logged = new List<byte[]>();
         if (receivedCount > 0)
-            bus.ReceiveBytes(oldFrame[..receivedCount]);
+            stream.Feed(oldFrame[..receivedCount]);
+        var waiting = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, logged.Add,
+            1, AdcFunctionCode.ReadInputRegisters, cancellation.Token, 2);
         Assert.False(waiting.IsCompleted);
-        Assert.Equal(oldFrame[..receivedCount], logged);
+        Assert.Equal(oldFrame[..receivedCount], logged.SelectMany(chunk => chunk).ToArray());
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
 
-        var next = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 2);
-        if (receivedCount > 0)
-        {
-            bus.ReceiveBytes(oldFrame[receivedCount..]);
-            Assert.False(next.Completion.Task.IsCompleted);
-        }
-        bus.ReceiveBytes(nextFrame);
-        Assert.Equal(nextFrame, await bus.WaitForResponseAsync(next, CancellationToken.None));
+        // The exchange discards bytes from an expired request before sending again.
+        stream.Feed(oldFrame[receivedCount..]);
+        stream.DiscardInput();
+        stream.Feed(nextFrame);
+        Assert.Equal(nextFrame, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 2));
     }
 
     [Fact]
-    public async Task RequestedReadRejectionRemainsAnError()
+    public async Task LoggedStatusReadRejectionRemainsAnError()
     {
-        using var bus = new AdcBus(new());
-        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
-        bus.ReceiveBytes([1, 0x84, 3, 3, 1]);
-        await Assert.ThrowsAsync<AdcResponseException>(
-            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
+        using var stream = new ReplyStream();
+        stream.Feed([1, 0x84, 3, 3, 1]);
+        var error = await Assert.ThrowsAsync<AdcResponseException>(() =>
+            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14));
+        Assert.Equal(3, error.ErrorCode);
     }
 
     [Fact]
-    public async Task LateRejectionOfACancelledQueryDoesNotBecomeAFasteningResult()
+    public async Task StatusAndResultRepliesAreReadSeparatelyAndLengthMismatchIsRejected()
     {
-        using var bus = new AdcBus(new());
-        using var cancellation = new CancellationTokenSource();
-        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 14);
-        var response = bus.WaitForResponseAsync(pending, cancellation.Token);
-        byte[] rejection = [1, 0x84, 3, 3, 1];
-        bus.ReceiveBytes(rejection[..2]);
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response);
-        bus.ReceiveBytes([.. rejection[2..], .. AutomaticFrame(11)]);
-        Assert.Equal((ushort)11, (await bus.WaitForFasteningResultAsync(1, CancellationToken.None)).EventCount);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task AutomaticResultCanArriveBeforeOrAfterStartEchoInOneEvent(bool resultFirst)
-    {
-        var automatic = AutomaticFrame(7);
-        var echo = AdcRtuFrame.Build(1, AdcFunctionCode.WriteSingleRegister, [0x0F, 0xA3, 0, 1]);
-        using var bus = new AdcBus(new());
-        var pending = bus.BeginResponse(1, AdcFunctionCode.WriteSingleRegister);
-        bus.ReceiveBytes(resultFirst ? [.. automatic, .. echo] : [.. echo, .. automatic]);
-        Assert.Equal(echo, await bus.WaitForResponseAsync(pending, CancellationToken.None));
-        var result = await bus.WaitForFasteningResultAsync(1, CancellationToken.None);
-        Assert.Equal((ushort)7, result.EventCount);
-        Assert.Equal(AdcEventStatus.FasteningOk, result.Status);
-    }
-
-    [Fact]
-    public async Task AutomaticResultIsBufferedWithoutAnyPendingRequest()
-    {
-        using var bus = new AdcBus(new());
-        var sends = 0;
-        bus.FrameTransferred += (direction, bytes) =>
-        {
-            if (direction == AdcFrameDirection.Transmit)
-                sends++;
-        };
-        var frame = AutomaticFrame(9);
-        bus.ReceiveBytes(frame[..3]);
-        bus.ReceiveBytes(frame[3..]);
-        var result = await bus.WaitForFasteningResultAsync(1, CancellationToken.None);
-        Assert.Equal((ushort)9, result.EventCount);
-        Assert.Equal(0, sends);
-    }
-
-    [Fact]
-    public async Task AutomaticResultIsNotMistakenForStatusResponse()
-    {
-        using var bus = new AdcBus(new());
-        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 14);
+        using var stream = new ReplyStream();
         byte[] statusData = [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
         var status = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, statusData);
-        bus.ReceiveBytes([.. AutomaticFrame(10), .. status]);
-        Assert.Equal(status, await bus.WaitForResponseAsync(pending, CancellationToken.None));
-        Assert.Equal((ushort)10, (await bus.WaitForFasteningResultAsync(1, CancellationToken.None)).EventCount);
+        var result = ResultFrame(10);
+        stream.Feed([.. status, .. result]);
+        Assert.Equal(status, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14));
+        Assert.Equal(result, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28));
+        stream.Feed(result);
+        await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() =>
+            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14));
     }
 
-    [Theory]
-    [InlineData(1)]
-    [InlineData(256)]
-    public async Task StopRejectionBetweenAutomaticEventsKeepsFrameBoundaries(int chunkSize)
+    [Fact]
+    public async Task OversizedFrameIsRejectedBeforeWaitingForItsPayload()
     {
-        using var bus = new AdcBus(new());
-        var first = AutomaticFrame(1);
-        // Header-looking payload bytes must not restart frame collection.
-        first[8] = 1;
-        first[9] = 0x86;
-        first[10] = 3;
-        BinaryPrimitives.WriteUInt16LittleEndian(first.AsSpan(^2), AdcRtuFrame.CalculateCrc(first.AsSpan(0, first.Length - 2)));
-        byte[] rejection = [1, 0x86, 3, 2, 0x61];
-        byte[] incoming = [.. first, .. rejection, .. AutomaticFrame(2)];
-        var pending = bus.BeginResponse(1, AdcFunctionCode.WriteSingleRegister);
-        for (var offset = 0; offset < incoming.Length; offset += chunkSize)
-            bus.ReceiveBytes(incoming[offset..Math.Min(incoming.Length, offset + chunkSize)]);
-        var error = await Assert.ThrowsAsync<AdcResponseException>(
-            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
-        Assert.Equal(3, error.ErrorCode);
-        Assert.Contains("RX=0186030261", error.Message);
-        Assert.Equal((ushort)1, (await bus.WaitForFasteningResultAsync(1, CancellationToken.None)).EventCount);
-        Assert.Equal((ushort)2, (await bus.WaitForFasteningResultAsync(1, CancellationToken.None)).EventCount);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task AutomaticFramesValidateAddressAndCrc(bool wrongAddress)
-    {
-        using var bus = new AdcBus(new());
-        var frame = AutomaticFrame(1);
-        if (wrongAddress)
-        {
-            frame[0] = 2;
-            BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(^2), AdcRtuFrame.CalculateCrc(frame.AsSpan(0, frame.Length - 2)));
-        }
-        else
-            frame[^1] ^= 0xFF;
-        bus.ReceiveBytes(frame);
-        await Assert.ThrowsAsync<InvalidDataException>(
-            () => bus.WaitForFasteningResultAsync(1, CancellationToken.None));
+        using var stream = new ReplyStream();
+        stream.Feed([1, 4, 255]);
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14));
     }
 
     [Fact]
     public async Task RawCaptureKeepsEchoAndLateBytesUntilDeadline()
     {
-        using var bus = new AdcBus(new());
-        var pending = bus.BeginResponse(0, AdcFunctionCode.RequestDeviceInformation, capture: true);
-        var capture = bus.WaitForResponseAsync(pending, CancellationToken.None, 100);
+        using var stream = new ReplyStream();
         byte[] echo = [0, 0x11, 0xC1, 0xBC];
         var frame = AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, [2, 1, 0xFF]);
-        bus.ReceiveBytes(echo);
+        stream.Feed(echo);
+        var capture = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            0, AdcFunctionCode.RequestDeviceInformation, CancellationToken.None, captureMilliseconds: 100);
         await Task.Delay(10);
         Assert.False(capture.IsCompleted);
-        bus.ReceiveBytes([.. frame, 0xAB]);
+        stream.Feed([.. frame, 0xAB]);
         Assert.Equal([.. echo, .. frame, 0xAB], await capture);
     }
 
     [Fact]
-    public async Task RawCaptureCancellationLeavesTheReceiverAvailableForTheNextResponse()
+    public async Task RawCaptureCancellationLeavesTheStreamAvailableForTheNextResponse()
     {
-        using var bus = new AdcBus(new());
+        using var stream = new ReplyStream();
         using var cancellation = new CancellationTokenSource();
-        var pending = bus.BeginResponse(0, AdcFunctionCode.RequestDeviceInformation, capture: true);
-        var capture = bus.WaitForResponseAsync(pending, cancellation.Token, 3000);
         byte[] echo = [0, 0x11, 0xC1, 0xBC];
-        bus.ReceiveBytes(echo);
+        stream.Feed(echo);
+        var chunks = new List<byte[]>();
+        var capture = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, chunks.Add,
+            0, AdcFunctionCode.RequestDeviceInformation, cancellation.Token, captureMilliseconds: 3000);
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => capture);
-        Assert.Equal(echo, pending.Bytes);
-        var next = bus.BeginResponse(0, AdcFunctionCode.RequestDeviceInformation);
+        Assert.Equal(echo, chunks.SelectMany(chunk => chunk).ToArray());
         var frame = AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, [2, 1, 0xFF]);
-        bus.ReceiveBytes(frame);
-        Assert.Equal(frame, await bus.WaitForResponseAsync(next, CancellationToken.None));
+        stream.Feed(frame);
+        Assert.Equal(frame, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            0, AdcFunctionCode.RequestDeviceInformation, CancellationToken.None));
     }
 
     [Fact]
-    public async Task ClosingTheBusReleasesPendingResponseAndAutomaticResultWaits()
+    public async Task ClosingTheStreamReleasesAPendingResponse()
     {
-        using var bus = new AdcBus(new());
-        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 14);
-        var response = bus.WaitForResponseAsync(pending, CancellationToken.None);
-        var result = bus.WaitForFasteningResultAsync(1, CancellationToken.None);
-        bus.Close();
-        await Assert.ThrowsAsync<IOException>(() => response);
-        await Assert.ThrowsAsync<System.Threading.Channels.ChannelClosedException>(() => result);
+        using var stream = new ReplyStream();
+        var waiting = AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14);
+        stream.Dispose();
+        await Assert.ThrowsAsync<EndOfStreamException>(() => waiting);
     }
 
-    private static byte[] AutomaticFrame(ushort eventCount)
+    private static byte[] ResultFrame(ushort eventCount)
     {
         var data = new byte[29];
         data[0] = 28;
         BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(1), eventCount);
         BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(25), (ushort)AdcEventStatus.FasteningOk);
         return AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, data);
+    }
+
+    // Test serial input with independently arriving fragments; never opens hardware.
+    private sealed class ReplyStream : Stream
+    {
+        private readonly Channel<byte[]> _chunks;
+        private ReadOnlyMemory<byte> _remaining;
+
+        public ReplyStream()
+        {
+            _chunks = Channel.CreateUnbounded<byte[]>();
+        }
+
+        public int MaximumRead { get; init; } = 256;
+        public override bool CanRead => true;
+        public override bool CanWrite => false;
+        public override bool CanSeek => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public void Feed(byte[] bytes)
+        {
+            _chunks.Writer.TryWrite(bytes);
+        }
+
+        public void DiscardInput()
+        {
+            _remaining = default;
+            while (_chunks.Reader.TryRead(out _)) { }
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_remaining.IsEmpty)
+            {
+                try
+                {
+                    _remaining = await _chunks.Reader.ReadAsync(cancellationToken);
+                }
+                catch (ChannelClosedException)
+                {
+                    return 0;
+                }
+            }
+            var count = Math.Min(MaximumRead, Math.Min(buffer.Length, _remaining.Length));
+            _remaining[..count].CopyTo(buffer);
+            _remaining = _remaining[count..];
+            return count;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _chunks.Writer.TryComplete();
+            base.Dispose(disposing);
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
+        public override void Write(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
+        public override long Seek(long offset, SeekOrigin origin) { throw new NotSupportedException(); }
+        public override void SetLength(long value) { throw new NotSupportedException(); }
+        public override void Flush() { throw new NotSupportedException(); }
     }
 
     public enum AdcResponseKind

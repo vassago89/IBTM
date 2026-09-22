@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using IBTM.Device;
 using IBTM.Core;
@@ -151,8 +150,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
                     controller.Status = AdcEventStatus.AlarmReset;
                     break;
                 case AdcRemoteRegister.RemoteStart:
-                    if (value != 0)
-                        while (controller.AutomaticResults.Reader.TryRead(out _)) { }
                     var version = ++controller.FasteningVersion;
                     controller.Running = value != 0 && controller.Status != AdcEventStatus.Error;
                     if (value != 0 && controller.Status != AdcEventStatus.Error)
@@ -258,19 +255,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         return Task.FromResult(values);
     }
 
-    public async Task<AdcFasteningResult> ReceiveFasteningResultAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default)
-    {
-        var values = await GetController(slaveAddress).AutomaticResults.Reader.ReadAsync(cancellationToken);
-        var data = new byte[values.Length * 2];
-        for (var index = 0; index < values.Length; index++)
-            BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(index * 2), values[index]);
-        FrameTransferred?.Invoke(AdcFrameDirection.Receive,
-            BuildReadResponse(slaveAddress, AdcFunctionCode.ReadInputRegisters, data));
-        return AdcFasteningResult.FromRegisters(values);
-    }
-
     private Controller GetController(byte slaveAddress)
     {
         return _controllers.GetOrAdd(slaveAddress, static address => new Controller(address));
@@ -293,10 +277,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             controller.ScrewCount++;
             controller.Running = false;
             controller.Status = status;
-            var values = new ushort[AdcFasteningResult.RegisterCount];
-            for (var index = 0; index < values.Length; index++)
-                values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
-            controller.AutomaticResults.Writer.TryWrite(values);
         }
     }
 
@@ -363,13 +343,11 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         {
             SlaveAddress = slaveAddress;
             Registers = [];
-            AutomaticResults = Channel.CreateUnbounded<ushort[]>();
         }
 
         public FasteningHead? Head { get; set; }
         public byte SlaveAddress { get; }
         public Dictionary<ushort, ushort> Registers { get; }
-        public Channel<ushort[]> AutomaticResults { get; }
         public ushort EventCount { get; set; }
         public ushort Preset { get; set; } = 1;
         public ushort ScrewCount { get; set; }
