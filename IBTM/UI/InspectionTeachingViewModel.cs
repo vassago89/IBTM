@@ -105,18 +105,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
         : null;
     public DataMatrixInspectionRecipe? DataMatrix => IsDataMatrixSelected
         ? Draft.BoltInspection.GetDataMatrix(SelectedPoint!.Metadata.HeatSink) : null;
-    public int? LightLevel
-    {
-        get => DataMatrix is { } barcode ? barcode.LightLevel : SelectedBolt?.LightLevel;
-        set
-        {
-            if (DataMatrix is { } barcode)
-                barcode.LightLevel = value;
-            else if (SelectedBolt is { } bolt)
-                bolt.LightLevel = value;
-            OnPropertyChanged();
-        }
-    }
     public double? RulerResolution => Ruler is { PixelLength: >= 1 } ruler && RulerMillimeters is > 0
         && double.IsFinite(RulerMillimeters.Value) ? RulerMillimeters.Value / ruler.PixelLength : null;
 
@@ -193,7 +181,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(IsBoltSelected));
         OnPropertyChanged(nameof(SelectedBolt));
         OnPropertyChanged(nameof(DataMatrix));
-        OnPropertyChanged(nameof(LightLevel));
         UseHistoryImageCommand.NotifyCanExecuteChanged();
     }
 

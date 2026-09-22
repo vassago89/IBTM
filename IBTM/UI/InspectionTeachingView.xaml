@@ -94,12 +94,8 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel IsEnabled="{Binding IsIdle}" Margin="0,0,8,0">
                         <TextBlock Text="Inspection parameters" Style="{StaticResource PanelTitleStyle}"/>
-                        <TextBlock Text="Point light (0–255)" Margin="0,12,0,4"/>
-                        <TextBox Text="{Binding LightLevel, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                        <TextBlock Text="Blank uses the recipe default. Changes affect the next capture after Save."
-                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                        <TextBlock Text="Recipe default light" Margin="0,10,0,4"/>
-                        <TextBox Text="{Binding Draft.BoltInspection.LightLevel, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                        <TextBlock Text="Set lighting and capture reference images in Teaching → Inspection Gantry."
+                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,12,0,0"/>
                         <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="Data Matrix" FontWeight="SemiBold" Margin="0,16,0,8"/>
                             <CheckBox Content="Try harder" IsChecked="{Binding DataMatrix.TryHarder}" Margin="0,0,0,6"/>

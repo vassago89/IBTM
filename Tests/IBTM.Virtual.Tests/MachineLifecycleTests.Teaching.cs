@@ -708,6 +708,68 @@ public sealed partial class MachineLifecycleTests
         await machine.ShutdownAsync();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GantryGrabSavesImageAndLightWithoutChangingPositionOrRoiOrStoppingLive(bool barcode)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        if (barcode)
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
+        else
+            teaching.AddBoltPointCommand.Execute(null);
+        Assert.False(teaching.GrabCommand.CanExecute(null));
+        await teaching.Inspection.MoveToAsync(new() { X = 17, Y = 29 });
+        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        var original = RecordedImage(teaching)!;
+        var region = new PixelRegion(2, 3, 10, 12);
+        original.Metadata.Region = region;
+        var bolt = teaching.SelectedPoint!.Position.Bolt;
+        var originalBoltPosition = (bolt?.X, bolt?.Y);
+        await teaching.Inspection.MoveToAsync(new() { X = 41, Y = 53 });
+        var recipeBeforePreview = JsonSerializer.Serialize(teaching.Recipes.Current);
+        teaching.LiveLightLevel = 67;
+        Assert.Equal(recipeBeforePreview, JsonSerializer.Serialize(teaching.Recipes.Current));
+        await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+
+        await WaitUntilAsync(() => teaching.GrabCommand.CanExecute(null));
+        await teaching.GrabCommand.ExecuteAsync(null);
+
+        Assert.Null(teaching.CameraError);
+        Assert.Null(teaching.RecipeEditor.Error);
+        Assert.True(teaching.Inspection.IsLiveView);
+        var captured = RecordedImage(teaching)!;
+        Assert.NotSame(original.Image, captured.Image);
+        Assert.Equal((17d, 29d), (captured.Metadata.Center.X, captured.Metadata.Center.Y));
+        Assert.Equal(originalBoltPosition, (bolt?.X, bolt?.Y));
+        Assert.Equal(region, captured.Metadata.Region);
+        await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+        Assert.Same(captured.Image, teaching.CameraImage);
+
+        var editor = services.GetRequiredService<InspectionTeachingViewModel>();
+        editor.SelectedRecipeName = teaching.RecipeEditor.ActiveName;
+        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        Assert.Null(editor.Error);
+        var loaded = Assert.Single(editor.Points);
+        Assert.Equal(region, loaded.Metadata.Region);
+        Assert.Equal((17d, 29d), (loaded.Metadata.Center.X, loaded.Metadata.Center.Y));
+        Assert.Equal(67, barcode ? editor.DataMatrix!.LightLevel : editor.SelectedBolt!.LightLevel);
+        Assert.Equal(captured.Image.PixelWidth, loaded.Image.PixelWidth);
+        var recordedPoint = teaching.SelectedPoint;
+        teaching.LiveLightLevel = 99;
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.NgCarrierPickup);
+        teaching.SelectedPoint = recordedPoint;
+        Assert.Equal(67, teaching.LiveLightLevel);
+        await machine.ShutdownAsync();
+    }
+
     [Fact]
     public async Task FailedOrCancelledBoltRecordingKeepsCoordinatesAndImageTogether()
     {

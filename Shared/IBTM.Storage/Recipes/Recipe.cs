@@ -31,15 +31,18 @@ public sealed class Recipe
 
     public void ApplyInspectionSettings(Recipe source)
     {
-        // Only inspection parameters are editable here. Position teaching owns all coordinates.
-        BoltInspection = JsonSerializer.Deserialize<BoltInspectionRecipe>(JsonSerializer.Serialize(source.BoltInspection))!;
+        // Gantry teaching owns coordinates, reference images and capture lighting.
+        var inspection = JsonSerializer.Deserialize<BoltInspectionRecipe>(JsonSerializer.Serialize(source.BoltInspection))!;
+        inspection.LightLevel = BoltInspection.LightLevel;
+        inspection.DataMatrix1.LightLevel = BoltInspection.DataMatrix1.LightLevel;
+        inspection.DataMatrix2.LightLevel = BoltInspection.DataMatrix2.LightLevel;
+        BoltInspection = inspection;
         CarrierImageMillimetersPerPixel = source.CarrierImageMillimetersPerPixel;
         foreach (var bolt in Pcb.BoltPoints)
         {
             var edited = source.Pcb.BoltPoints.SingleOrDefault(item => item.HeatSink == bolt.HeatSink && item.Number == bolt.Number);
             if (edited is null)
                 continue;
-            bolt.LightLevel = edited.LightLevel;
             bolt.BrightnessThreshold = edited.BrightnessThreshold;
             bolt.MinimumBrightRatio = edited.MinimumBrightRatio;
         }

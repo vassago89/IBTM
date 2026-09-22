@@ -193,6 +193,10 @@ public sealed class LightingTests
         await inspector.StartLiveViewAsync(lightLevel: 45);
         Assert.Equal(45, light.LastLevel);
         var offCalls = light.OffCalls;
+        await inspector.ApplyLiveLightAsync(56);
+        Assert.True(inspector.IsLiveView);
+        Assert.Equal(56, light.LastLevel);
+        Assert.Equal(offCalls, light.OffCalls);
         await inspector.CaptureCurrentAsync(keepLiveView: true, lightLevel: 67);
         Assert.True(inspector.IsLiveView);
         Assert.Equal(67, light.LastLevel);
@@ -240,7 +244,7 @@ public sealed class LightingTests
         Assert.Equal(0.5, first.MinimumBrightRatio);
         camera.OnCapture = null;
         var second = await (Task<InspectionCapture>)inspect.Invoke(inspector, [bolt, CancellationToken.None])!;
-        Assert.Equal(87, light.LastLevel);
+        Assert.Equal(23, light.LastLevel);
         Assert.True(second.Success);
         Assert.Equal(0, second.MinimumBrightRatio);
     }

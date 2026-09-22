@@ -358,6 +358,20 @@ public sealed partial class InspectionStation
         }
     }
 
+    public async Task ApplyLiveLightAsync(int? lightLevel, CancellationToken cancellationToken = default)
+    {
+        await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (IsLiveView && _lightChannel is { } channel)
+                await Task.Run(() => TurnLightOn(channel, lightLevel), cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _visionGate.Release();
+        }
+    }
+
     public async Task StopLiveViewAsync()
     {
         await _visionGate.WaitAsync().ConfigureAwait(false);

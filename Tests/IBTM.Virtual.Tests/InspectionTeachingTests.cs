@@ -30,11 +30,9 @@ public sealed class InspectionTeachingTests
         Assert.NotSame(recipes.Current, editor.Draft);
         Assert.True(editor.Preview.HasImage);
         editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
-        editor.LightLevel = 53;
         editor.DataMatrix!.TryInverted = false;
         editor.DataMatrix.BinaryThreshold = 72;
         editor.SelectedPoint = editor.Points.Single(point => !point.Metadata.IsBarcode);
-        editor.LightLevel = 87;
         editor.Preview.BrightnessThreshold = 214;
         editor.Preview.MinimumBrightPercent = 40;
         editor.Draft.CarrierImageMillimetersPerPixel = 0.25;
@@ -42,11 +40,15 @@ public sealed class InspectionTeachingTests
         Assert.Equal(255, recipes.Current.BoltInspection.LightLevel);
         Assert.True(recipes.Current.BoltInspection.DataMatrix1.TryInverted);
 
-        // Position teaching can change after the offline draft was opened.
+        // Gantry coordinates and lights can change after the offline draft was opened.
         var bolt = recipes.Current.Pcb.BoltPoints[0];
         bolt.X = 333;
         bolt.Y = 444;
         bolt.Head = FasteningHead.Pickup;
+        bolt.LightLevel = 87;
+        recipes.Current.BoltInspection.LightLevel = 99;
+        recipes.Current.BoltInspection.DataMatrix1.LightLevel = 53;
+        recipes.Current.BoltInspection.DataMatrix2.LightLevel = 61;
         recipes.Current.CarrierImages[1].Center = new() { X = 333, Y = 444 };
         await recipes.SaveAsync("Inspection");
         editor.Draft.Pcb.BoltPoints[0].X = -999;
@@ -62,6 +64,8 @@ public sealed class InspectionTeachingTests
             Assert.Equal(333, recipe.CarrierImages[1].Center.X);
             Assert.Equal(new PixelRegion(6, 6, 8, 8), recipe.CarrierImages[0].Region);
             Assert.Equal(53, recipe.BoltInspection.DataMatrix1.LightLevel);
+            Assert.Equal(61, recipe.BoltInspection.DataMatrix2.LightLevel);
+            Assert.Equal(99, recipe.BoltInspection.LightLevel);
             Assert.False(recipe.BoltInspection.DataMatrix1.TryInverted);
             Assert.Equal(72, recipe.BoltInspection.DataMatrix1.BinaryThreshold);
             Assert.Equal(87, recipe.Pcb.BoltPoints[0].LightLevel);
@@ -72,7 +76,7 @@ public sealed class InspectionTeachingTests
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 1));
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 2));
         Assert.Same(bolt, recipes.Current.Pcb.BoltPoints[0]);
-        editor.LightLevel = 12;
+        editor.Draft.Pcb.BoltPoints[0].LightLevel = 12;
         Assert.Equal(87, bolt.LightLevel);
 
         // Saving another recipe never replaces the active machine recipe.
@@ -81,7 +85,7 @@ public sealed class InspectionTeachingTests
         Assert.Null(editor.Error);
         Assert.Equal("Other", recipes.Current.Name);
         Assert.Equal(87, bolt.LightLevel);
-        Assert.Equal(12, store.LoadRecipe<Recipe>("Inspection").Pcb.BoltPoints[0].LightLevel);
+        Assert.Equal(87, store.LoadRecipe<Recipe>("Inspection").Pcb.BoltPoints[0].LightLevel);
     }
 
     [Fact]
@@ -94,7 +98,7 @@ public sealed class InspectionTeachingTests
         var editor = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.LoadRecipeCommand.ExecuteAsync(null);
         var before = JsonSerializer.Serialize(recipes.Current);
-        editor.LightLevel = 17;
+        editor.DataMatrix!.BinaryThreshold = 17;
         using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
         await connection.OpenAsync();
         using var command = connection.CreateCommand();

@@ -50,9 +50,12 @@ public partial class TeachingViewModel : ObservableObject
     [ObservableProperty]
     public partial HeatSinkSlot SelectedPcb { get; set; } = HeatSinkSlot.HeatSink1;
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CameraImage))]
     public partial BitmapSource? LiveImage { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CameraImage))]
+    [NotifyCanExecuteChangedFor(nameof(GrabCommand))]
     public partial IReadOnlyList<CarrierImageTileView> CarrierImages { get; set; }
 
     public TeachingViewModel(
@@ -108,6 +111,8 @@ public partial class TeachingViewModel : ObservableObject
         _teachingOutputs = teachingOutputs;
 
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, () => IsToggleLiveViewAllowed);
+        GrabCommand = new AsyncRelayCommand(GrabAsync, () => IsGrabAllowed);
+        ApplyLightCommand = new AsyncRelayCommand(ApplyLightAsync, () => IsApplyLightAllowed);
         AddBoltPointCommand = new RelayCommand(AddBoltPoint, () => IsAddBoltPointAllowed);
         RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint, () => IsRemoveBoltPointAllowed);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsSaveAllowed);
@@ -115,6 +120,8 @@ public partial class TeachingViewModel : ObservableObject
 
         _commands = [
             ToggleLiveViewCommand,
+            GrabCommand,
+            ApplyLightCommand,
             JogCommand,
             HomeCommand,
             StepCommand,
@@ -139,6 +146,7 @@ public partial class TeachingViewModel : ObservableObject
         _ngTransferSettings = ngTransferSettings;
         RecipeEditor = recipeEditor;
         Recipes = recipes;
+        LiveLightLevel = InspectionRecipe.LightLevel;
         CarrierImages = [];
 
 
@@ -153,6 +161,7 @@ public partial class TeachingViewModel : ObservableObject
             if (e.PropertyName != nameof(RecipeEditor.IsSaveAllowed))
                 return;
             TeachCurrentPositionCommand.NotifyCanExecuteChanged();
+            GrabCommand.NotifyCanExecuteChanged();
         };
 
         RefreshTeachingPoints();
@@ -451,7 +460,10 @@ public partial class TeachingViewModel : ObservableObject
         CancelTeaching();
         if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
             _ = RequestCameraStopAsync();
-        OnPropertyChanged(nameof(SelectedLightLevel));
+        LiveLightLevel = (SelectedBarcode is { } pcb
+            ? InspectionRecipe.GetDataMatrix(pcb).LightLevel : newValue?.Position.Bolt?.LightLevel)
+            ?? InspectionRecipe.LightLevel;
+        OnPropertyChanged(nameof(CameraImage));
         SelectPreviousPointCommand.NotifyCanExecuteChanged();
         SelectNextPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(SaveBehavior));

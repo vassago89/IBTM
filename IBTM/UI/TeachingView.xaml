@@ -153,6 +153,7 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
@@ -169,13 +170,26 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
+                            <Button Content="Grab" Command="{Binding GrabCommand}" Margin="0,0,8,0" MinWidth="90"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                ToolTip="Save a new reference image for the recorded point. Coordinates and ROI are preserved. Record Position first for a new point."/>
                             <TextBlock Text="{Binding SelectedPoint.Name}" VerticalAlignment="Center"/>
                         </WrapPanel>
-                        <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
-                            <ui:ImageTeachingView Source="{Binding LiveImage}" ShowCrosshair="True"/>
+                        <StackPanel Grid.Row="1" Margin="0,0,0,8" IsEnabled="{Binding IsTeachingEditAllowed}">
+                            <WrapPanel>
+                                <TextBlock Text="Live light (0–255)" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBox Width="65" Margin="0,0,8,0"
+                                    Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                <Button Content="Apply to Live" Command="{Binding ApplyLightCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
+                            </WrapPanel>
+                            <TextBlock Text="Selecting a point loads its saved light level. Adjust Live light for preview; Grab or Record Position saves it with the image."
+                                TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <Border Grid.Row="2" Background="{StaticResource ImageBackgroundBrush}">
+                            <ui:ImageTeachingView Source="{Binding CameraImage}" ShowCrosshair="True"/>
                         </Border>
-                        <TextBlock Grid.Row="2" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
-                            Text="Align the target with the crosshair, then Record Position. The coordinates and reference image are saved together. Edit ROI and inspection parameters in Inspection Teaching."/>
+                        <TextBlock Grid.Row="3" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
+                            Text="Record Position saves coordinates and an image. Grab updates only the reference image and keeps Live running. In Inspection Teaching, use Load Recipe to load the saved images and adjust ROI / inspection parameters."/>
                     </Grid>
                     <TextBlock Grid.Row="2"
                         Text="{Binding CameraError}"

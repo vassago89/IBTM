@@ -174,7 +174,7 @@ public partial class TeachingViewModel
         if (SelectedPoint?.Position.Mode == TeachMode.Image)
         {
             if (IsRecordImagePositionAllowed)
-                await RecordImagePositionAsync(cancellationToken);
+                await CaptureTeachingImageAsync(recordPosition: true, cancellationToken);
             return;
         }
         var viewToken = ViewCancellation;

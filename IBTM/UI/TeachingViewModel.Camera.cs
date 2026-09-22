@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using System;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
@@ -20,8 +21,53 @@ public partial class TeachingViewModel
     private Task _liveImageUpdate = Task.CompletedTask;
     private Task _cameraStop = Task.CompletedTask;
 
-    public int? SelectedLightLevel => SelectedBarcode is { } pcb
-        ? InspectionRecipe.GetDataMatrix(pcb).LightLevel : SelectedPoint?.Position.Bolt?.LightLevel;
+    [ObservableProperty]
+    public partial int LiveLightLevel { get; set; }
+
+    partial void OnLiveLightLevelChanging(int value)
+    {
+        if (value is < 0 or > 255)
+            throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255.");
+    }
+
+    public BitmapSource? CameraImage => Inspection.IsLiveView ? LiveImage : CarrierImages.FirstOrDefault(tile =>
+        tile.Metadata.HeatSink == SelectedPcb
+        && (IsDataMatrixSelected ? tile.Metadata.IsBarcode
+            : IsBoltSelected && !tile.Metadata.IsBarcode && tile.Metadata.BoltNumber == SelectedPoint!.BoltNumber))?.Image;
+
+    public IAsyncRelayCommand GrabCommand { get; }
+
+    private async Task GrabAsync(CancellationToken cancellationToken)
+    {
+        if (IsGrabAllowed)
+            await CaptureTeachingImageAsync(recordPosition: false, cancellationToken);
+    }
+
+    private bool IsGrabAllowed => IsRecordImagePositionAllowed && SelectedPoint?.Position.HasPosition == true;
+
+    public IAsyncRelayCommand ApplyLightCommand { get; }
+
+    private async Task ApplyLightAsync(CancellationToken cancellationToken)
+    {
+        if (!IsApplyLightAllowed)
+            return;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ViewCancellation);
+        try
+        {
+            CameraError = null;
+            await Inspection.ApplyLiveLightAsync(LiveLightLevel, cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError("Teaching light adjustment failed. {0}", exception);
+            CameraError = exception.Message;
+        }
+    }
+
+    private bool IsApplyLightAllowed => IsInspectionSelected && IsTeachingEditAllowed && Inspection.IsLiveView;
 
     public IAsyncRelayCommand ToggleLiveViewCommand { get; }
 
@@ -40,7 +86,7 @@ public partial class TeachingViewModel
             CameraError = null;
             await _cameraStop;
             cancellation.Token.ThrowIfCancellationRequested();
-            await Inspection.StartLiveViewAsync(cancellation.Token, SelectedLightLevel);
+            await Inspection.StartLiveViewAsync(cancellation.Token, LiveLightLevel);
             if (!State.ManualMode || !IsInspectionSelected)
                 await StopCameraLiveAsync();
         }
@@ -55,7 +101,7 @@ public partial class TeachingViewModel
     }
 
     private bool IsToggleLiveViewAllowed => Inspection.IsLiveView
-        || IsInspectionSelected && State.ManualMode && !TeachCurrentPositionCommand.IsRunning;
+        || IsInspectionSelected && State.ManualMode && !TeachCurrentPositionCommand.IsRunning && !GrabCommand.IsRunning;
 
     private void OnCommandChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -63,9 +109,11 @@ public partial class TeachingViewModel
             return;
         OnPropertyChanged(nameof(IsBusy));
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
+        ApplyLightCommand.NotifyCanExecuteChanged();
     }
 
-    private async Task RecordImagePositionAsync(CancellationToken cancellationToken)
+    private async Task CaptureTeachingImageAsync(bool recordPosition, CancellationToken cancellationToken)
     {
         var point = SelectedPoint;
         var bolt = point?.Position.Bolt;
@@ -73,6 +121,7 @@ public partial class TeachingViewModel
         if (bolt is null && !barcode)
             return;
         var pcb = SelectedPcb;
+        var lightLevel = LiveLightLevel;
         var commandGroup = ActiveMotionGroup;
         var viewToken = ViewCancellation;
         var activeToken = cancellationToken;
@@ -92,20 +141,22 @@ public partial class TeachingViewModel
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
-                throw new InvalidOperationException("Wait for the saved teaching images to load before recording a position.");
+                throw new InvalidOperationException("Wait for the saved teaching images to load before capturing.");
             await _cameraStop;
             operation.Token.ThrowIfCancellationRequested();
-            var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, SelectedLightLevel);
+            var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, lightLevel);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             var images = CarrierImages.ToList();
             var index = images.FindIndex(tile => tile.Metadata.HeatSink == pcb
                 && (barcode ? tile.Metadata.IsBarcode : !tile.Metadata.IsBarcode && tile.Metadata.BoltNumber == bolt!.Number));
             var previous = index >= 0 ? images[index].Metadata : null;
+            if (!recordPosition && previous is null)
+                throw new InvalidOperationException("Record Position first, then use Grab to update its reference image.");
             var metadata = new CarrierImageTile
             {
                 Number = previous?.Number ?? (images.Count == 0 ? 1 : images.Max(tile => tile.Metadata.Number) + 1),
-                Center = captured.Center,
+                Center = recordPosition ? captured.Center : previous!.Center,
                 HeatSink = pcb,
                 BoltNumber = bolt?.Number,
                 IsBarcode = barcode,
@@ -120,7 +171,13 @@ public partial class TeachingViewModel
 
             var previousX = bolt?.X;
             var previousY = bolt?.Y;
-            if (bolt is not null)
+            var dataMatrix = barcode ? InspectionRecipe.GetDataMatrix(pcb) : null;
+            var previousLight = dataMatrix is not null ? dataMatrix.LightLevel : bolt!.LightLevel;
+            if (dataMatrix is not null)
+                dataMatrix.LightLevel = lightLevel;
+            else
+                bolt!.LightLevel = lightLevel;
+            if (recordPosition && bolt is not null)
             {
                 // The bolt is centered on the camera crosshair. ROI pixels do not alter its machine XY.
                 bolt.X = captured.Center.X;
@@ -131,10 +188,17 @@ public partial class TeachingViewModel
                 CarrierImages = images;
                 RefreshPointPositions();
             }
-            else if (bolt is not null)
+            else
             {
-                bolt.X = previousX;
-                bolt.Y = previousY;
+                if (dataMatrix is not null)
+                    dataMatrix.LightLevel = previousLight;
+                else
+                    bolt!.LightLevel = previousLight;
+                if (recordPosition && bolt is not null)
+                {
+                    bolt.X = previousX;
+                    bolt.Y = previousY;
+                }
             }
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
@@ -217,6 +281,9 @@ public partial class TeachingViewModel
 
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
+        ApplyLightCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CameraImage));
     }
 
     private async Task HandlePreviewFailureAsync(Exception exception)
