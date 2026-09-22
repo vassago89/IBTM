@@ -729,8 +729,13 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         var original = RecordedImage(teaching)!;
+        var editor = services.GetRequiredService<InspectionTeachingViewModel>();
+        editor.SelectedRecipeName = teaching.RecipeEditor.ActiveName;
+        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        var previousEditorImage = editor.Preview.Image;
         var region = new PixelRegion(2, 3, 10, 12);
         original.Metadata.Region = region;
+        editor.SelectedPoint!.Metadata.Region = region;
         var bolt = teaching.SelectedPoint!.Position.Bolt;
         var originalBoltPosition = (bolt?.X, bolt?.Y);
         await teaching.Inspection.MoveToAsync(new() { X = 41, Y = 53 });
@@ -753,10 +758,10 @@ public sealed partial class MachineLifecycleTests
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
         Assert.Same(captured.Image, teaching.CameraImage);
 
-        var editor = services.GetRequiredService<InspectionTeachingViewModel>();
-        editor.SelectedRecipeName = teaching.RecipeEditor.ActiveName;
-        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        editor.Activate();
+        await editor.RefreshImagesCommand.ExecutionTask!;
         Assert.Null(editor.Error);
+        Assert.NotSame(previousEditorImage, editor.Preview.Image);
         var loaded = Assert.Single(editor.Points);
         Assert.Equal(region, loaded.Metadata.Region);
         Assert.Equal((17d, 29d), (loaded.Metadata.Center.X, loaded.Metadata.Center.Y));

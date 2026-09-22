@@ -39,6 +39,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         HistoryDirectory = history.Directory;
         SelectedRecipeName = recipes.Current.Name;
         LoadRecipeCommand = new AsyncRelayCommand(LoadRecipeAsync);
+        RefreshImagesCommand = new AsyncRelayCommand(RefreshImagesAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         InspectCommand = new AsyncRelayCommand(InspectAsync);
         RefreshHistoryCommand = new AsyncRelayCommand(RefreshHistoryAsync);
@@ -49,7 +50,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
         MeasureCommand = new RelayCommand<ImageRuler>(Measure);
         ApplyResolutionCommand = new RelayCommand(ApplyResolution, () => RulerResolution is > 0);
-        _commands = [LoadRecipeCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
+        _commands = [LoadRecipeCommand, RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
     }
@@ -58,6 +59,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public InspectionPreview Preview { get; }
     public ObservableCollection<PcbRecord> Records { get; }
     public IAsyncRelayCommand LoadRecipeCommand { get; }
+    public IAsyncRelayCommand RefreshImagesCommand { get; }
     public IAsyncRelayCommand SaveCommand { get; }
     public IAsyncRelayCommand InspectCommand { get; }
     public IAsyncRelayCommand RefreshHistoryCommand { get; }
@@ -113,8 +115,13 @@ public partial class InspectionTeachingViewModel : ObservableObject
         try
         {
             RecipeNames = _recipes.GetRecipeNames();
-            if (!IsLoaded && !LoadRecipeCommand.IsRunning && RecipeNames.Contains(SelectedRecipeName))
-                _ = LoadRecipeCommand.ExecuteAsync(null);
+            if (!LoadRecipeCommand.IsRunning && !RefreshImagesCommand.IsRunning)
+            {
+                if (IsLoaded)
+                    _ = RefreshImagesCommand.ExecuteAsync(null);
+                else if (RecipeNames.Contains(SelectedRecipeName))
+                    _ = LoadRecipeCommand.ExecuteAsync(null);
+            }
         }
         catch (Exception exception)
         {
@@ -139,9 +146,19 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private async Task LoadRecipeAsync(CancellationToken token)
     {
+        await LoadRecipeImagesAsync(SelectedRecipeName, preserveEdits: false, token);
+    }
+
+    private async Task RefreshImagesAsync(CancellationToken token)
+    {
+        if (IsLoaded)
+            await LoadRecipeImagesAsync(Draft.Name, preserveEdits: true, token);
+    }
+
+    private async Task LoadRecipeImagesAsync(string? name, bool preserveEdits, CancellationToken token)
+    {
         Error = null;
         Message = null;
-        var name = SelectedRecipeName;
         if (string.IsNullOrWhiteSpace(name))
             return;
         try
@@ -158,13 +175,21 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 return (Recipe: recipe, Images: images);
             }, token);
             token.ThrowIfCancellationRequested();
+            var selected = SelectedPoint?.Metadata;
+            if (preserveEdits)
+                loaded.Recipe.ApplyInspectionSettings(Draft);
             SelectedPoint = null;
             Draft.ReplaceWith(loaded.Recipe);
             Points = loaded.Images;
             IsLoaded = true;
             OnPropertyChanged(nameof(Draft));
-            SelectedPoint = Points.FirstOrDefault();
-            Message = Points.Count == 0 ? "No recorded inspection positions. Record positions in Teaching first." : "Recipe images loaded.";
+            SelectedPoint = (preserveEdits && selected is not null
+                ? Points.FirstOrDefault(point => point.Metadata.HeatSink == selected.HeatSink
+                    && point.Metadata.IsBarcode == selected.IsBarcode && point.Metadata.BoltNumber == selected.BoltNumber)
+                : null) ?? Points.FirstOrDefault();
+            Message = Points.Count == 0 ? "No recorded inspection positions. Record positions in Teaching first."
+                : preserveEdits ? "Latest recipe images loaded. ROI and inspection edits are preserved."
+                : "Recipe images loaded.";
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)

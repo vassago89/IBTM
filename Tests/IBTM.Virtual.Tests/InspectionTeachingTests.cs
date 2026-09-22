@@ -284,11 +284,44 @@ public sealed class InspectionTeachingTests
         Assert.False(editor.UseHistoryImageCommand.CanExecute(null));
     }
 
-    private static async Task<byte[]> SaveRecipeAsync(MachineStore store)
+    [Fact]
+    public async Task ReopeningTeachingRefreshesGrabbedPixelsAndKeepsSelectionAndUnsavedInspectionEdits()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        await SaveRecipeAsync(store);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        var editor = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        editor.SelectedPoint = editor.Points.Single(point => point.Metadata.BoltNumber == 1);
+        editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
+        editor.Preview.BrightnessThreshold = 173;
+        editor.Preview.MinimumBrightPercent = 42;
+        editor.Draft.BoltInspection.DataMatrix1.TryInverted = false;
+        var previousImage = editor.Preview.Image;
+        var png = await SaveRecipeAsync(store, brightness: 90);
+
+        editor.Activate();
+        await editor.RefreshImagesCommand.ExecutionTask!;
+
+        Assert.Null(editor.Error);
+        Assert.Equal(1, editor.SelectedPoint!.Metadata.BoltNumber);
+        Assert.NotSame(previousImage, editor.Preview.Image);
+        Assert.All(InspectionPreview.CreateFrame(editor.Preview.Image!).Pixels, pixel => Assert.Equal(90, pixel));
+        Assert.Equal(new PixelRegion(6, 6, 8, 8), editor.SelectedPoint.Metadata.Region);
+        Assert.Equal(173, editor.Preview.BrightnessThreshold);
+        Assert.Equal(42, editor.Preview.MinimumBrightPercent);
+        Assert.False(editor.Draft.BoltInspection.DataMatrix1.TryInverted);
+        await editor.SaveCommand.ExecuteAsync(null);
+        Assert.Null(editor.Error);
+        Assert.Equal(png, store.LoadRecipeImage("Inspection", 2));
+    }
+
+    private static async Task<byte[]> SaveRecipeAsync(MachineStore store, byte brightness = 0)
     {
         var png = await Task.Run(() =>
         {
-            var bitmap = InspectionPreview.CreateBitmap(new ImageFrame(20, 20, 60, new byte[1200]));
+            var bitmap = InspectionPreview.CreateBitmap(new ImageFrame(20, 20, 60, Enumerable.Repeat(brightness, 1200).ToArray()));
             using var stream = new MemoryStream();
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bitmap, null, null, null));

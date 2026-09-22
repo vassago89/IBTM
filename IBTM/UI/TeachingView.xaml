@@ -189,7 +189,7 @@
                             <ui:ImageTeachingView Source="{Binding CameraImage}" ShowCrosshair="True"/>
                         </Border>
                         <TextBlock Grid.Row="3" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
-                            Text="Record Position saves coordinates and an image. Grab updates only the reference image and keeps Live running. In Inspection Teaching, use Load Recipe to load the saved images and adjust ROI / inspection parameters."/>
+                            Text="Record Position saves coordinates and an image. Grab updates only the reference image and keeps Live running. Inspection Teaching automatically refreshes the saved images when opened; ROI and inspection edits are preserved."/>
                     </Grid>
                     <TextBlock Grid.Row="2"
                         Text="{Binding CameraError}"
