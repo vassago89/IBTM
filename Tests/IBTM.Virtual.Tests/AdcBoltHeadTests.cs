@@ -106,9 +106,9 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task UnrecognizedReplyContinuesQueriesUntilANewResultWithoutAnotherStart()
+    public async Task UnexpectedReplyContinuesQueriesUntilANewResultWithoutAnotherStart()
     {
-        var bus = new AdcControllerStub { ResultReadFailure = UnrecognizedResultReply() };
+        var bus = new AdcControllerStub { ResultReadFailure = UnexpectedResultReply() };
         // A normal but unchanged result after 8C/03 must still be ignored.
         bus.ResultReplies.Enqueue(AdcFasteningResult.FromRegisters(
             [0, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]));
@@ -128,11 +128,11 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task RepeatedUnrecognizedRepliesDoNotExtendTheFasteningDeadline()
+    public async Task RepeatedUnexpectedRepliesDoNotExtendTheFasteningDeadline()
     {
         var bus = new AdcControllerStub
         {
-            ResultReadFailure = UnrecognizedResultReply(),
+            ResultReadFailure = UnexpectedResultReply(),
             ResultReadFailuresRemaining = -1,
         };
         var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 150, ResultPollingIntervalMilliseconds = 10 });
@@ -142,7 +142,7 @@ public sealed class AdcBoltHeadTests
         Assert.Null(result.Torque);
         Assert.Null(result.Controller);
         Assert.Contains("timed out after 150 ms", result.Error);
-        Assert.Contains($"unrecognized 8C/03 replies={bus.ResultPolls}", result.Error);
+        Assert.Contains($"unmatched RTU replies={bus.ResultPolls}", result.Error);
         Assert.True(bus.ResultPolls >= 2);
         Assert.Equal(1, bus.StartWrites);
         Assert.Equal(1, bus.StopWrites);
@@ -150,11 +150,11 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task CancellationAfterUnrecognizedReplyStillTurnsStartOff()
+    public async Task CancellationAfterUnexpectedReplyStillTurnsStartOff()
     {
         var bus = new AdcControllerStub
         {
-            ResultReadFailure = UnrecognizedResultReply(),
+            ResultReadFailure = UnexpectedResultReply(),
             ResultReadFailuresRemaining = -1,
         };
         var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 10 });
@@ -170,20 +170,20 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task UnrecognizedBaselineCannotStartFastening()
+    public async Task UnexpectedBaselineCannotStartFastening()
     {
-        var bus = new AdcControllerStub { BaselineReadFailure = UnrecognizedResultReply() };
+        var bus = new AdcControllerStub { BaselineReadFailure = UnexpectedResultReply() };
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
-        await Assert.ThrowsAsync<AdcUnrecognizedResponseException>(() => head.TightenAsync());
+        await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() => head.TightenAsync());
         Assert.Equal(0, bus.StartWrites);
         Assert.Equal(0, bus.ResultPolls);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
-    private static AdcUnrecognizedResponseException UnrecognizedResultReply()
+    private static AdcUnexpectedResponseException UnexpectedResultReply()
     {
-        return Assert.Throws<AdcUnrecognizedResponseException>(() => AdcBus.ValidateResponse(
+        return Assert.Throws<AdcUnexpectedResponseException>(() => AdcBus.ValidateResponse(
             [0x01, 0x8C, 0x03, 0x04, 0xC1], 1, AdcFunctionCode.ReadInputRegisters, 28));
     }
 

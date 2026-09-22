@@ -150,8 +150,18 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 int length;
                 if ((function & ExceptionFunctionMask) != 0)
                     length = 5;
-                else if (function == (byte)AdcFunctionCode.WriteSingleRegister)
+                else if (function is 0x05 or 0x06 or 0x08 or 0x0B or 0x0F or 0x10)
                     length = 8;
+                else if (function == 0x07)
+                    length = 5;
+                else if (function == 0x16)
+                    length = 10;
+                else if (function == 0x18)
+                {
+                    if (_receiveBuffer.Count < 4)
+                        return;
+                    length = (_receiveBuffer[2] << 8 | _receiveBuffer[3]) + 6;
+                }
                 else
                 {
                     if (_receiveBuffer.Count < 3)
@@ -179,6 +189,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                         else
                         {
                             ValidateResponse(frame, pending.SlaveAddress, pending.Function, pending.ByteCount);
+                            _logger.LogDebug("ADC {Port} RTU response: {Interpretation}", PortName, DescribeResponse(frame));
                             pending.Completion.TrySetResult(frame);
                         }
                     }
@@ -443,8 +454,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
                     + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes)}; "
                     + $"RX chunks={receivedChunks}, bytes={receivedBytes.Length}.";
-                if (exception is AdcUnrecognizedResponseException unrecognized)
-                    throw new AdcUnrecognizedResponseException($"{detail} {unrecognized.Message}", unrecognized);
+                if (exception is AdcUnexpectedResponseException unexpected)
+                    throw new AdcUnexpectedResponseException($"{detail} {unexpected.Message}", unexpected);
                 _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
                 if (exception is AdcResponseException rejection)
                     throw new AdcResponseException(rejection.ErrorCode, $"{detail} {rejection.Message}", rejection);
@@ -472,27 +483,76 @@ public sealed class AdcBus : IAdcBus, IDisposable
     internal static void ValidateResponse(byte[] frame, byte slaveAddress,
         AdcFunctionCode function, int? expectedByteCount = null)
     {
-        if ((frame[1] & ExceptionFunctionMask) != 0)
+        // Integrity and request ownership are separate: a different function is not a broken frame.
+        ValidateFrame(frame, slaveAddress, frame[1]);
+        var isException = (frame[1] & ExceptionFunctionMask) != 0;
+        var expectedFunction = isException ? (byte)((byte)function | ExceptionFunctionMask) : (byte)function;
+        if (frame[1] != expectedFunction)
         {
-            var expectedFunction = (byte)((byte)function | ExceptionFunctionMask);
-            var isUnrecognizedResultReply = function == AdcFunctionCode.ReadInputRegisters
-                && expectedByteCount == AdcFasteningResult.RegisterCount * 2
-                && frame is [_, 0x8C, 0x03, _, _];
-            ValidateFrame(frame, slaveAddress, isUnrecognizedResultReply ? frame[1] : expectedFunction);
-            if (isUnrecognizedResultReply)
-            {
-                // Experimental handling of the equipment trace only; do not infer NG or completion.
-                throw new AdcUnrecognizedResponseException(
-                    $"ADC unrecognized result reply: function=0x8C, data=0x03; "
-                    + $"expected=0x{expectedFunction:X2}; CRC valid; RX={Convert.ToHexString(frame)}.");
-            }
+            throw new AdcUnexpectedResponseException(
+                $"ADC response does not match request function=0x{(byte)function:X2}; "
+                + $"expected response=0x{expectedFunction:X2}. {DescribeResponse(frame)}");
+        }
+        if (isException)
+        {
             var code = (AdcExceptionCode)frame[2];
             throw new AdcResponseException(frame[2],
-                $"ADC controller returned {code} (0x{(byte)code:X2}); RX={Convert.ToHexString(frame)}.");
+                $"ADC controller returned {code} (0x{(byte)code:X2}). {DescribeResponse(frame)}");
         }
-        ValidateFrame(frame, slaveAddress, (byte)function);
         if (expectedByteCount is { } expected && frame[2] != expected)
-            throw new InvalidDataException($"ADC returned {frame[2]} data bytes; expected {expected}.");
+            throw new AdcUnexpectedResponseException(
+                $"ADC returned {frame[2]} data bytes; expected {expected}. {DescribeResponse(frame)}");
+    }
+
+    internal static string DescribeResponse(byte[] frame)
+    {
+        var isException = (frame[1] & ExceptionFunctionMask) != 0;
+        var function = (byte)(frame[1] & ~ExceptionFunctionMask);
+        var name = function switch
+        {
+            0x01 => "Read Coils",
+            0x02 => "Read Discrete Inputs",
+            0x03 => "Read Holding Registers",
+            0x04 => "Read Input Registers",
+            0x05 => "Write Single Coil",
+            0x06 => "Write Single Register",
+            0x07 => "Read Exception Status",
+            0x08 => "Diagnostics",
+            0x0B => "Get Comm Event Counter",
+            0x0C => "Get Comm Event Log",
+            0x0F => "Write Multiple Coils",
+            0x10 => "Write Multiple Registers",
+            0x11 => "Report Server ID",
+            0x14 => "Read File Record",
+            0x15 => "Write File Record",
+            0x16 => "Mask Write Register",
+            0x17 => "Read/Write Multiple Registers",
+            0x18 => "Read FIFO Queue",
+            0x2B => "Encapsulated Interface Transport",
+            _ => "Vendor-specific / unspecified function",
+        };
+        var interpretation = $"Modbus RTU interpretation: address={frame[0]}, function=0x{frame[1]:X2}, "
+            + $"base function=0x{function:X2} ({name}), kind={(isException ? "exception" : "normal")}";
+        if (isException)
+        {
+            var meaning = frame[2] switch
+            {
+                0x01 => "Illegal Function",
+                0x02 => "Illegal Data Address",
+                0x03 => "Illegal Data Value",
+                0x04 => "Server Device Failure",
+                0x05 => "Acknowledge",
+                0x06 => "Server Device Busy",
+                0x08 => "Memory Parity Error",
+                0x0A => "Gateway Path Unavailable",
+                0x0B => "Gateway Target Device Failed to Respond",
+                _ => "Vendor-specific / unspecified exception",
+            };
+            interpretation += $", exception=0x{frame[2]:X2} ({meaning}); ADC firmware meaning unconfirmed";
+        }
+        else
+            interpretation += $", data={Convert.ToHexString(frame.AsSpan(2, frame.Length - 4))}";
+        return $"{interpretation}; CRC valid; RX={Convert.ToHexString(frame)}.";
     }
 
     internal sealed class PendingResponse

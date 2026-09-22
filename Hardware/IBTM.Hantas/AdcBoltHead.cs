@@ -184,7 +184,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         (ushort EventCount, ushort Preset)? started = null;
         AdcFasteningResult? completed = null;
         AdcFasteningResult? lastResult = null;
-        var unrecognizedReplies = 0;
+        var unexpectedReplies = 0;
         Exception? failure = null;
         var waitingForResult = false;
         Exception? ioFailure = null;
@@ -239,26 +239,26 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
                     lastResult = result;
                     if (IsCompleted(result, fastening))
                     {
-                        if (unrecognizedReplies > 0)
+                        if (unexpectedReplies > 0)
                         {
                             _logger.LogInformation(
-                                "ADC {Port}/{Slave}: new fastening result after {Count} unrecognized 8C/03 replies; "
+                                "ADC {Port}/{Slave}: new fastening result after {Count} unmatched RTU replies; "
                                 + "start event={StartEvent}, event={Event}, status={Status}, preset={Preset}, error={Error}.",
-                                _portName, _slaveAddress, unrecognizedReplies, fastening.EventCount,
+                                _portName, _slaveAddress, unexpectedReplies, fastening.EventCount,
                                 result.EventCount, result.Status, result.Preset, result.Error);
                         }
                         completed = result;
                         break;
                     }
                 }
-                catch (AdcUnrecognizedResponseException exception)
+                catch (AdcUnexpectedResponseException exception)
                 {
-                    unrecognizedReplies++;
+                    unexpectedReplies++;
                     _logger.LogWarning(
-                        "ADC {Port}/{Slave}: unrecognized result reply #{Count}; "
+                        "ADC {Port}/{Slave}: unmatched RTU reply #{Count}; "
                         + "continuing result queries within the original fastening timeout; "
                         + "start event={StartEvent}, last event={LastEvent}. {Detail}",
-                        _portName, _slaveAddress, unrecognizedReplies, fastening.EventCount,
+                        _portName, _slaveAddress, unexpectedReplies, fastening.EventCount,
                         lastResult?.EventCount, exception.Message);
                 }
                 catch (AdcResponseException exception)
@@ -286,7 +286,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
                 + $"direction={lastResult?.Direction}, error={lastResult?.Error}; "
-                + $"unrecognized 8C/03 replies={unrecognizedReplies}.");
+                + $"unmatched RTU replies={unexpectedReplies}.");
             if (!waitingForResult)
                 throw failure;
         }
