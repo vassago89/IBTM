@@ -21,6 +21,34 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MachineStoreTests
 {
+    [Fact]
+    public async Task InspectionWaitingAndPickupAreSavedIndependently()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var legacy = JsonSerializer.Deserialize<NgCarrierTransferSettings>(
+            """{"PickupSafeX":157.283,"CarrierPickupPosition":{"X":999,"Y":456.789}}""")!;
+        store.SaveSettings([legacy]);
+
+        var settings = await MachineSettings.LoadAsync(store);
+        var transfer = settings.NgCarrierTransfer;
+        Assert.Equal((157.283, 456.789), (transfer.WaitingPosition!.X, transfer.WaitingPosition.Y));
+        var waiting = new IBTM.UI.TeachingPoint(transfer.GetTeachingPositions()
+            .Single(point => point.Target == TeachingTarget.InspectionWaiting));
+        var pickup = new IBTM.UI.TeachingPoint(transfer.GetTeachingPositions()
+            .Single(point => point.Target == TeachingTarget.NgCarrierPickup));
+
+        pickup.Teach(160, 460, 0);
+        Assert.Equal((157.283, 456.789), (waiting.X, waiting.Y));
+        waiting.Teach(120, 400, 0);
+        Assert.Equal((160, 460), (pickup.X, pickup.Y));
+        await settings.SaveAsync(store);
+
+        var reloaded = (await MachineSettings.LoadAsync(store)).NgCarrierTransfer;
+        Assert.Equal((120, 400), (reloaded.WaitingPosition!.X, reloaded.WaitingPosition.Y));
+        var reloadedPickup = reloaded.GetCarrierPickupPosition()!;
+        Assert.Equal((160, 460), (reloadedPickup.X, reloadedPickup.Y));
+    }
+
     [Theory]
     [InlineData("MainConveyorExitCarrierDetected")]
     [InlineData("80")]

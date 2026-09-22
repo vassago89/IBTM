@@ -231,7 +231,12 @@ public sealed class NgHandoffTests
             new NgShuttleHardwareSettings(), new NgConveyorHardwareSettings(), new ConveyorHardwareSettings()), new());
         io.Initialize();
         var units = new UnitSettings { MainConveyor = false };
-        var settings = new NgCarrierTransferSettings { PickupSafeX = 0, ShuttlePlacePosition = new() { X = 10, Y = 10 } };
+        var settings = new NgCarrierTransferSettings
+        {
+            PickupSafeX = 0,
+            WaitingPosition = new(),
+            ShuttlePlacePosition = new() { X = 10, Y = 10 },
+        };
         var motionSettings = new InspectionGantrySettings();
         var operations = new OperationCancellation();
         var motion = new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);

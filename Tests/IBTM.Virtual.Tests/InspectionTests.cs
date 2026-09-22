@@ -208,7 +208,7 @@ public sealed class InspectionTests
             gantrySettings.Motion,
             operations,
             hasZ: false);
-        var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0 };
+        var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0, WaitingPosition = new() };
         var units = new UnitSettings { MainConveyor = false };
         var recipes = new RecipeManager(OpenMachineStore(), new());
         var work = new InspectionWork(io, motion, transferSettings, units);

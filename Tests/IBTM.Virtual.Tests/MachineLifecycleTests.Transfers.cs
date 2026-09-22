@@ -334,7 +334,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReverseNgPickupReturnsToPickupWaitingPosition(bool hasWaitingPosition)
+    public async Task ReverseNgPickupReturnsToPickupThenSeparateWaitingPosition(bool hasWaitingPosition)
     {
         await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
@@ -343,6 +343,7 @@ public sealed partial class MachineLifecycleTests
         var gantry = services.GetRequiredService<InspectionStation>();
         var pickup = services.GetRequiredService<InspectionStation>();
         var io = services.GetRequiredService<VirtualIoService>();
+        settings.WaitingPosition = hasWaitingPosition ? new() { X = 15, Y = 30 } : null;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         // Seed the shuttle through a real virtual transfer so the carrier retains
@@ -393,7 +394,6 @@ public sealed partial class MachineLifecycleTests
         if (!hasWaitingPosition)
         {
             var position = settings.GetCarrierPickupPosition()!;
-            settings.PickupSafeX = null;
             await Assert.ThrowsAsync<InvalidOperationException>(() => move.ClearStationAsync(CancellationToken.None));
             Assert.Empty(feedback.AxisMoves);
             Assert.True(gantry.IsAt(position));
@@ -403,9 +403,9 @@ public sealed partial class MachineLifecycleTests
         var movedAfterReturn = false;
         gantry.Feedback.PositionChanged += (x, y, z) => movedAfterReturn = true;
         await move.ClearStationAsync(CancellationToken.None);
-        Assert.False(movedAfterReturn);
+        Assert.True(movedAfterReturn);
         Assert.Empty(feedback.AxisMoves);
-        Assert.True(gantry.IsAt(settings.GetCarrierPickupPosition()!));
+        Assert.True(gantry.IsAt(settings.WaitingPosition!));
         Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
         Assert.False(io.GetInput(InputIo.NgCarrierDetected));
     }

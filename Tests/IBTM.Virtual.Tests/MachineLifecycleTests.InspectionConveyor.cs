@@ -19,7 +19,7 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Fact]
-    public async Task InspectionWaitsAtNgPickupAfterSeatingAndAfterInspection()
+    public async Task InspectionSeatsAtPickupThenUsesSeparateWaitingPosition()
     {
         await using var services = CreateInspectionServices(enableConveyor: true);
         services.GetRequiredService<UnitSettings>().BoltFastening = true;
@@ -29,7 +29,19 @@ public sealed partial class MachineLifecycleTests
         var inspection = services.GetRequiredService<InspectionStation>();
         var gantry = services.GetRequiredService<InspectionStation>();
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        var waitingPosition = services.GetRequiredService<NgCarrierTransferSettings>().GetCarrierPickupPosition()!;
+        var transferSettings = services.GetRequiredService<NgCarrierTransferSettings>();
+        transferSettings.WaitingPosition = new() { X = 15, Y = 35 };
+        var waitingPosition = transferSettings.WaitingPosition;
+        var seatedAtPickup = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.InspectionBackupPlateUp && on)
+            {
+                Assert.True(gantry.IsAt(transferSettings.GetCarrierPickupPosition()!));
+                Assert.False(gantry.IsAt(waitingPosition));
+                seatedAtPickup = true;
+            }
+        };
         var barcodePosition = recipe.CarrierImages.Single(image => image.IsBarcode
             && image.HeatSink == HeatSinkSlot.HeatSink1).Center;
         await machine.InitializeAsync();
@@ -60,6 +72,7 @@ public sealed partial class MachineLifecycleTests
         {
             await waitedAfterSeating.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal(StationCylinderState.Up, work.Station.BackupPlate);
+            Assert.True(seatedAtPickup);
             Assert.True(gantry.IsAt(waitingPosition));
             Assert.False(barcodeCaptured);
             Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
@@ -210,7 +223,9 @@ public sealed partial class MachineLifecycleTests
         var station = services.GetRequiredService<InspectionStation>();
         var conveyor = services.GetRequiredService<MainConveyor>();
         var pickup = services.GetRequiredService<InspectionStation>();
-        var waitingPosition = services.GetRequiredService<NgCarrierTransferSettings>().GetCarrierPickupPosition()!;
+        var transferSettings = services.GetRequiredService<NgCarrierTransferSettings>();
+        transferSettings.WaitingPosition = new() { X = 15, Y = 35 };
+        var waitingPosition = transferSettings.WaitingPosition;
         services.GetRequiredService<VirtualCamera>().BoltsPresent = !ng;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -452,7 +467,7 @@ public sealed partial class MachineLifecycleTests
         var work = services.GetRequiredService<InspectionWork>();
         var station = services.GetRequiredService<InspectionStation>();
         var gantry = services.GetRequiredService<InspectionStation>();
-        var waitingPosition = services.GetRequiredService<NgCarrierTransferSettings>().GetCarrierPickupPosition()!;
+        var waitingPosition = services.GetRequiredService<NgCarrierTransferSettings>().WaitingPosition!;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveToAsync(new() { X = 12, Y = 7 }, 10_000);

@@ -263,6 +263,7 @@ public sealed partial class MachineLifecycleTests
         var transferSettings = services.GetRequiredService<NgCarrierTransferSettings>();
         transferSettings.Speed = 1_234;
         transferSettings.PickupSafeX = null;
+        transferSettings.WaitingPosition = null;
         var machine = services.GetRequiredService<MachineController>();
         var gantry = services.GetRequiredService<InspectionStation>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -279,7 +280,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MotionGroup.InspectionGantry, teaching.ActiveMotionGroup);
         var teachingTargets = new[]
         {
-            TeachingTarget.NgCarrierPickup, TeachingTarget.NgShuttlePlace,
+            TeachingTarget.InspectionWaiting, TeachingTarget.NgCarrierPickup, TeachingTarget.NgShuttlePlace,
         };
         Assert.Equal(
             teachingTargets.Order(),
@@ -310,6 +311,7 @@ public sealed partial class MachineLifecycleTests
             var position = point.Position.Target switch
             {
                 TeachingTarget.NgCarrierPickup => saved.GetCarrierPickupPosition()!,
+                TeachingTarget.InspectionWaiting => saved.WaitingPosition!,
                 _ => saved.ShuttlePlacePosition,
             };
             Assert.Equal(x, position.X);
