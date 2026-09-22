@@ -12,7 +12,6 @@ namespace IBTM.Virtual.Tests;
 // Valid replies with independently controlled RUN feedback and command readback.
 internal sealed class AdcControllerStub : IAdcBus
 {
-    private VirtualIoService? _io;
     private FasteningHead _head;
     private bool _stopRequested;
     private bool _resetRequested;
@@ -26,6 +25,7 @@ internal sealed class AdcControllerStub : IAdcBus
 
     public Queue<AdcFasteningResult> AutomaticResults { get; }
     public int ResultReceives { get; private set; }
+    public int StatusReads { get; private set; }
 
     public ushort CurrentPreset { get; set; } = 3;
     public ushort CurrentAlarm { get; set; }
@@ -127,19 +127,8 @@ internal sealed class AdcControllerStub : IAdcBus
 
     public void BindIo(VirtualIoService io, FasteningHead head)
     {
-        _io = io;
         _head = head;
         io.OutputChanged += OnOutputChanged;
-        UpdateIo();
-    }
-
-    public void UpdateIo()
-    {
-        var pickup = _head == FasteningHead.Pickup;
-        _io?.SetInputs(
-            (pickup ? InputIo.PickupBoltFasten : InputIo.ShootingBoltFasten, Running),
-            (pickup ? InputIo.PickupBoltReady : InputIo.ShootingBoltReady, !Running && !NotReady && CurrentAlarm == 0),
-            (pickup ? InputIo.PickupBoltAlarm : InputIo.ShootingBoltAlarm, CurrentAlarm != 0));
     }
 
     private void OnOutputChanged(OutputIo output, bool value)
@@ -168,7 +157,6 @@ internal sealed class AdcControllerStub : IAdcBus
             if (index >= 0)
                 ApplyControl((ushort)AdcRemoteRegister.Preset, (ushort)(index + 1));
         }
-        UpdateIo();
     }
 
     public Task<ushort[]> ReadRegistersAsync(byte slaveAddress, AdcFunctionCode function, ushort address, ushort count, CancellationToken cancellationToken = default)
@@ -177,6 +165,7 @@ internal sealed class AdcControllerStub : IAdcBus
         switch (address)
         {
             case (ushort)AdcStatusRegister.Preset:
+                StatusReads++;
                 if (StopWrites > 0 && StopReadFailure is not null)
                     throw StopReadFailure;
                 if (_stopRequested)
@@ -227,8 +216,7 @@ internal sealed class AdcControllerStub : IAdcBus
         if (received.Status == AdcEventStatus.Error)
         {
             CurrentAlarm = received.Error;
-            UpdateIo();
-        }
+            }
         return received;
     }
 

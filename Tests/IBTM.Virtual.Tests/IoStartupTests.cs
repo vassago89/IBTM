@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
+using IBTM.Hantas;
 using IBTM.BoltFastening;
 using IBTM.Device;
 using IBTM.Storage;
@@ -164,11 +165,10 @@ public sealed class IoStartupTests
     public async Task IoFasteningStopWriteFailureRequiresANewCycleAfterStopping()
     {
         var settings = new MachineSettings();
-        settings.Drivers.Bolt = BoltDriver.Io;
+        settings.Drivers.Bolt = BoltDriver.Virtual;
         await using var services = CreateServices(settings);
         var io = services.GetRequiredService<StartupIo>();
-        var raw = services.GetRequiredService<VirtualIoService>();
-        var head = Assert.IsType<IoBoltHead>(services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup));
+        var head = Assert.IsType<AdcBoltHead>(services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup));
         io.Initialize();
         await head.SelectPresetAsync(1);
         var stopError = new IOException("START OFF failed after completion.");
@@ -182,11 +182,9 @@ public sealed class IoStartupTests
             starts++;
         };
         var cycle = head.TightenAsync();
-        raw.SetInput(InputIo.PickupBoltFasten, true);
-        raw.SetInput(InputIo.PickupBoltFasten, false);
         Assert.Same(stopError, await Assert.ThrowsAsync<IOException>(() => cycle));
         io.BeforeOutputWrite = null;
-        head.Stop();
+        await head.StopAsync();
         io.BeforeOutputWrite = (output, on) =>
         {
             if (output == OutputIo.PickupBoltStart && on)
@@ -194,45 +192,35 @@ public sealed class IoStartupTests
         };
         var next = head.TightenAsync();
         Assert.False(next.IsCompleted);
-        raw.SetInput(InputIo.PickupBoltFasten, true);
-        raw.SetInput(InputIo.PickupBoltFasten, false);
         var result = await next;
         Assert.True(result.Success);
-        Assert.Null(result.Torque);
-        Assert.Equal(BoltResultSource.IoAssumedOk, result.Source);
+        Assert.NotNull(result.Torque);
+        Assert.NotNull(result.Controller);
         Assert.Equal(2, starts);
     }
 
     [Fact]
-    public async Task IoFasteningPreservesFeedbackFailureWhenStopAlsoFails()
+    public async Task FasteningPreservesHeadFailureWhenStopAlsoFails()
     {
         var settings = new MachineSettings();
-        settings.Drivers.Bolt = BoltDriver.Io;
         await using var services = CreateServices(settings);
         var io = services.GetRequiredService<StartupIo>();
         var head = services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup);
         io.Initialize();
         await head.SelectPresetAsync(1);
-        var readError = new IOException("FASTEN feedback unavailable.");
+        var feedError = new IOException("Head output unavailable.");
         var stopError = new IOException("START OFF failed.");
         io.BeforeOutputWrite = (output, on) =>
         {
-            if (output != OutputIo.PickupBoltStart)
-                return;
-            if (!on)
+            if (output == OutputIo.PickupBoltStart && !on)
                 throw stopError;
-            io.BeforeInputRead = input =>
-            {
-                if (input == InputIo.PickupBoltFasten)
-                    throw readError;
-            };
         };
-        var failure = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
-        Assert.Contains(readError, failure.InnerExceptions);
+        var failure = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync(
+            feedAsync: token => throw feedError));
+        Assert.Contains(feedError, failure.InnerExceptions);
         Assert.Contains(stopError, failure.InnerExceptions);
-        io.BeforeInputRead = null;
         io.BeforeOutputWrite = null;
-        ((IoBoltHead)head).Stop();
+        await ((AdcBoltHead)head).StopAsync();
     }
 
     [Fact]
