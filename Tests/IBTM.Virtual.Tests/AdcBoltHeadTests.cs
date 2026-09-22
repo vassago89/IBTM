@@ -193,6 +193,30 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
+    public async Task IoFaultIsReportedAsEquipmentFailureAfterStartOff()
+    {
+        var bus = new AdcControllerStub { SuppressAutomaticResults = true };
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
+        var cycle = head.TightenAsync();
+        io.IsReady = false;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => cycle);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task HeadCommandTimeoutStillFailsAndTurnsStartOff()
+    {
+        var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60 });
+        await head.SelectPresetAsync(1);
+        await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync(
+            feedAsync: token => Task.Delay(Timeout.Infinite, token)));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.Equal(0, bus.ResultReceives);
+    }
+
+    [Fact]
     public async Task FailedHeadDownStillStopsAndDoesNotRecordAResult()
     {
         var bus = new AdcControllerStub();

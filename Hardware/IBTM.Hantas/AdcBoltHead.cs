@@ -110,6 +110,7 @@ public sealed class AdcBoltHead : IBoltHead
         timeout.CancelAfter(_connection.ResponseTimeoutMilliseconds);
         try
         {
+            _io.CheckReady();
             while (_io.GetInput(_alarm) || !_io.GetInput(_ready))
             {
                 _io.CheckReady();
@@ -171,6 +172,7 @@ public sealed class AdcBoltHead : IBoltHead
         Exception? failure = null;
         var waitingForResult = false;
         Exception? ioFailure = null;
+        var ioFaulted = false;
         void OnInputChanged(InputIo input, bool value)
         {
             if (input == _alarm && value)
@@ -183,6 +185,7 @@ public sealed class AdcBoltHead : IBoltHead
                 }
                 catch (Exception exception)
                 {
+                    ioFaulted = true;
                     Interlocked.Exchange(ref ioFailure, exception);
                     timeout.Cancel();
                     return;
@@ -193,6 +196,7 @@ public sealed class AdcBoltHead : IBoltHead
         }
         void OnIoFaulted(Exception exception)
         {
+            ioFaulted = true;
             Interlocked.CompareExchange(ref ioFailure, exception, null);
             timeout.Cancel();
         }
@@ -222,13 +226,13 @@ public sealed class AdcBoltHead : IBoltHead
             started = fastening;
             // Own STOP cleanup before requesting START or lowering the head.
             _io.SetOutput(_start, true);
-            if (feedAsync is not null)
+            if (feedAsync is not null && ioFailure is null)
             {
                 timeout.Token.ThrowIfCancellationRequested();
                 await feedAsync(timeout.Token);
             }
             if (dryRunMilliseconds > 0)
-                await Task.Delay(dryRunMilliseconds, cancellationToken);
+                await Task.Delay(dryRunMilliseconds, timeout.Token);
             waitingForResult = dryRunMilliseconds == 0;
             while (dryRunMilliseconds == 0)
             {
@@ -257,7 +261,7 @@ public sealed class AdcBoltHead : IBoltHead
         catch (OperationCanceledException) when (ioFailure is not null)
         {
             failure = ioFailure;
-            if (!waitingForResult)
+            if (ioFaulted || !waitingForResult)
                 throw failure;
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
@@ -284,6 +288,8 @@ public sealed class AdcBoltHead : IBoltHead
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        if (ioFaulted && ioFailure is not null)
+            throw ioFailure;
         failure ??= completed is null ? ioFailure : null;
         if (failure is not null)
         {

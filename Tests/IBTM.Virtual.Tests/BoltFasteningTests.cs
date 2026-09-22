@@ -1263,7 +1263,7 @@ public sealed class BoltFasteningTests
             Assert.Equal(new (byte, double, double, double)[] {
                 (2, 280, 410, 12), (2, 270, 420, 12), (1, -25, 235, 16), (1, -15, 225, 16),
             }, starts);
-            Assert.Equal(new (byte, ushort)[] { (2, 1), (1, 1) }, presets);
+            Assert.Equal(new (byte, ushort)[] { (2, 1), (2, 1), (1, 1), (1, 1) }, presets);
             Assert.Equal(2, pickups);
             Assert.Equal(1, tableDescents);
             Assert.All(work.Assemblies, assembly => Assert.Single(assembly.PickupBoltResults));
