@@ -164,7 +164,10 @@ public sealed class MachineMap
 
     public (double X, double Y)? GetFasteningPosition(MotionPosition current, FasteningHead head)
     {
-        return current is { X: { } x, Y: { } y } ? MapFastening(x, y, head) : null;
+        return current is { X: { } x, Y: { } y }
+            ? MapFastening(x, y, head, head == FasteningHead.Pickup
+                ? MachinePlan.PickupToolCenter : MachinePlan.ShootingToolCenter)
+            : null;
     }
 
     public (double X, double Y)? PickupFeederPosition
@@ -172,7 +175,7 @@ public sealed class MachineMap
         get
         {
             var point = _fastening.PickupPosition;
-            if (MapFastening(point.X, point.Y, FasteningHead.Pickup) is not { } mapped)
+            if (MapFastening(point.X, point.Y, FasteningHead.Pickup, MachinePlan.PickupToolCenter) is not { } mapped)
                 return null;
             return (
                 mapped.X + MachinePlan.PickupToolCenter.X + s_pickupFeederOffset.X,
@@ -180,11 +183,11 @@ public sealed class MachineMap
         }
     }
 
-    public (double X, double Y) GetFasteningTargetPosition(BoltPoint bolt)
+    public (double X, double Y)? GetFasteningTargetPosition(BoltPoint bolt)
     {
-        var mapped = MapCarrier(bolt.X!.Value, bolt.Y!.Value,
-            MachinePlan.FasteningUpperLeft, MachinePlan.FasteningLowerRight);
-        return MachinePlan.Offset(mapped, MachinePlan.FasteningContentOrigin);
+        return bolt is { FasteningX: { } x, FasteningY: { } y }
+            ? MapFastening(x, y, bolt.Head, MachinePlan.FasteningContentOrigin)
+            : null;
     }
 
     public (double X, double Y)? GetInspectionPosition(MotionPosition current)
@@ -211,18 +214,18 @@ public sealed class MachineMap
         return MachinePlan.Offset(mapped, MachinePlan.InspectionContentOrigin);
     }
 
-    private (double X, double Y)? MapFastening(double x, double y, FasteningHead head)
+    private (double X, double Y)? MapFastening(
+        double x, double y, FasteningHead head, (double X, double Y) origin)
     {
         var settings = _fastening.GetHead(head);
         if (!_carrier.IsDefined || !HasPins(settings))
             return null;
-        // Reverse the same rigid transform used by the actual fastening move.
+        // Project this head's stored or live machine XY back onto the carrier drawing.
         var carrier = CarrierCoordinates.ToMachine(new() { X = x, Y = y },
             settings.UpperLeftLocatingPin!, settings.LowerRightLocatingPin!,
             _carrier.UpperLeftLocatingPin!, _carrier.LowerRightLocatingPin!);
         var mapped = MapCarrier(carrier.X, carrier.Y, MachinePlan.FasteningUpperLeft, MachinePlan.FasteningLowerRight);
-        return MachinePlan.Offset(mapped, head == FasteningHead.Pickup
-            ? MachinePlan.PickupToolCenter : MachinePlan.ShootingToolCenter);
+        return MachinePlan.Offset(mapped, origin);
     }
 
     private (double X, double Y) MapCarrier(double x, double y,

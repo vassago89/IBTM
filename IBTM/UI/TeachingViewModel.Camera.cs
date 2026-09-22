@@ -171,6 +171,8 @@ public partial class TeachingViewModel
 
             var previousX = bolt?.X;
             var previousY = bolt?.Y;
+            var previousFasteningX = bolt?.FasteningX;
+            var previousFasteningY = bolt?.FasteningY;
             var dataMatrix = barcode ? InspectionRecipe.GetDataMatrix(pcb) : null;
             var previousLight = dataMatrix is not null ? dataMatrix.LightLevel : bolt!.LightLevel;
             if (dataMatrix is not null)
@@ -182,6 +184,7 @@ public partial class TeachingViewModel
                 // The bolt is centered on the camera crosshair. ROI pixels do not alter its machine XY.
                 bolt.X = captured.Center.X;
                 bolt.Y = captured.Center.Y;
+                _fasteningSettings.InitializeBoltPosition(bolt, _carrierReference);
             }
             if (await RecipeEditor.SaveCarrierImagesAsync(images, operation.Token))
             {
@@ -198,6 +201,8 @@ public partial class TeachingViewModel
                 {
                     bolt.X = previousX;
                     bolt.Y = previousY;
+                    bolt.FasteningX = previousFasteningX;
+                    bolt.FasteningY = previousFasteningY;
                 }
             }
         }

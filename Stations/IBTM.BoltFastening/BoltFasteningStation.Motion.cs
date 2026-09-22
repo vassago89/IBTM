@@ -17,18 +17,10 @@ public sealed partial class BoltFasteningStation
 
     internal bool IsAt(BoltPoint bolt, bool live = true, bool atSafeZ = false)
     {
-        var position = _settings.GetBoltPosition(bolt, _carrierReference);
+        var position = _settings.GetBoltPosition(bolt);
         if (atSafeZ)
             position.Z = _settings.SafeZ;
         return IsAt(position, live);
-    }
-
-    public bool HasReference(FasteningHead head)
-    {
-        var reference = _settings.GetHead(head);
-        return CarrierCoordinates.IsDefined(
-            reference.UpperLeftLocatingPin,
-            reference.LowerRightLocatingPin);
     }
 
     internal bool IsAtPickupPosition(bool live = true)
@@ -118,7 +110,7 @@ public sealed partial class BoltFasteningStation
                     "Bolt teaching Move To: {HeatSink}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}; Safe Z={SafeZ}.",
                     bolt.HeatSink, bolt.Number, bolt.Head, position.X, position.Y, position.Z, _settings.SafeZ);
                 if (!point.HasPosition)
-                    throw new MotionInterlockException("Record the bolt and reference pins before moving to its fastening position.");
+                    throw new MotionInterlockException("Record fastening XY before moving to this bolt.");
                 var tableDown = bolt.Head == FasteningHead.Pickup;
                 EnsureCanMoveHorizontal(cancellationToken);
                 await MoveToSafeZAsync(cancellationToken);
@@ -190,7 +182,7 @@ public sealed partial class BoltFasteningStation
     internal async Task MoveToBoltAsync(
         BoltPoint bolt, CancellationToken cancellationToken = default)
     {
-        var position = _settings.GetBoltPosition(bolt, _carrierReference);
+        var position = _settings.GetBoltPosition(bolt);
         _log?.LogInformation(
             "Automatic bolt move: {HeatSink}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}.",
             bolt.HeatSink, bolt.Number, bolt.Head, position.X, position.Y, position.Z);

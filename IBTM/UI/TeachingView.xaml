@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
     xmlns:data="clr-namespace:System.Windows.Data;assembly=PresentationFramework"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:TeachingViewModel, IsDesignTimeCreatable=False}"
@@ -130,6 +131,24 @@
                             <TextBlock Text="{Binding SelectedPoint.Name}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
                             <TextBlock Text="{Binding SelectedPoint.Description}" TextWrapping="Wrap"
                                 Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                            <StackPanel Margin="0,0,0,8" IsEnabled="{Binding IsTeachingEditAllowed}">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPosition}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <WrapPanel>
+                                    <TextBlock Text="Bolt Z offset (mm)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Width="90" Text="{Binding SelectedPoint.FasteningZOffset, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding SelectedPoint.Z, StringFormat=Target Z: {0:F3} mm}"
+                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
                             <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
                                 Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
                             <ui:TeachingMotionView/>

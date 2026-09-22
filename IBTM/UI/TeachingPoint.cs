@@ -11,6 +11,19 @@ public class TeachingPoint : ObservableObject
     public double Y => Position.Read().Y;
     public double? Z => Position.Read().Z;
 
+    public double FasteningZOffset
+    {
+        get => Position.Bolt?.FasteningZOffset ?? 0;
+        set
+        {
+            if (Position.Target != TeachingTarget.BoltPosition || Position.Bolt is not { } bolt)
+                return;
+            bolt.FasteningZOffset = value;
+            OnPropertyChanged();
+            Refresh();
+        }
+    }
+
     public TeachingPoint(TeachingPosition position)
     {
         Position = position;
@@ -48,7 +61,7 @@ public class TeachingPoint : ObservableObject
             switch (Position.Target)
             {
                 case TeachingTarget.BoltPosition:
-                    return TeachingPointGroup.Calculated;
+                    return TeachingPointGroup.Fastening;
                 case TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
                     return TeachingPointGroup.CarrierTransfer;
                 case TeachingTarget.SafeZ:
@@ -98,7 +111,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.PickupHeadFasteningZ:
                     return "Z used for fastening with the pickup head (Head 1).";
                 case TeachingTarget.BoltPosition:
-                    return "Bolt recorded in Inspection Station. XY rotates around the camera Upper reference to match the selected head's Upper/Lower direction, then translates to that head's Upper reference; Z uses the head's fastening Z. Position recording is available only in Inspection Station. Move to Position uses Safe Z, sets the table down for pickup or up for shooting, then moves XY and fastening Z.";
+                    return "Independent fastening XY, initially converted from inspection. Record Position updates only this bolt's XY. Z is the head's common fastening Z plus this bolt's offset. Save keeps these adjustments in the recipe.";
                 case TeachingTarget.BoltReference:
                     return "Camera XY and teaching image for inspecting this bolt.";
                 case TeachingTarget.DataMatrix:
@@ -132,11 +145,11 @@ public class TeachingPoint : ObservableObject
             if (!Position.HasPosition)
             {
                 if (Position.Target == TeachingTarget.BoltPosition)
-                    return Position.Bolt is { X: not null, Y: not null }
-                        ? "Teach camera and head Upper / Lower references"
-                        : "Record bolt position in Inspection Station";
+                    return "Record fastening XY; initial conversion needs inspection XY and both sets of reference pins";
                 return "Not taught";
             }
+            if (Position.Target == TeachingTarget.BoltPosition)
+                return $"X {X:F3}  Y {Y:F3}  Z {Z:F3}";
             switch (Position.Mode)
             {
                 case TeachMode.Image or TeachMode.XYOnly:
@@ -205,8 +218,8 @@ public enum TeachingPointGroup
     CarrierTransfer,
     [Description("Reference positions")]
     MachineReference,
-    [Description("Bolts from Inspection Station")]
-    Calculated,
+    [Description("Fastening positions")]
+    Fastening,
 }
 
 public enum TeachingSaveBehavior
@@ -226,7 +239,7 @@ public enum TeachingSaveBehavior
     [Description("Record Position saves this head's Z automatically. Move to Position moves only Z. Automatic fastening reaches this Z before lowering the head.")]
     FasteningZ,
 
-    [Description("Move to Position: Safe Z → table down for pickup / up for shooting → bolt XY → fastening Z. Both heads must be raised. Record the bolt in Inspection Station.")]
+    [Description("Record Position updates XY only. Edit Z offset separately, then Save. Move to Position: Safe Z → table down for pickup / up for shooting → bolt XY → head fastening Z + bolt offset. Both heads must be raised.")]
     BoltPosition,
 
     [Description("Center this backup plate pin in Live, then press Record Position. Saves automatically.")]

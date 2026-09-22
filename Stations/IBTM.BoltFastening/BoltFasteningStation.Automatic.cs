@@ -100,7 +100,7 @@ public sealed partial class BoltFasteningStation
             TraceStep(state, GetActiveBolt(state)?.ToString(), _work.CurrentJob.Id);
             if (state == BoltFasteningState.MovingToStandby)
             {
-                var position = _settings.GetBoltPosition(StandbyBolt!, _carrierReference);
+                var position = _settings.GetBoltPosition(StandbyBolt!);
                 await RaiseCylindersAsync(cancellationToken);
                 await MoveToSafeZAsync(cancellationToken);
                 await SetPickupTableDownAsync(false, cancellationToken);
@@ -248,7 +248,7 @@ public sealed partial class BoltFasteningStation
         if (!_work.IsReadyToFasten)
         {
             var standby = StandbyBolt;
-            return standby is not null && _settings.HasBoltPosition(standby, _carrierReference)
+            return standby is not null && standby.IsFasteningPositionDefined
                 && (!IsHorizontalMoveAllowed || !IsAt(standby, live, atSafeZ: true)
                     || PickupTablePosition != BoltCylinderState.Up)
                 ? BoltFasteningState.MovingToStandby

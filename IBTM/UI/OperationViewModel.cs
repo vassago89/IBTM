@@ -246,12 +246,10 @@ public partial class OperationViewModel : ObservableObject
             var targets = new List<BoltTargetView>();
             foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
-                if (bolt.X is null || bolt.Y is null
-                    || !Fastening.HasReference(bolt.Head)
-                    || !BoltFasteningWork.Station.IsHeatSinkPresent(bolt.HeatSink))
+                if (!BoltFasteningWork.Station.IsHeatSinkPresent(bolt.HeatSink)
+                    || _map.GetFasteningTargetPosition(bolt) is not { } position)
                     continue;
 
-                var position = _map.GetFasteningTargetPosition(bolt);
                 var assembly = assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
                 var results = bolt.Head == FasteningHead.Shooting ? assembly?.PcbBoltResults : assembly?.PickupBoltResults;
                 var state = BoltTargetState.Pending;

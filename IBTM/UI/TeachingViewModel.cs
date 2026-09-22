@@ -395,8 +395,7 @@ public partial class TeachingViewModel : ObservableObject
             HardwareArea.BoltFastening
                 => _fasteningSettings.GetTeachingPositions(
                     Recipes.Current.Pcb,
-                    SelectedPcb,
-                    _carrierReference),
+                    SelectedPcb),
             HardwareArea.InspectionGantry
                 => [
                     .. _inspectionGantrySettings.GetTeachingPositions(_carrierReference),

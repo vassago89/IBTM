@@ -27,9 +27,7 @@ public sealed partial class MachineController
                     && _recipes.Current.Pcb.BoltPoints.Count == 0:
                     return false;
                 case true when _units.BoltFastening
-                    && (!_carrierReference.IsDefined
-                        || _recipes.Current.Pcb.BoltPoints.Any(bolt =>
-                            bolt.X is null || bolt.Y is null || !_fasteningStation.HasReference(bolt.Head))):
+                    && _recipes.Current.Pcb.BoltPoints.Any(bolt => !bolt.IsFasteningPositionDefined):
                     return false;
                 default:
                     return !_units.Inspection

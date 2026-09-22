@@ -46,11 +46,20 @@ public sealed partial class BoltFasteningStation : AutoUnit
         _units = units;
         _log = log;
         Motion = new(motion);
+        InitializeRecipeBoltPositions();
+        recipes.Changed += InitializeRecipeBoltPositions;
         io.InputChanged += OnInputChanged;
         work.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;
+
+    private void InitializeRecipeBoltPositions()
+    {
+        // Older recipes have only inspection XY. Never overwrite independently taught coordinates.
+        foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
+            _settings.InitializeBoltPosition(bolt, _carrierReference);
+    }
 
     private void NotifyChanged()
     {

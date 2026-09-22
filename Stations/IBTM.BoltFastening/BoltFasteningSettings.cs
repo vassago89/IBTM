@@ -47,8 +47,7 @@ public sealed class BoltFasteningSettings : Setting
 
     public TeachingPosition[] GetTeachingPositions(
         PcbLayout pcb,
-        HeatSinkSlot slot,
-        CarrierReferenceSettings reference)
+        HeatSinkSlot slot)
     {
         return [
             new(
@@ -83,7 +82,7 @@ public sealed class BoltFasteningSettings : Setting
                 () => ShootingHead.LowerRightLocatingPin is not null),
             ..pcb.GetBolts(slot)
                 .Where(bolt => bolt.Head == FasteningHead.Shooting)
-                .Select(bolt => GetBoltTeachingPosition(bolt, reference)),
+                .Select(GetBoltTeachingPosition),
             new(
                 TeachingTarget.PickupHeadFasteningZ,
                 MotionGroup.BoltFastening,
@@ -116,28 +115,24 @@ public sealed class BoltFasteningSettings : Setting
                 this),
             ..pcb.GetBolts(slot)
                 .Where(bolt => bolt.Head == FasteningHead.Pickup)
-                .Select(bolt => GetBoltTeachingPosition(bolt, reference)),
+                .Select(GetBoltTeachingPosition),
         ];
     }
 
-    private TeachingPosition GetBoltTeachingPosition(BoltPoint bolt, CarrierReferenceSettings reference)
+    private TeachingPosition GetBoltTeachingPosition(BoltPoint bolt)
     {
         return new(
             TeachingTarget.BoltPosition,
             MotionGroup.BoltFastening,
-            TeachMode.Full,
-            () => HasBoltPosition(bolt, reference) ? GetBoltPosition(bolt, reference) : new(),
-            null,
-            isDefined: () => HasBoltPosition(bolt, reference))
+            TeachMode.XYOnly,
+            () => bolt.IsFasteningPositionDefined ? GetBoltPosition(bolt) : new(),
+            position =>
+            {
+                bolt.FasteningX = position.X;
+                bolt.FasteningY = position.Y;
+            },
+            isDefined: () => bolt.IsFasteningPositionDefined)
         { Bolt = bolt };
-    }
-
-    internal bool HasBoltPosition(BoltPoint bolt, CarrierReferenceSettings reference)
-    {
-        var head = GetHead(bolt.Head);
-        return reference.IsDefined
-            && CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin)
-            && bolt is { X: not null, Y: not null };
     }
 
     public BoltHeadSettings GetHead(FasteningHead head)
@@ -153,17 +148,36 @@ public sealed class BoltFasteningSettings : Setting
         }
     }
 
-    public AxisPosition GetBoltPosition(BoltPoint bolt, CarrierReferenceSettings reference)
+    public void InitializeBoltPosition(BoltPoint bolt, CarrierReferenceSettings reference)
     {
+        if (bolt.FasteningX is not null || bolt.FasteningY is not null
+            || bolt is not { X: { } x, Y: { } y }
+            || !double.IsFinite(x) || !double.IsFinite(y))
+            return;
         var head = GetHead(bolt.Head);
+        if (!reference.IsDefined
+            || !CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin))
+            return;
         var position = CarrierCoordinates.ToMachine(
-            new AxisPosition { X = bolt.X!.Value, Y = bolt.Y!.Value, },
+            new AxisPosition { X = x, Y = y },
             reference.UpperLeftLocatingPin!,
             reference.LowerRightLocatingPin!,
             head.UpperLeftLocatingPin!,
             head.LowerRightLocatingPin!);
-        position.Z = head.FasteningZ;
-        return position;
+        bolt.FasteningX = position.X;
+        bolt.FasteningY = position.Y;
+    }
+
+    public AxisPosition GetBoltPosition(BoltPoint bolt)
+    {
+        if (!bolt.IsFasteningPositionDefined)
+            throw new InvalidOperationException($"Record fastening XY for {bolt.HeatSink}, bolt {bolt.Number} before moving.");
+        return new()
+        {
+            X = bolt.FasteningX!.Value,
+            Y = bolt.FasteningY!.Value,
+            Z = GetHead(bolt.Head).FasteningZ + bolt.FasteningZOffset,
+        };
     }
 }
 

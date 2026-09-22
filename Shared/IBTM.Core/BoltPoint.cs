@@ -33,6 +33,24 @@ public sealed class BoltPoint
     public double? X { get; set; }
     public double? Y { get; set; }
 
+    // Seeded from inspection once, then taught independently at the fastening station.
+    public double? FasteningX { get; set; }
+    public double? FasteningY { get; set; }
+    [JsonIgnore]
+    public bool IsFasteningPositionDefined => FasteningX is { } x && double.IsFinite(x)
+        && FasteningY is { } y && double.IsFinite(y);
+
+    public double FasteningZOffset
+    {
+        get;
+        set
+        {
+            if (!double.IsFinite(value))
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite Z offset in millimetres.");
+            field = value;
+        }
+    }
+
     // Null retains the inspection defaults of recipes saved before per-bolt settings.
     public int? BrightnessThreshold
     {
