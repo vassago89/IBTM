@@ -1493,6 +1493,94 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PickupChecksVacuumAfterReturningToSafeZ(bool vacuumAfterLift)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            PickupPosition = new() { X = 10, Y = 10, Z = 10 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            PickupHead = HeadSettings(),
+            ShootingHead = HeadSettings(),
+        };
+        settings.PickupHead.FasteningZ = 16;
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()),
+            new() { TimeoutMilliseconds = 1_000 });
+        io.Initialize();
+        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new AdcControllerStub();
+        var pickup = CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
+        var units = new UnitSettings();
+        var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
+        var station = new BoltFasteningStation(pickup, pickup, io, motion, settings,
+            new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
+            work,
+            new RecipeManager(OpenMachineStore(), new())
+            {
+                Current = { Pcb = new() { BoltPoints = [Bolt(1, FasteningHead.Pickup, 20, 30)] } },
+            }, units);
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        io.SetInput(InputIo.PickupFeederBoltDetected, true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var vacuumRequested = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupHeadVacuumPump && on)
+            {
+                Assert.Equal(settings.PickupPosition.Z, motion.GetPosition().Z);
+                Assert.False(io.GetOutput(OutputIo.PickupHeadDown));
+                vacuumRequested = true;
+                // A signal at the feeder is not proof that the bolt stayed on the lifted head.
+                if (!vacuumAfterLift)
+                    io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+            }
+            if (output == OutputIo.PickupBoltStart && on)
+                stop.Cancel();
+        };
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (!vacuumAfterLift && vacuumRequested && z < settings.PickupPosition.Z)
+                io.SetInput(InputIo.PickupHeadVacuumDetected, false);
+        };
+        var run = station.RunAsync(stop.Token);
+        try
+        {
+            Assert.True(await WaitUntilAsync(
+                () => vacuumRequested && station.IsAtPickupXY() && station.IsAtSafeZ(),
+                TimeSpan.FromSeconds(2)));
+            await Task.Delay(40);
+            Assert.Equal((10, 10, settings.SafeZ), motion.GetPosition());
+            Assert.Equal(0, bus.StartWrites);
+            Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
+            if (vacuumAfterLift)
+            {
+                io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.Equal(1, bus.StartWrites);
+                Assert.Equal(settings.PickupHead.FasteningZ, motion.GetPosition().Z);
+            }
+            else
+            {
+                var error = await Assert.ThrowsAsync<IoTimeoutException>(() => run);
+                Assert.Contains("Vacuum", error.Message);
+                Assert.Equal((10, 10, settings.SafeZ), motion.GetPosition());
+                Assert.Equal(0, bus.StartWrites);
+            }
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Theory]
     [InlineData(FasteningHead.Pickup)]
     [InlineData(FasteningHead.Shooting)]
     public async Task FeederWaitRechecksSupplyFeedbackBeforeNextOperation(FasteningHead head)
