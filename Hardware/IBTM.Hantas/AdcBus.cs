@@ -147,42 +147,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
             while (_receiveBuffer.Count >= 2)
             {
                 var function = _receiveBuffer[1];
-                int length;
-                if ((function & ExceptionFunctionMask) != 0)
-                    length = 5;
-                else if (function is 0x05 or 0x06 or 0x08 or 0x0B or 0x0F or 0x10)
-                    length = 8;
-                else if (function == 0x07)
-                    length = 5;
-                else if (function == 0x16)
-                    length = 10;
-                else if (function == 0x18)
-                {
-                    if (_receiveBuffer.Count < 4)
-                        return;
-                    length = (_receiveBuffer[2] << 8 | _receiveBuffer[3]) + 6;
-                }
-                else if (function == 0x2B && _receiveBuffer.Count >= 3 && _receiveBuffer[2] == 0x0E)
-                {
-                    // Read Device Identification: an object count, then ID/length/value entries.
-                    if (_receiveBuffer.Count < 8)
-                        return;
-                    length = 8;
-                    for (var index = 0; index < _receiveBuffer[7]; index++)
-                    {
-                        if (_receiveBuffer.Count < length + 2)
-                            return;
-                        length += _receiveBuffer[length + 1] + 2;
-                    }
-                    length += 2; // CRC
-                }
-                else
-                {
-                    if (_receiveBuffer.Count < 3)
-                        return;
-                    length = _receiveBuffer[2] + 5;
-                }
-                if (_receiveBuffer.Count < length)
+                var length = ResponseLength(_receiveBuffer);
+                if (length == 0 || _receiveBuffer.Count < length)
                     return;
 
                 var frame = _receiveBuffer.GetRange(0, length).ToArray();
@@ -494,11 +460,46 @@ public sealed class AdcBus : IAdcBus, IDisposable
         }
     }
 
+    private static int ResponseLength(IReadOnlyList<byte> bytes)
+    {
+        if (bytes.Count < 2)
+            return 0;
+        var function = bytes[1];
+        if ((function & ExceptionFunctionMask) != 0)
+            return 5;
+        switch (function)
+        {
+            case 0x05 or 0x06 or 0x08 or 0x0B or 0x0F or 0x10:
+                return 8;
+            case 0x07:
+                return 5;
+            case 0x16:
+                return 10;
+            case 0x18:
+                return bytes.Count < 4 ? 0 : (bytes[2] << 8 | bytes[3]) + 6;
+            case 0x2B when bytes.Count >= 3 && bytes[2] == 0x0E:
+                // Read Device Identification: ID/length/value entries after the object count.
+                if (bytes.Count < 8)
+                    return 0;
+                var length = 8;
+                for (var index = 0; index < bytes[7]; index++)
+                {
+                    if (bytes.Count < length + 2)
+                        return 0;
+                    length += bytes[length + 1] + 2;
+                }
+                return length + 2;
+            default:
+                // Read responses use one byte count; unknown functions are tested against this shape.
+                return bytes.Count < 3 ? 0 : bytes[2] + 5;
+        }
+    }
+
     internal static void ValidateResponse(byte[] frame, byte slaveAddress,
         AdcFunctionCode function, int? expectedByteCount = null)
     {
         // Integrity and request ownership are separate: a different function is not a broken frame.
-        ValidateFrame(frame, slaveAddress, frame[1]);
+        ValidateFrame(frame, slaveAddress, frame.Length >= 2 ? frame[1] : (byte)function);
         var isException = (frame[1] & ExceptionFunctionMask) != 0;
         var expectedFunction = isException ? (byte)((byte)function | ExceptionFunctionMask) : (byte)function;
         if (frame[1] != expectedFunction)
@@ -617,7 +618,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     private static void ValidateFrame(byte[] frame, byte slaveAddress, byte function)
     {
-        if (frame.Length is < 5 or > 256 || (frame[1] & ~ExceptionFunctionMask) == 0)
+        if (frame.Length is < 5 or > 256 || (frame[1] & ~ExceptionFunctionMask) == 0
+            || ResponseLength(frame) != frame.Length)
             throw new InvalidDataException($"Invalid Modbus RTU response shape; RX={Convert.ToHexString(frame)}.");
         var receivedCrc = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));
         var calculatedCrc = AdcRtuFrame.CalculateCrc(frame.AsSpan(0, frame.Length - 2));

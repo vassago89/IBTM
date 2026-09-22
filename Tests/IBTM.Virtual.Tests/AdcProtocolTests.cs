@@ -247,6 +247,28 @@ public sealed class AdcProtocolTests
         Assert.Equal(result, await bus.WaitForResponseAsync(next, CancellationToken.None));
     }
 
+    [Fact]
+    public void ValidCrcDoesNotMakeAnInvalidRtuShapeAcceptable()
+    {
+        // The byte count claims eight bytes, but only two follow it.
+        var frame = AdcRtuFrame.Build(1, AdcFunctionCode.ReadHoldingRegisters, [8, 0x12, 0x34]);
+        Assert.Throws<InvalidDataException>(() => AdcBus.ValidateResponse(
+            frame, 1, AdcFunctionCode.ReadInputRegisters, 28));
+    }
+
+    [Fact]
+    public async Task DifferentFunctionAndResultInOneChunkKeepTheirBoundaries()
+    {
+        using var bus = new AdcBus(new());
+        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
+        var unrelated = AdcRtuFrame.Build(1, (AdcFunctionCode)0x0B, [0, 0, 0, 1]);
+        var result = AutomaticFrame(32);
+        bus.ReceiveBytes([.. unrelated, .. result]);
+        await Assert.ThrowsAsync<AdcUnexpectedResponseException>(
+            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
+        Assert.Equal((ushort)32, (await bus.WaitForFasteningResultAsync(1, CancellationToken.None)).EventCount);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
