@@ -128,10 +128,9 @@ public sealed class BoltFasteningTests
         if (rejectedResponse)
         {
             // Exact exception reply in the equipment log, including CRC.
-            using var response = new MemoryStream([0x01, 0x84, 0x03, 0x03, 0x01]);
-            bus.ResultReceiveFailure = await Assert.ThrowsAsync<AdcResponseException>(
-                () => AdcBus.ReadResponseAsync(response, () => { }, bytes => { },
-                    1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None));
+            bus.ResultReceiveFailure = Assert.Throws<AdcResponseException>(
+                () => AdcBus.ValidateResponse([0x01, 0x84, 0x03, 0x03, 0x01],
+                    1, AdcFunctionCode.ReadInputRegisters));
         }
         else
         {
