@@ -184,6 +184,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         (ushort EventCount, ushort Preset)? started = null;
         AdcFasteningResult? completed = null;
         AdcFasteningResult? lastResult = null;
+        var unrecognizedReplies = 0;
         Exception? failure = null;
         var waitingForResult = false;
         Exception? ioFailure = null;
@@ -238,9 +239,27 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
                     lastResult = result;
                     if (IsCompleted(result, fastening))
                     {
+                        if (unrecognizedReplies > 0)
+                        {
+                            _logger.LogInformation(
+                                "ADC {Port}/{Slave}: new fastening result after {Count} unrecognized 8C/03 replies; "
+                                + "start event={StartEvent}, event={Event}, status={Status}, preset={Preset}, error={Error}.",
+                                _portName, _slaveAddress, unrecognizedReplies, fastening.EventCount,
+                                result.EventCount, result.Status, result.Preset, result.Error);
+                        }
                         completed = result;
                         break;
                     }
+                }
+                catch (AdcUnrecognizedResponseException exception)
+                {
+                    unrecognizedReplies++;
+                    _logger.LogWarning(
+                        "ADC {Port}/{Slave}: unrecognized result reply #{Count}; "
+                        + "continuing result queries within the original fastening timeout; "
+                        + "start event={StartEvent}, last event={LastEvent}. {Detail}",
+                        _portName, _slaveAddress, unrecognizedReplies, fastening.EventCount,
+                        lastResult?.EventCount, exception.Message);
                 }
                 catch (AdcResponseException exception)
                 {
@@ -266,7 +285,8 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
                 + $"waiting for a new fastening result (query interval={_connection.ResultPollingIntervalMilliseconds} ms); "
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
-                + $"direction={lastResult?.Direction}, error={lastResult?.Error}.");
+                + $"direction={lastResult?.Direction}, error={lastResult?.Error}; "
+                + $"unrecognized 8C/03 replies={unrecognizedReplies}.");
             if (!waitingForResult)
                 throw failure;
         }

@@ -173,6 +173,60 @@ public sealed class AdcProtocolTests
         Assert.All(chunks, chunk => Assert.Single(chunk));
     }
 
+    [Fact]
+    public async Task Logged8C03ReplyHasNoAssumedErrorMeaning()
+    {
+        using var bus = new AdcBus(new());
+        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
+        // Exact equipment reply: CRC is valid, but the expected exception function was 0x84.
+        byte[] frame = [0x01, 0x8C, 0x03, 0x04, 0xC1];
+        bus.ReceiveBytes(frame[..2]);
+        Assert.False(pending.Completion.Task.IsCompleted);
+        bus.ReceiveBytes(frame[2..]);
+        var error = await Assert.ThrowsAsync<AdcUnrecognizedResponseException>(
+            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
+        Assert.Contains("RX=018C0304C1", error.Message);
+        Assert.Contains("function=0x8C", error.Message);
+        Assert.Contains("data=0x03", error.Message);
+        Assert.Contains("expected=0x84", error.Message);
+        Assert.DoesNotContain("InvalidDataLength", error.Message);
+    }
+
+    [Theory]
+    [InlineData(AdcFunctionCode.ReadInputRegisters, 14, 0x8C, 0x03)]
+    [InlineData(AdcFunctionCode.ReadInputRegisters, 28, 0x8C, 0x04)]
+    [InlineData(AdcFunctionCode.ReadInputRegisters, 28, 0x86, 0x03)]
+    [InlineData(AdcFunctionCode.WriteSingleRegister, 28, 0x8C, 0x03)]
+    public void OtherMismatchedRepliesRemainCommunicationFailures(
+        AdcFunctionCode request, int byteCount, byte function, byte data)
+    {
+        var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)function, [data]);
+        Assert.Throws<InvalidDataException>(() => AdcBus.ValidateResponse(frame, 1, request, byteCount));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NonstandardExceptionWithBadCrcOrAddressRemainsACommunicationFailure(bool wrongAddress)
+    {
+        using var bus = new AdcBus(new());
+        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
+        byte[] frame = [0x01, 0x8C, 0x03, 0x04, 0xC1];
+        if (wrongAddress)
+        {
+            frame[0] = 2;
+            BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(^2), AdcRtuFrame.CalculateCrc(frame.AsSpan(0, 3)));
+        }
+        else
+            frame[^1] ^= 0xFF;
+        bus.ReceiveBytes(frame);
+        var error = await Assert.ThrowsAsync<InvalidDataException>(
+            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
+        Assert.Contains(wrongAddress ? "address=2" : "CRC is invalid", error.Message);
+        Assert.Contains($"RX={Convert.ToHexString(frame)}", error.Message);
+        Assert.Contains(wrongAddress ? "CRC valid" : "calculated=", error.Message);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]

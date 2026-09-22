@@ -19,6 +19,7 @@ internal sealed class AdcControllerStub : IAdcBus
     public AdcControllerStub()
     {
         ResultReplies = new();
+        ResultReadFailuresRemaining = 1;
     }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred { add { } remove { } }
@@ -43,6 +44,8 @@ internal sealed class AdcControllerStub : IAdcBus
     public int StopWriteFailuresRemaining { get; set; } = -1;
     public IOException? StopReadFailure { get; init; }
     public IOException? ResultReadFailure { get; set; }
+    public int ResultReadFailuresRemaining { get; set; }
+    public IOException? BaselineReadFailure { get; init; }
     public bool SuppressCompletion { get; set; }
     public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
     public ushort ResultError { get; set; }
@@ -211,11 +214,16 @@ internal sealed class AdcControllerStub : IAdcBus
         ResultReads++;
         var received = AdcFasteningResult.FromRegisters(ResultRegisters);
         if (!Running || _stopRequested)
-            return Task.FromResult(received);
-        ResultPolls++;
-        if (ResultReadFailure is { } failure)
         {
-            ResultReadFailure = null;
+            if (BaselineReadFailure is { } baselineFailure)
+                throw baselineFailure;
+            return Task.FromResult(received);
+        }
+        ResultPolls++;
+        if (ResultReadFailure is { } failure && ResultReadFailuresRemaining != 0)
+        {
+            if (ResultReadFailuresRemaining > 0)
+                ResultReadFailuresRemaining--;
             throw failure;
         }
         if (SuppressCompletion)

@@ -105,6 +105,88 @@ public sealed class AdcBoltHeadTests
         Assert.Throws<ArgumentOutOfRangeException>(() => loaded.ResultPollingIntervalMilliseconds = -1);
     }
 
+    [Fact]
+    public async Task UnrecognizedReplyContinuesQueriesUntilANewResultWithoutAnotherStart()
+    {
+        var bus = new AdcControllerStub { ResultReadFailure = UnrecognizedResultReply() };
+        // A normal but unchanged result after 8C/03 must still be ignored.
+        bus.ResultReplies.Enqueue(AdcFasteningResult.FromRegisters(
+            [0, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]));
+        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 20 });
+        await head.SelectPresetAsync(1);
+        var elapsed = Stopwatch.StartNew();
+        var result = await head.TightenAsync();
+        Assert.True(result.Success);
+        Assert.Null(result.Error);
+        Assert.Equal((ushort)1, result.Controller!.EventCount);
+        Assert.Equal(3, bus.ResultPolls); // Unknown, old result, new result.
+        Assert.True(elapsed.ElapsedMilliseconds >= 55);
+        Assert.Equal(1, bus.StartWrites);
+        Assert.Equal(1, bus.StopWrites);
+        Assert.Equal(2, bus.StatusReads);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task RepeatedUnrecognizedRepliesDoNotExtendTheFasteningDeadline()
+    {
+        var bus = new AdcControllerStub
+        {
+            ResultReadFailure = UnrecognizedResultReply(),
+            ResultReadFailuresRemaining = -1,
+        };
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 150, ResultPollingIntervalMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        var result = await head.TightenAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(result.Success);
+        Assert.Null(result.Torque);
+        Assert.Null(result.Controller);
+        Assert.Contains("timed out after 150 ms", result.Error);
+        Assert.Contains($"unrecognized 8C/03 replies={bus.ResultPolls}", result.Error);
+        Assert.True(bus.ResultPolls >= 2);
+        Assert.Equal(1, bus.StartWrites);
+        Assert.Equal(1, bus.StopWrites);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task CancellationAfterUnrecognizedReplyStillTurnsStartOff()
+    {
+        var bus = new AdcControllerStub
+        {
+            ResultReadFailure = UnrecognizedResultReply(),
+            ResultReadFailuresRemaining = -1,
+        };
+        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        using var stop = new CancellationTokenSource();
+        var running = head.TightenAsync(stop.Token);
+        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.ResultPolls > 0, TimeSpan.FromSeconds(2)));
+        stop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+        Assert.Equal(1, bus.StartWrites);
+        Assert.Equal(1, bus.StopWrites);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task UnrecognizedBaselineCannotStartFastening()
+    {
+        var bus = new AdcControllerStub { BaselineReadFailure = UnrecognizedResultReply() };
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
+        await Assert.ThrowsAsync<AdcUnrecognizedResponseException>(() => head.TightenAsync());
+        Assert.Equal(0, bus.StartWrites);
+        Assert.Equal(0, bus.ResultPolls);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    private static AdcUnrecognizedResponseException UnrecognizedResultReply()
+    {
+        return Assert.Throws<AdcUnrecognizedResponseException>(() => AdcBus.ValidateResponse(
+            [0x01, 0x8C, 0x03, 0x04, 0xC1], 1, AdcFunctionCode.ReadInputRegisters, 28));
+    }
+
     [Theory]
     [InlineData(AdcEventStatus.FasteningOk, 0, true)]
     [InlineData(AdcEventStatus.FasteningNg, 0, false)]

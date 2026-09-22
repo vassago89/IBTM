@@ -443,9 +443,13 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
                     + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes)}; "
                     + $"RX chunks={receivedChunks}, bytes={receivedBytes.Length}.";
+                if (exception is AdcUnrecognizedResponseException unrecognized)
+                    throw new AdcUnrecognizedResponseException($"{detail} {unrecognized.Message}", unrecognized);
                 _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
                 if (exception is AdcResponseException rejection)
                     throw new AdcResponseException(rejection.ErrorCode, $"{detail} {rejection.Message}", rejection);
+                if (exception is InvalidDataException invalid)
+                    throw new InvalidDataException($"{detail} {invalid.Message}", invalid);
                 if (exception is OperationCanceledException)
                     throw new TimeoutException(
                         $"{detail} Response timed out after {_settings.ResponseTimeoutMilliseconds} ms.", exception);
@@ -470,7 +474,18 @@ public sealed class AdcBus : IAdcBus, IDisposable
     {
         if ((frame[1] & ExceptionFunctionMask) != 0)
         {
-            ValidateFrame(frame, slaveAddress, (byte)((byte)function | ExceptionFunctionMask));
+            var expectedFunction = (byte)((byte)function | ExceptionFunctionMask);
+            var isUnrecognizedResultReply = function == AdcFunctionCode.ReadInputRegisters
+                && expectedByteCount == AdcFasteningResult.RegisterCount * 2
+                && frame is [_, 0x8C, 0x03, _, _];
+            ValidateFrame(frame, slaveAddress, isUnrecognizedResultReply ? frame[1] : expectedFunction);
+            if (isUnrecognizedResultReply)
+            {
+                // Experimental handling of the equipment trace only; do not infer NG or completion.
+                throw new AdcUnrecognizedResponseException(
+                    $"ADC unrecognized result reply: function=0x8C, data=0x03; "
+                    + $"expected=0x{expectedFunction:X2}; CRC valid; RX={Convert.ToHexString(frame)}.");
+            }
             var code = (AdcExceptionCode)frame[2];
             throw new AdcResponseException(frame[2],
                 $"ADC controller returned {code} (0x{(byte)code:X2}); RX={Convert.ToHexString(frame)}.");
@@ -528,18 +543,20 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     private static void ValidateFrame(byte[] frame, byte slaveAddress, byte function)
     {
+        var receivedCrc = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));
+        var calculatedCrc = AdcRtuFrame.CalculateCrc(frame.AsSpan(0, frame.Length - 2));
+        if (receivedCrc != calculatedCrc)
+        {
+            throw new InvalidDataException(
+                $"ADC response CRC is invalid: received=0x{receivedCrc:X4}, calculated=0x{calculatedCrc:X4}; "
+                + $"RX={Convert.ToHexString(frame)}; expected address={slaveAddress}, function=0x{function:X2}.");
+        }
         if (frame[0] != slaveAddress || frame[1] != function)
         {
             throw new InvalidDataException(
-                $"ADC response address={frame[0]}, function=0x{frame[1]:X2}; " +
-                $"expected address={slaveAddress}, function=0x{function:X2}.");
-        }
-
-        var expected = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));
-        var actual = AdcRtuFrame.CalculateCrc(frame.AsSpan(0, frame.Length - 2));
-        if (actual != expected)
-        {
-            throw new InvalidDataException("ADC response CRC is invalid.");
+                $"ADC response address={frame[0]}, function=0x{frame[1]:X2}; "
+                + $"expected address={slaveAddress}, function=0x{function:X2}; "
+                + $"CRC valid (0x{receivedCrc:X4}); RX={Convert.ToHexString(frame)}.");
         }
     }
 
