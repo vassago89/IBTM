@@ -37,47 +37,22 @@
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
                 Text="Bolt Fastening" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
-                Tag="{Binding BoltDisplayState}"
+                Width="{x:Static ui:MachinePlan.PlateWidth}" Height="54" Tag="{Binding BoltDisplayState}"
                 Style="{StaticResource StationStateBadgeStyle}">
                 <TextBlock
                     Text="{Binding BoltDisplayState,
                                           Converter={StaticResource EnumDescriptionConverter}}"
-                    Style="{StaticResource PrimaryStateTextStyle}"/>
+                    Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                    ToolTip="{Binding BoltDisplayState, Converter={StaticResource EnumDescriptionConverter}}"/>
             </Border>
 
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.DetailTop}" Width="340"
                 Text="{Binding FasteningState,
                                       Converter={StaticResource EnumDescriptionConverter}}"
-                TextAlignment="Left" Style="{StaticResource MapLabelStyle}" FontSize="14"
+                TextAlignment="Left" Style="{StaticResource MapLabelStyle}" FontSize="14" TextTrimming="CharacterEllipsis"
+                ToolTip="{Binding FasteningState, Converter={StaticResource EnumDescriptionConverter}}"
                 Visibility="{Binding FasteningStateVisible,
                                             Converter={StaticResource BoolToVis}}"/>
-
-            <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="140" Orientation="Horizontal">
-                <Border Style="{StaticResource DeviceBodyStyle}" Padding="6,4" Margin="0,0,6,0"
-                    ToolTip="Live ADC status from the shared monitor. — means feedback is unavailable.">
-                    <StackPanel>
-                        <TextBlock Text="Pick · ADC" Style="{StaticResource MapLabelStyle}"/>
-                        <TextBlock Style="{StaticResource MapLabelStyle}">
-                            <Run Text="Ready "/><Run Text="{Binding Fastening.PickupHead.Monitor.Status.Ready, TargetNullValue=—, Mode=OneWay}"/>
-                            <Run Text=" · Run "/><Run Text="{Binding Fastening.PickupHead.Monitor.Status.Running, TargetNullValue=—, Mode=OneWay}"/>
-                        </TextBlock>
-                        <TextBlock Text="{Binding Fastening.PickupHead.Monitor.Status.Alarm, StringFormat=Alarm {0}, TargetNullValue=Alarm —}"
-                            Style="{StaticResource MapLabelStyle}"/>
-                    </StackPanel>
-                </Border>
-                <Border Style="{StaticResource DeviceBodyStyle}" Padding="6,4" Margin="0,0,6,0"
-                    ToolTip="Live ADC status from the shared monitor. — means feedback is unavailable.">
-                    <StackPanel>
-                        <TextBlock Text="Shoot · ADC" Style="{StaticResource MapLabelStyle}"/>
-                        <TextBlock Style="{StaticResource MapLabelStyle}">
-                            <Run Text="Ready "/><Run Text="{Binding Fastening.ShootingHead.Monitor.Status.Ready, TargetNullValue=—, Mode=OneWay}"/>
-                            <Run Text=" · Run "/><Run Text="{Binding Fastening.ShootingHead.Monitor.Status.Running, TargetNullValue=—, Mode=OneWay}"/>
-                        </TextBlock>
-                        <TextBlock Text="{Binding Fastening.ShootingHead.Monitor.Status.Alarm, StringFormat=Alarm {0}, TargetNullValue=Alarm —}"
-                            Style="{StaticResource MapLabelStyle}"/>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
 
             <Grid Width="100" Height="86"
                 Tag="{Binding Units.PickupBoltFeeder}"

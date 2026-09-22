@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -163,9 +164,18 @@ public partial class InspectionTeachingViewModel : ObservableObject
             return;
         try
         {
+            Recipe? activeRecipe = null;
+            lock (_recipes.InspectionSync)
+            {
+                if (_recipes.Current.Name == name)
+                {
+                    // Teaching owns the point list, including edits not yet saved to the database.
+                    activeRecipe = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(_recipes.Current))!;
+                }
+            }
             var loaded = await Task.Run(() =>
             {
-                var recipe = _store.LoadRecipe<Recipe>(name);
+                var recipe = activeRecipe ?? _store.LoadRecipe<Recipe>(name);
                 var images = recipe.CarrierImages.OrderBy(tile => tile.HeatSink).ThenBy(tile => !tile.IsBarcode)
                     .ThenBy(tile => tile.BoltNumber).Select(tile =>
                     {

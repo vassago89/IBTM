@@ -147,8 +147,7 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="44"/>
                     </Grid.RowDefinitions>
                     <Grid>
                         <Grid.RowDefinitions>
@@ -191,9 +190,9 @@
                         <TextBlock Grid.Row="3" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
                             Text="Record Position saves coordinates and an image. Grab updates only the reference image and keeps Live running. Inspection Teaching automatically refreshes the saved images when opened; ROI and inspection edits are preserved."/>
                     </Grid>
-                    <TextBlock Grid.Row="2"
-                        Text="{Binding CameraError}"
-                        TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="4"/>
+                    <ScrollViewer Grid.Row="1" Margin="4" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock Text="{Binding CameraError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                    </ScrollViewer>
                 </Grid>
             </Border>
             <Border Padding="12">

@@ -17,22 +17,24 @@
 
             <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
                 Orientation="Horizontal">
-                <Border Tag="{Binding SupplyDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Margin="0,0,10,0">
+                <Border Tag="{Binding SupplyDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54" Margin="0,0,10,0">
                     <StackPanel>
                         <TextBlock Text="SUPPLY" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
                         <TextBlock
                             Text="{Binding SupplyStatus,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                            Margin="0,4,0,0" Style="{StaticResource PrimaryStateTextStyle}"/>
+                            Margin="0,4,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding SupplyStatus, Converter={StaticResource EnumDescriptionConverter}}"/>
                     </StackPanel>
                 </Border>
-                <Border Tag="{Binding PlacementDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}">
+                <Border Tag="{Binding PlacementDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54">
                     <StackPanel>
                         <TextBlock Text="PLACEMENT" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
                         <TextBlock
                             Text="{Binding PlacementStatus,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                            Margin="0,4,0,0" Style="{StaticResource PrimaryStateTextStyle}"/>
+                            Margin="0,4,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding PlacementStatus, Converter={StaticResource EnumDescriptionConverter}}"/>
                     </StackPanel>
                 </Border>
             </StackPanel>

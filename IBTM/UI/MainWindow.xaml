@@ -45,7 +45,7 @@
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
         </Style>
         <Style x:Key="NotificationTextStyle" TargetType="TextBlock">
-            <Setter Property="Margin" Value="24,8"/>
+            <Setter Property="Margin" Value="0,2"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Style.Triggers>
                 <Trigger Property="Text" Value="">
@@ -167,6 +167,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="64"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="64"/>
                 <RowDefinition Height="64"/>
             </Grid.RowDefinitions>
 
@@ -335,30 +336,37 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <StackPanel>
-                    <TextBlock Text="{Binding Operation.AlarmMessage}" ToolTip="{Binding Operation.AlarmDetail}"
-                        Visibility="{Binding Operation.HasAlarm, Converter={StaticResource BoolToVis}}"
-                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                    <TextBlock Text="{Binding ResetError}"
-                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                    <TextBlock Text="{Binding NavigationError}"
-                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                    <TextBlock x:Name="RecipeError"
-                        Text="{Binding RecipeEditor.Error}"
-                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"
-                        ToolTip="Your edits remain in memory. Resolve the storage problem, then retry the recipe operation."/>
-                </StackPanel>
-                <Grid Grid.Row="1" IsEnabled="{Binding CurrentPageEnabled}">
-                    <ContentPresenter Content="{Binding CurrentPage}"/>
-                </Grid>
+            <Grid Grid.Row="1" IsEnabled="{Binding CurrentPageEnabled}">
+                <ContentPresenter Content="{Binding CurrentPage}"/>
             </Grid>
 
             <Border Grid.Row="2" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
+                BorderThickness="0,1,0,0" Padding="18,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Messages" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
+                        VerticalAlignment="Center"/>
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Operation.AlarmMessage}" ToolTip="{Binding Operation.AlarmDetail}"
+                                Visibility="{Binding Operation.HasAlarm, Converter={StaticResource BoolToVis}}"
+                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                            <TextBlock Text="{Binding ResetError}"
+                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                            <TextBlock Text="{Binding NavigationError}"
+                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                            <TextBlock x:Name="RecipeError" Text="{Binding RecipeEditor.Error}"
+                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"
+                                ToolTip="Your edits remain in memory. Resolve the storage problem, then retry the recipe operation."/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="3" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
                 BorderThickness="0,1,0,0">
                 <Grid Margin="16,0">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">

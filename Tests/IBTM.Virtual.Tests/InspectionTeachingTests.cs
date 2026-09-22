@@ -317,6 +317,81 @@ public sealed class InspectionTeachingTests
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 2));
     }
 
+    [Fact]
+    public async Task ReopeningTeachingRemovesDeletedActivePointsAndKeepsRemainingInspectionEdits()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        await SaveRecipeAsync(store);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        var editor = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
+        editor.DataMatrix!.BinaryThreshold = 73;
+        editor.SelectedPoint = editor.Points.Single(point => point.Metadata.BoltNumber == 1);
+
+        // Remove Bolt edits the active recipe before the operator saves it to the database.
+        recipes.Current.Pcb.BoltPoints.Clear();
+        recipes.Current.CarrierImages.RemoveAll(tile => !tile.IsBarcode);
+        Assert.Single(store.LoadRecipe<Recipe>("Inspection").Pcb.BoltPoints);
+
+        editor.Activate();
+        await editor.RefreshImagesCommand.ExecutionTask!;
+
+        Assert.Null(editor.Error);
+        Assert.Empty(editor.Draft.Pcb.BoltPoints);
+        Assert.True(Assert.Single(editor.Points).Metadata.IsBarcode);
+        Assert.Same(editor.Points[0], editor.SelectedPoint);
+        Assert.Null(editor.SelectedBolt);
+        Assert.True(editor.IsDataMatrixSelected);
+        Assert.True(editor.Preview.HasImage);
+        Assert.Equal(73, editor.DataMatrix!.BinaryThreshold);
+        Assert.Equal(new PixelRegion(6, 6, 8, 8), editor.SelectedPoint!.Metadata.Region);
+
+        await recipes.SaveAsync("Inspection");
+        await editor.SaveCommand.ExecuteAsync(null);
+        await editor.RefreshImagesCommand.ExecuteAsync(null);
+        Assert.Null(editor.Error);
+        Assert.Empty(recipes.Current.Pcb.BoltPoints);
+        Assert.Empty(store.LoadRecipe<Recipe>("Inspection").Pcb.BoltPoints);
+        Assert.True(Assert.Single(store.LoadRecipe<Recipe>("Inspection").CarrierImages).IsBarcode);
+        Assert.True(Assert.Single(editor.Points).Metadata.IsBarcode);
+
+        // An empty active list must also clear the previous selection and preview.
+        recipes.Current.CarrierImages.Clear();
+        await editor.RefreshImagesCommand.ExecuteAsync(null);
+        Assert.Null(editor.Error);
+        Assert.Empty(editor.Points);
+        Assert.Null(editor.SelectedPoint);
+        Assert.False(editor.Preview.HasImage);
+    }
+
+    [Fact]
+    public async Task LoadingAnotherInspectionRecipeKeepsItsOwnStoredPoints()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        await SaveRecipeAsync(store);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        await recipes.SaveAsync("Other");
+        recipes.Current.Pcb.BoltPoints.Clear();
+        recipes.Current.CarrierImages.Clear();
+        var editor = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance)
+        {
+            SelectedRecipeName = "Inspection",
+        };
+
+        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        await editor.RefreshImagesCommand.ExecuteAsync(null);
+
+        Assert.Null(editor.Error);
+        Assert.Equal("Inspection", editor.Draft.Name);
+        Assert.Equal(2, editor.Points.Count);
+        Assert.Single(editor.Draft.Pcb.BoltPoints);
+        Assert.Empty(recipes.Current.Pcb.BoltPoints);
+        Assert.Empty(recipes.Current.CarrierImages);
+    }
+
     private static async Task<byte[]> SaveRecipeAsync(MachineStore store, byte brightness = 0)
     {
         var png = await Task.Run(() =>

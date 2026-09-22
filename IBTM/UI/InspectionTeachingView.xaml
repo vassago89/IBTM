@@ -14,7 +14,7 @@
             <RowDefinition Height="*" MinHeight="250"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="210"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="52"/>
         </Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,12">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" IsEnabled="{Binding IsIdle}">
@@ -172,9 +172,11 @@
                 </ListBox>
             </DockPanel>
         </Grid>
-        <StackPanel Grid.Row="4" Margin="0,8,0,0">
-            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"/>
-            <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
-        </StackPanel>
+        <ScrollViewer Grid.Row="4" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"/>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

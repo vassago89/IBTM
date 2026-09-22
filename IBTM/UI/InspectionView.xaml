@@ -13,13 +13,14 @@
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
                 Text="Inspection Station" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
-                Width="{x:Static ui:MachinePlan.PlateWidth}"
+                Width="{x:Static ui:MachinePlan.PlateWidth}" Height="54"
                 Tag="{Binding InspectionDisplayState}"
                 Style="{StaticResource StationStateBadgeStyle}">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock
                         Text="{Binding InspectionStatus, Converter={StaticResource EnumDescriptionConverter}}"
-                        Style="{StaticResource PrimaryStateTextStyle}"/>
+                        Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding InspectionStatus, Converter={StaticResource EnumDescriptionConverter}}"/>
                     <TextBlock Margin="0,3,0,0" FontSize="14" TextTrimming="CharacterEllipsis"
                         Foreground="{StaticResource TextPrimaryBrush}"
                         ToolTip="{Binding InspectionActiveBarcode}">
