@@ -18,7 +18,7 @@
         </Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,12">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" IsEnabled="{Binding IsIdle}">
-                <ComboBox ItemsSource="{Binding RecipeNames}" SelectedItem="{Binding SelectedRecipeName}"
+                <ComboBox ItemsSource="{Binding RecipeNames}" SelectedItem="{Binding SelectedRecipeName, BindingGroupName={x:Null}}"
                     Width="180" Margin="0,0,8,0"/>
                 <Button Content="Load Recipe" Command="{Binding LoadRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
                 <Button Content="Save Inspection" Command="{Binding SaveCommand}">
@@ -46,7 +46,7 @@
                         <TextBlock Text="{Binding Draft.Name}" Style="{StaticResource PanelTitleStyle}"/>
                         <TextBlock Text="Recorded positions" Foreground="{StaticResource TextMutedBrush}"/>
                     </StackPanel>
-                    <ListBox ItemsSource="{Binding Points}" SelectedItem="{Binding SelectedPoint}"
+                    <ListBox ItemsSource="{Binding Points}" SelectedItem="{Binding SelectedPoint, BindingGroupName={x:Null}}"
                         IsEnabled="{Binding IsIdle}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
                         Background="{StaticResource EquipBgBrush}" BorderThickness="0">
                         <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:CarrierImageTileView}">
@@ -67,16 +67,30 @@
                         <WrapPanel IsEnabled="{Binding IsIdle}">
                             <Button Content="Inspect Image" Command="{Binding InspectCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,8,6"/>
                             <Button Content="Recipe Image" Command="{Binding ShowRecipeImageCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,6"/>
-                            <ToggleButton Content="Ruler" IsChecked="{Binding IsMeasuring}" Padding="10,6" Margin="0,0,0,6"/>
+                            <ToggleButton Content="Ruler" IsChecked="{Binding IsMeasuring, BindingGroupName={x:Null}}" Padding="10,6" Margin="0,0,0,6"/>
                         </WrapPanel>
                         <TextBlock Text="{Binding ImageSource}" TextWrapping="Wrap"/>
                         <TextBlock Text="{Binding OriginalResult}" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
                     </StackPanel>
-                    <ui:ImageTeachingView x:Name="InspectionImage" Grid.Row="1" Source="{Binding Preview.Image}"
-                        SourceRegion="{Binding Preview.Region}" RegionCommand="{Binding DrawRegionCommand}"
-                        IsEnabled="{Binding IsIdle}" IsMeasuring="{Binding IsMeasuring}" Ruler="{Binding Ruler}"
-                        MeasureCommand="{Binding MeasureCommand}" ShowCrosshair="True" Cursor="Cross"
-                        ToolTip="Drag to resize the centered ROI. Save Inspection applies changes; coordinates are not changed."/>
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                        <TextBlock Text="Original · edit ROI" FontWeight="SemiBold" Margin="0,0,6,6"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Preview.BinaryDescription}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="6,0,0,6"/>
+                        <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}" Margin="0,0,6,0">
+                            <ui:ImageTeachingView x:Name="InspectionImage" Source="{Binding Preview.Image}"
+                                SourceRegion="{Binding Preview.Region}" RegionCommand="{Binding DrawRegionCommand}"
+                                IsEnabled="{Binding IsIdle}" IsMeasuring="{Binding IsMeasuring}" Ruler="{Binding Ruler}"
+                                MeasureCommand="{Binding MeasureCommand}" ShowCrosshair="True" Cursor="Cross"
+                                ToolTip="Drag to resize the centered ROI. Save Inspection applies changes; coordinates are not changed."/>
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource ImageBackgroundBrush}" Margin="6,0,0,0">
+                            <ui:ImageTeachingView Source="{Binding Preview.Image}" SourceRegion="{Binding Preview.Region}"
+                                SourceOverlay="{Binding Preview.Overlay}" ShowCrosshair="False"
+                                RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                ToolTip="Same image and scale as the original. The selected ROI shows the binary image used for inspection."/>
+                        </Border>
+                    </Grid>
                     <StackPanel Grid.Row="2" Margin="0,8,0,0">
                         <TextBlock Text="{Binding Preview.Result}" FontWeight="SemiBold" FontSize="17" TextWrapping="Wrap"/>
                         <WrapPanel Visibility="{Binding IsMeasuring, Converter={StaticResource BoolToVis}}" IsEnabled="{Binding IsIdle}">
@@ -98,12 +112,12 @@
                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,12,0,0"/>
                         <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="Data Matrix" FontWeight="SemiBold" Margin="0,16,0,8"/>
-                            <CheckBox Content="Try harder" IsChecked="{Binding DataMatrix.TryHarder}" Margin="0,0,0,6"/>
-                            <CheckBox Content="Try inverted" IsChecked="{Binding DataMatrix.TryInverted}" Margin="0,0,0,6"/>
-                            <CheckBox Content="Rotate search" IsChecked="{Binding DataMatrix.AutoRotate}" Margin="0,0,0,6"/>
-                            <CheckBox Content="Pure barcode" IsChecked="{Binding DataMatrix.PureBarcode}" Margin="0,0,0,6"/>
+                            <CheckBox Content="Try harder" IsChecked="{Binding DataMatrix.TryHarder, BindingGroupName={x:Null}}" Margin="0,0,0,6"/>
+                            <CheckBox Content="Try inverted" IsChecked="{Binding DataMatrix.TryInverted, BindingGroupName={x:Null}}" Margin="0,0,0,6"/>
+                            <CheckBox Content="Rotate search" IsChecked="{Binding DataMatrix.AutoRotate, BindingGroupName={x:Null}}" Margin="0,0,0,6"/>
+                            <CheckBox Content="Pure barcode" IsChecked="{Binding DataMatrix.PureBarcode, BindingGroupName={x:Null}}" Margin="0,0,0,6"/>
                             <TextBlock Text="Binary threshold (0–255)" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                            <TextBox Text="{Binding DataMatrix.BinaryThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                            <TextBox Text="{Binding Preview.DataMatrixThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                             <TextBlock Text="Blank = automatic threshold. Test using Inspect Image." TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                         </StackPanel>
                         <StackPanel Visibility="{Binding IsBoltSelected, Converter={StaticResource BoolToVis}}">
@@ -112,7 +126,6 @@
                             <TextBox Text="{Binding Preview.BrightnessThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                             <TextBlock Text="Minimum bright (%)" Margin="0,8,0,4"/>
                             <TextBox Text="{Binding Preview.MinimumBrightPercent, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                            <Image Source="{Binding Preview.Overlay}" Height="95" Stretch="Uniform" Margin="0,12,0,0" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
@@ -128,7 +141,7 @@
             <Grid.ColumnDefinitions><ColumnDefinition Width="300"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <DockPanel Margin="0,0,10,0">
                 <Button DockPanel.Dock="Bottom" Content="Load Selected PCB" Command="{Binding LoadRecordCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,6,0,0"/>
-                <ListBox ItemsSource="{Binding Records}" SelectedItem="{Binding SelectedRecord}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
+                <ListBox ItemsSource="{Binding Records}" SelectedItem="{Binding SelectedRecord, BindingGroupName={x:Null}}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
                     Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}">
                     <ListBox.ItemTemplate><DataTemplate DataType="{x:Type storage:PcbRecord}">
                         <StackPanel Margin="4">
@@ -145,7 +158,7 @@
                     <TextBlock Text="Load the matching recipe to edit this point. Saved production results remain unchanged."
                         Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"/>
                 </DockPanel>
-                <ListBox ItemsSource="{Binding HistoryImages}" SelectedItem="{Binding SelectedHistoryImage}"
+                <ListBox ItemsSource="{Binding HistoryImages}" SelectedItem="{Binding SelectedHistoryImage, BindingGroupName={x:Null}}"
                     ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
                     ItemContainerStyle="{StaticResource FlatListItemStyle}" Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}">
                     <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>

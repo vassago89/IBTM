@@ -3,10 +3,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Threading;
 using System.Windows.Media.Imaging;
 using IBTM.Core;
+using IBTM.Inspection;
 using IBTM.Storage;
 using IBTM.UI;
 using Microsoft.Data.Sqlite;
@@ -17,6 +22,127 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class InspectionTeachingTests
 {
+    [Fact]
+    public async Task PointSelectionUpdatesBoundParameters()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var png = await SaveRecipeAsync(store);
+        var recipe = store.LoadRecipe<Recipe>("Inspection");
+        recipe.BoltInspection.DataMatrix1.BinaryThreshold = 51;
+        recipe.BoltInspection.DataMatrix2.BinaryThreshold = 180;
+        recipe.BoltInspection.DataMatrix2.TryInverted = false;
+        recipe.Pcb.BoltPoints[0].BrightnessThreshold = 91;
+        recipe.Pcb.BoltPoints[0].MinimumBrightRatio = 0.25;
+        recipe.Pcb.BoltPoints.Add(new() { Number = 2, BrightnessThreshold = 172, MinimumBrightRatio = 0.75 });
+        recipe.CarrierImages.Add(new() { Number = 3, BoltNumber = 2, Region = new(2, 2, 10, 10) });
+        recipe.CarrierImages.Add(new() { Number = 4, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(2, 2, 10, 10) });
+        store.SaveRecipe(recipe.Name, recipe, [1, 2, 3, 4], images: [new(1, png), new(2, png), new(3, png), new(4, png)]);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        var editor = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var panel = new StackPanel();
+                var root = new UserControl { DataContext = editor, BindingGroup = new BindingGroup { Name = "InspectionInputs" }, Content = panel };
+                var list = new ListBox();
+                list.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(editor.Points)));
+                list.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedItemProperty,
+                    new Binding(nameof(editor.SelectedPoint)) { BindingGroupName = null });
+                var threshold = new TextBox();
+                threshold.SetBinding(TextBox.TextProperty, new Binding("Preview.BrightnessThreshold")
+                {
+                    BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+                });
+                var minimum = new TextBox();
+                minimum.SetBinding(TextBox.TextProperty, new Binding("Preview.MinimumBrightPercent")
+                {
+                    BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+                });
+                var matrixThreshold = new TextBox();
+                matrixThreshold.SetBinding(TextBox.TextProperty, new Binding("Preview.DataMatrixThreshold")
+                {
+                    BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+                });
+                var inverted = new CheckBox();
+                inverted.SetBinding(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+                    new Binding("DataMatrix.TryInverted") { BindingGroupName = null });
+                panel.Children.Add(list);
+                panel.Children.Add(threshold);
+                panel.Children.Add(minimum);
+                panel.Children.Add(matrixThreshold);
+                panel.Children.Add(inverted);
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Assert.Equal("51", matrixThreshold.Text);
+                Assert.True(inverted.IsChecked);
+                inverted.IsChecked = false;
+                Assert.False(editor.Draft.BoltInspection.DataMatrix1.TryInverted);
+                matrixThreshold.Text = "73";
+                list.SelectedItem = editor.Points.Single(point => point.Metadata.IsBarcode && point.Metadata.HeatSink == HeatSinkSlot.HeatSink2);
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Assert.Equal("180", matrixThreshold.Text);
+                Assert.Equal(73, editor.Draft.BoltInspection.DataMatrix1.BinaryThreshold);
+                Assert.False(inverted.IsChecked);
+                list.SelectedItem = editor.Points.Single(point => point.Metadata.BoltNumber == 1);
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Assert.Equal(1, editor.SelectedBolt!.Number);
+                Assert.Equal("91", threshold.Text);
+                Assert.Equal("25", minimum.Text);
+                threshold.Text = "103";
+                list.SelectedItem = editor.Points.Single(point => point.Metadata.BoltNumber == 2);
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Assert.Equal(2, editor.SelectedBolt!.Number);
+                Assert.Equal("172", threshold.Text);
+                Assert.Equal("75", minimum.Text);
+                Assert.Equal(103, editor.Draft.Pcb.BoltPoints[0].BrightnessThreshold);
+                GC.KeepAlive(root);
+                completion.SetResult();
+            }
+            catch (Exception exception)
+            {
+                completion.SetException(exception);
+            }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task BinaryPreviewFollowsSelectedPointThresholdAndRoi()
+    {
+        var recipe = new Recipe();
+        var bolt = new BoltPoint { Number = 1, BrightnessThreshold = 128 };
+        recipe.Pcb.BoltPoints.Add(bolt);
+        recipe.BoltInspection.DataMatrix1.BinaryThreshold = 128;
+        var pixels = Enumerable.Repeat((byte)90, 20 * 20 * 3).ToArray();
+        var frame = new ImageFrame(20, 20, 60, pixels);
+        var original = InspectionPreview.CreateBitmap(frame);
+        var preview = new InspectionPreview(recipe);
+        preview.Clear(HeatSinkSlot.HeatSink1);
+        preview.SetSavedImage(original, new(2, 3, 10, 12));
+        Assert.Equal((10, 12), (preview.Overlay!.PixelWidth, preview.Overlay.PixelHeight));
+        Assert.All(InspectionPreview.CreateFrame(preview.Overlay).Pixels, pixel => Assert.Equal(0, pixel));
+        preview.DataMatrixThreshold = 80;
+        Assert.All(InspectionPreview.CreateFrame(preview.Overlay!).Pixels, pixel => Assert.Equal(255, pixel));
+        Assert.Equal(80, recipe.BoltInspection.DataMatrix1.BinaryThreshold);
+        await preview.InspectAsync(CancellationToken.None);
+        Assert.NotNull(preview.Overlay);
+        Assert.Same(original, preview.Image);
+        preview.SetSavedImage(original, new(1, 1, 6, 8));
+        Assert.Equal((6, 8), (preview.Overlay!.PixelWidth, preview.Overlay.PixelHeight));
+        preview.Clear(bolt: bolt);
+        preview.SetSavedImage(original, new(2, 3, 10, 12));
+        Assert.All(InspectionPreview.CreateFrame(preview.Overlay!).Pixels, pixel => Assert.Equal(0, pixel));
+        preview.BrightnessThreshold = 80;
+        Assert.All(InspectionPreview.CreateFrame(preview.Overlay!).Pixels, pixel => Assert.Equal(255, pixel));
+        Assert.Same(original, preview.Image);
+        Assert.Equal(pixels, InspectionPreview.CreateFrame(preview.Image!).Pixels);
+    }
+
     [Fact]
     public async Task OfflineDraftSavesOnlyInspectionSettingsWithoutReplacingNewerPositionsOrImages()
     {

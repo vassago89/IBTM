@@ -34,6 +34,24 @@ public partial class InspectionPreview : ObservableObject
 
     public bool HasImage => _frame is not null;
 
+    public string BinaryDescription => _pcb is null ? $"Binary ROI · threshold {BrightnessThreshold}"
+        : DataMatrixThreshold is { } threshold ? $"Binary ROI · threshold {threshold}"
+        : HasImage && Overlay is null ? "Automatic binary unavailable · set a threshold"
+        : "Binary ROI · automatic (ZXing)";
+
+    public int? DataMatrixThreshold
+    {
+        get => _pcb is { } pcb ? _recipe.BoltInspection.GetDataMatrix(pcb).BinaryThreshold : null;
+        set
+        {
+            if (_pcb is not { } pcb)
+                throw new InvalidOperationException("Select a Data Matrix before changing its threshold.");
+            _recipe.BoltInspection.GetDataMatrix(pcb).BinaryThreshold = value;
+            RefreshBinaryImage();
+            OnPropertyChanged();
+        }
+    }
+
     public int BrightnessThreshold
     {
         get => _bolt?.BrightnessThreshold ?? _recipe.BoltInspection.BrightnessThreshold;
@@ -43,12 +61,7 @@ public partial class InspectionPreview : ObservableObject
             if (_bolt is null)
                 throw new InvalidOperationException("Select a bolt before changing its threshold.");
             _bolt.BrightnessThreshold = value;
-            if (_check is not null)
-            {
-                _check = BinaryChecker.Check(_frame!, _sourceRegion!, BrightnessThreshold);
-                Overlay = CreateBitmap(_check.Image);
-                RefreshResult();
-            }
+            RefreshBinaryImage();
             OnPropertyChanged();
         }
     }
@@ -81,31 +94,28 @@ public partial class InspectionPreview : ObservableObject
         OnPropertyChanged(nameof(HasImage));
         OnPropertyChanged(nameof(BrightnessThreshold));
         OnPropertyChanged(nameof(MinimumBrightPercent));
+        OnPropertyChanged(nameof(DataMatrixThreshold));
+        OnPropertyChanged(nameof(BinaryDescription));
     }
 
     public void SetSavedImage(BitmapSource image, PixelRegion? region)
     {
-        ClearResult();
         _frame = CreateFrame(image);
         _sourceRegion = region;
         Image = image;
         RefreshRegion();
-        if (_bolt is not null && region is not null)
-        {
-            _check = BinaryChecker.Check(_frame, region, BrightnessThreshold);
-            Overlay = CreateBitmap(_check.Image);
-            RefreshResult();
-        }
+        RefreshBinaryImage();
         OnPropertyChanged(nameof(HasImage));
     }
 
     public async Task InspectAsync(CancellationToken token)
     {
-        ClearResult();
+        Result = null;
         var frame = _frame!;
         var region = _sourceRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");
         if (_pcb is not null)
         {
+            RefreshBinaryImage();
             var settings = _recipe.BoltInspection.GetDataMatrix(_pcb.Value);
             var text = await Task.Run(() => DataMatrixReader.Read(frame, region, settings), token);
             token.ThrowIfCancellationRequested();
@@ -132,6 +142,26 @@ public partial class InspectionPreview : ObservableObject
         _check = null;
         Overlay = null;
         Result = null;
+    }
+
+    private void RefreshBinaryImage()
+    {
+        ClearResult();
+        if (_frame is not null && _sourceRegion is { } region)
+        {
+            if (_pcb is not null)
+            {
+                var binary = DataMatrixReader.CreateBinaryImage(_frame, region, DataMatrixThreshold);
+                Overlay = binary is null ? null : CreateBitmap(binary);
+            }
+            else if (_bolt is not null)
+            {
+                _check = BinaryChecker.Check(_frame, region, BrightnessThreshold);
+                Overlay = CreateBitmap(_check.Image);
+                RefreshResult();
+            }
+        }
+        OnPropertyChanged(nameof(BinaryDescription));
     }
 
     private void RefreshResult()

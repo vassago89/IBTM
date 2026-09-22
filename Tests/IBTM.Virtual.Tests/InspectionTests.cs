@@ -33,6 +33,13 @@ public sealed class InspectionTests
                     ? (byte)(255 - image.Pixels[row * image.Stride + column])
                     : image.Pixels[row * image.Stride + column];
         var padded = new ImageFrame(image.Width, image.Height, stride, pixels);
+        var binary = DataMatrixReader.CreateBinaryImage(padded, new(180, 40, 80, 80), threshold: null);
+        Assert.NotNull(binary);
+        Assert.Equal((80, 80), (binary.Width, binary.Height));
+        Assert.All(binary.Pixels, pixel => Assert.True(pixel is 0 or 255));
+        Assert.Equal("PCB-000123", DataMatrixReader.Read(binary, new(0, 0, 80, 80)));
+        var manual = DataMatrixReader.CreateBinaryImage(padded, new(180, 40, 80, 80), threshold: 128);
+        Assert.Equal(BinaryChecker.Check(padded, new(180, 40, 80, 80), 128).Image.Pixels, manual!.Pixels);
         Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80)));
         Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80),
             new() { BinaryThreshold = 128, AutoRotate = true }));
