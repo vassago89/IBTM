@@ -44,7 +44,7 @@ public sealed class BoltFasteningTests
         var pickup = CreateAdcHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
         var bus = new AdcControllerStub { SuppressCompletion = true };
         IBoltHead head = CreateAdcHead(bus, io, FasteningHead.Shooting,
-            new HantasSettings { FasteningTimeoutMilliseconds = 100, ResultPollingIntervalMilliseconds = 10 }, 1, "Virtual", 115200);
+            new HantasSettings { FasteningTimeoutMilliseconds = 100 }, 1, "Virtual", 115200);
         var units = new UnitSettings();
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
         var layout = new PcbLayout
@@ -193,15 +193,13 @@ public sealed class BoltFasteningTests
             }
             if (rejectedResponse)
             {
-                Assert.Equal(3, bus.ResultPolls); // Rejected query, first result, second result.
-                Assert.All(assembly.PcbBoltResults.Values, result =>
-                {
-                    Assert.True(result.Success);
-                    Assert.NotNull(result.Torque);
-                    Assert.NotNull(result.Controller);
-                    Assert.Null(result.Error);
-                });
-                Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
+                Assert.Equal(2, bus.ResultPolls); // One result read per bolt, without retrying the rejected read.
+                Assert.False(assembly.PcbBoltResults[1].Success);
+                Assert.Null(assembly.PcbBoltResults[1].Torque);
+                Assert.Contains("0x03", assembly.PcbBoltResults[1].Error);
+                Assert.True(assembly.PcbBoltResults[2].Success);
+                Assert.NotNull(assembly.PcbBoltResults[2].Controller);
+                Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
             }
             else
             {

@@ -1,9 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -27,7 +25,7 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(FasteningHead.Pickup)]
     [InlineData(FasteningHead.Shooting)]
-    public async Task UsesIoControlsAndQueriesAdcResultOnlyDuringFastening(FasteningHead selected)
+    public async Task UsesIoControlsAndReadsResultOnceAfterControllerNotification(FasteningHead selected)
     {
         using var bus = new VirtualAdcBus();
         var (io, head) = Create(bus, head: selected);
@@ -48,7 +46,7 @@ public sealed class AdcBoltHeadTests
                 if (count == 1)
                 {
                     eventReads++;
-                    Assert.Equal(eventReads > 1, io.GetOutput(start));
+                    Assert.False(io.GetOutput(start));
                 }
                 else
                 {
@@ -71,74 +69,40 @@ public sealed class AdcBoltHeadTests
             Assert.True(io.GetOutput(start));
             Assert.False(io.GetOutput(otherStart));
             fed = true;
-            // The controller can finish before the first query after head DOWN.
+            // The notification can arrive while the head DOWN command is still completing.
             await Task.Delay(300, token);
         });
         Assert.True(result.Success);
         Assert.True(fed);
         Assert.NotNull(result.Controller);
-        Assert.Equal(2, eventReads); // Pre-START baseline and the changed event.
+        Assert.Equal(1, eventReads); // Pre-START baseline only.
         Assert.Equal(1, resultReads);
         Assert.Equal(2, statusReads); // Preset command and STOP: one sample each.
         Assert.False(io.GetOutput(start));
     }
 
     [Fact]
-    public async Task EventQueriesUseConfiguredIntervalAndReadFullResultOnlyWhenChanged()
+    public async Task WaitsWithoutQueriesThenReadsOnceForThisHeadsNotification()
     {
-        var bus = new AdcControllerStub();
-        var previous = AdcFasteningResult.FromRegisters([0, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]);
-        bus.ResultReplies.Enqueue(previous);
-        bus.ResultReplies.Enqueue(previous);
-        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 80 });
+        var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
-        var elapsed = Stopwatch.StartNew();
+        bus.NotifyResult(); // A notification before START must not carry into this operation.
         var running = head.TightenAsync();
-        Assert.Null(head.LastStatus);
+        await Task.Delay(180);
         Assert.False(running.IsCompleted);
+        Assert.Null(head.LastStatus);
+        Assert.Equal(1, bus.EventReads);
+        Assert.Equal(0, bus.ResultReads);
         Assert.Equal(1, bus.StatusReads);
+        bus.NotifyResult(2); // Another slave cannot complete this head.
+        Assert.False(running.IsCompleted);
+        Assert.Equal(0, bus.ResultReads);
+        bus.NotifyResult();
+        bus.NotifyResult(); // Duplicate notifications do not cause repeated reads.
         Assert.True((await running).Success);
-        Assert.True(elapsed.ElapsedMilliseconds >= 230); // Three separate 80 ms waits.
-        Assert.Equal(3, bus.EventPolls);
-        Assert.Equal(4, bus.EventReads); // Includes the one-register baseline before START.
         Assert.Equal(1, bus.ResultReads);
-        Assert.Equal(2, bus.StatusReads); // No RUN/READY polling during fastening.
-        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-    }
-
-    [Fact]
-    public void ResultQueryIntervalPersistsAndMustBePositive()
-    {
-        var oldSettings = JsonSerializer.Deserialize<HantasSettings>("{}")!;
-        Assert.Equal(100, oldSettings.ResultPollingIntervalMilliseconds);
-        oldSettings.ResultPollingIntervalMilliseconds = 375;
-        var loaded = JsonSerializer.Deserialize<HantasSettings>(JsonSerializer.Serialize(oldSettings))!;
-        Assert.Equal(375, loaded.ResultPollingIntervalMilliseconds);
-        Assert.Throws<ArgumentOutOfRangeException>(() => loaded.ResultPollingIntervalMilliseconds = 0);
-        Assert.Throws<ArgumentOutOfRangeException>(() => loaded.ResultPollingIntervalMilliseconds = -1);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RetryableReplyContinuesQueriesUntilANewResultWithoutAnotherStart(bool rejected)
-    {
-        var bus = new AdcControllerStub { ResultReadFailure = RetryableResultReply(rejected) };
-        // A normal but unchanged result after a rejected or unrelated reply must still be ignored.
-        bus.ResultReplies.Enqueue(AdcFasteningResult.FromRegisters(
-            [0, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]));
-        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 20 });
-        await head.SelectPresetAsync(1);
-        var elapsed = Stopwatch.StartNew();
-        var result = await head.TightenAsync();
-        Assert.True(result.Success);
-        Assert.Null(result.Error);
-        Assert.Equal((ushort)1, result.Controller!.EventCount);
-        Assert.Equal(3, bus.EventPolls); // Old result, rejected full read, successful full read.
-        Assert.Equal(2, bus.ResultPolls);
-        Assert.True(elapsed.ElapsedMilliseconds >= 55);
-        Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(1, bus.StopWrites);
+        Assert.Equal(1, bus.EventReads);
         Assert.Equal(2, bus.StatusReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
@@ -146,48 +110,41 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task RepeatedRetryableRepliesDoNotExtendTheFasteningDeadline(bool rejected)
+    public async Task FailedOneShotResultReadIsRecordedWithoutRetryingOrRestarting(bool rejected)
     {
-        var bus = new AdcControllerStub
-        {
-            ResultReadFailure = RetryableResultReply(rejected),
-            ResultReadFailuresRemaining = -1,
-        };
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 150, ResultPollingIntervalMilliseconds = 10 });
+        var bus = new AdcControllerStub { ResultReadFailure = ResultReplyFailure(rejected) };
+        var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
-        var result = await head.TightenAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        var result = await head.TightenAsync();
         Assert.False(result.Success);
-        Assert.Null(result.Torque);
         Assert.Null(result.Controller);
-        Assert.Contains("timed out after 150 ms", result.Error);
-        Assert.Contains(rejected
-            ? $"result query rejections (0x03)={bus.ResultPolls}"
-            : $"unmatched RTU replies={bus.ResultPolls}", result.Error);
-        Assert.True(bus.ResultPolls >= 2);
+        Assert.Null(result.Torque);
+        Assert.NotNull(result.Error);
+        Assert.Equal(1, bus.EventReads);
+        Assert.Equal(1, bus.ResultReads);
         Assert.Equal(1, bus.StartWrites);
         Assert.Equal(1, bus.StopWrites);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CancellationAfterRetryableReplyStillTurnsStartOff(bool rejected)
+    [Fact]
+    public async Task CancellationWhileWaitingForNotificationStopsAndDiscardsLateNotifications()
     {
-        var bus = new AdcControllerStub
-        {
-            ResultReadFailure = RetryableResultReply(rejected),
-            ResultReadFailuresRemaining = -1,
-        };
-        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 10 });
+        var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         using var stop = new CancellationTokenSource();
         var running = head.TightenAsync(stop.Token);
-        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.ResultPolls > 0, TimeSpan.FromSeconds(2)));
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
-        Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(1, bus.StopWrites);
+        bus.NotifyResult();
+        Assert.Equal(0, bus.ResultReads);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        var next = head.TightenAsync();
+        Assert.False(next.IsCompleted);
+        bus.NotifyResult();
+        Assert.Equal((ushort)2, (await next).Controller!.EventCount);
+        Assert.Equal(1, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -196,7 +153,7 @@ public sealed class AdcBoltHeadTests
     [InlineData(true)]
     public async Task FailedBaselineCannotStartFastening(bool rejected)
     {
-        var failure = RetryableResultReply(rejected);
+        var failure = ResultReplyFailure(rejected);
         var bus = new AdcControllerStub { BaselineReadFailure = failure };
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
@@ -207,29 +164,13 @@ public sealed class AdcBoltHeadTests
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
-    private static IOException RetryableResultReply(bool rejected)
+    private static IOException ResultReplyFailure(bool rejected)
     {
         if (rejected)
             return Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
                 [0x01, 0x84, 0x03, 0x03, 0x01], 1, AdcFunctionCode.ReadInputRegisters, 28));
         return Assert.Throws<AdcUnexpectedResponseException>(() => AdcBus.ValidateResponse(
             [0x01, 0x8C, 0x03, 0x04, 0xC1], 1, AdcFunctionCode.ReadInputRegisters, 28));
-    }
-
-    [Fact]
-    public async Task RejectedEventQueryWaitsForANewEventBeforeReadingTheResult()
-    {
-        var bus = new AdcControllerStub { EventReadFailure = RetryableResultReply(true) };
-        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 20 });
-        await head.SelectPresetAsync(1);
-        var result = await head.TightenAsync();
-        Assert.True(result.Success);
-        Assert.Equal(3, bus.EventReads); // Baseline, rejected event query, changed event.
-        Assert.Equal(1, bus.ResultReads);
-        Assert.Equal((ushort)1, result.Controller!.EventCount);
-        Assert.Equal(1, bus.StartWrites);
-        Assert.Equal(1, bus.StopWrites);
-        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
     [Fact]
@@ -241,7 +182,7 @@ public sealed class AdcBoltHeadTests
             ResultReadFailure = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
                 frame, 1, AdcFunctionCode.ReadInputRegisters, 28)),
         };
-        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 10 });
+        var (io, head) = Create(bus, new());
         await head.SelectPresetAsync(1);
         var result = await head.TightenAsync();
         Assert.False(result.Success);
@@ -287,24 +228,22 @@ public sealed class AdcBoltHeadTests
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
-    [Fact]
-    public async Task IgnoresUnchangedAndNonCompletionEvents()
+    [Theory]
+    [InlineData(0, AdcEventStatus.FasteningOk)]
+    [InlineData(1, AdcEventStatus.DirectionChanged)]
+    public async Task NotificationAloneCannotTurnAnOldOrIncompleteResultIntoSuccess(ushort eventCount, AdcEventStatus status)
     {
         var bus = new AdcControllerStub();
-        var result = AdcFasteningResult.FromRegisters([0, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]);
+        var result = AdcFasteningResult.FromRegisters([eventCount, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, (ushort)status, 0]);
         bus.ResultReplies.Enqueue(result);
-        bus.ResultReplies.Enqueue(result with { EventCount = 1, Status = AdcEventStatus.DirectionChanged });
-        bus.ResultReplies.Enqueue(result with { EventCount = 1, Status = AdcEventStatus.DirectionChanged });
-        bus.ResultReplies.Enqueue(result with { EventCount = 2, Status = AdcEventStatus.PresetChanged });
-        bus.ResultReplies.Enqueue(result with { EventCount = 2, Status = AdcEventStatus.PresetChanged });
-        bus.ResultReplies.Enqueue(result with { EventCount = 3, Status = AdcEventStatus.FasteningNg });
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         var completed = await head.TightenAsync();
         Assert.False(completed.Success);
-        Assert.Equal(0.8, completed.Torque);
-        Assert.Equal(6, bus.EventPolls);
-        Assert.Equal(3, bus.ResultPolls); // Unchanged events never trigger another full read.
+        Assert.Null(completed.Controller);
+        Assert.Contains("no new completed fastening result", completed.Error);
+        Assert.Equal(1, bus.EventReads);
+        Assert.Equal(1, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -327,17 +266,18 @@ public sealed class AdcBoltHeadTests
     public async Task EveryStartUsesANewBaselineAndCannotReuseThePreviousBoltResult()
     {
         var bus = new AdcControllerStub();
-        var (io, head) = Create(bus, new() { ResultPollingIntervalMilliseconds = 10 });
+        var (io, head) = Create(bus, new());
         await head.SelectPresetAsync(1);
         Assert.Equal((ushort)1, (await head.TightenAsync()).Controller!.EventCount);
         bus.ResultReplies.Enqueue(AdcFasteningResult.FromRegisters(
             [1, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, 1, 0]));
         await head.SelectPresetAsync(1);
         var next = await head.TightenAsync();
-        Assert.Equal((ushort)2, next.Controller!.EventCount);
-        Assert.Equal(3, bus.EventPolls); // First bolt, unchanged result, second bolt.
-        Assert.Equal(5, bus.EventReads); // A fresh baseline for each START.
+        Assert.False(next.Success);
+        Assert.Null(next.Controller);
+        Assert.Equal(2, bus.EventReads); // A fresh baseline for each START.
         Assert.Equal(2, bus.ResultReads);
+        Assert.Equal((ushort)3, (await head.TightenAsync()).Controller!.EventCount);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -372,13 +312,16 @@ public sealed class AdcBoltHeadTests
     public async Task MissingResultRecordsNgOnlyAfterIoStop()
     {
         var bus = new AdcControllerStub { SuppressCompletion = true, StopPollsRemaining = -1 };
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60, ResultPollingIntervalMilliseconds = 10 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60 });
         await head.SelectPresetAsync(1);
         var result = await head.TightenAsync();
         Assert.False(result.Success);
         Assert.Null(result.Torque);
         Assert.Null(result.Controller);
         Assert.Contains("timed out", result.Error);
+        Assert.Contains("notification received=False", result.Error);
+        Assert.Equal(1, bus.EventReads);
+        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.True(head.LastStatus!.Running);
         Assert.Equal(2, bus.StatusReads);
@@ -388,7 +331,7 @@ public sealed class AdcBoltHeadTests
     public async Task TimeoutAndIoOutputFailureAreBothPreserved()
     {
         var bus = new AdcControllerStub { SuppressCompletion = true, StopWriteFailure = new IOException("I/O write failed") };
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 50, ResponseTimeoutMilliseconds = 60, ResultPollingIntervalMilliseconds = 10 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 50, ResponseTimeoutMilliseconds = 60 });
         await head.SelectPresetAsync(1);
         var error = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
         Assert.IsType<TimeoutException>(error.InnerExceptions[0]);
@@ -422,7 +365,7 @@ public sealed class AdcBoltHeadTests
     public async Task HeadCommandTimeoutStillFailsAndTurnsStartOff()
     {
         var bus = new AdcControllerStub();
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60, ResultPollingIntervalMilliseconds = 10 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 60 });
         await head.SelectPresetAsync(1);
         await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync(
             feedAsync: token => Task.Delay(Timeout.Infinite, token)));
@@ -494,7 +437,7 @@ public sealed class AdcBoltHeadTests
     public async Task AlarmWithoutCompletionResultIsSampledAtStop()
     {
         var bus = new AdcControllerStub { SuppressCompletion = true };
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 80, ResultPollingIntervalMilliseconds = 10 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 80 });
         await head.SelectPresetAsync(1);
         var cycle = head.TightenAsync();
         bus.CurrentAlarm = 125;
