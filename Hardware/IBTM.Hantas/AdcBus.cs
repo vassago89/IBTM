@@ -40,6 +40,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
+    public event Action<byte>? ResultNotificationReceived;
+
     public bool IsOpen => _port?.IsOpen == true;
 
     public string PortName => _port?.PortName ?? string.Empty;
@@ -176,6 +178,21 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     catch (Exception exception)
                     {
                         pending.Completion.TrySetException(exception);
+                    }
+                }
+                else if (pending is null && function == 0x84 && frame[2] == 0x03)
+                {
+                    try
+                    {
+                        ValidateFrame(frame, frame[0], function);
+                        _logger.LogInformation(
+                            "ADC {Port}/{Slave}: unsolicited 84 03 received; treating as a result notification (assumed); RX={Frame}.",
+                            PortName, frame[0], Convert.ToHexString(frame));
+                        ResultNotificationReceived?.Invoke(frame[0]);
+                    }
+                    catch (InvalidDataException exception)
+                    {
+                        _logger.LogWarning(exception, "ADC invalid unsolicited notification: RX={Frame}.", Convert.ToHexString(frame));
                     }
                 }
                 else if (automatic)

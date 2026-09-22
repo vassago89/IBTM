@@ -16,6 +16,10 @@ public interface IAdcBus
     // Receive notifications are raw chunks, not necessarily complete or valid frames.
     event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
+    // Experimental: an unsolicited, CRC-valid 84 03 frame asks us to read the result once.
+    // The notification itself is not a fastening result.
+    event Action<byte>? ResultNotificationReceived;
+
     string[] GetPortNames();
     // An existing connection must match both requested settings; otherwise Open must fail.
     void Open(string portName, int baudRate);
