@@ -14,6 +14,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
 {
     private readonly IAdcBus _bus;
     private readonly SemaphoreSlim _startGate;
+    private readonly Lock _stateGate;
     private CancellationTokenSource? _lifetime;
     private Task _completion;
     private AdcStatusSample? _sample;
@@ -22,6 +23,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     {
         _bus = bus;
         _startGate = new(1, 1);
+        _stateGate = new();
         _completion = Task.CompletedTask;
     }
 
@@ -31,7 +33,15 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     public AdcControllerStatus? Status => Sample?.Status;
     public Exception? Error => Sample?.Error;
     public byte SlaveAddress { get; private set; }
-    public int IntervalMilliseconds { get; set; } = 100;
+    public int IntervalMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            field = value;
+        }
+    } = 100;
 
     public async Task StartAsync(byte slaveAddress, CancellationToken cancellationToken)
     {
@@ -59,8 +69,11 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
 
     public void Stop()
     {
-        _lifetime?.Cancel();
-        Publish(new(Stopwatch.GetTimestamp(), null, new IOException("ADC status monitor is disconnected.")));
+        lock (_stateGate)
+        {
+            _lifetime?.Cancel();
+            Publish(new(Stopwatch.GetTimestamp(), null, new IOException("ADC status monitor is disconnected.")));
+        }
     }
 
     private async Task RunAsync(CancellationToken token)
@@ -85,8 +98,11 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 {
                     sample = new(startedAt, null, exception);
                 }
-                token.ThrowIfCancellationRequested();
-                Publish(sample);
+                lock (_stateGate)
+                {
+                    token.ThrowIfCancellationRequested();
+                    Publish(sample);
+                }
                 await Task.Delay(IntervalMilliseconds, token).ConfigureAwait(false);
             }
         }

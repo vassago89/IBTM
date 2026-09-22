@@ -143,6 +143,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     public FasteningHead[] Heads { get; }
 
     private IAdcBus Bus => SelectedHead == FasteningHead.Pickup ? _pickupBus : _shootingBus;
+    public AdcStatusMonitor Monitor => Bus.Monitor;
 
     public string FrameLogText
     {
@@ -287,6 +288,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var portName = SelectedPort!;
             var baudRate = SelectedBaudRate;
             await Task.Run(() => Bus.Open(portName, baudRate), operation.Token);
+            Monitor.IntervalMilliseconds = _settings.StatusPollMilliseconds;
+            await Monitor.StartAsync(SlaveAddress, operation.Token);
             ConnectionAction = "Disconnect";
             ConnectionStatus = $"{portName} | {baudRate}";
             AppendLog($"CONNECT  {Bus.PortName} | {Bus.BaudRate}");
@@ -503,11 +506,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             operation = BeginCommand(CancellationToken.None);
             var result = await Bus.ReadFasteningResultAsync(SlaveAddress, operation.Token);
-            var current = await Bus.ReadControllerStatusAsync(SlaveAddress, operation.Token);
-            ResultMessage = $"Current: Ready {current.Ready}  Run {current.Running}  Preset {current.Preset}\n"
-                + $"Alarm: {AdcControllerError.Describe(current.Alarm)}\n"
-                + $"Direction: {current.Direction.GetDescription()}\n"
-                + $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n"
+            ResultMessage = $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n"
                 + $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n"
                 + $"Time {result.FasteningTimeMilliseconds} ms\n"
                 + $"Result error: {AdcControllerError.Describe(result.Error)}";
