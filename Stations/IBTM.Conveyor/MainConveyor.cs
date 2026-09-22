@@ -192,8 +192,7 @@ public sealed partial class MainConveyor : AutoUnit
         if (input is InputIo.AutoMode
             or InputIo.MainConveyorAvailableFromFront2
             or InputIo.MainConveyorReadyFromRear
-            or InputIo.MainConveyorEntryCarrierDetected
-            )
+            or InputIo.MainConveyorEntryCarrierDetected)
         {
             Changed?.Invoke();
         }

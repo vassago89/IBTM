@@ -176,10 +176,9 @@ public sealed partial class MainConveyor
                 return;
             TraceStep(MainConveyorState.DischargingInspectionCarrier, waitingFor: "Rear Ready=OFF");
             StartMotor(cancellationToken);
-            long releasedAt;
             try
             {
-                releasedAt = await rearReleased.Task.WaitAsync(timeout, cancellationToken);
+                await rearReleased.Task.WaitAsync(timeout, cancellationToken);
             }
             catch (TimeoutException)
             {
@@ -190,7 +189,7 @@ public sealed partial class MainConveyor
             TraceStep(MainConveyorState.DischargingInspectionCarrier,
                 target: $"Rear Ready OFF; extra run {extraRun.TotalSeconds} s");
             // Only this discharge owns the OFF timestamp; STOP discards the remaining delay.
-            var remaining = extraRun - Stopwatch.GetElapsedTime(releasedAt);
+            var remaining = extraRun - Stopwatch.GetElapsedTime(await rearReleased.Task);
             if (remaining > TimeSpan.Zero)
                 await Task.Delay(remaining, cancellationToken);
         }

@@ -514,9 +514,6 @@ public sealed class VirtualMachine
                     case true when !_io.GetOutput(OutputIo.MainConveyorForward):
                         ReturnMainCarrier(version);
                         return;
-                    case true when _io.GetInput(InputIo.MainConveyorExitCarrierDetected):
-                        _io.SetInput(InputIo.MainConveyorExitCarrierDetected, false);
-                        return;
                     case true when (_io.GetInput(InputIo.InspectionHeatSink1Present) || _io.GetInput(InputIo.InspectionHeatSink2Present))
                         && _io.GetInput(InputIo.InspectionBackupPlateDown)
                         && _io.GetInput(InputIo.InspectionStopperDown)
@@ -525,7 +522,6 @@ public sealed class VirtualMachine
                         ClearCarrier(
                             InputIo.InspectionHeatSink1Present,
                             InputIo.InspectionHeatSink2Present);
-                        _io.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
                         _ = RespondAsync(
                             responseVersion,
                             () =>
@@ -533,7 +529,9 @@ public sealed class VirtualMachine
                                 if (_mainConveyorTransferVersion == version
                                     && _io.GetOutput(OutputIo.MainConveyorRun))
                                 {
-                                    _io.SetInput(InputIo.MainConveyorExitCarrierDetected, false);
+                                    _io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+                                    _ = RespondAsync(responseVersion,
+                                        () => _io.SetInput(InputIo.MainConveyorReadyFromRear, true));
                                 }
                             });
                         return;

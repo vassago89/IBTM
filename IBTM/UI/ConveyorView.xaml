@@ -185,9 +185,6 @@
             <Border Canvas.Left="{x:Static ui:MachinePlan.InspectionStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                 Tag="{Binding InspectionWork.Station.Stopper}"
                 ToolTip="Inspection stopper" Style="{StaticResource StopperVisualStyle}"/>
-            <Ellipse Canvas.Left="1368" Canvas.Top="108"
-                Tag="{Binding Signals.Inputs[MainConveyorExitCarrierDetected].IsOn}"
-                ToolTip="Exit carrier sensor" Style="{StaticResource MainConveyorSensorStyle}"/>
             <TextBlock Canvas.Left="1358" Canvas.Top="137" Width="80"
                 Text="OUT"
                 Style="{StaticResource EquipmentRoleLabelStyle}"/>
