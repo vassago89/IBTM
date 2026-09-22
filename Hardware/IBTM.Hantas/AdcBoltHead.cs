@@ -148,7 +148,7 @@ public sealed class AdcBoltHead : IBoltHead
         {
             _io.SetOutput(_direction, true);
             await CheckReadyAsync(operation.Token);
-                _io.SetOutput(_start, true);
+            _io.SetOutput(_start, true);
             await Task.Delay(Timeout.Infinite, operation.Token);
         }
         catch (OperationCanceledException) when (ioFailure is not null)
@@ -226,7 +226,7 @@ public sealed class AdcBoltHead : IBoltHead
             // One pre-START baseline excludes previously received bolt results.
             var fastening = (EventCount: initialEvent?[0] ?? (ushort)0, Preset: preset);
             _io.SetOutput(_direction, false);
-    
+
             if (dryRunMilliseconds == 0)
                 timeout.CancelAfter(_connection.FasteningTimeoutMilliseconds);
             timeout.Token.ThrowIfCancellationRequested();
@@ -248,10 +248,10 @@ public sealed class AdcBoltHead : IBoltHead
             {
                 try
                 {
-                    var status = await stopped.Task.WaitAsync(timeout.Token);
+                    var finishedStatus = await stopped.Task.WaitAsync(timeout.Token);
                     Monitor.Sampled -= OnStatusSampled;
-                    if (status.Alarm != 0 && status.Running)
-                        failure = new InvalidOperationException(AdcControllerError.Describe(status.Alarm));
+                    if (finishedStatus.Alarm != 0 && finishedStatus.Running)
+                        failure = new InvalidOperationException(AdcControllerError.Describe(finishedStatus.Alarm));
                     if (failure is null)
                     {
                         _logger.LogInformation(

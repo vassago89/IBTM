@@ -251,6 +251,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             ConnectionStatus = $"{Bus.PortName} | {Bus.BaudRate}";
         }
         OnPropertyChanged(nameof(IsVirtual));
+        OnPropertyChanged(nameof(Monitor));
         RefreshControls();
     }
 

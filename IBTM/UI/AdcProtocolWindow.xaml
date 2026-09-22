@@ -131,6 +131,13 @@
                             </WrapPanel>
 
                             <TextBlock Text="CONTROLLER / LAST RESULT" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Margin="0,10,0,0" FontFamily="Cascadia Mono, Consolas">
+                                <Run Text="Ready "/><Run Text="{Binding Monitor.Status.Ready, Mode=OneWay, TargetNullValue=—}"/>
+                                <Run Text="  Run "/><Run Text="{Binding Monitor.Status.Running, Mode=OneWay, TargetNullValue=—}"/>
+                                <Run Text="  Preset "/><Run Text="{Binding Monitor.Status.Preset, Mode=OneWay, TargetNullValue=—}"/>
+                                <LineBreak/><Run Text="Alarm "/><Run Text="{Binding Monitor.Status.Alarm, Mode=OneWay, TargetNullValue=—}"/>
+                            </TextBlock>
+                            <TextBlock Text="{Binding Monitor.Error.Message}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
                             <TextBlock Margin="0,10,0,0"
                                 Text="{Binding ResultMessage}"
                                 TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" Foreground="{StaticResource TextPrimaryBrush}"/>

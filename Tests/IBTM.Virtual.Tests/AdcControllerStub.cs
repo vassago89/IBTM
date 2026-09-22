@@ -10,7 +10,7 @@ using IBTM.Virtual;
 namespace IBTM.Virtual.Tests;
 
 // Valid replies with independently controlled RUN feedback and command readback.
-internal sealed class AdcControllerStub : IAdcBus
+internal sealed class AdcControllerStub : IAdcBus, IDisposable
 {
     private FasteningHead _head;
     private bool _stopRequested;
@@ -82,6 +82,11 @@ internal sealed class AdcControllerStub : IAdcBus
     {
         Monitor.Stop();
         IsOpen = false;
+    }
+
+    public void Dispose()
+    {
+        Close();
     }
 
     public Task<byte[]> ReadDeviceInformationAsync(byte slaveAddress, CancellationToken cancellationToken = default)

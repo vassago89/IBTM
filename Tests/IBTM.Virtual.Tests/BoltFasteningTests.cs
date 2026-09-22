@@ -42,7 +42,7 @@ public sealed class BoltFasteningTests
         await HomeAsync(motion, 20_000);
         using var pickupBus = new VirtualAdcBus();
         var pickup = CreateAdcHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
-        var bus = new AdcControllerStub { SuppressCompletion = true };
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
         IBoltHead head = CreateAdcHead(bus, io, FasteningHead.Shooting,
             new HantasSettings { FasteningTimeoutMilliseconds = 100 }, 1, "Virtual", 115200);
         var units = new UnitSettings();
@@ -125,7 +125,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
         motion.Initialize();
         await HomeAsync(motion, 20_000);
-        var bus = new AdcControllerStub();
+        using var bus = new AdcControllerStub();
         if (rejectedResponse)
         {
             // Exact exception reply in the equipment log, including CRC.
@@ -843,7 +843,7 @@ public sealed class BoltFasteningTests
         await HomeAsync(motion, 20_000);
         using var shootingBus = new VirtualAdcBus();
         var shooting = CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
-        var bus = new AdcControllerStub();
+        using var bus = new AdcControllerStub();
         IBoltHead pickup = CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200);
 
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
@@ -951,7 +951,7 @@ public sealed class BoltFasteningTests
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         BoltFasteningStation? station = null;
         var starts = new List<int>();
-        var bus = new AdcControllerStub
+        using var bus = new AdcControllerStub
         {
             Started = () =>
             {
