@@ -3,7 +3,10 @@
 `InspectionStation`이 자동 검사 순서와 이동·촬영·판정을 함께 담당한다.
 촬영·조명·Live View 코드는 같은 클래스의 `InspectionStation.Vision.cs`에 둔다.
 `InspectionWork`는 컨베이어와 공유하는 캐리어 작업·검사 결과를 보관하며 별도 시퀀스 enum은 두지 않는다.
-갠트리 이동과 NG 캐리어 집기·놓기도 같은 `InspectionStation`의 Motion·Transfer 파일에서 실행한다.
+갠트리 이동·검사 순서·NG 캐리어 집기·놓기·Repeat 복귀는 `InspectionStation.cs`에 모았다.
+자동 루프는 `GetState`로 다음 동작을 한 번 선택하며, 검사와 이송이 별도 상태를 다시 계산하지 않는다.
+`NgCarrierConveyor.cs`도 셔틀·벨트·Repeat 복귀를 함께 처리한다.
+빈 셔틀이 내려가 있으면 인계 해제와 픽업 상승·그리퍼 열림을 확인한 뒤 상승시켜 다음 캐리어를 받는다.
 
 볼트 검사는 `BinaryChecker.Check`에서 저장된 사각형 ROI를 원본 크기로 처리한다.
 

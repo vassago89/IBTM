@@ -18,6 +18,52 @@ public sealed class NgHandoffTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task EmptyLoweredShuttleRisesBeforeInspectionPickup(bool pickupNeedsPreparation)
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var io = system.Io;
+        await system.Conveyor.SetShuttleDownAsync(true);
+        Assert.False(system.Conveyor.Position3Occupied);
+        if (pickupNeedsPreparation)
+        {
+            await system.Inspection.SetLiftUpAsync(false);
+            await system.Inspection.SetGripperOpenAsync(false);
+        }
+        var picked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.NgCarrierGripperClose && on)
+            {
+                Assert.Equal(NgShuttleLiftState.Up, system.Conveyor.ShuttleLift);
+                picked.TrySetResult();
+            }
+            if (output == OutputIo.NgShuttleDown && !on)
+            {
+                Assert.False(system.Inspection.IsTransferPending);
+                Assert.True(system.Inspection.IsRaised);
+                Assert.Equal(NgTransferGripperState.Open, system.Inspection.Gripper);
+            }
+        };
+        using var stop = new CancellationTokenSource();
+        var inspection = system.Inspection.RunAsync([], stop.Token);
+        system.Work.Complete(system.Work.CurrentJob);
+        var conveyor = system.Conveyor.RunAsync(stop.Token);
+        try
+        {
+            await picked.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(system.Inspection.IsTransferPending);
+        }
+        finally
+        {
+            stop.Cancel();
+            await Task.WhenAll(inspection, conveyor).WaitAsync(TimeSpan.FromSeconds(1));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task TransferIgnoresPickupDetectionWhileDisplayStillUpdates(bool detected)
     {
         var system = await CreateAsync();
