@@ -62,7 +62,7 @@ public class TeachingPoint : ObservableObject
             {
                 case TeachingTarget.BoltPosition:
                     return TeachingPointGroup.Fastening;
-                case TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
+                case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
                     return TeachingPointGroup.CarrierTransfer;
                 case TeachingTarget.SafeZ:
                 case TeachingTarget.ShootingHeadFasteningZ:
@@ -128,8 +128,10 @@ public class TeachingPoint : ObservableObject
                     return "Pickup head XY aligned with the backup plate's upper-left reference pin.";
                 case TeachingTarget.PickupHeadLowerRightLocatingPin:
                     return "Pickup head XY aligned with the backup plate's lower-right reference pin.";
+                case TeachingTarget.InspectionWaiting:
+                    return "Independent waiting XY used while idle and after inspection. X and Y move together.";
                 case TeachingTarget.NgCarrierPickup:
-                    return "Waiting position and carrier pickup XY at Station 3. X and Y move together.";
+                    return "Carrier pickup XY at Station 3, also used before raising its backup plate. X and Y move together.";
                 case TeachingTarget.NgShuttlePlace:
                     return "XY where the transfer places the carrier on the NG shuttle.";
                 default:

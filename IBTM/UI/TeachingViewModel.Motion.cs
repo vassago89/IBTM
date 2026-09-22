@@ -73,7 +73,8 @@ public partial class TeachingViewModel
     {
         get
         {
-            return SelectedPoint?.Position.Target is TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace
+            return SelectedPoint?.Position.Target is TeachingTarget.InspectionWaiting
+                or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace
                 ? _ngTransferSettings.Speed
                 : _inspectionGantrySettings.Motion.HorizontalSpeed;
         }

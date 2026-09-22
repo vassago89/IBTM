@@ -12,6 +12,7 @@ public sealed class NgCarrierTransferSettings : Setting
     }
 
     public double Speed { get; set; } = 100.0;
+    public AxisPosition? WaitingPosition { get; set; }
     public double? PickupSafeX { get; set; }
     // Keep the stored fields unchanged: pickup X is PickupSafeX, pickup Y is here.
     public AxisPosition CarrierPickupPosition { get; set; }
@@ -27,6 +28,14 @@ public sealed class NgCarrierTransferSettings : Setting
     public TeachingPosition[] GetTeachingPositions()
     {
         return [
+            new(
+                TeachingTarget.InspectionWaiting,
+                MotionGroup.InspectionGantry,
+                TeachMode.XYOnly,
+                () => WaitingPosition ?? new(),
+                p => WaitingPosition = p,
+                this,
+                () => WaitingPosition is not null),
             new(
                 TeachingTarget.NgCarrierPickup,
                 MotionGroup.InspectionGantry,

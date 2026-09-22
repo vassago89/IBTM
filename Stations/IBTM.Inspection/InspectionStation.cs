@@ -327,7 +327,7 @@ public sealed partial class InspectionStation : AutoUnit
     private async Task MoveToWaitingPositionAsync(CancellationToken cancellationToken)
     {
         var position = _work.WaitingPosition
-            ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to the inspection waiting position.");
+            ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
         if (!IsAt(position))
             await MoveToAsync(position, cancellationToken: cancellationToken);
     }
@@ -789,8 +789,8 @@ public sealed partial class InspectionStation : AutoUnit
     public async Task ClearStationAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var waitingPosition = _settings.GetCarrierPickupPosition()
-            ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to the inspection waiting position.");
+        var waitingPosition = _work.WaitingPosition
+            ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
         if ((!IsEmptyRepeatAllowed && !Station.CarrierPresent)
             || IsTransferPending
             || Gripper != NgTransferGripperState.Open

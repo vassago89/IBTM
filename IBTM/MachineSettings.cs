@@ -173,7 +173,7 @@ public sealed class MachineSettings
 
     internal static MachineSettings From(SavedSettings values)
     {
-        return new()
+        var settings = new MachineSettings
         {
             Drivers = values.Get<DriverSettings>(),
             Units = values.Get<UnitSettings>(),
@@ -210,5 +210,8 @@ public sealed class MachineSettings
             NgShuttleHardware = values.Get<NgShuttleHardwareSettings>(),
             NgConveyorHardware = values.Get<NgConveyorHardwareSettings>(),
         };
+        // Older settings used one taught position for both waiting and carrier pickup.
+        settings.NgCarrierTransfer.WaitingPosition ??= settings.NgCarrierTransfer.GetCarrierPickupPosition();
+        return settings;
     }
 }

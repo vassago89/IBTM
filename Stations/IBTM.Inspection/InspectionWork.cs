@@ -68,7 +68,7 @@ public sealed class InspectionWork : StationWork, INgCarrierTransferFeedback
 
     public bool PickupClear => IsClear;
 
-    public AxisPosition? WaitingPosition => _transferSettings.GetCarrierPickupPosition();
+    public AxisPosition? WaitingPosition => _transferSettings.WaitingPosition;
 
     public override bool IsTransferAllowed => IsTransferAllowedFor();
 

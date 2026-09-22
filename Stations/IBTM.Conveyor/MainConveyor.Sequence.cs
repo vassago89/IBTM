@@ -65,7 +65,7 @@ public sealed partial class MainConveyor
                     && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
                     ? MainConveyorState.RaisingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
-            // 검사 요청 이후에는 검사와 S3 픽업 대기 위치 복귀가 끝날 때까지 벨트를 정지한다.
+            // 검사 요청 이후에는 검사와 전용 대기 위치 복귀가 끝날 때까지 벨트를 정지한다.
             case true when _inspectionWork.InspectionRequested && _inspectionWork.IsAtInspectionPosition(live ? null : runCommandOn):
                 return MainConveyorState.WaitingForInspection;
             default:
