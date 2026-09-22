@@ -15,7 +15,6 @@ internal sealed class AdcControllerStub : IAdcBus
     private FasteningHead _head;
     private bool _stopRequested;
     private bool _resetRequested;
-    private AdcFasteningResult? _queriedResult;
 
     public AdcControllerStub()
     {
@@ -25,11 +24,17 @@ internal sealed class AdcControllerStub : IAdcBus
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred { add { } remove { } }
 
+    public event Action<byte>? ResultNotificationReceived;
+
+    public void NotifyResult(byte slaveAddress = 1)
+    {
+        ResultNotificationReceived?.Invoke(slaveAddress);
+    }
+
     public Queue<AdcFasteningResult> ResultReplies { get; }
     public int ResultReads { get; private set; }
     public int ResultPolls { get; private set; }
     public int EventReads { get; private set; }
-    public int EventPolls { get; private set; }
     public int StatusReads { get; private set; }
 
     public ushort CurrentPreset { get; set; } = 3;
@@ -47,7 +52,6 @@ internal sealed class AdcControllerStub : IAdcBus
     public int StopWriteFailuresRemaining { get; set; } = -1;
     public IOException? StopReadFailure { get; init; }
     public IOException? ResultReadFailure { get; set; }
-    public IOException? EventReadFailure { get; set; }
     public int ResultReadFailuresRemaining { get; set; }
     public IOException? BaselineReadFailure { get; init; }
     public bool SuppressCompletion { get; set; }
@@ -115,9 +119,10 @@ internal sealed class AdcControllerStub : IAdcBus
                 {
                     StartWrites++;
                     _stopRequested = false;
-                    _queriedResult = null;
                     Running = true;
                     Started?.Invoke();
+                    if (!SuppressCompletion)
+                        NotifyResult();
                 }
                 else
                 {
@@ -204,26 +209,9 @@ internal sealed class AdcControllerStub : IAdcBus
                 ]);
             case (ushort)AdcResultRegister.EventCount when count == 1:
                 EventReads++;
-                if (!Running || _stopRequested)
-                {
-                    if (BaselineReadFailure is { } baselineFailure)
-                        throw baselineFailure;
-                    return Task.FromResult<ushort[]>([(ushort)StartWrites]);
-                }
-                EventPolls++;
-                if (EventReadFailure is { } eventFailure)
-                {
-                    EventReadFailure = null;
-                    throw eventFailure;
-                }
-                _queriedResult = AdcFasteningResult.FromRegisters(ResultRegisters);
-                if (SuppressCompletion)
-                    _queriedResult = _queriedResult with { Status = AdcEventStatus.None };
-                else if (ResultReplies.TryDequeue(out var queued))
-                    _queriedResult = queued;
-                if (_queriedResult.Status == AdcEventStatus.Error)
-                    CurrentAlarm = _queriedResult.Error;
-                return Task.FromResult<ushort[]>([_queriedResult.EventCount]);
+                if (BaselineReadFailure is { } baselineFailure)
+                    throw baselineFailure;
+                return Task.FromResult<ushort[]>([(ushort)StartWrites]);
             case (ushort)AdcResultRegister.EventCount:
                 return Task.FromResult(ResultRegisters);
         }
@@ -239,7 +227,8 @@ internal sealed class AdcControllerStub : IAdcBus
     {
         cancellationToken.ThrowIfCancellationRequested();
         ResultReads++;
-        var received = _queriedResult ?? AdcFasteningResult.FromRegisters(ResultRegisters);
+        var received = ResultReplies.TryDequeue(out var queued)
+            ? queued : AdcFasteningResult.FromRegisters(ResultRegisters);
         if (!Running || _stopRequested)
             return Task.FromResult(received);
         ResultPolls++;
@@ -249,6 +238,8 @@ internal sealed class AdcControllerStub : IAdcBus
                 ResultReadFailuresRemaining--;
             throw failure;
         }
+        if (received.Status == AdcEventStatus.Error)
+            CurrentAlarm = received.Error;
         return Task.FromResult(received);
     }
 

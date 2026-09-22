@@ -26,6 +26,8 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
+    public event Action<byte>? ResultNotificationReceived;
+
     public bool IsOpen { get; private set; }
 
     public string PortName { get; private set; } = string.Empty;
@@ -134,7 +136,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         }
     }
 
-    private static void ApplyControl(Controller controller, ushort address, ushort value)
+    private void ApplyControl(Controller controller, ushort address, ushort value)
     {
         lock (controller)
         {
@@ -267,10 +269,10 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     private Controller GetController(byte slaveAddress)
     {
-        return _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
+        return _controllers.GetOrAdd(slaveAddress, static address => new Controller(address));
     }
 
-    private static async Task CompleteFasteningAsync(
+    private async Task CompleteFasteningAsync(
         Controller controller,
         int version,
         AdcEventStatus status)
@@ -291,6 +293,9 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             for (var index = 0; index < values.Length; index++)
                 values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
             controller.AutomaticResults.Writer.TryWrite(values);
+            FrameTransferred?.Invoke(AdcFrameDirection.Receive,
+                AdcRtuFrame.Build(controller.SlaveAddress, (AdcFunctionCode)0x84, [0x03]));
+            ResultNotificationReceived?.Invoke(controller.SlaveAddress);
         }
     }
 
@@ -353,13 +358,15 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     private sealed class Controller
     {
-        public Controller()
+        public Controller(byte slaveAddress)
         {
+            SlaveAddress = slaveAddress;
             Registers = [];
             AutomaticResults = Channel.CreateUnbounded<ushort[]>();
         }
 
         public FasteningHead? Head { get; set; }
+        public byte SlaveAddress { get; }
         public Dictionary<ushort, ushort> Registers { get; }
         public Channel<ushort[]> AutomaticResults { get; }
         public ushort EventCount { get; set; }
