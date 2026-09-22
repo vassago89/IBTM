@@ -1681,10 +1681,12 @@ public sealed class BoltFasteningTests
         };
         var bolt = Bolt(1, head, 20, 30);
         var layout = new PcbLayout { BoltPoints = [bolt] };
-        var point = settings.GetTeachingPositions(layout, bolt.HeatSink, reference)
+        bolt.FasteningZOffset = 0.75;
+        var point = settings.GetTeachingPositions(layout, bolt.HeatSink)
             .Single(point => point.Bolt == bolt);
         var destination = point.Read();
-        Assert.Equal(TeachMode.Full, point.Mode);
+        Assert.Equal(TeachMode.XYOnly, point.Mode);
+        Assert.Equal(settings.GetHead(head).FasteningZ + 0.75, destination.Z);
         var tableDown = head == FasteningHead.Pickup;
         var io = new VirtualIoService(
             Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()),
@@ -1853,6 +1855,8 @@ public sealed class BoltFasteningTests
             Head = head,
             X = x,
             Y = y,
+            FasteningX = x,
+            FasteningY = y,
         };
     }
 

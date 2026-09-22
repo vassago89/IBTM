@@ -170,6 +170,9 @@ public sealed class InspectionTeachingTests
         var bolt = recipes.Current.Pcb.BoltPoints[0];
         bolt.X = 333;
         bolt.Y = 444;
+        bolt.FasteningX = 123;
+        bolt.FasteningY = 234;
+        bolt.FasteningZOffset = -0.75;
         bolt.Head = FasteningHead.Pickup;
         bolt.LightLevel = 87;
         recipes.Current.BoltInspection.LightLevel = 99;
@@ -186,6 +189,8 @@ public sealed class InspectionTeachingTests
         foreach (var recipe in new[] { stored, recipes.Current })
         {
             Assert.Equal((333d, 444d), (recipe.Pcb.BoltPoints[0].X, recipe.Pcb.BoltPoints[0].Y));
+            Assert.Equal((123d, 234d), (recipe.Pcb.BoltPoints[0].FasteningX, recipe.Pcb.BoltPoints[0].FasteningY));
+            Assert.Equal(-0.75, recipe.Pcb.BoltPoints[0].FasteningZOffset);
             Assert.Equal(FasteningHead.Pickup, recipe.Pcb.BoltPoints[0].Head);
             Assert.Equal(333, recipe.CarrierImages[1].Center.X);
             Assert.Equal(new PixelRegion(6, 6, 8, 8), recipe.CarrierImages[0].Region);

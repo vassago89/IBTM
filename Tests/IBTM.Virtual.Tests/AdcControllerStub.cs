@@ -36,6 +36,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public bool ResultReadWhileRunning { get; private set; }
     public IOException? StatusReadFailure { get; set; }
     public int StatusReadDelayMilliseconds { get; set; }
+    public Task? StatusReadBarrier { get; set; }
     public bool ConcurrentStatusReadsDetected { get; private set; }
     public int EventReads { get; private set; }
     public int StatusReads { get; private set; }
@@ -196,6 +197,8 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                 try
                 {
                     StatusReads++;
+                    if (StatusReadBarrier is { } barrier)
+                        await barrier.WaitAsync(cancellationToken);
                     if (StatusReadDelayMilliseconds > 0)
                         await Task.Delay(StatusReadDelayMilliseconds, cancellationToken);
                     if (StatusReadFailure is { } statusFailure)

@@ -507,7 +507,10 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         try
         {
             operation = BeginCommand(CancellationToken.None);
-            var result = await Bus.ReadFasteningResultAsync(SlaveAddress, operation.Token);
+            var bus = Bus;
+            var slave = SlaveAddress;
+            var result = await bus.Monitor.EnqueueAsync(
+                token => bus.ReadFasteningResultAsync(slave, token), operation.Token);
             ResultMessage = $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n"
                 + $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n"
                 + $"Time {result.FasteningTimeMilliseconds} ms\n"
@@ -534,7 +537,10 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         try
         {
             operation = BeginCommand(CancellationToken.None);
-            var data = await Bus.ReadDeviceInformationAsync(SlaveAddress, operation.Token);
+            var bus = Bus;
+            var slave = SlaveAddress;
+            var data = await bus.Monitor.EnqueueAsync(
+                token => bus.ReadDeviceInformationAsync(slave, token), operation.Token);
             ResultMessage = $"Device data: {ToHex(data)}";
         }
         catch (Exception exception)
@@ -563,7 +569,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             IsLogPaused = false;
             ResultMessage = "Capturing raw RX for 3 seconds; no response parsing.";
             AppendLog($"CAPTURE BEGIN  ADC {slave}, {Bus.PortName} | {Bus.BaudRate}, {durationMilliseconds} ms");
-            var received = await Bus.CaptureDeviceInformationAsync(slave, durationMilliseconds, operation.Token);
+            var bus = Bus;
+            var received = await bus.Monitor.EnqueueAsync(
+                token => bus.CaptureDeviceInformationAsync(slave, durationMilliseconds, token), operation.Token);
             var request = AdcRtuFrame.Build(slave, AdcFunctionCode.RequestDeviceInformation, []);
             var summary = received.Length == 0 ? "No bytes received." : received.AsSpan().StartsWith(request) ? $"RX starts with the TX frame; {received.Length - request.Length} byte(s) follow it." : "RX does not start with the TX frame.";
             ResultMessage = $"Captured {received.Length} bytes over {durationMilliseconds} ms. {summary}";
@@ -593,11 +601,14 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             operation = BeginCommand(CancellationToken.None);
             var access = RegisterAccess;
             var address = ushort.Parse(AddressText);
+            var bus = Bus;
+            var slave = SlaveAddress;
             switch (access)
             {
                 case AdcFunctionCode.ReadHoldingRegisters or AdcFunctionCode.ReadInputRegisters:
-                    var values = await Bus.ReadRegistersAsync(
-                        SlaveAddress, access, address, ushort.Parse(CountText), operation.Token);
+                    var count = ushort.Parse(CountText);
+                    var values = await bus.Monitor.EnqueueAsync(
+                        token => bus.ReadRegistersAsync(slave, access, address, count, token), operation.Token);
                     RegisterResult = string.Join(
                         Environment.NewLine,
                         values.Select((value, index) => $"{address + index} = {value} (0x{value:X4})"));
@@ -610,7 +621,11 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                         return;
                     }
 
-                    await Bus.WriteRegisterAsync(SlaveAddress, address, value, operation.Token);
+                    await bus.Monitor.EnqueueAsync(async token =>
+                    {
+                        await bus.WriteRegisterAsync(slave, address, value, token);
+                        return true;
+                    }, operation.Token);
                     RegisterResult = $"{address} = {value} (0x{value:X4})";
                     break;
                 default:

@@ -615,7 +615,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(FasteningHead.Shooting, HeatSinkSlot.HeatSink1, 280, 410, 12)]
     [InlineData(FasteningHead.Pickup, HeatSinkSlot.HeatSink2, -30, 240, 16)]
-    public async Task InspectionRecordedBoltAppearsAsReadOnlyFasteningPosition(
+    public async Task InspectionRecordedBoltKeepsIndependentFasteningXyAndZOffset(
         FasteningHead head, HeatSinkSlot heatSink, double expectedX, double expectedY, double expectedZ)
     {
         var settings = FlowSettings();
@@ -650,7 +650,7 @@ public sealed partial class MachineLifecycleTests
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
         Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
-        var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
+        Assert.Equal(0, bolt.FasteningZOffset);
 
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
 
@@ -660,14 +660,31 @@ public sealed partial class MachineLifecycleTests
         Assert.Same(bolt, position.Position.Bolt);
         Assert.True(position.Position.HasPosition);
         Assert.Equal((expectedX, expectedY, (double?)expectedZ), (position.X, position.Y, position.Z));
-        Assert.False(position.Position.IsTeachAllowed);
-        Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
-        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-        Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
+        Assert.True(position.Position.IsTeachAllowed);
+        Assert.False(teaching.AddBoltPointCommand.CanExecute(null));
+        Assert.False(teaching.RemoveBoltPointCommand.CanExecute(null));
 
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
         await teaching.MoveToPointCommand.ExecuteAsync(null);
         var fastening = services.GetRequiredService<BoltFasteningStation>();
+        Assert.Equal((expectedX, expectedY, expectedZ), fastening.Feedback.GetPosition());
+
+        expectedX += 0.25;
+        expectedY -= 0.5;
+        await fastening.MoveToXYAsync(expectedX, expectedY);
+        position.FasteningZOffset = -0.75;
+        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
+        Assert.Equal(expectedZ, settings.BoltFastening.GetHead(head).FasteningZ);
+        expectedZ -= 0.75;
+        Assert.Equal((expectedX, expectedY, (double?)expectedZ), (position.X, position.Y, position.Z));
+        await teaching.SaveCommand.ExecuteAsync(null);
+        Assert.Null(teaching.SaveError);
+        Assert.Null(teaching.RecipeEditor.Error);
+        var recipeBefore = JsonSerializer.Serialize(teaching.Recipes.Current);
+
+        await teaching.MoveToPointCommand.ExecuteAsync(null);
         Assert.Equal((expectedX, expectedY, expectedZ), fastening.Feedback.GetPosition());
         await fastening.MoveToXYAsync(250, 390);
         await fastening.MoveToBoltAsync(bolt);
@@ -698,13 +715,30 @@ public sealed partial class MachineLifecycleTests
         var previousImage = RecordedImage(teaching);
         settings.CarrierReference.UpperLeftLocatingPin = null;
         settings.CarrierReference.LowerRightLocatingPin = null;
+        await teaching.Inspection.MoveToAsync(new() { X = 120, Y = 230 });
+        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
         Assert.NotSame(previousImage, RecordedImage(teaching));
-        Assert.Equal((110d, 220d), (teaching.SelectedPoint!.Position.Bolt!.X, teaching.SelectedPoint.Position.Bolt.Y));
-        Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipes.Current));
-        Assert.Equal(recipeBefore, JsonSerializer.Serialize(
-            services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName)));
+        var rerecorded = teaching.SelectedPoint!.Position.Bolt!;
+        Assert.Equal((120d, 230d), (rerecorded.X, rerecorded.Y));
+        Assert.Equal((expectedX, expectedY), (rerecorded.FasteningX, rerecorded.FasteningY));
+        Assert.Equal(-0.75, rerecorded.FasteningZOffset);
+        await recipes.LoadAsync(teaching.RecipeEditor.ActiveName);
+        teaching.SelectedPcb = heatSink;
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        var independent = teaching.SelectedPoint!;
+        Assert.Equal((expectedX, expectedY, (double?)expectedZ), (independent.X, independent.Y, independent.Z));
+        await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+        await teaching.MoveToPointCommand.ExecuteAsync(null);
+        Assert.Equal((expectedX, expectedY, expectedZ), fastening.Feedback.GetPosition());
+
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        await WaitUntilAsync(() => teaching.RemoveBoltPointCommand.CanExecute(null));
+        teaching.RemoveBoltPointCommand.Execute(null);
+        Assert.Empty(recipes.Current.Pcb.BoltPoints);
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        Assert.DoesNotContain(teaching.FilteredPoints, point => point.Position.Target == TeachingTarget.BoltPosition);
         await machine.ShutdownAsync();
     }
 
@@ -904,6 +938,11 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateServices(FlowSettings());
         var recipes = services.GetRequiredService<RecipeManager>();
+        _ = services.GetRequiredService<BoltFasteningStation>();
+        var legacyBolt = JsonSerializer.Deserialize<BoltPoint>("{\"Number\":1,\"X\":15,\"Y\":25}")!;
+        Assert.Null(legacyBolt.FasteningX);
+        Assert.Null(legacyBolt.FasteningY);
+        Assert.Equal(0, legacyBolt.FasteningZOffset);
         var inspector = services.GetRequiredService<InspectionStation>();
         var editor = services.GetRequiredService<RecipeEditor>();
         var preview = new InspectionPreview(recipes.Current);
@@ -916,6 +955,7 @@ public sealed partial class MachineLifecycleTests
         {
             Name = "Other",
             BoltInspection = new() { BrightnessThreshold = 200 },
+            Pcb = new() { BoltPoints = [legacyBolt] },
             CarrierImages = [new() { Number = 1, IsBarcode = true, Region = region }],
         };
         services.GetRequiredService<MachineStore>().SaveRecipe(saved.Name, saved, [1]);
@@ -928,6 +968,16 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(0, inspector.Check(frame, region, new()).BrightRatio);
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
         Assert.Same(recipes.Current.CarrierImages[0], inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1));
+        var loadedBolt = Assert.Single(recipes.Current.Pcb.BoltPoints);
+        Assert.Equal((15d, 25d), (loadedBolt.FasteningX, loadedBolt.FasteningY));
+        Assert.Equal(0, loadedBolt.FasteningZOffset);
+        loadedBolt.FasteningX = 17;
+        loadedBolt.FasteningZOffset = 0.5;
+        await recipes.SaveAsync(saved.Name);
+        await recipes.LoadAsync(saved.Name);
+        loadedBolt = Assert.Single(recipes.Current.Pcb.BoltPoints);
+        Assert.Equal((17d, 25d), (loadedBolt.FasteningX, loadedBolt.FasteningY));
+        Assert.Equal(0.5, loadedBolt.FasteningZOffset);
     }
 
     [Fact]

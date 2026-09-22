@@ -117,6 +117,95 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
+    public async Task MonitorSerializesQueuedReadsAndStatusUntilEachResponseCompletes()
+    {
+        var statusResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var bus = new AdcControllerStub { StatusReadBarrier = statusResponse.Task };
+        bus.Open("Virtual", 115200);
+        bus.Monitor.IntervalMilliseconds = 10;
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
+        var first = bus.Monitor.EnqueueAsync(async token =>
+        {
+            firstEntered.TrySetResult();
+            await firstResponse.Task.WaitAsync(token);
+            return await bus.ReadRegistersAsync(1, AdcFunctionCode.ReadInputRegisters,
+                (ushort)AdcResultRegister.EventCount, 1, token);
+        });
+        var second = bus.Monitor.EnqueueAsync(token => bus.ReadFasteningResultAsync(1, token));
+        try
+        {
+            Assert.False(firstEntered.Task.IsCompleted);
+            Assert.False(second.IsCompleted);
+            Assert.Equal(0, bus.EventReads);
+            Assert.Equal(0, bus.ResultReads);
+            statusResponse.SetResult();
+            await firstEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            var statusReads = bus.StatusReads;
+            await Task.Delay(40); // Several status intervals elapse while the queued exchange owns the loop.
+            Assert.Equal(statusReads, bus.StatusReads);
+            Assert.False(second.IsCompleted);
+            Assert.Equal(0, bus.ResultReads);
+            firstResponse.SetResult();
+            Assert.Equal(new ushort[] { 0 }, await first.WaitAsync(TimeSpan.FromSeconds(2)));
+            await second.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(1, bus.EventReads);
+            Assert.Equal(1, bus.ResultReads);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads > statusReads, TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            bus.Close();
+            await Task.WhenAll(first, second).ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Fact]
+    public async Task CancelledQueuedReadIsNotSentAndTheFollowingRequestStillRuns()
+    {
+        var statusResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var bus = new AdcControllerStub { StatusReadBarrier = statusResponse.Task };
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
+        using var cancellation = new CancellationTokenSource();
+        var cancelled = bus.Monitor.EnqueueAsync(token => bus.ReadFasteningResultAsync(1, token), cancellation.Token);
+        var next = bus.Monitor.EnqueueAsync(token => bus.ReadRegistersAsync(1, AdcFunctionCode.ReadInputRegisters,
+            (ushort)AdcResultRegister.EventCount, 1, token));
+        cancellation.Cancel();
+        statusResponse.SetResult();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled.WaitAsync(TimeSpan.FromSeconds(2)));
+        await next.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(0, bus.ResultReads);
+        Assert.Equal(1, bus.EventReads);
+    }
+
+    [Fact]
+    public async Task DisconnectDrainsQueuedReadsBeforeAReopenedMonitorAcceptsNewWork()
+    {
+        using var bus = new AdcControllerStub { StatusReadBarrier = new TaskCompletionSource().Task };
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
+        var first = bus.Monitor.EnqueueAsync(token => bus.ReadFasteningResultAsync(1, token));
+        var second = bus.Monitor.EnqueueAsync(token => bus.ReadFasteningResultAsync(1, token));
+        bus.Close();
+        await Assert.ThrowsAsync<IOException>(() => first.WaitAsync(TimeSpan.FromSeconds(2)));
+        await Assert.ThrowsAsync<IOException>(() => second.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal(0, bus.ResultReads);
+        Assert.Null(bus.Monitor.Status);
+
+        bus.StatusReadBarrier = null;
+        bus.Open("Virtual", 115200);
+        await bus.Monitor.StartAsync(1, CancellationToken.None);
+        await bus.Monitor.EnqueueAsync(token => bus.ReadFasteningResultAsync(1, token));
+        Assert.Equal(1, bus.ResultReads);
+    }
+
+    [Fact]
     public async Task MonitorReadFailureDuringFasteningStopsInsteadOfTreatingUnknownAsRunOff()
     {
         using var bus = new AdcControllerStub { SuppressCompletion = true };
@@ -141,6 +230,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         var startedAt = Environment.TickCount64;
         var cycle = head.TightenAsync();
+        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StartWrites == 1, TimeSpan.FromSeconds(2)));
         Assert.False(cycle.IsCompleted);
         Assert.False(head.Monitor.Status!.Running); // Initial OFF cannot finish a new cycle.
         Assert.Equal(1, bus.EventReads);
@@ -182,6 +272,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         using var stop = new CancellationTokenSource();
         var running = head.TightenAsync(stop.Token);
+        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StartWrites == 1, TimeSpan.FromSeconds(2)));
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
         Assert.Equal(0, bus.ResultReads);

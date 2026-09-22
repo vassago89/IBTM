@@ -29,7 +29,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
     private readonly RecipeManager _recipes;
-    private readonly CarrierReferenceSettings _carrierReference;
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
     private readonly NgCarrierConveyor _ngConveyor;
@@ -65,7 +64,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
         MachineOptions options,
         UnitSettings units,
         RecipeManager recipes,
-        CarrierReferenceSettings carrierReference,
         IIoService io,
         MainConveyor conveyor,
         NgCarrierConveyor ngConveyor,
@@ -85,7 +83,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _options = options;
         _units = units;
         _recipes = recipes;
-        _carrierReference = carrierReference;
         _io = io;
         _conveyor = conveyor;
         _ngConveyor = ngConveyor;

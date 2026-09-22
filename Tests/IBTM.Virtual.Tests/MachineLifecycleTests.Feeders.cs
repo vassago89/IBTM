@@ -82,8 +82,10 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [
-            new() { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10 },
-            new() { Number = 2, Head = FasteningHead.Pickup, X = 20, Y = 10 },
+            new() { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10,
+                FasteningX = 10.5, FasteningY = 9.5, FasteningZOffset = 0.25 },
+            new() { Number = 2, Head = FasteningHead.Pickup, X = 20, Y = 10,
+                FasteningX = 21, FasteningY = 11, FasteningZOffset = -0.5 },
             new() { Number = 3, Head = FasteningHead.Pickup, X = 30, Y = 10 },
         ];
         settings.BoltFastening.ShootingHead.FasteningZ = 8;
@@ -174,8 +176,8 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
             var positions = new[]
             {
-                (FasteningHead.Shooting, 10d, 10d, 8d),
-                (FasteningHead.Pickup, 20d, 10d, 12d),
+                (FasteningHead.Shooting, 10.5, 9.5, 8.25),
+                (FasteningHead.Pickup, 21d, 11d, 11.5),
                 (FasteningHead.Pickup, 30d, 10d, 12d),
             };
             Assert.Equal(positions, descents.ToArray());
@@ -202,7 +204,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
             Assert.True(io.GetInput(InputIo.PickupHeadUp));
             Assert.True(io.GetInput(InputIo.ShootingHeadUp));
-            recipe.Pcb.BoltPoints[0].X = null;
+            recipe.Pcb.BoltPoints[0].FasteningX = null;
             Assert.False(machine.TeachingReady); // Feeder OFF still requires taught fastening coordinates.
         }
         finally

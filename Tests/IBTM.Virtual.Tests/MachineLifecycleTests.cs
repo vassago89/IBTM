@@ -280,6 +280,8 @@ public sealed partial class MachineLifecycleTests
         {
             bolt.X = null;
             bolt.Y = null;
+            bolt.FasteningX = null;
+            bolt.FasteningY = null;
         }
         Assert.True(machine.TeachingReady);
         settings.Units.BoltFastening = true;
@@ -744,6 +746,8 @@ public sealed partial class MachineLifecycleTests
         var testing = diagnostics.StartCommand.ExecuteAsync(null);
         Assert.True(state.IsRunning);
         Assert.Throws<InvalidOperationException>(() => diagnostics.SelectedHead = FasteningHead.Shooting);
+        Assert.True(await VirtualTest.WaitUntilAsync(
+            () => io.GetOutput(OutputIo.PickupBoltStart), TimeSpan.FromSeconds(2)));
         Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
         machine.Stop();
         await testing.WaitAsync(TimeSpan.FromSeconds(2));
@@ -782,6 +786,8 @@ public sealed partial class MachineLifecycleTests
             diagnostics.SelectedPort = "Virtual";
             await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
             await diagnostics.SelectPresetCommand.ExecuteAsync(null);
+            await diagnostics.ReadResultCommand.ExecuteAsync(null);
+            Assert.StartsWith("Last result:", diagnostics.ResultMessage);
             Assert.Equal((ushort)1, (await shooting.ReadControllerStatusAsync(1)).Preset);
             Assert.Equal((ushort)7, (await pickup.ReadControllerStatusAsync(1)).Preset);
             Assert.True(pickup.IsOpen);

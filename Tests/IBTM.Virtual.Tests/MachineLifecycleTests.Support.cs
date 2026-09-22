@@ -259,6 +259,8 @@ public sealed partial class MachineLifecycleTests
             new BoltPoint { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10, });
         recipe.Pcb.BoltPoints.Add(
             new BoltPoint { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 28, Y = 10 });
+        foreach (var bolt in recipe.Pcb.BoltPoints)
+            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
         TeachInspectionFovs(settings, recipe);
     }
 

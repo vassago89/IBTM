@@ -3,18 +3,20 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace IBTM.Device;
 
 public sealed record AdcStatusSample(long StartedAt, AdcControllerStatus? Status, Exception? Error);
 
-// One acquisition loop per serial connection, shared by production and diagnostic heads.
+// One communication loop per connection. Commands queue here alongside status sampling.
 public sealed class AdcStatusMonitor : INotifyPropertyChanged
 {
     private readonly IAdcBus _bus;
     private readonly SemaphoreSlim _startGate;
     private readonly Lock _stateGate;
+    private readonly Channel<Func<CancellationToken, Task>> _requests;
     private CancellationTokenSource? _lifetime;
     private Task _completion;
     private AdcStatusSample? _sample;
@@ -24,6 +26,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         _bus = bus;
         _startGate = new(1, 1);
         _stateGate = new();
+        _requests = Channel.CreateUnbounded<Func<CancellationToken, Task>>(
+            new UnboundedChannelOptions { SingleReader = true });
         _completion = Task.CompletedTask;
     }
 
@@ -89,13 +93,70 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         }
     }
 
+    public Task<T> EnqueueAsync<T>(
+        Func<CancellationToken, Task<T>> request, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task ExecuteAsync(CancellationToken lifetimeToken)
+        {
+            try
+            {
+                using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetimeToken);
+                operation.Token.ThrowIfCancellationRequested();
+                var result = await request(operation.Token).ConfigureAwait(false);
+                completion.TrySetResult(result);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                completion.TrySetCanceled(cancellationToken);
+            }
+            catch (OperationCanceledException) when (lifetimeToken.IsCancellationRequested)
+            {
+                completion.TrySetException(new IOException($"ADC {_bus.PortName}/{SlaveAddress} communication stopped."));
+            }
+            catch (Exception exception)
+            {
+                completion.TrySetException(exception);
+            }
+        }
+
+        lock (_stateGate)
+        {
+            if (_lifetime is not { IsCancellationRequested: false })
+                throw new IOException("Start the ADC status monitor before queuing a request.");
+            _requests.Writer.TryWrite(ExecuteAsync);
+        }
+        return completion.Task;
+    }
+
     private async Task RunAsync(CancellationToken token)
     {
+        long? lastStatusAt = null;
         try
         {
             while (true)
             {
                 token.ThrowIfCancellationRequested();
+                var remaining = lastStatusAt is { } sampledAt
+                    ? TimeSpan.FromMilliseconds(IntervalMilliseconds) - Stopwatch.GetElapsedTime(sampledAt)
+                    : TimeSpan.Zero;
+                if (remaining > TimeSpan.Zero)
+                {
+                    using var waiting = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    waiting.CancelAfter(remaining);
+                    try
+                    {
+                        var request = await _requests.Reader.ReadAsync(waiting.Token).ConfigureAwait(false);
+                        // Await the complete exchange before another queued request or status query.
+                        await request(token).ConfigureAwait(false);
+                        continue;
+                    }
+                    catch (OperationCanceledException) when (!token.IsCancellationRequested)
+                    {
+                        // No queued work before the next status sample became due.
+                    }
+                }
                 var startedAt = Stopwatch.GetTimestamp();
                 AdcStatusSample sample;
                 try
@@ -116,10 +177,18 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                     token.ThrowIfCancellationRequested();
                     Publish(sample);
                 }
-                await Task.Delay(IntervalMilliseconds, token).ConfigureAwait(false);
+                lastStatusAt = Stopwatch.GetTimestamp();
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        finally
+        {
+            lock (_stateGate)
+                _lifetime?.Cancel();
+            // Closing a port must finish pending callers without sending their requests.
+            while (_requests.Reader.TryRead(out var request))
+                await request(new CancellationToken(canceled: true)).ConfigureAwait(false);
+        }
     }
 
     private void Publish(AdcStatusSample sample)

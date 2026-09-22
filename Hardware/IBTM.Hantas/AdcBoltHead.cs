@@ -220,8 +220,9 @@ public sealed class AdcBoltHead : IBoltHead
                     throw new InvalidOperationException($"Preset outputs no longer match preset {preset}.");
             }
             var initialEvent = dryRunMilliseconds > 0
-                ? null : await _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,
-                    (ushort)AdcResultRegister.EventCount, 1, cancellationToken);
+                ? null : await Monitor.EnqueueAsync(
+                    token => _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,
+                        (ushort)AdcResultRegister.EventCount, 1, token), cancellationToken);
             // One pre-START baseline excludes previously received bolt results.
             var fastening = (EventCount: initialEvent?[0] ?? (ushort)0, Preset: preset);
             _io.SetOutput(_direction, false);
@@ -256,7 +257,8 @@ public sealed class AdcBoltHead : IBoltHead
                         _logger.LogInformation(
                             "ADC {Port}/{Slave}: RUN OFF; reading fastening result once; start event={StartEvent}.",
                             _portName, _slaveAddress, fastening.EventCount);
-                        var result = await _bus.ReadFasteningResultAsync(_slaveAddress, timeout.Token);
+                        var result = await Monitor.EnqueueAsync(
+                            token => _bus.ReadFasteningResultAsync(_slaveAddress, token), timeout.Token);
                         lastResult = result;
                         if (IsCompleted(result, fastening))
                             completed = result;

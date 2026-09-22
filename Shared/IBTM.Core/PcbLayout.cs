@@ -3,7 +3,7 @@ using System.Linq;
 using System.Text.Json.Serialization;
 
 namespace IBTM.Core;
-// Each heat sink owns its taught bolts at actual Inspection Gantry XY coordinates.
+// Each heat sink owns its bolts with independent inspection and fastening coordinates.
 public sealed class PcbLayout
 {
     public PcbLayout()
