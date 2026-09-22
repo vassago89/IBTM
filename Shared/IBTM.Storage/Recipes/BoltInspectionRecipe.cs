@@ -1,9 +1,29 @@
 using System;
+using IBTM.Core;
 
 namespace IBTM.Inspection;
 
 public sealed class BoltInspectionRecipe
 {
+    public BoltInspectionRecipe()
+    {
+        DataMatrix1 = new();
+        DataMatrix2 = new();
+    }
+
+    public DataMatrixInspectionRecipe DataMatrix1 { get; set; }
+    public DataMatrixInspectionRecipe DataMatrix2 { get; set; }
+
+    public DataMatrixInspectionRecipe GetDataMatrix(HeatSinkSlot pcb)
+    {
+        return pcb switch
+        {
+            HeatSinkSlot.HeatSink1 => DataMatrix1,
+            HeatSinkSlot.HeatSink2 => DataMatrix2,
+            _ => throw new ArgumentOutOfRangeException(nameof(pcb)),
+        };
+    }
+
     public int LightLevel
     {
         get;

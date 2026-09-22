@@ -122,19 +122,19 @@ public sealed partial class InspectionStation
         if (!HasBarcodeRegion(pcb))
             throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
         await MoveToBarcodeAsync(pcb, cancellationToken);
-        return await CaptureCurrentAsync(cancellationToken);
+        return await CaptureCurrentAsync(
+            cancellationToken, lightLevel: _recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel);
     }
 
     public async Task<ImageFrame> CaptureCurrentAsync(
         CancellationToken cancellationToken = default,
-        bool keepLiveView = false)
+        bool keepLiveView = false,
+        int? lightLevel = null)
     {
         await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var frame = keepLiveView && _camera.IsLiveView
-                ? await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false)
-                : await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
+            var frame = await CaptureWithLightAsync(lightLevel, cancellationToken, keepLiveView).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             return frame;
         }
@@ -150,7 +150,8 @@ public sealed partial class InspectionStation
         var capturedAt = DateTimeOffset.Now;
         var region = GetBarcodeFov(pcb).Region!;
         InspectionCaptured?.Invoke(image, pcb, null);
-        var text = await Task.Run(() => DataMatrixReader.Read(image, region), cancellationToken);
+        var settings = _recipes.Current.BoltInspection.GetDataMatrix(pcb);
+        var text = await Task.Run(() => DataMatrixReader.Read(image, region, settings), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         return new(null, capturedAt, image, region, !string.IsNullOrEmpty(text), Barcode: text);
     }
@@ -197,14 +198,23 @@ public sealed partial class InspectionStation
         return MoveToAsync(GetFov(point).Center, cancellationToken: cancellationToken);
     }
 
-    private async Task<ImageFrame> CaptureWithLightAsync(CancellationToken cancellationToken)
+    private async Task<ImageFrame> CaptureWithLightAsync(
+        int? lightLevel, CancellationToken cancellationToken, bool keepLiveView = false)
     {
+        if (keepLiveView && _camera.IsLiveView)
+        {
+            var liveChannel = _lightChannel ?? _lightingSettings.InspectionChannel;
+            await Task.Run(() => TurnLightOn(liveChannel, lightLevel), cancellationToken).ConfigureAwait(false);
+            await Task.Delay(_lightingSettings.StabilizationDelayMilliseconds, cancellationToken).ConfigureAwait(false);
+            return await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         await Task.Run(StopLiveView, cancellationToken).ConfigureAwait(false);
         var channel = _lightingSettings.InspectionChannel;
         Exception? failure = null;
         try
         {
-            await Task.Run(() => TurnLightOn(channel), cancellationToken).ConfigureAwait(false);
+            await Task.Run(() => TurnLightOn(channel, lightLevel), cancellationToken).ConfigureAwait(false);
             await Task.Delay(_lightingSettings.StabilizationDelayMilliseconds, cancellationToken).ConfigureAwait(false);
             return await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -227,7 +237,7 @@ public sealed partial class InspectionStation
             throw new InvalidOperationException(
                 $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
         await MoveToBoltAsync(point, cancellationToken);
-        return await CaptureCurrentAsync(cancellationToken);
+        return await CaptureCurrentAsync(cancellationToken, lightLevel: point.LightLevel);
     }
 
     internal async Task<InspectionCapture> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
@@ -250,7 +260,8 @@ public sealed partial class InspectionStation
     }
 
     public async Task<CarrierImage> CaptureCarrierImageAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? lightLevel = null)
     {
         await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -266,9 +277,7 @@ public sealed partial class InspectionStation
 
                     var position = feedback.GetPosition();
                     var center = new AxisPosition { X = position.X, Y = position.Y };
-                    var frame = _camera.IsLiveView
-                        ? await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false)
-                        : await CaptureWithLightAsync(cancellationToken).ConfigureAwait(false);
+                    var frame = await CaptureWithLightAsync(lightLevel, cancellationToken, keepLiveView: true).ConfigureAwait(false);
                     if (!IsAt(center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);
@@ -283,12 +292,12 @@ public sealed partial class InspectionStation
         }
     }
 
-    public async Task StartLiveViewAsync(CancellationToken cancellationToken = default)
+    public async Task StartLiveViewAsync(CancellationToken cancellationToken = default, int? lightLevel = null)
     {
         await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await Task.Run(() => StartLiveView(cancellationToken), cancellationToken).ConfigureAwait(false);
+            await Task.Run(() => StartLiveView(lightLevel, cancellationToken), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -303,13 +312,13 @@ public sealed partial class InspectionStation
         }
     }
 
-    private void StartLiveView(CancellationToken cancellationToken)
+    private void StartLiveView(int? lightLevel, CancellationToken cancellationToken)
     {
         StopLiveView();
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            TurnLightOn(_lightingSettings.InspectionChannel);
+            TurnLightOn(_lightingSettings.InspectionChannel, lightLevel);
             cancellationToken.ThrowIfCancellationRequested();
             _camera.StartLiveView();
             cancellationToken.ThrowIfCancellationRequested();
@@ -407,11 +416,11 @@ public sealed partial class InspectionStation
         }
     }
 
-    private void TurnLightOn(int channel)
+    private void TurnLightOn(int channel, int? lightLevel)
     {
         _light.Initialize();
         _lightChannel = channel;
-        _light.SetLevel(channel, _recipes.Current.BoltInspection.LightLevel);
+        _light.SetLevel(channel, lightLevel ?? _recipes.Current.BoltInspection.LightLevel);
         _light.TurnOn(channel);
     }
 }

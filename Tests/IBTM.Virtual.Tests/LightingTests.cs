@@ -36,6 +36,7 @@ public sealed class LightingTests
         try
         {
             var slave = services.GetRequiredService<MachineSettings>().Hantas.PickupSlaveAddress;
+            await head.SelectPresetAsync(1);
             bus.SetNextFasteningResult(slave, AdcEventStatus.Error);
             Assert.False((await head.TightenAsync()).Success);
             await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
@@ -137,7 +138,8 @@ public sealed class LightingTests
         camera.OnCapture = () =>
         {
             Assert.True(light.IsOn);
-            Assert.True(stabilization.ElapsedMilliseconds >= settings.Lighting.StabilizationDelayMilliseconds);
+            // Task.Delay uses the Windows system clock, whose tick can precede Stopwatch by one tick.
+            Assert.True(stabilization.ElapsedMilliseconds >= settings.Lighting.StabilizationDelayMilliseconds - 20);
         };
         Assert.NotEmpty((await inspector.CaptureCurrentAsync()).Pixels);
         Assert.Equal(6, light.OffCalls);
@@ -149,6 +151,55 @@ public sealed class LightingTests
         Assert.Contains(light.OffFailure, failure.InnerExceptions);
         light.FailOff = false;
         light.TurnOffAll();
+    }
+
+    [Fact]
+    public async Task EachInspectionTargetUsesItsOwnLightForAutomaticCaptureAndLiveGrab()
+    {
+        var light = new RecordingLight { FailOn = false };
+        var settings = new MachineSettings();
+        settings.Lighting.StabilizationDelayMilliseconds = 0;
+        await using var services = new ServiceCollection()
+            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(settings)
+            .AddSingleton<ILightController>(light)
+            .BuildServiceProvider();
+        var inspector = services.GetRequiredService<InspectionStation>();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+        motion.Initialize();
+        Assert.True(await inspector.HomeHorizontalAsync());
+        recipe.BoltInspection.LightLevel = 91;
+        recipe.BoltInspection.DataMatrix1.LightLevel = 31;
+        recipe.BoltInspection.DataMatrix2.LightLevel = 62;
+        var bolt = new BoltPoint { Number = 1, LightLevel = 123 };
+        recipe.CarrierImages = [
+            new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Region = new(0, 0, 20, 20) },
+            new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(0, 0, 20, 20) },
+            new() { BoltNumber = 1, Region = new(0, 0, 20, 20) },
+        ];
+
+        await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink1);
+        Assert.Equal(31, light.LastLevel);
+        await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
+        Assert.Equal(62, light.LastLevel);
+        await inspector.CaptureAsync(bolt);
+        Assert.Equal(123, light.LastLevel);
+        bolt.LightLevel = null;
+        await inspector.CaptureAsync(bolt);
+        Assert.Equal(91, light.LastLevel);
+
+        await inspector.StartLiveViewAsync(lightLevel: 45);
+        Assert.Equal(45, light.LastLevel);
+        var offCalls = light.OffCalls;
+        await inspector.CaptureCurrentAsync(keepLiveView: true, lightLevel: 67);
+        Assert.True(inspector.IsLiveView);
+        Assert.Equal(67, light.LastLevel);
+        await inspector.CaptureCarrierImageAsync(lightLevel: 89);
+        Assert.Equal(89, light.LastLevel);
+        Assert.Equal(offCalls, light.OffCalls);
+        await inspector.StopLiveViewAsync();
+        Assert.False(light.IsOn);
     }
 
     [Fact]
@@ -318,6 +369,7 @@ public sealed class LightingTests
         public bool IsOn { get; private set; }
         public int OffCalls { get; private set; }
         public int LastOffChannel { get; private set; }
+        public int LastLevel { get; private set; }
         public bool FailOn { get; set; } = true;
         public bool FailOff { get; set; }
         public IOException OffFailure { get; }
@@ -331,6 +383,7 @@ public sealed class LightingTests
 
         public void SetLevel(int channel, int level)
         {
+            LastLevel = level;
         }
 
         public void TurnOn(int channel)

@@ -123,7 +123,8 @@ public partial class InspectionPreview : ObservableObject
         var region = _sourceRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");
         if (_pcb is not null)
         {
-            var text = await Task.Run(() => DataMatrixReader.Read(frame, region), token);
+            var settings = _recipes.Current.BoltInspection.GetDataMatrix(_pcb.Value);
+            var text = await Task.Run(() => DataMatrixReader.Read(frame, region, settings), token);
             token.ThrowIfCancellationRequested();
             Result = string.IsNullOrEmpty(text) ? "Not Read" : text;
             return;

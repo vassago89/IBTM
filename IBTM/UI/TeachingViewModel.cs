@@ -119,6 +119,7 @@ public partial class TeachingViewModel : ObservableObject
         ReadDataMatrixCommand = new AsyncRelayCommand(ReadDataMatrixAsync, () => IsReadDataMatrixAllowed);
         DrawFovRegionCommand = new AsyncRelayCommand<Rect>(DrawFovRegionAsync, IsDrawFovRegionAllowed);
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, () => IsToggleLiveViewAllowed);
+        ApplyLiveSettingsCommand = new AsyncRelayCommand(ApplyLiveSettingsAsync, () => IsApplyLiveSettingsAllowed);
         GrabCommand = new AsyncRelayCommand(GrabAsync, () => IsGrabAllowed);
         CaptureInspectionCommand = new AsyncRelayCommand(CaptureInspectionAsync, () => IsCaptureInspectionAllowed);
         ReinspectImageCommand = new AsyncRelayCommand(ReinspectImageAsync, () => IsReinspectImageAllowed);
@@ -129,6 +130,7 @@ public partial class TeachingViewModel : ObservableObject
 
         _commands = [
             ToggleLiveViewCommand,
+            ApplyLiveSettingsCommand,
             JogCommand,
             HomeCommand,
             StepCommand,
@@ -272,7 +274,7 @@ public partial class TeachingViewModel : ObservableObject
         Preview.Clear();
         FovRegion = null;
 
-        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
+        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning || ApplyLiveSettingsCommand.IsRunning)
             _ = RequestCameraStopAsync();
 
         RefreshTeachingPoints();
@@ -478,6 +480,13 @@ public partial class TeachingViewModel : ObservableObject
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
         CancelTeaching();
+        GrabCommand.Cancel();
+        ApplyLiveSettingsCommand.Cancel();
+        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning || ApplyLiveSettingsCommand.IsRunning)
+            _ = RequestCameraStopAsync();
+        OnPropertyChanged(nameof(SelectedLightLevel));
+        OnPropertyChanged(nameof(SelectedDataMatrixSettings));
+        OnPropertyChanged(nameof(IsImageTargetSelected));
         SelectPreviousPointCommand.NotifyCanExecuteChanged();
         SelectNextPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(SaveBehavior));
@@ -518,7 +527,7 @@ public partial class TeachingViewModel : ObservableObject
         CameraError = null;
         Preview.Clear();
         FovRegion = null;
-        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
+        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning || ApplyLiveSettingsCommand.IsRunning)
             _ = RequestCameraStopAsync();
         SelectedPoint = null;
         if (SelectedPcb == HeatSinkSlot.HeatSink1)

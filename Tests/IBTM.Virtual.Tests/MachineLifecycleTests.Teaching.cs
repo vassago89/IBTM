@@ -906,6 +906,63 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task TeachingKeepsLightAndDecodeSettingsPerTargetAcrossSaveAndLiveSelection()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateServices(settings);
+        await services.GetRequiredService<MachineController>().InitializeAsync();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.AddBoltPointCommand.Execute(null);
+        var bolt1 = teaching.SelectedPoint!.Position.Bolt!;
+        bolt1.X = 12;
+        bolt1.Y = 34;
+        teaching.SelectedLightLevel = 110;
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
+        Assert.Null(teaching.SelectedLightLevel);
+        teaching.SelectedLightLevel = 45;
+        teaching.SelectedDataMatrixSettings!.BinaryThreshold = 90;
+        teaching.SelectedDataMatrixSettings.AutoRotate = true;
+        teaching.SelectedDataMatrixSettings.TryHarder = false;
+        teaching.SelectedDataMatrixSettings.TryInverted = false;
+        teaching.SelectedDataMatrixSettings.PureBarcode = true;
+
+        await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+        Assert.True(teaching.Inspection.IsLiveView);
+        Assert.Equal(1, teaching.SelectedCameraTab);
+        teaching.SelectedLightLevel = 46;
+        await teaching.ApplyLiveSettingsCommand.ExecuteAsync(null);
+        Assert.True(teaching.Inspection.IsLiveView);
+        await teaching.GrabCommand.ExecuteAsync(null);
+        Assert.True(teaching.Inspection.IsLiveView);
+        Assert.Equal(0, teaching.SelectedCameraTab);
+
+        teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
+        await WaitUntilAsync(() => !teaching.Inspection.IsLiveView);
+        Assert.Null(teaching.SelectedLightLevel);
+        Assert.Null(teaching.SelectedDataMatrixSettings!.BinaryThreshold);
+        Assert.True(teaching.SelectedDataMatrixSettings.TryInverted);
+        teaching.SelectedLightLevel = 72;
+        teaching.AddBoltPointCommand.Execute(null);
+        teaching.SelectedLightLevel = 180;
+        Assert.True(await teaching.RecipeEditor.SaveAsync());
+        var saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
+        Assert.Equal(46, saved.BoltInspection.DataMatrix1.LightLevel);
+        Assert.Equal(90, saved.BoltInspection.DataMatrix1.BinaryThreshold);
+        Assert.True(saved.BoltInspection.DataMatrix1.AutoRotate);
+        Assert.True(saved.BoltInspection.DataMatrix1.PureBarcode);
+        Assert.False(saved.BoltInspection.DataMatrix1.TryHarder);
+        Assert.False(saved.BoltInspection.DataMatrix1.TryInverted);
+        Assert.Equal(72, saved.BoltInspection.DataMatrix2.LightLevel);
+        var savedBolt1 = Assert.Single(saved.Pcb.GetBolts(HeatSinkSlot.HeatSink1));
+        Assert.Equal(110, savedBolt1.LightLevel);
+        Assert.Equal((12d, 34d), (savedBolt1.X, savedBolt1.Y));
+        Assert.Equal(180, Assert.Single(saved.Pcb.GetBolts(HeatSinkSlot.HeatSink2)).LightLevel);
+        Assert.Empty(saved.CarrierImages);
+    }
+
+    [Fact]
     public async Task TeachingGrabAllowsDataMatrixRoiBeforeRecordingAPosition()
     {
         var settings = FlowSettings();

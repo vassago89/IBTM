@@ -50,6 +50,25 @@ public partial class TeachingViewModel
     private Task _liveImageUpdate = Task.CompletedTask;
     private Task _cameraStop = Task.CompletedTask;
 
+    public DataMatrixInspectionRecipe? SelectedDataMatrixSettings => SelectedBarcode is { } pcb
+        ? InspectionRecipe.GetDataMatrix(pcb) : null;
+
+    public int? SelectedLightLevel
+    {
+        get => SelectedDataMatrixSettings is { } barcode
+            ? barcode.LightLevel : SelectedPoint?.Position.Bolt?.LightLevel;
+        set
+        {
+            if (SelectedDataMatrixSettings is { } barcode)
+                barcode.LightLevel = value;
+            else if (IsBoltSelected)
+                SelectedPoint!.Position.Bolt!.LightLevel = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsImageTargetSelected => IsDataMatrixSelected || IsBoltSelected;
+
     public double? RulerResolution
     {
         get
@@ -246,6 +265,7 @@ public partial class TeachingViewModel
     private async Task ReadDataMatrixAsync(CancellationToken cancellationToken)
     {
         var image = Preview.Image!;
+        var settings = SelectedDataMatrixSettings;
         var bounds = FovRegion!.Value;
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, ViewCancellation);
@@ -263,7 +283,7 @@ public partial class TeachingViewModel
                         left, top,
                         (int)Math.Ceiling(bounds.Right) - left,
                         (int)Math.Ceiling(bounds.Bottom) - top);
-                    return DataMatrixReader.Read(frame, region);
+                    return DataMatrixReader.Read(frame, region, settings);
                 },
                 cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
@@ -364,8 +384,10 @@ public partial class TeachingViewModel
             }
 
             CameraError = null;
-            SelectedCameraTab = 0;
-            await Inspection.StartLiveViewAsync(cancellation.Token);
+            SelectedCameraTab = 1;
+            await _cameraStop;
+            cancellation.Token.ThrowIfCancellationRequested();
+            await Inspection.StartLiveViewAsync(cancellation.Token, SelectedLightLevel);
             if (!State.ManualMode || !IsInspectionSelected)
                 await StopCameraLiveAsync();
         }
@@ -375,6 +397,32 @@ public partial class TeachingViewModel
         catch (Exception exception)
         {
             System.Diagnostics.Trace.TraceError("Camera live view operation failed. {0}", exception);
+            CameraError = exception.Message;
+        }
+    }
+
+    public IAsyncRelayCommand ApplyLiveSettingsCommand { get; }
+
+    private bool IsApplyLiveSettingsAllowed => Inspection.IsLiveView && IsTeachingEditAllowed
+        && IsImageTargetSelected && !GrabCommand.IsRunning && !ToggleLiveViewCommand.IsRunning
+        && !CaptureInspectionCommand.IsRunning && !TeachCurrentPositionCommand.IsRunning;
+
+    private async Task ApplyLiveSettingsAsync(CancellationToken cancellationToken)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ViewCancellation);
+        try
+        {
+            CameraError = null;
+            await _cameraStop;
+            cancellation.Token.ThrowIfCancellationRequested();
+            await Inspection.StartLiveViewAsync(cancellation.Token, SelectedLightLevel);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            CameraError = exception.Message;
         }
     }
 
@@ -382,12 +430,12 @@ public partial class TeachingViewModel
     {
         get
         {
-            return Inspection.IsLiveView
+            return !ApplyLiveSettingsCommand.IsRunning && (Inspection.IsLiveView
                 || IsInspectionSelected
                     && State.ManualMode
                     && !TeachCurrentPositionCommand.IsRunning
                     && !GrabCommand.IsRunning
-                    && !CaptureInspectionCommand.IsRunning;
+                    && !CaptureInspectionCommand.IsRunning);
         }
     }
 
@@ -396,12 +444,9 @@ public partial class TeachingViewModel
         if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
             return;
         OnPropertyChanged(nameof(IsBusy));
-        if (ReferenceEquals(sender, TeachCurrentPositionCommand)
-            || ReferenceEquals(sender, GrabCommand)
-            || ReferenceEquals(sender, CaptureInspectionCommand))
-            ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        if (ReferenceEquals(sender, ToggleLiveViewCommand))
-            GrabCommand.NotifyCanExecuteChanged();
+        ApplyLiveSettingsCommand.NotifyCanExecuteChanged();
+        ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
     }
 
     public IAsyncRelayCommand GrabCommand { get; }
@@ -409,7 +454,8 @@ public partial class TeachingViewModel
     private bool IsGrabAllowed => IsInspectionSelected
         && IsTeachingEditAllowed
         && !State.IsRunning
-        && !ToggleLiveViewCommand.IsRunning;
+        && !ToggleLiveViewCommand.IsRunning
+        && !ApplyLiveSettingsCommand.IsRunning;
 
     private async Task GrabAsync(CancellationToken cancellationToken)
     {
@@ -429,8 +475,9 @@ public partial class TeachingViewModel
             CameraError = null;
             SelectedCameraTab = 0;
             await _recipeImageUpdate;
+            await _cameraStop;
             operation.Token.ThrowIfCancellationRequested();
-            var frame = await Inspection.CaptureCurrentAsync(operation.Token, keepLiveView: true);
+            var frame = await Inspection.CaptureCurrentAsync(operation.Token, keepLiveView: true, lightLevel: SelectedLightLevel);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(frame), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
 
@@ -493,7 +540,9 @@ public partial class TeachingViewModel
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
                 throw new InvalidOperationException("Wait for the saved teaching images to load before recording a position.");
-            var captured = await Inspection.CaptureCarrierImageAsync(operation.Token);
+            await _cameraStop;
+            operation.Token.ThrowIfCancellationRequested();
+            var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, SelectedLightLevel);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             var images = CarrierImages.ToList();
@@ -683,6 +732,7 @@ public partial class TeachingViewModel
     private Task StopCameraLiveAsync()
     {
         ToggleLiveViewCommand.Cancel();
+        ApplyLiveSettingsCommand.Cancel();
         if (!_cameraStop.IsCompleted)
             return _cameraStop;
 
@@ -729,6 +779,7 @@ public partial class TeachingViewModel
         }
 
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        ApplyLiveSettingsCommand.NotifyCanExecuteChanged();
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
     }
 

@@ -29,7 +29,9 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 `MovsLightController`는 기존 `ILightController` 호출을 원본의 Connect/Set/On/Off/Disconnect에 연결한다.
 촬영·Live 점등 직전에 원본과 같이 Connect → Set → On 순서로 호출한다.
 단일 촬영은 조명 ON 완료 후 `LightingSettings.StabilizationDelayMilliseconds`만큼 안정화 대기를 거친다(기본 100ms, 0이면 대기 없음).
-Settings → Camera & Lighting → Lighting → Stabilization Delay (ms)에서 조정하고 Save Settings로 저장한다. 자동 검사·티칭 Grab에 적용하며, 이미 조명이 켜진 Live 중 Grab은 그대로 촬영한다.
+Settings → Camera & Lighting → Lighting → Stabilization Delay (ms)에서 조정하고 Save Settings로 저장한다. 자동 검사·티칭 Grab에 적용한다. Live 중 Grab도 선택한 항목의 밝기를 적용한 후 안정화 시간을 기다리며, Live 스트림은 유지한다.
+검사 티칭의 Live는 별도 탭이다. PCB 1/2 Data Matrix와 각 볼트는 별도의 조명 밝기(0–255)를 저장하며, 빈 값은 기존 `BoltInspection.LightLevel`을 사용한다. Apply to Live로 미리 보고 Save로 레시피에 저장한다. 항목 변경 시 Live를 정지해 이전 항목의 밝기와 새 항목의 표시가 섞이지 않도록 한다. 카메라 노출·게인 설정은 변경하지 않는다.
+Data Matrix 판독 옵션(TryHarder, TryInverted, AutoRotate, PureBarcode, 선택적 BinaryThreshold)은 PCB별로 저장하며 자동 검사·Read Data Matrix·Reinspect가 같은 값을 사용한다. 임계값이 비어 있으면 기존 자동 이진화를 사용한다. 이 설정들은 Record Position 좌표를 변경하지 않는다.
 대기 중 STOP되면 촬영하지 않고 조명을 끈다.
 검사 유닛 Disabled로 시작해 초기화에서 조명 연결을 생략했어도 수동 티칭 점등 시 연결한다.
 19200 통신, 문자 버퍼, 전송 뒤 50ms 대기, 빈 COM/미연결 처리도 원본을 따른다.

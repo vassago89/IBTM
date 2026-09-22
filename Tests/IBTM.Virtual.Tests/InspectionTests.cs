@@ -34,6 +34,9 @@ public sealed class InspectionTests
                     : image.Pixels[row * image.Stride + column];
         var padded = new ImageFrame(image.Width, image.Height, stride, pixels);
         Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80)));
+        Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80),
+            new() { BinaryThreshold = 128, AutoRotate = true }));
+        Assert.Null(DataMatrixReader.Read(padded, new(180, 40, 80, 80), new() { BinaryThreshold = 0 }));
         Assert.Null(DataMatrixReader.Read(padded, new(120, 80, 80, 80)));
         Assert.Throws<ArgumentOutOfRangeException>(() => DataMatrixReader.Read(padded, new(300, 0, 80, 80)));
     }

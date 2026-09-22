@@ -16,6 +16,16 @@ public enum FasteningHead
 
 public sealed class BoltPoint
 {
+    public int? LightLevel
+    {
+        get;
+        set
+        {
+            if (value is < 0 or > 255)
+                throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255, or leave blank for the recipe default.");
+            field = value;
+        }
+    }
     public int Number { get; set; }
     public HeatSinkSlot HeatSink { get; set; }
     public FasteningHead Head { get; set; } = FasteningHead.Shooting;

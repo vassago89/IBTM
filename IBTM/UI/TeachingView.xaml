@@ -148,33 +148,19 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TabControl SelectedIndex="{Binding SelectedCameraTab, UpdateSourceTrigger=PropertyChanged}">
                         <TabItem Header="Teaching / Inspect">
                             <Grid Margin="0,8,0,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*" MinHeight="100"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*" MinHeight="100"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <WrapPanel Margin="0,0,0,6">
-                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,6,6" MinWidth="70">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Setter Property="Content" Value="Live"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
-                                                        <Setter Property="Content" Value="Stop Live"/>
-                                                        <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
-                                                        <Setter Property="Foreground" Value="{StaticResource EquipBgBrush}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
                                     <Button Content="Grab"
                                         Command="{Binding GrabCommand}"
                                         Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"
@@ -187,13 +173,10 @@
                                         Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"
                                         ToolTip="Inspect the last captured image, or the selected saved FOV. Does not move axes."/>
                                 </WrapPanel>
-                                <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
-                                    <ui:ImageTeachingView Source="{Binding LiveImage}" ShowCrosshair="True"/>
-                                </Border>
-                                <TextBlock Grid.Row="2"
+                                <TextBlock Grid.Row="1"
                                     Text="{Binding Preview.Result}"
                                     TextWrapping="Wrap" Margin="0,8,0,0" FontSize="16" FontWeight="SemiBold"/>
-                                <WrapPanel Grid.Row="3" Margin="0,8,0,0">
+                                <WrapPanel Grid.Row="2" Margin="0,8,0,0">
                                     <TextBlock Text="Teaching Image / ROI" VerticalAlignment="Center" Margin="0,0,8,6"/>
                                     <TextBlock Text="Resolution (mm/px)" VerticalAlignment="Center" Margin="0,0,6,6"/>
                                     <TextBlock Text="{Binding MillimetersPerPixel, StringFormat={}{0:G8}}"
@@ -207,7 +190,7 @@
                                         ToolTip="Read the ROI on the displayed image. Does not move axes or stop live view."
                                         Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"/>
                                 </WrapPanel>
-                                <Grid Grid.Row="4">
+                                <Grid Grid.Row="3">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -243,8 +226,30 @@
                                                 TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
                                         </StackPanel>
                                     </ScrollViewer>
+                                    <ScrollViewer Grid.Column="1" Width="200" Margin="10,0,0,0"
+                                        VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                        Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
+                                        <StackPanel Margin="0,0,10,0">
+                                            <TextBlock Text="Data Matrix parameters" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                            <StackPanel IsEnabled="{Binding IsTeachingEditAllowed}">
+                                                <CheckBox Content="Try harder" IsChecked="{Binding SelectedDataMatrixSettings.TryHarder}" Margin="0,10,0,6"
+                                                    ToolTip="Spend more effort searching for the code."/>
+                                                <CheckBox Content="Try inverted" IsChecked="{Binding SelectedDataMatrixSettings.TryInverted}" Margin="0,0,0,6"
+                                                    ToolTip="Also try light modules on a dark background."/>
+                                                <CheckBox Content="Rotate search" IsChecked="{Binding SelectedDataMatrixSettings.AutoRotate}" Margin="0,0,0,6"
+                                                    ToolTip="Also try 90-degree rotations of the ROI."/>
+                                                <CheckBox Content="Pure barcode" IsChecked="{Binding SelectedDataMatrixSettings.PureBarcode}" Margin="0,0,0,6"
+                                                    ToolTip="Use only for a clean, aligned code without surrounding patterns. Usually leave off for camera images."/>
+                                                <TextBlock Text="Binary threshold (0–255)" TextWrapping="Wrap" Margin="0,8,0,4"/>
+                                                <TextBox Text="{Binding SelectedDataMatrixSettings.BinaryThreshold, BindingGroupName=RecipeInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
+                                                    ToolTip="Blank = automatic threshold. A value forces black/white conversion before decoding."/>
+                                            </StackPanel>
+                                            <TextBlock Text="Blank threshold uses automatic binarization. Use Read Data Matrix to test this image. Save keeps settings for this PCB's Data Matrix."
+                                                Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                                        </StackPanel>
+                                    </ScrollViewer>
                                 </Grid>
-                                <StackPanel Grid.Row="5" Margin="0,8,0,0">
+                                <StackPanel Grid.Row="4" Margin="0,8,0,0">
                                     <StackPanel Visibility="{Binding IsMeasuring, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
                                         <TextBlock Text="Ruler · drag between two points at bolt height" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                         <WrapPanel Margin="0,6,0,0">
@@ -291,39 +296,67 @@
                                 </StackPanel>
                             </Grid>
                         </TabItem>
-                        <TabItem Header="Lighting">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="4">
-                                <StackPanel Margin="0,0,12,0">
-                                    <TextBlock Text="Lighting" Style="{StaticResource PanelTitleStyle}" Margin="0,12,0,0"/>
-                                    <Grid Margin="0,12,0,0" IsEnabled="{Binding IsTeachingEditAllowed}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="0.7*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.Resources>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                                <Setter Property="VerticalAlignment" Value="Center"/>
-                                                <Setter Property="TextWrapping" Value="Wrap"/>
-                                                <Setter Property="Margin" Value="0,0,8,8"/>
+                        <TabItem Header="Live">
+                            <Grid Margin="0,8,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <WrapPanel>
+                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,6,6" MinWidth="70">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="Content" Value="Live"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
+                                                        <Setter Property="Content" Value="Stop Live"/>
+                                                        <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource EquipBgBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
                                             </Style>
-                                            <Style TargetType="TextBox" BasedOn="{StaticResource FieldTextBoxStyle}">
-                                                <Setter Property="Margin" Value="0,0,0,8"/>
-                                            </Style>
-                                        </Grid.Resources>
-                                        <TextBlock Text="Light Level"/>
-                                        <TextBox x:Name="InspectionLightInput" Grid.Column="1"
-                                            Text="{Binding InspectionRecipe.LightLevel, BindingGroupName=RecipeInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                            ToolTip="0 to 255. Applies on the next capture or Live start."/>
-                                    </Grid>
-                                    <TextBlock
-                                        Text="Light is on during Live or capture. Camera exposure, gain and frame rate use the camera settings. Use Save to keep the light level."
-                                        TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
-                                </StackPanel>
-                            </ScrollViewer>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Grab" Command="{Binding GrabCommand}"
+                                        Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"
+                                        ToolTip="Keep Live running and open the captured image in Teaching / Inspect."/>
+                                    <TextBlock Text="{Binding SelectedPoint.Name}" VerticalAlignment="Center" Margin="6,0,0,6"/>
+                                </WrapPanel>
+                                <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
+                                    <ui:ImageTeachingView Source="{Binding LiveImage}" ShowCrosshair="True"/>
+                                </Border>
+                                <TextBlock Grid.Row="2" Text="Live uses the selected point's light level. Changing the selected point stops Live; start it again for the new point."
+                                    TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
+                            </Grid>
                         </TabItem>
                     </TabControl>
-                    <TextBlock Grid.Row="1"
+                    <StackPanel Grid.Row="1" Margin="4,10,4,0"
+                        Visibility="{Binding IsImageTargetSelected, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding SelectedPoint.Name, StringFormat={}Lighting · {0}}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <WrapPanel IsEnabled="{Binding IsTeachingEditAllowed}" Margin="0,8,0,0">
+                            <StackPanel Width="100" Margin="0,0,8,6">
+                                <TextBlock Text="Light (0–255)" Margin="0,0,0,4"/>
+                                <TextBox x:Name="InspectionLightInput" Text="{Binding SelectedLightLevel, BindingGroupName=RecipeInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
+                                    ToolTip="Blank uses the recipe default light level."/>
+                            </StackPanel>
+                            <Button Content="Apply to Live" Command="{Binding ApplyLiveSettingsCommand}"
+                                VerticalAlignment="Bottom" Margin="0,0,0,6">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ElementName=TeachingRoot, Path=(Validation.HasError)}" Value="True">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </WrapPanel>
+                        <TextBlock Text="{Binding InspectionRecipe.LightLevel, StringFormat='Blank = recipe default ({0}). Apply to Live previews changes; Save stores them.'}"
+                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+                    </StackPanel>
+                    <TextBlock Grid.Row="2"
                         Text="{Binding CameraError}"
                         TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="4"/>
                 </Grid>

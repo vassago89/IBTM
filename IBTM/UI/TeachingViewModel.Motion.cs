@@ -412,7 +412,8 @@ public partial class TeachingViewModel
     private void NotifyManualTeachingCommands()
     {
         OnPropertyChanged(nameof(HomeBlock));
-        if (!State.ManualMode && (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning))
+        if (!State.ManualMode
+            && (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning || ApplyLiveSettingsCommand.IsRunning))
         {
             _ = RequestCameraStopAsync();
         }
@@ -431,6 +432,7 @@ public partial class TeachingViewModel
         SaveCommand.NotifyCanExecuteChanged();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        ApplyLiveSettingsCommand.NotifyCanExecuteChanged();
         GrabCommand.NotifyCanExecuteChanged();
         ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
         DrawFovRegionCommand.NotifyCanExecuteChanged();
