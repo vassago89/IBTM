@@ -18,6 +18,62 @@ public sealed class NgHandoffTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task TransferIgnoresPickupDetectionWhileDisplayStillUpdates(bool detected)
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var io = system.Io;
+        var transfer = system.Inspection;
+        var signals = new IoSignals([new NgCarrierTransferHardwareSettings()], io);
+        var workChanges = 0;
+        system.Work.Changed += () => workChanges++;
+        foreach (var value in new[] { !detected, detected })
+        {
+            io.SetInput(InputIo.NgCarrierDetected, value);
+            Assert.Equal(value, signals.Inputs[InputIo.NgCarrierDetected].IsOn);
+            Assert.False(transfer.IsTransferPending);
+        }
+        Assert.Equal(0, workChanges);
+
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        Assert.True(transfer.IsTransferPending);
+        Assert.True(transfer.IsRaised);
+        Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
+        SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        Assert.Equal(InspectionStationState.PlacingCarrier,
+            transfer.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
+
+        var changedDuringTravel = false;
+        motion.PositionChanged += (x, y, z) =>
+        {
+            changedDuringTravel = true;
+            io.SetInput(InputIo.NgCarrierDetected, !io.GetInput(InputIo.NgCarrierDetected));
+        };
+        await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
+            InspectionStationState.PlacingCarrier, stop.Token, holdAtDestination: true);
+        Assert.True(changedDuringTravel);
+        foreach (var value in new[] { false, true })
+        {
+            io.SetInput(InputIo.NgCarrierDetected, value);
+            Assert.Equal(InspectionStationState.HoldingAtDestination,
+                transfer.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true, holdAtDestination: true));
+        }
+
+        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
+        Assert.False(transfer.IsTransferPending);
+        Assert.True(transfer.IsClear);
+        Assert.Equal(InspectionStationState.TransferCompleted,
+            transfer.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
+        Assert.True(signals.Inputs[InputIo.NgCarrierDetected].IsOn);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task ShuttleWaitsForCommandedReleaseAndRaisedOpenPickup(bool repeat)
     {
         var system = await CreateAsync();

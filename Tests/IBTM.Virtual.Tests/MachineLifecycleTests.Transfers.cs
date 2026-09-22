@@ -407,7 +407,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Empty(feedback.AxisMoves);
         Assert.True(gantry.IsAt(settings.GetCarrierPickupPosition()!));
         Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
-        Assert.False(pickup.CarrierDetected);
+        Assert.False(io.GetInput(InputIo.NgCarrierDetected));
     }
 
     [Fact]
@@ -724,7 +724,7 @@ public sealed partial class MachineLifecycleTests
                 move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
             AssertState(InspectionStationState.WaitingForDestination);
             io.SetInput(InputIo.NgCarrierDetected, false);
-            Assert.Equal(InspectionStationState.PickingCarrier,
+            Assert.Equal(InspectionStationState.HoldingAtDestination,
                 move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierDetected, true);
             io.SetInput(InputIo.NgCarrierPickupDown, false);

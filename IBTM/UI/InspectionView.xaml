@@ -124,7 +124,7 @@
                 </StackPanel.RenderTransform>
                 <Grid Width="{StaticResource CarrierWidth}" Height="{StaticResource CarrierHeight}"
                     VerticalAlignment="Top">
-                    <ui:CarrierView Visibility="{Binding Inspection.CarrierDetected, Converter={StaticResource BoolToVis}}"
+                    <ui:CarrierView Visibility="{Binding Signals.Inputs[NgCarrierDetected].IsOn, Converter={StaticResource BoolToVis}}"
                         ToolTip="Carrier detected near NG pickup. This does not confirm grip."/>
                     <Grid x:Name="CarrierPicker" Width="{x:Static ui:MachinePlan.NgPickerWidth}" HorizontalAlignment="Center">
                         <Border Margin="-8,-6" Background="{StaticResource MachineGhostBrush}"

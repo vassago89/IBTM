@@ -306,7 +306,7 @@ public sealed partial class MachineLifecycleTests
                 if (ng)
                 {
                     Assert.True(await VirtualTest.WaitUntilAsync(
-                        () => pickup.CarrierDetected && pickup.IsRaised,
+                        () => io.GetInput(InputIo.NgCarrierDetected) && pickup.IsRaised,
                         TimeSpan.FromSeconds(3)));
                 }
                 else

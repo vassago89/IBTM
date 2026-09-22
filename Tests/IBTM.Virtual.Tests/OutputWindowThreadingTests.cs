@@ -455,8 +455,8 @@ public sealed class OutputWindowThreadingTests
         {
             ("Conveyor.EntryCarrierDetected", InputIo.MainConveyorEntryCarrierDetected),
             ("PcbPlacementWork.Station.CarrierPresent", InputIo.PcbPlacementHeatSink1Present),
-            ("NgTransfer.CarrierDetected", InputIo.NgCarrierDetected),
-            ("NgShuttle.CarrierDetected", InputIo.NgShuttleCarrierDetected),
+            ("Signals.Inputs[NgCarrierDetected].IsOn", InputIo.NgCarrierDetected),
+            ("Signals.Inputs[NgShuttleCarrierDetected].IsOn", InputIo.NgShuttleCarrierDetected),
         })
         {
             sensor.SetBinding(

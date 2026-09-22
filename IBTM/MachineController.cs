@@ -49,7 +49,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
             InputIo.BoltFasteningHeatSink2Present,
             InputIo.InspectionHeatSink1Present,
             InputIo.InspectionHeatSink2Present,
-            InputIo.NgCarrierDetected,
             InputIo.NgShuttleCarrierDetected,
             InputIo.NgConveyorPosition1Occupied,
             InputIo.NgConveyorPosition2Occupied,

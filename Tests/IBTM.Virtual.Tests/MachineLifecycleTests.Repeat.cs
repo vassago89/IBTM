@@ -204,7 +204,7 @@ public sealed partial class MachineLifecycleTests
             if (gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition)
                 && pickup.Lift == NgTransferLiftState.Down
                 && pickup.Gripper == NgTransferGripperState.Closed
-                && pickup.CarrierDetected)
+                && io.GetInput(InputIo.NgCarrierDetected))
             {
                 loweredWhileHolding = true;
             }
@@ -213,12 +213,12 @@ public sealed partial class MachineLifecycleTests
                 && io.GetInput(InputIo.NgShuttleCarrierDetected)
                 && pickup.IsRaised
                 && pickup.Gripper == NgTransferGripperState.Open
-                && !pickup.CarrierDetected)
+                && !io.GetInput(InputIo.NgCarrierDetected))
             {
                 placedAndReleased = true;
             }
 
-            if (placedAndReleased && pickup.CarrierDetected)
+            if (placedAndReleased && io.GetInput(InputIo.NgCarrierDetected))
                 pickedBackUp = true;
         }
 

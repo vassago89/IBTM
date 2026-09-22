@@ -164,8 +164,7 @@ public sealed partial class MainConveyor
                         $"S3 vacant and NG pickup empty; S2 enabled={_boltFasteningWork.Enabled}, "
                             + $"completed={_boltFasteningWork.Completed}, canTransfer={_boltFasteningWork.IsTransferAllowed}; "
                             + $"S3 canReceive={_inspectionWork.IsReceiveAllowed}, HS1={_inspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)}, "
-                            + $"HS2={_inspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)}, "
-                            + $"NG carrier detected={_io.GetInput(InputIo.NgCarrierDetected)}",
+                            + $"HS2={_inspectionWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)}",
                     _ => null,
                 });
                 try

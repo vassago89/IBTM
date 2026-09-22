@@ -113,9 +113,6 @@ public sealed class VirtualMachine
                     && !_io.GetInput(InputIo.PcbSupplyGripperOpen);
                 _placementHoldingPcb = _io.GetInput(InputIo.PcbPlacementPcbDetected)
                     && _io.GetInput(InputIo.PcbPlacementVacuumDetected);
-                _ngCarrierHeld = _io.GetInput(InputIo.NgCarrierDetected)
-                    && _io.GetInput(InputIo.NgCarrierGripperClosed)
-                    && !_io.GetInput(InputIo.NgCarrierGripperOpen);
             });
     }
 

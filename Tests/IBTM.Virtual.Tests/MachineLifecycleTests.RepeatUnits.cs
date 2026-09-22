@@ -142,7 +142,7 @@ public sealed partial class MachineLifecycleTests
             await work.Station.SeatAsync(CancellationToken.None);
             await services.GetRequiredService<InspectionStation>().ExecuteTransferAsync(
                 NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
-            Assert.True(pickup.CarrierDetected);
+            Assert.True(io.GetInput(InputIo.NgCarrierDetected));
             Assert.False(work.Station.CarrierPresent);
         }
         else

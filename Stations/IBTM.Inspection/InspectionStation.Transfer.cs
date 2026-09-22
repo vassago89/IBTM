@@ -12,9 +12,6 @@ public sealed partial class InspectionStation
 
     public bool IsEmptyRepeatAllowed => !_units.MainConveyor && !_units.NgConveyor;
 
-    // Presence near the pickup does not prove that its gripper holds the carrier.
-    public bool CarrierDetected => _io.GetInput(InputIo.NgCarrierDetected);
-
     public bool IsTransferPending => _work.IsTransferPending;
 
     public NgTransferLiftState Lift
@@ -108,7 +105,7 @@ public sealed partial class InspectionStation
             {
                 if (!destinationReady)
                     return InspectionStationState.WaitingForDestination;
-                return gripper == NgTransferGripperState.Closed && (allowEmpty || CarrierDetected)
+                return gripper == NgTransferGripperState.Closed
                     ? InspectionStationState.HoldingAtDestination : InspectionStationState.PickingCarrier;
             }
 
@@ -126,7 +123,7 @@ public sealed partial class InspectionStation
 
         if (pending)
         {
-            if (gripper != NgTransferGripperState.Closed || !allowEmpty && !CarrierDetected)
+            if (gripper != NgTransferGripperState.Closed)
                 return InspectionStationState.PickingCarrier;
             if (!atDestination && !raised)
                 return InspectionStationState.PreparingTransfer;
@@ -218,8 +215,6 @@ public sealed partial class InspectionStation
                     return false;
                 _work.IsTransferPending = true;
                 await SetGripperOpenAsync(false, cancellationToken);
-                if (!allowEmpty)
-                    await _io.WaitForInputAsync(InputIo.NgCarrierDetected, true, cancellationToken);
                 await SetLiftUpAsync(true, cancellationToken);
                 break;
             case InspectionStationState.PlacingCarrier:
@@ -233,8 +228,7 @@ public sealed partial class InspectionStation
                     using var carrying = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     void CheckGrip()
                     {
-                        if (!IsTransferPending || Gripper != NgTransferGripperState.Closed
-                            || !allowEmpty && !CarrierDetected)
+                        if (!IsTransferPending || Gripper != NgTransferGripperState.Closed)
                             carrying.Cancel();
                     }
                     Changed += CheckGrip;

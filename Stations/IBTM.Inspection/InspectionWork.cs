@@ -159,7 +159,6 @@ public sealed class InspectionWork : StationWork, INgCarrierTransferFeedback
             or InputIo.NgCarrierPickupDown
             or InputIo.NgCarrierGripperOpen
             or InputIo.NgCarrierGripperClosed
-            or InputIo.NgCarrierDetected
             or InputIo.NgShuttleUp
             or InputIo.NgShuttleDown
             or InputIo.NgShuttleCarrierDetected)
