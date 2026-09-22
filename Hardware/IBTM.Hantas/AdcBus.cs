@@ -162,6 +162,20 @@ public sealed class AdcBus : IAdcBus, IDisposable
                         return;
                     length = (_receiveBuffer[2] << 8 | _receiveBuffer[3]) + 6;
                 }
+                else if (function == 0x2B && _receiveBuffer.Count >= 3 && _receiveBuffer[2] == 0x0E)
+                {
+                    // Read Device Identification: an object count, then ID/length/value entries.
+                    if (_receiveBuffer.Count < 8)
+                        return;
+                    length = 8;
+                    for (var index = 0; index < _receiveBuffer[7]; index++)
+                    {
+                        if (_receiveBuffer.Count < length + 2)
+                            return;
+                        length += _receiveBuffer[length + 1] + 2;
+                    }
+                    length += 2; // CRC
+                }
                 else
                 {
                     if (_receiveBuffer.Count < 3)
@@ -603,6 +617,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     private static void ValidateFrame(byte[] frame, byte slaveAddress, byte function)
     {
+        if (frame.Length is < 5 or > 256 || (frame[1] & ~ExceptionFunctionMask) == 0)
+            throw new InvalidDataException($"Invalid Modbus RTU response shape; RX={Convert.ToHexString(frame)}.");
         var receivedCrc = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));
         var calculatedCrc = AdcRtuFrame.CalculateCrc(frame.AsSpan(0, frame.Length - 2));
         if (receivedCrc != calculatedCrc)

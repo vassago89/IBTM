@@ -167,6 +167,12 @@ public sealed class AdcProtocolTests
             Assert.Contains("InvalidDataLength", error.Message);
             Assert.Contains(Convert.ToHexString(frame), error.Message);
         }
+        else if (kind == AdcResponseKind.WriteResponse)
+        {
+            var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() => waiting);
+            Assert.Contains("Write Single Register", error.Message);
+            Assert.Contains("kind=normal", error.Message);
+        }
         else
             await Assert.ThrowsAsync<InvalidDataException>(() => waiting);
         Assert.Equal(frame, chunks.SelectMany(chunk => chunk).ToArray());
@@ -174,7 +180,7 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
-    public async Task Logged8C03ReplyHasNoAssumedErrorMeaning()
+    public async Task Logged8C03ReplyIsInterpretedAsAModbusExceptionForADifferentFunction()
     {
         using var bus = new AdcBus(new());
         var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
@@ -183,12 +189,14 @@ public sealed class AdcProtocolTests
         bus.ReceiveBytes(frame[..2]);
         Assert.False(pending.Completion.Task.IsCompleted);
         bus.ReceiveBytes(frame[2..]);
-        var error = await Assert.ThrowsAsync<AdcUnrecognizedResponseException>(
+        var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(
             () => bus.WaitForResponseAsync(pending, CancellationToken.None));
         Assert.Contains("RX=018C0304C1", error.Message);
         Assert.Contains("function=0x8C", error.Message);
-        Assert.Contains("data=0x03", error.Message);
-        Assert.Contains("expected=0x84", error.Message);
+        Assert.Contains("base function=0x0C (Get Comm Event Log)", error.Message);
+        Assert.Contains("exception=0x03 (Illegal Data Value)", error.Message);
+        Assert.Contains("expected response=0x84", error.Message);
+        Assert.Contains("ADC firmware meaning unconfirmed", error.Message);
         Assert.DoesNotContain("InvalidDataLength", error.Message);
     }
 
@@ -197,11 +205,46 @@ public sealed class AdcProtocolTests
     [InlineData(AdcFunctionCode.ReadInputRegisters, 28, 0x8C, 0x04)]
     [InlineData(AdcFunctionCode.ReadInputRegisters, 28, 0x86, 0x03)]
     [InlineData(AdcFunctionCode.WriteSingleRegister, 28, 0x8C, 0x03)]
-    public void OtherMismatchedRepliesRemainCommunicationFailures(
+    public void ValidRtuExceptionsAreInterpretedRegardlessOfThePendingRequest(
         AdcFunctionCode request, int byteCount, byte function, byte data)
     {
         var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)function, [data]);
-        Assert.Throws<InvalidDataException>(() => AdcBus.ValidateResponse(frame, 1, request, byteCount));
+        var error = Assert.Throws<AdcUnexpectedResponseException>(
+            () => AdcBus.ValidateResponse(frame, 1, request, byteCount));
+        Assert.Contains($"function=0x{function:X2}", error.Message);
+        Assert.Contains($"exception=0x{data:X2}", error.Message);
+        Assert.Contains("CRC valid", error.Message);
+    }
+
+    [Theory]
+    [InlineData(0x83, "06", "Read Holding Registers", "Server Device Busy")]
+    [InlineData(0x91, "04", "Report Server ID", "Server Device Failure")]
+    [InlineData(0xD1, "55", "Vendor-specific / unspecified function", "unspecified exception")]
+    [InlineData(0x03, "021234", "Read Holding Registers", "data=021234")]
+    [InlineData(0x05, "0001FF00", "Write Single Coil", "data=0001FF00")]
+    [InlineData(0x07, "01", "Read Exception Status", "data=01")]
+    [InlineData(0x0B, "00000001", "Get Comm Event Counter", "data=00000001")]
+    [InlineData(0x16, "0001FFFF0000", "Mask Write Register", "data=0001FFFF0000")]
+    [InlineData(0x18, "000400011234", "Read FIFO Queue", "data=000400011234")]
+    [InlineData(0x2B, "0E0101000001000141", "Encapsulated Interface Transport", "data=0E0101000001000141")]
+    public async Task DifferentRtuResponseShapesAreReassembledAndInterpreted(
+        byte function, string data, string functionName, string interpretedData)
+    {
+        using var bus = new AdcBus(new());
+        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
+        var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)function, Convert.FromHexString(data));
+        foreach (var value in frame)
+            bus.ReceiveBytes([value]);
+        var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(
+            () => bus.WaitForResponseAsync(pending, CancellationToken.None));
+        Assert.Contains(functionName, error.Message);
+        Assert.Contains(interpretedData, error.Message);
+        Assert.Contains($"RX={Convert.ToHexString(frame)}", error.Message);
+        // The next normal reply keeps its boundary and request ownership.
+        var next = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
+        var result = AutomaticFrame(31);
+        bus.ReceiveBytes(result);
+        Assert.Equal(result, await bus.WaitForResponseAsync(next, CancellationToken.None));
     }
 
     [Theory]
