@@ -104,7 +104,7 @@ public sealed partial class InspectionStation : AutoUnit
                 _work.Restart(_work.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (repeat && !_units.MainConveyor
+                if (repeat && _work.Enabled && !_units.MainConveyor
                     && (IsEmptyRepeatAllowed || _work.Station.CarrierPresent)
                     && _work.PickupClear)
                 {

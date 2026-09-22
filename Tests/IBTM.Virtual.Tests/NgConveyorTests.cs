@@ -15,21 +15,15 @@ public sealed class NgConveyorTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task CombinedUnitRunsOnlyEnabledShuttleOrConveyor(bool shuttleOnly)
+    public async Task OneEnableControlsShuttleAndBelt(bool enabled)
     {
-        var system = CreateSystem(units: new()
-        {
-            NgShuttle = shuttleOnly,
-            NgConveyor = !shuttleOnly,
-        });
-        if (!shuttleOnly)
-            await system.Signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
+        var system = CreateSystem(units: new() { NgConveyor = enabled });
         system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
         var shuttleCommands = 0;
         var beltStarts = 0;
         system.Io.OutputChanged += (output, on) =>
         {
-            if (output == OutputIo.NgShuttleDown)
+            if (output == OutputIo.NgShuttleDown && on)
                 shuttleCommands++;
             if (output == OutputIo.NgConveyorRun && on)
                 beltStarts++;
@@ -38,10 +32,12 @@ public sealed class NgConveyorTests
         var run = system.Conveyor.RunAsync(stop.Token);
         try
         {
-            await system.Signals.WaitForInputAsync(shuttleOnly
-                ? InputIo.NgShuttleDown : InputIo.NgConveyorPosition1Occupied, true, stop.Token);
-            Assert.Equal(shuttleOnly ? 1 : 0, shuttleCommands);
-            Assert.Equal(shuttleOnly ? 0 : 1, beltStarts);
+            if (enabled)
+                await system.Signals.WaitForInputAsync(InputIo.NgConveyorPosition1Occupied, true, stop.Token);
+            else
+                Assert.Equal(NgConveyorState.WaitingForCarrier, system.Conveyor.State);
+            Assert.Equal(enabled ? 1 : 0, shuttleCommands);
+            Assert.Equal(enabled ? 1 : 0, beltStarts);
         }
         finally
         {

@@ -107,6 +107,10 @@ public sealed class NgHandoffTests
         {
             Assert.False(run.IsCompleted);
             Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
+            var assembly = system.Work.GetAssembly(HeatSinkSlot.HeatSink1);
+            assembly.RecordBoltPresence(1, false);
+            assembly.CompleteInspection();
+            system.Work.Complete(system.Work.CurrentJob);
             // No transfer or carrier sensor changes: releasing the button alone must wake the loop.
             io.SetInput(InputIo.NgCarrierEjectButton, false);
             Assert.True(system.Conveyor.IsReceiveAllowed(useConveyor: true));
@@ -120,12 +124,12 @@ public sealed class NgHandoffTests
     }
 
     private static async Task<(VirtualIoService Io, VirtualMotionService Motion, InspectionStation Inspection,
-        NgCarrierConveyor Conveyor)> CreateAsync()
+        NgCarrierConveyor Conveyor, InspectionWork Work)> CreateAsync()
     {
         var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(),
             new NgShuttleHardwareSettings(), new NgConveyorHardwareSettings(), new ConveyorHardwareSettings()), new());
         io.Initialize();
-        var units = new UnitSettings { MainConveyor = false, Inspection = false };
+        var units = new UnitSettings { MainConveyor = false };
         var settings = new NgCarrierTransferSettings { PickupSafeX = 0, ShuttlePlacePosition = new() { X = 10, Y = 10 } };
         var motionSettings = new InspectionGantrySettings();
         var operations = new OperationCancellation();
@@ -140,6 +144,6 @@ public sealed class NgHandoffTests
             new VirtualCamera(() => (0, 0, 0), () => []), new VirtualLightController(), new(), recipes);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await inspection.Station.SeatAsync(CancellationToken.None);
-        return (io, motion, inspection, conveyor);
+        return (io, motion, inspection, conveyor, work);
     }
 }

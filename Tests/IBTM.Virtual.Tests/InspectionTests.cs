@@ -199,7 +199,7 @@ public sealed class InspectionTests
             operations,
             hasZ: false);
         var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0 };
-        var units = new UnitSettings { MainConveyor = false, NgCarrierTransfer = false };
+        var units = new UnitSettings { MainConveyor = false };
         var recipes = new RecipeManager(OpenMachineStore(), new());
         var work = new InspectionWork(io, motion, transferSettings, units);
         BoltPoint[] bolts = [
@@ -345,7 +345,7 @@ public sealed class InspectionTests
             X = position.X,
             Y = position.Y,
         };
-        var transferUnits = new UnitSettings { Inspection = false, MainConveyor = false };
+        var transferUnits = new UnitSettings();
         var transferWork = new InspectionWork(
             io,
             motion,
@@ -378,11 +378,13 @@ public sealed class InspectionTests
         Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.GetState());
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
         Assert.Equal(InspectionStationState.PlacingCarrier, transferStation.GetState());
-        Assert.Equal(InspectionStationState.Waiting, station.GetState());
+        Assert.Equal(transferStation.GetState(), station.GetState());
+        Assert.False(station.IsTransferPending);
 
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
-        Assert.Equal(InspectionStationState.Waiting, station.GetState());
+        Assert.Equal(transferStation.GetState(), station.GetState());
+        Assert.False(station.IsTransferPending);
     }
 
     private sealed class MissingBoltCamera : ICamera

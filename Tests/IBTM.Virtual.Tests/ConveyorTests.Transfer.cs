@@ -298,7 +298,7 @@ public sealed partial class ConveyorTests
         io.SetInput(InputIo.NgCarrierDetected, true);
         await SetSeatedCarrierAsync(
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
-        var conveyor = CreateConveyor(io, boltFasteningEnabled: false, ngCarrierTransferEnabled: true);
+        var conveyor = CreateConveyor(io, boltFasteningEnabled: false);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var run = conveyor.RunAsync(cancellation.Token);
         try
@@ -338,7 +338,7 @@ public sealed partial class ConveyorTests
         var conveyor = new MainConveyor(
             io, new ConveyorSettings { CarrierStopDelaySeconds = 30 }, new OperationCancellation(),
             new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), source, destination,
-            new UnitSettings { NgCarrierTransfer = true });
+            new UnitSettings { Inspection = true });
         io.Initialize();
         await SetSeatedCarrierAsync(
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
@@ -400,7 +400,7 @@ public sealed partial class ConveyorTests
         var conveyor = new MainConveyor(
             io, new ConveyorSettings { CarrierStopDelaySeconds = 0 }, new OperationCancellation(),
             new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), source, destination,
-            new UnitSettings { NgCarrierTransfer = false });
+            new UnitSettings { Inspection = false });
         io.Initialize();
         await SetSeatedCarrierAsync(
             io, signals, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
@@ -453,7 +453,7 @@ public sealed partial class ConveyorTests
         var conveyor = new MainConveyor(
             io, new ConveyorSettings { CarrierStopDelaySeconds = 0 }, new OperationCancellation(),
             new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), source, destination,
-            new UnitSettings { NgCarrierTransfer = false });
+            new UnitSettings { Inspection = false });
         io.Initialize();
         await SetSeatedCarrierAsync(
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
@@ -659,7 +659,7 @@ public sealed partial class ConveyorTests
         var conveyor = new MainConveyor(
             io, new ConveyorSettings { CarrierStopDelaySeconds = 0 }, new OperationCancellation(),
             new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), source, destination,
-            new UnitSettings { NgCarrierTransfer = false });
+            new UnitSettings { Inspection = false });
         io.Initialize();
         await SetSeatedCarrierAsync(io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
         var job = source.CurrentJob;
@@ -714,7 +714,7 @@ public sealed partial class ConveyorTests
             placement,
             fastening,
             CreateInspectionWork(io),
-            new UnitSettings { NgCarrierTransfer = false });
+            new UnitSettings { Inspection = false });
         io.Initialize();
         io.AutoResponseEnabled = false;
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);

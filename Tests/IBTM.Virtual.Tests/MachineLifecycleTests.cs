@@ -435,16 +435,20 @@ public sealed partial class MachineLifecycleTests
     public async Task StoppedNgTransferStartsWithHeldCarrierAndPlacesItOnShuttle()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.Units.MainConveyor = true;
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
+        await services.GetRequiredService<InspectionWork>().Station.PrepareToReceiveAsync(CancellationToken.None);
+        services.GetRequiredService<VirtualCamera>().BoltsPresent = false;
         // Presence and a closed empty gripper must not skip the first pickup descent.
         await services.GetRequiredService<InspectionStation>().SetGripperOpenAsync(false);
         io.SetInput(InputIo.NgCarrierDetected, true);
@@ -464,8 +468,13 @@ public sealed partial class MachineLifecycleTests
         }
 
         gantry.Feedback.PositionChanged += StopDuringTransfer;
-        await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        using var initialTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await machine.StartAsync(initialTimeout.Token);
         gantry.Feedback.PositionChanged -= StopDuringTransfer;
+        Assert.False(initialTimeout.IsCancellationRequested,
+            $"Inspection={gantry.GetState()}, Main={services.GetRequiredService<MainConveyor>().State}, "
+            + $"Completed={services.GetRequiredService<InspectionWork>().Completed}, NG={services.GetRequiredService<InspectionWork>().HasNg}, "
+            + $"Position={gantry.Feedback.GetPosition()}, Lift={gantry.Lift}, Gripper={gantry.Gripper}, Alarm={state.AlarmDetail}");
         var stoppedX = gantry.Feedback.GetPosition().X;
         Assert.InRange(stoppedX, 40, 149);
         Assert.Equal(1, pickupDescents);
@@ -502,7 +511,7 @@ public sealed partial class MachineLifecycleTests
     public async Task ReleasedNgCarrierIsNotGrippedAgainOnRestart(NgTransferLiftState lift)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -600,19 +609,15 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
-    public async Task InspectionAndConveyorAgreeOnBypassRoute(
-        bool inspectionEnabled,
-        bool transferEnabled,
-        bool expectNg)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task InspectionAndConveyorAgreeOnBypassRoute(bool inspectionEnabled, bool ng)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
         settings.Units.Inspection = inspectionEnabled;
-        settings.Units.NgCarrierTransfer = transferEnabled;
         await using var services = CreateServices(settings);
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<InspectionWork>();
@@ -621,7 +626,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        if (inspectionEnabled || transferEnabled)
+        if (inspectionEnabled)
         {
             await services.GetRequiredService<InspectionStation>().MoveToCarrierAsync(
                 NgTransferDestination.Station, CancellationToken.None);
@@ -632,10 +637,11 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
         await work.Station.SeatAsync(CancellationToken.None);
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBoltPresence(1, true);
+        assembly.RecordBoltPresence(1, !ng);
         assembly.CompleteInspection();
         work.Complete(work.CurrentJob);
 
+        var expectNg = inspectionEnabled && ng;
         Assert.Equal(expectNg, inspection.GetState() == InspectionStationState.PickingCarrier);
         Assert.Equal(!expectNg, conveyor.State == MainConveyorState.DischargingInspectionCarrier);
         await machine.ShutdownAsync();
@@ -862,7 +868,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = new MachineSettings
         {
-            Units = EnableOnly(MachineUnit.NgShuttle),
+            Units = EnableOnly(MachineUnit.NgConveyor),
         };
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
@@ -942,7 +948,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
         settings.Units.PcbPlacement = true;
-        settings.Units.NgCarrierTransfer = true;
+        settings.Units.Inspection = true;
         await using var services = CreateMotionScopeServices(settings, out var probes);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();

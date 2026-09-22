@@ -115,11 +115,11 @@ public sealed partial class MachineLifecycleTests
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, true)]
-    public async Task NgTransferOnlyRepeatPicksAndReturnsWithOrWithoutMaterial(
+    public async Task InspectionOnlyRepeatPicksAndReturnsWithOrWithoutMaterial(
         bool startsWithCarrierHeld, bool detected)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -127,13 +127,8 @@ public sealed partial class MachineLifecycleTests
         var pickup = services.GetRequiredService<InspectionStation>();
         var gantry = services.GetRequiredService<InspectionStation>();
         var work = services.GetRequiredService<InspectionWork>();
-        var dataMatrixPosition = new AxisPosition { X = 35, Y = 45 };
-        services.GetRequiredService<RecipeManager>().Current.CarrierImages =
-            [
-                new() { Number = 1, Center = new() { X = 60, Y = 70 }, BoltNumber = 1 },
-                new() { Number = 2, Center = new() { X = 80, Y = 90 }, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2 },
-                new() { Number = 3, Center = dataMatrixPosition, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1 },
-            ];
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        PrepareCarrierTeaching(settings, recipe);
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await work.Station.PrepareToReceiveAsync(CancellationToken.None);
@@ -225,8 +220,9 @@ public sealed partial class MachineLifecycleTests
     public async Task NgTransferRepeatDoesNotCountPendingPickupAndStationPresenceAtStartup()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -271,7 +267,7 @@ public sealed partial class MachineLifecycleTests
     public async Task NgRepeatWithoutMainReturnsFromPosition1ToShuttle()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgShuttle);
+        settings.Units = EnableOnly(MachineUnit.NgConveyor);
         settings.Units.NgConveyor = true;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();

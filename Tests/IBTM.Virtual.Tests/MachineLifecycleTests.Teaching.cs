@@ -165,7 +165,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(state.Homed);
         io.SetInput(InputIo.Door1Open, true);
         var teaching = services.GetRequiredService<TeachingViewModel>();
-        teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         await gantry.MoveToAsync(new() { X = 10, Y = 7 }, 10_000);
         await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
 
@@ -186,7 +186,7 @@ public sealed partial class MachineLifecycleTests
         Assert.NotEqual((0, 0, 0), gantry.Feedback.GetPosition());
 
         settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 10_000;
-        teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
         await teaching.HomeCommand.ExecuteAsync(null);
         Assert.True(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
@@ -256,7 +256,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task NgTransferTeachingRecordsTwoXyPositionsAndUsesTheInspectionAxes()
+    public async Task InspectionTeachingIncludesCarrierTransferPositionsAndIo()
     {
         await using var services = CreateDisplayServices(out var feedback);
         var transferSettings = services.GetRequiredService<NgCarrierTransferSettings>();
@@ -269,11 +269,10 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var inspectionMotion = teaching.Motion;
-        Assert.Contains(HardwareArea.NgCarrierTransfer, teaching.TeachingUnits);
-        Assert.DoesNotContain(teaching.FilteredPoints,
-            point => point.Position.Target is TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace);
+        Assert.DoesNotContain(HardwareArea.NgCarrierTransfer, teaching.TeachingUnits);
+        Assert.Contains(teaching.FilteredPoints, point => point.Position.Target == TeachingTarget.DataMatrix);
 
-        teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
 
         Assert.Same(inspectionMotion, teaching.Motion);
         Assert.Equal(MotionGroup.InspectionGantry, teaching.ActiveMotionGroup);
@@ -283,13 +282,11 @@ public sealed partial class MachineLifecycleTests
         };
         Assert.Equal(
             teachingTargets.Order(),
-            teaching.FilteredPoints.Select(point => point.Position.Target).Order());
-        Assert.False(teaching.IsInspectionSelected);
-        Assert.False(teaching.BoltPointEditorVisible);
+            teaching.FilteredPoints.Where(point => point.Group == TeachingPointGroup.CarrierTransfer)
+                .Select(point => point.Position.Target).Order());
+        Assert.True(teaching.IsInspectionSelected);
+        Assert.True(teaching.BoltPointEditorVisible);
         Assert.False(teaching.IsFasteningSelected);
-        Assert.False(teaching.ToggleLiveViewCommand.CanExecute(null));
-        Assert.False(teaching.CaptureInspectionCommand.CanExecute(null));
-        Assert.False(teaching.AddBoltPointCommand.CanExecute(null));
         Assert.Contains(teaching.TeachingIoGroups, group => group.Area == HardwareArea.NgCarrierTransfer);
         Assert.Contains(teaching.TeachingIoGroups, group => group.Area == HardwareArea.NgShuttle);
 
@@ -341,13 +338,11 @@ public sealed partial class MachineLifecycleTests
         await shuttle.ToggleOutputCommand.ExecuteAsync(null);
         Assert.True(io.GetInput(InputIo.NgShuttleUp));
 
-        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Position.Target == TeachingTarget.DataMatrix);
         Assert.Same(inspectionMotion, teaching.Motion);
-        Assert.True(teaching.IsInspectionSelected);
-        Assert.DoesNotContain(OutputIo.NgShuttleDown, TeachingRows(teaching).Keys);
-        Assert.DoesNotContain(teaching.TeachingIoGroups, group => group.Area == HardwareArea.NgShuttle);
-        Assert.DoesNotContain(teaching.FilteredPoints,
-            point => point.Position.Target is TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace);
+        Assert.Contains(OutputIo.NgShuttleDown, TeachingRows(teaching).Keys);
+        Assert.Contains(teaching.TeachingIoGroups, group => group.Area == HardwareArea.NgShuttle);
     }
 
     [Theory]
@@ -1517,7 +1512,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(services.GetRequiredService<BoltFasteningStation>().IsHorizontalMoveAllowed);
         }
 
-        teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         var ngGripper = TeachingRows(teaching)[OutputIo.NgCarrierGripperClose];
         await ngGripper.ToggleOutputCommand.ExecuteAsync(null);
         Assert.True(io.GetOutput(ngGripper.Io.Signal));
@@ -1527,9 +1522,9 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetInput(InputIo.NgCarrierGripperOpen));
 
         var ngLift = TeachingRows(teaching)[OutputIo.NgCarrierPickupDown];
-        settings.Units.NgCarrierTransfer = false;
+        settings.Units.Inspection = false;
         await WaitUntilAsync(() => ngLift.ToggleOutputCommand.CanExecute(null));
-        settings.Units.NgCarrierTransfer = true;
+        settings.Units.Inspection = true;
         io.AutoResponseEnabled = false;
         var pending = ngLift.ToggleOutputCommand.ExecuteAsync(null);
         teaching.JogStopCommand.Execute(null);
@@ -1572,9 +1567,9 @@ public sealed partial class MachineLifecycleTests
         settings.Units.PcbPlacement = false;
         Assert.Equal(HomeBlockReason.UnitDisabled, teaching.HomeBlock);
         Assert.Equal(TeachingMotionHint.UnitDisabled, teaching.MotionHint);
-        teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
-        await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.HomeRequired);
+        Assert.Equal(TeachingMotionHint.None, teaching.MotionHint);
         Assert.True(teaching.HomeCommand.CanExecute(null));
     }
 
@@ -1591,7 +1586,7 @@ public sealed partial class MachineLifecycleTests
                 InputIo.PcbPlacementStopperDown, InputIo.PcbPlacementStopperUp),
             (HardwareArea.BoltFastening, OutputIo.BoltFasteningStopperUp,
                 InputIo.BoltFasteningStopperDown, InputIo.BoltFasteningStopperUp),
-            (HardwareArea.NgCarrierTransfer, OutputIo.InspectionStopperUp,
+            (HardwareArea.InspectionGantry, OutputIo.InspectionStopperUp,
                 InputIo.InspectionStopperDown, InputIo.InspectionStopperUp),
         ];
         var changed = new ConcurrentQueue<OutputIo>();
@@ -1677,7 +1672,7 @@ public sealed partial class MachineLifecycleTests
     public async Task TeachingControlsOnlyItsOwnBackupPlate()
     {
         var settings = FlowSettings();
-        settings.Units.NgCarrierTransfer = false;
+        settings.Units.Inspection = false;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();

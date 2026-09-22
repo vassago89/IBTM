@@ -63,7 +63,7 @@ public enum TeachingTarget
     [Description("Bolt Fastening")]
     BoltPosition,
 
-    [Description("Carrier Pickup (S3)")]
+    [Description("Waiting / Carrier Pickup (S3)")]
     NgCarrierPickup,
 
     [Description("Carrier Placement (Shuttle)")]

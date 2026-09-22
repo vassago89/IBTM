@@ -18,12 +18,10 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task InspectionWaitsAtNgPickupAfterSeatingAndAfterInspection(bool enableNgTransfer)
+    [Fact]
+    public async Task InspectionWaitsAtNgPickupAfterSeatingAndAfterInspection()
     {
-        await using var services = CreateInspectionServices(enableConveyor: true, enableNgTransfer);
+        await using var services = CreateInspectionServices(enableConveyor: true);
         services.GetRequiredService<UnitSettings>().BoltFastening = true;
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -84,7 +82,7 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task InspectionSeatingCancelledDuringPickupTravelDoesNotRaisePlate()
     {
-        await using var services = CreateInspectionServices(enableConveyor: true, enableNgTransfer: true);
+        await using var services = CreateInspectionServices(enableConveyor: true);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<InspectionWork>();
@@ -204,7 +202,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true, true)]
     public async Task InspectionParksThenDischargesOrRaisesBeforeOtherTransfers(bool ng, bool rearReady)
     {
-        await using var services = CreateInspectionServices(enableConveyor: true, enableNgTransfer: ng);
+        await using var services = CreateInspectionServices(enableConveyor: true);
         var machine = services.GetRequiredService<MachineController>();
         var machineState = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -495,12 +493,11 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    private static ServiceProvider CreateInspectionServices(bool enableConveyor, bool enableNgTransfer = false)
+    private static ServiceProvider CreateInspectionServices(bool enableConveyor)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         settings.Units.MainConveyor = enableConveyor;
-        settings.Units.NgCarrierTransfer = enableNgTransfer;
         settings.Conveyor.CarrierStopDelaySeconds = 0;
         var services = CreateServices(settings);
         PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);

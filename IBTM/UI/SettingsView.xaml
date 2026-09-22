@@ -319,15 +319,15 @@
                                 </Border>
                                 <Border Style="{StaticResource SettingCard}">
                                     <StackPanel>
-                                        <TextBlock Text="NG Handling" Style="{StaticResource SettingSectionTitle}"/>
+                                        <TextBlock Text="Inspection Station / NG Conveyor" Style="{StaticResource SettingSectionTitle}"/>
                                         <UniformGrid Columns="2">
                                             <StackPanel Margin="0,0,8,0">
-                                                <TextBlock Text="Carrier Count for Alarm" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="NG Conveyor · Carrier Count for Alarm" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     Text="{Binding Settings.NgConveyor.AlarmCarrierCount, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                             <StackPanel Margin="8,0,0,0">
-                                                <TextBlock Text="Transfer Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="Inspection Station · Carrier Transfer Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     Text="{Binding Settings.NgCarrierTransfer.Speed, UpdateSourceTrigger=LostFocus}"/>
                                             </StackPanel>

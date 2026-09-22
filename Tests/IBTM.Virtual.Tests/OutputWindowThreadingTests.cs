@@ -222,8 +222,6 @@ public sealed class OutputWindowThreadingTests
                         PcbPlacement = false,
                         BoltFastening = false,
                         Inspection = true,
-                        NgCarrierTransfer = false,
-                        NgShuttle = false,
                         PickupBoltFeeder = false,
                         ShootingBoltFeeder = false,
                     },

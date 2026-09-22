@@ -31,7 +31,7 @@ public sealed partial class MachineLifecycleTests
     public async Task EmergencyInputStopsConveyorBeforeReadingUnrelatedMotionFeedback()
     {
         var settings = new MachineSettings { Units = EnableOnly(MachineUnit.MainConveyor) };
-        settings.Units.NgCarrierTransfer = true;
+        settings.Units.Inspection = true;
         await using var services = CreateDisplayServices(out var feedback, settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -124,15 +124,11 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Theory]
-    [InlineData(true, MachineAlarm.Inspection)]
-    [InlineData(false, MachineAlarm.NgCarrierTransfer)]
-    public async Task ManualInspectionGantryIoFailureUsesTheEnabledUnitAlarm(
-        bool inspectionEnabled,
-        MachineAlarm expectedAlarm)
+    [Fact]
+    public async Task ManualInspectionGantryIoFailureUsesInspectionUnitAlarm()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(inspectionEnabled ? MachineUnit.Inspection : MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -144,7 +140,7 @@ public sealed partial class MachineLifecycleTests
             machine.ReportManualFailure(
                 machine.GetMotionAlarm(MotionGroup.InspectionGantry),
                 new IOException("Manual gantry I/O failure."));
-            Assert.Equal(expectedAlarm, state.Alarm);
+            Assert.Equal(MachineAlarm.Inspection, state.Alarm);
             Assert.Equal("Manual gantry I/O failure.", state.AlarmMessage);
         }
         finally
@@ -416,7 +412,7 @@ public sealed partial class MachineLifecycleTests
     public async Task MachineStartAndHomeReportAdmissionReadFailureWithoutStarting(bool home)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateDisplayServices(out var feedback, settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -550,7 +546,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = new MachineSettings
         {
-            Units = EnableOnly(MachineUnit.NgCarrierTransfer),
+            Units = EnableOnly(MachineUnit.Inspection),
         };
         FastHomes(settings);
         await using var services = CreateServices(settings);
@@ -716,7 +712,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
-        settings.Units.NgCarrierTransfer = true;
+        settings.Units.Inspection = true;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -911,11 +907,12 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = new MachineSettings
         {
-            Units = EnableOnly(MachineUnit.NgCarrierTransfer),
+            Units = EnableOnly(MachineUnit.Inspection),
         };
         FastHomes(settings);
         settings.Options.TimeoutMilliseconds = 500;
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -955,7 +952,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true)]
     public async Task HomePreparationFailureAfterStopIsReportedWithoutReplacingSafetyAlarm(bool safetyStop)
     {
-        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgCarrierTransfer) };
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.Inspection) };
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -1007,7 +1004,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = new MachineSettings
         {
-            Units = EnableOnly(MachineUnit.NgCarrierTransfer),
+            Units = EnableOnly(MachineUnit.Inspection),
         };
         FastHomes(settings);
         await using var services = CreateServices(settings);
@@ -1355,7 +1352,6 @@ public sealed partial class MachineLifecycleTests
     [InlineData(MachineUnit.PcbPlacement, MotionGroup.PcbPlacementHandler)]
     [InlineData(MachineUnit.BoltFastening, MotionGroup.BoltFastening)]
     [InlineData(MachineUnit.Inspection, MotionGroup.InspectionGantry)]
-    [InlineData(MachineUnit.NgCarrierTransfer, MotionGroup.InspectionGantry)]
     public async Task OnlyEnabledMotionsAreInitializedReadResetAndHomed(
         MachineUnit unit,
         MotionGroup group)

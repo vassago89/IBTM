@@ -49,9 +49,7 @@ public sealed partial class MachineController
             case MotionGroup.BoltFastening:
                 return MachineAlarm.BoltFastening;
             case MotionGroup.InspectionGantry:
-                return _units.Inspection
-                    ? MachineAlarm.Inspection
-                    : MachineAlarm.NgCarrierTransfer;
+                return MachineAlarm.Inspection;
             default:
                 throw new ArgumentOutOfRangeException(nameof(group));
         }

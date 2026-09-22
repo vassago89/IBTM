@@ -1,4 +1,5 @@
 using System;
+using IBTM.Storage;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -18,8 +19,9 @@ public sealed partial class MachineLifecycleTests
     public async Task ResetPreservesSeatedCarrierAndAllowsStartingItsTransfer(bool stoppedAutomatically)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -70,7 +72,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.True(machine.IsStartAllowed);
 
-            settings.Units.NgCarrierTransfer = false;
+            settings.Units.Inspection = false;
             settings.Units.MainConveyor = true;
             var restarted = machine.StartAsync();
             try
