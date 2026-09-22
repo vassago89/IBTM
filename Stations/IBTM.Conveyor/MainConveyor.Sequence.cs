@@ -77,13 +77,9 @@ public sealed partial class MainConveyor
 
     private MainConveyorState GetNextTransfer(bool live = true, bool? conveyorRunning = null)
     {
-        // 이송 우선순위: 출구 잔류 → S3 배출 → S2→S3 → S1→S2 → 전단 반입.
+        // 이송 우선순위: S3 배출 → S2→S3 → S1→S2 → 전단 반입.
         switch (true)
         {
-            case true when ExitCarrierDetected:
-                return DownstreamReady
-                    ? MainConveyorState.DischargingInspectionCarrier
-                    : MainConveyorState.WaitingForRearEquipment;
             case true when !_repeat
                 && !IsNgTransferRequired
                 && _inspectionWork.IsTransferAllowedFor(conveyorRunning)
@@ -223,11 +219,10 @@ public sealed partial class MainConveyor
                             await TransferAsync(null, _placementWork, cancellationToken);
                             break;
                         default:
-                            var rearAvailable = ExitCarrierDetected
-                                || !_repeat
-                                    && !IsNgTransferRequired
-                                    && _inspectionWork.IsTransferAllowed
-                                    && _inspectionWork.IsTransferAtWaitingPosition();
+                            var rearAvailable = !_repeat
+                                && !IsNgTransferRequired
+                                && _inspectionWork.IsTransferAllowed
+                                && _inspectionWork.IsTransferAtWaitingPosition();
                             _io.SetAutomaticSmemaOutput(
                                 OutputIo.MainConveyorReadyToFront2,
                                 !_repeat && _placementWork.IsReceiveAllowed && !rearAvailable

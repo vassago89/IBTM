@@ -250,8 +250,9 @@ public enum InputIo
     [Description("Main Conveyor Entry Carrier Detected")]
     MainConveyorEntryCarrierDetected = 79,
 
-    [Description("Main Conveyor Exit Carrier Detected")]
-    MainConveyorExitCarrierDetected = 80,
+    [Description("Unused")]
+    [JsonStringEnumMemberName("MainConveyorExitCarrierDetected")]
+    Unused80 = 80,
 
     [Description("Main Conveyor Manual Input")]
     [JsonStringEnumMemberName("MainConveyorAutoMode")]

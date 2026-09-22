@@ -105,7 +105,6 @@ public sealed partial class MainConveyor : AutoUnit
 
     public bool EntryCarrierDetected => _io.GetInput(InputIo.MainConveyorEntryCarrierDetected);
 
-    public bool ExitCarrierDetected => _io.GetInput(InputIo.MainConveyorExitCarrierDetected);
 
     public async Task RunMotorAsync(CancellationToken cancellationToken = default)
     {
@@ -194,7 +193,7 @@ public sealed partial class MainConveyor : AutoUnit
             or InputIo.MainConveyorAvailableFromFront2
             or InputIo.MainConveyorReadyFromRear
             or InputIo.MainConveyorEntryCarrierDetected
-            or InputIo.MainConveyorExitCarrierDetected)
+            )
         {
             Changed?.Invoke();
         }

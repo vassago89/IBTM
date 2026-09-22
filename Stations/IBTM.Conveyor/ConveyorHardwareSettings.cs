@@ -25,7 +25,6 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings, IJsonOnDeseri
             [InputIo.InspectionBackupPlateUp] = 73,
             [InputIo.InspectionBackupPlateDown] = 74,
             [InputIo.MainConveyorEntryCarrierDetected] = 56,
-            [InputIo.MainConveyorExitCarrierDetected] = 68,
         };
         Outputs = new()
         {
@@ -71,6 +70,7 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings, IJsonOnDeseri
 
     void IJsonOnDeserialized.OnDeserialized()
     {
+        Inputs.Remove(InputIo.Unused80);
         // Add only the newly registered signal; retain all configured addresses.
         Outputs.TryAdd(OutputIo.MainConveyorNormalSpeed, CreateOutput(62));
     }
@@ -83,7 +83,6 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings, IJsonOnDeseri
             case InputIo.MainConveyorReadyFromRear:
             case InputIo.MainConveyorManualMode:
             case InputIo.MainConveyorEntryCarrierDetected:
-            case InputIo.MainConveyorExitCarrierDetected:
             case OutputIo.MainConveyorReadyToFront2:
             case OutputIo.MainConveyorAvailableToRear:
             case OutputIo.MainConveyorRun:

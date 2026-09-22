@@ -146,31 +146,15 @@ public sealed partial class MainConveyor
 
     private async Task DischargeInspectionAsync(CancellationToken cancellationToken)
     {
-        // Only this awaited discharge owns the first detection; STOP discards it.
-        var arrived = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var firstClear = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var rearReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var feedbackChanged = new AsyncAutoResetEvent();
-        var clearDelay = TimeSpan.FromSeconds(_settings.ExitSensorClearDelaySeconds);
+        var rearReleased = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var extraRun = TimeSpan.FromSeconds(_settings.RearSmemaOffDelaySeconds);
         var timeout = TimeSpan.FromSeconds(_settings.TransferTimeoutSeconds);
         void ObserveRear()
         {
             if (!DownstreamReady)
-                rearReleased.TrySetResult();
-            feedbackChanged.Set();
-        }
-        void ObserveExit(InputIo input, bool value)
-        {
-            if (input != InputIo.MainConveyorExitCarrierDetected)
-                return;
-            if (value)
-                arrived.TrySetResult(Stopwatch.GetTimestamp());
-            else if (arrived.Task.IsCompleted)
-                firstClear.TrySetResult(Stopwatch.GetTimestamp());
-            feedbackChanged.Set();
+                rearReleased.TrySetResult(Stopwatch.GetTimestamp());
         }
 
-        _io.InputChanged += ObserveExit;
         Changed += ObserveRear;
         Exception? failure = null;
         try
@@ -180,8 +164,6 @@ public sealed partial class MainConveyor
             ObserveRear();
             if (rearReleased.Task.IsCompleted)
                 return;
-            if (ExitCarrierDetected)
-                arrived.TrySetResult(Stopwatch.GetTimestamp());
             if (!_repeat
                 && !IsNgTransferRequired
                 && _inspectionWork.IsTransferAllowed
@@ -192,54 +174,25 @@ public sealed partial class MainConveyor
 
             if (rearReleased.Task.IsCompleted)
                 return;
-            TraceStep(MainConveyorState.DischargingInspectionCarrier, waitingFor:
-                $"Rear Ready=OFF OR exit detected then first OFF + {clearDelay.TotalSeconds} s and sensor=OFF");
-            var started = Stopwatch.GetTimestamp();
+            TraceStep(MainConveyorState.DischargingInspectionCarrier, waitingFor: "Rear Ready=OFF");
             StartMotor(cancellationToken);
-            while (true)
+            long releasedAt;
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (rearReleased.Task.IsCompleted)
-                {
-                    TraceStep(MainConveyorState.DischargingInspectionCarrier, target: "Rear Ready OFF; stopping");
-                    return;
-                }
-
-                TimeSpan remaining;
-                var waitingForDetection = !arrived.Task.IsCompleted;
-                if (waitingForDetection)
-                {
-                    remaining = timeout - Stopwatch.GetElapsedTime(started);
-                }
-                else if (!firstClear.Task.IsCompleted)
-                {
-                    if (!ExitCarrierDetected)
-                    {
-                        firstClear.TrySetResult(Stopwatch.GetTimestamp());
-                        continue;
-                    }
-                    remaining = timeout - Stopwatch.GetElapsedTime(await arrived.Task);
-                }
-                else
-                {
-                    // Plasma's margin starts at the first OFF after detection.
-                    // Later ON pulses keep this timer, but cannot complete the exit.
-                    var elapsed = Stopwatch.GetElapsedTime(await firstClear.Task);
-                    if (elapsed >= clearDelay && !ExitCarrierDetected)
-                    {
-                        TraceStep(MainConveyorState.DischargingInspectionCarrier,
-                            target: "Exit margin elapsed and sensor OFF; stopping");
-                        return;
-                    }
-                    remaining = elapsed < clearDelay
-                        ? clearDelay - elapsed
-                        : clearDelay + timeout - elapsed;
-                }
-                if (remaining <= TimeSpan.Zero)
-                    throw new IoTimeoutException(
-                        InputIo.MainConveyorExitCarrierDetected, waitingForDetection, (int)timeout.TotalMilliseconds);
-                await feedbackChanged.WaitAsync(remaining, cancellationToken);
+                releasedAt = await rearReleased.Task.WaitAsync(timeout, cancellationToken);
             }
+            catch (TimeoutException)
+            {
+                throw new IoTimeoutException(
+                    InputIo.MainConveyorReadyFromRear, false, (int)timeout.TotalMilliseconds);
+            }
+
+            TraceStep(MainConveyorState.DischargingInspectionCarrier,
+                target: $"Rear Ready OFF; extra run {extraRun.TotalSeconds} s");
+            // Only this discharge owns the OFF timestamp; STOP discards the remaining delay.
+            var remaining = extraRun - Stopwatch.GetElapsedTime(releasedAt);
+            if (remaining > TimeSpan.Zero)
+                await Task.Delay(remaining, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -248,12 +201,10 @@ public sealed partial class MainConveyor
         }
         finally
         {
-            _io.InputChanged -= ObserveExit;
             Changed -= ObserveRear;
             StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorAvailableToRear);
         }
     }
-
     private void StartMotor(CancellationToken cancellationToken, bool reverse = false)
     {
         cancellationToken.ThrowIfCancellationRequested();

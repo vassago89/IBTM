@@ -205,7 +205,7 @@
                                         <TextBlock Text="Transfer Timeout (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.TransferTimeoutSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                        <TextBlock Text="Wait limit for entry, destination HS2 and exit signals. Default: 5 s. Stops the belt and raises an alarm on timeout."
+                                        <TextBlock Text="Wait limit for entry, destination HS2 and rear Ready OFF. Default: 5 s. Stops the belt and raises an alarm on timeout."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,12,0">
@@ -216,14 +216,14 @@
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,0,0">
-                                        <TextBlock Text="Exit Clear Delay (s)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBlock Text="Rear SMEMA OFF Delay (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding Settings.Conveyor.ExitSensorClearDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                        <TextBlock Text="Filters carrier holes after exit detection. Starts at the first OFF signal; discharge completes when the delay has elapsed and the sensor is OFF."
+                                            Text="{Binding Settings.Conveyor.RearSmemaOffDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                        <TextBlock Text="Continue discharge after downstream Ready turns OFF. Default: 0.3 s. Set to 0 to stop immediately."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </UniformGrid>
-                                <TextBlock Text="Waiting for station work or upstream/downstream readiness does not count toward the transfer timeout."
+                                <TextBlock Text="Waiting for station work or upstream/downstream readiness before transfer does not count toward the transfer timeout."
                                     Style="{StaticResource SettingHelpText}"/>
                             </StackPanel>
                         </Border>

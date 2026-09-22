@@ -40,7 +40,7 @@ public sealed class ConveyorSettings : Setting
         }
     } = 3.0;
 
-    public double ExitSensorClearDelaySeconds
+    public double RearSmemaOffDelaySeconds
     {
         get;
         set
@@ -50,7 +50,7 @@ public sealed class ConveyorSettings : Setting
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(value),
-                    "Exit sensor clear delay must be a finite number of 0 seconds or more.");
+                    "Rear SMEMA OFF delay must be a finite number of 0 seconds or more.");
             }
 
             field = value;
