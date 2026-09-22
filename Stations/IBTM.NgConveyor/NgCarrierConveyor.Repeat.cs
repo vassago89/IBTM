@@ -23,28 +23,11 @@ public sealed partial class NgCarrierConveyor
         }
     }
 
-    public async Task ReturnToShuttleAsync(CancellationToken cancellationToken)
-    {
-        if (ShuttleLift != NgShuttleLiftState.Down && !Position3Occupied)
-            throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
-
-        _movement = Movement.None;
-        _ejectionPhase = EjectionPhase.Idle;
-        await SetStopperDownAsync(true, cancellationToken);
-        await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, true, cancellationToken);
-    }
-
-    public async Task RunShuttleRepeatAsync(bool useConveyor, CancellationToken cancellationToken)
+    public async Task RunRepeatAsync(CancellationToken cancellationToken)
     {
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!useConveyor)
-            {
-                await WaitForCarrierAsync(cancellationToken);
-                await CycleShuttleAsync(cancellationToken);
-                continue;
-            }
             using var forward = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var conveyor = RunAsync(forward.Token, repeat: true);
             var end = WaitForRepeatEndAsync(forward.Token);
@@ -61,24 +44,6 @@ public sealed partial class NgCarrierConveyor
             cancellationToken.ThrowIfCancellationRequested();
             await ReturnFromConveyorAsync(cancellationToken);
         }
-    }
-
-    public async Task CycleShuttleAsync(CancellationToken cancellationToken)
-    {
-        if (!Position3Occupied || !IsTransferClear)
-        {
-            throw new InvalidOperationException("Shuttle repeat requires a carrier on the shuttle and the NG transfer released with its open pickup raised.");
-        }
-
-        await SetShuttleDownAsync(true, cancellationToken);
-
-        if (!Position3Occupied || !IsTransferClear)
-        {
-            throw new InvalidOperationException("Shuttle repeat lost its carrier or clear NG transfer before ascent.");
-        }
-
-        await SetShuttleDownAsync(false, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
     }
 
     public async Task ReturnFromConveyorAsync(CancellationToken cancellationToken)
@@ -100,7 +65,13 @@ public sealed partial class NgCarrierConveyor
             operation.Token.ThrowIfCancellationRequested();
             if (!Position3Occupied)
                 await SetShuttleDownAsync(true, operation.Token);
-            await ReturnToShuttleAsync(operation.Token);
+            if (ShuttleLift != NgShuttleLiftState.Down && !Position3Occupied)
+                throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
+
+            _movement = Movement.None;
+            _ejectionPhase = EjectionPhase.Idle;
+            await SetStopperDownAsync(true, operation.Token);
+            await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, true, operation.Token);
             await SetShuttleDownAsync(false, operation.Token);
             operation.Token.ThrowIfCancellationRequested();
         }

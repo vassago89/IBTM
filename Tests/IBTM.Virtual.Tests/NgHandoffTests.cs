@@ -45,14 +45,13 @@ public sealed class NgHandoffTests
             lowering.TrySetResult();
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var run = repeat ? system.Conveyor.RunShuttleRepeatAsync(useConveyor: false, stop.Token)
+        var run = repeat ? system.Conveyor.RunRepeatAsync(stop.Token)
             : system.Conveyor.RunAsync(stop.Token);
         try
         {
             Assert.Equal(NgConveyorState.WaitingForTransferRelease, system.Conveyor.State);
             Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
             await Assert.ThrowsAsync<MotionInterlockException>(() => system.Conveyor.SetShuttleDownAsync(true));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.CycleShuttleAsync(stop.Token));
             await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.ReturnFromConveyorAsync(stop.Token));
 
             // Unexpected Open feedback is not a commanded handoff.
@@ -94,7 +93,7 @@ public sealed class NgHandoffTests
         var io = system.Io;
         io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
         io.SetInput(InputIo.NgCarrierEjectButton, true);
-        Assert.False(system.Conveyor.IsReceiveAllowed(useConveyor: true));
+        Assert.False(system.Conveyor.IsReceiveAllowed());
         var lowering = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         io.OutputChanged += (output, on) =>
         {
@@ -113,7 +112,7 @@ public sealed class NgHandoffTests
             system.Work.Complete(system.Work.CurrentJob);
             // No transfer or carrier sensor changes: releasing the button alone must wake the loop.
             io.SetInput(InputIo.NgCarrierEjectButton, false);
-            Assert.True(system.Conveyor.IsReceiveAllowed(useConveyor: true));
+            Assert.True(system.Conveyor.IsReceiveAllowed());
             await lowering.Task.WaitAsync(TimeSpan.FromSeconds(2));
         }
         finally

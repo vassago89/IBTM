@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -39,7 +38,7 @@ public sealed partial class MachineController
             if (_units.NgConveyor && !_units.Inspection)
                 independentUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.NgConveyor,
-                    _ngConveyor.RunShuttleRepeatAsync(useConveyor: true, repeat.Token),
+                    _ngConveyor.RunRepeatAsync(repeat.Token),
                     repeat));
             if (!_units.MainConveyor && !_units.Inspection)
             {
@@ -111,7 +110,7 @@ public sealed partial class MachineController
             else if (_units.NgConveyor)
                 await _ngConveyor.WaitForRepeatEndAsync(cycle.Token);
             else
-                await _inspectionStation.WaitForRepeatEndAsync(holdAtShuttle: true, cycle.Token);
+                await _inspectionStation.WaitForRepeatEndAsync(cycle.Token);
         }
         finally
         {

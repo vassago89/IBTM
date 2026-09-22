@@ -85,6 +85,26 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 
     public NgConveyorState State => GetState(RunCommandOn);
 
+    // Pending ownership is cleared by the release operation, never by presence DI.
+    private bool IsTransferClear => _transfer.IsClear
+        && _io.GetInput(InputIo.NgCarrierGripperOpen)
+        && !_io.GetInput(InputIo.NgCarrierGripperClosed);
+
+    public bool IsReceiveAllowed(bool? conveyorRunning = null)
+    {
+        return ShuttleLift == NgShuttleLiftState.Up
+            && !Position3Occupied
+            && IsAcceptCarrierAllowed(conveyorRunning);
+    }
+
+    public Task SetShuttleDownAsync(bool down, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsTransferClear)
+            throw new MotionInterlockException("Complete the NG transfer release and raise the open pickup before moving the shuttle.");
+        return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, down, cancellationToken);
+    }
+
     private bool NeedsCompaction => _movement == Movement.Compacting || !Position1Occupied && Position2Occupied;
 
     internal bool IsAcceptCarrierAllowed(bool? runCommandOn = null)
@@ -99,24 +119,21 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 
     public NgConveyorState GetState(bool runCommandOn)
     {
-        if (_units.NgConveyor)
+        if (!_units.NgConveyor)
+            return NgConveyorState.WaitingForCarrier;
+        if (ShuttleLift == NgShuttleLiftState.Down && IsShuttleRaiseAllowed)
+            return IsTransferClear
+                ? NgConveyorState.RaisingShuttle : NgConveyorState.WaitingForTransferRelease;
+        if (ShuttleLift != NgShuttleLiftState.Down
+            && (Position3Occupied && IsAcceptCarrierAllowed(runCommandOn)
+                || !Position3Occupied && ShuttleLift != NgShuttleLiftState.Up))
         {
-            if (ShuttleLift == NgShuttleLiftState.Down && IsShuttleRaiseAllowed)
-                return IsTransferClear
-                    ? NgConveyorState.RaisingShuttle : NgConveyorState.WaitingForTransferRelease;
-            if (ShuttleLift != NgShuttleLiftState.Down
-                && (Position3Occupied && IsAcceptCarrierAllowed(runCommandOn)
-                    || !Position3Occupied && ShuttleLift != NgShuttleLiftState.Up))
-            {
-                if (!IsTransferClear)
-                    return NgConveyorState.WaitingForTransferRelease;
-                return Position3Occupied
-                    ? NgConveyorState.LoweringShuttle : NgConveyorState.RaisingShuttle;
-            }
+            if (!IsTransferClear)
+                return NgConveyorState.WaitingForTransferRelease;
+            return Position3Occupied
+                ? NgConveyorState.LoweringShuttle : NgConveyorState.RaisingShuttle;
         }
-        if (_units.NgConveyor)
-            return GetConveyorState(runCommandOn);
-        return NgConveyorState.WaitingForCarrier;
+        return GetConveyorState(runCommandOn);
     }
 
     private NgConveyorState GetConveyorState(bool runCommandOn)

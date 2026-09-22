@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -8,16 +8,15 @@ namespace IBTM.Inspection;
 
 public sealed partial class InspectionStation
 {
-    public async Task WaitForRepeatEndAsync(bool holdAtShuttle, CancellationToken cancellationToken)
+    public async Task WaitForRepeatEndAsync(CancellationToken cancellationToken)
     {
         var changed = new AsyncAutoResetEvent();
         Changed += changed.Set;
         try
         {
-            var endState = holdAtShuttle ? InspectionStationState.HoldingAtDestination : InspectionStationState.TransferCompleted;
             while (GetTransferState(NgTransferDestination.Shuttle,
-                canPickUp: true, holdAtDestination: holdAtShuttle,
-                allowEmpty: IsEmptyRepeatAllowed) != endState)
+                canPickUp: true, holdAtDestination: true,
+                allowEmpty: IsEmptyRepeatAllowed) != InspectionStationState.HoldingAtDestination)
                 await changed.WaitAsync(cancellationToken);
         }
         finally
