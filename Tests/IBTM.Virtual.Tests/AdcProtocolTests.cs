@@ -204,6 +204,21 @@ public sealed class AdcProtocolTests
         Assert.Equal(nextFrame, await bus.WaitForResponseAsync(next, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task LateRejectionOfACancelledQueryDoesNotBecomeAFasteningResult()
+    {
+        using var bus = new AdcBus(new());
+        using var cancellation = new CancellationTokenSource();
+        var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 14);
+        var response = bus.WaitForResponseAsync(pending, cancellation.Token);
+        byte[] rejection = [1, 0x84, 3, 3, 1];
+        bus.ReceiveBytes(rejection[..2]);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response);
+        bus.ReceiveBytes([.. rejection[2..], .. AutomaticFrame(11)]);
+        Assert.Equal((ushort)11, (await bus.WaitForFasteningResultAsync(1, CancellationToken.None)).EventCount);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

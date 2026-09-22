@@ -187,7 +187,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                         pending.Completion.TrySetException(exception);
                     }
                 }
-                else if (automatic || function == ((byte)AdcFunctionCode.ReadInputRegisters | ExceptionFunctionMask))
+                else if (automatic)
                 {
                     _fasteningResults.Writer.TryWrite(frame);
                 }
