@@ -11,20 +11,6 @@
     Width="408"
     Height="650">
     <UserControl.Resources>
-        <Style x:Key="FasteningInputTextStyle" TargetType="TextBlock" BasedOn="{StaticResource MapLabelStyle}">
-            <Setter Property="Text" Value="Unknown"/>
-            <Style.Triggers>
-                <Trigger Property="Tag">
-                    <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
-                    <Setter Property="Text" Value="Fastening"/>
-                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                </Trigger>
-                <Trigger Property="Tag">
-                    <Trigger.Value><sys:Boolean>False</sys:Boolean></Trigger.Value>
-                    <Setter Property="Text" Value="Idle"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
         <Style x:Key="FeederDeviceStyle" TargetType="Grid">
             <Style.Triggers>
                 <Trigger Property="Tag">
@@ -67,18 +53,28 @@
                                             Converter={StaticResource BoolToVis}}"/>
 
             <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="140" Orientation="Horizontal">
-                <Border Style="{StaticResource DeviceBodyStyle}" Padding="8,4" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Pick · " Style="{StaticResource MapLabelStyle}"/>
-                        <TextBlock Tag="{Binding Signals.Inputs[PickupBoltFasten].IsOn}"
-                            Style="{StaticResource FasteningInputTextStyle}"/>
+                <Border Style="{StaticResource DeviceBodyStyle}" Padding="6,4" Margin="0,0,6,0"
+                    ToolTip="Last ADC sample after a command. No periodic status polling.">
+                    <StackPanel>
+                        <TextBlock Text="Pick · Last ADC" Style="{StaticResource MapLabelStyle}"/>
+                        <TextBlock Style="{StaticResource MapLabelStyle}">
+                            <Run Text="Ready "/><Run Text="{Binding Fastening.PickupHead.LastStatus.Ready, TargetNullValue=—, Mode=OneWay}"/>
+                            <Run Text=" · Run "/><Run Text="{Binding Fastening.PickupHead.LastStatus.Running, TargetNullValue=—, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Text="{Binding Fastening.PickupHead.LastStatus.Alarm, StringFormat=Alarm {0}, TargetNullValue=Alarm —}"
+                            Style="{StaticResource MapLabelStyle}"/>
                     </StackPanel>
                 </Border>
-                <Border Style="{StaticResource DeviceBodyStyle}" Padding="8,4">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Shoot · " Style="{StaticResource MapLabelStyle}"/>
-                        <TextBlock Tag="{Binding Signals.Inputs[ShootingBoltFasten].IsOn}"
-                            Style="{StaticResource FasteningInputTextStyle}"/>
+                <Border Style="{StaticResource DeviceBodyStyle}" Padding="6,4" Margin="0,0,6,0"
+                    ToolTip="Last ADC sample after a command. No periodic status polling.">
+                    <StackPanel>
+                        <TextBlock Text="Shoot · Last ADC" Style="{StaticResource MapLabelStyle}"/>
+                        <TextBlock Style="{StaticResource MapLabelStyle}">
+                            <Run Text="Ready "/><Run Text="{Binding Fastening.ShootingHead.LastStatus.Ready, TargetNullValue=—, Mode=OneWay}"/>
+                            <Run Text=" · Run "/><Run Text="{Binding Fastening.ShootingHead.LastStatus.Running, TargetNullValue=—, Mode=OneWay}"/>
+                        </TextBlock>
+                        <TextBlock Text="{Binding Fastening.ShootingHead.LastStatus.Alarm, StringFormat=Alarm {0}, TargetNullValue=Alarm —}"
+                            Style="{StaticResource MapLabelStyle}"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
