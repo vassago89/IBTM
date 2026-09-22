@@ -11,6 +11,20 @@
     Width="408"
     Height="650">
     <UserControl.Resources>
+        <Style x:Key="FasteningInputTextStyle" TargetType="TextBlock" BasedOn="{StaticResource MapLabelStyle}">
+            <Setter Property="Text" Value="Unknown"/>
+            <Style.Triggers>
+                <Trigger Property="Tag">
+                    <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
+                    <Setter Property="Text" Value="Fastening"/>
+                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                </Trigger>
+                <Trigger Property="Tag">
+                    <Trigger.Value><sys:Boolean>False</sys:Boolean></Trigger.Value>
+                    <Setter Property="Text" Value="Idle"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="FeederDeviceStyle" TargetType="Grid">
             <Style.Triggers>
                 <Trigger Property="Tag">
@@ -51,6 +65,23 @@
                 TextAlignment="Left" Style="{StaticResource MapLabelStyle}" FontSize="14"
                 Visibility="{Binding FasteningStateVisible,
                                             Converter={StaticResource BoolToVis}}"/>
+
+            <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="140" Orientation="Horizontal">
+                <Border Style="{StaticResource DeviceBodyStyle}" Padding="8,4" Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Pick · " Style="{StaticResource MapLabelStyle}"/>
+                        <TextBlock Tag="{Binding Signals.Inputs[PickupBoltFasten].IsOn}"
+                            Style="{StaticResource FasteningInputTextStyle}"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource DeviceBodyStyle}" Padding="8,4">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Shoot · " Style="{StaticResource MapLabelStyle}"/>
+                        <TextBlock Tag="{Binding Signals.Inputs[ShootingBoltFasten].IsOn}"
+                            Style="{StaticResource FasteningInputTextStyle}"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
 
             <Grid Width="100" Height="86"
                 Tag="{Binding Units.PickupBoltFeeder}"

@@ -132,7 +132,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
         motion.Initialize();
         await HomeAsync(motion, 20_000);
-        var bus = new AdcControllerStub { StopPollsRemaining = 2 };
+        var bus = new AdcControllerStub();
         if (rejectedResponse)
         {
             // Exact exception reply in the equipment log, including CRC.
@@ -185,7 +185,7 @@ public sealed class BoltFasteningTests
             Assert.True(raisedAfterError);
             Assert.Equal(2, bus.StartWrites);
             Assert.Equal(rejectedResponse || dryRun ? 0 : 1, bus.ResetWrites);
-            Assert.Equal(2 + bus.ResetWrites, bus.StopWrites);
+            Assert.Equal(2, bus.StopWrites);
             Assert.Equal(2, assembly.PcbBoltResults.Count);
             if (dryRun)
             {

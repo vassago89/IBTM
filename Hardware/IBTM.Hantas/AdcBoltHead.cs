@@ -280,15 +280,7 @@ public sealed class AdcBoltHead : IBoltHead
         {
             _io.InputChanged -= OnInputChanged;
             _io.Faulted -= OnIoFaulted;
-            if (completed is not null && failure is null)
-            {
-                // A final ADC result completes the cycle; release START before raising the head.
-                _io.SetOutput(_start, false);
-            }
-            else
-            {
-                await StopAfterOperationAsync(failure);
-            }
+            await StopAfterOperationAsync(failure);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
