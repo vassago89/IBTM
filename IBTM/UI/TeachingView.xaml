@@ -111,7 +111,7 @@
                     </ui:TeachingPointList>
                     <StackPanel Grid.Row="2" Margin="0,8,0,0"
                         Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="Grab → Resize ROI → Select Bolt / Data Matrix → Record Position"
+                        <TextBlock Text="Live → Align with crosshair → Record Position"
                             TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                         <ComboBox ItemsSource="{Binding FasteningHeads}"
                             SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
@@ -150,212 +150,33 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TabControl SelectedIndex="{Binding SelectedCameraTab, UpdateSourceTrigger=PropertyChanged}">
-                        <TabItem Header="Teaching / Inspect">
-                            <Grid Margin="0,8,0,0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*" MinHeight="100"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <WrapPanel Margin="0,0,0,6">
-                                    <Button Content="Grab"
-                                        Command="{Binding GrabCommand}"
-                                        Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"
-                                        ToolTip="Capture an image without stopping Live. Keep the existing ROI, or create a centered ROI if none exists. Use Record Position to save the image, ROI and current coordinates."/>
-                                    <Button Content="Move &amp; Inspect"
-                                        Command="{Binding CaptureInspectionCommand}"
-                                        Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>
-                                    <Button Content="Reinspect"
-                                        Command="{Binding ReinspectImageCommand}"
-                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"
-                                        ToolTip="Inspect the last captured image, or the selected saved FOV. Does not move axes."/>
-                                </WrapPanel>
-                                <TextBlock Grid.Row="1"
-                                    Text="{Binding Preview.Result}"
-                                    TextWrapping="Wrap" Margin="0,8,0,0" FontSize="16" FontWeight="SemiBold"/>
-                                <WrapPanel Grid.Row="2" Margin="0,8,0,0">
-                                    <TextBlock Text="Teaching Image / ROI" VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                    <TextBlock Text="Resolution (mm/px)" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                    <TextBlock Text="{Binding MillimetersPerPixel, StringFormat={}{0:G8}}"
-                                        VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                    <ToggleButton Content="Ruler" IsChecked="{Binding IsMeasuring, UpdateSourceTrigger=PropertyChanged}"
-                                        Padding="10,6" Margin="6,0,0,6"
-                                        ToolTip="Drag between two known points on the grabbed or saved image to calibrate mm per pixel."/>
-                                    <Button x:Name="ReadDataMatrixButton" Content="Read Data Matrix"
-                                        Command="{Binding ReadDataMatrixCommand}"
-                                        Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,6"
-                                        ToolTip="Read the ROI on the displayed image. Does not move axes or stop live view."
-                                        Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"/>
-                                </WrapPanel>
-                                <Grid Grid.Row="3">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:ImageTeachingView x:Name="FovImageView"
-                                        Source="{Binding Preview.Image}"
-                                        SourceRegion="{Binding Preview.Region}"
-                                        RegionCommand="{Binding DrawFovRegionCommand}"
-                                        IsMeasuring="{Binding IsMeasuring}"
-                                        Ruler="{Binding Ruler}" MeasureCommand="{Binding MeasureImageCommand}"
-                                        ShowCrosshair="True" Cursor="Cross"
-                                        ToolTip="Drag to resize the centered ROI. Changes apply on release and save automatically for a recorded point. Record Position saves a new point. Esc cancels the drag."/>
-                                    <ScrollViewer Grid.Column="1" Width="200" Margin="10,0,0,0"
-                                        VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                                        Visibility="{Binding IsBoltSelected, Converter={StaticResource BoolToVis}}">
-                                        <StackPanel Margin="0,0,10,0">
-                                            <TextBlock Text="Selected bolt · binary check" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                            <StackPanel IsEnabled="{Binding IsTeachingEditAllowed}">
-                                                <TextBlock Text="Threshold (0–255)" Margin="0,8,0,4"/>
-                                                <TextBox x:Name="InspectionThresholdInput"
-                                                    Text="{Binding Preview.BrightnessThreshold, BindingGroupName=RecipeInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                                    ToolTip="Pixels at or above this brightness are white. Applies to this bolt's ROI immediately."/>
-                                                <TextBlock Text="Minimum bright (%)" Margin="0,8,0,4"/>
-                                                <TextBox x:Name="InspectionBrightRatioInput"
-                                                    Text="{Binding Preview.MinimumBrightPercent, BindingGroupName=RecipeInputs, StringFormat={}{0:G6}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                                    ToolTip="This bolt passes when its measured bright percentage is at least this value."/>
-                                            </StackPanel>
-                                            <TextBlock Text="Binary ROI preview" Margin="0,10,0,4"/>
-                                            <Image Source="{Binding Preview.Overlay}" Height="100" Stretch="Uniform"
-                                                RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                                            <TextBlock Text="{Binding Preview.Result}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                            <TextBlock Text="Settings apply to this bolt. Use Save to keep changes."
-                                                TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
-                                        </StackPanel>
-                                    </ScrollViewer>
-                                    <ScrollViewer Grid.Column="1" Width="200" Margin="10,0,0,0"
-                                        VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                                        Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
-                                        <StackPanel Margin="0,0,10,0">
-                                            <TextBlock Text="Data Matrix parameters" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                            <StackPanel IsEnabled="{Binding IsTeachingEditAllowed}">
-                                                <CheckBox Content="Try harder" IsChecked="{Binding SelectedDataMatrixSettings.TryHarder}" Margin="0,10,0,6"
-                                                    ToolTip="Spend more effort searching for the code."/>
-                                                <CheckBox Content="Try inverted" IsChecked="{Binding SelectedDataMatrixSettings.TryInverted}" Margin="0,0,0,6"
-                                                    ToolTip="Also try light modules on a dark background."/>
-                                                <CheckBox Content="Rotate search" IsChecked="{Binding SelectedDataMatrixSettings.AutoRotate}" Margin="0,0,0,6"
-                                                    ToolTip="Also try 90-degree rotations of the ROI."/>
-                                                <CheckBox Content="Pure barcode" IsChecked="{Binding SelectedDataMatrixSettings.PureBarcode}" Margin="0,0,0,6"
-                                                    ToolTip="Use only for a clean, aligned code without surrounding patterns. Usually leave off for camera images."/>
-                                                <TextBlock Text="Binary threshold (0–255)" TextWrapping="Wrap" Margin="0,8,0,4"/>
-                                                <TextBox Text="{Binding SelectedDataMatrixSettings.BinaryThreshold, BindingGroupName=RecipeInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                                    ToolTip="Blank = automatic threshold. A value forces black/white conversion before decoding."/>
-                                            </StackPanel>
-                                            <TextBlock Text="Blank threshold uses automatic binarization. Use Read Data Matrix to test this image. Save keeps settings for this PCB's Data Matrix."
-                                                Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
-                                        </StackPanel>
-                                    </ScrollViewer>
-                                </Grid>
-                                <StackPanel Grid.Row="4" Margin="0,8,0,0">
-                                    <StackPanel Visibility="{Binding IsMeasuring, Converter={StaticResource BoolToVis}}" Margin="0,0,0,8">
-                                        <TextBlock Text="Ruler · drag between two points at bolt height" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                        <WrapPanel Margin="0,6,0,0">
-                                            <TextBlock Text="{Binding Ruler.PixelLength, StringFormat={}{0:0.###} px, TargetNullValue=Draw a line, FallbackValue=Draw a line}"
-                                                VerticalAlignment="Center" Margin="0,0,12,6"/>
-                                            <TextBlock Text="Actual distance (mm)" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                            <TextBox x:Name="RulerDistanceInput" Width="80" Margin="0,0,8,6"
-                                                Text="{Binding RulerMillimeters, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                            <TextBlock Text="{Binding RulerResolution, StringFormat={}{0:G8} mm/px, TargetNullValue=—}"
-                                                VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                            <Button Content="Apply &amp; Save Resolution"
-                                                Command="{Binding ApplyRulerResolutionCommand}"
-                                                Margin="0,0,0,6">
-                                                <Button.Style>
-                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding ElementName=RulerDistanceInput, Path=(Validation.HasError)}" Value="True">
-                                                                <Setter Property="IsEnabled" Value="False"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
-                                        </WrapPanel>
-                                        <TextBlock Text="Saves mm per pixel only. Recorded coordinates and ROIs stay fixed. Turn Ruler off to resize the ROI."
-                                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
-                                    </StackPanel>
-                                    <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"
-                                        Margin="0,0,0,6">
-                                        <TextBlock Text="Data Matrix · displayed image / ROI" FontWeight="SemiBold"/>
-                                        <TextBox x:Name="DataMatrixResultBox"
-                                            Text="{Binding DataMatrixResult, Mode=OneWay}"
-                                            IsReadOnly="True" TextWrapping="Wrap" FontSize="16" Margin="0,4,0,0"/>
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding FovRoiLabel}" TextWrapping="Wrap"/>
-                                    <TextBlock
-                                        Text="ROI: centered square, size only. Align the bolt or Data Matrix with the live crosshair before capturing."
-                                        TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}">
-                                        <Run Text="Recorded XY · "/><Run Text="{Binding SelectedFov.Metadata.Center.X, Mode=OneWay, StringFormat={}{0:F3}}"/>
-                                        <Run Text=", "/><Run Text="{Binding SelectedFov.Metadata.Center.Y, Mode=OneWay, StringFormat={}{0:F3}}"/>
-                                        <Run Text=" mm · Resizing saves when the selected target is ready"/>
-                                    </TextBlock>
-                                </StackPanel>
-                            </Grid>
-                        </TabItem>
-                        <TabItem Header="Live">
-                            <Grid Margin="0,8,0,0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <WrapPanel>
-                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,6,6" MinWidth="70">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Setter Property="Content" Value="Live"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
-                                                        <Setter Property="Content" Value="Stop Live"/>
-                                                        <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
-                                                        <Setter Property="Foreground" Value="{StaticResource EquipBgBrush}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button Content="Grab" Command="{Binding GrabCommand}"
-                                        Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"
-                                        ToolTip="Keep Live running and open the captured image in Teaching / Inspect."/>
-                                    <TextBlock Text="{Binding SelectedPoint.Name}" VerticalAlignment="Center" Margin="6,0,0,6"/>
-                                </WrapPanel>
-                                <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
-                                    <ui:ImageTeachingView Source="{Binding LiveImage}" ShowCrosshair="True"/>
-                                </Border>
-                                <TextBlock Grid.Row="2" Text="Live uses the selected point's light level. Changing the selected point stops Live; start it again for the new point."
-                                    TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
-                            </Grid>
-                        </TabItem>
-                    </TabControl>
-                    <StackPanel Grid.Row="1" Margin="4,10,4,0"
-                        Visibility="{Binding IsImageTargetSelected, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{Binding SelectedPoint.Name, StringFormat={}Lighting · {0}}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                        <WrapPanel IsEnabled="{Binding IsTeachingEditAllowed}" Margin="0,8,0,0">
-                            <StackPanel Width="100" Margin="0,0,8,6">
-                                <TextBlock Text="Light (0–255)" Margin="0,0,0,4"/>
-                                <TextBox x:Name="InspectionLightInput" Text="{Binding SelectedLightLevel, BindingGroupName=RecipeInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                    ToolTip="Blank uses the recipe default light level."/>
-                            </StackPanel>
-                            <Button Content="Apply to Live" Command="{Binding ApplyLiveSettingsCommand}"
-                                VerticalAlignment="Bottom" Margin="0,0,0,6">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <WrapPanel Margin="0,0,0,8">
+                            <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,0" MinWidth="90">
                                 <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                        <Setter Property="Content" Value="Live"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ElementName=TeachingRoot, Path=(Validation.HasError)}" Value="True">
-                                                <Setter Property="IsEnabled" Value="False"/>
+                                            <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
+                                                <Setter Property="Content" Value="Stop Live"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
                             </Button>
+                            <TextBlock Text="{Binding SelectedPoint.Name}" VerticalAlignment="Center"/>
                         </WrapPanel>
-                        <TextBlock Text="{Binding InspectionRecipe.LightLevel, StringFormat='Blank = recipe default ({0}). Apply to Live previews changes; Save stores them.'}"
-                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
-                    </StackPanel>
+                        <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
+                            <ui:ImageTeachingView Source="{Binding LiveImage}" ShowCrosshair="True"/>
+                        </Border>
+                        <TextBlock Grid.Row="2" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
+                            Text="Align the target with the crosshair, then Record Position. The coordinates and reference image are saved together. Edit ROI and inspection parameters in Inspection Teaching."/>
+                    </Grid>
                     <TextBlock Grid.Row="2"
                         Text="{Binding CameraError}"
                         TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="4"/>

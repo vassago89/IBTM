@@ -413,7 +413,7 @@ public partial class TeachingViewModel
     {
         OnPropertyChanged(nameof(HomeBlock));
         if (!State.ManualMode
-            && (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning || ApplyLiveSettingsCommand.IsRunning))
+            && (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning))
         {
             _ = RequestCameraStopAsync();
         }
@@ -432,12 +432,6 @@ public partial class TeachingViewModel
         SaveCommand.NotifyCanExecuteChanged();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        ApplyLiveSettingsCommand.NotifyCanExecuteChanged();
-        GrabCommand.NotifyCanExecuteChanged();
-        ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
-        DrawFovRegionCommand.NotifyCanExecuteChanged();
-        CaptureInspectionCommand.NotifyCanExecuteChanged();
-        ReinspectImageCommand.NotifyCanExecuteChanged();
         AddBoltPointCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
     }

@@ -110,6 +110,20 @@ public sealed partial class MachineStore
             $"Recipe '{name}' is empty.");
     }
 
+    public void SaveInspectionSettings(Recipe edited, CancellationToken cancellationToken = default)
+    {
+        using var db = new MachineDb(_options);
+        using var transaction = db.Database.BeginTransaction();
+        var row = db.Recipes.Single(item => item.Name == edited.Name);
+        var saved = JsonSerializer.Deserialize<Recipe>(row.Value)
+            ?? throw new InvalidDataException($"Recipe '{edited.Name}' is empty.");
+        saved.ApplyInspectionSettings(edited);
+        row.Value = JsonSerializer.Serialize(saved);
+        cancellationToken.ThrowIfCancellationRequested();
+        db.SaveChanges();
+        transaction.Commit();
+    }
+
     public void SaveRecipe<T>(
         string name,
         T recipe,

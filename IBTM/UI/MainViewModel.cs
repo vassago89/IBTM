@@ -21,6 +21,9 @@ public enum AppPage
     [Description("Teaching")]
     Teaching,
 
+    [Description("Inspection Teaching")]
+    InspectionTeaching,
+
     [Description("Settings")]
     Settings,
 
@@ -31,6 +34,7 @@ public enum AppPage
 public partial class MainViewModel : ObservableObject
 {
     private readonly TeachingViewModel _teachingViewModel;
+    private readonly InspectionTeachingViewModel _inspectionTeachingViewModel;
     private readonly SettingsViewModel _settingsViewModel;
     private readonly ManualHardwareViewModel _manualHardwareViewModel;
     private readonly MachineState _state;
@@ -57,6 +61,7 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(
         OperationViewModel operationViewModel,
         TeachingViewModel teachingViewModel,
+        InspectionTeachingViewModel inspectionTeachingViewModel,
         SettingsViewModel settingsViewModel,
         ManualHardwareViewModel manualHardwareViewModel,
         RecipeEditor recipeEditor,
@@ -76,6 +81,7 @@ public partial class MainViewModel : ObservableObject
 
         Operation = operationViewModel;
         _teachingViewModel = teachingViewModel;
+        _inspectionTeachingViewModel = inspectionTeachingViewModel;
         _settingsViewModel = settingsViewModel;
         _manualHardwareViewModel = manualHardwareViewModel;
         RecipeEditor = recipeEditor;
@@ -124,6 +130,8 @@ public partial class MainViewModel : ObservableObject
                     return Operation;
                 case AppPage.Teaching:
                     return _teachingViewModel;
+                case AppPage.InspectionTeaching:
+                    return _inspectionTeachingViewModel;
                 case AppPage.Settings:
                     return _settingsViewModel;
                 case AppPage.ManualHardware:
@@ -144,7 +152,7 @@ public partial class MainViewModel : ObservableObject
         get
         {
             return !NavigateCommand.IsRunning
-                && (SelectedPage is AppPage.Operation or AppPage.Settings or AppPage.ManualHardware
+                && (SelectedPage is AppPage.Operation or AppPage.InspectionTeaching or AppPage.Settings or AppPage.ManualHardware
                     || !RecipeEditor.IsBusy);
         }
     }
@@ -245,6 +253,7 @@ public partial class MainViewModel : ObservableObject
             CommandShutdown.WaitAsync(CommandShutdown.Capture(ResetCommand, NavigateCommand)),
             Operation.ShutdownAsync(),
             _teachingViewModel.ShutdownAsync(),
+            _inspectionTeachingViewModel.ShutdownAsync(),
             _manualHardwareViewModel.ShutdownAsync(),
             _settingsViewModel.ShutdownAsync(),
             RecipeEditor.ShutdownAsync());
@@ -319,7 +328,7 @@ public partial class MainViewModel : ObservableObject
     private bool IsNavigateAllowed(AppPage page)
     {
         return !_shuttingDown
-            && (page == AppPage.Operation
+            && (page is AppPage.Operation or AppPage.InspectionTeaching
                 || !_state.AutomaticRunning
                     && page switch
                     {
@@ -338,6 +347,9 @@ public partial class MainViewModel : ObservableObject
                 break;
             case AppPage.Teaching:
                 _teachingViewModel.Activate();
+                break;
+            case AppPage.InspectionTeaching:
+                _inspectionTeachingViewModel.Activate();
                 break;
             case AppPage.Settings:
                 _settingsViewModel.RefreshCommands();
@@ -378,7 +390,7 @@ public partial class MainViewModel : ObservableObject
                 if (!OutputsWindowEnabled)
                     _windows.CloseOutputs();
                 NavigateCommand.NotifyCanExecuteChanged();
-                var showOperation = _state.AutomaticRunning && SelectedPage != AppPage.Operation
+                var showOperation = _state.AutomaticRunning && SelectedPage is not (AppPage.Operation or AppPage.InspectionTeaching)
                     || !_state.ManualMode
                         && SelectedPage == AppPage.Teaching;
                 if (showOperation

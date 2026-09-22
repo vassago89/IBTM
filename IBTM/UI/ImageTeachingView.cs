@@ -12,6 +12,9 @@ public sealed record CarrierImageTileView(
     CarrierImageTile Metadata,
     BitmapSource Image)
 {
+    public string Title => $"{Metadata.HeatSink.GetDescription()} · "
+        + (Metadata.IsBarcode ? "Data Matrix" : $"Bolt {Metadata.BoltNumber}");
+
     public override string ToString()
     {
         return $"FOV {Metadata.Number}";

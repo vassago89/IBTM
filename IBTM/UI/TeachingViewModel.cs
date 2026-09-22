@@ -53,14 +53,7 @@ public partial class TeachingViewModel : ObservableObject
     public partial BitmapSource? LiveImage { get; set; }
 
     [ObservableProperty]
-    public partial int SelectedCameraTab { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
     public partial IReadOnlyList<CarrierImageTileView> CarrierImages { get; set; }
-
-    [ObservableProperty]
-    public partial double MillimetersPerPixel { get; set; }
 
     public TeachingViewModel(
         PcbSupplier pcbSupply,
@@ -114,15 +107,7 @@ public partial class TeachingViewModel : ObservableObject
         _ioGroups = ioGroups;
         _teachingOutputs = teachingOutputs;
 
-        MeasureImageCommand = new RelayCommand<ImageRuler>(MeasureImage, IsMeasureImageAllowed);
-        ApplyRulerResolutionCommand = new AsyncRelayCommand(ApplyRulerResolutionAsync, () => IsApplyRulerResolutionAllowed);
-        ReadDataMatrixCommand = new AsyncRelayCommand(ReadDataMatrixAsync, () => IsReadDataMatrixAllowed);
-        DrawFovRegionCommand = new AsyncRelayCommand<Rect>(DrawFovRegionAsync, IsDrawFovRegionAllowed);
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, () => IsToggleLiveViewAllowed);
-        ApplyLiveSettingsCommand = new AsyncRelayCommand(ApplyLiveSettingsAsync, () => IsApplyLiveSettingsAllowed);
-        GrabCommand = new AsyncRelayCommand(GrabAsync, () => IsGrabAllowed);
-        CaptureInspectionCommand = new AsyncRelayCommand(CaptureInspectionAsync, () => IsCaptureInspectionAllowed);
-        ReinspectImageCommand = new AsyncRelayCommand(ReinspectImageAsync, () => IsReinspectImageAllowed);
         AddBoltPointCommand = new RelayCommand(AddBoltPoint, () => IsAddBoltPointAllowed);
         RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint, () => IsRemoveBoltPointAllowed);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsSaveAllowed);
@@ -130,19 +115,12 @@ public partial class TeachingViewModel : ObservableObject
 
         _commands = [
             ToggleLiveViewCommand,
-            ApplyLiveSettingsCommand,
             JogCommand,
             HomeCommand,
             StepCommand,
             MoveToHorizontalZCommand,
             MoveToPointCommand,
             ReturnFromPickupCommand,
-            ApplyRulerResolutionCommand,
-            GrabCommand,
-            CaptureInspectionCommand,
-            ReinspectImageCommand,
-            ReadDataMatrixCommand,
-            DrawFovRegionCommand,
             TeachCurrentPositionCommand,
             SaveCommand,
         ];
@@ -161,11 +139,8 @@ public partial class TeachingViewModel : ObservableObject
         _ngTransferSettings = ngTransferSettings;
         RecipeEditor = recipeEditor;
         Recipes = recipes;
-        Preview = new(inspectionStation, recipes);
         CarrierImages = [];
-        Preview.PropertyChanged += OnPreviewChanged;
 
-        MillimetersPerPixel = Recipes.Current.CarrierImageMillimetersPerPixel;
 
         inspectionStation.FrameReady += UpdateLiveImage;
         inspectionStation.LiveViewChanged += OnLiveViewChanged;
@@ -178,8 +153,6 @@ public partial class TeachingViewModel : ObservableObject
             if (e.PropertyName != nameof(RecipeEditor.IsSaveAllowed))
                 return;
             TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-            ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
-            DrawFovRegionCommand.NotifyCanExecuteChanged();
         };
 
         RefreshTeachingPoints();
@@ -198,7 +171,6 @@ public partial class TeachingViewModel : ObservableObject
 
     public RecipeEditor RecipeEditor { get; }
     public RecipeManager Recipes { get; }
-    public InspectionPreview Preview { get; }
 
     public HeatSinkSlot? SelectedBarcode => SelectedPoint?.Position.Target == TeachingTarget.DataMatrix ? SelectedPcb : null;
 
@@ -271,10 +243,8 @@ public partial class TeachingViewModel : ObservableObject
         if (PositionUpdatesActive)
             SubscribeMotionChanges();
         CancelTeaching();
-        Preview.Clear();
-        FovRegion = null;
 
-        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning || ApplyLiveSettingsCommand.IsRunning)
+        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
             _ = RequestCameraStopAsync();
 
         RefreshTeachingPoints();
@@ -360,7 +330,6 @@ public partial class TeachingViewModel : ObservableObject
         CancelTeaching(reportDeviceFailure: false);
         _recipeImageCancellation.Cancel();
         CarrierImages = [];
-        Preview.Clear();
 
         _ = RequestCameraStopAsync();
     }
@@ -465,14 +434,14 @@ public partial class TeachingViewModel : ObservableObject
             {
                 case true when !IsInspectionSelected:
                     return null;
-                case true when !Inspection.HasBarcodeRegion(SelectedPcb):
+                case true when !Inspection.HasBarcodePosition(SelectedPcb):
                     return FilteredPoints.FirstOrDefault(
                         point => point.Position.Target == TeachingTarget.DataMatrix);
                 default:
                     return Recipes.Current.CarrierImages.Count == 0
                         ? null
                         : FilteredPoints.FirstOrDefault(
-                            point => point.Position.Bolt is { } bolt && !Inspection.HasRegion(bolt));
+                            point => point.Position.Bolt is { } bolt && !Inspection.HasPosition(bolt));
             }
         }
     }
@@ -480,54 +449,24 @@ public partial class TeachingViewModel : ObservableObject
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
         CancelTeaching();
-        GrabCommand.Cancel();
-        ApplyLiveSettingsCommand.Cancel();
-        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning || ApplyLiveSettingsCommand.IsRunning)
+        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
             _ = RequestCameraStopAsync();
         OnPropertyChanged(nameof(SelectedLightLevel));
-        OnPropertyChanged(nameof(SelectedDataMatrixSettings));
-        OnPropertyChanged(nameof(IsImageTargetSelected));
         SelectPreviousPointCommand.NotifyCanExecuteChanged();
         SelectNextPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(SaveBehavior));
         NotifyManualTeachingCommands();
-        CaptureInspectionCommand.Cancel();
-        ReinspectImageCommand.Cancel();
-        ReadDataMatrixCommand.Cancel();
-        DataMatrixResult = null;
         OnPropertyChanged(nameof(SelectedBarcode));
         OnPropertyChanged(nameof(IsDataMatrixSelected));
         OnPropertyChanged(nameof(IsBoltSelected));
-        SelectFovForTeachingPoint();
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        ReadDataMatrixCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(FovRegion));
-        OnPropertyChanged(nameof(FovRoiLabel));
-        CaptureInspectionCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
-        DrawFovRegionCommand.NotifyCanExecuteChanged();
-    }
-
-    partial void OnMillimetersPerPixelChanged(double value)
-    {
-        Recipes.Current.CarrierImageMillimetersPerPixel = value;
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        CaptureInspectionCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(FovRegion));
-        OnPropertyChanged(nameof(FovRoiLabel));
-    }
-
-    partial void OnCarrierImagesChanged(IReadOnlyList<CarrierImageTileView> value)
-    {
-        SelectFovForTeachingPoint();
     }
 
     private void OnRecipeChanged()
     {
         CameraError = null;
-        Preview.Clear();
-        FovRegion = null;
-        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning || ApplyLiveSettingsCommand.IsRunning)
+        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
             _ = RequestCameraStopAsync();
         SelectedPoint = null;
         if (SelectedPcb == HeatSinkSlot.HeatSink1)
@@ -535,7 +474,6 @@ public partial class TeachingViewModel : ObservableObject
         else
             SelectedPcb = HeatSinkSlot.HeatSink1;
         OnPropertyChanged(nameof(InspectionRecipe));
-        MillimetersPerPixel = Recipes.Current.CarrierImageMillimetersPerPixel;
         ShowRecipeImages();
     }
 
@@ -575,7 +513,6 @@ public partial class TeachingViewModel : ObservableObject
     {
         foreach (var point in FilteredPoints)
             point.Refresh();
-        OnPropertyChanged(nameof(FovRegion));
     }
 
     public IAsyncRelayCommand SaveCommand { get; }

@@ -20,6 +20,13 @@ namespace IBTM.Virtual.Tests;
 
 internal static class VirtualTest
 {
+    public static IBTM.UI.CarrierImageTileView? RecordedImage(IBTM.UI.TeachingViewModel teaching)
+    {
+        return teaching.CarrierImages.SingleOrDefault(image => image.Metadata.HeatSink == teaching.SelectedPcb
+            && (teaching.SelectedBarcode is not null ? image.Metadata.IsBarcode
+                : !image.Metadata.IsBarcode && image.Metadata.BoltNumber == teaching.SelectedPoint?.BoltNumber));
+    }
+
     public static AdcBoltHead CreateAdcHead(
         IAdcBus bus, VirtualIoService io, FasteningHead head, HantasSettings settings,
         byte slave, string port, int baud)

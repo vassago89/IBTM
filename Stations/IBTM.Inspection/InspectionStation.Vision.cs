@@ -146,14 +146,22 @@ public sealed partial class InspectionStation
 
     internal async Task<InspectionCapture> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
     {
-        var image = await CaptureBarcodeAsync(pcb, cancellationToken);
+        (AxisPosition Center, PixelRegion Region, DataMatrixInspectionRecipe Decoder, int Light) settings;
+        lock (_recipes.InspectionSync)
+        {
+            if (!HasBarcodeRegion(pcb))
+                throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
+            var fov = GetBarcodeFov(pcb);
+            var decoder = _recipes.Current.BoltInspection.GetDataMatrix(pcb);
+            settings = (fov.Center, fov.Region!, decoder, decoder.LightLevel ?? _recipes.Current.BoltInspection.LightLevel);
+        }
+        await MoveToAsync(settings.Center, cancellationToken: cancellationToken);
+        var image = await CaptureCurrentAsync(cancellationToken, lightLevel: settings.Light);
         var capturedAt = DateTimeOffset.Now;
-        var region = GetBarcodeFov(pcb).Region!;
         InspectionCaptured?.Invoke(image, pcb, null);
-        var settings = _recipes.Current.BoltInspection.GetDataMatrix(pcb);
-        var text = await Task.Run(() => DataMatrixReader.Read(image, region, settings), cancellationToken);
+        var text = await Task.Run(() => DataMatrixReader.Read(image, settings.Region, settings.Decoder), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        return new(null, capturedAt, image, region, !string.IsNullOrEmpty(text), Barcode: text);
+        return new(null, capturedAt, image, settings.Region, !string.IsNullOrEmpty(text), Barcode: text);
     }
 
     public bool HasPosition(BoltPoint point)
@@ -242,19 +250,29 @@ public sealed partial class InspectionStation
 
     internal async Task<InspectionCapture> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
-        var image = await CaptureAsync(point, cancellationToken).ConfigureAwait(false);
+        (AxisPosition Center, PixelRegion Region, int Light, int Threshold, double Minimum) settings;
+        lock (_recipes.InspectionSync)
+        {
+            if (!HasRegion(point))
+                throw new InvalidOperationException($"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
+            var fov = GetFov(point);
+            var defaults = _recipes.Current.BoltInspection;
+            settings = (fov.Center, fov.Region!, point.LightLevel ?? defaults.LightLevel,
+                point.BrightnessThreshold ?? defaults.BrightnessThreshold,
+                point.MinimumBrightRatio ?? defaults.MinimumBrightRatio);
+        }
+        await MoveToAsync(settings.Center, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var image = await CaptureCurrentAsync(cancellationToken, lightLevel: settings.Light).ConfigureAwait(false);
         var capturedAt = DateTimeOffset.Now;
-        var region = GetFov(point).Region!;
         InspectionCaptured?.Invoke(image, point.HeatSink, point.Number);
         return await Task.Run(
             () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var ratio = Check(image, region, point).BrightRatio;
-                var minimum = point.MinimumBrightRatio ?? _recipes.Current.BoltInspection.MinimumBrightRatio;
+                var ratio = BinaryChecker.Check(image, settings.Region, settings.Threshold).BrightRatio;
                 cancellationToken.ThrowIfCancellationRequested();
-                return new InspectionCapture(point.Number, capturedAt, image, region, ratio >= minimum,
-                    BrightRatio: ratio, MinimumBrightRatio: minimum);
+                return new InspectionCapture(point.Number, capturedAt, image, settings.Region, ratio >= settings.Minimum,
+                    BrightRatio: ratio, MinimumBrightRatio: settings.Minimum);
             },
             cancellationToken);
     }

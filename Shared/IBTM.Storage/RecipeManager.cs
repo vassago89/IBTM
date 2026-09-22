@@ -18,12 +18,27 @@ public sealed class RecipeManager
     {
         _database = database;
         _selection = selection;
+        InspectionSync = new();
         Current = new();
     }
 
     public event Action? Changed;
 
     public Recipe Current { get; }
+
+    public Lock InspectionSync { get; }
+
+    public async Task SaveInspectionAsync(Recipe edited, CancellationToken cancellationToken = default)
+    {
+        var snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(edited))!;
+        await Task.Run(() => _database.SaveInspectionSettings(snapshot, cancellationToken), cancellationToken);
+        // Publish only committed settings. Automatic inspection snapshots these at each point's start.
+        lock (InspectionSync)
+        {
+            if (Current.Name == snapshot.Name)
+                Current.ApplyInspectionSettings(snapshot);
+        }
+    }
 
     public IReadOnlyList<string> GetRecipeNames()
     {

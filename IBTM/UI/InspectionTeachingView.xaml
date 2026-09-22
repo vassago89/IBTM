@@ -1,0 +1,171 @@
+<UserControl x:Class="IBTM.UI.InspectionTeachingView" x:Name="EditorRoot"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:storage="clr-namespace:IBTM.Storage;assembly=IBTM.Storage"
+    mc:Ignorable="d" d:DataContext="{d:DesignInstance Type=ui:InspectionTeachingViewModel, IsDesignTimeCreatable=False}"
+    Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource AppBgBrush}">
+    <UserControl.BindingGroup><BindingGroup Name="InspectionInputs"/></UserControl.BindingGroup>
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*" MinHeight="250"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="210"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <DockPanel Margin="0,0,0,12">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" IsEnabled="{Binding IsIdle}">
+                <ComboBox ItemsSource="{Binding RecipeNames}" SelectedItem="{Binding SelectedRecipeName}"
+                    Width="180" Margin="0,0,8,0"/>
+                <Button Content="Load Recipe" Command="{Binding LoadRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
+                <Button Content="Save Inspection" Command="{Binding SaveCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLoaded}" Value="False"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                                <DataTrigger Binding="{Binding ElementName=EditorRoot, Path=(Validation.HasError)}" Value="True"><Setter Property="IsEnabled" Value="False"/></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="Inspection Teaching" Style="{StaticResource TitleStyle}"/>
+                <TextBlock Text="Edit ROI and inspection settings on saved images. Available during automatic operation."
+                    TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,12,0"/>
+            </StackPanel>
+        </DockPanel>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="*"/><ColumnDefinition Width="250"/></Grid.ColumnDefinitions>
+            <Border Style="{StaticResource CardStyle}" Padding="10" Margin="0,0,10,0">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <TextBlock Text="{Binding Draft.Name}" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="Recorded positions" Foreground="{StaticResource TextMutedBrush}"/>
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding Points}" SelectedItem="{Binding SelectedPoint}"
+                        IsEnabled="{Binding IsIdle}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
+                        Background="{StaticResource EquipBgBrush}" BorderThickness="0">
+                        <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:CarrierImageTileView}">
+                            <StackPanel Margin="4,7"><TextBlock Text="{Binding Title}" TextWrapping="Wrap"/>
+                                <TextBlock Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" FontSize="11" Margin="0,3,0,0">
+                                    <Run Text="X "/><Run Text="{Binding Metadata.Center.X, Mode=OneWay, StringFormat={}{0:F3}}"/>
+                                    <Run Text="  Y "/><Run Text="{Binding Metadata.Center.Y, Mode=OneWay, StringFormat={}{0:F3}}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate></ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="10">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel Margin="0,0,0,8">
+                        <WrapPanel IsEnabled="{Binding IsIdle}">
+                            <Button Content="Inspect Image" Command="{Binding InspectCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,8,6"/>
+                            <Button Content="Recipe Image" Command="{Binding ShowRecipeImageCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,6"/>
+                            <ToggleButton Content="Ruler" IsChecked="{Binding IsMeasuring}" Padding="10,6" Margin="0,0,0,6"/>
+                        </WrapPanel>
+                        <TextBlock Text="{Binding ImageSource}" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding OriginalResult}" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
+                    </StackPanel>
+                    <ui:ImageTeachingView x:Name="InspectionImage" Grid.Row="1" Source="{Binding Preview.Image}"
+                        SourceRegion="{Binding Preview.Region}" RegionCommand="{Binding DrawRegionCommand}"
+                        IsEnabled="{Binding IsIdle}" IsMeasuring="{Binding IsMeasuring}" Ruler="{Binding Ruler}"
+                        MeasureCommand="{Binding MeasureCommand}" ShowCrosshair="True" Cursor="Cross"
+                        ToolTip="Drag to resize the centered ROI. Save Inspection applies changes; coordinates are not changed."/>
+                    <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                        <TextBlock Text="{Binding Preview.Result}" FontWeight="SemiBold" FontSize="17" TextWrapping="Wrap"/>
+                        <WrapPanel Visibility="{Binding IsMeasuring, Converter={StaticResource BoolToVis}}" IsEnabled="{Binding IsIdle}">
+                            <TextBlock Text="{Binding Ruler.PixelLength, StringFormat={}{0:0.###} px}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Distance (mm)" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBox Width="70" Text="{Binding RulerMillimeters, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                            <Button Content="Apply Resolution" Command="{Binding ApplyResolutionCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+                        </WrapPanel>
+                        <TextBlock Text="{Binding Draft.CarrierImageMillimetersPerPixel, StringFormat='Resolution · {0:G8} mm/px'}"
+                            Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="12" Margin="10,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel IsEnabled="{Binding IsIdle}" Margin="0,0,8,0">
+                        <TextBlock Text="Inspection parameters" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="Point light (0–255)" Margin="0,12,0,4"/>
+                        <TextBox Text="{Binding LightLevel, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                        <TextBlock Text="Blank uses the recipe default. Changes affect the next capture after Save."
+                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Recipe default light" Margin="0,10,0,4"/>
+                        <TextBox Text="{Binding Draft.BoltInspection.LightLevel, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                        <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Data Matrix" FontWeight="SemiBold" Margin="0,16,0,8"/>
+                            <CheckBox Content="Try harder" IsChecked="{Binding DataMatrix.TryHarder}" Margin="0,0,0,6"/>
+                            <CheckBox Content="Try inverted" IsChecked="{Binding DataMatrix.TryInverted}" Margin="0,0,0,6"/>
+                            <CheckBox Content="Rotate search" IsChecked="{Binding DataMatrix.AutoRotate}" Margin="0,0,0,6"/>
+                            <CheckBox Content="Pure barcode" IsChecked="{Binding DataMatrix.PureBarcode}" Margin="0,0,0,6"/>
+                            <TextBlock Text="Binary threshold (0–255)" TextWrapping="Wrap" Margin="0,8,0,4"/>
+                            <TextBox Text="{Binding DataMatrix.BinaryThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                            <TextBlock Text="Blank = automatic threshold. Test using Inspect Image." TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel Visibility="{Binding IsBoltSelected, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="Bolt presence" FontWeight="SemiBold" Margin="0,16,0,8"/>
+                            <TextBlock Text="Threshold (0–255)" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding Preview.BrightnessThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                            <TextBlock Text="Minimum bright (%)" Margin="0,8,0,4"/>
+                            <TextBox Text="{Binding Preview.MinimumBrightPercent, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                            <Image Source="{Binding Preview.Overlay}" Height="95" Stretch="Uniform" Margin="0,12,0,0" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+        <DockPanel Grid.Row="2" Margin="0,12,0,6" IsEnabled="{Binding IsIdle}">
+            <Button DockPanel.Dock="Right" Content="Older" Command="{Binding LoadOlderCommand}" IsEnabled="{Binding HasOlder}" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+            <Button DockPanel.Dock="Right" Content="Refresh Results" Command="{Binding RefreshHistoryCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"/>
+            <TextBlock DockPanel.Dock="Left" Text="Saved inspection results" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <TextBox Text="{Binding HistoryDirectory, UpdateSourceTrigger=LostFocus}" ToolTip="Folder containing monthly PCB-yyyy-MM.db result databases"/>
+        </DockPanel>
+        <Grid Grid.Row="3" IsEnabled="{Binding IsIdle}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="300"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <DockPanel Margin="0,0,10,0">
+                <Button DockPanel.Dock="Bottom" Content="Load Selected PCB" Command="{Binding LoadRecordCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,6,0,0"/>
+                <ListBox ItemsSource="{Binding Records}" SelectedItem="{Binding SelectedRecord}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
+                    Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}">
+                    <ListBox.ItemTemplate><DataTemplate DataType="{x:Type storage:PcbRecord}">
+                        <StackPanel Margin="4">
+                            <TextBlock><Run Text="PCB "/><Run Text="{Binding Number, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding InspectionResult, Mode=OneWay}"/></TextBlock>
+                            <TextBlock Text="{Binding RecipeName}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                            <TextBlock Text="{Binding CreatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                        </StackPanel>
+                    </DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+            <DockPanel Grid.Column="1">
+                <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                    <Button DockPanel.Dock="Right" Content="Use Image for Reinspection" Command="{Binding UseHistoryImageCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
+                    <TextBlock Text="Load the matching recipe to edit this point. Saved production results remain unchanged."
+                        Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                </DockPanel>
+                <ListBox ItemsSource="{Binding HistoryImages}" SelectedItem="{Binding SelectedHistoryImage}"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                    ItemContainerStyle="{StaticResource FlatListItemStyle}" Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}">
+                    <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbInspectionImageView}">
+                        <StackPanel Width="145" Margin="4">
+                            <Image Source="{Binding Image}" Height="95" Stretch="Uniform"/>
+                            <TextBlock><Run Text="{Binding Title, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding Verdict, Mode=OneWay}"/></TextBlock>
+                            <TextBlock Text="{Binding Details}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                        </StackPanel>
+                    </DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Grid>
+        <StackPanel Grid.Row="4" Margin="0,8,0,0">
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"/>
+            <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

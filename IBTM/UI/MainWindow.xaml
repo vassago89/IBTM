@@ -29,6 +29,9 @@
         <DataTemplate DataType="{x:Type ui:TeachingViewModel}">
             <ui:TeachingView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type ui:InspectionTeachingViewModel}">
+            <ui:InspectionTeachingView/>
+        </DataTemplate>
         <DataTemplate DataType="{x:Type ui:SettingsViewModel}">
             <ui:SettingsView/>
         </DataTemplate>
@@ -115,6 +118,18 @@
                         </Button.Style>
                     </Button>
 
+                    <Button Content="Inspection Teaching" Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static ui:AppPage.InspectionTeaching}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.InspectionTeaching}">
+                                        <Setter Property="Tag" Value="Selected"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                     <Button Content="{Binding Source={x:Static ui:AppPage.Settings}, Converter={StaticResource EnumDescriptionConverter}}"
                         Command="{Binding NavigateCommand}"
                         CommandParameter="{x:Static ui:AppPage.Settings}">
