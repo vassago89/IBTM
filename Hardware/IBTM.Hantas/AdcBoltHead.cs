@@ -185,6 +185,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         AdcFasteningResult? completed = null;
         AdcFasteningResult? lastResult = null;
         var unexpectedReplies = 0;
+        var rejectedResultQueries = 0;
         Exception? failure = null;
         var waitingForResult = false;
         Exception? ioFailure = null;
@@ -207,11 +208,11 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
                 if (_io.GetOutput(_presets[index]) != (index == preset - 1))
                     throw new InvalidOperationException($"Preset outputs no longer match preset {preset}.");
             }
-            var current = dryRunMilliseconds > 0
-                ? null : await _bus.ReadFasteningResultAsync(_slaveAddress, cancellationToken);
-            lastResult = current;
+            var initialEvent = dryRunMilliseconds > 0
+                ? null : await _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,
+                    (ushort)AdcResultRegister.EventCount, 1, cancellationToken);
             // One pre-START baseline excludes previously received bolt results.
-            var fastening = (EventCount: current?.EventCount ?? (ushort)0, Preset: preset);
+            var fastening = (EventCount: initialEvent?[0] ?? (ushort)0, Preset: preset);
             _io.SetOutput(_direction, false);
             LastStatus = null;
 
@@ -235,16 +236,23 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
                 {
                     // Keep one request in flight; wait this interval before the next query.
                     await Task.Delay(_connection.ResultPollingIntervalMilliseconds, timeout.Token);
+                    var currentEvent = await _bus.ReadRegistersAsync(_slaveAddress, AdcFunctionCode.ReadInputRegisters,
+                        (ushort)AdcResultRegister.EventCount, 1, timeout.Token);
+                    if (currentEvent[0] == (lastResult?.EventCount ?? fastening.EventCount))
+                        continue;
+
+                    // Only mark an event as collected after its full result has arrived successfully.
                     var result = await _bus.ReadFasteningResultAsync(_slaveAddress, timeout.Token);
                     lastResult = result;
                     if (IsCompleted(result, fastening))
                     {
-                        if (unexpectedReplies > 0)
+                        if (unexpectedReplies > 0 || rejectedResultQueries > 0)
                         {
                             _logger.LogInformation(
-                                "ADC {Port}/{Slave}: new fastening result after {Count} unmatched RTU replies; "
+                                "ADC {Port}/{Slave}: new fastening result after {Count} unmatched RTU replies "
+                                + "and {RejectedQueries} result query rejections (0x03); "
                                 + "start event={StartEvent}, event={Event}, status={Status}, preset={Preset}, error={Error}.",
-                                _portName, _slaveAddress, unexpectedReplies, fastening.EventCount,
+                                _portName, _slaveAddress, unexpectedReplies, rejectedResultQueries, fastening.EventCount,
                                 result.EventCount, result.Status, result.Preset, result.Error);
                         }
                         completed = result;
@@ -260,6 +268,18 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
                         + "start event={StartEvent}, last event={LastEvent}. {Detail}",
                         _portName, _slaveAddress, unexpectedReplies, fastening.EventCount,
                         lastResult?.EventCount, exception.Message);
+                }
+                catch (AdcResponseException exception)
+                    when (exception.ErrorCode == 0x03)
+                {
+                    // A rejected read is not a fastening result. Retry only this read, within the original deadline.
+                    rejectedResultQueries++;
+                    _logger.LogWarning(
+                        "ADC {Port}/{Slave}: result query rejected (0x03) #{Count}; "
+                        + "retrying after {Interval} ms within the original fastening timeout; "
+                        + "start event={StartEvent}, last event={LastEvent}. {Detail}",
+                        _portName, _slaveAddress, rejectedResultQueries, _connection.ResultPollingIntervalMilliseconds,
+                        fastening.EventCount, lastResult?.EventCount, exception.Message);
                 }
                 catch (AdcResponseException exception)
                 {
@@ -286,7 +306,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
                 + $"direction={lastResult?.Direction}, error={lastResult?.Error}; "
-                + $"unmatched RTU replies={unexpectedReplies}.");
+                + $"unmatched RTU replies={unexpectedReplies}; result query rejections (0x03)={rejectedResultQueries}.");
             if (!waitingForResult)
                 throw failure;
         }

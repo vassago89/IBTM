@@ -436,9 +436,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     + $"RX chunks={receivedChunks}, bytes={receivedBytes.Length}.";
                 if (exception is AdcUnexpectedResponseException unexpected)
                     throw new AdcUnexpectedResponseException($"{detail} {unexpected.Message}", unexpected);
-                _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
                 if (exception is AdcResponseException rejection)
+                {
+                    _logger.LogWarning(exception, "ADC request rejected. {Detail}", detail);
                     throw new AdcResponseException(rejection.ErrorCode, $"{detail} {rejection.Message}", rejection);
+                }
+                _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
                 if (exception is InvalidDataException invalid)
                     throw new InvalidDataException($"{detail} {invalid.Message}", invalid);
                 if (exception is OperationCanceledException)

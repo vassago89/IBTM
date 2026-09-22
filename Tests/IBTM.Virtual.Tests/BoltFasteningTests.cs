@@ -154,7 +154,7 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
         await work.Station.SeatAsync(CancellationToken.None);
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-        var raisedAfterError = false;
+        var raisedAfterResult = false;
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.ShootBolt && on)
@@ -165,7 +165,7 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.ShootingHeadDown && !on && assembly.PcbBoltResults.ContainsKey(1))
             {
                 Assert.False(bus.Running);
-                raisedAfterError = true;
+                raisedAfterResult = true;
             }
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -174,7 +174,7 @@ public sealed class BoltFasteningTests
         {
             Assert.True(await WaitUntilAsync(() => work.Completed || run.IsCompleted, TimeSpan.FromSeconds(4)));
             Assert.True(work.Completed, run.Exception?.ToString());
-            Assert.True(raisedAfterError);
+            Assert.True(raisedAfterResult);
             Assert.Equal(2, bus.StartWrites);
             Assert.Equal(rejectedResponse || dryRun ? 0 : 1, bus.ResetWrites);
             Assert.Equal(2, bus.StopWrites);
@@ -191,16 +191,25 @@ public sealed class BoltFasteningTests
                 Assert.Equal(BoltCylinderState.Up, station.ShootingHeadPosition);
                 return;
             }
-            Assert.False(assembly.PcbBoltResults[1].Success);
-            Assert.Contains(rejectedResponse ? "0x03" : "42", assembly.PcbBoltResults[1].Error);
             if (rejectedResponse)
             {
-                Assert.Null(assembly.PcbBoltResults[1].Torque);
-                Assert.True(assembly.PcbBoltResults[2].Success);
+                Assert.Equal(3, bus.ResultPolls); // Rejected query, first result, second result.
+                Assert.All(assembly.PcbBoltResults.Values, result =>
+                {
+                    Assert.True(result.Success);
+                    Assert.NotNull(result.Torque);
+                    Assert.NotNull(result.Controller);
+                    Assert.Null(result.Error);
+                });
+                Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
             }
             else
+            {
+                Assert.False(assembly.PcbBoltResults[1].Success);
+                Assert.Contains("42", assembly.PcbBoltResults[1].Error);
                 Assert.False(assembly.PcbBoltResults[2].Success); // A second START must occur, not reuse the old Error event.
-            Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
+                Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
+            }
             Assert.Equal(BoltCylinderState.Up, station.ShootingHeadPosition);
         }
         finally
