@@ -141,8 +141,6 @@ public sealed partial class MachineLifecycleTests
                 starts.Enqueue((output == OutputIo.ShootingBoltStart ? FasteningHead.Shooting : FasteningHead.Pickup,
                     position.X, position.Y, position.Z));
             }
-            if (shootingFeeding && output == OutputIo.ShootingBoltStart)
-            if (pickupFeeding && output == OutputIo.PickupBoltStart)
             if (on && output is OutputIo.ShootingHeadDown or OutputIo.PickupHeadDown)
             {
                 var position = gantry.Feedback.GetPosition();
@@ -150,10 +148,6 @@ public sealed partial class MachineLifecycleTests
                     ? OutputIo.ShootingBoltStart : OutputIo.PickupBoltStart));
                 descents.Enqueue((output == OutputIo.ShootingHeadDown ? FasteningHead.Shooting : FasteningHead.Pickup,
                     position.X, position.Y, position.Z));
-            }
-            if (shootingFeeding && output == OutputIo.ShootingHeadDown && on)
-            {
-                Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
             }
         };
         work.Changed += () =>
@@ -170,12 +164,13 @@ public sealed partial class MachineLifecycleTests
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(work.Completed, services.GetRequiredService<BoltFasteningStation>().GetState().ToString());
             var assembly = Assert.Single(work.Assemblies);
-            Assert.Equal(shootingFeeding ? BoltResultSource.IoAssumedOk : BoltResultSource.DryRun,
+            Assert.Equal(shootingFeeding ? BoltResultSource.Controller : BoltResultSource.DryRun,
                 Assert.Single(assembly.PcbBoltResults).Value.Source);
             Assert.Equal(2, assembly.PickupBoltResults.Count);
             Assert.All(assembly.PickupBoltResults.Values, result =>
-                Assert.Equal(pickupFeeding ? BoltResultSource.IoAssumedOk : BoltResultSource.DryRun, result.Source));
-            Assert.All(assembly.PcbBoltResults.Values.Concat(assembly.PickupBoltResults.Values), result => Assert.Null(result.Torque));
+                Assert.Equal(pickupFeeding ? BoltResultSource.Controller : BoltResultSource.DryRun, result.Source));
+            Assert.All(assembly.PcbBoltResults.Values.Concat(assembly.PickupBoltResults.Values), result =>
+                Assert.Equal(result.Source == BoltResultSource.Controller, result.Torque is not null));
             Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
             var positions = new[]
             {
