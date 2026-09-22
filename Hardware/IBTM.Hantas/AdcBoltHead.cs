@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.ComponentModel;
+using System.ComponentModel;
 using IBTM.Core;
 using IBTM.Device;
 using Microsoft.Extensions.Logging;
@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IBTM.Hantas;
 
-public sealed partial class AdcBoltHead : ObservableObject, IBoltHead
+public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
 {
     private readonly IAdcBus _bus;
     private readonly IIoService _io;
@@ -56,8 +56,17 @@ public sealed partial class AdcBoltHead : ObservableObject, IBoltHead
     }
 
     // A single ADC sample after a command; never continuous physical feedback.
-    [ObservableProperty]
-    public partial AdcControllerStatus? LastStatus { get; private set; }
+    public AdcControllerStatus? LastStatus
+    {
+        get;
+        private set
+        {
+            field = value;
+            PropertyChanged?.Invoke(this, new(nameof(LastStatus)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
