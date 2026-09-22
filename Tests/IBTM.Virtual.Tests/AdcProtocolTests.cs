@@ -324,43 +324,19 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
-    public void Unsolicited8403NotificationRequiresACompleteValidFrame()
+    public async Task RequestedReadRejectionRemainsAnError()
     {
         using var bus = new AdcBus(new());
-        var notifications = new List<byte>();
-        bus.ResultNotificationReceived += notifications.Add;
-        byte[] notification = [1, 0x84, 3, 3, 1];
-        var corrupt = (byte[])notification.Clone();
-        corrupt[^1] ^= 0xFF;
-        bus.ReceiveBytes(corrupt);
-        bus.ReceiveBytes([1, 0x8C, 3, 4, 0xC1]);
-        bus.ReceiveBytes(AdcRtuFrame.Build(1, (AdcFunctionCode)0x84, [2]));
-        Assert.Empty(notifications);
-        bus.ReceiveBytes(notification[..2]);
-        Assert.Empty(notifications);
-        bus.ReceiveBytes(notification[2..]);
-        Assert.Equal(new byte[] { 1 }, notifications);
-    }
-
-    [Fact]
-    public async Task RequestedReadRejectionIsNotAnUnsolicitedNotification()
-    {
-        using var bus = new AdcBus(new());
-        var notifications = new List<byte>();
-        bus.ResultNotificationReceived += notifications.Add;
         var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 28);
         bus.ReceiveBytes([1, 0x84, 3, 3, 1]);
         await Assert.ThrowsAsync<AdcResponseException>(
             () => bus.WaitForResponseAsync(pending, CancellationToken.None));
-        Assert.Empty(notifications);
     }
 
     [Fact]
     public async Task LateRejectionOfACancelledQueryDoesNotBecomeAFasteningResult()
     {
         using var bus = new AdcBus(new());
-        var notifications = new List<byte>();
-        bus.ResultNotificationReceived += notifications.Add;
         using var cancellation = new CancellationTokenSource();
         var pending = bus.BeginResponse(1, AdcFunctionCode.ReadInputRegisters, 14);
         var response = bus.WaitForResponseAsync(pending, cancellation.Token);
@@ -369,7 +345,6 @@ public sealed class AdcProtocolTests
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response);
         bus.ReceiveBytes([.. rejection[2..], .. AutomaticFrame(11)]);
-        Assert.Empty(notifications);
         Assert.Equal((ushort)11, (await bus.WaitForFasteningResultAsync(1, CancellationToken.None)).EventCount);
     }
 

@@ -1,4 +1,5 @@
 using IBTM.Core;
+using System;
 using System.Text.Json.Serialization;
 
 namespace IBTM.Hantas;
@@ -15,4 +16,13 @@ public sealed class HantasSettings : Setting
     public byte ShootingSlaveAddress { get; set; } = 1;
     public int ResponseTimeoutMilliseconds { get; set; } = 1_000;
     public int FasteningTimeoutMilliseconds { get; set; } = 15_000;
+    public int StatusPollMilliseconds
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            field = value;
+        }
+    } = 100;
 }

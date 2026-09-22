@@ -181,7 +181,7 @@ public sealed class BoltFasteningTests
             Assert.Equal(2, assembly.PcbBoltResults.Count);
             if (dryRun)
             {
-                Assert.Equal(0, bus.ResultPolls);
+                Assert.Equal(0, bus.ResultReads);
                 Assert.All(assembly.PcbBoltResults.Values, result =>
                 {
                     Assert.Equal(BoltResultSource.DryRun, result.Source);
@@ -193,7 +193,7 @@ public sealed class BoltFasteningTests
             }
             if (rejectedResponse)
             {
-                Assert.Equal(2, bus.ResultPolls); // One result read per bolt, without retrying the rejected read.
+                Assert.Equal(2, bus.ResultReads); // One result read per bolt, without retrying the rejected read.
                 Assert.False(assembly.PcbBoltResults[1].Success);
                 Assert.Null(assembly.PcbBoltResults[1].Torque);
                 Assert.Contains("0x03", assembly.PcbBoltResults[1].Error);

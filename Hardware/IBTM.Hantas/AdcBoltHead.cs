@@ -55,7 +55,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         _logger = logger ?? NullLogger<AdcBoltHead>.Instance;
     }
 
-    // A single ADC sample after a command; never continuous physical feedback.
+    // Latest ADC sample: after commands and while monitoring a fastening cycle.
     public AdcControllerStatus? LastStatus
     {
         get;
@@ -82,13 +82,23 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
 
     private async Task<AdcControllerStatus> ReadStatusAsync(CancellationToken cancellationToken)
     {
-        LastStatus = null;
-        _bus.Open(_portName, _baudRate);
-        var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
-        LastStatus = status;
-        _logger.LogInformation("ADC {Port}/{Slave} command completed: READY={Ready}, RUN={Running}, ALARM={Alarm}.",
-            _portName, _slaveAddress, status.Ready, status.Running, status.Alarm);
-        return status;
+        try
+        {
+            _bus.Open(_portName, _baudRate);
+            var status = await _bus.ReadControllerStatusAsync(_slaveAddress, cancellationToken);
+            if (LastStatus != status)
+            {
+                LastStatus = status;
+                _logger.LogInformation("ADC {Port}/{Slave} status: READY={Ready}, RUN={Running}, ALARM={Alarm}.",
+                    _portName, _slaveAddress, status.Ready, status.Running, status.Alarm);
+            }
+            return status;
+        }
+        catch
+        {
+            LastStatus = null;
+            throw;
+        }
     }
 
     public async Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
@@ -184,7 +194,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         (ushort EventCount, ushort Preset)? started = null;
         AdcFasteningResult? completed = null;
         AdcFasteningResult? lastResult = null;
-        var notification = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runObserved = false;
         Exception? failure = null;
         var waitingForResult = false;
         Exception? ioFailure = null;
@@ -192,11 +202,6 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         {
             Interlocked.CompareExchange(ref ioFailure, exception, null);
             timeout.Cancel();
-        }
-        void OnResultNotificationReceived(byte slaveAddress)
-        {
-            if (slaveAddress == _slaveAddress)
-                notification.TrySetResult();
         }
         _io.Faulted += OnIoFaulted;
         try
@@ -224,8 +229,6 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
                 timeout.CancelAfter(_connection.FasteningTimeoutMilliseconds);
             timeout.Token.ThrowIfCancellationRequested();
             started = fastening;
-            if (dryRunMilliseconds == 0)
-                _bus.ResultNotificationReceived += OnResultNotificationReceived;
             // Own STOP cleanup before requesting START or lowering the head.
             _io.SetOutput(_start, true);
             if (feedAsync is not null && ioFailure is null)
@@ -240,19 +243,34 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
             {
                 try
                 {
-                    await notification.Task.WaitAsync(timeout.Token);
-                    _bus.ResultNotificationReceived -= OnResultNotificationReceived;
-                    _logger.LogInformation(
-                        "ADC {Port}/{Slave}: received result notification; reading fastening result once; start event={StartEvent}.",
-                        _portName, _slaveAddress, fastening.EventCount);
-                    var result = await _bus.ReadFasteningResultAsync(_slaveAddress, timeout.Token);
-                    lastResult = result;
-                    if (IsCompleted(result, fastening))
-                        completed = result;
-                    else
-                        failure = new InvalidOperationException(
-                            $"Result notification received, but no new completed fastening result: "
-                            + $"start event={fastening.EventCount}, event={result.EventCount}, status={result.Status}.");
+                    while (true)
+                    {
+                        var status = await ReadStatusAsync(timeout.Token);
+                        runObserved |= status.Running;
+                        // Initial RUN=OFF can precede motor startup; it is not completion.
+                        if (!status.Running && (runObserved || status.Alarm != 0))
+                            break;
+                        if (status.Alarm != 0)
+                        {
+                            failure = new InvalidOperationException(AdcControllerError.Describe(status.Alarm));
+                            break;
+                        }
+                        await Task.Delay(_connection.StatusPollMilliseconds, timeout.Token);
+                    }
+                    if (failure is null)
+                    {
+                        _logger.LogInformation(
+                            "ADC {Port}/{Slave}: RUN OFF; reading fastening result once; start event={StartEvent}.",
+                            _portName, _slaveAddress, fastening.EventCount);
+                        var result = await _bus.ReadFasteningResultAsync(_slaveAddress, timeout.Token);
+                        lastResult = result;
+                        if (IsCompleted(result, fastening))
+                            completed = result;
+                        else
+                            failure = new InvalidOperationException(
+                                $"RUN OFF, but no new completed fastening result: "
+                                + $"start event={fastening.EventCount}, event={result.EventCount}, status={result.Status}, alarm={LastStatus?.Alarm}.");
+                    }
                 }
                 catch (Exception exception) when (exception is AdcResponseException or AdcUnexpectedResponseException)
                 {
@@ -274,7 +292,7 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         {
             failure = new TimeoutException(
                 $"ADC {_portName}/{_slaveAddress} fastening timed out after {_connection.FasteningTimeoutMilliseconds} ms; "
-                + $"waiting for unsolicited 84 03 notification / one result read; notification received={notification.Task.IsCompletedSuccessfully}; "
+                + $"waiting for RUN ON then OFF / one result read; RUN observed={runObserved}, last RUN={LastStatus?.Running}; "
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
                 + $"direction={lastResult?.Direction}, error={lastResult?.Error}.");
@@ -288,7 +306,6 @@ public sealed class AdcBoltHead : IBoltHead, INotifyPropertyChanged
         }
         finally
         {
-            _bus.ResultNotificationReceived -= OnResultNotificationReceived;
             _io.Faulted -= OnIoFaulted;
             await StopAfterOperationAsync(failure);
         }

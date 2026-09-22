@@ -26,7 +26,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
-    public event Action<byte>? ResultNotificationReceived;
 
     public bool IsOpen { get; private set; }
 
@@ -293,9 +292,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             for (var index = 0; index < values.Length; index++)
                 values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
             controller.AutomaticResults.Writer.TryWrite(values);
-            FrameTransferred?.Invoke(AdcFrameDirection.Receive,
-                AdcRtuFrame.Build(controller.SlaveAddress, (AdcFunctionCode)0x84, [0x03]));
-            ResultNotificationReceived?.Invoke(controller.SlaveAddress);
         }
     }
 

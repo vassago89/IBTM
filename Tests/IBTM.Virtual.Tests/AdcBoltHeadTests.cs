@@ -25,7 +25,7 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(FasteningHead.Pickup)]
     [InlineData(FasteningHead.Shooting)]
-    public async Task UsesIoControlsAndReadsResultOnceAfterControllerNotification(FasteningHead selected)
+    public async Task UsesIoControlsAndReadsResultOnceAfterRunTurnsOff(FasteningHead selected)
     {
         using var bus = new VirtualAdcBus();
         var (io, head) = Create(bus, head: selected);
@@ -59,7 +59,6 @@ public sealed class AdcBoltHeadTests
             {
                 Assert.Equal((ushort)AdcStatusRegister.Preset, address);
                 statusReads++;
-                Assert.False(io.GetOutput(start));
             }
         };
         await head.SelectPresetAsync(1);
@@ -69,41 +68,37 @@ public sealed class AdcBoltHeadTests
             Assert.True(io.GetOutput(start));
             Assert.False(io.GetOutput(otherStart));
             fed = true;
-            // The notification can arrive while the head DOWN command is still completing.
-            await Task.Delay(300, token);
+            await Task.Delay(10, token);
         });
         Assert.True(result.Success);
         Assert.True(fed);
         Assert.NotNull(result.Controller);
         Assert.Equal(1, eventReads); // Pre-START baseline only.
         Assert.Equal(1, resultReads);
-        Assert.Equal(2, statusReads); // Preset command and STOP: one sample each.
+        Assert.True(statusReads >= 4); // Preset, RUN ON, RUN OFF and STOP.
         Assert.False(io.GetOutput(start));
     }
 
     [Fact]
-    public async Task WaitsWithoutQueriesThenReadsOnceForThisHeadsNotification()
+    public async Task PollsOnlyStatusUntilRunOnThenOffUsingTheConfiguredInterval()
     {
         var bus = new AdcControllerStub { SuppressCompletion = true };
-        var (io, head) = Create(bus);
+        foreach (var running in new[] { false, false, true, true, false })
+            bus.RunReplies.Enqueue(running);
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 40 });
         await head.SelectPresetAsync(1);
-        bus.NotifyResult(); // A notification before START must not carry into this operation.
-        var running = head.TightenAsync();
-        await Task.Delay(180);
-        Assert.False(running.IsCompleted);
-        Assert.Null(head.LastStatus);
+        var startedAt = Environment.TickCount64;
+        var cycle = head.TightenAsync();
+        Assert.False(cycle.IsCompleted);
+        Assert.False(head.LastStatus!.Running); // Initial OFF cannot finish a new cycle.
         Assert.Equal(1, bus.EventReads);
         Assert.Equal(0, bus.ResultReads);
-        Assert.Equal(1, bus.StatusReads);
-        bus.NotifyResult(2); // Another slave cannot complete this head.
-        Assert.False(running.IsCompleted);
-        Assert.Equal(0, bus.ResultReads);
-        bus.NotifyResult();
-        bus.NotifyResult(); // Duplicate notifications do not cause repeated reads.
-        Assert.True((await running).Success);
+        Assert.True((await cycle).Success);
+        Assert.True(Environment.TickCount64 - startedAt >= 140);
         Assert.Equal(1, bus.ResultReads);
         Assert.Equal(1, bus.EventReads);
-        Assert.Equal(2, bus.StatusReads);
+        Assert.Equal(7, bus.StatusReads);
+        Assert.False(bus.ResultReadWhileRunning);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -128,7 +123,7 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task CancellationWhileWaitingForNotificationStopsAndDiscardsLateNotifications()
+    public async Task CancellationWhileMonitoringRunStopsAndNextStartUsesAFreshBaseline()
     {
         var bus = new AdcControllerStub { SuppressCompletion = true };
         var (io, head) = Create(bus);
@@ -137,12 +132,11 @@ public sealed class AdcBoltHeadTests
         var running = head.TightenAsync(stop.Token);
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
-        bus.NotifyResult();
         Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        bus.SuppressCompletion = false;
         var next = head.TightenAsync();
         Assert.False(next.IsCompleted);
-        bus.NotifyResult();
         Assert.Equal((ushort)2, (await next).Controller!.EventCount);
         Assert.Equal(1, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
@@ -160,7 +154,7 @@ public sealed class AdcBoltHeadTests
         Assert.Same(failure, await Assert.ThrowsAnyAsync<IOException>(() => head.TightenAsync()));
         Assert.Equal(0, bus.StartWrites);
         Assert.Equal(1, bus.EventReads);
-        Assert.Equal(0, bus.ResultPolls);
+        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -188,7 +182,7 @@ public sealed class AdcBoltHeadTests
         Assert.False(result.Success);
         Assert.Null(result.Controller);
         Assert.Contains("0x02", result.Error);
-        Assert.Equal(1, bus.ResultPolls);
+        Assert.Equal(1, bus.ResultReads);
         Assert.Equal(1, bus.StopWrites);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
@@ -231,7 +225,7 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(0, AdcEventStatus.FasteningOk)]
     [InlineData(1, AdcEventStatus.DirectionChanged)]
-    public async Task NotificationAloneCannotTurnAnOldOrIncompleteResultIntoSuccess(ushort eventCount, AdcEventStatus status)
+    public async Task RunOffCannotTurnAnOldOrIncompleteResultIntoSuccess(ushort eventCount, AdcEventStatus status)
     {
         var bus = new AdcControllerStub();
         var result = AdcFasteningResult.FromRegisters([eventCount, 250, 1, 100, 80, 1000, 0, 0, 0, 1, 0, 0, (ushort)status, 0]);
@@ -258,7 +252,7 @@ public sealed class AdcBoltHeadTests
         var result = await head.TightenAsync();
         Assert.True(result.Success);
         Assert.Equal(ushort.MaxValue, result.Controller!.EventCount);
-        Assert.Equal(1, bus.ResultPolls);
+        Assert.Equal(1, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
@@ -304,7 +298,7 @@ public sealed class AdcBoltHeadTests
         Assert.True((await head.TightenAsync(dryRunMilliseconds: dryRun ? 20 : 0)).Success);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.True(head.LastStatus!.Running);
-        Assert.Equal(2, bus.StatusReads);
+        Assert.Equal(dryRun ? 2 : 4, bus.StatusReads);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
     }
 
@@ -370,7 +364,7 @@ public sealed class AdcBoltHeadTests
         await Assert.ThrowsAsync<TimeoutException>(() => head.TightenAsync(
             feedAsync: token => Task.Delay(Timeout.Infinite, token)));
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal(0, bus.ResultPolls);
+        Assert.Equal(0, bus.ResultReads);
     }
 
     [Fact]
@@ -381,7 +375,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync(
             feedAsync: token => throw new InvalidOperationException("Head output failed")));
-        Assert.Equal(0, bus.ResultPolls);
+        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.True((await head.TightenAsync()).Success);
     }
@@ -394,7 +388,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         var result = await head.TightenAsync(dryRunMilliseconds: 30);
         Assert.Equal(BoltResultSource.DryRun, result.Source);
-        Assert.Equal(0, bus.ResultPolls);
+        Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         using var stop = new CancellationTokenSource();
         var cycle = head.TightenAsync(stop.Token, dryRunMilliseconds: 2000);

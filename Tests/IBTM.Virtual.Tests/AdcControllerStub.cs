@@ -15,25 +15,22 @@ internal sealed class AdcControllerStub : IAdcBus
     private FasteningHead _head;
     private bool _stopRequested;
     private bool _resetRequested;
+    private int _runSamples;
 
     public AdcControllerStub()
     {
         ResultReplies = new();
+        RunReplies = new();
         ResultReadFailuresRemaining = 1;
     }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred { add { } remove { } }
 
-    public event Action<byte>? ResultNotificationReceived;
-
-    public void NotifyResult(byte slaveAddress = 1)
-    {
-        ResultNotificationReceived?.Invoke(slaveAddress);
-    }
-
     public Queue<AdcFasteningResult> ResultReplies { get; }
     public int ResultReads { get; private set; }
-    public int ResultPolls { get; private set; }
+    public Queue<bool> RunReplies { get; }
+    public bool ResultReadWhileRunning { get; private set; }
+    public IOException? StatusReadFailure { get; init; }
     public int EventReads { get; private set; }
     public int StatusReads { get; private set; }
 
@@ -120,9 +117,8 @@ internal sealed class AdcControllerStub : IAdcBus
                     StartWrites++;
                     _stopRequested = false;
                     Running = true;
+                    _runSamples = 0;
                     Started?.Invoke();
-                    if (!SuppressCompletion)
-                        NotifyResult();
                 }
                 else
                 {
@@ -180,6 +176,15 @@ internal sealed class AdcControllerStub : IAdcBus
         {
             case (ushort)AdcStatusRegister.Preset:
                 StatusReads++;
+                if (StartWrites > 0 && !_stopRequested)
+                {
+                    if (StatusReadFailure is { } statusFailure)
+                        throw statusFailure;
+                    if (RunReplies.TryDequeue(out var running))
+                        Running = running;
+                    else if (_runSamples++ > 0 && !SuppressCompletion)
+                        Running = false;
+                }
                 if (StopWrites > 0 && StopReadFailure is not null)
                     throw StopReadFailure;
                 if (_stopRequested)
@@ -229,9 +234,7 @@ internal sealed class AdcControllerStub : IAdcBus
         ResultReads++;
         var received = ResultReplies.TryDequeue(out var queued)
             ? queued : AdcFasteningResult.FromRegisters(ResultRegisters);
-        if (!Running || _stopRequested)
-            return Task.FromResult(received);
-        ResultPolls++;
+        ResultReadWhileRunning |= Running;
         if (ResultReadFailure is { } failure && ResultReadFailuresRemaining != 0)
         {
             if (ResultReadFailuresRemaining > 0)
