@@ -145,9 +145,9 @@ not a remembered sequence step.
 
 An OK Carrier completed at Inspection turns on `Available To Rear` and remains
 seated while `Ready From Rear` is off. Once rear ready is on, the Inspection backup
-plate and stopper go down before the conveyor starts. Discharge ends when rear ready
-turns off, or the exit sensor has detected the carrier and is currently OFF after
-the configured margin from its first OFF. Holes do not restart that margin.
+plate and stopper go down before the conveyor starts. After rear ready turns off,
+the belt continues for `RearSmemaOffDelaySeconds` (default 0.3 s), then stops along
+with `Available To Rear`. The exit carrier sensor is no longer used or displayed.
 
 Placement, Bolt Fastening, and Inspection report work complete only after every
 detected heat sink finishes. A disabled station process is bypassed by the WPF host so

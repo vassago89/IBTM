@@ -23,12 +23,13 @@ public sealed partial class ConveyorTests
     public async Task SmemaTestSignalWakesConveyorWithoutChangingPhysicalInput(bool receive)
     {
         var io = CreateIo();
-        var conveyor = CreateConveyor(io);
+        var conveyor = CreateConveyor(io, inspectionEnabled: false);
         io.Initialize();
         io.SetInput(InputIo.AutoMode, true);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         io.SetInput(InputIo.MainConveyorReadyFromRear, false);
-        io.SetInput(InputIo.MainConveyorExitCarrierDetected, !receive);
+        if (!receive)
+            await SetSeatedCarrierAsync(io, io, InputIo.InspectionHeatSink1Present, OutputIo.InspectionBackupPlateUp);
         Assert.False(conveyor.TestUpstreamCarrierAvailable);
         Assert.False(conveyor.TestDownstreamReady);
         var input = receive ? InputIo.MainConveyorAvailableFromFront2 : InputIo.MainConveyorReadyFromRear;
@@ -500,8 +501,7 @@ public sealed partial class ConveyorTests
         io.Initialize();
         io.SetInputs(
             (InputIo.PcbPlacementHeatSink1Present, severalOccupiedSensors),
-            (InputIo.InspectionHeatSink1Present, severalOccupiedSensors),
-            (InputIo.MainConveyorExitCarrierDetected, severalOccupiedSensors));
+            (InputIo.InspectionHeatSink1Present, severalOccupiedSensors));
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var run = conveyor.ReturnToStartAsync(stop.Token);
         try

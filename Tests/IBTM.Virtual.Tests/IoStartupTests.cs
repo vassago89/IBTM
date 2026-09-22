@@ -902,7 +902,11 @@ public sealed class IoStartupTests
         }
         if (step == TransferFailureStep.Discharge)
         {
-            physicalIo.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
+            services.GetRequiredService<UnitSettings>().Inspection = false;
+            var work = services.GetRequiredService<IBTM.Inspection.InspectionWork>();
+            VirtualTest.SetCarrier(physicalIo, InputIo.InspectionHeatSink1Present, true);
+            await work.Station.SeatAsync(CancellationToken.None);
+            work.Complete(work.CurrentJob);
             physicalIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
         }
         if (step == TransferFailureStep.Return)

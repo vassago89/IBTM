@@ -160,6 +160,9 @@ public sealed class IoTests
         InputIo[] retiredInputs =
         [
             InputIo.Unused1,
+            InputIo.Unused7,
+            InputIo.Unused8,
+            InputIo.Unused80,
             InputIo.PcbSupplyIpmFixerBackward,
             InputIo.PcbPlacementCarrierPresent,
             InputIo.BoltFasteningCarrierPresent,
@@ -172,7 +175,7 @@ public sealed class IoTests
         Assert.Equal(84, inputs[InputIo.NgConveyorPosition1Occupied]);
         Assert.Equal(85, inputs[InputIo.NgConveyorPosition2Occupied]);
         Assert.Equal(56, inputs[InputIo.MainConveyorEntryCarrierDetected]); // DI-128
-        Assert.Equal(68, inputs[InputIo.MainConveyorExitCarrierDetected]); // DI-134
+        Assert.DoesNotContain(InputIo.Unused80, inputs.Keys);
         Assert.Equal(62, inputs[InputIo.BoltFasteningHeatSink1Present]); // DI-12E
         Assert.Equal(63, inputs[InputIo.BoltFasteningHeatSink2Present]); // DI-12F
         Assert.Equal(69, inputs[InputIo.InspectionHeatSink1Present]); // DI-135
@@ -189,7 +192,7 @@ public sealed class IoTests
         Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback!.OffInput);
 
         var outputs = hardware.OfType<IoHardwareSettings>().SelectMany(section => section.Outputs).ToArray();
-        Assert.Equal(Enum.GetValues<OutputIo>().Order(), outputs.Select(pair => pair.Key).Order());
+        Assert.Equal(Enum.GetValues<OutputIo>().Except([OutputIo.Unused3]).Order(), outputs.Select(pair => pair.Key).Order());
         var channels = outputs.SelectMany(
             pair =>
                 pair.Value.OffNumber is { } off

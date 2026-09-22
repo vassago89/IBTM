@@ -22,6 +22,22 @@ namespace IBTM.Virtual.Tests;
 public sealed class MachineStoreTests
 {
     [Theory]
+    [InlineData("MainConveyorExitCarrierDetected")]
+    [InlineData("80")]
+    public void RemovedMainConveyorExitSensorDoesNotReturnFromSavedHardware(string exitInput)
+    {
+        Assert.DoesNotContain(InputIo.Unused80, new ConveyorHardwareSettings().Inputs.Keys);
+        var hardware = JsonSerializer.Deserialize<ConveyorHardwareSettings>($$$"""
+            {"Inputs":{"{{{exitInput}}}":68,"MainConveyorEntryCarrierDetected":156,"MainConveyorReadyFromRear":118}}
+            """)!;
+        Assert.Equal(2, hardware.Inputs.Count);
+        Assert.Equal(156, hardware.Inputs[InputIo.MainConveyorEntryCarrierDetected]);
+        Assert.Equal(118, hardware.Inputs[InputIo.MainConveyorReadyFromRear]);
+        Assert.DoesNotContain(InputIo.Unused80, hardware.Inputs.Keys);
+        Assert.DoesNotContain("\"80\":", JsonSerializer.Serialize(hardware));
+    }
+
+    [Theory]
     [InlineData("PcbPlacementIpmGripperClosed", "PcbPlacementIpmGripperOpen", "PcbPlacementIpmGripperClose")]
     [InlineData("7", "8", "3")]
     public void RemovedPlacementGripperDoesNotReturnFromSavedHardware(
@@ -264,7 +280,8 @@ public sealed class MachineStoreTests
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerBackward] = 25;
         settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = 25;
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 91;
-        settings.ConveyorHardware.Inputs[InputIo.MainConveyorExitCarrierDetected] = 92;
+        settings.ConveyorHardware.Inputs[InputIo.MainConveyorReadyFromRear] = 92;
+        settings.Conveyor.RearSmemaOffDelaySeconds = 0.8;
         settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp] = 57;
         settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown] = 58;
         settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp].Number = 96;

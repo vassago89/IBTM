@@ -103,7 +103,7 @@ public sealed partial class MachineLifecycleTests
                 entered = true;
             if (input == InputIo.MainConveyorAvailableFromFront2 && value && entered)
                 io.SetInput(input, false);
-            if (input == InputIo.MainConveyorExitCarrierDetected && !value)
+            if (input == InputIo.MainConveyorReadyFromRear && !value && entered)
                 exited = true;
         };
         if (missingBolts)

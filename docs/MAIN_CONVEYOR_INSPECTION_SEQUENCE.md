@@ -79,7 +79,7 @@ Repeat는 외부 SMEMA로 새 캐리어를 받지 않고 현재 입구 센서의
 | `PreparingInspectionCarrier` | 우선할 이송이 없을 때 픽업의 비어 있음·상승을 확인하고, 스토퍼 UP → 플레이트 DOWN 확인 후 해당 캐리어의 검사를 요청한다. 하강 중 새 이송 요청이 들어오면 검사 요청 전에 다시 우선 처리한다. |
 | `WaitingForInspection` | 검사와 NG 픽업 위치 복귀가 끝나기를 기다린다. 메인 벨트는 정지한다. S1·S2의 플레이트 상승 및 개별 스테이션 작업은 가능하다. |
 | `WaitingForInspectionTransfer` | 필요한 픽업 상승·비어 있음 또는 NG 픽업 대기 위치 피드백을 기다린다. |
-| `DischargingInspectionCarrier` | 후방 Ready를 확인한 OK 캐리어의 지지를 해제하고 배출한다. Ready OFF 또는 아래 출구 센서의 구멍 통과 확인으로 정지한다. 이미 출구에 있는 캐리어만 배출할 때 S3의 NG 캐리어를 내리지 않는다. |
+| `DischargingInspectionCarrier` | 후방 Ready를 확인한 배출 대상 캐리어의 지지를 해제하고 배출한다. Ready OFF 후 설정한 추가 운전 시간이 지나면 정지한다. |
 
 상승 대기 상태의 S3는 새 캐리어를 받을 수 없지만, 앞쪽 빈 공간의 이송을 막지 않는다.
 동시에 이송 가능한 캐리어가 여러 개면 기존처럼 후방 배출, S2 → S3, S1 → S2, 반입 순서로 우선한다.
@@ -92,27 +92,22 @@ Repeat는 외부 SMEMA로 새 캐리어를 받지 않고 현재 입구 센서의
 ## 후단 배출 종료 조건
 
 후단으로 보내는 외부 시작 조건은 **후방 SMEMA Ready ON**이다.
-배출 중 다음 둘 중 하나가 성립하면 메인 벨트를 정지한다.
+S3 지지 해제 후 벨트를 구동하고, **Ready OFF → 설정한 추가 운전 시간 → 정지** 순서로 배출한다.
+추가 운전이 끝나면 벨트와 Available To Rear를 함께 끈다.
+지지 해제 중 Ready가 먼저 OFF되면 벨트를 새로 켜지 않는다.
 
-1. **후방 Ready OFF**: 출구 감지 여부나 여유 시간에 관계없이 정지한다.
-2. **출구 센서 ON 확인 → 첫 OFF부터 여유 시간 경과 → 현재 OFF**: 우리 설비를 벗어났다고 판단한다.
+`ConveyorSettings.RearSmemaOffDelaySeconds`는 Settings → Operation & Timing →
+Main Conveyor의 **Rear SMEMA OFF Delay (s)**로 설정한다.
+기본 0.3초이며 0이면 Ready OFF 때 바로 정지한다.
+S1·S2·S3 밀착용 `CarrierStopDelaySeconds`와는 별개다.
+Ready가 다시 ON되어도 추가 운전 시간을 다시 시작하지 않는다.
 
-두 번째 조건은 Plasma의 `MachineMotionService.cs:464`에 있는 구멍 통과 처리와 동일한 시간 기준이다.
-첫 ON부터 시간을 재지 않고, 감지 후 처음 OFF된 시점부터 잰다.
-중간에 다시 ON되어도 타이머를 리셋하지 않는다. 시간이 지났어도 현재 ON이면 계속 구동하고,
-그 뒤 OFF가 되면 정지한다. ON을 한 번도 보지 않은 초기 OFF는 배출 완료가 아니다.
-
-`ConveyorSettings.ExitSensorClearDelaySeconds`는 Settings → Operation & Timing →
-Main Conveyor · Rear Discharge의 **출구 센서 구멍 통과 여유 시간**이다.
-Plasma는 여유 거리 / 컨베이어 속도로 시간을 계산하며 소스 기본값은 30mm / 100mm/s = 0.3초다.
-IBTM은 벨트를 I/O로 구동하므로 시간을 직접 설정한다. 기본 0.3초이며,
-S1·S2·S3 밀착용 `CarrierStopDelaySeconds`와 별개다.
-
-센서 ON이 오지 않거나, 배출 확인 중 ON에 머무르면 기존 I/O 타임아웃으로 정지·알람 처리한다.
-SMEMA OFF를 센서 OFF로 조작하지 않으며, 실제 센서가 여전히 ON이면 현재 피드백대로 후방 대기한다.
-STOP 시 이 배출의 첫 ON/OFF 시간은 버린다. 새 START는 현재 출구 센서부터 다시 확인한다.
+출구 캐리어 센서는 I/O 매핑·UI·배출 판단에서 제거했다.
+Ready OFF가 `TransferTimeoutSeconds` 안에 오지 않으면 정지·알람 처리한다.
+OFF 이후 추가 운전 시간은 이 타임아웃과 별개다.
+STOP은 추가 운전 중에도 즉시 적용되며, 해당 배출의 OFF 시각과 남은 시간을 버린다.
+새 START에서 이전 배출 단계를 이어가지 않는다.
 티칭에서는 기존 TEST Ready, 자동에서는 실제 후방 SMEMA DI의 OFF를 사용한다.
-
 ## 검사 스테이션 상태와 완료 시점
 
 검사 위치는 `InspectionWork.AtInspectionPosition`으로 읽는다.
