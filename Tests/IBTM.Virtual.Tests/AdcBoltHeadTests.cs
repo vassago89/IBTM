@@ -31,15 +31,22 @@ public sealed class AdcBoltHeadTests
         var (io, head) = Create(bus, head: selected);
         var start = selected == FasteningHead.Pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart;
         var otherStart = selected == FasteningHead.Pickup ? OutputIo.ShootingBoltStart : OutputIo.PickupBoltStart;
-        var reads = 0;
+        var resultReads = 0;
+        var statusReads = 0;
         bus.FrameTransferred += (direction, frame) =>
         {
             if (direction != AdcFrameDirection.Transmit)
                 return;
             Assert.Equal((byte)AdcFunctionCode.ReadInputRegisters, frame[1]);
-            Assert.Equal((ushort)AdcResultRegister.EventCount, BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)));
+            var address = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
+            if (address == (ushort)AdcResultRegister.EventCount)
+                resultReads++;
+            else
+            {
+                Assert.Equal((ushort)AdcStatusRegister.Preset, address);
+                statusReads++;
+            }
             Assert.False(io.GetOutput(start));
-            reads++;
         };
         await head.SelectPresetAsync(1);
         var fed = false;
@@ -54,21 +61,23 @@ public sealed class AdcBoltHeadTests
         Assert.True(result.Success);
         Assert.True(fed);
         Assert.NotNull(result.Controller);
-        Assert.Equal(1, reads);
+        Assert.Equal(1, resultReads);
+        Assert.Equal(2, statusReads); // Preset command and STOP: one sample each.
         Assert.False(io.GetOutput(start));
     }
 
     [Fact]
-    public async Task FastenInputOffAloneDoesNotCompleteWithoutAdcResult()
+    public async Task WaitsForAutomaticResultWithoutStatusPolling()
     {
         var bus = new AdcControllerStub { SuppressAutomaticResults = true };
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         using var stop = new CancellationTokenSource();
         var running = head.TightenAsync(stop.Token);
-        io.SetInput(InputIo.PickupBoltFasten, false);
+        Assert.Null(head.LastStatus);
         await Task.Delay(60);
         Assert.False(running.IsCompleted);
+        Assert.Equal(1, bus.StatusReads);
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
@@ -125,7 +134,7 @@ public sealed class AdcBoltHeadTests
         Assert.False(completed.Success);
         Assert.Equal(0.8, completed.Torque);
         Assert.Equal(5, bus.ResultReceives);
-        Assert.False(io.GetInput(InputIo.PickupBoltFasten));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
     [Theory]
@@ -143,14 +152,15 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ResultAndDryRunTurnStartOffWithoutWaitingForFastenInput(bool dryRun)
+    public async Task ResultAndDryRunSampleRunOnceAfterStartOff(bool dryRun)
     {
         var bus = new AdcControllerStub { StopPollsRemaining = -1 };
         var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 80 });
         await head.SelectPresetAsync(1);
         Assert.True((await head.TightenAsync(dryRunMilliseconds: dryRun ? 20 : 0)).Success);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(io.GetInput(InputIo.PickupBoltFasten));
+        Assert.True(head.LastStatus!.Running);
+        Assert.Equal(2, bus.StatusReads);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
     }
 
@@ -166,7 +176,8 @@ public sealed class AdcBoltHeadTests
         Assert.Null(result.Controller);
         Assert.Contains("timed out", result.Error);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(io.GetInput(InputIo.PickupBoltFasten));
+        Assert.True(head.LastStatus!.Running);
+        Assert.Equal(2, bus.StatusReads);
     }
 
     [Fact]
@@ -189,7 +200,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.False(io.GetInput(InputIo.PickupBoltFasten));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
     [Fact]
@@ -268,25 +279,29 @@ public sealed class AdcBoltHeadTests
         Assert.False(edges[1].On);
         Assert.True(edges[1].Time - edges[0].Time >= 90);
         Assert.Equal(1, bus.ResetWrites);
-        Assert.False(io.GetInput(InputIo.PickupBoltAlarm));
-        Assert.True(io.GetInput(InputIo.PickupBoltReady));
+        Assert.Equal((ushort)0, head.LastStatus!.Alarm);
+        Assert.True(head.LastStatus.Ready);
+        Assert.Equal(4, bus.StatusReads); // Preset, STOP, RESET and the next preset.
         bus.ResultStatus = AdcEventStatus.FasteningOk;
         bus.ResultError = 0;
         Assert.True((await head.TightenAsync()).Success);
     }
 
     [Fact]
-    public async Task AlarmWithoutAdcResultStopsImmediatelyAndRecordsNg()
+    public async Task AlarmWithoutAutomaticResultIsCollectedAtStopWithoutPolling()
     {
         var bus = new AdcControllerStub { SuppressAutomaticResults = true };
-        var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 100 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 80 });
         await head.SelectPresetAsync(1);
         var cycle = head.TightenAsync();
-        io.SetInput(InputIo.PickupBoltAlarm, true);
-        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        bus.CurrentAlarm = 125;
+        Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.Equal(1, bus.StatusReads);
         var result = await cycle;
         Assert.False(result.Success);
-        Assert.Contains("ALARM", result.Error!, StringComparison.OrdinalIgnoreCase);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.Equal((ushort)125, head.LastStatus!.Alarm);
+        Assert.Equal(2, bus.StatusReads);
     }
 
     [Theory]
@@ -296,7 +311,8 @@ public sealed class AdcBoltHeadTests
     {
         var bus = new AdcControllerStub { CurrentAlarm = 42, ResetPollsRemaining = alarmClears ? 0 : -1, NotReady = alarmClears };
         var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 60 });
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.ResetAsync());
+        Assert.Equal(1, bus.StatusReads);
         Assert.Equal(1, bus.ResetWrites);
         Assert.Equal(0, bus.StartWrites);
         Assert.False(io.GetOutput(OutputIo.PickupBoltReset));
@@ -317,7 +333,7 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
-    public async Task PresetOutputChangeAndLiveNotReadyBlockStart()
+    public async Task PresetOutputChangeAndAdcNotReadyBlockStart()
     {
         var bus = new AdcControllerStub();
         var (io, head) = Create(bus);
@@ -325,9 +341,8 @@ public sealed class AdcBoltHeadTests
         io.SetOutput(OutputIo.PickupBoltPreset2, true);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Equal(0, bus.StartWrites);
-        await head.SelectPresetAsync(1);
-        io.SetInput(InputIo.PickupBoltReady, false);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+        bus.NotReady = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
         Assert.Equal(0, bus.StartWrites);
     }
 
@@ -342,7 +357,7 @@ public sealed class AdcBoltHeadTests
         Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
         release.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cycle);
-        Assert.False(io.GetInput(InputIo.PickupBoltFasten));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         await head.SelectPresetAsync(1);
         Assert.True((await head.TightenAsync()).Success);
         Assert.False(io.GetOutput(OutputIo.PickupBoltDirection));

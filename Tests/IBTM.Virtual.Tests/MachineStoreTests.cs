@@ -300,7 +300,6 @@ public sealed class MachineStoreTests
         settings.BoltFastening.PickupHead.FasteningZ = 18;
         settings.Lighting.StabilizationDelayMilliseconds = 375;
         settings.Drivers.Bolt = BoltDriver.Io;
-        settings.IoBoltHardware.Inputs[InputIo.PickupBoltReady] = 112;
         settings.IoBoltHardware.Outputs[OutputIo.ShootingBoltStart].Number = 115;
         await settings.SaveAsync(store);
         var recipe = new Recipe { Name = "Part" };

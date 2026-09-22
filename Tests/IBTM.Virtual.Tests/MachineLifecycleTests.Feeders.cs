@@ -73,11 +73,10 @@ public sealed partial class MachineLifecycleTests
         bool pickupEnabled, bool shootingEnabled, bool repeat)
     {
         var settings = FlowSettings();
-        settings.Drivers.Bolt = BoltDriver.Io;
+        settings.Drivers.Bolt = BoltDriver.Virtual;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = pickupEnabled;
         settings.Units.ShootingBoltFeeder = shootingEnabled;
-        settings.IoBoltHardware.FasteningTimeoutMilliseconds = 10;
         var pickupFeeding = pickupEnabled && !repeat;
         var shootingFeeding = shootingEnabled && !repeat;
         await using var services = CreateServices(settings);
@@ -143,9 +142,7 @@ public sealed partial class MachineLifecycleTests
                     position.X, position.Y, position.Z));
             }
             if (shootingFeeding && output == OutputIo.ShootingBoltStart)
-                io.SetInput(InputIo.ShootingBoltFasten, on);
             if (pickupFeeding && output == OutputIo.PickupBoltStart)
-                io.SetInput(InputIo.PickupBoltFasten, on);
             if (on && output is OutputIo.ShootingHeadDown or OutputIo.PickupHeadDown)
             {
                 var position = gantry.Feedback.GetPosition();
@@ -157,10 +154,7 @@ public sealed partial class MachineLifecycleTests
             if (shootingFeeding && output == OutputIo.ShootingHeadDown && on)
             {
                 Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
-                io.SetInput(InputIo.ShootingBoltFasten, false);
             }
-            if (pickupFeeding && output == OutputIo.PickupHeadDown && on && io.GetOutput(OutputIo.PickupBoltStart))
-                io.SetInput(InputIo.PickupBoltFasten, false);
         };
         work.Changed += () =>
         {
@@ -224,9 +218,9 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(FasteningHead.Shooting, BoltDriver.Io, DryRunEnd.Completed)]
-    [InlineData(FasteningHead.Shooting, BoltDriver.Io, DryRunEnd.Cancelled)]
-    [InlineData(FasteningHead.Shooting, BoltDriver.Io, DryRunEnd.MissingUpFeedback)]
+    [InlineData(FasteningHead.Shooting, BoltDriver.Virtual, DryRunEnd.Completed)]
+    [InlineData(FasteningHead.Shooting, BoltDriver.Virtual, DryRunEnd.Cancelled)]
+    [InlineData(FasteningHead.Shooting, BoltDriver.Virtual, DryRunEnd.MissingUpFeedback)]
     [InlineData(FasteningHead.Pickup, BoltDriver.Virtual, DryRunEnd.Completed)]
     public async Task FasteningWithoutDownFeedbackStillRequiresUpFeedbackAndStopsOnCancellation(
         FasteningHead head, BoltDriver driver, DryRunEnd end)
@@ -265,8 +259,7 @@ public sealed partial class MachineLifecycleTests
                 return;
             if (on)
             {
-                if (driver == BoltDriver.Io)
-                    Assert.True(io.GetOutput(start));
+                Assert.True(io.GetOutput(start));
                 descended = true;
                 io.SetInputs((up, false), (down, false));
                 if (stopDuringDescent)
@@ -321,7 +314,7 @@ public sealed partial class MachineLifecycleTests
     public async Task DisabledPickupFeederKeepsLiftInterlockBeforeNewCarrier()
     {
         var settings = FlowSettings();
-        settings.Drivers.Bolt = BoltDriver.Io;
+        settings.Drivers.Bolt = BoltDriver.Virtual;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;

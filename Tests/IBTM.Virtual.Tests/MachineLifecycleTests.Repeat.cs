@@ -25,7 +25,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units.PcbSupply = false;
-        settings.Drivers.Bolt = BoltDriver.Io;
+        settings.Drivers.Bolt = BoltDriver.Virtual;
         settings.Units.PickupBoltFeeder = true;
         settings.Units.ShootingBoltFeeder = true;
         settings.Conveyor.CarrierStopDelaySeconds = 0;
@@ -101,12 +101,10 @@ public sealed partial class MachineLifecycleTests
                     Assert.False(io.GetOutput(OutputIo.ShootingBoltPreset2));
                     Interlocked.Increment(ref shootingStarts);
                 }
-                io.SetInput(InputIo.ShootingBoltFasten, on);
             }
             if (output == OutputIo.ShootingHeadDown && on)
             {
                 Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
-                io.SetInput(InputIo.ShootingBoltFasten, false);
             }
             if (output == OutputIo.PickupBoltStart)
             {
@@ -115,13 +113,11 @@ public sealed partial class MachineLifecycleTests
                     Assert.True(gantry.IsHorizontalMoveAllowed);
                     Interlocked.Increment(ref pickupStarts);
                 }
-                io.SetInput(InputIo.PickupBoltFasten, on);
             }
             if (output == OutputIo.PickupHeadDown && on)
             {
                 Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
                 Interlocked.Increment(ref pickupDescents);
-                io.SetInput(InputIo.PickupBoltFasten, false);
             }
         };
         state.RepeatEnabled = true;
