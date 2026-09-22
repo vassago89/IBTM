@@ -104,7 +104,7 @@ public sealed partial class InspectionStation : AutoUnit
                 _work.Restart(_work.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (repeat && !_units.MainConveyor
+                if (repeat && _work.Enabled && !_units.MainConveyor
                     && (IsEmptyRepeatAllowed || _work.Station.CarrierPresent)
                     && _work.PickupClear)
                 {
@@ -298,7 +298,7 @@ public sealed partial class InspectionStation : AutoUnit
             return InspectionStationState.Waiting;
 
         var canReceive = holdAtShuttle
-            || _ngConveyor.IsReceiveAllowed(useConveyor: !repeat || _units.NgConveyor, conveyorRunning);
+            || _ngConveyor.IsReceiveAllowed(conveyorRunning);
         return GetTransferState(
             NgTransferDestination.Shuttle,
             canPickUp: (repeat && IsEmptyRepeatAllowed && !_work.Station.CarrierPresent

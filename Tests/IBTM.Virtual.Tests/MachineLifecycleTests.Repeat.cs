@@ -168,14 +168,15 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task RepeatReturnsFromLastEnabledNgUnitWithoutRunningTheNgConveyor(bool shuttleEnabled)
+    public async Task RepeatHoldsCarrierWhenNgConveyorIsDisabledAndReleasesWhenEnabled(bool ngConveyorEnabled)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.NgCarrierTransfer = true;
-        settings.Units.NgShuttle = shuttleEnabled;
+        settings.Units.Inspection = true;
+        settings.Units.NgConveyor = ngConveyorEnabled;
         settings.Conveyor.CarrierStopDelaySeconds = 0;
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -183,7 +184,7 @@ public sealed partial class MachineLifecycleTests
         var gantry = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        if (!shuttleEnabled)
+        if (!ngConveyorEnabled)
         {
             io.SetInput(InputIo.NgShuttleUp, false);
             io.SetInput(InputIo.NgShuttleDown, false);
@@ -253,7 +254,7 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync(timeout.Token);
         try
         {
-            if (shuttleEnabled)
+            if (ngConveyorEnabled)
             {
                 await run.WaitAsync(TimeSpan.FromSeconds(5));
                 Assert.True(stoppedForConfiguration);
@@ -268,11 +269,11 @@ public sealed partial class MachineLifecycleTests
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(mainReturned);
             Assert.True(loweredWhileHolding);
-            Assert.Equal(shuttleEnabled, openedAtShuttle);
-            Assert.Equal(shuttleEnabled, placedAndReleased);
-            Assert.Equal(shuttleEnabled, pickedBackUp);
+            Assert.Equal(ngConveyorEnabled, openedAtShuttle);
+            Assert.Equal(ngConveyorEnabled, placedAndReleased);
+            Assert.Equal(ngConveyorEnabled, pickedBackUp);
             Assert.False(ngConveyorRan);
-            Assert.Equal(shuttleEnabled ? new[] { true, false } : [], shuttleOutputs.ToArray());
+            Assert.Equal(ngConveyorEnabled ? new[] { true, false } : [], shuttleOutputs.ToArray());
         }
         finally
         {
@@ -284,7 +285,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task RepeatStartAllowsSupplyOnlyAndRequiresShuttleForNgConveyor()
+    public async Task RepeatStartAllowsSupplyOnlyAndIntegratedNgConveyor()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -301,10 +302,6 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
 
             settings.Units.NgConveyor = true;
-            Assert.Equal(StartBlockReason.RepeatRouteUnavailable, machine.StartBlock);
-            Assert.False(machine.IsStartAllowed);
-
-            settings.Units.NgShuttle = true;
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.True(machine.IsStartAllowed);
         }
@@ -324,10 +321,10 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.NgCarrierTransfer = true;
-        settings.Units.NgShuttle = true;
+        settings.Units.Inspection = true;
         settings.Units.NgConveyor = true;
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -398,7 +395,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.NgCarrierTransfer = enableNgTransfer;
+        settings.Units.Inspection = enableNgTransfer;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -437,8 +434,9 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.NgCarrierTransfer = true;
+        settings.Units.Inspection = true;
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -473,10 +471,10 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.NgCarrierTransfer = true;
-        settings.Units.NgShuttle = true;
+        settings.Units.Inspection = true;
         settings.Units.NgConveyor = true;
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -523,10 +521,10 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.NgCarrierTransfer = true;
-        settings.Units.NgShuttle = true;
+        settings.Units.Inspection = true;
         settings.Units.NgConveyor = true;
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -578,10 +576,10 @@ public sealed partial class MachineLifecycleTests
         // Push duration is covered by the focused conveyor timing test.
         settings.Conveyor.CarrierStopDelaySeconds = 0;
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.NgCarrierTransfer = true;
-        settings.Units.NgShuttle = true;
+        settings.Units.Inspection = true;
         settings.Units.NgConveyor = true;
         await using var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();

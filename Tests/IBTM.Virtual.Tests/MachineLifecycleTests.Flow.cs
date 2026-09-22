@@ -37,8 +37,6 @@ public sealed partial class MachineLifecycleTests
             {
                 MainConveyor = true,
                 Inspection = true,
-                NgCarrierTransfer = true,
-                NgShuttle = true,
                 NgConveyor = true,
                 PcbSupply = false,
                 PcbPlacement = false,

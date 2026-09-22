@@ -24,7 +24,7 @@ public sealed partial class MachineLifecycleTests
         NgTransferDestination destination, InputIo lostInput)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -84,7 +84,7 @@ public sealed partial class MachineLifecycleTests
     public async Task NgTransferStopsBeforeLoweringAfterGripFeedbackLoss(bool opens)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         settings.NgCarrierTransfer.Speed = 200;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
@@ -681,7 +681,7 @@ public sealed partial class MachineLifecycleTests
         NgTransferDestination destination)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();

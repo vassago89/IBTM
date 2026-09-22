@@ -156,8 +156,6 @@ public sealed partial class MachineLifecycleTests
             ShootingBoltFeeder = unit == MachineUnit.ShootingBoltFeeder,
             BoltFastening = unit == MachineUnit.BoltFastening,
             Inspection = unit == MachineUnit.Inspection,
-            NgCarrierTransfer = unit == MachineUnit.NgCarrierTransfer,
-            NgShuttle = unit == MachineUnit.NgShuttle,
             NgConveyor = unit == MachineUnit.NgConveyor,
         };
     }
@@ -568,8 +566,6 @@ public sealed partial class MachineLifecycleTests
         ShootingBoltFeeder,
         BoltFastening,
         Inspection,
-        NgCarrierTransfer,
-        NgShuttle,
         NgConveyor,
     }
 }

@@ -3,7 +3,7 @@
 `InspectionStation`이 자동 검사 순서와 이동·촬영·판정을 함께 담당한다.
 촬영·조명·Live View 코드는 같은 클래스의 `InspectionStation.Vision.cs`에 둔다.
 `InspectionWork`는 컨베이어와 공유하는 캐리어 작업·검사 결과를 보관하며 별도 시퀀스 enum은 두지 않는다.
-갠트리 이동과 NG 캐리어 집기·놓기는 `NgCarrierTransfer`가 직접 실행한다.
+갠트리 이동과 NG 캐리어 집기·놓기도 같은 `InspectionStation`의 Motion·Transfer 파일에서 실행한다.
 
 볼트 검사는 `BinaryChecker.Check`에서 저장된 사각형 ROI를 원본 크기로 처리한다.
 
@@ -13,7 +13,7 @@
 
 밝기와 최소 비율은 볼트별 설정이다. 개별 값이 없는 기존 볼트는 종전 레시피 공통값을 사용하며,
 신규 볼트는 그 기본값에서 시작한다(새 레시피 기본: 밝기 128, 최소 비율 1%). 실제 합격 기준은 촬영 영상으로
-맞춰야 한다. Teaching의 Inspection Gantry에서 볼트를 선택하면 연결된 FOV와 이진화 ROI·Bright %가 표시된다.
+맞춰야 한다. Teaching의 Inspection Station에서 볼트를 선택하면 연결된 FOV와 이진화 ROI·Bright %가 표시된다.
 밝기와 최소 비율을 변경하면 현재 검사 영상에 바로 반영되며, Save Recipe로 저장한다.
 자동 검사도 해당 볼트의 같은 임계값·최소 비율을 사용한다. 노출·게인·조명은 다음
 촬영부터 반영된다. 기준값과 같은 밝기 및 최소 비율과 같은 결과는 합격이다.

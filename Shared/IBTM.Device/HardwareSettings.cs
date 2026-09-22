@@ -83,7 +83,7 @@ public abstract class InputHardwareSettings : HardwareSettings
         Inputs = [];
     }
 
-    public Dictionary<InputIo, int> Inputs { get; set; }
+    public virtual Dictionary<InputIo, int> Inputs { get; set; }
 
     public IoStatus CreateIoStatus(IoSignals io)
     {

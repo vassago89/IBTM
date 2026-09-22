@@ -499,8 +499,6 @@ public sealed class IoStartupTests
                 ShootingBoltFeeder = false,
                 BoltFastening = false,
                 Inspection = false,
-                NgCarrierTransfer = false,
-                NgShuttle = false,
                 NgConveyor = false,
             },
         });

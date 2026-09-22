@@ -82,7 +82,7 @@ public sealed partial class ConveyorTests
     public async Task StartupPreparationPreservesOccupiedSupportsWithoutTreatingNgDetectionAsGrip()
     {
         var io = CreateIo();
-        var conveyor = CreateConveyor(io, ngCarrierTransferEnabled: true);
+        var conveyor = CreateConveyor(io);
         io.Initialize();
         await SetSeatedCarrierAsync(io, io, InputIo.PcbPlacementHeatSink1Present, OutputIo.PcbPlacementBackupPlateUp);
         await SetSeatedCarrierAsync(io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
@@ -676,15 +676,13 @@ public sealed partial class ConveyorTests
         bool placementEnabled = true,
         bool boltFasteningEnabled = true,
         bool inspectionEnabled = true,
-        ConveyorSettings? settings = null,
-        bool ngCarrierTransferEnabled = false)
+        ConveyorSettings? settings = null)
     {
         var units = new UnitSettings
         {
             PcbPlacement = placementEnabled,
             BoltFastening = boltFasteningEnabled,
             Inspection = inspectionEnabled,
-            NgCarrierTransfer = ngCarrierTransferEnabled,
         };
         var placement = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units);
         var fastening = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
@@ -721,7 +719,7 @@ public sealed partial class ConveyorTests
         motion.Initialize();
         return new InspectionWork(
             io, motion, new NgCarrierTransferSettings { PickupSafeX = 0 },
-            units ?? new UnitSettings { MainConveyor = false, NgCarrierTransfer = false });
+            units ?? new UnitSettings { MainConveyor = false });
     }
 
     private static VirtualIoService CreateIo(int timeoutMilliseconds = 3_000)

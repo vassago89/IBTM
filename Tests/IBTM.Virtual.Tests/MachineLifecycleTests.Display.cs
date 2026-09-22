@@ -214,9 +214,10 @@ public sealed partial class MachineLifecycleTests
     public async Task AutomaticFeedbackStopsOnSilentMotionFaultWithoutAView(MotionFeedbackFault fault)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         settings.Units.MainConveyor = true;
         await using var services = CreateMotionScopeServices(settings, out var probes);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -289,7 +290,7 @@ public sealed partial class MachineLifecycleTests
     public async Task HomeAndAutomaticStartIgnorePreStartSample()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateDisplayServices(out var motion, settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();

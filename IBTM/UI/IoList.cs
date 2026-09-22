@@ -22,13 +22,13 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
     {
         Areas = [
             new(null, "All Units"),
-            ..rows.Select(row => signal(row).Area)
+            ..rows.Select(row => UnitArea(signal(row).Area))
                 .Distinct()
                 .Order()
                 .Select(area => new KeyValuePair<HardwareArea?, string>(area, area.GetDescription())),
         ];
         FilteredRows = new ListCollectionView(rows
-            .OrderBy(row => signal(row).Area)
+            .OrderBy(row => UnitArea(signal(row).Area))
             .ThenBy(row => signal(row).Section)
             .ThenBy(row => signal(row).Signal)
             .ToArray());
@@ -38,7 +38,7 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
         FilteredRows.Filter = item =>
         {
             var row = signal((TRow)item);
-            return (SelectedArea.Key is null || row.Area == SelectedArea.Key)
+            return (SelectedArea.Key is null || UnitArea(row.Area) == SelectedArea.Key)
                 && (Matches(row)
                     || row is IoOutputStatus output
                     && output.Feedback.Any(Matches));
@@ -47,6 +47,19 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
 
     public ICollectionView FilteredRows { get; }
     public KeyValuePair<HardwareArea?, string>[] Areas { get; }
+
+    private static HardwareArea UnitArea(HardwareArea area)
+    {
+        switch (area)
+        {
+            case HardwareArea.InspectionStation or HardwareArea.NgCarrierTransfer:
+                return HardwareArea.InspectionGantry;
+            case HardwareArea.NgShuttle:
+                return HardwareArea.NgConveyor;
+            default:
+                return area;
+        }
+    }
 
     private bool Matches<T>(IoSignal<T> row)
         where T : struct, Enum
@@ -77,7 +90,7 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
 
         public override object GroupNameFromItem(object item, int level, CultureInfo culture)
         {
-            return _signal((TRow)item).Area;
+            return UnitArea(_signal((TRow)item).Area);
         }
     }
 

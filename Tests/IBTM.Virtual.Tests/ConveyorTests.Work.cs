@@ -145,7 +145,7 @@ public sealed partial class ConveyorTests
             placementWork,
             boltWork,
             CreateInspectionWork(io),
-            new UnitSettings { NgCarrierTransfer = false });
+            new UnitSettings { Inspection = false });
 
         io.Initialize();
         var assembly = placementWork.GetAssembly(HeatSinkSlot.HeatSink1);
@@ -201,7 +201,7 @@ public sealed partial class ConveyorTests
         io.SetInput(InputIo.InspectionStopperDown, true);
 
         var work = CreateInspectionWork(io,
-            new UnitSettings { Inspection = false, NgCarrierTransfer = false });
+            new UnitSettings { Inspection = false });
 
         Assert.True(work.Station.CarrierSeated);
         Assert.False(work.IsTransferAllowed);

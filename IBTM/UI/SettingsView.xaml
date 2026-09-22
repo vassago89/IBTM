@@ -281,33 +281,6 @@
                                         <TextBlock Text="Feeder OFF or Repeat: run after head DOWN, then STOP without waiting for a fastening result. Default: 2,000 ms."
                                             Style="{StaticResource SettingHelpText}"/>
                                         <StackPanel>
-                                            <StackPanel.Style>
-                                                <Style TargetType="StackPanel">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SelectedBoltDriver}" Value="{x:Static device:BoltDriver.Io}">
-                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </StackPanel.Style>
-                                            <TextBlock Text="IO · FASTEN ON → OFF Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
-                                            <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                Text="{Binding Settings.IoBoltHardware.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                                Width="180" HorizontalAlignment="Left"/>
-                                            <TextBlock Text="Maximum wait for the FASTEN ON → OFF cycle after START."
-                                                Style="{StaticResource SettingHelpText}"/>
-                                        </StackPanel>
-                                        <StackPanel>
-                                            <StackPanel.Style>
-                                                <Style TargetType="StackPanel">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SelectedBoltDriver}" Value="{x:Static device:BoltDriver.Io}">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </StackPanel.Style>
                                             <TextBlock Text="ADC · Fastening Result Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                 Text="{Binding Settings.Hantas.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
@@ -319,15 +292,15 @@
                                 </Border>
                                 <Border Style="{StaticResource SettingCard}">
                                     <StackPanel>
-                                        <TextBlock Text="NG Handling" Style="{StaticResource SettingSectionTitle}"/>
+                                        <TextBlock Text="Inspection Station / NG Conveyor" Style="{StaticResource SettingSectionTitle}"/>
                                         <UniformGrid Columns="2">
                                             <StackPanel Margin="0,0,8,0">
-                                                <TextBlock Text="Carrier Count for Alarm" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="NG Conveyor · Carrier Count for Alarm" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     Text="{Binding Settings.NgConveyor.AlarmCarrierCount, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                             <StackPanel Margin="8,0,0,0">
-                                                <TextBlock Text="Transfer Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="Inspection Station · Carrier Transfer Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     Text="{Binding Settings.NgCarrierTransfer.Speed, UpdateSourceTrigger=LostFocus}"/>
                                             </StackPanel>
@@ -552,9 +525,6 @@
                                     <Border.Style>
                                         <Style TargetType="Border" BasedOn="{StaticResource SettingCard}">
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedBoltDriver}" Value="{x:Static device:BoltDriver.Io}">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>

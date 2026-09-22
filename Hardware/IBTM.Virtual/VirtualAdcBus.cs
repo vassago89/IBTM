@@ -101,8 +101,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         }
         var controller = GetController(slaveAddress);
         controller.Head = head;
-        controller.Io = io as VirtualIoService;
-        UpdateIo(controller);
     }
 
     public void Dispose()
@@ -133,20 +131,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
                 if (index >= 0)
                     ApplyControl(controller, (ushort)AdcRemoteRegister.Preset, (ushort)(index + 1));
             }
-        }
-    }
-
-    private static void UpdateIo(Controller controller)
-    {
-        if (controller.Io is { } io && controller.Head is { } head)
-        {
-            var pickup = head == FasteningHead.Pickup;
-            io.SetInputs(
-                (pickup ? InputIo.PickupBoltFasten : InputIo.ShootingBoltFasten, controller.Running),
-                (pickup ? InputIo.PickupBoltReady : InputIo.ShootingBoltReady,
-                    !controller.Running && controller.Status != AdcEventStatus.Error),
-                (pickup ? InputIo.PickupBoltAlarm : InputIo.ShootingBoltAlarm,
-                    controller.Status == AdcEventStatus.Error));
         }
     }
 
@@ -196,7 +180,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             }
         }
 
-        UpdateIo(controller);
     }
 
     public Task<byte[]> ReadDeviceInformationAsync(
@@ -309,7 +292,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
                 values[index] = ReadResultRegister(controller, (ushort)((ushort)AdcResultRegister.EventCount + index));
             controller.AutomaticResults.Writer.TryWrite(values);
         }
-        UpdateIo(controller);
     }
 
     private static ushort ReadStatusRegister(Controller controller, ushort address)
@@ -378,7 +360,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         }
 
         public FasteningHead? Head { get; set; }
-        public VirtualIoService? Io { get; set; }
         public Dictionary<ushort, ushort> Registers { get; }
         public Channel<ushort[]> AutomaticResults { get; }
         public ushort EventCount { get; set; }

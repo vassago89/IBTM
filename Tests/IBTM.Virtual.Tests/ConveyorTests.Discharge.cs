@@ -120,7 +120,7 @@ public sealed partial class ConveyorTests
         virtualIo.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         virtualIo.SetInput(InputIo.MainConveyorReadyFromRear, false);
         Assert.NotEqual(MainConveyorState.DischargingInspectionCarrier, conveyor.State);
-        units.NgCarrierTransfer = false;
+        units.Inspection = false;
         Assert.Equal(MainConveyorState.WaitingForRearEquipment, conveyor.State);
 
         using var cancellation = new CancellationTokenSource();

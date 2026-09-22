@@ -798,8 +798,6 @@ public sealed class AlarmRecoveryTests
                         ShootingBoltFeeder = false,
                         BoltFastening = false,
                         Inspection = false,
-                        NgCarrierTransfer = false,
-                        NgShuttle = false,
                         NgConveyor = false,
                     },
                 })

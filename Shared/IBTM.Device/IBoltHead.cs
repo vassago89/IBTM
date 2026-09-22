@@ -16,12 +16,15 @@ public enum BoltDriver
     [Description("I/O control + ADC results")]
     HantasAdc,
 
-    [Description("IO only")]
+    // Accepted only when loading older driver settings.
+    [Description("I/O control + ADC results")]
     Io,
 }
 
 public interface IBoltHead
 {
+    AdcControllerStatus? LastStatus { get; }
+
     Task CheckReadyAsync(CancellationToken cancellationToken = default);
     Task ResetAsync(CancellationToken cancellationToken = default);
     Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default);

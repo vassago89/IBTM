@@ -55,11 +55,11 @@
     </UserControl.Resources>
     <Canvas>
         <StackPanel Canvas.Left="{x:Static ui:MachinePlan.NgStatusLeft}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}" Width="170">
-            <TextBlock Text="NG Conveyor" TextAlignment="Left" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <TextBlock Text="{Binding NgConveyorState, Converter={StaticResource EnumDescriptionConverter}}"
-                TextWrapping="Wrap" Margin="0,6,0,0" FontSize="13">
+            <TextBlock Text="NG Conveyor" ToolTip="NG Conveyor — shuttle and belt" TextAlignment="Left" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" FontSize="13">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="{Binding NgConveyorState, Converter={StaticResource EnumDescriptionConverter}}"/>
                         <Setter Property="Visibility" Value="Visible"/>
                         <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                         <Style.Triggers>
@@ -76,6 +76,11 @@
                             </DataTrigger>
                             <DataTrigger Binding="{Binding NgConveyor.AlarmRequired}" Value="True">
                                 <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Units.NgConveyor}" Value="False">
+                                <Setter Property="Text" Value="Disabled"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

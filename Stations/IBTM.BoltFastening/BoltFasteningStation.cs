@@ -12,8 +12,8 @@ namespace IBTM.BoltFastening;
 
 public sealed partial class BoltFasteningStation : AutoUnit
 {
-    private readonly IBoltHead _shootingHead;
-    private readonly IBoltHead _pickupHead;
+    public IBoltHead ShootingHead { get; }
+    public IBoltHead PickupHead { get; }
     private readonly IIoService _io;
     private readonly IXyMotion _motion;
     private readonly BoltFasteningSettings _settings;
@@ -35,8 +35,8 @@ public sealed partial class BoltFasteningStation : AutoUnit
         UnitSettings units,
         ILogger<BoltFasteningStation>? log = null)
     {
-        _shootingHead = shootingHead;
-        _pickupHead = pickupHead;
+        ShootingHead = shootingHead;
+        PickupHead = pickupHead;
         _io = io;
         _motion = motion;
         _settings = settings;
@@ -143,14 +143,14 @@ public sealed partial class BoltFasteningStation : AutoUnit
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await _shootingHead.CheckReadyAsync(cancellationToken);
-        await _pickupHead.CheckReadyAsync(cancellationToken);
+        await ShootingHead.CheckReadyAsync(cancellationToken);
+        await PickupHead.CheckReadyAsync(cancellationToken);
     }
 
     public async Task ResetHeadsAsync(CancellationToken cancellationToken = default)
     {
         List<Exception>? failures = null;
-        foreach (var head in new[] { _shootingHead, _pickupHead })
+        foreach (var head in new[] { ShootingHead, PickupHead })
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
@@ -326,12 +326,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
 
     public void StopIoStart(FasteningHead head)
     {
-        if (GetHead(head) is IoBoltHead ioHead)
-        {
-            ioHead.Stop();
-            return;
-        }
-
         _io.SetOutput(
             head == FasteningHead.Pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart,
             false);
@@ -342,9 +336,9 @@ public sealed partial class BoltFasteningStation : AutoUnit
         switch (head)
         {
             case FasteningHead.Shooting:
-                return _shootingHead;
+                return ShootingHead;
             case FasteningHead.Pickup:
-                return _pickupHead;
+                return PickupHead;
             default:
                 throw new ArgumentOutOfRangeException(nameof(head));
         }

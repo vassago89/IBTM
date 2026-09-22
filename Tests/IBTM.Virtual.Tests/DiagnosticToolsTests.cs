@@ -147,7 +147,7 @@ public sealed class DiagnosticToolsTests
     {
         await using var services = CreateServices(new RecordingLight());
         var settings = services.GetRequiredService<MachineSettings>();
-        settings.Units.NgCarrierTransfer = true;
+        settings.Units.Inspection = true;
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
@@ -291,7 +291,7 @@ public sealed class DiagnosticToolsTests
             diagnostics.FailPosition = false;
             // A failed enabled control scan must not hide the independent monitor cache
             // or throw while WPF evaluates the RESET button.
-            settings.Units.NgCarrierTransfer = true;
+            settings.Units.Inspection = true;
             Assert.True(x.Enabled);
             Assert.True(x.Refresh());
             Assert.False(x.Refresh());
@@ -308,7 +308,7 @@ public sealed class DiagnosticToolsTests
             Assert.True(machine.IsResetAllowed);
             Assert.False(y.ToggleServoCommand.CanExecute(null));
             diagnostics.FailControl = false;
-            settings.Units.NgCarrierTransfer = false;
+            settings.Units.Inspection = false;
             Assert.True(x.Refresh());
             Assert.False(x.Enabled);
             // Control-I/O loss does not stop independent motion diagnostics or allow control.
@@ -470,8 +470,6 @@ public sealed class DiagnosticToolsTests
                         ShootingBoltFeeder = false,
                         BoltFastening = false,
                         Inspection = false,
-                        NgCarrierTransfer = false,
-                        NgShuttle = false,
                         NgConveyor = false,
                     },
                 })

@@ -12,9 +12,7 @@ public enum RepeatPhase
     ReturnToStation3,
     [Description("Returning to entry sensor")]
     ReturnToStart,
-    [Description("Shuttle down → up")]
-    CycleShuttle,
-    [Description("Station 3 → First inspection FOV")]
+    [Description("Station 3 → Waiting position")]
     ClearStation3,
 }
 

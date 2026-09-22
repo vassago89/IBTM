@@ -207,7 +207,7 @@ public sealed partial class MachineLifecycleTests
                 try
                 {
                     var settings = FlowSettings();
-                    settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+                    settings.Units = EnableOnly(MachineUnit.Inspection);
                     await using var services = CreateDisplayServices(out var feedback, settings);
                     var machine = services.GetRequiredService<MachineController>();
                     using var release = new ManualResetEventSlim();
@@ -225,7 +225,7 @@ public sealed partial class MachineLifecycleTests
                         else if (target == HomeCommandTarget.TeachingUnit)
                         {
                             var teaching = services.GetRequiredService<TeachingViewModel>();
-                            teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
+                            teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
                             command = teaching.HomeCommand;
                         }
                         else
@@ -298,7 +298,7 @@ public sealed partial class MachineLifecycleTests
     public async Task MotionWindowCloseCancelsAndAwaitsItsAxisHome()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
