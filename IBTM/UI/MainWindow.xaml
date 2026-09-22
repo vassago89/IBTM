@@ -9,7 +9,6 @@
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
     IsEnabled="{Binding ControlsEnabled}"
-    Title="IBTM - Inline Assembly Control"
     Width="1920"
     Height="1080"
     Icon="{StaticResource AppIcon}"
@@ -65,10 +64,11 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Padding="20,20,20,16" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
-                    <TextBlock Text="IBTM" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="Menu" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
@@ -85,11 +85,25 @@
                             </Style>
                         </Button.Style>
                     </Button>
+                    <Button
+    Content="{Binding Source={x:Static ui:AppPage.ManualHardware}, Converter={StaticResource EnumDescriptionConverter}}"
+    Command="{Binding NavigateCommand}"
+    CommandParameter="{x:Static ui:AppPage.ManualHardware}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.ManualHardware}">
+                                        <Setter Property="Tag" Value="Selected"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
 
                     <Button
                         Content="{Binding Source={x:Static ui:AppPage.Teaching}, Converter={StaticResource EnumDescriptionConverter}}"
                         Command="{Binding NavigateCommand}"
-                        CommandParameter="{x:Static ui:AppPage.Teaching}" Margin="0,12,0,0">
+                        CommandParameter="{x:Static ui:AppPage.Teaching}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
@@ -114,36 +128,21 @@
                             </Style>
                         </Button.Style>
                     </Button>
-
-                    <Button
-                        Content="{Binding Source={x:Static ui:AppPage.ManualHardware}, Converter={StaticResource EnumDescriptionConverter}}"
-                        Command="{Binding NavigateCommand}"
-                        CommandParameter="{x:Static ui:AppPage.ManualHardware}"
-                        Margin="0,12,0,0">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.ManualHardware}">
-                                        <Setter Property="Tag" Value="Selected"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-
+                </StackPanel>
+                <StackPanel Grid.Row="2" Margin="0,8">
                     <Button Content="INPUTS" Margin="8,8,8,0" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenInputsCommand}"/>
 
                     <Button Content="OUTPUTS" Style="{StaticResource SidebarToolButtonStyle}"
-                        IsEnabled="{Binding OutputsWindowEnabled}"
-                        ToolTip="Open in MANUAL only. Individual controls remain safety-interlocked." ToolTipService.ShowOnDisabled="True"
-                        Command="{Binding OpenOutputsCommand}"/>
+        IsEnabled="{Binding OutputsWindowEnabled}"
+        ToolTip="Open in MANUAL only. Individual controls remain safety-interlocked." ToolTipService.ShowOnDisabled="True"
+        Command="{Binding OpenOutputsCommand}"/>
 
                     <Button Content="MOTION" Style="{StaticResource SidebarToolButtonStyle}"
-                        ToolTip="Axis numbers, positions and feedback. Controls remain safety-interlocked." Command="{Binding OpenMotionCommand}"/>
+        ToolTip="Axis numbers, positions and feedback. Controls remain safety-interlocked." Command="{Binding OpenMotionCommand}"/>
 
                     <Button Content="ADC TEST" Style="{StaticResource SidebarToolButtonStyle}"
-                        IsEnabled="{Binding AdcProtocolEnabled}"
-                        Command="{Binding OpenAdcProtocolCommand}"/>
+        IsEnabled="{Binding AdcProtocolEnabled}"
+        Command="{Binding OpenAdcProtocolCommand}"/>
                     <Button Content="LOGS" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenLogsCommand}"/>
                 </StackPanel>
             </Grid>

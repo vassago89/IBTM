@@ -24,7 +24,7 @@ public enum AppPage
     [Description("Settings")]
     Settings,
 
-    [Description("Manual Control")]
+    [Description("Manual")]
     ManualHardware,
 }
 
