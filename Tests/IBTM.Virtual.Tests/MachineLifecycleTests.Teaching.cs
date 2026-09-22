@@ -866,6 +866,54 @@ public sealed partial class MachineLifecycleTests
         await machine.ShutdownAsync();
     }
 
+    [Fact]
+    public async Task InspectionTeachingMovesToShuttleWithBothAxesTogether()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 35, Y = 60 };
+        await using var services = CreateDisplayServices(out var feedback, settings);
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            var gantry = services.GetRequiredService<InspectionStation>();
+            var pickupPosition = settings.NgCarrierTransfer.GetCarrierPickupPosition()!;
+            var shuttlePosition = settings.NgCarrierTransfer.ShuttlePlacePosition;
+            await gantry.MoveToAsync(pickupPosition);
+            var teaching = services.GetRequiredService<TeachingViewModel>();
+            teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.NgShuttlePlace);
+            await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+
+            var axesMovedTogether = false;
+            void ObserveShuttleMove(double x, double y, double z)
+            {
+                axesMovedTogether |= x > pickupPosition.X && x < shuttlePosition.X
+                    && y > pickupPosition.Y && y < shuttlePosition.Y;
+            }
+            gantry.Feedback.PositionChanged += ObserveShuttleMove;
+            try
+            {
+                await teaching.MoveToPointCommand.ExecuteAsync(null);
+            }
+            finally
+            {
+                gantry.Feedback.PositionChanged -= ObserveShuttleMove;
+            }
+
+            Assert.True(axesMovedTogether);
+            Assert.Empty(feedback.AxisMoves);
+            Assert.True(gantry.IsAt(shuttlePosition));
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

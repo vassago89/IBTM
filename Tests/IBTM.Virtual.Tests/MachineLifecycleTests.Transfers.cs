@@ -431,6 +431,7 @@ public sealed partial class MachineLifecycleTests
 
         settings.PickupSafeX = 5;
         settings.Speed = 100;
+        settings.ShuttlePlacePosition = new() { X = 150, Y = 80 };
         var pickupPosition = settings.GetCarrierPickupPosition()!;
         using var cancellation = new CancellationTokenSource();
         void StopDuringPickupMove(double x, double y, double z)
@@ -470,7 +471,22 @@ public sealed partial class MachineLifecycleTests
         Assert.Empty(feedback.AxisMoves);
 
         feedback.AxisMoves.Clear();
-        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, CancellationToken.None)!;
+        var axesMovedTogether = false;
+        void ObserveShuttleMove(double x, double y, double z)
+        {
+            axesMovedTogether |= x > pickupPosition.X && x < settings.ShuttlePlacePosition.X
+                && y > pickupPosition.Y && y < settings.ShuttlePlacePosition.Y;
+        }
+        gantry.Feedback.PositionChanged += ObserveShuttleMove;
+        try
+        {
+            await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, CancellationToken.None)!;
+        }
+        finally
+        {
+            gantry.Feedback.PositionChanged -= ObserveShuttleMove;
+        }
+        Assert.True(axesMovedTogether);
         Assert.Empty(feedback.AxisMoves);
         Assert.True(gantry.IsAt(settings.ShuttlePlacePosition));
     }
