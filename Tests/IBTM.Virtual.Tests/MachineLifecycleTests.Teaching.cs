@@ -644,8 +644,6 @@ public sealed partial class MachineLifecycleTests
         teaching.NewFasteningHead = head;
         teaching.AddBoltPointCommand.Execute(null);
         var bolt = teaching.SelectedPoint!.Position.Bolt!;
-        teaching.MillimetersPerPixel = 0.5;
-        teaching.FovRegion = new(10, 20, 65, 65);
         await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 110, Y = 220 });
         await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
