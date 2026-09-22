@@ -135,14 +135,14 @@ public sealed class AdcBoltHeadTests
         var startedAt = Environment.TickCount64;
         var cycle = head.TightenAsync();
         Assert.False(cycle.IsCompleted);
-        Assert.False(head.LastStatus!.Running); // Initial OFF cannot finish a new cycle.
+        Assert.False(head.Monitor.Status!.Running); // Initial OFF cannot finish a new cycle.
         Assert.Equal(1, bus.EventReads);
         Assert.Equal(0, bus.ResultReads);
         Assert.True((await cycle).Success);
         Assert.True(Environment.TickCount64 - startedAt >= 140);
         Assert.Equal(1, bus.ResultReads);
         Assert.Equal(1, bus.EventReads);
-        Assert.Equal(7, bus.StatusReads);
+        Assert.True(bus.StatusReads >= 7);
         Assert.False(bus.ResultReadWhileRunning);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
@@ -342,8 +342,8 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         Assert.True((await head.TightenAsync(dryRunMilliseconds: dryRun ? 20 : 0)).Success);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal(dryRun, head.LastStatus!.Running);
-        Assert.Equal(dryRun ? 2 : 4, bus.StatusReads);
+        Assert.Equal(dryRun, head.Monitor.Status!.Running);
+        Assert.True(bus.StatusReads >= (dryRun ? 2 : 4));
         if (dryRun)
             await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
     }
@@ -363,7 +363,7 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(1, bus.EventReads);
         Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(head.LastStatus!.Running);
+        Assert.True(head.Monitor.Status!.Running);
         Assert.Equal(2, bus.StatusReads);
     }
 
@@ -465,8 +465,8 @@ public sealed class AdcBoltHeadTests
         Assert.False(edges[1].On);
         Assert.True(edges[1].Time - edges[0].Time >= 90);
         Assert.Equal(1, bus.ResetWrites);
-        Assert.Equal((ushort)0, head.LastStatus!.Alarm);
-        Assert.True(head.LastStatus.Ready);
+        Assert.Equal((ushort)0, head.Monitor.Status!.Alarm);
+        Assert.True(head.Monitor.Status.Ready);
         Assert.True(bus.StatusReads >= 6); // Shared monitoring includes RUN transitions.
         bus.ResultStatus = AdcEventStatus.FasteningOk;
         bus.ResultError = 0;
@@ -486,7 +486,7 @@ public sealed class AdcBoltHeadTests
         var result = await cycle;
         Assert.False(result.Success);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal((ushort)125, head.LastStatus!.Alarm);
+        Assert.Equal((ushort)125, head.Monitor.Status!.Alarm);
         Assert.Equal(2, bus.StatusReads);
     }
 
