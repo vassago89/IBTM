@@ -54,7 +54,7 @@
 
             <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="140" Orientation="Horizontal">
                 <Border Style="{StaticResource DeviceBodyStyle}" Padding="6,4" Margin="0,0,6,0"
-                    ToolTip="Last ADC sample after a command. No periodic status polling.">
+                    ToolTip="Status recorded after the last controller command.">
                     <StackPanel>
                         <TextBlock Text="Pick · Last ADC" Style="{StaticResource MapLabelStyle}"/>
                         <TextBlock Style="{StaticResource MapLabelStyle}">
@@ -66,7 +66,7 @@
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource DeviceBodyStyle}" Padding="6,4" Margin="0,0,6,0"
-                    ToolTip="Last ADC sample after a command. No periodic status polling.">
+                    ToolTip="Status recorded after the last controller command.">
                     <StackPanel>
                         <TextBlock Text="Shoot · Last ADC" Style="{StaticResource MapLabelStyle}"/>
                         <TextBlock Style="{StaticResource MapLabelStyle}">
