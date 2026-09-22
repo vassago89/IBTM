@@ -303,14 +303,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            Close();
-        }
-        finally
-        {
-            _exchange.Dispose();
-        }
+        Close();
+        // Cancelled exchanges still release this managed gate while unwinding.
+        // No wait handle is allocated, so leave disposal to garbage collection.
     }
 
     public async Task<ushort[]> ReadRegistersAsync(

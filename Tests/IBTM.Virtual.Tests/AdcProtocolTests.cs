@@ -84,9 +84,11 @@ public sealed class AdcProtocolTests
         Assert.Empty(settings.ShootingPortName);
         Assert.Equal((byte)2, settings.PickupSlaveAddress);
         Assert.Equal((byte)3, settings.ShootingSlaveAddress);
+        Assert.Equal(100, settings.StatusPollMilliseconds);
         settings.ShootingPortName = "COM5";
         settings.ShootingBaudRate = 38400;
         settings.ShootingSlaveAddress = 2;
+        settings.StatusPollMilliseconds = 75;
 
         var reloaded = JsonSerializer.Deserialize<HantasSettings>(JsonSerializer.Serialize(settings))!;
 
@@ -95,6 +97,8 @@ public sealed class AdcProtocolTests
         Assert.Equal("COM5", reloaded.ShootingPortName);
         Assert.Equal(38400, reloaded.ShootingBaudRate);
         Assert.Equal(reloaded.PickupSlaveAddress, reloaded.ShootingSlaveAddress);
+        Assert.Equal(75, reloaded.StatusPollMilliseconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.StatusPollMilliseconds = 0);
     }
 
     [Theory]

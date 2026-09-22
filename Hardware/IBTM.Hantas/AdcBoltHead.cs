@@ -61,7 +61,7 @@ public sealed class AdcBoltHead : IBoltHead
     {
         cancellationToken.ThrowIfCancellationRequested();
         _io.CheckReady();
-        var status = await ReadStatusAsync(cancellationToken);
+        var status = await WaitForStatusAsync(cancellationToken);
         if (status.Alarm != 0 || !status.Ready || status.Running || _io.GetOutput(_start))
             throw new InvalidOperationException(
                 $"ADC {_portName}/{_slaveAddress} not ready: "
@@ -69,7 +69,7 @@ public sealed class AdcBoltHead : IBoltHead
                 + $"RUN={status.Running}, START={_io.GetOutput(_start)}.");
     }
 
-    private async Task<AdcControllerStatus> ReadStatusAsync(CancellationToken cancellationToken)
+    private async Task<AdcControllerStatus> WaitForStatusAsync(CancellationToken cancellationToken)
     {
         // Wait for the shared acquisition loop, never issue a second status query here.
         var after = Stopwatch.GetTimestamp();
@@ -348,7 +348,7 @@ public sealed class AdcBoltHead : IBoltHead
         // START is held while running; OFF stops the controller, including on timeout.
         _io.SetOutput(_start, false);
         _logger.LogInformation("ADC {Port}/{Slave}: I/O START OFF.", _portName, _slaveAddress);
-        await ReadStatusAsync(CancellationToken.None);
+        await WaitForStatusAsync(CancellationToken.None);
     }
 
     private async Task StopAfterOperationAsync(Exception? failure)

@@ -165,7 +165,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     public bool PortSelectionEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && !Bus.IsOpen;
 
-    public bool SlaveSelectionEnabled => ConnectionControlsEnabled && (IsVirtual || _machine.IsUseAdcProtocolAllowed);
+    public bool SlaveSelectionEnabled => ConnectionControlsEnabled && !Bus.IsOpen
+        && (IsVirtual || _machine.IsUseAdcProtocolAllowed);
 
     public bool ProtocolEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && Bus.IsOpen;
 
