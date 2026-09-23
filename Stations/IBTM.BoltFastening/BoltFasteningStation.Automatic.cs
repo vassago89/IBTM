@@ -194,14 +194,33 @@ public sealed partial class BoltFasteningStation
                         if (!PickupBoltLoaded)
                         {
                             await MoveToPickupXYAsync(token);
-                            if (feeding)
-                                await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
-                            await MoveToPickupZAsync(token);
-                            if (feeding)
-                                await SetVacuumAsync(FasteningHead.Pickup, true, token, waitForFeedback: false);
-                            await ReturnFromPickupAsync(token);
-                            if (feeding)
-                                await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, true, token);
+                            var retryCount = _settings.PickupRetryCount;
+                            for (var retry = 0; ; retry++)
+                            {
+                                token.ThrowIfCancellationRequested();
+                                // Late feedback at Safe Z can confirm the previous attempt.
+                                if (retry > 0 && PickupBoltLoaded)
+                                    break;
+                                if (feeding)
+                                    await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
+                                await MoveToPickupZAsync(token);
+                                if (feeding)
+                                    await SetVacuumAsync(FasteningHead.Pickup, true, token, waitForFeedback: false);
+                                await ReturnFromPickupAsync(token);
+                                if (!feeding)
+                                    break;
+                                try
+                                {
+                                    await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, true, token);
+                                    break;
+                                }
+                                catch (IoTimeoutException) when (retry < retryCount && !token.IsCancellationRequested)
+                                {
+                                    _log?.LogWarning(
+                                        "Pickup bolt {Bolt}, {HeatSink}: vacuum not detected at Safe Z; retry {Retry}/{RetryCount}.",
+                                        bolt.Number, bolt.HeatSink, retry + 1, retryCount);
+                                }
+                            }
                             token.ThrowIfCancellationRequested();
                             _work.RequireCurrentJob(job);
                         }

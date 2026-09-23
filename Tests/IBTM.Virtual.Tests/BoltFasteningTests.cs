@@ -1493,12 +1493,17 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task PickupChecksVacuumAfterReturningToSafeZ(bool vacuumAfterLift)
+    [InlineData(0, 1, false)]
+    [InlineData(0, 0, false)]
+    [InlineData(2, 3, false)]
+    [InlineData(2, 0, false)]
+    [InlineData(3, 0, true)]
+    public async Task PickupChecksVacuumAfterReturningToSafeZ(
+        int retryCount, int successfulAttempt, bool cancelDuringRetry)
     {
         var settings = new BoltFasteningSettings
         {
+            PickupRetryCount = retryCount,
             SafeZ = 5,
             PickupPosition = new() { X = 10, Y = 10, Z = 10 },
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
@@ -1508,7 +1513,7 @@ public sealed class BoltFasteningTests
         settings.PickupHead.FasteningZ = 16;
         var io = new VirtualIoService(
             Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()),
-            new() { TimeoutMilliseconds = 1_000 });
+            new() { TimeoutMilliseconds = 500 });
         io.Initialize();
         using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
         motion.Initialize();
@@ -1529,6 +1534,9 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.PickupFeederBoltDetected, true);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var vacuumRequested = false;
+        var pickupAttempts = 0;
+        var confirmedAfterLift = false;
+        var previousZ = motion.GetPosition().Z;
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PickupHeadVacuumPump && on)
@@ -1537,15 +1545,22 @@ public sealed class BoltFasteningTests
                 Assert.False(io.GetOutput(OutputIo.PickupHeadDown));
                 vacuumRequested = true;
                 // A signal at the feeder is not proof that the bolt stayed on the lifted head.
-                if (!vacuumAfterLift)
-                    io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+                io.SetInput(InputIo.PickupHeadVacuumDetected, true);
             }
             if (output == OutputIo.PickupBoltStart && on)
                 stop.Cancel();
         };
         motion.PositionChanged += (x, y, z) =>
         {
-            if (!vacuumAfterLift && vacuumRequested && z < settings.PickupPosition.Z)
+            if (x == settings.PickupPosition.X && y == settings.PickupPosition.Y
+                && z == settings.PickupPosition.Z && previousZ != z)
+            {
+                pickupAttempts++;
+                if (cancelDuringRetry && pickupAttempts == 2)
+                    stop.Cancel();
+            }
+            previousZ = z;
+            if (!confirmedAfterLift && vacuumRequested && z < settings.PickupPosition.Z)
                 io.SetInput(InputIo.PickupHeadVacuumDetected, false);
         };
         var run = station.RunAsync(stop.Token);
@@ -1558,17 +1573,31 @@ public sealed class BoltFasteningTests
             Assert.Equal((10, 10, settings.SafeZ), motion.GetPosition());
             Assert.Equal(0, bus.StartWrites);
             Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
-            if (vacuumAfterLift)
+            if (successfulAttempt > 0)
             {
+                Assert.True(await WaitUntilAsync(
+                    () => pickupAttempts == successfulAttempt && station.IsAtPickupXY() && station.IsAtSafeZ(),
+                    TimeSpan.FromSeconds(3)));
+                Assert.Equal(0, bus.StartWrites);
+                confirmedAfterLift = true;
                 io.SetInput(InputIo.PickupHeadVacuumDetected, true);
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.Equal(successfulAttempt, pickupAttempts);
                 Assert.Equal(1, bus.StartWrites);
                 Assert.Equal(settings.PickupHead.FasteningZ, motion.GetPosition().Z);
+            }
+            else if (cancelDuringRetry)
+            {
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.Equal(2, pickupAttempts);
+                Assert.Equal(0, bus.StartWrites);
+                Assert.False(io.GetOutput(OutputIo.PickupHeadDown));
             }
             else
             {
                 var error = await Assert.ThrowsAsync<IoTimeoutException>(() => run);
                 Assert.Contains("Vacuum", error.Message);
+                Assert.Equal(retryCount + 1, pickupAttempts);
                 Assert.Equal((10, 10, settings.SafeZ), motion.GetPosition());
                 Assert.Equal(0, bus.StartWrites);
             }

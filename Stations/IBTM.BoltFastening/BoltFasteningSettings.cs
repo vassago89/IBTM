@@ -16,6 +16,16 @@ public sealed class BoltFasteningSettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
+    public int PickupRetryCount
+    {
+        get;
+        set
+        {
+            if (value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "Pickup retry count must be zero or greater.");
+            field = value;
+        }
+    } = 3;
     public int DryRunMilliseconds
     {
         get;

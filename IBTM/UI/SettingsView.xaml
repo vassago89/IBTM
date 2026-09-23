@@ -263,6 +263,12 @@
                                         </UniformGrid>
                                         <TextBlock Text="Maximum wait for bolt detection at each feeder."
                                             Style="{StaticResource SettingHelpText}"/>
+                                        <TextBlock Text="Pickup · Vacuum Retry Count" Style="{StaticResource SettingFieldLabel}" Margin="0,10,0,0"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Text="{Binding Settings.BoltFastening.PickupRetryCount, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                            Width="180" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="Additional pickup attempts after vacuum feedback times out at Safe Z. Lower to pickup Z, lift and check again. 0 = no retry. Default: 3."
+                                            Style="{StaticResource SettingHelpText}"/>
                                         <TextBlock Text="Shooting Feeder · Run After Bolt Detection (ms)" Style="{StaticResource SettingFieldLabel}" Margin="0,10,0,0"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFeeder.ShootingRunOnMilliseconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"

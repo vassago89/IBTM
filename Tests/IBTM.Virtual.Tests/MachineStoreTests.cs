@@ -339,6 +339,9 @@ public sealed class MachineStoreTests
         motion.ZHome.SearchAccelerationSeconds = 0.2;
         motion.ZHome.DetectionAccelerationSeconds = 0.5;
         settings.BoltFastening.SafeZ = 7;
+        Assert.Equal(3, settings.BoltFastening.PickupRetryCount);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.BoltFastening.PickupRetryCount = -1);
+        settings.BoltFastening.PickupRetryCount = 4;
         settings.BoltFastening.ShootingDetectionTimeoutMilliseconds = 1_750;
         settings.BoltFastening.ShootingArrivalDelaySeconds = 0.75;
         settings.BoltFastening.ShootingHead.FasteningZ = 14;
