@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -114,6 +115,36 @@ public sealed class AdcBoltHeadTests
         Assert.Null(head.Monitor.Error);
         Assert.False(bus.ConcurrentStatusReadsDetected);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task IdleMonitorSamplesAndAcceptsQueuedWorkWithoutCancellationExceptions()
+    {
+        using var bus = new AdcControllerStub();
+        bus.Open("Virtual", 115200);
+        bus.Monitor.IntervalMilliseconds = 20;
+        var monitoring = new AsyncLocal<bool> { Value = true };
+        var cancellations = 0;
+        void OnFirstChanceException(object? sender, FirstChanceExceptionEventArgs args)
+        {
+            if (monitoring.Value && args.Exception is OperationCanceledException)
+                Interlocked.Increment(ref cancellations);
+        }
+        AppDomain.CurrentDomain.FirstChanceException += OnFirstChanceException;
+        try
+        {
+            await bus.Monitor.StartAsync(1, CancellationToken.None);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads >= 4, TimeSpan.FromSeconds(2)));
+            bus.Monitor.IntervalMilliseconds = 10_000;
+            var queued = bus.Monitor.EnqueueAsync(token => Task.FromResult(42));
+            Assert.Equal(42, await queued.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(0, Volatile.Read(ref cancellations));
+        }
+        finally
+        {
+            AppDomain.CurrentDomain.FirstChanceException -= OnFirstChanceException;
+            monitoring.Value = false;
+        }
     }
 
     [Fact]

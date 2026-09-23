@@ -133,6 +133,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     private async Task RunAsync(CancellationToken token)
     {
         long? lastStatusAt = null;
+        Task<bool>? requestAvailable = null;
         try
         {
             while (true)
@@ -143,18 +144,20 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                     : TimeSpan.Zero;
                 if (remaining > TimeSpan.Zero)
                 {
-                    using var waiting = CancellationTokenSource.CreateLinkedTokenSource(token);
-                    waiting.CancelAfter(remaining);
-                    try
+                    // Keep one queue wait across idle samples; a polling deadline is not a cancellation.
+                    requestAvailable ??= _requests.Reader.WaitToReadAsync(token).AsTask();
+                    await Task.WhenAny(requestAvailable, Task.Delay(remaining, token)).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    if (requestAvailable.IsCompleted)
                     {
-                        var request = await _requests.Reader.ReadAsync(waiting.Token).ConfigureAwait(false);
-                        // Await the complete exchange before another queued request or status query.
-                        await request(token).ConfigureAwait(false);
-                        continue;
-                    }
-                    catch (OperationCanceledException) when (!token.IsCancellationRequested)
-                    {
-                        // No queued work before the next status sample became due.
+                        var canRead = await requestAvailable.ConfigureAwait(false);
+                        requestAvailable = null;
+                        if (canRead && _requests.Reader.TryRead(out var request))
+                        {
+                            // Await the complete exchange before another queued request or status query.
+                            await request(token).ConfigureAwait(false);
+                            continue;
+                        }
                     }
                 }
                 var startedAt = Stopwatch.GetTimestamp();
