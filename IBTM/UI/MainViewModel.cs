@@ -21,8 +21,8 @@ public enum AppPage
     [Description("Teaching")]
     Teaching,
 
-    [Description("Inspection Teaching")]
-    InspectionTeaching,
+    [Description("Inspection")]
+    Inspection,
 
     [Description("Settings")]
     Settings,
@@ -130,7 +130,7 @@ public partial class MainViewModel : ObservableObject
                     return Operation;
                 case AppPage.Teaching:
                     return _teachingViewModel;
-                case AppPage.InspectionTeaching:
+                case AppPage.Inspection:
                     return _inspectionTeachingViewModel;
                 case AppPage.Settings:
                     return _settingsViewModel;
@@ -152,7 +152,7 @@ public partial class MainViewModel : ObservableObject
         get
         {
             return !NavigateCommand.IsRunning
-                && (SelectedPage is AppPage.Operation or AppPage.InspectionTeaching or AppPage.Settings or AppPage.ManualHardware
+                && (SelectedPage is AppPage.Operation or AppPage.Inspection or AppPage.Settings or AppPage.ManualHardware
                     || !RecipeEditor.IsBusy);
         }
     }
@@ -328,7 +328,7 @@ public partial class MainViewModel : ObservableObject
     private bool IsNavigateAllowed(AppPage page)
     {
         return !_shuttingDown
-            && (page is AppPage.Operation or AppPage.InspectionTeaching
+            && (page is AppPage.Operation or AppPage.Inspection
                 || !_state.AutomaticRunning
                     && page switch
                     {
@@ -348,7 +348,7 @@ public partial class MainViewModel : ObservableObject
             case AppPage.Teaching:
                 _teachingViewModel.Activate();
                 break;
-            case AppPage.InspectionTeaching:
+            case AppPage.Inspection:
                 _inspectionTeachingViewModel.Activate();
                 break;
             case AppPage.Settings:
@@ -390,7 +390,7 @@ public partial class MainViewModel : ObservableObject
                 if (!OutputsWindowEnabled)
                     _windows.CloseOutputs();
                 NavigateCommand.NotifyCanExecuteChanged();
-                var showOperation = _state.AutomaticRunning && SelectedPage is not (AppPage.Operation or AppPage.InspectionTeaching)
+                var showOperation = _state.AutomaticRunning && SelectedPage is not (AppPage.Operation or AppPage.Inspection)
                     || !_state.ManualMode
                         && SelectedPage == AppPage.Teaching;
                 if (showOperation

@@ -118,12 +118,12 @@
                         </Button.Style>
                     </Button>
 
-                    <Button Content="Inspection Teaching" Command="{Binding NavigateCommand}"
-                        CommandParameter="{x:Static ui:AppPage.InspectionTeaching}">
+                    <Button Content="Inspection" Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static ui:AppPage.Inspection}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.InspectionTeaching}">
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.Inspection}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
