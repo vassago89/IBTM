@@ -69,17 +69,6 @@ public partial class TeachingViewModel
 
     public HomeBlockReason HomeBlock => IsInspectionSelected ? HomeBlockReason.None : Machine.GetHomeBlock(ActiveMotionGroup);
 
-    private double TeachingXySpeed
-    {
-        get
-        {
-            return SelectedPoint?.Position.Target is TeachingTarget.InspectionWaiting
-                or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace
-                ? _ngTransferSettings.Speed
-                : _inspectionGantrySettings.Motion.HorizontalSpeed;
-        }
-    }
-
     public MotionGroup ActiveMotionGroup
     {
         get
@@ -252,7 +241,7 @@ public partial class TeachingViewModel
                     await _fasteningStation.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await Inspection.MoveAxisAsync(axis, target, TeachingXySpeed, operation.Token);
+                    await Inspection.MoveAxisAsync(axis, target, _inspectionGantrySettings.Motion.HorizontalSpeed, operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup));
@@ -352,7 +341,7 @@ public partial class TeachingViewModel
                     await Inspection.MoveToBarcodeAsync(SelectedPcb, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await Inspection.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, TeachingXySpeed, operation.Token);
+                    await Inspection.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, cancellationToken: operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(point));

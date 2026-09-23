@@ -52,13 +52,6 @@ public sealed partial class MachineController
                 cancellationToken.ThrowIfCancellationRequested();
                 RepeatDisplayPhase = RepeatPhase.Automatic;
                 await RunToRepeatEndAsync(cancellationToken);
-                if (_units.Inspection && _units.NgConveyor)
-                {
-                    RepeatDisplayPhase = RepeatPhase.ReturnToShuttle;
-                    await _inspectionStation.SetLiftUpAsync(true, cancellationToken);
-                    await _ngConveyor.ReturnFromConveyorAsync(cancellationToken);
-                }
-
                 if (_units.Inspection)
                 {
                     RepeatDisplayPhase = RepeatPhase.ReturnToStation3;
@@ -85,7 +78,6 @@ public sealed partial class MachineController
                 ? MachineAlarm.MotionUnavailable
                 : RepeatDisplayPhase switch
                 {
-                    RepeatPhase.ReturnToShuttle => MachineAlarm.NgConveyor,
                     RepeatPhase.ReturnToStation3 or RepeatPhase.ClearStation3 => MachineAlarm.Inspection,
                     _ => MachineAlarm.MainConveyor,
                 };
@@ -107,8 +99,6 @@ public sealed partial class MachineController
         {
             if (!_units.Inspection)
                 await _conveyor.WaitForRepeatEndAsync(cycle.Token);
-            else if (_units.NgConveyor)
-                await _ngConveyor.WaitForRepeatEndAsync(cycle.Token);
             else
                 await _inspectionStation.WaitForRepeatEndAsync(cycle.Token);
         }

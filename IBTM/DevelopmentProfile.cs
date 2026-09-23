@@ -68,7 +68,6 @@ internal static class DevelopmentProfile
         settings.NgCarrierTransfer.PickupSafeX = 13.48275862;
         settings.NgCarrierTransfer.WaitingPosition = new() { X = 13.48275862, Y = 15 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 26.05172414, Y = 55.625 };
-        settings.NgCarrierTransfer.Speed = 25;
 
         var recipe = new Recipe { Name = "Virtual Development" };
         recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 10 };

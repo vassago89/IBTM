@@ -11,7 +11,6 @@ public sealed class NgCarrierTransferSettings : Setting
         ShuttlePlacePosition = new();
     }
 
-    public double Speed { get; set; } = 100.0;
     public AxisPosition? WaitingPosition { get; set; }
     public double? PickupSafeX { get; set; }
     // Keep the stored fields unchanged: pickup X is PickupSafeX, pickup Y is here.

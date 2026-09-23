@@ -100,6 +100,9 @@ public sealed class NgHandoffTests
         await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
             InspectionStationState.PlacingCarrier, stop.Token, holdAtDestination: true);
         Assert.True(changedDuringTravel);
+        Assert.True(transfer.IsRaised);
+        Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
+        Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
         foreach (var value in new[] { false, true })
         {
             io.SetInput(InputIo.NgCarrierDetected, value);
@@ -115,6 +118,67 @@ public sealed class NgHandoffTests
         Assert.Equal(InspectionStationState.TransferCompleted,
             transfer.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
         Assert.True(signals.Inputs[InputIo.NgCarrierDetected].IsOn);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InspectionReturnsOnlyAfterShuttleDown(bool restartWhileWaiting)
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var io = system.Io;
+        var transfer = system.Inspection;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
+        Assert.True(transfer.IsClear);
+        Assert.Equal(NgTransferGripperState.Open, transfer.Gripper);
+        Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+        Assert.Equal(NgConveyorState.LoweringShuttle, system.Conveyor.State);
+
+        // Delay the real feedback after the shuttle receives its DOWN command.
+        io.AutoResponseEnabled = false;
+        var movedBeforeDown = false;
+        motion.PositionChanged += (x, y, z) =>
+            movedBeforeDown |= system.Conveyor.ShuttleLift != NgShuttleLiftState.Down;
+        using var firstRun = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+        var inspection = transfer.RunAsync([], firstRun.Token);
+        if (restartWhileWaiting)
+        {
+            firstRun.Cancel();
+            await inspection.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+            inspection = transfer.RunAsync([], stop.Token);
+        }
+        var conveyor = system.Conveyor.RunAsync(stop.Token);
+        try
+        {
+            Assert.True(await WaitUntilAsync(
+                () => io.GetOutput(OutputIo.NgShuttleDown), TimeSpan.FromSeconds(1)));
+            Assert.Equal((10d, 10d, 0d), motion.GetPosition());
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+            io.SetInput(InputIo.NgShuttleUp, false);
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+            await Assert.ThrowsAsync<MotionInterlockException>(
+                () => transfer.MoveToAsync(new(), cancellationToken: stop.Token));
+            io.SetInputs((InputIo.NgShuttleUp, true), (InputIo.NgShuttleDown, true));
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+            io.SetInput(InputIo.NgShuttleUp, false);
+            Assert.True(await WaitUntilAsync(
+                () => transfer.IsAt(new()) && transfer.GetState() == InspectionStationState.Waiting,
+                TimeSpan.FromSeconds(1)));
+            Assert.False(movedBeforeDown);
+        }
+        finally
+        {
+            stop.Cancel();
+            await Task.WhenAll(inspection, conveyor).WaitAsync(TimeSpan.FromSeconds(1));
+        }
     }
 
     [Theory]

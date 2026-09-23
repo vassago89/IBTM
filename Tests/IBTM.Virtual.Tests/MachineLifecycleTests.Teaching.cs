@@ -261,7 +261,8 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateDisplayServices(out var feedback);
         var transferSettings = services.GetRequiredService<NgCarrierTransferSettings>();
-        transferSettings.Speed = 1_234;
+        var motionSettings = services.GetRequiredService<InspectionGantrySettings>().Motion;
+        motionSettings.HorizontalSpeed = 1_234;
         transferSettings.PickupSafeX = null;
         transferSettings.WaitingPosition = null;
         var machine = services.GetRequiredService<MachineController>();
@@ -323,14 +324,14 @@ public sealed partial class MachineLifecycleTests
             await teaching.MoveToPointCommand.ExecuteAsync(null);
             Assert.Equal((x, y, 0), gantry.Feedback.GetPosition());
             Assert.Empty(feedback.AxisMoves);
-            Assert.Equal(transferSettings.Speed, feedback.LastMoveVelocity);
+            Assert.Equal(motionSettings.HorizontalSpeed, feedback.LastMoveVelocity);
         }
 
         var beforeStep = gantry.Feedback.GetPosition();
         teaching.StepDistance = 0.1;
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
         await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
-        Assert.Equal(transferSettings.Speed, feedback.LastMoveVelocity);
+        Assert.Equal(motionSettings.HorizontalSpeed, feedback.LastMoveVelocity);
         Assert.Equal(beforeStep.X + 0.1, gantry.Feedback.GetPosition().X, 6);
         Assert.Equal(beforeStep.Y, gantry.Feedback.GetPosition().Y);
 

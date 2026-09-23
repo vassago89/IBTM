@@ -85,7 +85,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
-        settings.NgCarrierTransfer.Speed = 200;
+        settings.InspectionGantry.Motion.HorizontalSpeed = 200;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -430,7 +430,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal((50, 60, 0), gantry.Feedback.GetPosition());
 
         settings.PickupSafeX = 5;
-        settings.Speed = 100;
+        services.GetRequiredService<InspectionGantrySettings>().Motion.HorizontalSpeed = 100;
         settings.ShuttlePlacePosition = new() { X = 150, Y = 80 };
         var pickupPosition = settings.GetCarrierPickupPosition()!;
         using var cancellation = new CancellationTokenSource();
@@ -736,14 +736,18 @@ public sealed partial class MachineLifecycleTests
         {
             io.SetInput(InputIo.NgShuttleUp, false);
             io.SetInput(InputIo.NgShuttleDown, false);
-            Assert.Equal(InspectionStationState.HoldingAtDestination,
+            Assert.Equal(InspectionStationState.PreparingTransfer,
                 move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
             AssertState(InspectionStationState.WaitingForDestination);
             io.SetInput(InputIo.NgCarrierDetected, false);
-            Assert.Equal(InspectionStationState.HoldingAtDestination,
+            Assert.Equal(InspectionStationState.PreparingTransfer,
                 move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierDetected, true);
             io.SetInput(InputIo.NgCarrierPickupDown, false);
+            io.SetInput(InputIo.NgCarrierPickupUp, true);
+            Assert.Equal(InspectionStationState.HoldingAtDestination,
+                move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
+            io.SetInput(InputIo.NgCarrierPickupUp, false);
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             io.SetInput(InputIo.NgCarrierGripperOpen, true);
             // Unexpected opening above an unsupported destination must retain the failed transfer.

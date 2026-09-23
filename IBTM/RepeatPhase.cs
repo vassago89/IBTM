@@ -6,8 +6,6 @@ public enum RepeatPhase
 {
     [Description("Forward repeat transfer")]
     Automatic,
-    [Description("NG end → Shuttle")]
-    ReturnToShuttle,
     [Description("Shuttle → Station 3")]
     ReturnToStation3,
     [Description("Returning to entry sensor")]

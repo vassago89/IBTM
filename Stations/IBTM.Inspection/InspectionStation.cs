@@ -21,6 +21,8 @@ public sealed partial class InspectionStation : AutoUnit
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly UnitSettings _units;
     private HeatSinkSlot[]? _runTargets;
+    // An unfinished shuttle handoff must still wait for clearance after STOP.
+    private bool _waitingForShuttleDown;
     // Current loop destinations for display only; never resume them after STOP.
     private HeatSinkSlot? _activePcb;
     private BoltPoint? _activeBolt;
@@ -60,11 +62,14 @@ public sealed partial class InspectionStation : AutoUnit
 
     public InspectionStationState GetState(
         bool repeat = false,
-        bool holdAtShuttle = false,
         bool live = true,
         bool? conveyorRunning = null,
         bool? mainConveyorRunning = null)
     {
+        if (_waitingForShuttleDown && IsClear && Gripper == NgTransferGripperState.Open)
+            return _ngConveyor.ShuttleLift == NgShuttleLiftState.Down
+                ? InspectionStationState.ReturningToWaitingPosition
+                : InspectionStationState.WaitingForShuttleDown;
         if (_work.CarrierSeatingRequested)
             return InspectionStationState.SeatingCarrier;
         if (_units.Inspection)
@@ -73,8 +78,8 @@ public sealed partial class InspectionStation : AutoUnit
                 NgTransferDestination.Shuttle,
                 canPickUp: repeat && IsEmptyRepeatAllowed && !Station.CarrierPresent
                     || Station.CarrierSeated && _work.Completed && (repeat || _work.RouteToNg),
-                canReceive: holdAtShuttle || _ngConveyor.IsReceiveAllowed(conveyorRunning),
-                holdAtDestination: holdAtShuttle,
+                canReceive: repeat || _ngConveyor.IsReceiveAllowed(conveyorRunning),
+                holdAtDestination: repeat,
                 live: live,
                 allowEmpty: repeat && IsEmptyRepeatAllowed);
             if (transferState is not InspectionStationState.Waiting and not InspectionStationState.TransferCompleted)
@@ -122,8 +127,7 @@ public sealed partial class InspectionStation : AutoUnit
     public async Task RunAsync(
         IReadOnlyList<BoltPoint> bolts,
         CancellationToken cancellationToken = default,
-        bool repeat = false,
-        bool holdAtShuttle = false)
+        bool repeat = false)
     {
         if (cancellationToken.IsCancellationRequested)
             return;
@@ -134,7 +138,7 @@ public sealed partial class InspectionStation : AutoUnit
                 _work.Restart(_work.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (repeat && _work.Enabled && !_units.MainConveyor
+                if (repeat && !_waitingForShuttleDown && _work.Enabled && !_units.MainConveyor
                     && (IsEmptyRepeatAllowed || _work.Station.CarrierPresent)
                     && _work.PickupClear)
                 {
@@ -165,7 +169,7 @@ public sealed partial class InspectionStation : AutoUnit
                         continue;
                     }
                 }
-                await ExecuteAsync(bolts, repeat, holdAtShuttle, cancellationToken);
+                await ExecuteAsync(bolts, repeat, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -181,10 +185,9 @@ public sealed partial class InspectionStation : AutoUnit
     private async Task ExecuteAsync(
         IReadOnlyList<BoltPoint> bolts,
         bool repeat,
-        bool holdAtShuttle,
         CancellationToken cancellationToken)
     {
-        var state = GetState(repeat, holdAtShuttle);
+        var state = GetState(repeat);
         switch (state)
         {
             case InspectionStationState.PreparingTransfer
@@ -193,15 +196,17 @@ public sealed partial class InspectionStation : AutoUnit
                 or InspectionStationState.WaitingForDestination
                 or InspectionStationState.HoldingAtDestination:
                 if (!await ExecuteTransferAsync(
-                    NgTransferDestination.Shuttle, state, cancellationToken, holdAtShuttle,
+                    NgTransferDestination.Shuttle, state, cancellationToken, holdAtDestination: repeat,
                     allowEmpty: repeat && IsEmptyRepeatAllowed))
                     await WaitForChangeAsync(cancellationToken);
                 return;
         }
 
         TraceStep(state, workId: _work.CurrentJob.Id,
-            waitingFor: state is InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor
-                ? "carrier, supports and clear pickup" : null);
+            waitingFor: state == InspectionStationState.WaitingForShuttleDown
+                ? $"shuttle Down; current={_ngConveyor.ShuttleLift}"
+                : state is InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor
+                    ? "carrier, supports and clear pickup" : null);
         switch (state)
         {
             case InspectionStationState.SeatingCarrier:
@@ -214,6 +219,7 @@ public sealed partial class InspectionStation : AutoUnit
             case InspectionStationState.Disabled
                 or InspectionStationState.Waiting
                 or InspectionStationState.WaitingForConveyor
+                or InspectionStationState.WaitingForShuttleDown
                 or InspectionStationState.BarcodeTeachingRequired
                 or InspectionStationState.FovTeachingRequired:
                 await WaitForChangeAsync(cancellationToken);
@@ -326,10 +332,17 @@ public sealed partial class InspectionStation : AutoUnit
 
     private async Task MoveToWaitingPositionAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var position = _work.WaitingPosition
             ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
         if (!IsAt(position))
             await MoveToAsync(position, cancellationToken: cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_waitingForShuttleDown)
+        {
+            _waitingForShuttleDown = false;
+            NotifyChanged();
+        }
     }
 
     private (HeatSinkSlot? Pcb, BoltPoint? Bolt) InspectionTarget
@@ -430,7 +443,7 @@ public sealed partial class InspectionStation : AutoUnit
         var sourcePosition = GetTransferPosition(source);
         var atDestination = destinationPosition is not null && IsAt(destinationPosition, live);
         var atSource = sourcePosition is not null && IsAt(sourcePosition, live);
-        // Transfer-only repeat keeps the carrier gripped; the disabled shuttle is not a support.
+        // Repeat turns around above the shuttle with the carrier still raised and gripped.
         var holdAtShuttle = holdAtDestination && destination == NgTransferDestination.Shuttle;
         var destinationPresent = !holdAtShuttle && IsCarrierPresent(destination);
         var lift = Lift;
@@ -445,7 +458,7 @@ public sealed partial class InspectionStation : AutoUnit
 
         if (atDestination)
         {
-            if (holdAtDestination && down && pending)
+            if (holdAtDestination && (holdAtShuttle ? raised : down) && pending)
             {
                 if (!destinationReady)
                     return InspectionStationState.WaitingForDestination;
@@ -469,7 +482,7 @@ public sealed partial class InspectionStation : AutoUnit
         {
             if (gripper != NgTransferGripperState.Closed)
                 return InspectionStationState.PickingCarrier;
-            if (!atDestination && !raised)
+            if (!raised && (!atDestination || holdAtShuttle))
                 return InspectionStationState.PreparingTransfer;
             if (!destinationReady && !canPrepareStation)
                 return InspectionStationState.WaitingForDestination;
@@ -590,13 +603,14 @@ public sealed partial class InspectionStation : AutoUnit
                         if (destination == NgTransferDestination.Station && !IsSupportReady(destination))
                             await SeatStationAsync(carrying.Token);
                         else if (!IsAt(position))
-                            await MoveToAsync(position, _settings.Speed, carrying.Token);
-                        // Recheck the support after XY travel before lowering.
-                        if (!IsSupportReady(destination)
-                            && !(holdAtDestination && destination == NgTransferDestination.Shuttle))
-                            return false;
+                            await MoveToAsync(position, cancellationToken: carrying.Token);
                         CheckGrip();
                         carrying.Token.ThrowIfCancellationRequested();
+                        if (holdAtDestination && destination == NgTransferDestination.Shuttle)
+                            return true;
+                        // Recheck the support after XY travel before lowering.
+                        if (!IsSupportReady(destination))
+                            return false;
                         if (Lift != NgTransferLiftState.Down)
                             await SetLiftUpAsync(false, carrying.Token);
                     }
@@ -618,6 +632,8 @@ public sealed partial class InspectionStation : AutoUnit
                 {
                     if (Lift != NgTransferLiftState.Down || !allowEmpty && !IsCarrierPresent(destination))
                         throw new InvalidOperationException("Confirm the destination supports the pending NG carrier before releasing it.");
+                    if (destination == NgTransferDestination.Shuttle)
+                        _waitingForShuttleDown = true;
                     await SetGripperOpenAsync(true, cancellationToken);
                 }
                 if (!allowEmpty)
@@ -653,7 +669,7 @@ public sealed partial class InspectionStation : AutoUnit
             ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to a carrier.");
         if (IsAt(position))
             return;
-        await MoveToAsync(position, _settings.Speed, cancellationToken);
+        await MoveToAsync(position, cancellationToken: cancellationToken);
     }
 
     public async Task SeatStationAsync(CancellationToken cancellationToken)
@@ -662,7 +678,7 @@ public sealed partial class InspectionStation : AutoUnit
             ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before raising the inspection backup plate.");
         // This awaited sequence owns XY until the plate finishes rising.
         // Do not infer permission to raise the plate from a coordinate comparison.
-        await MoveToAsync(position, _settings.Speed, cancellationToken);
+        await MoveToAsync(position, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         await Station.SeatAsync(cancellationToken);
     }
@@ -759,6 +775,10 @@ public sealed partial class InspectionStation : AutoUnit
         {
             throw new MotionInterlockException("NG carrier pickup must be raised before inspection XY movement.");
         }
+        if (_waitingForShuttleDown && _ngConveyor.ShuttleLift != NgShuttleLiftState.Down)
+        {
+            throw new MotionInterlockException("Wait for the NG shuttle to finish lowering after carrier release before inspection XY movement.");
+        }
     }
 
 
@@ -798,6 +818,6 @@ public sealed partial class InspectionStation : AutoUnit
             throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the waiting position.");
 
         if (!IsAt(waitingPosition))
-            await MoveToAsync(waitingPosition, _settings.Speed, cancellationToken);
+            await MoveToAsync(waitingPosition, cancellationToken: cancellationToken);
     }
 }

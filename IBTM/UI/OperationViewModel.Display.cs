@@ -63,8 +63,7 @@ public partial class OperationViewModel
                 && Machine.TeachingReady && InspectionPositionKnown && Inspection.Motion.IsReady(live: false)
                 && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } mainRunning
                 && Signals.Outputs[OutputIo.NgConveyorRun].IsOn is { } running
-                ? Inspection.GetState(State.RepeatEnabled,
-                    holdAtShuttle: State.RepeatEnabled && !Units.NgConveyor, live: false,
+                ? Inspection.GetState(State.RepeatEnabled, live: false,
                     conveyorRunning: running, mainConveyorRunning: mainRunning)
                 : null;
         }
@@ -335,7 +334,8 @@ public partial class OperationViewModel
                 case true when Inspection.Motion.IsMoving
                     || Inspection.IsTransferPending
                     || InspectionState is InspectionStationState.PreparingTransfer
-                        or InspectionStationState.PickingCarrier or InspectionStationState.PlacingCarrier:
+                        or InspectionStationState.PickingCarrier or InspectionStationState.PlacingCarrier
+                        or InspectionStationState.WaitingForShuttleDown:
                     return StationDisplayState.Working;
                 case true when !InspectionWork.Station.CarrierPresent:
                     return StationDisplayState.WaitingForCarrier;

@@ -51,6 +51,9 @@ public enum InspectionStationState
 
     [Description("Disabled")]
     Disabled,
+
+    [Description("Waiting for NG Shuttle Down")]
+    WaitingForShuttleDown,
 }
 
 public enum NgTransferDestination

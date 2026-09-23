@@ -300,13 +300,11 @@ public sealed partial class MachineController
                 _inspectionStation.RunAsync(
                     _recipes.Current.Pcb.BoltPoints.ToArray(),
                     cycle.Token,
-                    repeat,
-                    holdAtShuttle: repeat && !_units.NgConveyor),
+                    repeat),
                 cycle));
         }
 
-        if (!cycle.IsCancellationRequested && _units.NgConveyor
-            && (!repeat || _units.Inspection))
+        if (!cycle.IsCancellationRequested && _units.NgConveyor && !repeat)
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.NgConveyor,

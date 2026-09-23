@@ -112,14 +112,17 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
     public async Task InspectionOnlyRepeatPicksAndReturnsWithOrWithoutMaterial(
-        bool startsWithCarrierHeld, bool detected)
+        bool startsWithCarrierHeld, bool detected, bool ngConveyorEnabled)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.Units.NgConveyor = ngConveyorEnabled;
+        settings.NgCarrierTransfer.WaitingPosition = new() { X = 30, Y = 40 };
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -135,7 +138,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.InspectionHeatSink1Present, startsWithCarrierHeld);
         // Material on the disabled main route does not belong to this repeat.
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
-        // Disabled shuttle feedback must not be required for the held-carrier turn.
+        // The held-carrier turn does not use the shuttle as a support.
         io.SetInputs((InputIo.NgShuttleUp, false), (InputIo.NgShuttleDown, false));
         if (startsWithCarrierHeld)
         {
@@ -153,10 +156,8 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierDetected, detected);
 
         (double X, double Y, bool Holding)[] expectedDescents = startsWithCarrierHeld
-            ? [(150d, 20d, true), (5d, 20d, true),
-                (5d, 20d, false), (150d, 20d, true), (5d, 20d, true)]
-            : [(5d, 20d, false), (150d, 20d, true), (5d, 20d, true),
-                (5d, 20d, false), (150d, 20d, true), (5d, 20d, true)];
+            ? [(5d, 20d, true), (5d, 20d, false), (5d, 20d, true)]
+            : [(5d, 20d, false), (5d, 20d, true), (5d, 20d, false), (5d, 20d, true)];
 
         var descents = new ConcurrentQueue<(double X, double Y, bool Holding)>();
         var mainRan = false;
@@ -164,6 +165,7 @@ public sealed partial class MachineLifecycleTests
         var shuttleMoved = false;
         var plateRaised = false;
         var releasedAtShuttle = false;
+        var raisedShuttleVisits = 0;
         var returnedTwice = false;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         io.OutputChanged += (output, on) =>
@@ -184,11 +186,16 @@ public sealed partial class MachineLifecycleTests
         };
         machine.PropertyChanged += (sender, args) =>
         {
-            if (args.PropertyName != nameof(MachineController.RepeatDisplayPhase)
-                || machine.RepeatDisplayPhase != RepeatPhase.Automatic
+            if (args.PropertyName != nameof(MachineController.RepeatDisplayPhase))
+                return;
+            if (machine.RepeatDisplayPhase == RepeatPhase.ReturnToStation3
+                && gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition)
+                && pickup.IsRaised && pickup.Gripper == NgTransferGripperState.Closed)
+                raisedShuttleVisits++;
+            if (machine.RepeatDisplayPhase != RepeatPhase.Automatic
                 || descents.Count != expectedDescents.Length || stop.IsCancellationRequested)
                 return;
-            returnedTwice = gantry.IsAt(settings.NgCarrierTransfer.GetCarrierPickupPosition()!)
+            returnedTwice = gantry.IsAt(settings.NgCarrierTransfer.WaitingPosition)
                 && work.Station.CarrierPresent == startsWithCarrierHeld
                 && work.Station.BackupPlate == StationCylinderState.Up && pickup.IsClear
                 && pickup.Gripper == NgTransferGripperState.Open;
@@ -201,6 +208,7 @@ public sealed partial class MachineLifecycleTests
             await machine.StartAsync(stop.Token);
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.True(returnedTwice);
+            Assert.Equal(2, raisedShuttleVisits);
             Assert.Equal(expectedDescents, descents.ToArray());
             if (!startsWithCarrierHeld)
                 Assert.True(plateRaised);
@@ -240,10 +248,13 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.NgCarrierPickupDown && on)
-            {
                 lowered = true;
+        };
+        machine.PropertyChanged += (sender, args) =>
+        {
+            if (args.PropertyName == nameof(MachineController.RepeatDisplayPhase)
+                && machine.RepeatDisplayPhase == RepeatPhase.ReturnToStation3)
                 stop.Cancel();
-            }
         };
         state.RepeatEnabled = true;
         try
@@ -251,8 +262,10 @@ public sealed partial class MachineLifecycleTests
             await WaitUntilAsync(() => machine.IsStartAllowed);
             await machine.StartAsync(stop.Token);
             Assert.False(state.IsError, state.AlarmDetail);
-            Assert.True(lowered);
+            Assert.False(lowered);
             Assert.True(gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition));
+            Assert.True(gantry.IsRaised);
+            Assert.True(gantry.IsTransferPending);
             Assert.True(io.GetInput(InputIo.NgCarrierDetected));
             Assert.True(io.GetInput(InputIo.NgCarrierGripperClosed));
         }

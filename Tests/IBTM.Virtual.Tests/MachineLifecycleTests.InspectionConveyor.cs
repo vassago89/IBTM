@@ -101,13 +101,13 @@ public sealed partial class MachineLifecycleTests
         var work = services.GetRequiredService<InspectionWork>();
         var station = services.GetRequiredService<InspectionStation>();
         var transfer = services.GetRequiredService<InspectionStation>();
-        var settings = services.GetRequiredService<NgCarrierTransferSettings>();
+        var settings = services.GetRequiredService<InspectionGantrySettings>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await work.Station.PrepareToReceiveAsync(CancellationToken.None);
         await transfer.MoveToAsync(new() { X = 100, Y = 100 }, 10_000);
-        settings.Speed = 1;
+        settings.Motion.HorizontalSpeed = 1;
         var raised = false;
         io.OutputChanged += (output, on) => raised |= output == OutputIo.InspectionBackupPlateUp && on;
         using var stop = new CancellationTokenSource();
