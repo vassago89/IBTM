@@ -1167,8 +1167,8 @@ public sealed class BoltFasteningTests
         var layout = new PcbLayout
         {
             BoltPoints = [
-                Bolt(1, FasteningHead.Shooting, 110, 220),
-                Bolt(2, FasteningHead.Pickup, 115, 225),
+                new() { Number = 1, Head = FasteningHead.Shooting, X = 110, Y = 220 },
+                new() { Number = 2, Head = FasteningHead.Pickup, X = 115, Y = 225 },
                 new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 120, Y = 230 },
                 new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 125, Y = 235 },
             ],
@@ -1259,7 +1259,7 @@ public sealed class BoltFasteningTests
                 (2, 280, 410, 12), (2, 270, 420, 12), (1, -25, 235, 16), (1, -15, 225, 16),
             }, starts);
             Assert.Equal(new (byte, ushort)[] { (2, 1), (2, 1), (1, 1), (1, 1) }, presets);
-            Assert.Equal(2, pickups);
+            Assert.Equal(0, pickups); // Feeder OFF preserves pickup travel without vacuum ON.
             Assert.Equal(1, tableDescents);
             Assert.All(work.Assemblies, assembly => Assert.Single(assembly.PickupBoltResults));
             Assert.True(await WaitUntilAsync(

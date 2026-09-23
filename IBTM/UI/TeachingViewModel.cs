@@ -15,11 +15,13 @@ using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
 public partial class TeachingViewModel : ObservableObject
 {
+    private readonly ILogger<TeachingViewModel> _logger;
     private readonly IAsyncRelayCommand[] _commands;
     private readonly PcbSupplier _pcbSupply;
     private readonly PcbSupplySettings _supplySettings;
@@ -76,8 +78,10 @@ public partial class TeachingViewModel : ObservableObject
         RecipeManager recipes,
         MachineStore store,
         IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
-        IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
+        IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs,
+        ILogger<TeachingViewModel> logger)
     {
+        _logger = logger;
         _liveImageGate = new();
         _viewCancellation = new();
         _teachingIoGroups = [];

@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -125,19 +126,22 @@ public partial class TeachingViewModel
         var commandGroup = ActiveMotionGroup;
         var viewToken = ViewCancellation;
         var activeToken = cancellationToken;
+        _logger.LogInformation(
+            "Teaching capture requested: recipe={Recipe}, PCB={Pcb}, point={Point}, recordPosition={RecordPosition}, live={Live}.",
+            RecipeEditor.Name, pcb, point!.Name, recordPosition, Inspection.IsLiveView);
         try
         {
+            CameraError = null;
             if (State.IsRunningFor())
-                return;
+                throw new InvalidOperationException("Recording was not started because the machine is busy. Wait for motion to stop, then record again.");
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
                 cancellationToken,
                 viewToken);
             if (operation is null)
-                return;
+                throw new InvalidOperationException("Recording was not started because another operation is active. Try again after it finishes.");
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            CameraError = null;
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
@@ -145,6 +149,8 @@ public partial class TeachingViewModel
             await _cameraStop;
             operation.Token.ThrowIfCancellationRequested();
             var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, lightLevel);
+            _logger.LogInformation("Teaching image captured: PCB={Pcb}, point={Point}, X={X}, Y={Y}.",
+                pcb, point.Name, captured.Center.X, captured.Center.Y);
             var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             var images = CarrierImages.ToList();
@@ -190,6 +196,10 @@ public partial class TeachingViewModel
             {
                 CarrierImages = images;
                 RefreshPointPositions();
+                _logger.LogInformation(
+                    "Teaching image saved: recipe={Recipe}, PCB={Pcb}, point={Point}, X={X}, Y={Y}, image={Image}, database={Database}.",
+                    RecipeEditor.ActiveName, pcb, point.Name, metadata.Center.X, metadata.Center.Y,
+                    metadata.Number, _store.DatabaseFile);
             }
             else
             {
@@ -204,20 +214,26 @@ public partial class TeachingViewModel
                     bolt.FasteningX = previousFasteningX;
                     bolt.FasteningY = previousFasteningY;
                 }
+                CameraError = RecipeEditor.Error ?? "Recording was cancelled before saving. Record the point again.";
+                _logger.LogInformation("Teaching image was not saved: PCB={Pcb}, point={Point}, reason={Reason}.",
+                    pcb, point.Name, CameraError);
             }
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
             || viewToken.IsCancellationRequested
             || Operations.IsShuttingDown)
         {
+            _logger.LogInformation("Teaching capture cancelled before saving: PCB={Pcb}, point={Point}.", pcb, point.Name);
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
         {
+            CameraError = exception.GetBaseException().Message;
+            _logger.LogError(exception, "Teaching capture failed: PCB={Pcb}, point={Point}.", pcb, point.Name);
             Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.TraceError("Teaching inspection failed. {0}", exception);
+            _logger.LogError(exception, "Teaching capture failed: PCB={Pcb}, point={Point}.", pcb, point.Name);
             if (!activeToken.IsCancellationRequested)
                 CameraError = exception.Message;
         }

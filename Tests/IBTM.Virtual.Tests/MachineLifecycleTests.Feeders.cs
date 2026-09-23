@@ -185,7 +185,10 @@ public sealed partial class MachineLifecycleTests
             var operation = services.GetRequiredService<OperationViewModel>();
             Assert.All(operation.BoltTargets, bolt => Assert.Equal(BoltTargetState.Ok, bolt.State));
             Assert.True(visitedPickupFeeder);
-            Assert.Equal(new[] { (100d, 50d, 10d), (100d, 50d, 10d) }, pickups.ToArray());
+            if (pickupFeeding)
+                Assert.Equal(new[] { (100d, 50d, 10d), (100d, 50d, 10d) }, pickups.ToArray());
+            else
+                Assert.Empty(pickups);
             Assert.Equal(pickupEnabled, settings.Units.PickupBoltFeeder);
             Assert.Equal(shootingEnabled, settings.Units.ShootingBoltFeeder);
             Assert.Equal(pickupFeeding || shootingFeeding, feederRan);

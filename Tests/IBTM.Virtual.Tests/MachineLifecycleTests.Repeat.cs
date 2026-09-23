@@ -134,7 +134,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(shootingStarts >= 4);
             Assert.True(pickupDescents >= 4);
             Assert.True(pickupStarts >= 4);
-            Assert.True(pickupAttempts >= 4);
+            Assert.Equal(0, pickupAttempts); // Repeat uses pickup travel without vacuum ON.
             Assert.True(handoffTrips >= 4);
             Assert.True(completed.Count >= 2);
             Assert.Empty(forbidden);

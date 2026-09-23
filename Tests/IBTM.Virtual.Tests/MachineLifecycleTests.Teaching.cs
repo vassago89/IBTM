@@ -838,6 +838,7 @@ public sealed partial class MachineLifecycleTests
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
 
         Assert.Contains("bolt image write failed", teaching.RecipeEditor.Error);
+        Assert.Contains("bolt image write failed", teaching.CameraError);
         Assert.Same(original, RecordedImage(teaching));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName)));
