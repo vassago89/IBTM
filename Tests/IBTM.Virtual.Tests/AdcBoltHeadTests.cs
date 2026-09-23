@@ -221,6 +221,85 @@ public sealed class AdcBoltHeadTests
     }
 
     [Fact]
+    public async Task RejectedStatusSampleWaitsForActualRunOffAndReadsTheResult()
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        var rejection = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
+            [0x01, 0x84, 0x03, 0x03, 0x01], 1, AdcFunctionCode.ReadInputRegisters, 14));
+        var rejected = false;
+        var unknownDuringRejection = false;
+        void RejectOneStatusSample(AdcStatusSample sample)
+        {
+            if (ReferenceEquals(sample.Error, rejection))
+            {
+                rejected = true;
+                unknownDuringRejection = head.Monitor.Status is null;
+                bus.StatusReadFailure = null;
+                bus.SuppressCompletion = false;
+            }
+            else if (!rejected && sample.Status is { Running: true })
+                bus.StatusReadFailure = rejection;
+        }
+        head.Monitor.Sampled += RejectOneStatusSample;
+        try
+        {
+            var result = await head.TightenAsync();
+            Assert.True(rejected);
+            Assert.True(unknownDuringRejection);
+            Assert.True(result.Success, result.Error);
+            Assert.NotNull(result.Controller);
+            Assert.Equal(1, bus.ResultReads);
+            Assert.False(bus.ResultReadWhileRunning);
+            Assert.Equal(1, bus.StartWrites);
+            Assert.Equal(1, bus.StopWrites);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        }
+        finally
+        {
+            head.Monitor.Sampled -= RejectOneStatusSample;
+        }
+    }
+
+    [Fact]
+    public async Task RepeatedStatusRejectionsCannotCompleteFasteningAndStillTimeOut()
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new()
+        {
+            StatusPollMilliseconds = 10,
+            FasteningTimeoutMilliseconds = 150,
+        });
+        await head.SelectPresetAsync(1);
+        var rejection = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
+            [0x01, 0x84, 0x03, 0x03, 0x01], 1, AdcFunctionCode.ReadInputRegisters, 14));
+        void RejectStatusWhileStarted(OutputIo output, bool on)
+        {
+            if (output == OutputIo.PickupBoltStart)
+                bus.StatusReadFailure = on ? rejection : null;
+        }
+        io.OutputChanged += RejectStatusWhileStarted;
+        try
+        {
+            var result = await head.TightenAsync();
+            Assert.False(result.Success);
+            Assert.Contains("timed out", result.Error);
+            Assert.Contains("0184030301", result.Error);
+            Assert.Null(result.Controller);
+            Assert.Null(result.Torque);
+            Assert.Equal(0, bus.ResultReads);
+            Assert.Equal(1, bus.StartWrites);
+            Assert.Equal(1, bus.StopWrites);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        }
+        finally
+        {
+            io.OutputChanged -= RejectStatusWhileStarted;
+        }
+    }
+
+    [Fact]
     public async Task PollsOnlyStatusUntilRunOnThenOffUsingTheConfiguredInterval()
     {
         using var bus = new AdcControllerStub { SuppressCompletion = true };

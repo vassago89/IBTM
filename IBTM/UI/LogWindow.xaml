@@ -66,7 +66,12 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+            <TextBlock Text="Machine log" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
             <TextBox Text="{Binding Log.FilePath, Mode=OneWay, TargetNullValue='File logging is disabled in this session.'}"
+                IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}"
+                Padding="0,4,0,0"/>
+            <TextBlock Text="ADC communication log" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
+            <TextBox Text="{Binding Log.CommunicationFilePath, Mode=OneWay, TargetNullValue='Communication file logging is disabled in this session.'}"
                 IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}"
                 Padding="0,4,0,0"/>
         </StackPanel>

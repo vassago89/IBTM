@@ -193,6 +193,10 @@ public sealed class AdcBoltHead : IBoltHead
         {
             if (sample.StartedAt < Interlocked.Read(ref startedAt))
                 return;
+            // A rejected status query supplies no RUN feedback or fastening result.
+            // Await the monitor's next scheduled sample within the existing cycle timeout.
+            if (sample.Error is AdcResponseException)
+                return;
             if (sample.Error is { } error)
             {
                 stopped.TrySetException(error);
@@ -291,7 +295,8 @@ public sealed class AdcBoltHead : IBoltHead
                 + $"waiting for RUN ON then OFF / one result read; RUN observed={runObserved}, last RUN={Monitor.Status?.Running}; "
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
-                + $"direction={lastResult?.Direction}, error={lastResult?.Error}.");
+                + $"direction={lastResult?.Direction}, error={lastResult?.Error}; "
+                + $"last status error={Monitor.Error?.Message ?? "none"}.");
             if (!waitingForResult)
                 throw failure;
         }
