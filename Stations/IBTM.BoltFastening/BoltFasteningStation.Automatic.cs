@@ -13,8 +13,20 @@ public sealed partial class BoltFasteningStation
 {
     private bool _repeat;
     private HeatSinkSlot[]? _runTargets;
-    // Display the current loop destination only; never resume it after STOP.
-    private BoltPoint? _activeBolt;
+    // Selected work belongs only to this run; STOP discards it.
+    private BoltPoint[]? _runBolts;
+    private int _boltIndex;
+    private StationWork.Job? _runJob;
+    private CancellationTokenSource? _carrierOperation;
+
+    private BoltPoint? ActiveBolt
+    {
+        get
+        {
+            var index = _boltIndex;
+            return _runBolts is { } bolts && index < bolts.Length ? bolts[index] : null;
+        }
+    }
 
     private BoltPoint? StandbyBolt
     {
@@ -39,7 +51,8 @@ public sealed partial class BoltFasteningStation
 
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        if (cancellationToken.IsCancellationRequested)
+            return;
         _repeat = repeat;
         Exception? failure = null;
         try
@@ -49,23 +62,15 @@ public sealed partial class BoltFasteningStation
                 _work.Restart(_work.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (!_work.Enabled)
-                {
-                    var job = _work.CurrentJob;
-                    if (_work.Station.CarrierSeated)
-                        _work.Complete(job);
-                    TraceStep(BoltFasteningState.Disabled, workId: job.Id,
-                        waitingFor: _work.Completed ? "carrier transfer" : "carrier seated");
-                    await WaitForChangeAsync(cancellationToken);
-                    continue;
-                }
-                if (repeat && !_units.MainConveyor && _work.Completed)
+                if (_work.Enabled && repeat && !_units.MainConveyor && _work.Completed)
                 {
                     if (!_work.Station.CarrierSeated || !IsHorizontalMoveAllowed || !IsAtSafeZ())
                         throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads at safe height.");
                     _work.StartRepeat(_work.CurrentJob);
                 }
-                await RunCarrierAsync(cancellationToken);
+                var step = GetNextStep();
+                if (!await ExecuteStepAsync(step, cancellationToken))
+                    await WaitForChangeAsync(cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -79,7 +84,7 @@ public sealed partial class BoltFasteningStation
         finally
         {
             _repeat = false;
-            _activeBolt = null;
+            ClearCarrierOperation();
             try
             {
                 if (_work.Enabled)
@@ -92,212 +97,9 @@ public sealed partial class BoltFasteningStation
         }
     }
 
-    private async Task RunCarrierAsync(CancellationToken cancellationToken)
+    public BoltFasteningState GetNextStep(bool live = true)
     {
-        if (!_work.IsReadyToFasten)
-        {
-            var state = GetState();
-            TraceStep(state, GetActiveBolt(state)?.ToString(), _work.CurrentJob.Id);
-            if (state == BoltFasteningState.MovingToStandby)
-            {
-                var position = _settings.GetBoltPosition(StandbyBolt!);
-                await RaiseCylindersAsync(cancellationToken);
-                await MoveToSafeZAsync(cancellationToken);
-                await SetPickupTableDownAsync(false, cancellationToken);
-                EnsureCanMoveHorizontal(cancellationToken);
-                await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
-            }
-            else
-            {
-                await WaitForChangeAsync(cancellationToken);
-            }
-            return;
-        }
-
-        using var carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        void CheckCarrier()
-        {
-            if (!_work.Station.CarrierSeated)
-                carrierOperation.Cancel();
-        }
-
-        _runTargets = Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
-        _work.Changed += CheckCarrier;
-        try
-        {
-            CheckCarrier();
-            carrierOperation.Token.ThrowIfCancellationRequested();
-            foreach (var heatSink in _runTargets)
-            {
-                if (!_recipes.Current.Pcb.GetBolts(heatSink).Any())
-                    throw new InvalidOperationException(
-                        $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
-            }
-            var job = _work.CurrentJob;
-            foreach (var bolt in ApplicableBolts)
-            {
-                carrierOperation.Token.ThrowIfCancellationRequested();
-                _work.RequireCurrentJob(job);
-                _activeBolt = bolt;
-                var state = bolt.Head == FasteningHead.Shooting
-                    ? BoltFasteningState.FasteningPcb : BoltFasteningState.FasteningPickup;
-                TraceStep(state, bolt.ToString(), job.Id);
-                var token = carrierOperation.Token;
-                var feeding = !_repeat && _units.IsBoltFeederEnabled(bolt.Head);
-                switch (bolt.Head)
-                {
-                    case FasteningHead.Shooting:
-                    {
-                        if (PickupTablePosition != BoltCylinderState.Up)
-                        {
-                            await RaiseCylindersAsync(token);
-                            await MoveToSafeZAsync(token);
-                            await SetPickupTableDownAsync(false, token);
-                        }
-                        if (ShootingHeadPosition != BoltCylinderState.Up
-                            && (!IsAt(bolt) || feeding))
-                            await ClearHeadAsync(FasteningHead.Shooting, token);
-                        var moveRequired = !IsAt(bolt);
-                        if (moveRequired || feeding)
-                            await RaiseCylindersAsync(token);
-
-                        if (moveRequired && feeding)
-                        {
-                            using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
-                            var moving = MoveToBoltAsync(bolt, preparation.Token);
-                            if (moving.IsCompleted)
-                                await moving;
-                            var shooting = ShootBoltAsync(preparation.Token);
-                            var first = await Task.WhenAny(moving, shooting);
-                            if (!first.IsCompletedSuccessfully)
-                                preparation.Cancel();
-                            // Drain both operations, including STOP/air-OFF cleanup on failure.
-                            await Task.WhenAll(moving, shooting);
-                        }
-                        else if (moveRequired)
-                            await MoveToBoltAsync(bolt, token);
-                        else if (feeding)
-                            await ShootBoltAsync(token);
-                        break;
-                    }
-                    case FasteningHead.Pickup:
-                    {
-                        if (ShootingHeadPosition != BoltCylinderState.Up)
-                            await ClearHeadAsync(FasteningHead.Shooting, token);
-                        if (PickupTablePosition != BoltCylinderState.Down)
-                        {
-                            await RaiseCylindersAsync(token);
-                            await MoveToSafeZAsync(token);
-                            await SetPickupTableDownAsync(true, token);
-                        }
-
-                        if (!PickupBoltLoaded)
-                        {
-                            await MoveToPickupXYAsync(token);
-                            var retryCount = _settings.PickupRetryCount;
-                            for (var retry = 0; ; retry++)
-                            {
-                                token.ThrowIfCancellationRequested();
-                                // Late feedback at Safe Z can confirm the previous attempt.
-                                if (retry > 0 && PickupBoltLoaded)
-                                    break;
-                                if (feeding)
-                                    await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
-                                await MoveToPickupZAsync(token);
-                                if (feeding)
-                                    await SetVacuumAsync(FasteningHead.Pickup, true, token, waitForFeedback: false);
-                                await ReturnFromPickupAsync(token);
-                                if (!feeding)
-                                    break;
-                                try
-                                {
-                                    await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, true, token);
-                                    break;
-                                }
-                                catch (IoTimeoutException) when (retry < retryCount && !token.IsCancellationRequested)
-                                {
-                                    _log?.LogWarning(
-                                        "Pickup bolt {Bolt}, {HeatSink}: vacuum not detected at Safe Z; retry {Retry}/{RetryCount}.",
-                                        bolt.Number, bolt.HeatSink, retry + 1, retryCount);
-                                }
-                            }
-                            token.ThrowIfCancellationRequested();
-                            _work.RequireCurrentJob(job);
-                        }
-                        else if (IsAtPickupXY())
-                            await ReturnFromPickupAsync(token);
-                        if (!IsAt(bolt))
-                        {
-                            await RaiseCylindersAsync(token);
-                            await MoveToBoltAsync(bolt, token);
-                        }
-                        break;
-                    }
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(bolt.Head));
-                }
-                var assembly = _work.GetAssembly(job, bolt.HeatSink);
-                var result = await FastenAsync(bolt, token);
-                Exception? clearFailure = null;
-                try
-                {
-                    // Result notifications can write to disk. Finish physical clearance first.
-                    await ClearHeadAsync(bolt.Head, token);
-                }
-                catch (Exception exception)
-                {
-                    clearFailure = exception;
-                    throw;
-                }
-                finally
-                {
-                    // Keep the measured result with its original carrier even if clearance
-                    // is cancelled or fails. A storage failure must not hide a motion failure.
-                    try
-                    {
-                        switch (bolt.Head)
-                        {
-                            case FasteningHead.Shooting:
-                                assembly.RecordPcbBolt(bolt.Number, result);
-                                break;
-                            case FasteningHead.Pickup:
-                                assembly.RecordPickupBolt(bolt.Number, result);
-                                break;
-                        }
-                    }
-                    catch (Exception recordFailure) when (clearFailure is not null)
-                    {
-                        throw new AggregateException(clearFailure, recordFailure);
-                    }
-                }
-            }
-            carrierOperation.Token.ThrowIfCancellationRequested();
-            _work.RequireCurrentJob(job);
-            _activeBolt = null;
-            TraceStep(BoltFasteningState.CompletingCarrier, workId: job.Id);
-            foreach (var heatSink in _runTargets)
-                _work.GetAssembly(job, heatSink).CompleteFastening();
-            await FinishFasteningAsync(FasteningHead.Pickup, carrierOperation.Token);
-            await FinishFasteningAsync(FasteningHead.Shooting, carrierOperation.Token);
-            await MoveToSafeZAsync(carrierOperation.Token);
-            carrierOperation.Token.ThrowIfCancellationRequested();
-            _work.Complete(job);
-        }
-        catch (OperationCanceledException) when (carrierOperation.IsCancellationRequested
-            && !cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            _work.Changed -= CheckCarrier;
-            _runTargets = null;
-            _activeBolt = null;
-        }
-    }
-
-    public BoltFasteningState GetState(bool live = true)
-    {
-        var bolt = _activeBolt ?? ApplicableBolts.FirstOrDefault();
+        var bolt = _runBolts is null ? ApplicableBolts.FirstOrDefault() : ActiveBolt;
         if (!_work.Enabled)
             return BoltFasteningState.Disabled;
         if (!_work.IsReadyToFasten)
@@ -310,6 +112,10 @@ public sealed partial class BoltFasteningStation
                 : BoltFasteningState.Waiting;
         }
 
+        if (_runJob is null || _carrierOperation?.IsCancellationRequested == true
+            || !ReferenceEquals(_runJob, _work.CurrentJob))
+            return BoltFasteningState.PreparingCarrier;
+
         switch (bolt?.Head)
         {
             case FasteningHead.Shooting:
@@ -321,14 +127,249 @@ public sealed partial class BoltFasteningStation
         }
     }
 
+    private async Task<bool> ExecuteStepAsync(BoltFasteningState step, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        EnterStep(step, GetActiveBolt(step)?.ToString(), _work.CurrentJob.Id);
+        switch (step)
+        {
+            case BoltFasteningState.Disabled:
+                if (_work.Station.CarrierSeated)
+                    _work.Complete(_work.CurrentJob);
+                return false;
+            case BoltFasteningState.MovingToStandby:
+                var position = _settings.GetBoltPosition(StandbyBolt!);
+                await RaiseCylindersAsync(cancellationToken);
+                await MoveToSafeZAsync(cancellationToken);
+                await SetPickupTableDownAsync(false, cancellationToken);
+                EnsureCanMoveHorizontal(cancellationToken);
+                await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
+                return true;
+            case BoltFasteningState.Waiting:
+                return false;
+            case BoltFasteningState.PreparingCarrier:
+                ClearCarrierOperation();
+                _runTargets = Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
+                foreach (var heatSink in _runTargets)
+                {
+                    if (!_recipes.Current.Pcb.GetBolts(heatSink).Any())
+                        throw new InvalidOperationException(
+                            $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
+                }
+                _runJob = _work.CurrentJob;
+                _runBolts = ApplicableBolts.ToArray();
+                _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                _work.Changed += CheckCarrier;
+                CheckCarrier();
+                NotifyChanged();
+                return true;
+            case BoltFasteningState.FasteningPcb or BoltFasteningState.FasteningPickup or BoltFasteningState.CompletingCarrier:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(step));
+        }
+
+        var operation = _carrierOperation
+            ?? throw new InvalidOperationException("No fastening work is selected.");
+        var job = _runJob!;
+        var token = operation.Token;
+        try
+        {
+            CheckCarrier();
+            token.ThrowIfCancellationRequested();
+            _work.RequireCurrentJob(job);
+            if (step == BoltFasteningState.CompletingCarrier)
+            {
+                foreach (var heatSink in _runTargets!)
+                    _work.GetAssembly(job, heatSink).CompleteFastening();
+                await FinishFasteningAsync(FasteningHead.Pickup, token);
+                await FinishFasteningAsync(FasteningHead.Shooting, token);
+                await MoveToSafeZAsync(token);
+                token.ThrowIfCancellationRequested();
+                _work.Complete(job);
+                ClearCarrierOperation();
+                return true;
+            }
+
+            var bolt = ActiveBolt ?? throw new InvalidOperationException("No bolt is selected.");
+            var feeding = !_repeat && _units.IsBoltFeederEnabled(bolt.Head);
+            switch (bolt.Head)
+            {
+                case FasteningHead.Shooting:
+                {
+                    if (PickupTablePosition != BoltCylinderState.Up)
+                    {
+                        await RaiseCylindersAsync(token);
+                        await MoveToSafeZAsync(token);
+                        await SetPickupTableDownAsync(false, token);
+                    }
+                    if (ShootingHeadPosition != BoltCylinderState.Up
+                        && (!IsAt(bolt) || feeding))
+                        await ClearHeadAsync(FasteningHead.Shooting, token);
+                    var moveRequired = !IsAt(bolt);
+                    if (moveRequired || feeding)
+                        await RaiseCylindersAsync(token);
+
+                    if (moveRequired && feeding)
+                    {
+                        using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
+                        var moving = MoveToBoltAsync(bolt, preparation.Token);
+                        if (moving.IsCompleted)
+                            await moving;
+                        var shooting = ShootBoltAsync(preparation.Token);
+                        var first = await Task.WhenAny(moving, shooting);
+                        if (!first.IsCompletedSuccessfully)
+                            preparation.Cancel();
+                        // Drain both operations, including STOP/air-OFF cleanup on failure.
+                        await Task.WhenAll(moving, shooting);
+                    }
+                    else if (moveRequired)
+                        await MoveToBoltAsync(bolt, token);
+                    else if (feeding)
+                        await ShootBoltAsync(token);
+                    break;
+                }
+                case FasteningHead.Pickup:
+                {
+                    if (ShootingHeadPosition != BoltCylinderState.Up)
+                        await ClearHeadAsync(FasteningHead.Shooting, token);
+                    if (PickupTablePosition != BoltCylinderState.Down)
+                    {
+                        await RaiseCylindersAsync(token);
+                        await MoveToSafeZAsync(token);
+                        await SetPickupTableDownAsync(true, token);
+                    }
+
+                    if (!PickupBoltLoaded)
+                    {
+                        await MoveToPickupXYAsync(token);
+                        var retryCount = _settings.PickupRetryCount;
+                        for (var retry = 0; ; retry++)
+                        {
+                            token.ThrowIfCancellationRequested();
+                            // Late feedback at Safe Z can confirm the previous attempt.
+                            if (retry > 0 && PickupBoltLoaded)
+                                break;
+                            if (feeding)
+                                await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
+                            await MoveToPickupZAsync(token);
+                            if (feeding)
+                                await SetVacuumAsync(FasteningHead.Pickup, true, token, waitForFeedback: false);
+                            await ReturnFromPickupAsync(token);
+                            if (!feeding)
+                                break;
+                            try
+                            {
+                                await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, true, token);
+                                break;
+                            }
+                            catch (IoTimeoutException) when (retry < retryCount && !token.IsCancellationRequested)
+                            {
+                                _log?.LogWarning(
+                                    "Pickup bolt {Bolt}, {HeatSink}: vacuum not detected at Safe Z; retry {Retry}/{RetryCount}.",
+                                    bolt.Number, bolt.HeatSink, retry + 1, retryCount);
+                            }
+                        }
+                        token.ThrowIfCancellationRequested();
+                        _work.RequireCurrentJob(job);
+                    }
+                    else if (IsAtPickupXY())
+                        await ReturnFromPickupAsync(token);
+                    if (!IsAt(bolt))
+                    {
+                        await RaiseCylindersAsync(token);
+                        await MoveToBoltAsync(bolt, token);
+                    }
+                    break;
+                }
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(bolt.Head));
+            }
+            var assembly = _work.GetAssembly(job, bolt.HeatSink);
+            var result = await FastenAsync(bolt, token);
+            Exception? clearFailure = null;
+            try
+            {
+                // Result notifications can write to disk. Finish physical clearance first.
+                await ClearHeadAsync(bolt.Head, token);
+            }
+            catch (Exception exception)
+            {
+                clearFailure = exception;
+                throw;
+            }
+            finally
+            {
+                // Keep the measured result with its original carrier even if clearance
+                // is cancelled or fails. A storage failure must not hide a motion failure.
+                try
+                {
+                    switch (bolt.Head)
+                    {
+                        case FasteningHead.Shooting:
+                            assembly.RecordPcbBolt(bolt.Number, result);
+                            break;
+                        case FasteningHead.Pickup:
+                            assembly.RecordPickupBolt(bolt.Number, result);
+                            break;
+                    }
+                }
+                catch (Exception recordFailure) when (clearFailure is not null)
+                {
+                    throw new AggregateException(clearFailure, recordFailure);
+                }
+            }
+
+            token.ThrowIfCancellationRequested();
+            _work.RequireCurrentJob(job);
+            _boltIndex++;
+            NotifyChanged();
+        }
+        catch (OperationCanceledException) when (operation.IsCancellationRequested
+            && !cancellationToken.IsCancellationRequested)
+        {
+            ClearCarrierOperation();
+        }
+        return true;
+    }
+
+    private void CheckCarrier()
+    {
+        if (_carrierOperation is not { } operation)
+            return;
+        lock (operation)
+        {
+            if (ReferenceEquals(operation, _carrierOperation)
+                && (!_work.Station.CarrierSeated || !ReferenceEquals(_runJob, _work.CurrentJob)))
+                operation.Cancel();
+        }
+    }
+
+    private void ClearCarrierOperation()
+    {
+        _work.Changed -= CheckCarrier;
+        if (_carrierOperation is { } operation)
+        {
+            lock (operation)
+            {
+                _carrierOperation = null;
+                operation.Dispose();
+            }
+        }
+        _runJob = null;
+        _runTargets = null;
+        _runBolts = null;
+        _boltIndex = 0;
+    }
+
     public BoltPoint? GetActiveBolt(BoltFasteningState? state = null)
     {
-        switch (state ?? GetState())
+        switch (state ?? (Step is BoltFasteningState step ? step : GetNextStep()))
         {
             case BoltFasteningState.MovingToStandby:
                 return StandbyBolt;
-            case BoltFasteningState.FasteningPcb or BoltFasteningState.FasteningPickup:
-                return _activeBolt ?? ApplicableBolts.FirstOrDefault();
+            case BoltFasteningState.PreparingCarrier or BoltFasteningState.FasteningPcb or BoltFasteningState.FasteningPickup:
+                return _runBolts is null ? ApplicableBolts.FirstOrDefault() : ActiveBolt;
             default:
                 return null;
         }

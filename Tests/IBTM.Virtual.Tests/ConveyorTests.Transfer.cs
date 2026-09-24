@@ -497,6 +497,8 @@ public sealed partial class ConveyorTests
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
             io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
             Assert.Equal(MainConveyorState.MovingBoltFasteningToInspection, conveyor.State);
+            Assert.Equal(MainConveyorState.MovingBoltFasteningToInspection, conveyor.Step);
+            Assert.Equal(MainConveyorState.Running, conveyor.GetNextStep(conveyor.RunCommandOn));
 
             io.SetInputs(
                 (InputIo.InspectionHeatSink1Present, true),
@@ -522,6 +524,7 @@ public sealed partial class ConveyorTests
             await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
         Assert.False(destination.InspectionRequested);
+        Assert.Null(conveyor.Step);
         Assert.Equal(MainConveyorState.PreparingInspectionCarrier, conveyor.State);
     }
 

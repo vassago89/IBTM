@@ -345,7 +345,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(await VirtualTest.WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(3)),
-                $"Alarm={state.Alarm}; inspection={inspector.GetState()}; captures={string.Join(", ", captures)}; {state.AlarmDetail}");
+                $"Alarm={state.Alarm}; inspection={inspector.GetNextStep()}; captures={string.Join(", ", captures)}; {state.AlarmDetail}");
             Assert.Equal(new (HeatSinkSlot, int?)[] {
                 (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, 1), (HeatSinkSlot.HeatSink1, 3),
                 (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, 2), (HeatSinkSlot.HeatSink2, 4),
@@ -466,7 +466,7 @@ public sealed partial class MachineLifecycleTests
         await machine.StartAsync(initialTimeout.Token);
         gantry.Feedback.PositionChanged -= StopDuringTransfer;
         Assert.False(initialTimeout.IsCancellationRequested,
-            $"Inspection={gantry.GetState()}, Main={services.GetRequiredService<MainConveyor>().State}, "
+            $"Inspection={gantry.GetNextStep()}, Main={services.GetRequiredService<MainConveyor>().State}, "
             + $"Completed={services.GetRequiredService<InspectionWork>().Completed}, NG={services.GetRequiredService<InspectionWork>().HasNg}, "
             + $"Position={gantry.Feedback.GetPosition()}, Lift={gantry.Lift}, Gripper={gantry.Gripper}, Alarm={state.AlarmDetail}");
         var stoppedX = gantry.Feedback.GetPosition().X;
@@ -524,7 +524,7 @@ public sealed partial class MachineLifecycleTests
             lift == NgTransferLiftState.Up
                 ? InspectionStationState.ReturningToWaitingPosition
                 : InspectionStationState.PlacingCarrier,
-            station.GetState());
+            station.GetNextStep());
 
         using var stop = new CancellationTokenSource();
         var run = station.RunAsync(stop.Token);
@@ -540,7 +540,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
-        Assert.Equal(InspectionStationState.PlacingCarrier, station.GetState());
+        Assert.Equal(InspectionStationState.PlacingCarrier, station.GetNextStep());
         await VerifyTransferReleaseAsync();
 
         async Task VerifyTransferReleaseAsync()
@@ -550,7 +550,7 @@ public sealed partial class MachineLifecycleTests
             var moveTask = move.RunToAsync(NgTransferDestination.Shuttle, moveStop.Token);
             try
             {
-                Assert.Equal(InspectionStationState.PlacingCarrier, move.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
+                Assert.Equal(InspectionStationState.PlacingCarrier, move.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
                 Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
             }
             finally
@@ -636,7 +636,7 @@ public sealed partial class MachineLifecycleTests
         work.Complete(work.CurrentJob);
 
         var expectNg = inspectionEnabled && ng;
-        Assert.Equal(expectNg, inspection.GetState() == InspectionStationState.PickingCarrier);
+        Assert.Equal(expectNg, inspection.GetNextStep() == InspectionStationState.PickingCarrier);
         Assert.Equal(!expectNg, conveyor.State == MainConveyorState.DischargingInspectionCarrier);
         await machine.ShutdownAsync();
     }
@@ -835,7 +835,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => head.Started.Task.IsCompleted, TimeSpan.FromSeconds(3)),
                 $"Fastening did not start: block={machine.StartBlock}, alarm={state.Alarm}, "
-                    + $"station={services.GetRequiredService<BoltFasteningStation>().GetState()}. {state.AlarmDetail}");
+                    + $"station={services.GetRequiredService<BoltFasteningStation>().GetNextStep()}. {state.AlarmDetail}");
             io.SetInput(InputIo.AirPressureHigh, false);
             await head.Stopping.Task.WaitAsync(TimeSpan.FromSeconds(2));
 

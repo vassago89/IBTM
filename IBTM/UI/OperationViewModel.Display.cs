@@ -18,9 +18,10 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Available
-                && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running
-                ? Conveyor.GetState(running, live: false) : null;
+            if (!State.Available
+                || Signals.Outputs[OutputIo.MainConveyorRun].IsOn is not { } running)
+                return null;
+            return Conveyor.Step is MainConveyorState step ? step : Conveyor.GetNextStep(running, live: false);
         }
     }
 
@@ -28,9 +29,10 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Available
-                && Signals.Outputs[OutputIo.NgConveyorRun].IsOn is { } running
-                ? NgConveyor.GetState(running) : null;
+            if (!State.Available
+                || Signals.Outputs[OutputIo.NgConveyorRun].IsOn is not { } running)
+                return null;
+            return NgConveyor.Step is NgConveyorState step ? step : NgConveyor.GetNextStep(running);
         }
     }
 
@@ -38,8 +40,9 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Available && PlacementPositionKnown
-                && Placement.Motion.IsReady(live: false) ? Placement.State : null;
+            if (!State.Available || !PlacementPositionKnown || !Placement.Motion.IsReady(live: false))
+                return null;
+            return Placement.State;
         }
     }
 
@@ -49,9 +52,10 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Available && Units.BoltFastening
-                && Machine.TeachingReady && FasteningPositionKnown && Fastening.Motion.IsReady(live: false)
-                ? Fastening.GetState(live: false) : null;
+            if (!State.Available || !Units.BoltFastening || !Machine.TeachingReady
+                || !FasteningPositionKnown || !Fastening.Motion.IsReady(live: false))
+                return null;
+            return Fastening.Step is BoltFasteningState step ? step : Fastening.GetNextStep(live: false);
         }
     }
 
@@ -59,13 +63,14 @@ public partial class OperationViewModel
     {
         get
         {
-            return State.Available && Units.Inspection
-                && Machine.TeachingReady && InspectionPositionKnown && Inspection.Motion.IsReady(live: false)
-                && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } mainRunning
-                && Signals.Outputs[OutputIo.NgConveyorRun].IsOn is { } running
-                ? Inspection.GetState(State.RepeatEnabled, live: false,
-                    conveyorRunning: running, mainConveyorRunning: mainRunning)
-                : null;
+            if (!State.Available || !Units.Inspection || !Machine.TeachingReady
+                || !InspectionPositionKnown || !Inspection.Motion.IsReady(live: false)
+                || Signals.Outputs[OutputIo.MainConveyorRun].IsOn is not { } mainRunning
+                || Signals.Outputs[OutputIo.NgConveyorRun].IsOn is not { } running)
+                return null;
+            return Inspection.Step is InspectionStationState step ? step
+                : Inspection.GetNextStep(State.RepeatEnabled, live: false,
+                    conveyorRunning: running, mainConveyorRunning: mainRunning);
         }
     }
 
@@ -236,6 +241,9 @@ public partial class OperationViewModel
                         or PcbSupplyState.WaitingForCarrierExit
                         or PcbSupplyState.HandingOff
                         or PcbSupplyState.WaitingForPlacementClear
+                        or PcbSupplyState.WaitingForReturnedPcb
+                        or PcbSupplyState.WaitingForReturnedPcbGrip
+                        or PcbSupplyState.WaitingForReturnClear
                         ? HandlerDisplayState.Waiting
                         : HandlerDisplayState.Working;
             }
@@ -262,6 +270,9 @@ public partial class OperationViewModel
                     return PlacementState is PcbPlacementState.WaitingForSupply
                         or PcbPlacementState.WaitingForSupplyRelease
                         or PcbPlacementState.WaitingForCarrier
+                        or PcbPlacementState.WaitingForSupplyReceipt
+                        or PcbPlacementState.WaitingForSupplyGrip
+                        or PcbPlacementState.WaitingForSupplyDeparture
                         ? HandlerDisplayState.Waiting
                         : HandlerDisplayState.Working;
             }

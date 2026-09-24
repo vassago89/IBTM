@@ -25,15 +25,21 @@ public sealed partial class MainConveyor
     {
         var changed = new AsyncAutoResetEvent();
         Changed += changed.Set;
+        StepChanged += changed.Set;
         try
         {
-            while (RunCommandOn || _executingTransfer != MainConveyorState.Idle
+            while (RunCommandOn
+                || Step is MainConveyorState.ReceivingFrontCarrier
+                    or MainConveyorState.MovingPcbPlacementToBoltFastening
+                    or MainConveyorState.MovingBoltFasteningToInspection
+                    or MainConveyorState.DischargingInspectionCarrier
                 || !RepeatEndWork.Completed || !RepeatEndWork.Station.CarrierSeated)
                 await changed.WaitAsync(cancellationToken);
         }
         finally
         {
             Changed -= changed.Set;
+            StepChanged -= changed.Set;
         }
     }
 
@@ -42,6 +48,8 @@ public sealed partial class MainConveyor
         _repeat = true;
         try
         {
+            BeginRun();
+            EnterStep(MainConveyorState.ReturningToEntry);
             using var runCancellation = BeginConveyorOperation(cancellationToken);
             cancellationToken = runCancellation.Token;
             using var entryStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -103,6 +111,7 @@ public sealed partial class MainConveyor
         finally
         {
             _repeat = false;
+            EndRun(cancellationToken);
         }
     }
 }

@@ -42,8 +42,11 @@ public sealed class NgConveyorTests
         finally
         {
             stop.Cancel();
-            await run.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.False(system.Conveyor.RunCommandOn);
+            // Output stops immediately; drain the existing five-second settling delay.
+            await run.WaitAsync(TimeSpan.FromSeconds(6));
         }
+        Assert.Null(system.Conveyor.Step);
     }
 
     [Fact]
@@ -61,6 +64,35 @@ public sealed class NgConveyorTests
         system.Io.SetInput(InputIo.NgShuttleUp, false);
         system.Io.SetInput(InputIo.NgShuttleDown, true);
         Assert.False(system.Conveyor.IsReceiveAllowed());
+    }
+
+    [Fact]
+    public async Task RepeatEndWaitsForShuttleStageCompletionAndWakesOnStepChange()
+    {
+        var system = CreateSystem();
+        system.Io.AutoResponseEnabled = false;
+        system.Io.SetInputs(
+            (InputIo.NgConveyorPosition1Occupied, true),
+            (InputIo.NgShuttleUp, false),
+            (InputIo.NgShuttleDown, true));
+        using var stop = new CancellationTokenSource();
+        var run = system.Conveyor.RunAsync(stop.Token, repeat: true);
+        var end = system.Conveyor.WaitForRepeatEndAsync(stop.Token);
+        try
+        {
+            Assert.Equal(NgConveyorState.RaisingShuttle, system.Conveyor.Step);
+            Assert.False(end.IsCompleted);
+            system.Io.SetInputs((InputIo.NgShuttleDown, false), (InputIo.NgShuttleUp, true));
+            await end.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(NgConveyorState.ReadyToEject, system.Conveyor.Step);
+            Assert.False(system.Conveyor.RunCommandOn);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        Assert.Null(system.Conveyor.Step);
     }
 
     [Fact]

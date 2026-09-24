@@ -55,6 +55,24 @@ public enum PcbPlacementState
     [Description("Completing Carrier")]
     CompletingCarrier,
 
+    [Description("Returning PCB to Supply")]
+    ReturningToSupply,
+
+    [Description("Waiting for Supply to Open")]
+    WaitingForSupplyReceipt,
+
+    [Description("Lowering PCB to Supply")]
+    PresentingToSupply,
+
+    [Description("Waiting for Supply Grip")]
+    WaitingForSupplyGrip,
+
+    [Description("Releasing PCB to Supply and Departing")]
+    ReleasingToSupply,
+
+    [Description("Waiting for Supply Departure")]
+    WaitingForSupplyDeparture,
+
     [Description("Disabled")]
     Disabled,
 }

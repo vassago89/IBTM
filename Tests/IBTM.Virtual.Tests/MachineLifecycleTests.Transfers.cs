@@ -66,7 +66,7 @@ public sealed partial class MachineLifecycleTests
             io.OutputChanged -= LoseSourceDuringDescent;
             io.SetInput(lostInput, true);
             Assert.True(await transfer.ExecuteTransferAsync(
-                destination, transfer.GetTransferState(destination, canPickUp: true), timeout.Token));
+                destination, transfer.GetNextTransferStep(destination, canPickUp: true), timeout.Token));
             Assert.True(transfer.IsTransferPending);
             Assert.True(transfer.IsRaised);
             Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
@@ -123,7 +123,7 @@ public sealed partial class MachineLifecycleTests
             gantry.Feedback.MovingChanged += moving => restarted |= moving;
             await Assert.ThrowsAsync<InvalidOperationException>(() => move.ExecuteTransferAsync(
                 NgTransferDestination.Shuttle,
-                move.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true), timeout.Token));
+                move.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true), timeout.Token));
             Assert.False(restarted);
         }
         finally
@@ -458,9 +458,9 @@ public sealed partial class MachineLifecycleTests
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        Assert.Equal(InspectionStationState.PickingCarrier, move.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
+        Assert.Equal(InspectionStationState.PickingCarrier, move.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
         await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None)!;
-        Assert.Equal(InspectionStationState.PlacingCarrier, move.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
+        Assert.Equal(InspectionStationState.PlacingCarrier, move.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.Equal(5, gantry.Feedback.GetPosition().X);
@@ -551,7 +551,7 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
             var failure = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, CancellationToken.None)!);
+                () => placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None)!);
             Assert.Contains("carrier", failure.Message, StringComparison.OrdinalIgnoreCase);
             Assert.False(pressed);
             Assert.Empty(work.Assemblies);
@@ -644,13 +644,13 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, preparing.Token)!);
+            () => placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, preparing.Token)!);
         Assert.Equal(PlacementCylinderState.Up, handler.IpmLift);
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
         Assert.Empty(work.Assemblies);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, pressing.Token)!);
+            () => placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, pressing.Token)!);
         Assert.Equal(PlacementCylinderState.Between, handler.IpmLift);
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
         Assert.Empty(work.Assemblies);
@@ -666,9 +666,9 @@ public sealed partial class MachineLifecycleTests
         else
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                () => placer.PlaceAsync(HeatSinkSlot.HeatSink1, pressing.Token)!);
+                () => placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, pressing.Token)!);
             Assert.Empty(work.Assemblies);
-            await placer.PlaceAsync(HeatSinkSlot.HeatSink1, CancellationToken.None)!;
+            await placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None)!;
             Assert.Single(work.Assemblies);
         }
         var expected = new List<(OutputIo, bool)>
@@ -720,7 +720,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
         Assert.Equal(
             InspectionStationState.WaitingForDestination,
-            move.GetTransferState(destination, canPickUp: true, canReceive: false));
+            move.GetNextTransferStep(destination, canPickUp: true, canReceive: false));
         io.SetInput(destinationSensor, true);
         AssertState(InspectionStationState.WaitingForDestination);
         // The descending held carrier can enter the support sensor before Down.
@@ -733,22 +733,22 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.NgShuttleUp, false);
             io.SetInput(InputIo.NgShuttleDown, false);
             Assert.Equal(InspectionStationState.PreparingTransfer,
-                move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
+                move.GetNextTransferStep(destination, canPickUp: true, holdAtDestination: true));
             AssertState(InspectionStationState.WaitingForDestination);
             io.SetInput(InputIo.NgCarrierDetected, false);
             Assert.Equal(InspectionStationState.PreparingTransfer,
-                move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
+                move.GetNextTransferStep(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierDetected, true);
             io.SetInput(InputIo.NgCarrierPickupDown, false);
             io.SetInput(InputIo.NgCarrierPickupUp, true);
             Assert.Equal(InspectionStationState.HoldingAtDestination,
-                move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
+                move.GetNextTransferStep(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierPickupUp, false);
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             io.SetInput(InputIo.NgCarrierGripperOpen, true);
             // Unexpected opening above an unsupported destination must retain the failed transfer.
             Assert.Equal(InspectionStationState.PickingCarrier,
-                move.GetTransferState(destination, canPickUp: true, holdAtDestination: true));
+                move.GetNextTransferStep(destination, canPickUp: true, holdAtDestination: true));
             io.SetInput(InputIo.NgCarrierPickupDown, true);
             io.SetInput(InputIo.NgCarrierGripperClosed, true);
             io.SetInput(InputIo.NgCarrierGripperOpen, false);
@@ -782,8 +782,8 @@ public sealed partial class MachineLifecycleTests
 
         void AssertState(InspectionStationState expected)
         {
-            Assert.Equal(expected, move.GetTransferState(destination, canPickUp: false));
-            Assert.Equal(expected, move.GetTransferState(destination, canPickUp: true));
+            Assert.Equal(expected, move.GetNextTransferStep(destination, canPickUp: false));
+            Assert.Equal(expected, move.GetNextTransferStep(destination, canPickUp: true));
         }
     }
 }

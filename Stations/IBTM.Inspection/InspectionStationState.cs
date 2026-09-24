@@ -52,6 +52,12 @@ public enum InspectionStationState
     [Description("Disabled")]
     Disabled,
 
+    [Description("Preparing Inspection Supports")]
+    PreparingInspectionPosition,
+
+    [Description("Preparing Inspection Points")]
+    PreparingInspection,
+
     [Description("Waiting for NG Shuttle Down")]
     WaitingForShuttleDown,
 }

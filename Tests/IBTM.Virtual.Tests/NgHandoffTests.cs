@@ -89,7 +89,7 @@ public sealed class NgHandoffTests
         Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
         SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         Assert.Equal(InspectionStationState.PlacingCarrier,
-            transfer.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
+            transfer.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
 
         var changedDuringTravel = false;
         motion.PositionChanged += (x, y, z) =>
@@ -107,7 +107,7 @@ public sealed class NgHandoffTests
         {
             io.SetInput(InputIo.NgCarrierDetected, value);
             Assert.Equal(InspectionStationState.HoldingAtDestination,
-                transfer.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true, holdAtDestination: true));
+                transfer.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true, holdAtDestination: true));
         }
 
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
@@ -116,7 +116,7 @@ public sealed class NgHandoffTests
         Assert.False(transfer.IsTransferPending);
         Assert.True(transfer.IsClear);
         Assert.Equal(InspectionStationState.TransferCompleted,
-            transfer.GetTransferState(NgTransferDestination.Shuttle, canPickUp: true));
+            transfer.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
         Assert.True(signals.Inputs[InputIo.NgCarrierDetected].IsOn);
     }
 
@@ -138,7 +138,7 @@ public sealed class NgHandoffTests
             NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
         Assert.True(transfer.IsClear);
         Assert.Equal(NgTransferGripperState.Open, transfer.Gripper);
-        Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+        Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
         Assert.Equal(NgConveyorState.LoweringShuttle, system.Conveyor.State);
 
         // Delay the real feedback after the shuttle receives its DOWN command.
@@ -152,7 +152,7 @@ public sealed class NgHandoffTests
         {
             firstRun.Cancel();
             await inspection.WaitAsync(TimeSpan.FromSeconds(1));
-            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
             inspection = transfer.RunAsync(stop.Token);
         }
         var conveyor = system.Conveyor.RunAsync(stop.Token);
@@ -161,16 +161,16 @@ public sealed class NgHandoffTests
             Assert.True(await WaitUntilAsync(
                 () => io.GetOutput(OutputIo.NgShuttleDown), TimeSpan.FromSeconds(1)));
             Assert.Equal((10d, 10d, 0d), motion.GetPosition());
-            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
             io.SetInput(InputIo.NgShuttleUp, false);
-            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
             await Assert.ThrowsAsync<MotionInterlockException>(
                 () => transfer.MoveToAsync(new(), cancellationToken: stop.Token));
             io.SetInputs((InputIo.NgShuttleUp, true), (InputIo.NgShuttleDown, true));
-            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
+            Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
             io.SetInput(InputIo.NgShuttleUp, false);
             Assert.True(await WaitUntilAsync(
-                () => transfer.IsAt(new()) && transfer.GetState() == InspectionStationState.Waiting,
+                () => transfer.IsAt(new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
                 TimeSpan.FromSeconds(1)));
             Assert.False(movedBeforeDown);
         }

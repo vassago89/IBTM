@@ -33,6 +33,11 @@ public sealed class Recipe : IJsonOnDeserialized
 
     void IJsonOnDeserialized.OnDeserialized()
     {
+        foreach (var bolt in Pcb.BoltPoints.Where(bolt => bolt.Id == Guid.Empty))
+        {
+            // Stable within a legacy recipe until saved with IDs. Newly added points use new GUIDs.
+            bolt.Id = new Guid(bolt.Number, (short)bolt.HeatSink, 0, 0x49, 0x42, 0x54, 0x4d, 0x42, 0x4f, 0x4c, 0x54);
+        }
         // Old recipes duplicated bolt XY in the image metadata. Automatic inspection
         // used Center, so preserve that location when consolidating the stored values.
         foreach (var tile in CarrierImages.Where(tile => !tile.IsBarcode && tile.Center is not null))
@@ -66,7 +71,8 @@ public sealed class Recipe : IJsonOnDeserialized
         CarrierImageMillimetersPerPixel = source.CarrierImageMillimetersPerPixel;
         foreach (var bolt in Pcb.BoltPoints)
         {
-            var edited = source.Pcb.BoltPoints.SingleOrDefault(item => item.HeatSink == bolt.HeatSink && item.Number == bolt.Number);
+            var edited = source.Pcb.BoltPoints.SingleOrDefault(item => item.Id == bolt.Id
+                && item.HeatSink == bolt.HeatSink && item.Number == bolt.Number);
             if (edited is null)
                 continue;
             bolt.BrightnessThreshold = edited.BrightnessThreshold;
@@ -74,6 +80,13 @@ public sealed class Recipe : IJsonOnDeserialized
         }
         foreach (var tile in CarrierImages)
         {
+            if (!tile.IsBarcode)
+            {
+                var bolt = Pcb.BoltPoints.SingleOrDefault(item => item.HeatSink == tile.HeatSink && item.Number == tile.BoltNumber);
+                if (bolt is null || !source.Pcb.BoltPoints.Any(item => item.Id == bolt.Id
+                    && item.HeatSink == bolt.HeatSink && item.Number == bolt.Number))
+                    continue;
+            }
             var edited = source.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
                 && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltNumber == tile.BoltNumber);
             if (edited is not null)

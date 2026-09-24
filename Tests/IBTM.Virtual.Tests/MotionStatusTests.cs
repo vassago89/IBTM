@@ -12,6 +12,27 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MotionStatusTests
 {
+    [Fact]
+    public void HoldingPositionRequiresCurrentHealthyStationaryFeedback()
+    {
+        var motion = new StatusMotion();
+        var status = new MotionStatus(motion);
+        var target = new AxisPosition { X = 12 };
+        Assert.True(status.IsHoldingPosition(target));
+
+        motion.Position = (15, 0, 0); // External encoder change, without an application move event.
+        Assert.False(status.IsHoldingPosition(target));
+        motion.Position = (12, 0, 0);
+        motion.State = motion.State with { ServoOn = false };
+        Assert.False(status.IsHoldingPosition(target));
+        motion.State = motion.State with { ServoOn = true, Alarm = true };
+        Assert.False(status.IsHoldingPosition(target));
+        motion.State = motion.State with { Alarm = false, InMotion = true };
+        Assert.False(status.IsHoldingPosition(target));
+        motion.State = motion.State with { InMotion = false };
+        Assert.True(status.IsHoldingPosition(target));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

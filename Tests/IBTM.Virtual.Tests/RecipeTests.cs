@@ -22,6 +22,26 @@ namespace IBTM.Virtual.Tests;
 public sealed class RecipeTests
 {
     [Fact]
+    public void LegacyBoltIdentitySurvivesIndependentLoadsAndSaving()
+    {
+        const string json = """
+            {"Pcb":{"TaughtBolts":[{"Number":7,"BrightnessThreshold":91},{"Number":8}]}}
+            """;
+        var recipe = System.Text.Json.JsonSerializer.Deserialize<Recipe>(json)!;
+        var draft = System.Text.Json.JsonSerializer.Deserialize<Recipe>(json)!;
+        Assert.NotEqual(Guid.Empty, recipe.Pcb.BoltPoints[0].Id);
+        Assert.Equal(recipe.Pcb.BoltPoints[0].Id, draft.Pcb.BoltPoints[0].Id);
+        Assert.NotEqual(recipe.Pcb.BoltPoints[0].Id, recipe.Pcb.BoltPoints[1].Id);
+        draft.Pcb.BoltPoints[0].BrightnessThreshold = 180;
+        recipe.ApplyInspectionSettings(draft);
+        Assert.Equal(180, recipe.Pcb.BoltPoints[0].BrightnessThreshold);
+
+        var saved = System.Text.Json.JsonSerializer.Deserialize<Recipe>(System.Text.Json.JsonSerializer.Serialize(recipe))!;
+        Assert.Equal(recipe.Pcb.BoltPoints[0].Id, saved.Pcb.BoltPoints[0].Id);
+        Assert.NotEqual(recipe.Pcb.BoltPoints[0].Id, new BoltPoint { Number = 7 }.Id);
+    }
+
+    [Fact]
     public void LegacyImageCenterMigratesToOneInspectionCoordinateWithoutChangingFastening()
     {
         var recipe = System.Text.Json.JsonSerializer.Deserialize<Recipe>("""

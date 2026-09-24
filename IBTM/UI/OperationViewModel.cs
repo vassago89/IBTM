@@ -103,21 +103,27 @@ public partial class OperationViewModel : ObservableObject
         foreach (var axis in supply.Motion.Axes.Values)
             axis.PropertyChanged += OnPcbSupplyMotionChanged;
         supply.Changed += OnPcbSupplyChanged;
+        supply.StepChanged += OnPcbSupplyChanged;
         placement.Motion.PropertyChanged += OnPcbPlacementMotionChanged;
         foreach (var axis in placement.Motion.Axes.Values)
             axis.PropertyChanged += OnPcbPlacementMotionChanged;
         placement.Changed += OnPcbPlacementChanged;
+        placement.StepChanged += OnPcbPlacementChanged;
         fastening.Motion.PropertyChanged += OnBoltFasteningMotionChanged;
         foreach (var axis in fastening.Motion.Axes.Values)
             axis.PropertyChanged += OnBoltFasteningMotionChanged;
         fastening.Changed += OnBoltFasteningChanged;
+        fastening.StepChanged += OnBoltFasteningChanged;
         inspectionStation.Motion.PropertyChanged += OnInspectionGantryMotionChanged;
         foreach (var axis in inspectionStation.Motion.Axes.Values)
             axis.PropertyChanged += OnInspectionGantryMotionChanged;
         conveyor.Changed += OnMainConveyorChanged;
+        conveyor.StepChanged += OnMainConveyorChanged;
         inspectionStation.InspectionCaptured += OnInspectionCaptured;
         ngConveyor.Changed += OnNgConveyorChanged;
+        ngConveyor.StepChanged += OnNgConveyorChanged;
         inspectionStation.Changed += OnInspectionChanged;
+        inspectionStation.StepChanged += OnInspectionChanged;
         state.PropertyChanged += OnMachineStateChanged;
         machine.PropertyChanged += OnMachinePropertyChanged;
         recipes.Changed += OnRecipeChanged;

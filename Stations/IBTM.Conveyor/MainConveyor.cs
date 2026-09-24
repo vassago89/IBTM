@@ -19,8 +19,6 @@ public sealed partial class MainConveyor : AutoUnit
     private readonly InspectionWork _inspectionWork;
     private readonly UnitSettings _units;
     private OperationCancellation.Operation? _runCancellation;
-    // The command currently being awaited, not a physical position or a resumable phase.
-    private volatile MainConveyorState _executingTransfer = MainConveyorState.Idle;
     private bool _repeat;
     // Commissioning inputs, kept only for this application session.
     private volatile bool _testUpstreamCarrierAvailable;
@@ -57,7 +55,7 @@ public sealed partial class MainConveyor : AutoUnit
             _io.SetOutput(output, value);
     }
 
-    public MainConveyorState State => GetState(RunCommandOn);
+    public MainConveyorState State => Step is MainConveyorState step ? step : GetNextStep(RunCommandOn);
 
     private bool IsNgTransferRequired => _units.Inspection && _inspectionWork.RouteToNg;
 

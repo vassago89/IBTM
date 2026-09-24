@@ -18,11 +18,69 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbPlacementRepeatTests
 {
     [Fact]
+    public async Task RepeatHoldingLossWhileWaitingForSupplyStopsWithoutPlacement()
+    {
+        using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
+        await rig.InitializeAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = rig.Placer.RunAsync(stop.Token, repeat: true);
+        try
+        {
+            Assert.True(await WaitUntilAsync(
+                () => rig.Placer.State == PcbPlacementState.WaitingForSupplyReceipt,
+                TimeSpan.FromSeconds(2)));
+            rig.Io.SetInput(InputIo.PcbPlacementVacuumDetected, false);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
+            Assert.Empty(rig.Work.Assemblies);
+            Assert.False(rig.Motion.IsMoving);
+        }
+        finally
+        {
+            stop.Cancel();
+            if (!run.IsFaulted)
+                await run;
+        }
+    }
+
+    [Fact]
+    public async Task CompletedCarrierRepeatReportsWaitingFromItsAuthoritativeState()
+    {
+        using var rig = new RepeatRig(loadPcbs: true);
+        await rig.InitializeAsync();
+        rig.Work.Complete(rig.Work.CurrentJob);
+        using var stop = new CancellationTokenSource();
+        var run = rig.Placer.RunAsync(stop.Token, repeat: true);
+        try
+        {
+            Assert.False(run.IsCompleted);
+            Assert.Equal(PcbPlacementState.WaitingForCarrier, rig.Placer.State);
+            Assert.Equal(rig.Placer.State, rig.Placer.Step);
+            Assert.True(rig.Work.Completed);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        Assert.Null(rig.Placer.Step);
+    }
+
+    [Fact]
     public async Task RepeatExchangesPcbsWithSupplyUsingCompletedStages()
     {
         using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
         await rig.InitializeAsync();
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        rig.Supply.Changed += () =>
+        {
+            if (rig.Supply.IsRunning)
+                Assert.Equal(rig.Supply.State, rig.Supply.Step);
+        };
+        rig.Placer.Changed += () =>
+        {
+            if (rig.Placer.IsRunning)
+                Assert.Equal(rig.Placer.State, rig.Placer.Step);
+        };
         rig.Work.Changed += () =>
         {
             if (rig.Work.Completed)
@@ -37,6 +95,8 @@ public sealed class PcbPlacementRepeatTests
             Assert.Equal(2, rig.Work.Assemblies.Count());
             Assert.False(rig.Supply.PcbSecured);
             Assert.False(rig.Placer.PcbSecured);
+            Assert.Null(rig.Supply.Step);
+            Assert.Null(rig.Placer.Step);
         }
         finally
         {

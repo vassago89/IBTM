@@ -16,6 +16,18 @@ public enum FasteningHead
 
 public sealed class BoltPoint
 {
+    public BoltPoint() : this(Guid.NewGuid())
+    {
+    }
+
+    [JsonConstructor]
+    public BoltPoint(Guid id)
+    {
+        Id = id;
+    }
+
+    public Guid Id { get; set; }
+
     public int? LightLevel
     {
         get;

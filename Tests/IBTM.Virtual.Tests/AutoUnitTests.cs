@@ -11,6 +11,91 @@ namespace IBTM.Virtual.Tests;
 public sealed class AutoUnitTests
 {
     [Fact]
+    public async Task StoppedPhaseIsInactiveAndOnlyResumesWhenExplicitlyRequested()
+    {
+        var unit = new TestUnit();
+        using var stop = new CancellationTokenSource();
+        await unit.RunAsync(token =>
+        {
+            unit.ReportStep();
+            stop.Cancel();
+            return Task.CompletedTask;
+        }, stop.Token);
+
+        Assert.Null(unit.Step);
+        Assert.Equal(DayOfWeek.Friday, unit.LastPhase);
+        using var resume = new CancellationTokenSource();
+        await unit.RunAsync(token =>
+        {
+            Assert.Equal(DayOfWeek.Friday, unit.Step);
+            resume.Cancel();
+            return Task.CompletedTask;
+        }, resume.Token, resumePhase: true);
+        Assert.Null(unit.Step);
+
+        using var restart = new CancellationTokenSource();
+        await unit.RunAsync(token =>
+        {
+            Assert.Null(unit.Step);
+            restart.Cancel();
+            return Task.CompletedTask;
+        }, restart.Token);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ActiveStepSurvivesFeedbackChangesAndClearsOnExitWithoutTrace(bool fail)
+    {
+        var unit = new TestUnit();
+        var reported = new List<Enum?>();
+        unit.StepChanged += () => reported.Add(unit.Step);
+        using var stop = new CancellationTokenSource();
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task ExecuteAsync(CancellationToken token)
+        {
+            Assert.Null(unit.Step);
+            unit.ReportStep();
+            await finish.Task.WaitAsync(token);
+        }
+
+        var run = unit.RunAsync(ExecuteAsync, stop.Token);
+        Assert.True(unit.IsRunning);
+        Assert.Equal(DayOfWeek.Friday, unit.Step);
+        unit.NotifyChanged();
+        unit.ReportStep();
+        Assert.Single(reported);
+        Assert.Equal(DayOfWeek.Friday, unit.Step);
+
+        if (fail)
+        {
+            var error = new InvalidOperationException("device failure");
+            finish.SetException(error);
+            Assert.Same(error, await Record.ExceptionAsync(() => run));
+        }
+        else
+        {
+            stop.Cancel();
+            await run;
+        }
+        Assert.False(unit.IsRunning);
+        Assert.Null(unit.Step);
+        Assert.Equal(2, reported.Count);
+        Assert.Null(reported.Last());
+        Assert.False(unit.HasSubscribers);
+
+        using var restart = new CancellationTokenSource();
+        await unit.RunAsync(token =>
+        {
+            Assert.Null(unit.Step);
+            unit.ReportStep();
+            restart.Cancel();
+            return Task.CompletedTask;
+        }, restart.Token);
+        Assert.Null(unit.Step);
+    }
+
+    [Fact]
     public async Task StepTraceKeepsWaitReasonAndTargetWithoutRepeatingUnchangedFeedback()
     {
         var unit = new TestUnit();
@@ -149,6 +234,7 @@ public sealed class AutoUnitTests
         public override event Action? Changed;
 
         public bool HasSubscribers => Changed is not null;
+        public Enum? LastPhase => SequenceStep;
 
         public void NotifyChanged()
         {
@@ -157,7 +243,7 @@ public sealed class AutoUnitTests
 
         public void ReportStep()
         {
-            TraceStep(DayOfWeek.Friday, "PCB 2", 17, "CarrierPresent=ON");
+            EnterStep(DayOfWeek.Friday, "PCB 2", 17, "CarrierPresent=ON");
         }
 
         public Task WaitAsync(CancellationToken token)
@@ -168,9 +254,10 @@ public sealed class AutoUnitTests
         public async Task RunAsync(
             Func<CancellationToken, Task> execute,
             CancellationToken token,
-            Func<bool>? completed = null)
+            Func<bool>? completed = null,
+            bool resumePhase = false)
         {
-            BeginRun();
+            BeginRun(resumePhase ? SequenceStep : null);
             try
             {
                 while (!token.IsCancellationRequested && !(completed?.Invoke() ?? false))

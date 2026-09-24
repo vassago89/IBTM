@@ -88,7 +88,7 @@ public sealed partial class MainConveyor
             }
             if (!destination.CarrierPresent)
                 carrierLeft.Set();
-            TraceStep(State, target: "seating push", workId: destinationWork.CurrentJob.Id, waitingFor:
+            EnterStep(State, target: "seating push", workId: destinationWork.CurrentJob.Id, waitingFor:
                 $"Heat Sink 2 detected; push for {_settings.CarrierStopDelaySeconds} s");
             var lostCarrier = await carrierLeft.WaitAsync(
                 TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
@@ -174,7 +174,7 @@ public sealed partial class MainConveyor
 
             if (rearReleased.Task.IsCompleted)
                 return;
-            TraceStep(MainConveyorState.DischargingInspectionCarrier, waitingFor: "Rear Ready=OFF");
+            EnterStep(MainConveyorState.DischargingInspectionCarrier, waitingFor: "Rear Ready=OFF");
             StartMotor(cancellationToken);
             try
             {
@@ -186,7 +186,7 @@ public sealed partial class MainConveyor
                     InputIo.MainConveyorReadyFromRear, false, (int)timeout.TotalMilliseconds);
             }
 
-            TraceStep(MainConveyorState.DischargingInspectionCarrier,
+            EnterStep(MainConveyorState.DischargingInspectionCarrier,
                 target: $"Rear Ready OFF; extra run {extraRun.TotalSeconds} s");
             // Only this discharge owns the OFF timestamp; STOP discards the remaining delay.
             var remaining = extraRun - Stopwatch.GetElapsedTime(await rearReleased.Task);

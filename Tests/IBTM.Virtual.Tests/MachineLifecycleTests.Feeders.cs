@@ -164,7 +164,7 @@ public sealed partial class MachineLifecycleTests
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(12));
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-            Assert.True(work.Completed, services.GetRequiredService<BoltFasteningStation>().GetState().ToString());
+            Assert.True(work.Completed, services.GetRequiredService<BoltFasteningStation>().GetNextStep().ToString());
             var assembly = Assert.Single(work.Assemblies);
             Assert.Equal(shootingFeeding ? BoltResultSource.Controller : BoltResultSource.DryRun,
                 Assert.Single(assembly.PcbBoltResults).Value.Source);

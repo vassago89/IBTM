@@ -270,7 +270,7 @@ public sealed class MotionSafetyTests
         await supply.SetRotatedAsync(true);
         Assert.All(pickups, point => Assert.True(supply.IsMoveToTeachingPositionAllowed(point)));
         Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));
-        await Assert.ThrowsAsync<MotionInterlockException>(() => supply.MoveToHandoffAsync(default));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => supply.PrepareHandoffAsync(default));
         await supply.MoveAxisAsync(MotionAxis.Z, 5);
         await supply.MoveAxisAsync(MotionAxis.X, 0);
         Assert.Equal(5, motion.GetPosition().Z);
@@ -312,7 +312,8 @@ public sealed class MotionSafetyTests
 
         // XY departure keeps handoff Z until the handler is outside.
         Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
-        await supply.MoveToHandoffAsync(default, new() { X = 0, Y = 0, Z = settings.HandoffPosition.Z });
+        await supply.MoveToTeachingPositionAsync(handoff,
+            new() { X = 0, Y = 0, Z = settings.HandoffPosition.Z });
         Assert.True(yMovedAtHandoff);
         Assert.False(movedAtWrongZ);
         Assert.Equal((0, 0, settings.HandoffPosition.Z), motion.GetPosition());

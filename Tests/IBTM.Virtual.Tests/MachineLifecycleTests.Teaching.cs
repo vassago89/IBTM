@@ -135,7 +135,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(PlacementCylinderState.Down, placement.Lift);
             Assert.Equal(MachineAlarm.None, state.Alarm);
             await Assert.ThrowsAsync<MotionInterlockException>(
-                () => placement.MoveToReceiveZAsync());
+                () => placement.PrepareReceiptAsync());
             await placement.SetLiftDownAsync(false);
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
             Assert.True(teaching.MoveToHorizontalZCommand.CanExecute(null));
@@ -1467,8 +1467,8 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.PcbSupplyPcbDetected, true);
             Assert.True(machine.IsHomeAllowed);
             await machine.HomeAsync(CancellationToken.None);
-            await supply.MoveToHandoffAsync(CancellationToken.None);
-            await placement.MoveToHandoffXYAsync();
+            await supply.PrepareHandoffAsync(CancellationToken.None);
+            await placement.PrepareHandoffAsync();
             Assert.True(supply.IsAtHandoff());
             Assert.True(placement.IsAtHandoff());
 

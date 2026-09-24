@@ -23,6 +23,48 @@ namespace IBTM.Virtual.Tests;
 public sealed class InspectionTeachingTests
 {
     [Fact]
+    public async Task RecreatedBoltDoesNotInheritDeletedPointInspectionEdits()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var png = await SaveRecipeAsync(store);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        var editor = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        await editor.LoadRecipeCommand.ExecuteAsync(null);
+        var removedId = editor.Draft.Pcb.BoltPoints[0].Id;
+        editor.Draft.Pcb.BoltPoints[0].BrightnessThreshold = 91;
+        editor.Draft.CarrierImages[1].Region = new(2, 2, 10, 10);
+        editor.Draft.BoltInspection.DataMatrix1.BinaryThreshold = 73;
+
+        recipes.Current.Pcb.BoltPoints.Clear();
+        recipes.Current.CarrierImages.RemoveAll(tile => !tile.IsBarcode);
+        var replacement = new BoltPoint { Number = 1, X = 100, Y = 200, BrightnessThreshold = 180 };
+        recipes.Current.Pcb.BoltPoints.Add(replacement);
+        var tile = new CarrierImageTile { Number = 2, BoltNumber = 1 };
+        await recipes.SaveImagesAsync("Inspection", [recipes.Current.CarrierImages[0], tile], [new(1, png), new(2, png)]);
+
+        // Saving the old draft before refreshing must also leave the replacement untouched.
+        await editor.SaveCommand.ExecuteAsync(null);
+        Assert.Null(editor.Error);
+        Assert.Equal(180, recipes.Current.Pcb.BoltPoints[0].BrightnessThreshold);
+        Assert.Null(recipes.Current.CarrierImages[1].Region);
+
+        await editor.RefreshImagesCommand.ExecuteAsync(null);
+        Assert.Null(editor.Error);
+        Assert.NotEqual(removedId, editor.Draft.Pcb.BoltPoints[0].Id);
+        Assert.Equal(replacement.Id, editor.Draft.Pcb.BoltPoints[0].Id);
+        Assert.Equal(180, editor.Draft.Pcb.BoltPoints[0].BrightnessThreshold);
+        Assert.Null(editor.Draft.CarrierImages[1].Region);
+        Assert.Equal(73, editor.Draft.BoltInspection.DataMatrix1.BinaryThreshold);
+
+        await editor.SaveCommand.ExecuteAsync(null);
+        var saved = store.LoadRecipe<Recipe>("Inspection");
+        Assert.Equal(replacement.Id, saved.Pcb.BoltPoints[0].Id);
+        Assert.Equal(180, saved.Pcb.BoltPoints[0].BrightnessThreshold);
+        Assert.Null(saved.CarrierImages[1].Region);
+    }
+
+    [Fact]
     public async Task CaptureSavePreservesInspectionEditsMadeAfterCaptureStarted()
     {
         var store = VirtualTest.OpenMachineStore();

@@ -16,6 +16,80 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class InspectionTests
 {
+    [Fact]
+    public async Task InspectionProcessesOnePcbAtATimeAndRestartsAtItsBarcode()
+    {
+        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        io.Initialize();
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.Pcb.BoltPoints = [
+            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 0, Y = 0 },
+            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, X = 0, Y = 0 },
+        ];
+        recipes.Current.CarrierImages = [
+            new() { Number = 1, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
+            new() { Number = 2, BoltNumber = 1, HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
+            new() { Number = 3, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
+            new() { Number = 4, BoltNumber = 2, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
+        ];
+        var settings = new InspectionGantrySettings();
+        var transfer = new NgCarrierTransferSettings
+        {
+            WaitingPosition = new(), CarrierPickupPosition = new(), ShuttlePlacePosition = new() { X = 100, Y = 100 },
+        };
+        var operations = new OperationCancellation();
+        using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
+        motion.Initialize();
+        var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
+        var work = new InspectionWork(io, new MotionStatus(motion), transfer, units);
+        var station = new InspectionStation(work, motion, new NgCarrierConveyor(io, new(), work, units),
+            operations, settings, transfer, io, units,
+            new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(), recipes);
+        Assert.True(await station.HomeHorizontalAsync());
+        io.SetInputs(
+            (InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true),
+            (InputIo.InspectionBackupPlateUp, false), (InputIo.InspectionBackupPlateDown, true),
+            (InputIo.InspectionStopperDown, false), (InputIo.InspectionStopperUp, true),
+            (InputIo.NgCarrierPickupUp, true), (InputIo.NgCarrierPickupDown, false),
+            (InputIo.NgCarrierGripperOpen, true), (InputIo.NgCarrierGripperClosed, false));
+        var visited = new System.Collections.Generic.List<(HeatSinkSlot?, int?)>();
+        using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var secondStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var interrupt = true;
+        station.StepChanged += () =>
+        {
+            if (station.Step is not (InspectionStationState.ReadingBarcode or InspectionStationState.InspectingBolt))
+                return;
+            var bolt = station.GetActiveBolt()?.Number;
+            visited.Add((station.GetActivePcb(), bolt));
+            if (interrupt && bolt == 2)
+                firstStop.Cancel();
+        };
+        work.Changed += () =>
+        {
+            if (work.Completed)
+                secondStop.Cancel();
+        };
+        await station.RunAsync(firstStop.Token);
+        Assert.Equal(new (HeatSinkSlot?, int?)[] {
+            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, 1),
+            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, 2),
+        }, visited);
+        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
+        Assert.False(work.Completed);
+        visited.Clear();
+        interrupt = false;
+        await station.RunAsync(secondStop.Token);
+        Assert.Equal(new (HeatSinkSlot?, int?)[] {
+            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, 1),
+            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, 2),
+        }, visited);
+        Assert.True(work.Completed);
+        Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
+        Assert.Null(station.Step);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -341,7 +415,7 @@ public sealed class InspectionTests
 
         Assert.Empty(work.Assemblies);
         Assert.Equal(HeatSinkSlot.HeatSink1, station.GetActivePcb());
-        _ = station.GetState();
+        _ = station.GetNextStep();
         Assert.Empty(work.Assemblies);
 
         await inspector.HomeHorizontalAsync();
@@ -445,28 +519,28 @@ public sealed class InspectionTests
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
-        Assert.Equal(InspectionStationState.ReturningToWaitingPosition, transferStation.GetState());
+        Assert.Equal(InspectionStationState.ReturningToWaitingPosition, transferStation.GetNextStep());
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionStopperDown, true);
         transferWork.Complete(transferWork.CurrentJob);
-        Assert.Equal(InspectionStationState.PickingCarrier, transferStation.GetState());
+        Assert.Equal(InspectionStationState.PickingCarrier, transferStation.GetNextStep());
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
-        Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.GetState());
+        Assert.Equal(InspectionStationState.PreparingTransfer, transferStation.GetNextStep());
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.Equal(InspectionStationState.PlacingCarrier, transferStation.GetState());
-        Assert.Equal(transferStation.GetState(), station.GetState());
+        Assert.Equal(InspectionStationState.PlacingCarrier, transferStation.GetNextStep());
+        Assert.Equal(transferStation.GetNextStep(), station.GetNextStep());
         Assert.False(station.IsTransferPending);
 
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
-        Assert.Equal(transferStation.GetState(), station.GetState());
+        Assert.Equal(transferStation.GetNextStep(), station.GetNextStep());
         Assert.False(station.IsTransferPending);
     }
 

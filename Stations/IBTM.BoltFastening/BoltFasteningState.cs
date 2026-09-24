@@ -19,6 +19,9 @@ public enum BoltFasteningState
     [Description("Completing Carrier")]
     CompletingCarrier,
 
+    [Description("Preparing Carrier Work")]
+    PreparingCarrier,
+
     [Description("Disabled")]
     Disabled,
 }

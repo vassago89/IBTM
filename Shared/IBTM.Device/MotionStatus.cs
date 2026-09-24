@@ -102,6 +102,17 @@ public sealed class MotionStatus : INotifyPropertyChanged
             && (!Feedback.HasZ || Math.Abs(current.Z - target.Z) <= MotionService.PositionToleranceMillimeters);
     }
 
+    public bool IsHoldingPosition(AxisPosition position)
+    {
+        if (!Feedback.IsReady || Feedback.Axes.Any(axis => Feedback.GetAxisState(axis)
+            is not { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true }))
+            return false;
+        var current = Feedback.GetPosition();
+        return Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
+            && (!Feedback.HasY || Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters)
+            && (!Feedback.HasZ || Math.Abs(current.Z - position.Z) <= MotionService.PositionToleranceMillimeters);
+    }
+
     public void InvalidateFeedback(Exception error)
     {
         foreach (var status in MonitorAxes.Values)

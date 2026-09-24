@@ -52,6 +52,9 @@ public enum NgConveyorState
     [Description("Carrier Position Unknown")]
     CarrierPositionUnknown,
 
+    [Description("Returning carrier to shuttle")]
+    ReturningToShuttle,
+
 }
 
 public enum NgShuttleLiftState
