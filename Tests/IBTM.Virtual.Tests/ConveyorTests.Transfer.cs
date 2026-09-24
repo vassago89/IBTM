@@ -409,6 +409,12 @@ public sealed partial class ConveyorTests
         var result = new BoltResult(false, 1.25);
         assembly.RecordPcbBolt(1, result);
         source.Complete(originalJob);
+        var runningWhenTransferred = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        destination.Station.Changed += () =>
+        {
+            if (destination.Station.CurrentJob.Id == originalJob.Id)
+                runningWhenTransferred.TrySetResult(conveyor.RunCommandOn);
+        };
         var run = conveyor.RunAsync();
         try
         {
@@ -427,7 +433,8 @@ public sealed partial class ConveyorTests
             io.SetInputs(
                 (InputIo.InspectionHeatSink1Present, false),
                 (InputIo.InspectionHeatSink2Present, true));
-            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, false);
+            // Result subscribers must not run while the physical transfer is still powered.
+            Assert.False(await runningWhenTransferred.Task.WaitAsync(TimeSpan.FromSeconds(2)));
             Assert.True(destination.AtInspectionPosition);
 
             Assert.Equal(originalJob.Id, destination.Station.CurrentJob.Id);

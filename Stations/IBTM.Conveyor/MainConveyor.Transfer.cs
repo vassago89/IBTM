@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -108,6 +109,15 @@ public sealed partial class MainConveyor
             if (receiving)
                 _io.InputChanged -= ObserveEntry;
             destination.Changed -= ObserveArrival;
+            // Result notifications must not delay the physical end of the transfer.
+            try
+            {
+                StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorReadyToFront2);
+            }
+            catch (Exception stopFailure)
+            {
+                failure = stopFailure;
+            }
             try
             {
                 // HS2로 도착이 확인된 작업은 밀착 중 STOP해도 체결 결과를 이어받는다.
@@ -120,11 +130,12 @@ public sealed partial class MainConveyor
                     source.TransferAssembliesTo(destination, departingJob!, await arrived.Task);
                 }
             }
-            finally
+            catch (Exception handoffFailure) when (failure is not null)
             {
-                // 결과 인계 알림이 실패해도 벨트는 반드시 정지시킨다.
-                StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorReadyToFront2);
+                throw new AggregateException(failure, handoffFailure);
             }
+            if (failure is not null)
+                ExceptionDispatchInfo.Throw(failure);
         }
 
         // S3는 플레이트 DOWN, 스토퍼 UP 상태에서 검사한다.

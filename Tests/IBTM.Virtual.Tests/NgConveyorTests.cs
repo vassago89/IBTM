@@ -231,6 +231,41 @@ public sealed class NgConveyorTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task NgReturnStopsBeltImmediatelyDuringArrivalSettling(bool losePickupClearance)
+    {
+        var system = CreateSystem();
+        await system.Conveyor.SetShuttleDownAsync(true);
+        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false);
+        system.Io.AutoResponseEnabled = false;
+        system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+        using var stop = new CancellationTokenSource();
+        var run = system.Conveyor.ReturnFromConveyorAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(system.Io, OutputIo.NgConveyorRun, true);
+            system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+            // Arrival starts the existing non-cancellable settling delay.
+            await Task.Delay(100);
+            Assert.False(run.IsCompleted);
+            Assert.True(system.Conveyor.RunCommandOn);
+            if (losePickupClearance)
+                system.Io.SetInput(InputIo.NgCarrierPickupUp, false);
+            else
+                stop.Cancel();
+            Assert.False(system.Conveyor.RunCommandOn);
+            Assert.True(system.Io.GetOutput(OutputIo.NgShuttleDown));
+        }
+        finally
+        {
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => run.WaitAsync(TimeSpan.FromSeconds(6)));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task NgReturnStopsBeforeBeltWhenCancelledOrPickupDropsDuringDescent(bool losePickupClearance)
     {
         var system = CreateSystem();

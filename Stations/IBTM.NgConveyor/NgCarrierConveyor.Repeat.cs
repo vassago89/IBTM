@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -61,6 +59,9 @@ public sealed partial class NgCarrierConveyor
         if (!IsTransferClear)
             throw new InvalidOperationException("Release the NG transfer and raise the open pickup before returning the conveyor carrier.");
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var motor = new ConveyorRun(
+            _io, OutputIo.NgConveyorRun, operation.Token,
+            OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         void CheckPickup()
         {
             if (!IsTransferClear)
@@ -68,7 +69,6 @@ public sealed partial class NgCarrierConveyor
         }
 
         _transfer!.Changed += CheckPickup;
-        Exception? failure = null;
         try
         {
             BeginRun();
@@ -89,24 +89,12 @@ public sealed partial class NgCarrierConveyor
         }
         catch (Exception exception)
         {
-            failure = exception;
-            throw;
+            motor.Failure = exception;
         }
         finally
         {
             _transfer!.Changed -= CheckPickup;
-            try
-            {
-                Stop();
-            }
-            catch (Exception cleanupFailure) when (failure is not null)
-            {
-                throw new AggregateException(failure, cleanupFailure);
-            }
-            finally
-            {
-                EndRun(cancellationToken);
-            }
+            EndRun(cancellationToken);
         }
     }
 }
