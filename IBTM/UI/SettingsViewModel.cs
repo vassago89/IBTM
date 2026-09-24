@@ -1,12 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Data;
-using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -23,25 +23,10 @@ public partial class SettingsViewModel : ObservableObject
     private readonly MachineState _state;
     private readonly MachineStore _store;
     private readonly OperationCancellation _operations;
-
-    [ObservableProperty]
-    public partial string? DatabaseMessage { get; set; }
     private readonly VirtualCamera? _virtualCamera;
     private readonly Dictionary<MotionGroup, (MotionSettings Settings, MotionHardwareSettings Hardware)> _motions;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ClearVirtualImageCommand))]
-    public partial string? VirtualImageName { get; set; }
-
-    [ObservableProperty]
-    public partial string? VirtualImageError { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CurrentMotionSettings))]
-    [NotifyPropertyChangedFor(nameof(CurrentMotionHardwareSettings))]
-    [NotifyPropertyChangedFor(nameof(CurrentMotionHasZ))]
-    [NotifyPropertyChangedFor(nameof(CurrentAxisMappings))]
-    public partial MotionGroup SelectedMotionGroup { get; set; } = MotionGroup.PcbSupply;
+    private readonly ILightController _light;
+    private readonly ILogger<SettingsViewModel> _log;
 
     public SettingsViewModel(
         MachineSettings settings,
@@ -109,10 +94,31 @@ public partial class SettingsViewModel : ObservableObject
         OutputMappingView = GroupMappings(OutputMappings);
     }
 
+    [ObservableProperty]
+    public partial string? DatabaseMessage { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ClearVirtualImageCommand))]
+    public partial string? VirtualImageName { get; set; }
+
+    [ObservableProperty]
+    public partial string? VirtualImageError { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentMotionSettings))]
+    [NotifyPropertyChangedFor(nameof(CurrentMotionHardwareSettings))]
+    [NotifyPropertyChangedFor(nameof(CurrentMotionHasZ))]
+    [NotifyPropertyChangedFor(nameof(CurrentAxisMappings))]
+    public partial MotionGroup SelectedMotionGroup { get; set; } = MotionGroup.PcbSupply;
+
     public MachineSettings Settings { get; }
+
     public ControlDriver ActiveControlDriver { get; }
+
     public CameraDriver ActiveCameraDriver { get; }
+
     public BoltDriver ActiveBoltDriver { get; }
+
     public LightDriver ActiveLightDriver { get; }
 
     public BoltDriver SelectedBoltDriver
@@ -132,17 +138,25 @@ public partial class SettingsViewModel : ObservableObject
     public bool IsDriverChangeAllowed => IsSettingsEditAllowed && !IsVirtualDevelopment;
 
     public ControlDriver[] ControlDrivers { get; }
+
     public CameraDriver[] CameraDrivers { get; }
+
     public BoltDriver[] BoltDrivers { get; }
+
     public LightDriver[] LightDrivers { get; }
 
     public bool IsVirtualCamera => _virtualCamera is not null;
 
     public HardwareMappingRow[] InputMappings { get; }
+
     public HardwareMappingRow[] OutputMappings { get; }
+
     public HardwareMappingRow[] AxisMappings { get; }
+
     public ICollectionView InputMappingView { get; }
+
     public ICollectionView OutputMappingView { get; }
+
     public MotionGroup[] MotionGroups { get; }
 
     public MotionSettings CurrentMotionSettings => _motions[SelectedMotionGroup].Settings;
@@ -356,5 +370,207 @@ public partial class SettingsViewModel : ObservableObject
         view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(HardwareMappingRow.Area)));
         view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(HardwareMappingRow.Section)));
         return view;
+    }
+
+    [ObservableProperty]
+    public partial int LightTestChannel { get; set; }
+
+    [ObservableProperty]
+    public partial int LightTestLevel { get; set; } = 80;
+
+    [ObservableProperty]
+    public partial bool LightTestOn { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TestLightCommand), nameof(OffTestLightCommand))]
+    public partial int? PendingLightOffChannel { get; set; }
+
+    [ObservableProperty]
+    public partial string LightTestMessage { get; set; } = "Test only: does not change recipe brightness.";
+
+    public string ActiveLightConnection { get; }
+
+    private bool IsTestLightAllowed
+    {
+        get
+        {
+            return IsSettingsEditAllowed
+                && PendingLightOffChannel is null
+                && !OffTestLightCommand.IsRunning;
+        }
+    }
+
+    private bool IsOffTestLightAllowed
+    {
+        get
+        {
+            return TestLightCommand.IsRunning
+                || PendingLightOffChannel is not null
+                && !_operations.IsShuttingDown;
+        }
+    }
+
+    private void OnLightCommandChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
+            return;
+        TestLightCommand.NotifyCanExecuteChanged();
+        OffTestLightCommand.NotifyCanExecuteChanged();
+    }
+
+    public IAsyncRelayCommand OffTestLightCommand { get; }
+
+    private async Task OffTestLightAsync()
+    {
+        switch (true)
+        {
+            case true when TestLightCommand.IsRunning:
+                TestLightCommand.Cancel();
+                if (TestLightCommand.ExecutionTask is { } test)
+                    await test;
+                return;
+            case true when PendingLightOffChannel is { } channel:
+                try
+                {
+                    using var operation = _operations.Link();
+                    var failure = await TurnTestLightOffAsync(channel);
+                    LightTestMessage = failure?.Message ?? $"OFF command sent · channel {channel}.";
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                finally
+                {
+                    RefreshCommands();
+                }
+                break;
+        }
+    }
+
+    private async Task<Exception?> TurnTestLightOffAsync(int channel)
+    {
+        PendingLightOffChannel = channel;
+        try
+        {
+            // Reconnect if needed, but never send ON/brightness during an OFF retry.
+            await Task.Run(
+                () =>
+                {
+                    _light.Initialize();
+                    _light.TurnOff(channel);
+                });
+            _log.LogInformation("{Message}", $"Lighting test OFF command sent: channel={channel}.");
+            PendingLightOffChannel = null;
+            return null;
+        }
+        catch (Exception exception)
+        {
+            var failure = new InvalidOperationException(
+                $"OFF failed on channel {channel}; light state is unknown. Press OFF to retry. {exception.Message}",
+                exception);
+            _log.LogError(exception, "Lighting test cleanup failed; light may still be ON.");
+            return failure;
+        }
+        finally
+        {
+            LightTestOn = false;
+        }
+    }
+
+    public IAsyncRelayCommand TestLightCommand { get; }
+
+    private async Task TestLightAsync(CancellationToken cancellationToken)
+    {
+        // MOVS commands have a single channel digit; zero addresses all channels.
+        if (LightTestChannel is < 1 or > 9 || LightTestLevel is < 0 or > 255)
+        {
+            LightTestMessage = "Use a single channel (1–9) and brightness 0–255.";
+            return;
+        }
+
+        var channel = LightTestChannel;
+        var level = LightTestLevel;
+        OperationCancellation.Operation? operation;
+        try
+        {
+            operation = _operations.TryBegin(cancellationToken);
+            if (operation is null)
+            {
+                LightTestMessage = "Wait for the current machine operation to finish.";
+                return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            LightTestMessage = "Lighting test cancelled.";
+            RefreshCommands();
+            return;
+        }
+
+        using (operation)
+        {
+            void StopWhenUnavailable()
+            {
+                if (!_state.ManualMode || _operations.IsShuttingDown)
+                    operation.Cancel();
+            }
+
+            _state.Changed += StopWhenUnavailable;
+            var initialized = false;
+            Exception? failure = null;
+            try
+            {
+                StopWhenUnavailable();
+                LightTestMessage = $"Connecting: {ActiveLightConnection}…";
+                _log.LogInformation(
+                    "{Message}",
+                    $"Lighting test started: driver={ActiveLightDriver}, connection={ActiveLightConnection}, channel={channel}, level={level}.");
+                await Task.Run(
+                    () =>
+                    {
+                        operation.Token.ThrowIfCancellationRequested();
+                        _light.Initialize();
+                        initialized = true;
+                        operation.Token.ThrowIfCancellationRequested();
+                        _light.SetLevel(channel, level);
+                        operation.Token.ThrowIfCancellationRequested();
+                        _light.TurnOn(channel);
+                    },
+                    operation.Token);
+                operation.Token.ThrowIfCancellationRequested();
+                PendingLightOffChannel = channel;
+                LightTestOn = true;
+                LightTestMessage = $"ON command sent · channel {channel}, level {level}. Press OFF to finish.";
+                _log.LogInformation("{Message}", $"Lighting test ON command sent: channel={channel}, level={level}.");
+                // Keep the operation owned while illuminated, including OFF cleanup.
+                // This blocks automatic/motion admission and lets STOP cancel the test.
+                await Task.Delay(Timeout.Infinite, operation.Token);
+            }
+            catch (OperationCanceledException) when (operation.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+                _log.LogError(exception, "Lighting test failed.");
+            }
+            finally
+            {
+                _state.Changed -= StopWhenUnavailable;
+                if (initialized)
+                {
+                    // Required cleanup and retries target the captured channel, not edited settings.
+                    var offFailure = await TurnTestLightOffAsync(channel);
+                    failure = offFailure ?? failure;
+                }
+
+                LightTestOn = false;
+                LightTestMessage = failure?.Message ?? (initialized
+                    ? $"OFF command sent · channel {channel}."
+                    : "Lighting test cancelled.");
+            }
+        }
+
+        RefreshCommands();
     }
 }

@@ -66,9 +66,9 @@ Live는 위치 티칭에서만 사용하며 저장 이미지 편집 화면과 �
 
 ## 수정 위치
 
-- 위치 티칭/Live: `IBTM/UI/TeachingView.xaml`, `TeachingViewModel.Camera.cs`
+- 위치 티칭/Live: `IBTM/UI/TeachingView.xaml`, `TeachingViewModel.cs`
 - 검사 편집/결과 이미지: `IBTM/UI/InspectionTeachingView.xaml`, `InspectionTeachingViewModel.cs`
 - 저장 이미지 판정: `IBTM/UI/InspectionPreview.cs`
-- 자동 검사 포인트별 설정: `Stations/IBTM.Inspection/InspectionStation.Vision.cs`
+- 자동 검사 포인트별 설정: `Stations/IBTM.Inspection/InspectionStation.cs`
 - 검사 설정 저장: `Shared/IBTM.Storage/RecipeManager.cs`, `MachineStore.cs`, `Recipes/Recipe.cs`
 - DB/이미지: [설정과 저장](SETTINGS_STORAGE.md)

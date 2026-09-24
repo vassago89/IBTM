@@ -43,7 +43,7 @@
 - Inspection이 비활성이면 Station 3은 NG로 처리한다.
   NG Transfer까지 비활성이면 기존 후방 SMEMA 배출 경로를 사용한다.
 
-관련 코드: `MainConveyor.Automatic.cs`, `MainConveyor.Transfer.cs`, `ConveyorStation.cs`, `InspectionStation.cs`.
+관련 코드: `MainConveyor.cs`, `MainConveyor.cs`, `ConveyorStation.cs`, `InspectionStation.cs`.
 상태와 책임의 상세 기록: [MAIN_CONVEYOR_INSPECTION_SEQUENCE.md](MAIN_CONVEYOR_INSPECTION_SEQUENCE.md).
 벨트가 안 돌면 DO 명령 여부와 실제 구동을 구분해서 확인한다.
 
@@ -66,11 +66,12 @@
 - 첫 FOV가 없으면 빠지는 이동을 하지 않는다.
 - Home은 위 일반 픽업 접근 순서와 별개다.
 
-관련 코드: `Stations/IBTM.Inspection/NgCarrierTransfer.cs`.
+관련 코드: `Stations/IBTM.Inspection/InspectionStation.cs`.
 이 유닛이 NG 실린더·그리퍼, 검사와 공유하는 XY 축, 자동 이송 상태를 함께 소유한다.
 Supply는 `PcbSupplier`, Placement는 `PcbPlacer`, 체결기는 `BoltFasteningStation`에서
-I/O·모션과 순서를 직접 실행한다. Repeat는 각 유닛의 별도 partial 소스 파일에 둔다.
-`Work`는 메인 컨베이어와 공유하는 캐리어 결과·완료 소유권으로 유지한다.
+I/O·모션과 순서를 기본 클래스 파일에서 직접 실행한다. 검사·메인/NG 컨베이어의
+별도 Repeat 완료 대기·복귀 진입점만 `.Repeat.cs`에 둔다.
+캐리어 결과·완료 소유권은 `ConveyorStation`의 Job에 보관한다.
 
 ## PCB 감지와 고정 판정
 
@@ -147,7 +148,7 @@ Placement 고정을 확인한 뒤 Supply를 해제하고 Placement가 상승한�
 미수집 체결 결과는 지우지 않는다. 체결된 PCB를 풀어 역인계하는 동작은 보류 상태다.
 
 관련 코드: `IBTM/MachineController.Repeat.cs`,
-각 유닛의 `*.Repeat.cs`. 기존 State를 재사용하며, MachineController는 연결된 유닛의
+검사·메인/NG 컨베이어의 `*.Repeat.cs`. 기존 State를 재사용하며, MachineController는 연결된 유닛의
 종료 대기·실행 취소·복귀 순서와 메인 역회전 경로 인터록을 조정한다.
 
 ## 짧은 현장 확인 순서

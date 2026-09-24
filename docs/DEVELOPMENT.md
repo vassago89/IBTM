@@ -47,7 +47,7 @@ Data Matrix 판독 옵션(TryHarder, TryInverted, AutoRotate, PureBarcode, 선�
 | 동사 + `Async()` | 장치 동작 또는 비동기 대기 | `RunAsync()`, `MoveToCarrierAsync()`, `WaitForChangeAsync()` |
 
 메인 컨베이어는 `MainConveyor.Sequence.cs`의 `GetState()`에서 상태를 선택하고,
-`RunAsync()` 루프에서 직접 실행한다. 반입·S1→S2·S2→S3는 `MainConveyor.Transfer.cs`의 `TransferAsync()`에서 따라간다.
+`RunAsync()` 루프에서 직접 실행한다. 반입·S1→S2·S2→S3는 `MainConveyor.cs`의 `TransferAsync()`에서 따라간다.
 체결·검사·안착도 `GetState()`로 판단을 확인하고 `RunAsync()`와 `ExecuteAsync()`에서 실행을 따라간다.
 PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 두어 F12와 함수 중단점으로 찾을 수 있다.
 NG 컨베이어는 `RunAsync()`의 상태 분기에서 이송·배출·빈자리 채우기를 직접 실행한다.
@@ -93,11 +93,12 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 - `IBTM`은 화면·운전 시작/정지·DI 구성을 맡고, 각 Station은 자기 작업 순서를 맡는다.
   유닛 사용 여부는 `Shared/IBTM.Device/UnitSettings.cs`의 같은 설정 객체를 주입해 직접 읽는다.
   설정 판단을 DI의 `Func<bool>`로 나누거나 각 유닛에 복사하지 않는다.
-- `PcbSupplier`, `PcbPlacer`, `BoltFasteningStation`, `NgCarrierTransfer`가 각 유닛의
+- `PcbSupplier`, `PcbPlacer`, `BoltFasteningStation`, `InspectionStation`이 각 유닛의
   축·I/O·시퀀스를 함께 소유한다. 별도 Handler/Gantry/Move 객체를 사이에 두지 않는다.
-  `InspectionStation`은 검사 순서·카메라·조명을 소유하고, XY 이동은 `NgCarrierTransfer`에 직접 요청한다.
-  검사 이동의 기본 속도는 축 소유자가 현재 설정에서 읽고, 캐리어 이송은 NG 이송 속도를 명시한다.
-  Repeat는 각 유닛의 같은 partial 클래스에 있는 `.Repeat.cs`에 유지한다.
+  `InspectionStation`은 검사·NG 이송, XY 축·카메라·조명을 함께 소유한다.
+  일반 동작은 기본 클래스 파일에 모은다. 검사·메인/NG 컨베이어와 MachineController의
+  별도 반복 완료 대기·복귀 동작만 `.Repeat.cs`에 유지한다.
+  공급·장착·볼트의 Repeat 단계는 기본 파일의 공통 실행 루프에서 처리한다.
 - 현재 레시피의 로드·저장은 `RecipeManager`가 맡는다. 소비자는 주입받은 관리자의 `Current`를 읽는다.
 - `MainConveyor`는 이송 우선순위를 결정하고, 하나의 이송 메서드가 출발지 하강부터 목적지 도착까지 맡는다.
   NG 배출 여부도 컨베이어가 검사 결과와 유닛 설정으로 판단한다. DI에는 객체 연결만 둔다.
@@ -119,14 +120,14 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | 바꾸려는 것 | 먼저 열 파일 |
 | --- | --- |
 | 장치 생성·연결 | `IBTM/App.xaml.cs`, `IBTM/DependencyInjection.cs` |
-| Start 준비 조건 / 자동 유닛 시작·취소·예외 | `IBTM/MachineController.Automatic.cs` |
+| Start 준비 조건 / 자동 유닛 시작·취소·예외 | `IBTM/MachineController.cs` |
 | 공통 연결 / Stop·Shutdown / 안전 입력·이동 인터록 | `IBTM/MachineController.cs` |
-| 장치 초기화 / Reset 허용 조건·복구 순서 | `IBTM/MachineController.Reset.cs` |
-| 전체·유닛·축 Home / 실린더 상승 / Home 차단 이유 | `IBTM/MachineController.Home.cs` |
-| 수동 축 이동 / 티칭 저장 / 서보·ADC·볼트 테스트 | `IBTM/MachineController.Manual.cs` |
+| 장치 초기화 / Reset 허용 조건·복구 순서 | `IBTM/MachineController.cs` |
+| 전체·유닛·축 Home / 실린더 상승 / Home 차단 이유 | `IBTM/MachineController.cs` |
+| 수동 축 이동 / 티칭 저장 / 서보·ADC·볼트 테스트 | `IBTM/MachineController.cs` |
 | Repeat 왕복 경로와 마지막 유닛 | `IBTM/MachineController.Repeat.cs` |
-| 수동 DO 조작 | `IBTM/MachineController.Outputs.cs`, `IBTM/UI/OutputWindowRow.cs` |
-| 화면 표시 상태 | `IBTM/MachineState.cs`, `IBTM/UI/OperationViewModel.Display.cs` |
+| 수동 DO 조작 | `IBTM/MachineController.cs`, `IBTM/UI/OutputWindowRow.cs` |
+| 화면 표시 상태 | `IBTM/MachineState.cs`, `IBTM/UI/OperationViewModel.cs` |
 | 메인 창 명령·레시피 파일 선택·종료 대기 | `IBTM/UI/MainViewModel.cs` |
 | 진단 창 생성·재활성화·Owner 관리 | `IBTM/UI/DiagnosticWindows.cs` |
 | ADC 진단 명령·입력값·취소·정지 확인 | `IBTM/UI/AdcProtocolViewModel.cs` |
@@ -134,24 +135,24 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | 모션 진단 구독·축 명령·창 종료 대기 | `IBTM/UI/MotionWindowViewModel.cs` |
 | 로그 표시·복사·일시정지 | `IBTM/UI/LogWindowViewModel.cs`, `LogTextBox.cs` |
 | 표준 로거 연결·파일 저장·최근 로그 수신 | `Shared/IBTM.Core/ApplicationLog.cs`, `IBTM/ApplicationTraceListener.cs` |
-| 메인 컨베이어 이송·감지 후 밀착 시간 | `Stations/IBTM.Conveyor/MainConveyor.Transfer.cs`, `ConveyorSettings.cs` |
-| 메인 컨베이어 수동 운전·모터·정지·SMEMA 출력 | `Stations/IBTM.Conveyor/MainConveyor.Motion.cs` |
+| 메인 컨베이어 이송·감지 후 밀착 시간 | `Stations/IBTM.Conveyor/MainConveyor.cs`, `ConveyorSettings.cs` |
+| 메인 컨베이어 수동 운전·모터·정지·SMEMA 출력 | `Stations/IBTM.Conveyor/MainConveyor.cs` |
 | 백업 플레이트·스토퍼 | `Shared/IBTM.Device/ConveyorStation.cs` |
 | 볼트 상태·피드백·의존성 | `Stations/IBTM.BoltFastening/BoltFasteningStation.cs` |
-| 볼트 공급·체결 순서·결과·Repeat | `Stations/IBTM.BoltFastening/BoltFasteningStation.Automatic.cs` |
-| 볼트 모션·티칭 이동·헤드/테이블 I/O | `Stations/IBTM.BoltFastening/BoltFasteningStation.Motion.cs` |
-| Station 3 작업/NG 대기 | `Stations/IBTM.Inspection/InspectionStation.cs`, `InspectionStation.Automatic.cs` |
-| NG 픽업·복귀·XY 이동·실린더·그리퍼 | `Stations/IBTM.Inspection/InspectionStation.Transfer.cs`, `InspectionStation.Motion.cs` |
+| 볼트 공급·체결 순서·결과·Repeat | `Stations/IBTM.BoltFastening/BoltFasteningStation.cs` |
+| 볼트 모션·티칭 이동·헤드/테이블 I/O | `Stations/IBTM.BoltFastening/BoltFasteningStation.cs` |
+| Station 3 작업/NG 대기 | `Stations/IBTM.Inspection/InspectionStation.cs` |
+| NG 픽업·복귀·XY 이동·실린더·그리퍼 | `Stations/IBTM.Inspection/InspectionStation.cs`, `InspectionStation.Repeat.cs` |
 | 셔틀·NG 벨트 | `Stations/IBTM.NgConveyor/NgCarrierConveyor.cs` |
 | 티칭 화면 배치 | `IBTM/UI/TeachingView.xaml` |
 | 공통 티칭 I/O 행·그룹 템플릿 | `IBTM/UI/IoWindowStyles.xaml` |
-| 티칭 포인트·선택·위치 기록·설정 저장 | `IBTM/UI/TeachingViewModel.Points.cs` |
-| 티칭 Home Axes / 조그 / Move to Position | `IBTM/UI/TeachingViewModel.Motion.cs` |
-| Grab / Live / 촬영 이미지 저장·로딩 | `IBTM/UI/TeachingViewModel.Camera.cs` |
-| 설비 시작 초기화 | `IBTM/MachineController.Initialization.cs` |
+| 티칭 포인트·선택·위치 기록·설정 저장 | `IBTM/UI/TeachingViewModel.cs` |
+| 티칭 Home Axes / 조그 / Move to Position | `IBTM/UI/TeachingViewModel.cs` |
+| Grab / Live / 촬영 이미지 저장·로딩 | `IBTM/UI/TeachingViewModel.cs` |
+| 설비 시작 초기화 | `IBTM/MachineController.cs` |
 | 저장 이미지 / ROI / Data Matrix / 과거 결과 재검사 | `IBTM/UI/InspectionTeachingViewModel.cs` |
 | 이미지 위 ROI·십자선 그리기 | `IBTM/UI/ImageTeachingView.cs` |
-| 실제 검사 이동·촬영·판정 | `Stations/IBTM.Inspection/InspectionStation.Vision.cs` |
+| 실제 검사 이동·촬영·판정 | `Stations/IBTM.Inspection/InspectionStation.cs` |
 | 카메라 연결·수신 | `Hardware/IBTM.Hik/HikCamera.cs` |
 | ADC 시리얼·파서 | `Hardware/IBTM.Hantas/` |
 | AJIN 단위·Home·축 이동 | `Hardware/IBTM.Ajin/AjinMotionService.cs` |
@@ -161,7 +162,7 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | IO 번호·축 번호 기본값 | 각 유닛의 `*HardwareSettings.cs` |
 | 설정 구성·편집 화면 | `IBTM/MachineSettings.cs`, `IBTM/UI/SettingsViewModel.cs` |
 | DB JSON 저장 | `Shared/IBTM.Storage/MachineStore.cs` |
-| PCB 번호·월별 결과 DB / 하단 결과 목록 | `IBTM/PcbHistory.cs`, `Shared/IBTM.Storage/MachineStore.Pcbs.cs`, `IBTM/UI/OperationViewModel.Pcbs.cs` |
+| PCB 번호·월별 결과 DB / 하단 결과 목록 | `IBTM/PcbHistory.cs`, `Shared/IBTM.Storage/MachineStore.cs`, `IBTM/UI/OperationViewModel.cs` |
 | 현재 레시피·저장·이미지 교체 | `Shared/IBTM.Storage/RecipeManager.cs`, `IBTM/UI/RecipeEditor.cs` |
 
 ## 화면과 ViewModel 경계
@@ -238,8 +239,8 @@ Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 �
 Safe Z → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다. 픽업 중에는 양쪽 헤드를 UP으로 유지하며, 픽업·슈팅 모두 체결 START 후에만 해당 헤드를 내린다.
 별도의 가체결·본체결 패스는 없다. 슈팅·픽업 모두 프리셋 1번으로 고정하며, 레시피에는 프리셋 속성이 없다.
 
-`BoltFasteningStation`은 한 클래스로 유지한다. 본체에는 공급·I/O, `.Motion.cs`에는 모션·티칭,
-`.Automatic.cs`에는 캐리어별 볼트 순회·체결·결과 기록을 둔다. 단독 Repeat 조건은 `.Repeat.cs`에 둔다.
+`BoltFasteningStation.cs`에 공급·I/O·모션·티칭과 캐리어별 볼트 순회·체결·결과 기록을 모은다.
+단독 Repeat도 같은 파일의 실행 루프에서 처리한다.
 자동 루프는 현재 `BoltPoint`의 헤드별 공급·이동을 수행한 뒤 공통 체결·복귀 순서를 실행한다.
 별도의 상태 실행 중계를 두지 않으며, `_activeBolt`는 실행 중인 목적지 표시용이다. STOP 후 START는 다시 첫 볼트부터 시작한다.
 
@@ -313,11 +314,9 @@ ROI·대상·촬영 좌표의 화면용 복사본을 추가하지 않는다.
 
 자동운전 호출은 `OperationViewModel.StartAsync` → `MachineController.StartAsync` →
 `RunAutomaticUnitsAsync` → 각 유닛의 `RunAsync` 순서다.
-Start 허용 조건과 실행·유닛 시작 목록은 `MachineController.Automatic.cs`에 모여 있다.
-Home의 허용 조건·차단 이유·실행은 `MachineController.Home.cs`,
-장치 초기화·Reset은 `MachineController.Reset.cs`, 수동 작업 수명은
-`MachineController.Manual.cs`에서 따라간다. 모두 같은 `MachineController`의 partial 파일이며
-의존성과 공통 Stop·안전 인터록은 `MachineController.cs`가 소유한다.
+`MachineController.cs`에서 Start 허용 조건·유닛 시작, 장치 초기화·Home·Reset,
+수동 작업 수명과 공통 Stop·안전 인터록을 함께 따라간다.
+Repeat 왕복 순서만 `MachineController.Repeat.cs`로 분리한다.
 
 HOME·START 선상승과 HOME 순서(2026-09-19):
 
@@ -444,7 +443,7 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 `AutoUnit`은 변경 알림과 추적만 관리한다. 자동운전 시작 함수가 각 유닛을 직접 시작하고,
 `ObserveAutomaticUnitAsync`는 이미 시작한 작업의 종료·오류를 확인한다.
 검사와 NG 이송은 갠트리를 공유하므로 `InspectionStation.RunAsync` 한 경로에서 실행한다.
-`InspectionStation.Vision.cs`도 같은 `InspectionStation` 객체의 일부이며 이동·촬영·판정을 직접 실행한다.
+`InspectionStation.cs`가 이동·촬영·판정도 직접 실행한다.
 피더는 `BoltFeederUnit` 하나를 픽업·슈팅별로 생성한다. NG 셔틀과 벨트는 `NgCarrierConveyor`에서 동작과 현재 입력을 함께 읽는다.
 캐리어별 Job·결과·완료 정보는 각 스테이션의 `ConveyorStation`에 보관한다. 별도의 Work 클래스는 없고, 공정 조건·검사 요청·NG 인계 인터록은 해당 실행 스테이션이 관리한다.
 Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고, Placement 확보 확인과 이탈 대기는 유지한다.
@@ -806,7 +805,7 @@ XY 이동에 필요한 양쪽 헤드 상승과 Safe Z도 유지한다.
 통신형도 START 후 하강 출력에 실패하면 늦게 온 결과를 자동 반영하지 않는다.
 새 START로 재체결할 때 새 하강 출력을 내보내고 새 결과를 확인한다.
 하강 출력 후 결과 수집이 실패해도 해당 호출에서 다시 START하거나 결과를 반복 조회하지 않는다.
-관련 코드는 `PcbPlacer.Repeat.cs`, `MainConveyor.ReturnToStartAsync`, `MachineController.Repeat.cs`다.
+관련 코드는 `PcbPlacer.cs`, `MainConveyor.ReturnToStartAsync`, `MachineController.Repeat.cs`다.
 
 NG Transfer까지만 켠 Repeat와 실제 셔틀에 놓는 동작은 다르다.
 전자는 셔틀 위치에서 내려도 그리퍼를 풀지 않고 돌아온다.

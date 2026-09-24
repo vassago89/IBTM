@@ -36,7 +36,7 @@ and relative handler positions do not gate this sequence.
 Placement, optional pressing and retraction run in the `PlacingPcb` branch of `ExecuteStepAsync`.
 Its local feedback check requires PCB presence through completion, then permits
 the sensor to clear during retraction. The operation uses its selected carrier and heat-sink target;
-it never guesses a heat sink from X/Y. Repeat uses the same switch in `PcbPlacer.Automatic.cs` and
+it never guesses a heat sink from X/Y. Repeat uses the same switch in `PcbPlacer.cs` and
 picks PCBs from the existing carrier.
 With Supply disabled, it visits handoff and places each PCB back on its heat sink.
 With Supply enabled, `ReturningPcb` identifies the original heat sink and `Returning`

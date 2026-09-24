@@ -148,7 +148,7 @@ control remains available. TEST OFF followed by ON starts the next carrier.
 
 ## Repeat and verification
 
-The same switch in `PcbSupplier.Automatic.cs` uses `PcbSupplyState` values for the reverse
+The same switch in `PcbSupplier.cs` uses `PcbSupplyState` values for the reverse
 operations. With Placement disabled, Supply initially picks one PCB, visits
 handoff, then returns to pickup XY at Rotation Z while retaining its grip and
 fixer. It repeats with that PCB without descending into or releasing at a source

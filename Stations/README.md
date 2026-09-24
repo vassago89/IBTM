@@ -20,17 +20,14 @@ START에서 처음부터 선택한다. 그립이나 인계가 애매하면 현�
 
 ## 파일과 실행 순서
 
-- `Station.cs`: 생성자·의존성·피드백 속성·변경 이벤트·작업/인계 정보.
-- `.Automatic.cs`: 자동 실행 진입점, 다음 단계 선택, 단계 내부의 순차 동작.
-- `.Motion.cs`: 수동/자동에서 사용하는 실제 모션·I/O 동작과 인터록.
-- `.Transfer.cs`: 인계 순서가 큰 검사/메인 컨베이어의 집기·놓기·스테이션 이송. 검사의 Repeat 인계 완료 대기·S3 복귀도 여기에 둔다.
-- `.Repeat.cs`: 메인/NG 컨베이어의 반복 복귀 동작. 공급·장착의 Repeat 단계는 `.Automatic.cs`의 같은 switch에서 처리한다.
-- `.Vision.cs`: 검사 촬영·조명·영상 처리.
+- 기본 클래스 파일: 생성자·의존성·피드백·작업/인계 정보, 자동 실행·단계 선택,
+  모션·I/O·인터록과 검사 촬영·조명·영상 처리를 한곳에 둔다.
+- `.Repeat.cs`: 검사·메인/NG 컨베이어의 반복 완료 대기·복귀 진입점만 별도로 둔다.
+  공급·장착·볼트의 Repeat 단계는 기본 파일의 공통 실행 루프와 switch에서 처리한다.
 
-볼트 공급·체결 순서는 `.Automatic.cs`, 실린더·진공·컨트롤러 명령과 피드백 대기는
-`.Motion.cs`에 둔다. 검사의 캐리어 요청·인계 소유권·준비 상태는 기본 파일에 모으고
-별도 `.Carrier.cs`를 두지 않는다. 메인 컨베이어의 수동 운전·정지·SMEMA 출력과
-공통 모터 시작은 `.Motion.cs`에 두어 정방향 이송과 Repeat 역송이 함께 사용한다.
+일반 동작을 `.Automatic.cs`, `.Motion.cs`, `.Transfer.cs`, `.Vision.cs` 등으로 다시 나누지 않는다.
+Repeat에서도 사용하는 모션·인계·출력 동작은 기본 파일을 함께 사용한다.
+파일 길이만 줄이기 위한 partial 분리나 별도 실행 루프를 추가하지 않는다.
 
 공급·장착·볼트·검사·메인 컨베이어·NG 컨베이어의 실행 진입점은 아래 형태로 통일한다.
 
@@ -88,9 +85,9 @@ Disabled는 화면·대기 표시로만 사용하며 미완료 인계 단계를 
 인계 위치 확인이 무효화되기 전에 상대가 이탈을 확인해야 하므로, 짧은 Clear 상태를
 각자 읽는 타이밍에 맡기지 않는다.
 
-단계 전환은 `.Automatic.cs`, `.Transfer.cs`, `.Repeat.cs`의 명시적인 시퀀스에서 수행한다.
+단계 전환은 기본 파일과 `.Repeat.cs`의 명시적인 시퀀스에서 수행한다.
 `PrepareHandoffAsync` / `PrepareReceiptAsync`는 이동 후 인계 준비를 확정하는 시퀀스 진입점이다.
-티칭의 `MoveToTeachingPositionAsync`와 `.Motion.cs`의 축 이동은 시퀀스 단계를 변경하지 않는다.
+티칭의 `MoveToTeachingPositionAsync`와 개별 축 이동은 시퀀스 단계를 변경하지 않는다.
 
 공통 기반인 `AutoUnit`에는 실행 수명·변경 대기·단계 통지만 둔다. 장치 호출, 분기,
 인계 판단은 각 스테이션에 명시한다. 피더처럼 감지와 보충만 하는 유닛에 별도의
@@ -98,19 +95,18 @@ Disabled는 화면·대기 표시로만 사용하며 미완료 인계 단계를 
 
 ## 관련 화면과 설비 초기화
 
-- `TeachingViewModel.cs`: 생성·활성화·종료, 유닛 선택, 공통 I/O 표시와 명령 갱신.
-- `TeachingViewModel.Points.cs`: 포인트 선택·추가·삭제, 위치 기록, 설정·레시피 저장.
-- `TeachingViewModel.Motion.cs`: Jog·Step·Home·Move To 명령과 각각의 실행 가능 조건.
-- `TeachingViewModel.Camera.cs`: Live·Grab, 촬영 이미지 저장·로딩, 조명과 미리보기.
-- `MachineController.Initialization.cs`: 시작 초기화 진입점과 I/O·모션·검사·체결기 초기화.
-- `MachineController.Reset.cs`: 알람 확인과 정지 후 하드웨어 복구.
+- `TeachingViewModel.cs`: 화면 수명·유닛 선택, 포인트 편집·저장, 모션 명령, Live·Grab·조명.
+- `OperationViewModel.cs`, `SettingsViewModel.cs`: 해당 화면의 표시·명령·설정 처리.
+- `MachineController.cs`: 시작 초기화, 자동/수동 동작, Home·Stop·Reset과 안전 인터록.
+- `MachineController.Repeat.cs`: 설비 Repeat 왕복 순서.
 
 명령이라는 이유만으로 별도 `.Commands.cs`에 모으지 않는다. 명령 선언·실행·허용 조건은
-해당 기능 파일에서 함께 찾을 수 있게 하고, 생성자의 초기화 순서는 유지한다.
+해당 클래스에서 함께 찾을 수 있게 하고, 생성자의 초기화 순서는 유지한다.
+MVVM·XAML 생성 코드에 필요한 `partial` 선언은 유지한다.
 
 ## 캐리어 작업과 장치 책임
 
-별도 `StationWork` 계층은 두지 않는다. `ConveyorStation.Job.cs`가 기존 S1/S2/S3
+별도 `StationWork` 계층은 두지 않는다. `ConveyorStation.cs`가 기존 S1/S2/S3
 지지대 객체에 Job 식별, 결과, 완료 여부와 결과 인계를 보관한다. 새 캐리어가 감지되면
 새 Job을 만들고, 이전 Job의 결과 쓰기와 완료 요청은 거부한다. STOP은 수집한 결과를 지우지 않는다.
 `CarrierPresent`를 읽는 것은 감지 이력을 바꾸지 않는다. 초기 I/O 관측은 시작 시 있던

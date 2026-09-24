@@ -5,15 +5,13 @@ Virtual 검증과 실장비 검증은 구분한다.
 
 ## 코드 위치
 
-- `Stations/IBTM.Conveyor/MainConveyor.cs`: 의존성, 외부 입력과 상태·변경 이벤트.
-- `Stations/IBTM.Conveyor/MainConveyor.Automatic.cs`: 실행 수명, 현재 상태 판단, 이송 우선순위와 상태별 실행.
-- `Stations/IBTM.Conveyor/MainConveyor.Motion.cs`: 공통 모터 제어, 수동 운전, 취소·정지와 SMEMA 출력 정리.
-- `Stations/IBTM.Conveyor/MainConveyor.Transfer.cs`: 반입·스테이션 간 이송·후방 배출.
+- `Stations/IBTM.Conveyor/MainConveyor.cs`: 의존성·피드백, 자동 실행·이송 우선순위,
+  모터·SMEMA·정지, 반입·스테이션 간 이송·후방 배출.
   출발지 하강부터 목적지 도착·정지까지는 계속 하나의 비동기 동작이다.
 - `Stations/IBTM.Conveyor/MainConveyor.Repeat.cs`: Repeat 완료 대기와 역방향 복귀.
-- `Stations/IBTM.Inspection/InspectionStation.cs`: 현재 캐리어의 검사·착좌 요청과 물리 조건.
-- `Stations/IBTM.Inspection/InspectionStation.Automatic.cs`: 검사와 NG 이송 단계 선택·자동 실행.
-- `Stations/IBTM.Inspection/InspectionStation.Transfer.cs`: NG 집기·놓기와 Repeat S3 복귀.
+- `Stations/IBTM.Inspection/InspectionStation.cs`: 검사·착좌 요청과 물리 조건,
+  검사·NG 이송 단계 선택·자동 실행과 집기·놓기·촬영.
+- `Stations/IBTM.Inspection/InspectionStation.Repeat.cs`: Repeat 완료 대기와 S3 복귀.
 
 컨베이어 테스트는 `ConveyorTests.cs`의 기동·정지·공통 준비 코드와
 `ConveyorTests.Transfer.cs`, `ConveyorTests.Discharge.cs`, `ConveyorTests.Job.cs`로 나눈다.

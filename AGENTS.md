@@ -4,6 +4,7 @@
 - Keep device calls and sequence steps explicit. Allow small local repetition when a new abstraction would make debugging or changes slower.
 - Simplify code in the affected path; do not add speculative frameworks, duplicate state or repeated cleanup passes without a concrete benefit.
 - Refactoring should remove duplicated work, storage and forwarding layers. Do not add helper classes, generic dispatchers or new packages merely to shorten individual methods. Keep device implementations aligned with the supplied originals.
+- Keep handwritten class members in the main class file; retain `.Repeat.cs` only for separate repeat operations. Keep `partial` where XAML or source generators require it, without splitting ordinary code into additional files.
 
 # Verification workflow
 
