@@ -24,16 +24,16 @@ public sealed partial class PcbPlacer
             NotifyChanged();
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (!_work.Station.CarrierPresent || _work.Completed)
+                if (!Station.CarrierPresent || Station.Completed)
                 {
                     _runTargets = null;
                 }
-                if (_work.Enabled && _repeat && !_units.MainConveyor && _work.Completed
-                    && _work.Station.CarrierSeated && State == PcbPlacementState.WaitingForCarrier)
-                    _work.StartRepeat(_work.CurrentJob);
-                if (_work.Station.CarrierSeated)
+                if (Enabled && _repeat && !_units.MainConveyor && Station.Completed
+                    && Station.CarrierSeated && State == PcbPlacementState.WaitingForCarrier)
+                    Station.StartRepeat(Station.CurrentJob);
+                if (Station.CarrierSeated)
                 {
-                    _runTargets ??= Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
+                    _runTargets ??= Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                 }
 
                 var heatSink = TargetHeatSink;
@@ -57,11 +57,11 @@ public sealed partial class PcbPlacer
     public PcbPlacementState GetNextStep(HeatSinkSlot? heatSink, bool repeat = false)
     {
         var state = State;
-        if (repeat && _work.Enabled && _repeatTrip is null)
+        if (repeat && Enabled && _repeatTrip is null)
         {
             if (state == PcbPlacementState.CompletingCarrier)
                 return state;
-            if (!_work.Station.CarrierSeated || _work.Completed)
+            if (!Station.CarrierSeated || Station.Completed)
                 return PcbPlacementState.WaitingForCarrier;
             return heatSink is null ? PcbPlacementState.CompletingCarrier : PcbPlacementState.PickingPcb;
         }
@@ -79,7 +79,7 @@ public sealed partial class PcbPlacer
                 return PcbPlacementState.ReceivingPcb;
             case PcbPlacementState.WaitingForSupplyRelease when _supply.Handoff == PcbSupplyHandoff.Released:
                 return PcbPlacementState.PreparingPlacement;
-            case PcbPlacementState.WaitingForCarrier when _work.Station.CarrierSeated && !_work.Completed:
+            case PcbPlacementState.WaitingForCarrier when Station.CarrierSeated && !Station.Completed:
                 return heatSink is null ? PcbPlacementState.CompletingCarrier : PcbPlacementState.PlacingPcb;
             default:
                 return state;
@@ -93,18 +93,18 @@ public sealed partial class PcbPlacer
         bool repeat = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (state == PcbPlacementState.Disabled || !_work.Enabled)
+        if (state == PcbPlacementState.Disabled || !Enabled)
         {
-            if (_work.Station.CarrierSeated && _repeatTrip is null && !PcbSecured && !IsPcbGripUncertain)
-                _work.Complete(_work.CurrentJob);
-            TraceStep(PcbPlacementState.Disabled, workId: _work.CurrentJob.Id,
+            if (Station.CarrierSeated && _repeatTrip is null && !PcbSecured && !IsPcbGripUncertain)
+                Station.Complete(Station.CurrentJob);
+            TraceStep(PcbPlacementState.Disabled, workId: Station.CurrentJob.Id,
                 waitingFor: _repeatTrip is not null || PcbSecured || IsPcbGripUncertain
-                    ? "unfinished PCB handoff" : _work.Completed ? "carrier transfer" : "carrier seated");
+                    ? "unfinished PCB handoff" : Station.Completed ? "carrier transfer" : "carrier seated");
             return false;
         }
         if (!repeat && _repeatTrip is not null)
             throw new InvalidOperationException("An unfinished Repeat PCB must be returned to its original carrier in Repeat mode before normal operation.");
-        var job = _repeatTrip?.Job ?? _work.CurrentJob;
+        var job = _repeatTrip?.Job ?? Station.CurrentJob;
         State = state;
         EnterStep(state, heatSink?.ToString(), job.Id);
         if (IsPcbGripUncertain
@@ -122,7 +122,7 @@ public sealed partial class PcbPlacer
         var requiresHolding = PcbSecured;
         void CheckRepeatFeedback()
         {
-            if (!_work.Station.CarrierSeated || !ReferenceEquals(job, _work.CurrentJob)
+            if (!Station.CarrierSeated || !ReferenceEquals(job, Station.CurrentJob)
                 || requiresHolding && !PcbSecured)
                 repeatOperation?.Cancel();
         }
@@ -191,11 +191,11 @@ public sealed partial class PcbPlacer
                 case PcbPlacementState.PreparingPlacement:
                     await PreparePlacementAsync(heatSink ?? HeatSinkSlot.HeatSink1, cancellationToken);
                     if (PcbSecured)
-                        State = _work.Station.CarrierSeated && !_work.Completed
+                        State = Station.CarrierSeated && !Station.Completed
                             ? PcbPlacementState.PlacingPcb : PcbPlacementState.WaitingForCarrier;
                     else
                     {
-                        State = TargetHeatSink is null && _work.Station.CarrierSeated && !_work.Completed
+                        State = TargetHeatSink is null && Station.CarrierSeated && !Station.Completed
                             ? PcbPlacementState.CompletingCarrier : PcbPlacementState.MovingToHandoff;
                     }
                     break;
@@ -210,7 +210,7 @@ public sealed partial class PcbPlacer
                     using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     void CheckPlacementFeedback()
                     {
-                        if (!_work.Station.CarrierSeated || !ReferenceEquals(job, _work.CurrentJob)
+                        if (!Station.CarrierSeated || !ReferenceEquals(job, Station.CurrentJob)
                             || carryingPcb && !PcbSecured
                             || checkingPcbPresence && Pcb == PlacementPcbState.None)
                             operation.Cancel();
@@ -242,7 +242,7 @@ public sealed partial class PcbPlacer
                             await SetIpmLiftDownAsync(true, operation.Token);
                         CheckPlacementFeedback();
                         operation.Token.ThrowIfCancellationRequested();
-                        _work.GetAssembly(job, target);
+                        Station.GetAssembly(job, target);
                         checkingPcbPresence = false;
                         _repeatTrip = null;
                         await SetIpmLiftDownAsync(false, operation.Token);
@@ -264,7 +264,7 @@ public sealed partial class PcbPlacer
                 case PcbPlacementState.CompletingCarrier:
                     await PreparePlacementAsync(null, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
-                    _work.Complete(job);
+                    Station.Complete(job);
                     State = _repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff;
                     break;
                 default:

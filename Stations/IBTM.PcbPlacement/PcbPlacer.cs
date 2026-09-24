@@ -14,7 +14,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private readonly IIoService _io;
     private readonly PcbPlacementHandlerSettings _settings;
     private readonly IPcbSupplyHandoff _supply;
-    private readonly PcbPlacementWork _work;
     private readonly RecipeManager _recipes;
     private readonly UnitSettings _units;
 
@@ -27,7 +26,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
         ? trip.HeatSink : null;
 
-    private sealed record RepeatPcbTrip(StationWork.Job Job, HeatSinkSlot HeatSink);
+    private sealed record RepeatPcbTrip(ConveyorStation.Job Job, HeatSinkSlot HeatSink);
 
     private HeatSinkSlot[]? _runTargets;
     // Completed stage position, invalidated by motion/state changes; never proof of current readiness.
@@ -39,7 +38,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         IIoService io,
         PcbPlacementHandlerSettings settings,
         IPcbSupplyHandoff supply,
-        PcbPlacementWork work,
+        ConveyorStation station,
         RecipeManager recipes,
         UnitSettings units)
     {
@@ -47,16 +46,20 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _io = io;
         _settings = settings;
         _supply = supply;
-        _work = work;
+        Station = station;
         _recipes = recipes;
         _units = units;
         Motion = motionStatus;
         io.InputChanged += OnInputChanged;
         motion.StateChanged += OnMotionStateChanged;
-        work.Changed += NotifyChanged;
-        work.Station.CarrierChanged += OnCarrierChanged;
+        station.Changed += NotifyChanged;
+        station.CarrierChanged += OnCarrierChanged;
         StepChanged += NotifyChanged;
     }
+
+    public ConveyorStation Station { get; }
+
+    public bool Enabled => _units.PcbPlacement;
 
     public override event Action? Changed;
 
@@ -162,13 +165,13 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public PcbPlacementState State
     {
-        get => !_work.Enabled ? PcbPlacementState.Disabled
+        get => !Enabled ? PcbPlacementState.Disabled
             : SequenceStep is PcbPlacementState step ? step : PcbPlacementState.MovingToHandoff;
         private set
         {
             if (Equals(SequenceStep, value))
                 return;
-            EnterStep(value, workId: _work.CurrentJob.Id);
+            EnterStep(value, workId: Station.CurrentJob.Id);
             if (!IsRunning)
                 Changed?.Invoke();
         }
@@ -213,7 +216,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             {
                 case true when _repeatTrip is { } trip:
                     return trip.HeatSink;
-                case true when _work.Completed:
+                case true when Station.Completed:
                     return null;
                 case true when IsTarget(HeatSinkSlot.HeatSink1) && !IsHeatSinkCompleted(HeatSinkSlot.HeatSink1):
                     return HeatSinkSlot.HeatSink1;
@@ -246,12 +249,12 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     private bool IsTarget(HeatSinkSlot heatSink)
     {
-        return _runTargets?.Contains(heatSink) ?? _work.Station.IsHeatSinkPresent(heatSink);
+        return _runTargets?.Contains(heatSink) ?? Station.IsHeatSinkPresent(heatSink);
     }
 
     private bool IsHeatSinkCompleted(HeatSinkSlot heatSink)
     {
-        return _work.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
+        return Station.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
     }
 
     private AxisPosition GetHeatSinkPosition(HeatSinkSlot heatSink)

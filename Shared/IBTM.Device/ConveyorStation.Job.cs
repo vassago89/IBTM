@@ -7,47 +7,30 @@ using IBTM.Core;
 
 namespace IBTM.Device;
 
-public abstract class StationWork
+public sealed partial class ConveyorStation
 {
     // Protect only result ownership changes, never device calls or notifications.
     private static readonly Lock s_jobGate;
     private volatile Job _job;
 
-    static StationWork()
+    static ConveyorStation()
     {
         s_jobGate = new();
     }
 
-    protected StationWork(ConveyorStation station, UnitSettings units)
-    {
-        _job = new();
-
-        Units = units;
-        Station = station;
-        station.Changed += NotifyChanged;
-        station.CarrierChanged += OnCarrierChanged;
-    }
-
-    public event Action? Changed;
     public event Action<HeatSinkAssembly>? AssemblyCreated;
 
     public Job CurrentJob => _job;
 
-    protected UnitSettings Units { get; }
-
-    public abstract bool Enabled { get; }
-
-    public ConveyorStation Station { get; }
-
-    public bool Completed => Station.CarrierPresent && _job.Completed;
+    public bool Completed => CarrierPresent && _job.Completed;
 
     public IEnumerable<HeatSinkAssembly> Assemblies => _job.Assemblies.Values.ToArray();
 
-    public virtual bool IsReceiveAllowed => !Station.CarrierPresent;
+    public bool IsReceiveAllowed => !CarrierPresent;
 
-    public virtual bool HasNg => Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
+    public bool HasNg => Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
 
-    public virtual bool IsTransferAllowed => Station.CarrierPresent && Completed;
+    public bool IsTransferAllowed => CarrierPresent && Completed;
 
     public HeatSinkAssembly GetAssembly(HeatSinkSlot heatSink)
     {
@@ -76,7 +59,7 @@ public abstract class StationWork
                 $"Carrier work changed from {job.Id} to {_job.Id}; the previous work cannot update this carrier.");
     }
 
-    public void TransferAssembliesTo(StationWork destination, Job job)
+    public void TransferAssembliesTo(ConveyorStation destination, Job job)
     {
         lock (s_jobGate)
         {
@@ -123,25 +106,11 @@ public abstract class StationWork
         lock (s_jobGate)
         {
             RequireCurrentJob(job);
-            if (!Station.CarrierPresent || !job.Completed)
+            if (!CarrierPresent || !job.Completed)
                 throw new InvalidOperationException("Finish the current carrier work before starting another stationary repeat.");
             _job = new();
         }
         Changed?.Invoke();
-    }
-
-    protected void NotifyChanged()
-    {
-        Changed?.Invoke();
-    }
-
-    private void OnCarrierChanged(bool present)
-    {
-        if (present)
-        {
-            lock (s_jobGate)
-                _job = new();
-        }
     }
 
     public sealed class Job

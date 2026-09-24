@@ -55,7 +55,7 @@ internal static class VirtualTest
     {
         var units = new UnitSettings();
         return new(motion, new(motion), io, settings, new UnavailableSupply(),
-            new(ConveyorStation.CreatePcbPlacement(io), units), new(OpenMachineStore(), new()), units);
+            ConveyorStation.CreatePcbPlacement(io), new(OpenMachineStore(), new()), units);
     }
 
     public static BoltFasteningStation CreateFastening(
@@ -64,7 +64,7 @@ internal static class VirtualTest
     {
         var units = new UnitSettings();
         return new(shooting, pickup, io, motion, new(motion), settings, reference,
-            new(ConveyorStation.CreateBoltFastening(io), units),
+            ConveyorStation.CreateBoltFastening(io),
             new(OpenMachineStore(), new()), units);
     }
 
@@ -78,9 +78,9 @@ internal static class VirtualTest
         motion ??= new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);
         settings ??= new();
         units ??= new();
-        var work = new InspectionWork(io, new MotionStatus(motion), settings, units);
-        var conveyor = new NgCarrierConveyor(io, new(), work, units);
-        return new(work, motion, conveyor, operations, motionSettings, settings, io, units,
+        var work = ConveyorStation.CreateInspection(io);
+        var conveyor = new NgCarrierConveyor(io, new(), units);
+        return new(work, motion, new(motion), conveyor, operations, motionSettings, settings, io, units,
             new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(),
             new RecipeManager(OpenMachineStore(), new()));
     }

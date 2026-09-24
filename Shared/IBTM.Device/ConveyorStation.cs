@@ -18,7 +18,7 @@ public enum StationCylinderState
     Down,
 }
 
-public sealed class ConveyorStation
+public sealed partial class ConveyorStation
 {
     private readonly IIoService _io;
     // Notification history only; CarrierPresent always reads the current inputs.
@@ -42,6 +42,7 @@ public sealed class ConveyorStation
         OutputIo backupPlate,
         OutputIo stopper)
     {
+        _job = new();
         _io = io;
         _backupPlateUp = backupPlateUp;
         _backupPlateDown = backupPlateDown;
@@ -237,7 +238,14 @@ public sealed class ConveyorStation
             var present = _io.GetInput(_heatSink1) || _io.GetInput(HeatSink2Input);
             _lastNotifiedPresence = present;
             if (previous != present)
+            {
+                if (present)
+                {
+                    lock (s_jobGate)
+                        _job = new();
+                }
                 CarrierChanged?.Invoke(present);
+            }
         }
 
         if (input == _backupPlateUp

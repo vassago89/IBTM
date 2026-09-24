@@ -16,7 +16,7 @@ public sealed partial class BoltFasteningStation
     // Selected work belongs only to this run; STOP discards it.
     private BoltPoint[]? _runBolts;
     private int _boltIndex;
-    private StationWork.Job? _runJob;
+    private ConveyorStation.Job? _runJob;
     private CancellationTokenSource? _carrierOperation;
 
     private BoltPoint? ActiveBolt
@@ -45,7 +45,7 @@ public sealed partial class BoltFasteningStation
         {
             return _runTargets is { } targets
                 ? targets
-                : Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent);
+                : Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent);
         }
     }
 
@@ -58,15 +58,15 @@ public sealed partial class BoltFasteningStation
         try
         {
             BeginRun();
-            if (_work.Enabled)
-                _work.Restart(_work.CurrentJob);
+            if (Enabled)
+                Station.Restart(Station.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (_work.Enabled && repeat && !_units.MainConveyor && _work.Completed)
+                if (Enabled && repeat && !_units.MainConveyor && Station.Completed)
                 {
-                    if (!_work.Station.CarrierSeated || !IsHorizontalMoveAllowed || !IsAtSafeZ())
+                    if (!Station.CarrierSeated || !IsHorizontalMoveAllowed || !IsAtSafeZ())
                         throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads at safe height.");
-                    _work.StartRepeat(_work.CurrentJob);
+                    Station.StartRepeat(Station.CurrentJob);
                 }
                 var step = GetNextStep();
                 if (!await ExecuteStepAsync(step, cancellationToken))
@@ -87,7 +87,7 @@ public sealed partial class BoltFasteningStation
             ClearCarrierOperation();
             try
             {
-                if (_work.Enabled)
+                if (Enabled)
                     StopShooting(failure);
             }
             finally
@@ -100,9 +100,9 @@ public sealed partial class BoltFasteningStation
     public BoltFasteningState GetNextStep(bool live = true)
     {
         var bolt = _runBolts is null ? ApplicableBolts.FirstOrDefault() : ActiveBolt;
-        if (!_work.Enabled)
+        if (!Enabled)
             return BoltFasteningState.Disabled;
-        if (!_work.IsReadyToFasten)
+        if (!IsReadyToFasten)
         {
             var standby = StandbyBolt;
             return standby is not null && standby.IsFasteningPositionDefined
@@ -113,7 +113,7 @@ public sealed partial class BoltFasteningStation
         }
 
         if (_runJob is null || _carrierOperation?.IsCancellationRequested == true
-            || !ReferenceEquals(_runJob, _work.CurrentJob))
+            || !ReferenceEquals(_runJob, Station.CurrentJob))
             return BoltFasteningState.PreparingCarrier;
 
         switch (bolt?.Head)
@@ -130,12 +130,12 @@ public sealed partial class BoltFasteningStation
     private async Task<bool> ExecuteStepAsync(BoltFasteningState step, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        EnterStep(step, GetActiveBolt(step)?.ToString(), _work.CurrentJob.Id);
+        EnterStep(step, GetActiveBolt(step)?.ToString(), Station.CurrentJob.Id);
         switch (step)
         {
             case BoltFasteningState.Disabled:
-                if (_work.Station.CarrierSeated)
-                    _work.Complete(_work.CurrentJob);
+                if (Station.CarrierSeated)
+                    Station.Complete(Station.CurrentJob);
                 return false;
             case BoltFasteningState.MovingToStandby:
                 var position = _settings.GetBoltPosition(StandbyBolt!);
@@ -149,17 +149,17 @@ public sealed partial class BoltFasteningStation
                 return false;
             case BoltFasteningState.PreparingCarrier:
                 ClearCarrierOperation();
-                _runTargets = Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
+                _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                 foreach (var heatSink in _runTargets)
                 {
                     if (!_recipes.Current.Pcb.GetBolts(heatSink).Any())
                         throw new InvalidOperationException(
                             $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
                 }
-                _runJob = _work.CurrentJob;
+                _runJob = Station.CurrentJob;
                 _runBolts = ApplicableBolts.ToArray();
                 _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                _work.Changed += CheckCarrier;
+                Station.Changed += CheckCarrier;
                 CheckCarrier();
                 NotifyChanged();
                 return true;
@@ -177,16 +177,16 @@ public sealed partial class BoltFasteningStation
         {
             CheckCarrier();
             token.ThrowIfCancellationRequested();
-            _work.RequireCurrentJob(job);
+            Station.RequireCurrentJob(job);
             if (step == BoltFasteningState.CompletingCarrier)
             {
                 foreach (var heatSink in _runTargets!)
-                    _work.GetAssembly(job, heatSink).CompleteFastening();
+                    Station.GetAssembly(job, heatSink).CompleteFastening();
                 await FinishFasteningAsync(FasteningHead.Pickup, token);
                 await FinishFasteningAsync(FasteningHead.Shooting, token);
                 await MoveToSafeZAsync(token);
                 token.ThrowIfCancellationRequested();
-                _work.Complete(job);
+                Station.Complete(job);
                 ClearCarrierOperation();
                 return true;
             }
@@ -271,7 +271,7 @@ public sealed partial class BoltFasteningStation
                             }
                         }
                         token.ThrowIfCancellationRequested();
-                        _work.RequireCurrentJob(job);
+                        Station.RequireCurrentJob(job);
                     }
                     else if (IsAtPickupXY())
                         await ReturnFromPickupAsync(token);
@@ -285,7 +285,7 @@ public sealed partial class BoltFasteningStation
                 default:
                     throw new ArgumentOutOfRangeException(nameof(bolt.Head));
             }
-            var assembly = _work.GetAssembly(job, bolt.HeatSink);
+            var assembly = Station.GetAssembly(job, bolt.HeatSink);
             var result = await FastenAsync(bolt, token);
             Exception? clearFailure = null;
             try
@@ -321,7 +321,7 @@ public sealed partial class BoltFasteningStation
             }
 
             token.ThrowIfCancellationRequested();
-            _work.RequireCurrentJob(job);
+            Station.RequireCurrentJob(job);
             _boltIndex++;
             NotifyChanged();
         }
@@ -340,14 +340,14 @@ public sealed partial class BoltFasteningStation
         lock (operation)
         {
             if (ReferenceEquals(operation, _carrierOperation)
-                && (!_work.Station.CarrierSeated || !ReferenceEquals(_runJob, _work.CurrentJob)))
+                && (!Station.CarrierSeated || !ReferenceEquals(_runJob, Station.CurrentJob)))
                 operation.Cancel();
         }
     }
 
     private void ClearCarrierOperation()
     {
-        _work.Changed -= CheckCarrier;
+        Station.Changed -= CheckCarrier;
         if (_carrierOperation is { } operation)
         {
             lock (operation)
@@ -379,13 +379,13 @@ public sealed partial class BoltFasteningStation
         BoltPoint bolt,
         CancellationToken cancellationToken)
     {
-        var job = _work.CurrentJob;
+        var job = Station.CurrentJob;
         var head = GetHead(bolt.Head);
         await head.SelectPresetAsync(1, cancellationToken);
         // The motor rotates only; the cylinder supplies the forward feed.
         // Raise before a new start, including a retry at the same XY.
         await RaiseCylindersAsync(cancellationToken);
-        _work.RequireCurrentJob(job);
+        Station.RequireCurrentJob(job);
         if (!IsAt(bolt))
             throw new InvalidOperationException("The head must be at the bolt's fastening XYZ before starting.");
 
@@ -411,7 +411,7 @@ public sealed partial class BoltFasteningStation
             _log?.LogInformation(
                 "Bolt {Head}, {HeatSink}, point {Bolt}: cycle completed; success={Success}, source={Source}, error={Error}.",
                 bolt.Head, bolt.HeatSink, bolt.Number, completed.Success, completed.Source, completed.Error);
-            _work.RequireCurrentJob(job);
+            Station.RequireCurrentJob(job);
             return completed;
         }
         catch (OperationCanceledException) when (fastening.IsCancellationRequested

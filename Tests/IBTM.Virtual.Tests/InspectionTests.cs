@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
@@ -16,6 +17,52 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class InspectionTests
 {
+    [Fact]
+    public async Task ConveyorRunFeedbackCancelsInFlightInspectionBeforeRecording()
+    {
+        var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new ConveyorHardwareSettings()), new());
+        io.Initialize();
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.Pcb.BoltPoints = [new() { Number = 1, X = 0, Y = 0 }];
+        recipes.Current.CarrierImages = [new() { Number = 1, IsBarcode = true, Center = new(), Region = new(0, 0, 20, 20) }];
+        var settings = new InspectionGantrySettings();
+        var transfer = new NgCarrierTransferSettings { WaitingPosition = new(), CarrierPickupPosition = new() };
+        var operations = new OperationCancellation();
+        using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
+        motion.Initialize();
+        var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
+        var carrier = ConveyorStation.CreateInspection(io);
+        var station = new InspectionStation(carrier, motion, new(motion), new NgCarrierConveyor(io, new(), units),
+            operations, settings, transfer, io, units,
+            new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(), recipes);
+        Assert.True(await station.HomeHorizontalAsync());
+        io.SetInputs(
+            (InputIo.InspectionHeatSink1Present, true),
+            (InputIo.InspectionBackupPlateUp, false), (InputIo.InspectionBackupPlateDown, true),
+            (InputIo.InspectionStopperDown, false), (InputIo.InspectionStopperUp, true),
+            (InputIo.NgCarrierPickupUp, true), (InputIo.NgCarrierPickupDown, false),
+            (InputIo.NgCarrierGripperOpen, true), (InputIo.NgCarrierGripperClosed, false));
+        var captured = false;
+        var recorded = false;
+        carrier.GetAssembly(HeatSinkSlot.HeatSink1).InspectionCaptured += capture => recorded = true;
+        station.InspectionCaptured += (image, pcb, bolt) =>
+        {
+            captured = true;
+            io.SetOutput(OutputIo.MainConveyorRun, true);
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        station.StepChanged += () =>
+        {
+            if (captured && station.Step is InspectionStationState.Waiting)
+                stop.Cancel();
+        };
+        await station.RunAsync(stop.Token);
+
+        Assert.True(captured);
+        Assert.False(recorded);
+        Assert.False(carrier.Completed);
+    }
+
     [Fact]
     public async Task InspectionProcessesOnePcbAtATimeAndRestartsAtItsBarcode()
     {
@@ -41,10 +88,21 @@ public sealed class InspectionTests
         using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
-        var work = new InspectionWork(io, new MotionStatus(motion), transfer, units);
-        var station = new InspectionStation(work, motion, new NgCarrierConveyor(io, new(), work, units),
-            operations, settings, transfer, io, units,
-            new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(), recipes);
+        var work = ConveyorStation.CreateInspection(io);
+        var station = new InspectionStation(
+            work,
+            motion,
+            new MotionStatus(motion),
+            new NgCarrierConveyor(io, new(), units),
+            operations,
+            settings,
+            transfer,
+            io,
+            units,
+            new VirtualCamera(motion.GetPosition, () => []),
+            new VirtualLightController(),
+            new(),
+            recipes);
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true),
@@ -115,10 +173,22 @@ public sealed class InspectionTests
         using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
         var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
-        var work = new InspectionWork(io, new MotionStatus(motion), transfer, units);
-        var conveyor = new NgCarrierConveyor(io, new(), work, units);
-        var station = new InspectionStation(work, motion, conveyor, operations, settings, transfer, io, units,
-            new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(), recipes);
+        var work = ConveyorStation.CreateInspection(io);
+        var conveyor = new NgCarrierConveyor(io, new(), units);
+        var station = new InspectionStation(
+            work,
+            motion,
+            new MotionStatus(motion),
+            conveyor,
+            operations,
+            settings,
+            transfer,
+            io,
+            units,
+            new VirtualCamera(motion.GetPosition, () => []),
+            new VirtualLightController(),
+            new(),
+            recipes);
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, false),
@@ -261,9 +331,16 @@ public sealed class InspectionTests
         {
             Current = { BoltInspection = recipe, CarrierImages = [fov] },
         };
-        var work = new InspectionWork(io, new MotionStatus(motion), new(), units);
+        var work = ConveyorStation.CreateInspection(io);
         var inspector = new InspectionStation(
-            work, motion, new NgCarrierConveyor(io, new(), work, units), operations, settings, new(), io,
+            work,
+            motion,
+            new MotionStatus(motion),
+            new NgCarrierConveyor(io, new(), units),
+            operations,
+            settings,
+            new(),
+            io,
             units,
             new VirtualCamera(
                 motion.GetPosition,
@@ -357,7 +434,7 @@ public sealed class InspectionTests
         var transferSettings = new NgCarrierTransferSettings { CarrierPickupPosition = new(), WaitingPosition = new() };
         var units = new UnitSettings { MainConveyor = false };
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        var work = new InspectionWork(io, new MotionStatus(motion), transferSettings, units);
+        var work = ConveyorStation.CreateInspection(io);
         BoltPoint[] bolts = [
             new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 9 },
             new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 21 },
@@ -393,9 +470,16 @@ public sealed class InspectionTests
                     IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(180, 40, 80, 80),
                 },
             ];
-        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), work, units);
+        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), units);
         var station = new InspectionStation(
-            work, motion, conveyor, operations, gantrySettings, transferSettings, io,
+            work,
+            motion,
+            new MotionStatus(motion),
+            conveyor,
+            operations,
+            gantrySettings,
+            transferSettings,
+            io,
             units,
             camera,
             new VirtualLightController(),
@@ -475,7 +559,7 @@ public sealed class InspectionTests
         Assert.All(heatSink2.BoltPresenceResults.Values, Assert.True);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-        Assert.False(work.Station.CarrierPresent);
+        Assert.False(work.CarrierPresent);
 
         HeatSinkAssembly[] interruptedAssemblies = [];
         camera.AfterCapture = () =>
@@ -503,14 +587,16 @@ public sealed class InspectionTests
             Y = position.Y,
         };
         var transferUnits = new UnitSettings();
-        var transferWork = new InspectionWork(
-            io,
-            new MotionStatus(motion),
-            transferSettings,
-            transferUnits);
+        var transferWork = ConveyorStation.CreateInspection(io);
         var transferStation = new InspectionStation(
-            transferWork, motion, new NgCarrierConveyor(io, new(), transferWork, transferUnits),
-            operations, gantrySettings, transferSettings, io,
+            transferWork,
+            motion,
+            new MotionStatus(motion),
+            new NgCarrierConveyor(io, new(), transferUnits),
+            operations,
+            gantrySettings,
+            transferSettings,
+            io,
             transferUnits,
             camera,
             new VirtualLightController(),

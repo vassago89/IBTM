@@ -76,13 +76,13 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        StationWork work = unit == MachineUnit.BoltFastening
-            ? services.GetRequiredService<BoltFasteningWork>() : services.GetRequiredService<InspectionWork>();
+        ConveyorStation work = unit == MachineUnit.BoltFastening
+            ? services.GetRequiredService<BoltFasteningStation>().Station : services.GetRequiredService<InspectionStation>().Station;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(unit == MachineUnit.BoltFastening
             ? InputIo.BoltFasteningHeatSink1Present : InputIo.InspectionHeatSink1Present, true);
-        await work.Station.SeatAsync(CancellationToken.None);
+        await work.SeatAsync(CancellationToken.None);
         var completed = 0;
         long previousJob = 0;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -129,7 +129,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var pickup = services.GetRequiredService<InspectionStation>();
         var gantry = services.GetRequiredService<InspectionStation>();
-        var work = services.GetRequiredService<InspectionWork>();
+        var work = services.GetRequiredService<InspectionStation>();
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         PrepareCarrierTeaching(settings, recipe);
         await machine.InitializeAsync();
@@ -238,7 +238,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
-        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         await services.GetRequiredService<InspectionStation>().ExecuteTransferAsync(
             NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
         await gantry.MoveToAsync(new() { X = 50, Y = 30 }, 10_000);

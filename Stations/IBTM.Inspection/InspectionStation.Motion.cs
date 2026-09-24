@@ -24,7 +24,7 @@ public sealed partial class InspectionStation
     {
         await _io.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, !open, cancellationToken);
         if (open && Gripper == NgTransferGripperState.Open)
-            _work.IsTransferPending = false;
+            IsTransferPending = false;
     }
 
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
@@ -69,7 +69,7 @@ public sealed partial class InspectionStation
 
     public bool IsAt(AxisPosition position, bool live = true)
     {
-        return _work.IsAt(position, live);
+        return Motion.IsAt(position, live);
     }
 
     private void EnsureCanMove(CancellationToken cancellationToken)

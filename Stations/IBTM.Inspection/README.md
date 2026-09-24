@@ -2,7 +2,7 @@
 
 `InspectionStation`이 자동 검사 순서와 이동·촬영·판정을 함께 담당한다.
 촬영·조명·Live View 코드는 같은 클래스의 `InspectionStation.Vision.cs`에 둔다.
-`InspectionWork`는 컨베이어와 공유하는 캐리어 작업·검사 결과를 보관하며 별도 시퀀스 enum은 두지 않는다.
+`InspectionStation.Station`의 Job이 캐리어별 결과와 완료 소유권을 보관한다. 검사 요청·착좌 요청과 NG 인터록은 `InspectionStation.Carrier.cs`에서 관리한다.
 검사와 NG 이송은 하나의 `InspectionStation`이 소유한다. 같은 클래스 안에서 자동 순서는
 `.Automatic.cs`, 집기·놓기 순서는 `.Transfer.cs`, 장치 동작은 `.Motion.cs`, 반복 복귀는 `.Repeat.cs`에 둔다.
 자동 루프는 `GetNextStep`으로 다음 동작을 선택하고 `ExecuteStepAsync`로 실행한다.

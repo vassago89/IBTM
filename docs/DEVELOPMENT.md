@@ -101,7 +101,7 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 - 현재 레시피의 로드·저장은 `RecipeManager`가 맡는다. 소비자는 주입받은 관리자의 `Current`를 읽는다.
 - `MainConveyor`는 이송 우선순위를 결정하고, 하나의 이송 메서드가 출발지 하강부터 목적지 도착까지 맡는다.
   NG 배출 여부도 컨베이어가 검사 결과와 유닛 설정으로 판단한다. DI에는 객체 연결만 둔다.
-- `StationWork`는 현재 캐리어의 작업·결과 소유권을 관리한다. 위치와 착좌 여부는 `ConveyorStation`의 현재 I/O로 판단한다.
+- `ConveyorStation`은 현재 캐리어의 작업·결과 소유권을 관리한다. 위치와 착좌 여부는 현재 I/O로 판단한다.
   사용 설정, 실행 중 명령, 결과 소유권을 물리 위치나 완료 피드백으로 대신하지 않는다.
 - `PcbHistory`는 PCB 결과 객체가 만들어질 때 기존 `Machine.db`의 `PcbCounter`를 증가시켜 번호를 발급한다.
   결과는 Settings → Operation & Timing → PCB Results의 폴더에 `PCB-yyyy-MM.db`로 저장한다.
@@ -140,9 +140,9 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | 볼트 자동 순서·체결 결과·표시 상태 | `Stations/IBTM.BoltFastening/BoltFasteningStation.Automatic.cs` |
 | 볼트 모션·티칭 이동 | `Stations/IBTM.BoltFastening/BoltFasteningStation.Motion.cs` |
 | 볼트 단독 Repeat | `Stations/IBTM.BoltFastening/BoltFasteningStation.Repeat.cs` |
-| Station 3 작업/NG 대기 | `Stations/IBTM.Inspection/InspectionStation.cs`, `InspectionWork.cs` |
-| NG 픽업·복귀·XY 이동·실린더·그리퍼 | `Stations/IBTM.Inspection/NgCarrierTransfer.cs` |
-| 셔틀·NG 벨트 | `Stations/IBTM.NgConveyor/NgShuttle.cs`, `NgCarrierConveyor.cs` |
+| Station 3 작업/NG 대기 | `Stations/IBTM.Inspection/InspectionStation.cs`, `InspectionStation.Carrier.cs` |
+| NG 픽업·복귀·XY 이동·실린더·그리퍼 | `Stations/IBTM.Inspection/InspectionStation.Transfer.cs`, `InspectionStation.Motion.cs` |
+| 셔틀·NG 벨트 | `Stations/IBTM.NgConveyor/NgCarrierConveyor.cs` |
 | 티칭 화면 배치 | `IBTM/UI/TeachingView.xaml` |
 | 공통 티칭 I/O 행·그룹 템플릿 | `IBTM/UI/IoWindowStyles.xaml` |
 | 티칭 포인트·선택 | `IBTM/UI/TeachingViewModel.cs` |
@@ -298,7 +298,7 @@ ROI·대상·촬영 좌표의 화면용 복사본을 추가하지 않는다.
   확인한 뒤 정상 상태에서만 현재 SDK 준비 상태를 읽는다. SDK 대신 캐시로 운전을 허용하지 않는다.
 - `MainConveyor.PrepareEmptyStationsAsync`: START 준비에서 빈 스테이션만 내린다. 루프마다 반복하지 않는다.
   캐리어 또는 NG 픽업의 지지 상태는 유지하고, 실제 이송의 Release 단계가 하강을 소유한다.
-- `StationWork.CurrentJob` / `Complete(job)`: 결과와 완료의 작업 주인이다. 캐리어 교체 후 이전 작업의
+- `ConveyorStation.CurrentJob` / `Complete(job)`: 결과와 완료의 작업 주인이다. 캐리어 교체 후 이전 작업의
   완료는 거부한다. `TransferAsync`의 지역 변수 `departingJob`이 출발 결과를 잡아 새 캐리어와 섞이지 않게 한다.
 - `AutoUnit.TraceStep`: 이미 선택한 실행 단계를 로그에 남긴다. 같은 단계·대상·작업·대기 이유가
   유지되는 동안 로그를 반복하지 않는다. 실제 위치·완료 판단에 이 기록을 사용하지 않는다.
@@ -444,8 +444,8 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 `ObserveAutomaticUnitAsync`는 이미 시작한 작업의 종료·오류를 확인한다.
 검사와 NG 이송은 갠트리를 공유하므로 `InspectionStation.RunAsync` 한 경로에서 실행한다.
 `InspectionStation.Vision.cs`도 같은 `InspectionStation` 객체의 일부이며 이동·촬영·판정을 직접 실행한다.
-피더는 `BoltFeederUnit` 하나를 픽업·슈팅별로 생성한다. NG 셔틀은 `NgShuttle`에서 동작과 현재 입력을 함께 읽는다.
-`BoltFasteningWork`와 `InspectionWork`는 캐리어별 작업·결과를 공유하기 위한 객체이며 별도 시퀀스 enum을 두지 않는다.
+피더는 `BoltFeederUnit` 하나를 픽업·슈팅별로 생성한다. NG 셔틀과 벨트는 `NgCarrierConveyor`에서 동작과 현재 입력을 함께 읽는다.
+캐리어별 Job·결과·완료 정보는 각 스테이션의 `ConveyorStation`에 보관한다. 별도의 Work 클래스는 없고, 공정 조건·검사 요청·NG 인계 인터록은 해당 실행 스테이션이 관리한다.
 Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고, Placement 확보 확인과 이탈 대기는 유지한다.
 공급·안착 유닛은 자기 피드백만으로 상태를 계산하며 전체 시퀀스 enum은 각 프로젝트에 둔다. 두 루프는 Core의 `IPcbSupplyHandoff` / `IPcbPlacementHandoff`를 통해 `Handoff`와 변경 알림만 공유한다. 공급은 `Holding`/`Released`, 안착은 `Holding`/`Clear`를 내보내며 그 외에는 `Unavailable`이다. 상대 내부 작업 단계나 핸들러를 참조하지 않는다. Placement는 Supply 인계를 DI로 받고, MachineController는 Supply 실행 시 Placement 인계를 전달한다. 상대 변경은 대기를 깨우기만 하고 다시 전달하지 않는다.
 안착 상태 판단과 실행 좌표는 모두 `RecipeManager.Current.PcbPlacement`에서 읽으며 호출자가 별도 레시피를 넘기지 않는다.
@@ -696,7 +696,7 @@ NG 셔틀·검사 작업처럼 연결된 객체를 통해 같은 변경 알림�
 활성인 화면에서 SDK 재조회가 없고, 명령의 직접 읽기와 수집 실패 표시가 유지되는지 확인한다.
 실제 DI 스캔은 SDK 대역의
 `PhysicalInputScanPublishesBothProvidersAndRequiresExplicitRecovery`에서 확인한다.
-`RecoveredCarrierArrivalDoesNotReuseCompletedStationWork`는 통신 단절 전 비어 있던
+`RecoveredCarrierArrivalDoesNotReuseCompletedConveyorStation`는 통신 단절 전 비어 있던
 스테이션에 복구 시 캐리어가 확인되면 이전 완료 상태로 배출하지 않는지 확인한다.
 
 ## 로그 라이브러리와 오프라인 패키지

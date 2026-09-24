@@ -22,11 +22,11 @@ public sealed partial class InspectionStation
         BeginRun();
         try
         {
-            if (_work.Enabled)
-                _work.Restart(_work.CurrentJob);
+            if (Enabled)
+                Station.Restart(Station.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
-                var step = !_work.Enabled && !_work.CarrierSeatingRequested
+                var step = !Enabled && !CarrierSeatingRequested
                     ? InspectionStationState.Disabled : GetNextStep(repeat);
                 if (!await ExecuteStepAsync(step, repeat, cancellationToken))
                     await WaitForChangeAsync(cancellationToken);
@@ -38,7 +38,7 @@ public sealed partial class InspectionStation
         finally
         {
             ClearInspectionOperation();
-            _work.ClearCarrierSeatingRequest();
+            ClearCarrierSeatingRequest();
             EndRun(cancellationToken);
         }
     }
@@ -53,19 +53,19 @@ public sealed partial class InspectionStation
             return _ngConveyor.ShuttleLift == NgShuttleLiftState.Down
                 ? InspectionStationState.ReturningToWaitingPosition
                 : InspectionStationState.WaitingForShuttleDown;
-        if (_work.CarrierSeatingRequested)
+        if (CarrierSeatingRequested)
             return InspectionStationState.SeatingCarrier;
-        if (repeat && _work.Enabled && !_units.MainConveyor
-            && (IsEmptyRepeatAllowed || _work.Station.CarrierPresent) && _work.PickupClear)
+        if (repeat && Enabled && !_units.MainConveyor
+            && (IsEmptyRepeatAllowed || Station.CarrierPresent) && PickupClear)
         {
-            if (_work.Completed || IsEmptyRepeatAllowed && !_work.Station.CarrierPresent)
+            if (Station.Completed || IsEmptyRepeatAllowed && !Station.CarrierPresent)
             {
-                if (_work.Station.BackupPlate != StationCylinderState.Up
-                    || _work.Station.Stopper != StationCylinderState.Down)
+                if (Station.BackupPlate != StationCylinderState.Up
+                    || Station.Stopper != StationCylinderState.Down)
                     return InspectionStationState.SeatingCarrier;
             }
-            else if (_work.Station.BackupPlate != StationCylinderState.Down
-                || _work.Station.Stopper != StationCylinderState.Up)
+            else if (Station.BackupPlate != StationCylinderState.Down
+                || Station.Stopper != StationCylinderState.Up)
                 return InspectionStationState.PreparingInspectionPosition;
         }
         if (_units.Inspection)
@@ -73,7 +73,7 @@ public sealed partial class InspectionStation
             var transferState = GetNextTransferStep(
                 NgTransferDestination.Shuttle,
                 canPickUp: repeat && IsEmptyRepeatAllowed && !Station.CarrierPresent
-                    || Station.CarrierSeated && _work.Completed && (repeat || _work.RouteToNg),
+                    || Station.CarrierSeated && Station.Completed && (repeat || RouteToNg),
                 canReceive: repeat || _ngConveyor.IsReceiveAllowed(conveyorRunning),
                 holdAtDestination: repeat,
                 live: live,
@@ -82,17 +82,17 @@ public sealed partial class InspectionStation
                 return transferState;
         }
 
-        var enabled = _work.Enabled;
-        if (!enabled || !_work.IsReadyToInspect(mainConveyorRunning))
+        var enabled = Enabled;
+        if (!enabled || !IsReadyToInspect(mainConveyorRunning))
         {
             var waiting = !enabled ? InspectionStationState.Disabled
-                : _work.IsWaitingForConveyor
+                : IsWaitingForConveyor
                     ? InspectionStationState.WaitingForConveyor
                     : InspectionStationState.Waiting;
             return WaitAtWaitingPosition(waiting, live);
         }
         if (_runJob is null || _inspectionOperation?.IsCancellationRequested == true
-            || !ReferenceEquals(_runJob, _work.CurrentJob))
+            || !ReferenceEquals(_runJob, Station.CurrentJob))
             return InspectionStationState.PreparingInspection;
         var target = InspectionTarget;
         if (target.Pcb is null)
@@ -126,7 +126,7 @@ public sealed partial class InspectionStation
                     allowEmpty: repeat && IsEmptyRepeatAllowed);
         }
 
-        EnterStep(state, workId: _work.CurrentJob.Id,
+        EnterStep(state, workId: Station.CurrentJob.Id,
             waitingFor: state == InspectionStationState.WaitingForShuttleDown
                 ? $"shuttle Down; current={_ngConveyor.ShuttleLift}"
                 : state is InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor
@@ -134,14 +134,14 @@ public sealed partial class InspectionStation
         switch (state)
         {
             case InspectionStationState.PreparingInspectionPosition:
-                await _work.Station.PrepareToReceiveAsync(cancellationToken);
+                await Station.PrepareToReceiveAsync(cancellationToken);
                 return true;
             case InspectionStationState.PreparingInspection:
                 ClearInspectionOperation();
                 BoltPoint[] bolts;
                 lock (_recipes.InspectionSync)
                     bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
-                _runTargets = Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
+                _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                 var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt)>();
                 foreach (var pcb in _runTargets)
                 {
@@ -153,23 +153,23 @@ public sealed partial class InspectionStation
                     foreach (var bolt in pcbBolts)
                         points.Add((pcb, bolt));
                 }
-                _runJob = _work.CurrentJob;
+                _runJob = Station.CurrentJob;
                 _runPoints = points.ToArray();
                 _inspectionOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                _work.Changed += CheckInspectionPosition;
+                Changed += CheckInspectionPosition;
                 CheckInspectionPosition();
                 NotifyChanged();
                 return true;
             case InspectionStationState.SeatingCarrier:
                 await SeatStationAsync(cancellationToken);
-                _work.ClearCarrierSeatingRequest();
+                ClearCarrierSeatingRequest();
                 return true;
             case InspectionStationState.ReturningToWaitingPosition:
                 await MoveToWaitingPositionAsync(cancellationToken);
                 return true;
             case InspectionStationState.Disabled:
-                if (_work.Station.CarrierSeated || _work.AtInspectionPosition)
-                    _work.Complete(_work.CurrentJob);
+                if (Station.CarrierSeated || AtInspectionPosition)
+                    Station.Complete(Station.CurrentJob);
                 return false;
             case InspectionStationState.Waiting
                 or InspectionStationState.WaitingForConveyor
@@ -187,28 +187,28 @@ public sealed partial class InspectionStation
         {
             CheckInspectionPosition();
             token.ThrowIfCancellationRequested();
-            _work.RequireCurrentJob(job);
+            Station.RequireCurrentJob(job);
             if (state == InspectionStationState.CompletingInspection)
             {
                 await MoveToWaitingPositionAsync(token);
                 token.ThrowIfCancellationRequested();
                 foreach (var heatSink in _runTargets!)
-                    _work.GetAssembly(job, heatSink).CompleteInspection();
-                _work.Complete(job);
+                    Station.GetAssembly(job, heatSink).CompleteInspection();
+                Station.Complete(job);
                 ClearInspectionOperation();
                 return true;
             }
 
             var target = InspectionTarget;
             var pcb = target.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
-            var assembly = _work.GetAssembly(job, pcb);
+            var assembly = Station.GetAssembly(job, pcb);
             switch (state)
             {
                 case InspectionStationState.ReadingBarcode:
                     EnterStep(state, $"{pcb.GetDescription()} / Data Matrix", job.Id);
                     var barcode = await ReadBarcodeAsync(pcb, token);
                     token.ThrowIfCancellationRequested();
-                    _work.RequireCurrentJob(job);
+                    Station.RequireCurrentJob(job);
                     assembly.PcbBarcode = barcode.Barcode;
                     assembly.RecordInspectionCapture(barcode);
                     break;
@@ -217,7 +217,7 @@ public sealed partial class InspectionStation
                     EnterStep(state, $"{pcb.GetDescription()} / Bolt {bolt.Number}", job.Id);
                     var capture = await InspectAsync(bolt, token);
                     token.ThrowIfCancellationRequested();
-                    _work.RequireCurrentJob(job);
+                    Station.RequireCurrentJob(job);
                     assembly.RecordBoltPresence(bolt.Number, capture.Success);
                     assembly.RecordInspectionCapture(capture);
                     break;
@@ -242,14 +242,14 @@ public sealed partial class InspectionStation
         lock (operation)
         {
             if (ReferenceEquals(operation, _inspectionOperation)
-                && (!_work.IsReadyToInspect() || !ReferenceEquals(_runJob, _work.CurrentJob)))
+                && (!IsReadyToInspect() || !ReferenceEquals(_runJob, Station.CurrentJob)))
                 operation.Cancel();
         }
     }
 
     private void ClearInspectionOperation()
     {
-        _work.Changed -= CheckInspectionPosition;
+        Changed -= CheckInspectionPosition;
         if (_inspectionOperation is { } operation)
         {
             lock (operation)
@@ -267,7 +267,7 @@ public sealed partial class InspectionStation
 
     private InspectionStationState WaitAtWaitingPosition(InspectionStationState waiting, bool live)
     {
-        return _work.PickupClear && !_work.IsTransferAtWaitingPosition(live)
+        return PickupClear && !IsTransferAtWaitingPosition(live)
             ? InspectionStationState.ReturningToWaitingPosition
             : waiting;
     }
@@ -275,7 +275,7 @@ public sealed partial class InspectionStation
     private async Task MoveToWaitingPositionAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var position = _work.WaitingPosition
+        var position = WaitingPosition
             ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
         if (!IsAt(position))
             await MoveToAsync(position, cancellationToken: cancellationToken);

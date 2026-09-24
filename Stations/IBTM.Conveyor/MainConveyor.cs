@@ -14,9 +14,9 @@ public sealed partial class MainConveyor : AutoUnit
     private readonly IIoService _io;
     private readonly ConveyorSettings _settings;
     private readonly OperationCancellation _operations;
-    private readonly StationWork _placementWork;
-    private readonly StationWork _boltFasteningWork;
-    private readonly InspectionWork _inspectionWork;
+    private readonly ConveyorStation _placement;
+    private readonly ConveyorStation _fastening;
+    private readonly InspectionStation _inspection;
     private readonly UnitSettings _units;
     private OperationCancellation.Operation? _runCancellation;
     private bool _repeat;
@@ -28,22 +28,22 @@ public sealed partial class MainConveyor : AutoUnit
         IIoService io,
         ConveyorSettings settings,
         OperationCancellation operations,
-        StationWork placementWork,
-        StationWork boltFasteningWork,
-        InspectionWork inspectionWork,
+        ConveyorStation placement,
+        ConveyorStation fastening,
+        InspectionStation inspection,
         UnitSettings units)
     {
         _io = io;
         _settings = settings;
         _operations = operations;
-        _placementWork = placementWork;
-        _boltFasteningWork = boltFasteningWork;
-        _inspectionWork = inspectionWork;
+        _placement = placement;
+        _fastening = fastening;
+        _inspection = inspection;
         _units = units;
         io.InputChanged += OnInputChanged;
-        placementWork.Changed += NotifyChanged;
-        boltFasteningWork.Changed += NotifyChanged;
-        inspectionWork.Changed += NotifyChanged;
+        placement.Changed += NotifyChanged;
+        fastening.Changed += NotifyChanged;
+        inspection.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;
@@ -57,7 +57,7 @@ public sealed partial class MainConveyor : AutoUnit
 
     public MainConveyorState State => Step is MainConveyorState step ? step : GetNextStep(RunCommandOn);
 
-    private bool IsNgTransferRequired => _units.Inspection && _inspectionWork.RouteToNg;
+    private bool IsNgTransferRequired => _units.Inspection && _inspection.RouteToNg;
 
     public bool UpstreamCarrierAvailable
     {

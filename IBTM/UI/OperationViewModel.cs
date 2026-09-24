@@ -41,9 +41,6 @@ public partial class OperationViewModel : ObservableObject
         MachineController machine,
         UnitSettings units,
         MachineOptions options,
-        PcbPlacementWork pcbPlacementWork,
-        BoltFasteningWork boltFasteningWork,
-        InspectionWork inspectionWork,
         RecipeManager recipes,
         MachineMap map,
         MainConveyor conveyor,
@@ -86,9 +83,6 @@ public partial class OperationViewModel : ObservableObject
         Inspection = inspectionStation;
         Units = units;
         _options = options;
-        PcbPlacementWork = pcbPlacementWork;
-        BoltFasteningWork = boltFasteningWork;
-        InspectionWork = inspectionWork;
         _recipes = recipes;
         _map = map;
         NgConveyor = ngConveyor;
@@ -136,9 +130,6 @@ public partial class OperationViewModel : ObservableObject
     public IReadOnlyList<DoorSensorDisplay> DoorSensors { get; }
     public UnitSettings Units { get; }
 
-    public PcbPlacementWork PcbPlacementWork { get; }
-    public BoltFasteningWork BoltFasteningWork { get; }
-    public InspectionWork InspectionWork { get; }
     public MainConveyor Conveyor { get; }
     public NgCarrierConveyor NgConveyor { get; }
     public InspectionStation Inspection { get; }
@@ -191,9 +182,9 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return Units.PcbPlacement
-                && PcbPlacementWork.Station.CarrierPresent
-                && PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)
-                && HasAssembly(PcbPlacementWork, HeatSinkSlot.HeatSink1);
+                && Placement.Station.CarrierPresent
+                && Placement.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)
+                && HasAssembly(Placement.Station, HeatSinkSlot.HeatSink1);
         }
     }
 
@@ -202,9 +193,9 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return Units.PcbPlacement
-                && PcbPlacementWork.Station.CarrierPresent
-                && PcbPlacementWork.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)
-                && HasAssembly(PcbPlacementWork, HeatSinkSlot.HeatSink2);
+                && Placement.Station.CarrierPresent
+                && Placement.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)
+                && HasAssembly(Placement.Station, HeatSinkSlot.HeatSink2);
         }
     }
 
@@ -249,11 +240,11 @@ public partial class OperationViewModel : ObservableObject
                 return [];
 
             var active = BoltFasteningActiveBolt;
-            var assemblies = BoltFasteningWork.Assemblies;
+            var assemblies = Fastening.Station.Assemblies;
             var targets = new List<BoltTargetView>();
             foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
-                if (!BoltFasteningWork.Station.IsHeatSinkPresent(bolt.HeatSink)
+                if (!Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)
                     || _map.GetFasteningTargetPosition(bolt) is not { } position)
                     continue;
 
@@ -278,11 +269,11 @@ public partial class OperationViewModel : ObservableObject
                 return [];
 
             var active = InspectionActiveBolt;
-            var assemblies = InspectionWork.Assemblies;
+            var assemblies = Inspection.Station.Assemblies;
             var targets = new List<BoltTargetView>();
             foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
-                if (!InspectionWork.Station.IsHeatSinkPresent(bolt.HeatSink)
+                if (!Inspection.Station.IsHeatSinkPresent(bolt.HeatSink)
                     || _map.GetInspectionTargetPosition(bolt) is not { } position)
                     continue;
 
@@ -298,13 +289,13 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public AssemblyResult BoltFasteningHeatSink1Result => GetAssemblyResult(BoltFasteningWork, HeatSinkSlot.HeatSink1, inspection: false);
+    public AssemblyResult BoltFasteningHeatSink1Result => GetAssemblyResult(Fastening.Station, HeatSinkSlot.HeatSink1, inspection: false);
 
-    public AssemblyResult BoltFasteningHeatSink2Result => GetAssemblyResult(BoltFasteningWork, HeatSinkSlot.HeatSink2, inspection: false);
+    public AssemblyResult BoltFasteningHeatSink2Result => GetAssemblyResult(Fastening.Station, HeatSinkSlot.HeatSink2, inspection: false);
 
-    public AssemblyResult InspectionHeatSink1Result => GetAssemblyResult(InspectionWork, HeatSinkSlot.HeatSink1, inspection: true);
+    public AssemblyResult InspectionHeatSink1Result => GetAssemblyResult(Inspection.Station, HeatSinkSlot.HeatSink1, inspection: true);
 
-    public AssemblyResult InspectionHeatSink2Result => GetAssemblyResult(InspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
+    public AssemblyResult InspectionHeatSink2Result => GetAssemblyResult(Inspection.Station, HeatSinkSlot.HeatSink2, inspection: true);
 
     public string ModeText => State.Available ? (State.AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
 
@@ -343,9 +334,9 @@ public partial class OperationViewModel : ObservableObject
 
     private string? InspectionBarcode(HeatSinkSlot pcb)
     {
-        if (!InspectionWork.Station.CarrierPresent || !InspectionWork.Station.IsHeatSinkPresent(pcb))
+        if (!Inspection.Station.CarrierPresent || !Inspection.Station.IsHeatSinkPresent(pcb))
             return null;
-        var assembly = InspectionWork.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb);
+        var assembly = Inspection.Station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb);
         return assembly?.PcbBarcodeResult == AssemblyResult.Ng ? "NG · Not Read" : assembly?.PcbBarcode;
     }
 
@@ -419,14 +410,14 @@ public partial class OperationViewModel : ObservableObject
         await Machine.HomeAsync(cancellationToken);
     }
 
-    private static bool HasAssembly(StationWork work, HeatSinkSlot heatSink)
+    private static bool HasAssembly(ConveyorStation station, HeatSinkSlot heatSink)
     {
-        return work.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
+        return station.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
     }
 
-    private static AssemblyResult GetAssemblyResult(StationWork work, HeatSinkSlot heatSink, bool inspection)
+    private static AssemblyResult GetAssemblyResult(ConveyorStation station, HeatSinkSlot heatSink, bool inspection)
     {
-        var assembly = work.Assemblies.FirstOrDefault(item => item.HeatSink == heatSink);
+        var assembly = station.Assemblies.FirstOrDefault(item => item.HeatSink == heatSink);
         switch (true)
         {
             case true when assembly is null:
@@ -621,7 +612,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PcbPlacementPcbDetected));
         OnPropertyChanged(nameof(PcbPlacementIpmDown));
         OnPropertyChanged(nameof(Placement));
-        OnPropertyChanged(nameof(PcbPlacementWork));
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));
         OnPropertyChanged(nameof(PlacementDisplayState));
@@ -645,7 +635,6 @@ public partial class OperationViewModel : ObservableObject
 
         OnPropertyChanged(nameof(FasteningState));
         OnPropertyChanged(nameof(FasteningPositionKnown));
-        OnPropertyChanged(nameof(BoltFasteningWork));
         OnPropertyChanged(nameof(Fastening));
         OnPropertyChanged(nameof(BoltFasteningActiveBolt));
         OnPropertyChanged(nameof(BoltTargets));
@@ -672,7 +661,6 @@ public partial class OperationViewModel : ObservableObject
 
         OnPropertyChanged(nameof(InspectionState));
         OnPropertyChanged(nameof(InspectionPositionKnown));
-        OnPropertyChanged(nameof(InspectionWork));
         OnPropertyChanged(nameof(InspectionActiveBolt));
         OnPropertyChanged(nameof(InspectionActivePcb));
         OnPropertyChanged(nameof(InspectionActiveBarcode));

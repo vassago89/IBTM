@@ -454,7 +454,7 @@ public sealed class OutputWindowThreadingTests
         foreach (var (path, signal) in new[]
         {
             ("Conveyor.EntryCarrierDetected", InputIo.MainConveyorEntryCarrierDetected),
-            ("PcbPlacementWork.Station.CarrierPresent", InputIo.PcbPlacementHeatSink1Present),
+            ("Placement.Station.CarrierPresent", InputIo.PcbPlacementHeatSink1Present),
             ("Signals.Inputs[NgCarrierDetected].IsOn", InputIo.NgCarrierDetected),
             ("Signals.Inputs[NgShuttleCarrierDetected].IsOn", InputIo.NgShuttleCarrierDetected),
         })

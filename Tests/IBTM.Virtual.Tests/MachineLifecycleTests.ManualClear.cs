@@ -25,13 +25,13 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var work = services.GetRequiredService<PcbPlacementWork>();
+        var work = services.GetRequiredService<PcbPlacer>().Station;
         await machine.InitializeAsync();
         try
         {
             await machine.HomeAsync(CancellationToken.None);
             io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
-            await work.Station.SeatAsync(CancellationToken.None);
+            await work.SeatAsync(CancellationToken.None);
             var job = work.CurrentJob;
             var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
             var completed = work.Completed;
@@ -61,7 +61,7 @@ public sealed partial class MachineLifecycleTests
 
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.Null(state.AlarmDetail);
-            Assert.True(work.Station.CarrierSeated);
+            Assert.True(work.CarrierSeated);
             Assert.True(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
             Assert.Equal(0, plateWrites);
             Assert.Same(job, work.CurrentJob);
@@ -78,7 +78,7 @@ public sealed partial class MachineLifecycleTests
             try
             {
                 await VirtualTest.WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
-                Assert.Equal(StationCylinderState.Down, work.Station.BackupPlate);
+                Assert.Equal(StationCylinderState.Down, work.BackupPlate);
                 Assert.True(state.AutomaticRunning);
             }
             finally

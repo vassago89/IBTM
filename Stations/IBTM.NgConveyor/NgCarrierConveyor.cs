@@ -12,7 +12,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 {
     private readonly IIoService _io;
     private readonly NgConveyorSettings _settings;
-    private readonly INgCarrierTransferFeedback _transfer;
+    private INgCarrierTransferFeedback? _transfer;
     private readonly UnitSettings _units;
     private volatile Movement _movement;
     private volatile EjectionPhase _ejectionPhase;
@@ -21,16 +21,22 @@ public sealed partial class NgCarrierConveyor : AutoUnit
     public NgCarrierConveyor(
         IIoService io,
         NgConveyorSettings settings,
-        INgCarrierTransferFeedback transfer,
         UnitSettings units)
     {
         _io = io;
         _settings = settings;
-        _transfer = transfer;
         _units = units;
-        transfer.Changed += NotifyChanged;
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
+    }
+
+    public void AttachTransfer(INgCarrierTransferFeedback transfer)
+    {
+        if (_transfer is not null)
+            throw new InvalidOperationException("NG transfer feedback is already attached.");
+        _transfer = transfer;
+        // Wake this loop without echoing Changed back to the inspection station.
+        transfer.Changed += OnChanged;
     }
 
     public override event Action? Changed;
@@ -84,7 +90,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
     public NgConveyorState State => Step is NgConveyorState step ? step : GetNextStep(RunCommandOn);
 
     // Pending ownership is cleared by the release operation, never by presence DI.
-    private bool IsTransferClear => _transfer.IsClear
+    private bool IsTransferClear => _transfer?.IsClear == true
         && _io.GetInput(InputIo.NgCarrierGripperOpen)
         && !_io.GetInput(InputIo.NgCarrierGripperClosed);
 

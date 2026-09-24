@@ -18,7 +18,6 @@ public sealed partial class BoltFasteningStation : AutoUnit
     private readonly IXyMotion _motion;
     private readonly BoltFasteningSettings _settings;
     private readonly CarrierReferenceSettings _carrierReference;
-    private readonly BoltFasteningWork _work;
     private readonly RecipeManager _recipes;
     private readonly UnitSettings _units;
     private readonly ILogger<BoltFasteningStation>? _log;
@@ -31,7 +30,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         MotionStatus motionStatus,
         BoltFasteningSettings settings,
         CarrierReferenceSettings carrierReference,
-        BoltFasteningWork work,
+        ConveyorStation station,
         RecipeManager recipes,
         UnitSettings units,
         ILogger<BoltFasteningStation>? log = null)
@@ -42,7 +41,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         _motion = motion;
         _settings = settings;
         _carrierReference = carrierReference;
-        _work = work;
+        Station = station;
         _recipes = recipes;
         _units = units;
         _log = log;
@@ -50,8 +49,14 @@ public sealed partial class BoltFasteningStation : AutoUnit
         InitializeRecipeBoltPositions();
         recipes.Changed += InitializeRecipeBoltPositions;
         io.InputChanged += OnInputChanged;
-        work.Changed += NotifyChanged;
+        station.Changed += NotifyChanged;
     }
+
+    public ConveyorStation Station { get; }
+
+    public bool Enabled => _units.BoltFastening;
+
+    private bool IsReadyToFasten => Station.CarrierSeated && !Station.Completed;
 
     public override event Action? Changed;
 

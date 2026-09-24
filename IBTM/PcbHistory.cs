@@ -30,7 +30,7 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
     private Exception? _failure;
 
     public PcbHistory(MachineStore store, RecipeManager recipes, PcbHistorySettings settings,
-        PcbPlacementWork placement, BoltFasteningWork fastening, InspectionWork inspection,
+        PcbPlacer placement, BoltFasteningStation fastening, InspectionStation inspection,
         ILogger<PcbHistory> log)
     {
         _gate = new();
@@ -40,9 +40,9 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
         _recipes = recipes;
         _settings = settings;
         _log = log;
-        placement.AssemblyCreated += OnAssemblyCreated;
-        fastening.AssemblyCreated += OnAssemblyCreated;
-        inspection.AssemblyCreated += OnAssemblyCreated;
+        placement.Station.AssemblyCreated += OnAssemblyCreated;
+        fastening.Station.AssemblyCreated += OnAssemblyCreated;
+        inspection.Station.AssemblyCreated += OnAssemblyCreated;
     }
 
     public event Action<PcbRecord>? Saved;

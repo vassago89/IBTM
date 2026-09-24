@@ -511,11 +511,21 @@ public sealed class NgConveyorTests
         var operations = new OperationCancellation();
         var motionSettings = new InspectionGantrySettings();
         var motion = new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);
-        var work = new InspectionWork(io, new MotionStatus(motion), new(), units);
-        var conveyor = new NgCarrierConveyor(io,
-            new NgConveyorSettings { AlarmCarrierCount = alarmCarrierCount }, work, units);
-        var pickup = new InspectionStation(work, motion, conveyor, operations, motionSettings, new(), io, units,
-            new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(),
+        var work = ConveyorStation.CreateInspection(io);
+        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings { AlarmCarrierCount = alarmCarrierCount }, units);
+        var pickup = new InspectionStation(
+            work,
+            motion,
+            new MotionStatus(motion),
+            conveyor,
+            operations,
+            motionSettings,
+            new(),
+            io,
+            units,
+            new VirtualCamera(motion.GetPosition, () => []),
+            new VirtualLightController(),
+            new(),
             new(OpenMachineStore(), new()));
         io.Initialize();
         return new TestSystem(io, conveyor, pickup);

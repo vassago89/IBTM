@@ -28,7 +28,7 @@ public sealed class PcbHistoryTests
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddIbtmApplication(settings).BuildServiceProvider();
         var history = services.GetRequiredService<PcbHistory>();
-        var work = services.GetRequiredService<PcbPlacementWork>();
+        var work = services.GetRequiredService<PcbPlacer>().Station;
         var snapshots = new List<PcbRecord>();
         history.Saved += snapshots.Add;
 
@@ -78,7 +78,7 @@ public sealed class PcbHistoryTests
         using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
         connection.Open();
         using var transaction = connection.BeginTransaction();
-        var assembly = services.GetRequiredService<BoltFasteningWork>().GetAssembly(HeatSinkSlot.HeatSink1);
+        var assembly = services.GetRequiredService<BoltFasteningStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordPickupBolt(1, new(true, 8.2));
         var closing = services.DisposeAsync().AsTask();
         try
@@ -103,7 +103,7 @@ public sealed class PcbHistoryTests
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddIbtmApplication(settings).BuildServiceProvider();
         var history = services.GetRequiredService<PcbHistory>();
-        var work = services.GetRequiredService<PcbPlacementWork>();
+        var work = services.GetRequiredService<PcbPlacer>().Station;
         using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
         {
             connection.Open();
@@ -141,8 +141,8 @@ public sealed class PcbHistoryTests
             .AddIbtmApplication(settings).BuildServiceProvider();
         var view = services.GetRequiredService<OperationViewModel>();
         var history = services.GetRequiredService<PcbHistory>();
-        var work = services.GetRequiredService<InspectionWork>();
-        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        var work = services.GetRequiredService<InspectionStation>();
+        var assembly = work.Station.GetAssembly(HeatSinkSlot.HeatSink1);
         try
         {
             await Assert.ThrowsAsync<IOException>(history.FlushAsync);
@@ -276,9 +276,9 @@ public sealed class PcbHistoryTests
             .AddIbtmApplication(settings).BuildServiceProvider();
         var view = services.GetRequiredService<OperationViewModel>(); // Also constructs the machine/history subscription.
         var history = services.GetRequiredService<PcbHistory>();
-        var placement = services.GetRequiredService<PcbPlacementWork>();
-        var fastening = services.GetRequiredService<BoltFasteningWork>();
-        var inspection = services.GetRequiredService<InspectionWork>();
+        var placement = services.GetRequiredService<PcbPlacer>().Station;
+        var fastening = services.GetRequiredService<BoltFasteningStation>().Station;
+        var inspection = services.GetRequiredService<InspectionStation>();
         var first = placement.GetAssembly(HeatSinkSlot.HeatSink1);
         var second = placement.GetAssembly(HeatSinkSlot.HeatSink2);
         placement.TransferAssembliesTo(fastening, placement.CurrentJob);
@@ -290,9 +290,9 @@ public sealed class PcbHistoryTests
         first.RecordPcbBolt(1, new(false, 0.5, Error: "NG torque"));
         first.RecordPickupBolt(2, new(true, 1.1));
         first.CompleteFastening();
-        fastening.TransferAssembliesTo(inspection, fastening.CurrentJob);
-        Assert.Same(first, inspection.GetAssembly(HeatSinkSlot.HeatSink1));
-        Assert.Same(second, inspection.GetAssembly(HeatSinkSlot.HeatSink2));
+        fastening.TransferAssembliesTo(inspection.Station, fastening.CurrentJob);
+        Assert.Same(first, inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1));
+        Assert.Same(second, inspection.Station.GetAssembly(HeatSinkSlot.HeatSink2));
         first.PcbBarcode = null;
         first.RecordBoltPresence(1, false);
         first.RecordInspectionCapture(new(1, DateTimeOffset.Now,
@@ -336,7 +336,7 @@ public sealed class PcbHistoryTests
         var reopenedView = restarted.GetRequiredService<OperationViewModel>();
         await reopenedView.LoadOlderPcbsCommand.ExecuteAsync(null);
         Assert.Equal(new long[] { 3, 2, 1 }, reopenedView.PcbRecords.Select(record => record.Number));
-        Assert.Empty(restarted.GetRequiredService<PcbPlacementWork>().Assemblies);
+        Assert.Empty(restarted.GetRequiredService<PcbPlacer>().Station.Assemblies);
         reopenedView.SelectedPcb = reopenedView.PcbRecords[^1];
         Assert.Equal("NG torque", reopenedView.SelectedPcb.PcbBoltResults[1].Error);
         await reopenedView.PcbDetails.LoadImagesCommand.ExecuteAsync(null);
@@ -354,7 +354,7 @@ public sealed class PcbHistoryTests
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddIbtmApplication(settings).BuildServiceProvider();
         var history = services.GetRequiredService<PcbHistory>();
-        var work = services.GetRequiredService<BoltFasteningWork>();
+        var work = services.GetRequiredService<BoltFasteningStation>().Station;
         services.GetRequiredService<VirtualIoService>().SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         var first = work.GetAssembly(HeatSinkSlot.HeatSink1);
         first.RecordPcbBolt(1, new(false, null, Error: "Timeout"));

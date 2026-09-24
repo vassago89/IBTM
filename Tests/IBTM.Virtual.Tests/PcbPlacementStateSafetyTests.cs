@@ -272,7 +272,7 @@ public sealed class PcbPlacementStateSafetyTests
 
             Supply = new() { Handoff = PcbSupplyHandoff.Released };
             Units = new();
-            Work = new(ConveyorStation.CreatePcbPlacement(Io), Units);
+            Work = ConveyorStation.CreatePcbPlacement(Io);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition = Position;
             Placer = new PcbPlacer(Motion, new MotionStatus(Motion),
@@ -291,7 +291,7 @@ public sealed class PcbPlacementStateSafetyTests
         public VirtualIoService Io { get; }
         public VirtualMotionService Motion { get; }
         public PcbPlacer Handler { get; }
-        public PcbPlacementWork Work { get; }
+        public ConveyorStation Work { get; }
         public PcbPlacer Placer { get; }
         public SupplyFeedback Supply { get; }
 
@@ -310,7 +310,7 @@ public sealed class PcbPlacementStateSafetyTests
             Motion.Initialize();
             await HomeAsync(Motion, 2_000);
             Io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
-            await Work.Station.SeatAsync(CancellationToken.None);
+            await Work.SeatAsync(CancellationToken.None);
             await Handler.SetLiftDownAsync(false);
             await Handler.SetIpmLiftDownAsync(true);
             await Handler.MoveToHorizontalZAsync();

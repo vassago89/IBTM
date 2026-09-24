@@ -10,16 +10,15 @@ namespace IBTM.Conveyor;
 public sealed partial class MainConveyor
 {
     private async Task TransferAsync(
-        StationWork? sourceWork,
-        StationWork destinationWork,
+        ConveyorStation? source,
+        ConveyorStation destination,
         CancellationToken cancellationToken)
     {
-        var destination = destinationWork.Station;
-        var departingJob = sourceWork?.CurrentJob;
-        var receiving = sourceWork is null;
+        var departingJob = source?.CurrentJob;
+        var receiving = source is null;
         var timeout = TimeSpan.FromSeconds(_settings.TransferTimeoutSeconds);
         var timeoutMilliseconds = (int)timeout.TotalMilliseconds;
-        var arrived = new TaskCompletionSource<StationWork.Job>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var arrived = new TaskCompletionSource<ConveyorStation.Job>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var carrierLeft = new AsyncAutoResetEvent();
         void ObserveEntry(InputIo input, bool value)
@@ -30,7 +29,7 @@ public sealed partial class MainConveyor
         void ObserveArrival()
         {
             if (destination.IsHeatSinkPresent(HeatSinkSlot.HeatSink2))
-                arrived.TrySetResult(destinationWork.CurrentJob);
+                arrived.TrySetResult(destination.CurrentJob);
             if (arrived.Task.IsCompleted && !destination.CarrierPresent)
                 carrierLeft.Set();
         }
@@ -41,17 +40,17 @@ public sealed partial class MainConveyor
             // 목적지가 준비될 때까지 출발 캐리어는 벨트에서 분리해 둔다.
             await destination.PrepareToReceiveAsync(cancellationToken);
             RequireSeatingPushPosition(destination);
-            if (sourceWork is not null)
+            if (source is not null)
             {
-                sourceWork.RequireCurrentJob(departingJob!);
-                if (!sourceWork.Station.CarrierSeated
-                    || !sourceWork.IsTransferAllowed
-                    || !destinationWork.IsReceiveAllowed)
+                source.RequireCurrentJob(departingJob!);
+                if (!source.CarrierSeated
+                    || !source.IsTransferAllowed
+                    || !(ReferenceEquals(destination, _inspection.Station) ? _inspection.IsReceiveAllowed : destination.IsReceiveAllowed))
                 {
                     throw new InvalidOperationException(
                         "Transfer requires the completed source carrier to remain seated and the destination to remain empty.");
                 }
-                await sourceWork.Station.ReleaseAsync(cancellationToken);
+                await source.ReleaseAsync(cancellationToken);
                 RequireSeatingPushPosition(destination);
             }
             else if (!_repeat && !EntryCarrierDetected)
@@ -88,7 +87,7 @@ public sealed partial class MainConveyor
             }
             if (!destination.CarrierPresent)
                 carrierLeft.Set();
-            EnterStep(State, target: "seating push", workId: destinationWork.CurrentJob.Id, waitingFor:
+            EnterStep(State, target: "seating push", workId: destination.CurrentJob.Id, waitingFor:
                 $"Heat Sink 2 detected; push for {_settings.CarrierStopDelaySeconds} s");
             var lostCarrier = await carrierLeft.WaitAsync(
                 TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
@@ -113,12 +112,12 @@ public sealed partial class MainConveyor
             {
                 // HS2로 도착이 확인된 작업은 밀착 중 STOP해도 체결 결과를 이어받는다.
                 // 감지 후 교체된 캐리어에는 이전 결과를 넘기지 않는다.
-                if (sourceWork is not null
+                if (source is not null
                     && arrived.Task.IsCompletedSuccessfully
                     && destination.CarrierPresent
-                    && ReferenceEquals(destinationWork.CurrentJob, await arrived.Task))
+                    && ReferenceEquals(destination.CurrentJob, await arrived.Task))
                 {
-                    sourceWork.TransferAssembliesTo(destinationWork, departingJob!);
+                    source.TransferAssembliesTo(destination, departingJob!);
                 }
             }
             finally
@@ -129,7 +128,7 @@ public sealed partial class MainConveyor
         }
 
         // S3는 플레이트 DOWN, 스토퍼 UP 상태에서 검사한다.
-        if (!ReferenceEquals(destinationWork, _inspectionWork))
+        if (!ReferenceEquals(destination, _inspection.Station))
             await destination.SeatAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
     }
@@ -166,10 +165,10 @@ public sealed partial class MainConveyor
                 return;
             if (!_repeat
                 && !IsNgTransferRequired
-                && _inspectionWork.IsTransferAllowed
-                && _inspectionWork.IsTransferAtWaitingPosition())
+                && _inspection.IsTransferAllowed
+                && _inspection.IsTransferAtWaitingPosition())
             {
-                await _inspectionWork.Station.ReleaseAsync(cancellationToken);
+                await _inspection.Station.ReleaseAsync(cancellationToken);
             }
 
             if (rearReleased.Task.IsCompleted)

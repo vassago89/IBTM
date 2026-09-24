@@ -684,21 +684,21 @@ public sealed partial class ConveyorTests
             BoltFastening = boltFasteningEnabled,
             Inspection = inspectionEnabled,
         };
-        var placement = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units);
-        var fastening = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
-        var inspection = CreateInspectionWork(io, units);
+        var placement = ConveyorStation.CreatePcbPlacement(io);
+        var fastening = ConveyorStation.CreateBoltFastening(io);
+        var inspection = CreateInspectionStation(io, units);
         // Conveyor-only tests supply the completion normally reported by each station loop.
-        foreach (var work in new StationWork[] { placement, fastening, inspection })
+        foreach (var (station, enabled) in new[] { (placement, units.PcbPlacement), (fastening, units.BoltFastening), (inspection.Station, units.Inspection) })
         {
             void CompleteDisabledWork()
             {
-                if (!work.Enabled
-                    && (work.Station.CarrierSeated
-                        || ReferenceEquals(work, inspection) && inspection.AtInspectionPosition))
-                    work.Complete(work.CurrentJob);
+                if (!enabled
+                    && (station.CarrierSeated
+                        || ReferenceEquals(station, inspection.Station) && inspection.AtInspectionPosition))
+                    station.Complete(station.CurrentJob);
             }
 
-            work.Changed += CompleteDisabledWork;
+            station.Changed += CompleteDisabledWork;
             CompleteDisabledWork();
         }
         return new(
@@ -711,14 +711,14 @@ public sealed partial class ConveyorTests
             units);
     }
 
-    private static InspectionWork CreateInspectionWork(IIoService io, UnitSettings? units = null)
+    private static InspectionStation CreateInspectionStation(IIoService io, UnitSettings? units = null)
     {
         var settings = new InspectionGantrySettings();
         var operations = new OperationCancellation();
         var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
-        return new InspectionWork(
-            io, new MotionStatus(motion), new NgCarrierTransferSettings { CarrierPickupPosition = new(), WaitingPosition = new() },
+        return CreateNgTransfer(io, motion, operations, settings,
+            new NgCarrierTransferSettings { CarrierPickupPosition = new(), WaitingPosition = new() },
             units ?? new UnitSettings { MainConveyor = false });
     }
 

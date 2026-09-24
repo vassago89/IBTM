@@ -21,9 +21,9 @@ public sealed partial class ConveyorTests
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
         _ = new VirtualMachine(virtualIo, []);
-        var placementWork = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new());
-        var boltWork = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
-        var inspectionWork = CreateInspectionWork(io);
+        var placementWork = ConveyorStation.CreatePcbPlacement(io);
+        var boltWork = ConveyorStation.CreateBoltFastening(io);
+        var inspectionWork = CreateInspectionStation(io);
         var conveyor = new MainConveyor(
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
@@ -59,11 +59,11 @@ public sealed partial class ConveyorTests
         var run = conveyor.RunAsync(cancellation.Token);
         Assert.True(await WaitUntilAsync(() => inspectionWork.AtInspectionPosition, TimeSpan.FromSeconds(3)));
         assembly.CompleteInspection();
-        inspectionWork.Complete(inspectionWork.CurrentJob);
+        inspectionWork.Station.Complete(inspectionWork.Station.CurrentJob);
         await Task.Delay(100);
 
         Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
-        Assert.Same(assembly, Assert.Single(inspectionWork.Assemblies));
+        Assert.Same(assembly, Assert.Single(inspectionWork.Station.Assemblies));
         Assert.Empty(boltWork.Assemblies);
         Assert.True(inspectionWork.HasNg);
         Assert.False(frontReadyBeforeTransfer);
@@ -80,13 +80,13 @@ public sealed partial class ConveyorTests
         IIoService io = virtualIo;
         _ = new VirtualMachine(virtualIo, []);
         var units = new UnitSettings { PcbPlacement = false, BoltFastening = false };
-        var inspectionWork = CreateInspectionWork(io, units);
+        var inspectionWork = CreateInspectionStation(io, units);
         var conveyor = new MainConveyor(
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
             new OperationCancellation(),
-            new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units),
-            new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units),
+            ConveyorStation.CreatePcbPlacement(io),
+            ConveyorStation.CreateBoltFastening(io),
             inspectionWork,
             units);
         var discharged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -106,10 +106,10 @@ public sealed partial class ConveyorTests
             io,
             InputIo.InspectionHeatSink1Present,
             OutputIo.InspectionBackupPlateUp);
-        var assembly = inspectionWork.GetAssembly(HeatSinkSlot.HeatSink1);
+        var assembly = inspectionWork.Station.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordBoltPresence(1, false);
         assembly.CompleteInspection();
-        inspectionWork.Complete(inspectionWork.CurrentJob);
+        inspectionWork.Station.Complete(inspectionWork.Station.CurrentJob);
         Assert.True(inspectionWork.HasNg);
         virtualIo.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         virtualIo.SetInput(InputIo.MainConveyorReadyFromRear, false);

@@ -49,7 +49,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var work = services.GetRequiredService<BoltFasteningWork>();
+        var work = services.GetRequiredService<BoltFasteningStation>().Station;
         var gantry = services.GetRequiredService<BoltFasteningStation>();
         var completed = new ConcurrentDictionary<long, HeatSinkAssembly[]>();
         var forbidden = new ConcurrentQueue<OutputIo>();
@@ -189,7 +189,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true),
             (InputIo.InspectionHeatSink2Present, true));
-        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         state.RepeatEnabled = true;
         var shuttleOutputs = new ConcurrentQueue<bool>();
         var placedAndReleased = false;
@@ -445,7 +445,7 @@ public sealed partial class MachineLifecycleTests
             io.SetInputs(
                 (InputIo.PcbPlacementHeatSink2Present, true),
                 (InputIo.BoltFasteningHeatSink2Present, secondStationOccupied));
-            await services.GetRequiredService<PcbPlacementWork>().Station.SeatAsync(CancellationToken.None);
+            await services.GetRequiredService<PcbPlacer>().Station.SeatAsync(CancellationToken.None);
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             run = machine.StartAsync();
             Assert.True(await VirtualTest.WaitUntilAsync(
@@ -481,7 +481,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true),
             (InputIo.InspectionHeatSink2Present, true));
-        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         io.SetInput(InputIo.AutoMode, true);
         var returned = false;
         io.OutputChanged += (output, on) =>
@@ -644,9 +644,9 @@ public sealed partial class MachineLifecycleTests
             Assert.True(visited.GetValueOrDefault(InputIo.BoltFasteningBackupPlateUp) >= 2);
             Assert.True(visited.GetValueOrDefault(InputIo.InspectionBackupPlateUp) >= 2);
             Assert.Empty(forbidden);
-            Assert.Empty(services.GetRequiredService<PcbPlacementWork>().Assemblies);
-            Assert.Empty(services.GetRequiredService<BoltFasteningWork>().Assemblies);
-            Assert.Empty(services.GetRequiredService<InspectionWork>().Assemblies);
+            Assert.Empty(services.GetRequiredService<PcbPlacer>().Station.Assemblies);
+            Assert.Empty(services.GetRequiredService<BoltFasteningStation>().Station.Assemblies);
+            Assert.Empty(services.GetRequiredService<InspectionStation>().Station.Assemblies);
         }
         finally
         {

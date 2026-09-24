@@ -888,18 +888,18 @@ public sealed class IoStartupTests
             physicalIo.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
         if (step == TransferFailureStep.Transfer)
         {
-            var work = services.GetRequiredService<IBTM.PcbPlacement.PcbPlacementWork>();
+            var work = services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>().Station;
             VirtualTest.SetCarrier(physicalIo, InputIo.PcbPlacementHeatSink1Present, true);
-            await work.Station.SeatAsync(CancellationToken.None);
+            await work.SeatAsync(CancellationToken.None);
             work.Complete(work.CurrentJob);
         }
         if (step == TransferFailureStep.Discharge)
         {
             services.GetRequiredService<UnitSettings>().Inspection = false;
-            var work = services.GetRequiredService<IBTM.Inspection.InspectionWork>();
+            var work = services.GetRequiredService<InspectionStation>();
             VirtualTest.SetCarrier(physicalIo, InputIo.InspectionHeatSink1Present, true);
             await work.Station.SeatAsync(CancellationToken.None);
-            work.Complete(work.CurrentJob);
+            work.Station.Complete(work.Station.CurrentJob);
             physicalIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
         }
         if (step == TransferFailureStep.Return)
@@ -1012,10 +1012,10 @@ public sealed class IoStartupTests
         await using var services = CreateServices();
         var io = services.GetRequiredService<StartupIo>();
         var physicalIo = services.GetRequiredService<VirtualIoService>();
-        var work = services.GetRequiredService<IBTM.BoltFastening.BoltFasteningWork>();
+        var work = services.GetRequiredService<BoltFasteningStation>().Station;
         io.Initialize();
         VirtualTest.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
-        await work.Station.SeatAsync(CancellationToken.None);
+        await work.SeatAsync(CancellationToken.None);
         var runError = new IOException("Fastening carrier feedback failed.");
         var stopError = new IOException("Shooting output OFF failed.");
         var station = services.GetRequiredService<IBTM.BoltFastening.BoltFasteningStation>();

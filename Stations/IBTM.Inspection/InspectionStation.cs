@@ -11,10 +11,9 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM.Inspection;
 
-public sealed partial class InspectionStation : AutoUnit
+public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeedback
 {
     private readonly ILogger<InspectionStation>? _log;
-    private readonly InspectionWork _work;
     private readonly IIoService _io;
     private readonly IXyMotion _motion;
     private readonly OperationCancellation _operations;
@@ -28,12 +27,13 @@ public sealed partial class InspectionStation : AutoUnit
     // Selected work belongs only to this run; STOP starts again at the first point.
     private (HeatSinkSlot Pcb, BoltPoint? Bolt)[]? _runPoints;
     private int _pointIndex;
-    private StationWork.Job? _runJob;
+    private ConveyorStation.Job? _runJob;
     private CancellationTokenSource? _inspectionOperation;
 
     public InspectionStation(
-        InspectionWork work,
+        ConveyorStation station,
         IXyMotion motion,
+        MotionStatus motionStatus,
         NgCarrierConveyor ngConveyor,
         OperationCancellation operations,
         InspectionGantrySettings motionSettings,
@@ -47,7 +47,8 @@ public sealed partial class InspectionStation : AutoUnit
         ILogger<InspectionStation>? log = null)
     {
         _log = log;
-        _work = work;
+        Station = station;
+        Motion = motionStatus;
         _io = io;
         _motion = motion;
         _operations = operations;
@@ -61,7 +62,11 @@ public sealed partial class InspectionStation : AutoUnit
         _recipes = recipes;
         _visionGate = new(1, 1);
         camera.LiveViewFailed += OnCameraLiveViewFailed;
-        work.Changed += NotifyChanged;
+        station.Changed += NotifyChanged;
+        motion.StateChanged += NotifyChanged;
+        io.InputChanged += OnInputChanged;
+        io.OutputChanged += OnOutputChanged;
+        ngConveyor.AttachTransfer(this);
         ngConveyor.Changed += NotifyChanged;
         recipes.Changed += NotifyChanged;
         recipes.InspectionSettingsChanged += NotifyChanged;
@@ -71,15 +76,15 @@ public sealed partial class InspectionStation : AutoUnit
 
     public BoltPoint? GetActiveBolt(bool? mainConveyorRunning = null)
     {
-        return _work.Enabled
-            && _work.IsReadyToInspect(mainConveyorRunning)
+        return Enabled
+            && IsReadyToInspect(mainConveyorRunning)
             ? InspectionTarget.Bolt
             : null;
     }
 
     public HeatSinkSlot? GetActivePcb(bool? mainConveyorRunning = null)
     {
-        return _work.Enabled && _work.IsReadyToInspect(mainConveyorRunning)
+        return Enabled && IsReadyToInspect(mainConveyorRunning)
             ? InspectionTarget.Pcb
             : null;
     }
@@ -95,7 +100,7 @@ public sealed partial class InspectionStation : AutoUnit
             }
             foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
             {
-                if (_work.Station.IsHeatSinkPresent(pcb))
+                if (Station.IsHeatSinkPresent(pcb))
                     return (pcb, null);
             }
             return (null, null);
@@ -107,11 +112,9 @@ public sealed partial class InspectionStation : AutoUnit
         Changed?.Invoke();
     }
 
-    public ConveyorStation Station => _work.Station;
+    public ConveyorStation Station { get; }
 
     public bool IsEmptyRepeatAllowed => !_units.MainConveyor && !_units.NgConveyor;
-
-    public bool IsTransferPending => _work.IsTransferPending;
 
     public NgTransferLiftState Lift
     {
@@ -147,10 +150,6 @@ public sealed partial class InspectionStation : AutoUnit
         }
     }
 
-    public bool IsRaised => _work.IsRaised;
-
-    public bool IsClear => _work.IsClear;
-
     public bool IsCarrierPresent(NgTransferDestination location)
     {
         return location == NgTransferDestination.Station
@@ -158,7 +157,7 @@ public sealed partial class InspectionStation : AutoUnit
             : _io.GetInput(InputIo.NgShuttleCarrierDetected);
     }
 
-    public MotionStatus Motion => _work.Motion;
+    public MotionStatus Motion { get; }
 
     public IMotionFeedback Feedback => _motion;
 }

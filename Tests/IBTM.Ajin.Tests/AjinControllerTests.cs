@@ -162,7 +162,7 @@ public sealed partial class AjinControllerTests
     }
 
     [Fact]
-    public void RecoveredCarrierArrivalDoesNotReuseCompletedStationWork()
+    public void RecoveredCarrierArrivalDoesNotReuseCompletedConveyorStation()
     {
         Shared.TMCAEDLL.Reset();
         using var alpha = new IBTM.AlphaMotion.AlphaMotionController(new());
@@ -180,14 +180,14 @@ public sealed partial class AjinControllerTests
         };
         using var io = new PhysicalIoService(
             alpha, ajin, inputs, new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>(), new());
-        var work = new RecoveryWork(ConveyorStation.CreateInspection(io));
+        var work = ConveyorStation.CreateInspection(io);
         var arrivals = 0;
-        work.Station.CarrierChanged += present =>
+        work.CarrierChanged += present =>
         {
             if (present)
             {
                 arrivals++;
-                Assert.True(work.Station.CarrierSeated);
+                Assert.True(work.CarrierSeated);
             }
         };
         AjinSdk.Inputs[0] = 0b111;
@@ -205,7 +205,7 @@ public sealed partial class AjinControllerTests
         Assert.Equal(0, arrivals);
         AjinSdk.Inputs[0] = 0b110;
         io.RefreshInputs();
-        Assert.False(work.Station.CarrierPresent);
+        Assert.False(work.CarrierPresent);
 
         Shared.TMCAEDLL.Errors["AIO_GetDIDWord"] = Shared.tmcDef.ERR_INVALID_PARAMETER;
         Assert.Throws<IOException>(io.RefreshInputs);
@@ -213,7 +213,7 @@ public sealed partial class AjinControllerTests
         Shared.TMCAEDLL.Errors.Clear();
         io.Initialize();
 
-        Assert.True(work.Station.CarrierSeated);
+        Assert.True(work.CarrierSeated);
         Assert.False(work.Completed);
         Assert.False(work.IsTransferAllowed);
         Assert.Empty(work.Assemblies);
@@ -1398,13 +1398,4 @@ public sealed partial class AjinControllerTests
         Assert.Empty(AjinSdk.Calls);
     }
 
-    private sealed class RecoveryWork : StationWork
-    {
-        public RecoveryWork(ConveyorStation station)
-            : base(station, new())
-        {
-        }
-
-        public override bool Enabled => true;
-    }
 }

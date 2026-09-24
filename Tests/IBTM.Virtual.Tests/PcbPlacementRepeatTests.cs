@@ -549,7 +549,7 @@ public sealed class PcbPlacementRepeatTests
 
             Units = new() { PcbSupply = enableSupply };
             Supply = new PcbSupplier(_supplyMotion, new MotionStatus(_supplyMotion), Io, supplySettings, Units);
-            Work = new(ConveyorStation.CreatePcbPlacement(Io), Units);
+            Work = ConveyorStation.CreatePcbPlacement(Io);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement = Recipe;
             Placer = new PcbPlacer(Motion, new MotionStatus(Motion),
@@ -567,7 +567,7 @@ public sealed class PcbPlacementRepeatTests
         public VirtualMotionService Motion { get; }
         public VirtualMotionService SupplyMotion => _supplyMotion;
         public PcbPlacer Handler { get; }
-        public PcbPlacementWork Work { get; }
+        public ConveyorStation Work { get; }
         public PcbPlacer Placer { get; }
         public PcbPlacementRecipe Recipe { get; }
         public PcbSupplier Supply { get; }
@@ -588,7 +588,7 @@ public sealed class PcbPlacementRepeatTests
             Io.SetOutput(OutputIo.MainConveyorRun, true);
             await ((IIoService)Io).WaitForInputAsync(InputIo.PcbPlacementHeatSink2Present, true);
             Io.SetOutput(OutputIo.MainConveyorRun, false);
-            await Work.Station.SeatAsync(CancellationToken.None);
+            await Work.SeatAsync(CancellationToken.None);
             await Handler.MoveToHorizontalZAsync();
         }
 

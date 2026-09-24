@@ -59,7 +59,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var inspection = services.GetRequiredService<InspectionWork>();
+        var inspection = services.GetRequiredService<InspectionStation>();
         IMotionFeedback[] disabledMotions = [
             services.GetRequiredService<PcbSupplier>().Feedback,
             services.GetRequiredService<PcbPlacer>().Feedback,
@@ -121,12 +121,12 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => inspection.Completed, TimeSpan.FromSeconds(10)));
+                await VirtualTest.WaitUntilAsync(() => inspection.Station.Completed, TimeSpan.FromSeconds(10)));
             Assert.Equal(7, arrived);
             Assert.Equal(missingBolts, inspection.HasNg);
-            Assert.Equal(2, inspection.Assemblies.Count());
+            Assert.Equal(2, inspection.Station.Assemblies.Count());
             Assert.All(
-                inspection.Assemblies,
+                inspection.Station.Assemblies,
                 assembly =>
                 {
                     Assert.Equal(

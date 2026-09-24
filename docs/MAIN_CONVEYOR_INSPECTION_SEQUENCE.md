@@ -6,14 +6,14 @@ Virtual 검증과 실장비 검증은 구분한다.
 ## 코드 위치
 
 - `Stations/IBTM.Conveyor/MainConveyor.cs`: 실행 수명, 취소·정지와 출력 정리, 외부 입력.
-- `Stations/IBTM.Conveyor/MainConveyor.Sequence.cs`: 현재 상태 판단, 이송 우선순위, 상태별 실행과 SMEMA.
+- `Stations/IBTM.Conveyor/MainConveyor.Automatic.cs`: 현재 상태 판단, 이송 우선순위, 상태별 실행과 SMEMA.
 - `Stations/IBTM.Conveyor/MainConveyor.Transfer.cs`: 반입·스테이션 간 이송·후방 배출·역방향 복귀.
   출발지 하강부터 목적지 도착·정지까지는 계속 하나의 비동기 동작이다.
-- `Stations/IBTM.Inspection/InspectionWork.cs`: 현재 캐리어의 검사 요청과 물리 조건.
+- `Stations/IBTM.Inspection/InspectionStation.Carrier.cs`: 현재 캐리어의 검사 요청과 물리 조건.
 - `Stations/IBTM.Inspection/InspectionStation.cs`: 검사·NG 픽업 위치 복귀·NG 이송 실행.
 
 컨베이어 테스트는 `ConveyorTests.cs`의 기동·정지·공통 준비 코드와
-`ConveyorTests.Transfer.cs`, `ConveyorTests.Discharge.cs`, `ConveyorTests.Work.cs`로 나눈다.
+`ConveyorTests.Transfer.cs`, `ConveyorTests.Discharge.cs`, `ConveyorTests.Job.cs`로 나눈다.
 메인·검사 간 순서 검증은 `MachineLifecycleTests.InspectionConveyor.cs`에 둔다.
 
 ## 확정한 물리 동작
@@ -110,7 +110,7 @@ STOP은 추가 운전 중에도 즉시 적용되며, 해당 배출의 OFF 시각
 티칭에서는 기존 TEST Ready, 자동에서는 실제 후방 SMEMA DI의 OFF를 사용한다.
 ## 검사 스테이션 상태와 완료 시점
 
-검사 위치는 `InspectionWork.AtInspectionPosition`으로 읽는다.
+검사 위치는 `InspectionStation.AtInspectionPosition`으로 읽는다.
 캐리어 재실, 플레이트 DOWN, 스토퍼 UP, 벨트 Run 출력 OFF가 모두 필요하다.
 현재 검사 조건에는 벨트 정지 속도 피드백이 없으므로 Run 출력과 축·실린더 피드백을 구분한다.
 메인 컨베이어가 활성화되어 있으면 물리 조건에 더해 메인의 `RequestInspection(job)`이 필요하다.
@@ -133,24 +133,22 @@ NG 운반 중처럼 캐리어를 잡고 있으면 기존 NG 이송 동작이 우
 - `MainConveyor`: 메인 벨트, S1·S2·S3 백업 플레이트와 스토퍼, SMEMA, 물류 우선순위와 검사 시작 요청.
 - `PcbPlacer`, `BoltFasteningStation`, `InspectionStation`: 각 공정 실행과 현재 캐리어의 완료 판단.
 - `InspectionStation`: 바코드·볼트 검사, 검사 후 복귀, NG 집기·운반.
-- `InspectionWork`: 현재 S3 피드백, 캐리어별 결과와 완료 소유권, 대기 위치 확인.
-- `NgCarrierTransfer`: 공유 검사 XY 축, NG 실린더·그리퍼와 픽업/셔틀 이송을 직접 실행한다.
+- `ConveyorStation`: S1/S2/S3의 현재 감지·지지대 상태와 캐리어 Job·결과·완료 소유권.
+- `InspectionStation.Carrier.cs`: 검사·착좌 요청, 현재 검사 위치와 NG 픽업 인터록.
 - 참조 방향은 `IBTM.Conveyor → IBTM.Inspection → IBTM.NgConveyor`다.
-  메인 컨베이어는 구체적인 `InspectionWork`를 읽고, `InspectionStation` 실행 루프를 호출하지 않는다.
+  메인 컨베이어는 `InspectionStation`의 상태와 요청 API를 사용하며 실행 루프를 호출하지 않는다.
 
-메인 컨베이어는 `StationWork`만 보관하고, 실린더 동작과 현재 물리 상태는 해당 작업의 `Station`으로 접근한다.
-캐리어 감지·착좌·플레이트·스토퍼 상태는 `ConveyorStation`에서 읽고, `StationWork`에는
-캐리어별 작업 결과와 완료 소유권을 둔다. 물리 상태를 전달하는 중복 속성이나
-같은 스테이션 객체를 보관하는 별도 필드는 두지 않는다.
-검사 스테이션의 픽업 비어 있음·상승 여부도 `InspectionWork.PickupClear`에서 함께 읽는다.
+메인 컨베이어는 S1/S2의 `ConveyorStation`과 S3의 `InspectionStation`을 직접 참조한다.
+공정별 Work 클래스와 중복 DI 객체는 없다. 결과 저장과 UI도 각 스테이션의 `Station`을 사용한다.
+검사 스테이션의 픽업 비어 있음·상승 여부는 `InspectionStation.PickupClear`에서 읽는다.
 작업 시작 시 선택한 대상, 미수집 결과의 Job, 실행 중인 이송 명령은 각각 다른 수명을 가진
 작업 이력이므로 현재 센서값으로 대체하지 않는다.
 
 `MachineController`는 S1·S2·S3 작업 루프를 Enabled와 무관하게 실행하고 취소·오류를 관리한다.
 처음부터 착좌된 캐리어의 완료가 첫 이송 선택에 반영되도록 작업 루프를 컨베이어보다 먼저 시작한다.
-각 스테이션은 Enabled가 false이면 작업 장치를 구동하지 않고 현재 Job을 완료 처리한다.
+각 스테이션은 Enabled가 false이면 작업 장치를 구동하지 않고 완료 처리한다. 안착은 잡고 있는 PCB나 미완료 Repeat 인계가 있으면 캐리어를 완료 처리하지 않는다.
 작업 수행과 건너뛰기는 모두 같은 완료값을 사용하며, 별도 스킵 상태는 두지 않는다.
-`StationWork`는 스테이션이 기록한 완료를 보관하며, 센서나 Enabled만으로 완료를 만들어내지 않는다.
+`ConveyorStation`은 스테이션이 기록한 완료를 보관하며, 센서나 Enabled만으로 완료를 만들어내지 않는다.
 Enabled를 바꿔도 현재 캐리어의 완료는 유지되며, 새 캐리어에는 이전 완료가 승계되지 않는다.
 메인 컨베이어는 이 결과와 현재 물리 조건으로 이송 여부를 판단한다.
 

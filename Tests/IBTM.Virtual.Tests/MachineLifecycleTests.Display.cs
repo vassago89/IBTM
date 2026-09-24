@@ -168,8 +168,8 @@ public sealed partial class MachineLifecycleTests
             }
 
             Assert.True(machine.TeachingReady);
-            Assert.True(services.GetRequiredService<BoltFasteningWork>().Station.CarrierSeated);
-            Assert.True(services.GetRequiredService<InspectionWork>().Station.CarrierSeated);
+            Assert.True(services.GetRequiredService<BoltFasteningStation>().Station.CarrierSeated);
+            Assert.True(services.GetRequiredService<InspectionStation>().Station.CarrierSeated);
             state.AutomaticRunning = true;
             readingDisplay.Value = true;
             var display = services.GetRequiredService<OperationViewModel>();
@@ -186,8 +186,8 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.InspectionBackupPlateDown, true);
             io.SetInput(InputIo.InspectionStopperDown, false);
             io.SetInput(InputIo.InspectionStopperUp, true);
-            var work = services.GetRequiredService<InspectionWork>();
-            work.RequestInspection(work.CurrentJob);
+            var work = services.GetRequiredService<InspectionStation>();
+            work.RequestInspection(work.Station.CurrentJob);
             readingDisplay.Value = true;
             Assert.Equal(MainConveyorState.WaitingForInspection, display.ConveyorState);
             Assert.NotNull(display.InspectionState);

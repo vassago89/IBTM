@@ -32,7 +32,6 @@ public sealed class DiagnosticToolsTests
         Assert.Same(statuses[MotionGroup.PcbSupply], services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>().Motion);
         Assert.Same(statuses[MotionGroup.PcbPlacementHandler], services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>().Motion);
         Assert.Same(statuses[MotionGroup.BoltFastening], services.GetRequiredService<IBTM.BoltFastening.BoltFasteningStation>().Motion);
-        Assert.Same(statuses[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionWork>().Motion);
         Assert.Same(statuses[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionStation>().Motion);
         Assert.Same(motions[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionStation>().Feedback);
     }

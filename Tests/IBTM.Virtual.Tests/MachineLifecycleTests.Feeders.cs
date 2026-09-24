@@ -93,7 +93,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var work = services.GetRequiredService<BoltFasteningWork>();
+        var work = services.GetRequiredService<BoltFasteningStation>().Station;
         var gantry = services.GetRequiredService<BoltFasteningStation>();
         var outputs = new ConcurrentQueue<(OutputIo Output, bool On)>();
         var starts = new ConcurrentQueue<(FasteningHead Head, double X, double Y, double Z)>();
@@ -111,7 +111,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.AutoMode, repeat);
         state.RepeatEnabled = repeat;
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
-        await work.Station.SeatAsync(CancellationToken.None);
+        await work.SeatAsync(CancellationToken.None);
         // Standalone fastening starts from plate UP even if the stopper is still UP.
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningStopperUp, true);
         gantry.Feedback.PositionChanged += (x, y, _) =>
@@ -235,12 +235,12 @@ public sealed partial class MachineLifecycleTests
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = head, X = 10, Y = 10 }];
         var machine = services.GetRequiredService<MachineController>();
         var station = services.GetRequiredService<BoltFasteningStation>();
-        var work = services.GetRequiredService<BoltFasteningWork>();
+        var work = services.GetRequiredService<BoltFasteningStation>().Station;
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
-        await work.Station.SeatAsync(CancellationToken.None);
+        await work.SeatAsync(CancellationToken.None);
         if (head == FasteningHead.Pickup)
             await station.SetPickupTableDownAsync(true, CancellationToken.None);
         settings.Options.TimeoutMilliseconds = 100;
@@ -321,13 +321,13 @@ public sealed partial class MachineLifecycleTests
         recipe.Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Pickup, X = 20, Y = 10 }];
         var machine = services.GetRequiredService<MachineController>();
         var station = services.GetRequiredService<BoltFasteningStation>();
-        var work = services.GetRequiredService<BoltFasteningWork>();
+        var work = services.GetRequiredService<BoltFasteningStation>().Station;
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.PickupFeederBoltDetected, false);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
-        await work.Station.SeatAsync(CancellationToken.None);
+        await work.SeatAsync(CancellationToken.None);
         var pickups = 0;
         var starts = 0;
         io.OutputChanged += (output, on) =>

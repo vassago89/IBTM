@@ -95,7 +95,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
-        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
         await move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, timeout.Token);
         var lost = false;
@@ -212,13 +212,13 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var station = services.GetRequiredService<BoltFasteningStation>();
-        var work = services.GetRequiredService<BoltFasteningWork>();
+        var work = services.GetRequiredService<BoltFasteningStation>().Station;
         var gantry = services.GetRequiredService<BoltFasteningStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
-        await work.Station.SeatAsync(CancellationToken.None);
+        await work.SeatAsync(CancellationToken.None);
         var previousAssembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var replaced = false;
@@ -347,7 +347,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true),
             (InputIo.InspectionHeatSink2Present, true));
-        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         await gantry.MoveToAsync(settings.CarrierPickupPosition!, 10_000);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         using var transferTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -455,7 +455,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.Equal(settings.CarrierPickupPosition!.X, gantry.Feedback.GetPosition().X);
 
-        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         Assert.Equal(InspectionStationState.PickingCarrier, move.GetNextTransferStep(NgTransferDestination.Shuttle, canPickUp: true));
@@ -500,7 +500,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var handler = services.GetRequiredService<PcbPlacer>();
         var placer = services.GetRequiredService<PcbPlacer>();
-        var work = services.GetRequiredService<PcbPlacementWork>();
+        var work = services.GetRequiredService<PcbPlacer>().Station;
         var recipe = services.GetRequiredService<RecipeManager>().Current.PcbPlacement;
         recipe.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
         await machine.InitializeAsync();
@@ -577,7 +577,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var handler = services.GetRequiredService<PcbPlacer>();
         var placer = services.GetRequiredService<PcbPlacer>();
-        var work = services.GetRequiredService<PcbPlacementWork>();
+        var work = services.GetRequiredService<PcbPlacer>().Station;
         var recipe = services.GetRequiredService<RecipeManager>().Current.PcbPlacement;
         recipe.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
         await machine.InitializeAsync();
@@ -700,7 +700,7 @@ public sealed partial class MachineLifecycleTests
         var move = services.GetRequiredService<InspectionStation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await services.GetRequiredService<InspectionStation>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         // Establish pickup ownership through the real sequence, independently of presence DI.
         await move.ExecuteTransferAsync(destination, InspectionStationState.PickingCarrier,

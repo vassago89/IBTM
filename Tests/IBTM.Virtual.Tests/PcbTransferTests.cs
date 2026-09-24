@@ -331,7 +331,7 @@ public sealed class PcbTransferTests
             supplySettings,
             units);
         var source = supplier;
-        var work = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), units);
+        var work = ConveyorStation.CreatePcbPlacement(io);
         var placer = CreatePlacer(supplier, placementMotion, io, placementSettings, recipe, work);
         var recipient = placer;
         io.Initialize();
@@ -660,7 +660,7 @@ public sealed class PcbTransferTests
             supplySettings,
             new());
         var supplyHandler = supply;
-        var work = new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new());
+        var work = ConveyorStation.CreatePcbPlacement(io);
         var placement = CreatePlacer(supply, placementMotion, io, placementSettings, placementRecipe, work);
         var placementHandler = placement;
         var returnedPositions = new System.Collections.Generic.List<(double X, double Y, double Z)>();
@@ -724,13 +724,13 @@ public sealed class PcbTransferTests
         supplyMotion.Initialize();
         placementMotion.Initialize();
         await Task.WhenAll(HomeAsync(supplyMotion, 2_000), HomeAsync(placementMotion, 2_000));
-        await work.Station.SeatAsync(CancellationToken.None);
+        await work.SeatAsync(CancellationToken.None);
         await supplyHandler.SetRotatedAsync(true);
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
         io.SetInput(InputIo.PcbPlacementHeatSink2Present, false);
         VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
 
-        Assert.True(work.Station.CarrierSeated);
+        Assert.True(work.CarrierSeated);
         using var supplyCancellation = new CancellationTokenSource();
         var supplyRun = supply.RunAsync(supplyRecipe, placement, supplyCancellation.Token);
         using var firstStop = new CancellationTokenSource();
@@ -1000,11 +1000,11 @@ public sealed class PcbTransferTests
         IIoService io,
         PcbPlacementHandlerSettings settings,
         PcbPlacementRecipe? recipe = null,
-        PcbPlacementWork? work = null)
+        ConveyorStation? work = null)
     {
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.PcbPlacement = recipe ?? new();
-        return new(motion, new(motion), io, settings, supply, work ?? new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), recipes, new());
+        return new(motion, new(motion), io, settings, supply, work ?? ConveyorStation.CreatePcbPlacement(io), recipes, new());
     }
 
     private static MotionSettings FastMotion()

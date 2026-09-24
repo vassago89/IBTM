@@ -135,7 +135,7 @@ public sealed partial class NgCarrierConveyor
         EnterStep(state, waitingFor: state switch
         {
             NgConveyorState.WaitingForTransferRelease =>
-                $"pickup Up={_transfer.IsRaised}, pending={_transfer.IsTransferPending}, "
+                $"pickup Up={_transfer?.IsRaised}, pending={_transfer?.IsTransferPending}, "
                     + $"gripper Open={_io.GetInput(InputIo.NgCarrierGripperOpen)}, "
                     + $"Closed={_io.GetInput(InputIo.NgCarrierGripperClosed)}",
             NgConveyorState.WaitingForShuttleDown =>

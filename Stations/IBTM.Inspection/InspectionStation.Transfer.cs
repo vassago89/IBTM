@@ -160,7 +160,7 @@ public sealed partial class InspectionStation
                 // Descent can outlive the source's support or carrier feedback.
                 if (!IsSupportReady(source) || !allowEmpty && !IsCarrierPresent(source))
                     return false;
-                _work.IsTransferPending = true;
+                IsTransferPending = true;
                 await SetGripperOpenAsync(false, cancellationToken);
                 await SetLiftUpAsync(true, cancellationToken);
                 break;

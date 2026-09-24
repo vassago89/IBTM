@@ -63,7 +63,7 @@ public sealed partial class NgCarrierConveyor
                 operation.Cancel();
         }
 
-        _transfer.Changed += CheckPickup;
+        _transfer!.Changed += CheckPickup;
         Exception? failure = null;
         try
         {
@@ -90,7 +90,7 @@ public sealed partial class NgCarrierConveyor
         }
         finally
         {
-            _transfer.Changed -= CheckPickup;
+            _transfer!.Changed -= CheckPickup;
             try
             {
                 Stop();

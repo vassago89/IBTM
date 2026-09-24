@@ -297,9 +297,9 @@ public partial class OperationViewModel
                     return StationDisplayState.Working;
                 case true when !State.AutomaticRunning:
                     return StationDisplayState.Stopped;
-                case true when !BoltFasteningWork.Station.CarrierPresent:
+                case true when !Fastening.Station.CarrierPresent:
                     return StationDisplayState.WaitingForCarrier;
-                case true when BoltFasteningWork.Completed:
+                case true when Fastening.Station.Completed:
                     return StationDisplayState.WaitingForTransfer;
                 default:
                     return FasteningStateVisible
@@ -317,7 +317,7 @@ public partial class OperationViewModel
             {
                 case StationDisplayState.Working when InspectionStateVisible:
                     return InspectionState ?? (Enum)MachineDisplayState.Unavailable;
-                case StationDisplayState.WaitingForTransfer when Units.Inspection && InspectionWork.RouteToNg:
+                case StationDisplayState.WaitingForTransfer when Units.Inspection && Inspection.RouteToNg:
                     return InspectionStationState.WaitingForDestination;
                 case StationDisplayState.WaitingForTransfer when Units.MainConveyor
                         && ConveyorState == MainConveyorState.WaitingForRearEquipment:
@@ -348,9 +348,9 @@ public partial class OperationViewModel
                         or InspectionStationState.PickingCarrier or InspectionStationState.PlacingCarrier
                         or InspectionStationState.WaitingForShuttleDown:
                     return StationDisplayState.Working;
-                case true when !InspectionWork.Station.CarrierPresent:
+                case true when !Inspection.Station.CarrierPresent:
                     return StationDisplayState.WaitingForCarrier;
-                case true when InspectionWork.Completed:
+                case true when Inspection.Station.Completed:
                     return StationDisplayState.WaitingForTransfer;
                 default:
                     return InspectionStateVisible

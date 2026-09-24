@@ -47,7 +47,7 @@ public sealed class NgHandoffTests
         };
         using var stop = new CancellationTokenSource();
         var inspection = system.Inspection.RunAsync(stop.Token);
-        system.Work.Complete(system.Work.CurrentJob);
+        system.Inspection.Station.Complete(system.Inspection.Station.CurrentJob);
         var conveyor = system.Conveyor.RunAsync(stop.Token);
         try
         {
@@ -72,7 +72,7 @@ public sealed class NgHandoffTests
         var transfer = system.Inspection;
         var signals = new IoSignals([new NgCarrierTransferHardwareSettings()], io);
         var workChanges = 0;
-        system.Work.Changed += () => workChanges++;
+        system.Inspection.Changed += () => workChanges++;
         foreach (var value in new[] { !detected, detected })
         {
             io.SetInput(InputIo.NgCarrierDetected, value);
@@ -272,10 +272,10 @@ public sealed class NgHandoffTests
         {
             Assert.False(run.IsCompleted);
             Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
-            var assembly = system.Work.GetAssembly(HeatSinkSlot.HeatSink1);
+            var assembly = system.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1);
             assembly.RecordBoltPresence(1, false);
             assembly.CompleteInspection();
-            system.Work.Complete(system.Work.CurrentJob);
+            system.Inspection.Station.Complete(system.Inspection.Station.CurrentJob);
             // No transfer or carrier sensor changes: releasing the button alone must wake the loop.
             io.SetInput(InputIo.NgCarrierEjectButton, false);
             Assert.True(system.Conveyor.IsReceiveAllowed());
@@ -289,7 +289,7 @@ public sealed class NgHandoffTests
     }
 
     private static async Task<(VirtualIoService Io, VirtualMotionService Motion, InspectionStation Inspection,
-        NgCarrierConveyor Conveyor, InspectionWork Work)> CreateAsync()
+        NgCarrierConveyor Conveyor)> CreateAsync()
     {
         var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(),
             new NgShuttleHardwareSettings(), new NgConveyorHardwareSettings(), new ConveyorHardwareSettings()), new());
@@ -307,13 +307,25 @@ public sealed class NgHandoffTests
         motion.Initialize();
         await motion.HomeAsync(MotionAxis.X, 1_000);
         await motion.HomeAsync(MotionAxis.Y, 1_000);
-        var work = new InspectionWork(io, new MotionStatus(motion), settings, units);
-        var conveyor = new NgCarrierConveyor(io, new(), work, units);
+        var work = ConveyorStation.CreateInspection(io);
+        var conveyor = new NgCarrierConveyor(io, new(), units);
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        var inspection = new InspectionStation(work, motion, conveyor, operations, motionSettings, settings, io, units,
-            new VirtualCamera(() => (0, 0, 0), () => []), new VirtualLightController(), new(), recipes);
+        var inspection = new InspectionStation(
+            work,
+            motion,
+            new MotionStatus(motion),
+            conveyor,
+            operations,
+            motionSettings,
+            settings,
+            io,
+            units,
+            new VirtualCamera(() => (0, 0, 0), () => []),
+            new VirtualLightController(),
+            new(),
+            recipes);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await inspection.Station.SeatAsync(CancellationToken.None);
-        return (io, motion, inspection, conveyor, work);
+        return (io, motion, inspection, conveyor);
     }
 }

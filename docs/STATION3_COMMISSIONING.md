@@ -43,7 +43,7 @@
 - Inspection이 비활성이면 Station 3은 NG로 처리한다.
   NG Transfer까지 비활성이면 기존 후방 SMEMA 배출 경로를 사용한다.
 
-관련 코드: `MainConveyor.cs`, `ConveyorStation.cs`, `InspectionWork.cs`.
+관련 코드: `MainConveyor.cs`, `ConveyorStation.cs`, `InspectionStation.Carrier.cs`.
 상태와 책임의 상세 기록: [MAIN_CONVEYOR_INSPECTION_SEQUENCE.md](MAIN_CONVEYOR_INSPECTION_SEQUENCE.md).
 벨트가 안 돌면 DO 명령 여부와 실제 구동을 구분해서 확인한다.
 

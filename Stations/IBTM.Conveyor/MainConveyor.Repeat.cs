@@ -8,16 +8,16 @@ namespace IBTM.Conveyor;
 
 public sealed partial class MainConveyor
 {
-    private StationWork RepeatEndWork
+    private ConveyorStation RepeatEndStation
     {
         get
         {
             if (_units.Inspection
-                || _inspectionWork.Station.CarrierPresent
+                || _inspection.Station.CarrierPresent
                 || !_units.BoltFastening && !_units.PcbPlacement)
-                return _inspectionWork;
-            return _units.BoltFastening || _boltFasteningWork.Station.CarrierPresent
-                ? _boltFasteningWork : _placementWork;
+                return _inspection.Station;
+            return _units.BoltFastening || _fastening.CarrierPresent
+                ? _fastening : _placement;
         }
     }
 
@@ -33,7 +33,7 @@ public sealed partial class MainConveyor
                     or MainConveyorState.MovingPcbPlacementToBoltFastening
                     or MainConveyorState.MovingBoltFasteningToInspection
                     or MainConveyorState.DischargingInspectionCarrier
-                || !RepeatEndWork.Completed || !RepeatEndWork.Station.CarrierSeated)
+                || !RepeatEndStation.Completed || !RepeatEndStation.CarrierSeated)
                 await changed.WaitAsync(cancellationToken);
         }
         finally
@@ -76,9 +76,9 @@ public sealed partial class MainConveyor
             try
             {
                 await Task.WhenAll(
-                    _placementWork.Station.ReleaseAsync(cancellationToken),
-                    _boltFasteningWork.Station.ReleaseAsync(cancellationToken),
-                    _inspectionWork.Station.ReleaseAsync(cancellationToken));
+                    _placement.ReleaseAsync(cancellationToken),
+                    _fastening.ReleaseAsync(cancellationToken),
+                    _inspection.Station.ReleaseAsync(cancellationToken));
 
                 if (EntryCarrierDetected)
                     StopAtEntry(InputIo.MainConveyorEntryCarrierDetected, true);
