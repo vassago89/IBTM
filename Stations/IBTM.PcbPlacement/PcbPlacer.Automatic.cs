@@ -20,6 +20,8 @@ public sealed partial class PcbPlacer
         {
             BeginRun(SequenceStep ?? PcbPlacementState.MovingToHandoff);
             _supply.Changed += OnChanged;
+            // ReturningPcb becomes visible again even if the retained step is unchanged.
+            NotifyChanged();
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (!_work.Station.CarrierPresent || _work.Completed)
@@ -47,7 +49,6 @@ public sealed partial class PcbPlacer
         {
             _supply.Changed -= OnChanged;
             _runTargets = null;
-            _repeatTrip = null;
             _repeat = false;
             EndRun(cancellationToken);
         }
@@ -66,6 +67,8 @@ public sealed partial class PcbPlacer
         }
         switch (state)
         {
+            case PcbPlacementState.PickingPcb when _repeatTrip is not null && PcbSecured:
+                return PcbPlacementState.ReturningToSupply;
             case PcbPlacementState.WaitingForSupplyReceipt when _supply.Handoff == PcbSupplyHandoff.Released:
                 return PcbPlacementState.PresentingToSupply;
             case PcbPlacementState.WaitingForSupplyGrip when _supply.Handoff == PcbSupplyHandoff.Holding:
@@ -92,19 +95,23 @@ public sealed partial class PcbPlacer
         cancellationToken.ThrowIfCancellationRequested();
         if (state == PcbPlacementState.Disabled || !_work.Enabled)
         {
-            if (_work.Station.CarrierSeated)
+            if (_work.Station.CarrierSeated && _repeatTrip is null && !PcbSecured && !IsPcbGripUncertain)
                 _work.Complete(_work.CurrentJob);
-            EnterStep(PcbPlacementState.Disabled, workId: _work.CurrentJob.Id,
-                waitingFor: _work.Completed ? "carrier transfer" : "carrier seated");
+            TraceStep(PcbPlacementState.Disabled, workId: _work.CurrentJob.Id,
+                waitingFor: _repeatTrip is not null || PcbSecured || IsPcbGripUncertain
+                    ? "unfinished PCB handoff" : _work.Completed ? "carrier transfer" : "carrier seated");
             return false;
         }
+        if (!repeat && _repeatTrip is not null)
+            throw new InvalidOperationException("An unfinished Repeat PCB must be returned to its original carrier in Repeat mode before normal operation.");
         var job = _repeatTrip?.Job ?? _work.CurrentJob;
         State = state;
         EnterStep(state, heatSink?.ToString(), job.Id);
         if (IsPcbGripUncertain
             || state is PcbPlacementState.ReturningToSupply or PcbPlacementState.WaitingForSupplyReceipt
                 or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
-                && !PcbSecured)
+                && !PcbSecured
+            || _repeatTrip is not null && state == PcbPlacementState.PreparingPlacement && !PcbSecured)
             throw new InvalidOperationException("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before moving or releasing it.");
         if (repeat && state == PcbPlacementState.PickingPcb && _repeatTrip is null)
             _repeatTrip = new(job, heatSink ?? throw new InvalidOperationException("No repeat PCB is selected."));

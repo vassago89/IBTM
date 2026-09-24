@@ -13,6 +13,32 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbSupplyHandoffTests
 {
     [Fact]
+    public async Task DisabledRunDoesNotReplaceTheSupplyHandoffPhase()
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        var phase = rig.Supplier.State;
+        rig.Units.PcbSupply = false;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        rig.Supplier.Trace += message =>
+        {
+            if (message.StartsWith("PcbSupplier: Disabled "))
+            {
+                Assert.Equal(PcbSupplyState.Disabled, rig.Supplier.Step);
+                stop.Cancel();
+            }
+        };
+
+        await rig.Supplier.RunAsync(new(), rig.Placement, stop.Token);
+
+        Assert.Null(rig.Supplier.Step);
+        rig.Units.PcbSupply = true;
+        Assert.Equal(phase, rig.Supplier.State);
+        Assert.Equal(phase, rig.Supplier.GetNextStep(rig.Placement));
+        Assert.Equal(PcbSupplyHandoff.Released, rig.Supplier.Handoff);
+    }
+
+    [Fact]
     public async Task RepeatForwardHoldingLossWhileWaitingDoesNotBecomeReturnReceipt()
     {
         using var rig = new HandoffRig();
@@ -230,16 +256,18 @@ public sealed class PcbSupplyHandoffTests
             };
             Io = new(new PcbSupplyHardwareSettings().Outputs, new MachineOptions { TimeoutMilliseconds = 500 });
             Motion = new(Settings.Motion, new());
+            Units = new();
 
             Supplier = new PcbSupplier(Motion, new MotionStatus(Motion),
                 Io,
                 Settings,
-                new());
+                Units);
             Handler = Supplier;
             Placement = new();
         }
 
         public PcbSupplySettings Settings { get; }
+        public UnitSettings Units { get; }
         public VirtualIoService Io { get; }
         public VirtualMotionService Motion { get; }
         public PcbSupplier Handler { get; }

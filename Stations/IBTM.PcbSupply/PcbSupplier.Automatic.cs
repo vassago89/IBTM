@@ -53,7 +53,8 @@ public sealed partial class PcbSupplier
         finally
         {
             placement.Changed -= OnChanged;
-            _pickStep = PickStep.Pcb1;
+            if (!repeat)
+                _pickStep = PickStep.Pcb1;
             _repeat = false;
             try
             {
@@ -127,7 +128,7 @@ public sealed partial class PcbSupplier
         cancellationToken.ThrowIfCancellationRequested();
         if (step == PcbSupplyState.Disabled)
         {
-            EnterStep(step);
+            TraceStep(step);
             return false;
         }
         if (!repeat && State is PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear

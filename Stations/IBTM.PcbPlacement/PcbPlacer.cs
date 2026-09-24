@@ -19,7 +19,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private readonly UnitSettings _units;
 
     private bool _repeat;
-    // Ownership for the current Repeat run.
+    // Ownership until the PCB is placed back on its original carrier, including STOP.
     private RepeatPcbTrip? _repeatTrip;
 
     public HeatSinkSlot? ReturningPcb => _repeat && _repeatTrip is { } trip
@@ -157,6 +157,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             Changed?.Invoke();
         }
     }
+
+    protected override Enum? DisplayStep => State;
 
     public PcbPlacementState State
     {

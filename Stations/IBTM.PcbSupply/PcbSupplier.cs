@@ -202,6 +202,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     private void OnHandlerChanged()
     {
         if (!_repeat && _pickStep != PickStep.Pcb1
+            && State is PcbSupplyState.MovingToPickup or PcbSupplyState.WaitingForCarrier or PcbSupplyState.WaitingForCarrierExit
             && !UpstreamCarrierAvailable)
         {
             _pickStep = PickStep.Pcb1;
@@ -228,6 +229,8 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 : PcbReleased ? PcbSupplyHandoff.Released : PcbSupplyHandoff.Unavailable;
         }
     }
+
+    protected override Enum? DisplayStep => State;
 
     public PcbSupplyState State
     {

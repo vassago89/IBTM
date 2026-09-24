@@ -15,6 +15,41 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbPlacementStateSafetyTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisabledRunPreservesThePhaseForReenable(bool holdingPcb)
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        if (holdingPcb)
+            await rig.ReceiveAsync();
+        var phase = rig.Placer.State;
+        rig.Units.PcbPlacement = false;
+        var commanded = false;
+        rig.Motion.MovingChanged += moving => commanded |= moving;
+        rig.Io.OutputChanged += (output, value) => commanded = true;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        rig.Placer.Trace += message =>
+        {
+            if (message.StartsWith("PcbPlacer: Disabled "))
+            {
+                Assert.Equal(PcbPlacementState.Disabled, rig.Placer.Step);
+                stop.Cancel();
+            }
+        };
+
+        await rig.Placer.RunAsync(stop.Token);
+
+        Assert.False(commanded);
+        Assert.Null(rig.Placer.Step);
+        Assert.Equal(!holdingPcb, rig.Work.Completed);
+        rig.Units.PcbPlacement = true;
+        Assert.Equal(phase, rig.Placer.State);
+        Assert.Equal(holdingPcb ? PcbPlacementState.PreparingPlacement : PcbPlacementState.MovingToHandoff,
+            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1));
+    }
+
     [Fact]
     public async Task SelectingNextPhaseDoesNotReleaseHandoffOrStartMotion()
     {
@@ -236,8 +271,8 @@ public sealed class PcbPlacementStateSafetyTests
             Motion = new(settings.Motion, new());
 
             Supply = new() { Handoff = PcbSupplyHandoff.Released };
-            var units = new UnitSettings();
-            Work = new(ConveyorStation.CreatePcbPlacement(Io), units);
+            Units = new();
+            Work = new(ConveyorStation.CreatePcbPlacement(Io), Units);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition = Position;
             Placer = new PcbPlacer(Motion, new MotionStatus(Motion),
@@ -246,12 +281,13 @@ public sealed class PcbPlacementStateSafetyTests
                 Supply,
                 Work,
                 recipes,
-                units);
+                Units);
             Handler = Placer;
             Io.OutputChanged += OnOutputChanged;
         }
 
         public AxisPosition Position { get; }
+        public UnitSettings Units { get; }
         public VirtualIoService Io { get; }
         public VirtualMotionService Motion { get; }
         public PcbPlacer Handler { get; }
