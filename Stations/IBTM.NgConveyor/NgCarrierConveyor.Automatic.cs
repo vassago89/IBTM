@@ -195,6 +195,10 @@ public sealed partial class NgCarrierConveyor
                 _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, false);
                 Changed?.Invoke();
                 break;
+            case NgConveyorState.WaitingForEjectButtonRelease when !EjectRequested && !EjectConfirmed:
+                _ejectionPhase = EjectionPhase.Idle;
+                Changed?.Invoke();
+                break;
             default:
                 return false;
         }

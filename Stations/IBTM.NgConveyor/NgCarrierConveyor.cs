@@ -113,30 +113,8 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             && !(runCommandOn ?? RunCommandOn);
     }
 
-    private void NotifyChanged()
-    {
-        if (_ejectionPhase == EjectionPhase.WaitingForButtonRelease
-            && !EjectRequested
-            && !EjectConfirmed)
-        {
-            _ejectionPhase = EjectionPhase.Idle;
-        }
-
-        Changed?.Invoke();
-    }
-
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input is InputIo.NgShuttleUp or InputIo.NgShuttleDown or InputIo.NgShuttleCarrierDetected
-            && ShuttleLift == NgShuttleLiftState.Up && IsShuttleRaiseRequired(RunCommandOn))
-            _movement = Movement.None;
-        if (input == InputIo.NgConveyorPosition1Occupied
-            && Position1Occupied
-            && _movement == Movement.Compacting)
-        {
-            _movement = Movement.None;
-        }
-
         if (input is InputIo.NgConveyorPosition1Occupied
             or InputIo.NgConveyorPosition2Occupied
             or InputIo.NgConveyorStopperUp
@@ -147,7 +125,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             or InputIo.NgShuttleDown
             or InputIo.NgShuttleCarrierDetected)
         {
-            NotifyChanged();
+            Changed?.Invoke();
         }
     }
 

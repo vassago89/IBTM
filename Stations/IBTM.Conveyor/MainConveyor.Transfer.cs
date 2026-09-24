@@ -145,6 +145,7 @@ public sealed partial class MainConveyor
 
     private async Task DischargeInspectionAsync(CancellationToken cancellationToken)
     {
+        var departingJob = _inspection.Station.CurrentJob;
         var rearReleased = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
         var extraRun = TimeSpan.FromSeconds(_settings.RearSmemaOffDelaySeconds);
         var timeout = TimeSpan.FromSeconds(_settings.TransferTimeoutSeconds);
@@ -163,16 +164,27 @@ public sealed partial class MainConveyor
             ObserveRear();
             if (rearReleased.Task.IsCompleted)
                 return;
-            if (!_repeat
-                && !IsNgTransferRequired
-                && _inspection.IsTransferAllowed
-                && _inspection.IsTransferAtWaitingPosition())
+            _inspection.Station.RequireCurrentJob(departingJob);
+            if (_repeat
+                || IsNgTransferRequired
+                || !_inspection.IsTransferAllowed
+                || !_inspection.IsTransferAtWaitingPosition())
             {
-                await _inspection.Station.ReleaseAsync(cancellationToken);
+                throw new MotionInterlockException(
+                    "Rear discharge requires a completed carrier and the raised, clear inspection pickup at its waiting position.");
             }
+            await _inspection.Station.ReleaseAsync(cancellationToken);
 
             if (rearReleased.Task.IsCompleted)
                 return;
+            _inspection.Station.RequireCurrentJob(departingJob);
+            if (_inspection.Station.BackupPlate != StationCylinderState.Down
+                || _inspection.Station.Stopper != StationCylinderState.Down
+                || !_inspection.IsTransferAtWaitingPosition())
+            {
+                throw new MotionInterlockException(
+                    "Rear discharge lost support release or inspection pickup clearance before starting the belt.");
+            }
             EnterStep(MainConveyorState.DischargingInspectionCarrier, waitingFor: "Rear Ready=OFF");
             StartMotor(cancellationToken);
             try

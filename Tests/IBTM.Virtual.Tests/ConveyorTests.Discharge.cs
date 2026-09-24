@@ -302,6 +302,40 @@ public sealed partial class ConveyorTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task DischargeRequiresPickupClearanceBeforeAndAfterSupportRelease(bool duringRelease)
+    {
+        var (io, conveyor) = await PrepareRearDischargeAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var started = false;
+        var released = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.InspectionBackupPlateUp && !on)
+                released = true;
+            if (duringRelease
+                ? output == OutputIo.InspectionBackupPlateUp && !on
+                : output == OutputIo.MainConveyorAvailableToRear && on)
+            {
+                io.SetInput(InputIo.NgCarrierPickupUp, false);
+            }
+            if (output == OutputIo.MainConveyorRun && on)
+            {
+                started = true;
+                stop.Cancel();
+            }
+        };
+
+        await Assert.ThrowsAsync<MotionInterlockException>(
+            () => conveyor.RunAsync(stop.Token));
+        Assert.False(started);
+        Assert.Equal(duringRelease, released);
+        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task StoppedDischargeDoesNotResumeRemainingDelay(bool cancel)
     {
         var (io, conveyor) = await PrepareRearDischargeAsync(
