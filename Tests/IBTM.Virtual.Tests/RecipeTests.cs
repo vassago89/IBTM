@@ -325,7 +325,7 @@ public sealed class RecipeTests
     }
 
     [Fact]
-    public void NgPickupTeachingCombinesStoredCoordinatesWithoutRewritingThem()
+    public void NgPickupTeachingMigratesLegacyCoordinatesAndStoresOnePosition()
     {
         var settings = System.Text.Json.JsonSerializer.Deserialize<NgCarrierTransferSettings>(
             """{"PickupSafeX":157.283,"CarrierPickupPosition":{"X":999,"Y":456.789,"Z":12},"ShuttlePlacePosition":{"X":146.46,"Y":1085.274}}""")!;
@@ -349,10 +349,27 @@ public sealed class RecipeTests
         point.Teach(160, 460, 999);
         database.SaveSettings([settings]);
         var saved = database.LoadSettings().Get<NgCarrierTransferSettings>();
-        var pickup = saved.GetCarrierPickupPosition()!;
+        var pickup = saved.CarrierPickupPosition!;
         Assert.Equal((160, 460), (pickup.X, pickup.Y));
-        Assert.Equal((999, 12), (saved.CarrierPickupPosition.X, saved.CarrierPickupPosition.Z));
+        Assert.Equal(0, pickup.Z);
+        Assert.DoesNotContain("PickupSafeX", System.Text.Json.JsonSerializer.Serialize(saved));
         Assert.Equal((146.46, 1085.274), (saved.ShuttlePlacePosition.X, saved.ShuttlePlacePosition.Y));
+    }
+
+    [Theory]
+    [InlineData("{\"CarrierPickupPosition\":{\"X\":999,\"Y\":12},\"PickupSafeX\":null}", null)]
+    [InlineData("{\"CarrierPickupPosition\":{\"X\":999,\"Y\":12},\"PickupSafeX\":0}", 0d)]
+    [InlineData("{\"CarrierPickupPosition\":{\"X\":25,\"Y\":12}}", 25d)]
+    public void NgPickupSettingsPreserveUntaughtAndZeroCoordinates(string json, double? expectedX)
+    {
+        var settings = System.Text.Json.JsonSerializer.Deserialize<NgCarrierTransferSettings>(json)!;
+        var saved = System.Text.Json.JsonSerializer.Serialize(settings);
+        Assert.DoesNotContain("PickupSafeX", saved);
+        var reloaded = System.Text.Json.JsonSerializer.Deserialize<NgCarrierTransferSettings>(saved)!;
+        if (expectedX is { } x)
+            Assert.Equal((x, 12d), (reloaded.CarrierPickupPosition!.X, reloaded.CarrierPickupPosition.Y));
+        else
+            Assert.Null(reloaded.CarrierPickupPosition);
     }
 
     [Fact]

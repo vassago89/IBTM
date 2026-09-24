@@ -718,7 +718,7 @@ public sealed partial class ConveyorTests
         var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
         motion.Initialize();
         return new InspectionWork(
-            io, new MotionStatus(motion), new NgCarrierTransferSettings { PickupSafeX = 0, WaitingPosition = new() },
+            io, new MotionStatus(motion), new NgCarrierTransferSettings { CarrierPickupPosition = new(), WaitingPosition = new() },
             units ?? new UnitSettings { MainConveyor = false });
     }
 

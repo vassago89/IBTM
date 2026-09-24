@@ -37,7 +37,7 @@ public sealed partial class MachineLifecycleTests
         {
             if (output == OutputIo.InspectionBackupPlateUp && on)
             {
-                Assert.True(gantry.IsAt(transferSettings.GetCarrierPickupPosition()!));
+                Assert.True(gantry.IsAt(transferSettings.CarrierPickupPosition!));
                 Assert.False(gantry.IsAt(waitingPosition));
                 seatedAtPickup = true;
             }
@@ -67,7 +67,7 @@ public sealed partial class MachineLifecycleTests
         };
         work.RequestCarrierSeating(work.CurrentJob);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var run = inspection.RunAsync(recipe.Pcb.BoltPoints.ToArray(), stop.Token);
+        var run = inspection.RunAsync(stop.Token);
         try
         {
             await waitedAfterSeating.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -112,7 +112,7 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += (output, on) => raised |= output == OutputIo.InspectionBackupPlateUp && on;
         using var stop = new CancellationTokenSource();
         work.RequestCarrierSeating(work.CurrentJob);
-        var run = station.RunAsync([], stop.Token);
+        var run = station.RunAsync(stop.Token);
         try
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
@@ -162,6 +162,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.AutoMode, false);
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordPcbBolt(1, new(false, 0.5, Error: "Existing fastening NG"));
+        await machine.PcbHistory.FlushAsync();
         var number = assembly.PcbNumber;
         var captures = new ConcurrentQueue<(HeatSinkSlot Pcb, int? Bolt)>();
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -271,7 +272,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(InspectionStationState.SeatingCarrier, station.GetState());
                 Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.State);
                 Assert.False(conveyor.RunCommandOn);
-                Assert.True(pickup.IsAt(services.GetRequiredService<NgCarrierTransferSettings>().GetCarrierPickupPosition()!));
+                Assert.True(pickup.IsAt(services.GetRequiredService<NgCarrierTransferSettings>().CarrierPickupPosition!));
                 Interlocked.Increment(ref raises);
             }
             if (output == OutputIo.NgCarrierPickupDown && on && work.Station.CarrierPresent)
@@ -424,7 +425,7 @@ public sealed partial class MachineLifecycleTests
                     Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.State);
                     Assert.False(conveyor.RunCommandOn);
                     Assert.True(services.GetRequiredService<InspectionStation>()
-                        .IsAt(services.GetRequiredService<NgCarrierTransferSettings>().GetCarrierPickupPosition()!));
+                        .IsAt(services.GetRequiredService<NgCarrierTransferSettings>().CarrierPickupPosition!));
                 }
                 plateMovesBeforeInspection.Enqueue(on);
             }
@@ -462,7 +463,6 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateInspectionServices(enableConveyor: false);
         var machine = services.GetRequiredService<MachineController>();
-        var bolts = services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints.ToArray();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<InspectionWork>();
         var station = services.GetRequiredService<InspectionStation>();
@@ -484,7 +484,7 @@ public sealed partial class MachineLifecycleTests
                 interrupted.TrySetResult();
         };
         using var stop = new CancellationTokenSource();
-        var run = station.RunAsync(bolts, stop.Token);
+        var run = station.RunAsync(stop.Token);
         try
         {
             Assert.True(await VirtualTest.WaitUntilAsync(

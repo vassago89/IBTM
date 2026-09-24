@@ -527,7 +527,7 @@ public sealed partial class MachineLifecycleTests
             station.GetState());
 
         using var stop = new CancellationTokenSource();
-        var run = station.RunAsync([], stop.Token);
+        var run = station.RunAsync(stop.Token);
         Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
         stop.Cancel();
         await run;

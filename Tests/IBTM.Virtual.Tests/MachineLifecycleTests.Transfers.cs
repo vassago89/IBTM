@@ -206,28 +206,25 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
-        settings.Units.ShootingBoltFeeder = true;
         await using var services = CreateServices(settings);
         services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints =
-            [new() { Number = 1, Head = FasteningHead.Shooting, X = 0, Y = 0 }];
+            [new() { Number = 1, Head = FasteningHead.Shooting, X = 0, Y = 0, FasteningX = 0, FasteningY = 0 }];
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var station = services.GetRequiredService<BoltFasteningStation>();
         var work = services.GetRequiredService<BoltFasteningWork>();
         var gantry = services.GetRequiredService<BoltFasteningStation>();
-        var operations = services.GetRequiredService<OperationCancellation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
         var previousAssembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-        previousAssembly.RecordPcbBolt(1, new(true, 1));
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var replaced = false;
-        void ReplaceAfterFinalMove()
+        void ReplaceAfterResult(HeatSinkAssembly assembly)
         {
-            if (replaced || operations.HasActiveOperations)
+            if (replaced || !assembly.PcbBoltResults.ContainsKey(1))
                 return;
             replaced = true;
             VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
@@ -235,20 +232,19 @@ public sealed partial class MachineLifecycleTests
             stop.Cancel();
         }
 
-        operations.ActivityChanged += ReplaceAfterFinalMove;
+        previousAssembly.ResultsChanged += ReplaceAfterResult;
         try
         {
-            Assert.Equal(BoltFasteningState.CompletingCarrier, station.GetState());
             await station.RunAsync(stop.Token).WaitAsync(TimeSpan.FromSeconds(4));
             Assert.True(replaced);
-            Assert.NotEqual(AssemblyResult.Pending, previousAssembly.FasteningResult);
+            Assert.True(previousAssembly.PcbBoltResults[1].Success);
             Assert.Empty(work.Assemblies);
             Assert.False(work.Completed);
             Assert.False(gantry.Feedback.IsMoving);
         }
         finally
         {
-            operations.ActivityChanged -= ReplaceAfterFinalMove;
+            previousAssembly.ResultsChanged -= ReplaceAfterResult;
             await machine.ShutdownAsync();
         }
     }
@@ -352,7 +348,7 @@ public sealed partial class MachineLifecycleTests
             (InputIo.InspectionHeatSink1Present, true),
             (InputIo.InspectionHeatSink2Present, true));
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
-        await gantry.MoveToAsync(settings.GetCarrierPickupPosition()!, 10_000);
+        await gantry.MoveToAsync(settings.CarrierPickupPosition!, 10_000);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         using var transferTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await move.RunToAsync(NgTransferDestination.Shuttle, transferTimeout.Token);
@@ -362,7 +358,7 @@ public sealed partial class MachineLifecycleTests
         {
             if (output != OutputIo.InspectionBackupPlateUp || !on)
                 return;
-            Assert.True(gantry.IsAt(settings.GetCarrierPickupPosition()!));
+            Assert.True(gantry.IsAt(settings.CarrierPickupPosition!));
             Assert.True(pickup.IsRaised);
             raisedAtPickup = true;
         };
@@ -390,10 +386,10 @@ public sealed partial class MachineLifecycleTests
         Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
         Assert.True(pickup.IsRaised);
         Assert.Equal(NgTransferGripperState.Open, pickup.Gripper);
-        Assert.True(gantry.IsAt(settings.GetCarrierPickupPosition()!));
+        Assert.True(gantry.IsAt(settings.CarrierPickupPosition!));
         if (!hasWaitingPosition)
         {
-            var position = settings.GetCarrierPickupPosition()!;
+            var position = settings.CarrierPickupPosition!;
             await Assert.ThrowsAsync<InvalidOperationException>(() => move.ClearStationAsync(CancellationToken.None));
             Assert.Empty(feedback.AxisMoves);
             Assert.True(gantry.IsAt(position));
@@ -423,16 +419,16 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveToAsync(new() { X = 50, Y = 60 }, 10_000);
 
-        settings.PickupSafeX = null;
+        settings.CarrierPickupPosition = null;
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => move.ExecuteTransferAsync(NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None)!);
         Assert.Empty(feedback.AxisMoves);
         Assert.Equal((50, 60, 0), gantry.Feedback.GetPosition());
 
-        settings.PickupSafeX = 5;
+        settings.CarrierPickupPosition = new() { X = 5, Y = 20 };
         services.GetRequiredService<InspectionGantrySettings>().Motion.HorizontalSpeed = 100;
         settings.ShuttlePlacePosition = new() { X = 150, Y = 80 };
-        var pickupPosition = settings.GetCarrierPickupPosition()!;
+        var pickupPosition = settings.CarrierPickupPosition!;
         using var cancellation = new CancellationTokenSource();
         void StopDuringPickupMove(double x, double y, double z)
         {
@@ -457,7 +453,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Empty(feedback.AxisMoves);
         Assert.True(gantry.IsAt(pickupPosition));
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
-        Assert.NotEqual(settings.CarrierPickupPosition.X, gantry.Feedback.GetPosition().X);
+        Assert.Equal(settings.CarrierPickupPosition!.X, gantry.Feedback.GetPosition().X);
 
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
@@ -712,7 +708,7 @@ public sealed partial class MachineLifecycleTests
         await services.GetRequiredService<InspectionStation>()
             .MoveToAsync(
                 destination == NgTransferDestination.Station
-                    ? settings.NgCarrierTransfer.GetCarrierPickupPosition()!
+                    ? settings.NgCarrierTransfer.CarrierPickupPosition!
                     : settings.NgCarrierTransfer.ShuttlePlacePosition,
                 1_000);
         io.AutoResponseEnabled = false;

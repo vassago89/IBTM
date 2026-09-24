@@ -25,6 +25,7 @@ public sealed class RecipeManager
     }
 
     public event Action? Changed;
+    public event Action? InspectionSettingsChanged;
 
     public Recipe Current { get; }
 
@@ -33,6 +34,7 @@ public sealed class RecipeManager
     public async Task SaveInspectionAsync(Recipe edited, CancellationToken cancellationToken = default)
     {
         var snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(edited))!;
+        var applied = false;
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
@@ -41,13 +43,18 @@ public sealed class RecipeManager
             lock (InspectionSync)
             {
                 if (Current.Name == snapshot.Name)
+                {
                     Current.ApplyInspectionSettings(snapshot);
+                    applied = true;
+                }
             }
         }
         finally
         {
             _saveGate.Release();
         }
+        if (applied)
+            InspectionSettingsChanged?.Invoke();
     }
 
     public IReadOnlyList<string> GetRecipeNames()

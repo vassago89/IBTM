@@ -174,9 +174,8 @@ public sealed partial class MachineLifecycleTests
         settings.InspectionGantry.Motion = FastMotion();
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
-        settings.NgCarrierTransfer.PickupSafeX = 5;
         settings.NgCarrierTransfer.WaitingPosition = new() { X = 5, Y = 20 };
-        settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 20, Y = 20 };
+        settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 5, Y = 20 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 150, Y = 20 };
         return settings;
     }

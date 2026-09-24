@@ -276,7 +276,7 @@ public sealed class MachineMap
         var lowerRight = _carrier.LowerRightLocatingPin!;
         var first = (upperLeft.X, upperLeft.Y);
         var second = (lowerRight.X, lowerRight.Y);
-        var pickup = _transfer.GetCarrierPickupPosition();
+        var pickup = _transfer.CarrierPickupPosition;
         var shuttle = _transfer.ShuttlePlacePosition;
         var pickupSide = pickup is null ? 0 : MachinePlan.GetSide((pickup.X, pickup.Y), first, second);
         var shuttleSide = MachinePlan.GetSide((shuttle.X, shuttle.Y), first, second);

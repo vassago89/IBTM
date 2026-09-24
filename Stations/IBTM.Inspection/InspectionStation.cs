@@ -61,6 +61,8 @@ public sealed partial class InspectionStation : AutoUnit
         camera.LiveViewFailed += OnCameraLiveViewFailed;
         work.Changed += NotifyChanged;
         ngConveyor.Changed += NotifyChanged;
+        recipes.Changed += NotifyChanged;
+        recipes.InspectionSettingsChanged += NotifyChanged;
     }
 
     public override event Action? Changed;
@@ -130,7 +132,6 @@ public sealed partial class InspectionStation : AutoUnit
     }
 
     public async Task RunAsync(
-        IReadOnlyList<BoltPoint> bolts,
         CancellationToken cancellationToken = default,
         bool repeat = false)
     {
@@ -174,7 +175,7 @@ public sealed partial class InspectionStation : AutoUnit
                         continue;
                     }
                 }
-                await ExecuteAsync(bolts, repeat, cancellationToken);
+                await ExecuteAsync(repeat, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -188,7 +189,6 @@ public sealed partial class InspectionStation : AutoUnit
     }
 
     private async Task ExecuteAsync(
-        IReadOnlyList<BoltPoint> bolts,
         bool repeat,
         CancellationToken cancellationToken)
     {
@@ -246,6 +246,9 @@ public sealed partial class InspectionStation : AutoUnit
         {
             CheckWorkPosition();
             operation.Token.ThrowIfCancellationRequested();
+            BoltPoint[] bolts;
+            lock (_recipes.InspectionSync)
+                bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
             var targets = Enum.GetValues<HeatSinkSlot>().Where(_work.Station.IsHeatSinkPresent).ToArray();
             foreach (var heatSink in targets)
             {
@@ -679,7 +682,7 @@ public sealed partial class InspectionStation : AutoUnit
 
     public async Task SeatStationAsync(CancellationToken cancellationToken)
     {
-        var position = _settings.GetCarrierPickupPosition()
+        var position = _settings.CarrierPickupPosition
             ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before raising the inspection backup plate.");
         // This awaited sequence owns XY until the plate finishes rising.
         // Do not infer permission to raise the plate from a coordinate comparison.
@@ -691,7 +694,7 @@ public sealed partial class InspectionStation : AutoUnit
     private AxisPosition? GetTransferPosition(NgTransferDestination location)
     {
         return location == NgTransferDestination.Station
-            ? _settings.GetCarrierPickupPosition()
+            ? _settings.CarrierPickupPosition
             : _settings.ShuttlePlacePosition;
     }
 

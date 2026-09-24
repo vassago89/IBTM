@@ -263,7 +263,7 @@ public sealed partial class MachineLifecycleTests
         var transferSettings = services.GetRequiredService<NgCarrierTransferSettings>();
         var motionSettings = services.GetRequiredService<InspectionGantrySettings>().Motion;
         motionSettings.HorizontalSpeed = 1_234;
-        transferSettings.PickupSafeX = null;
+        transferSettings.CarrierPickupPosition = null;
         transferSettings.WaitingPosition = null;
         var machine = services.GetRequiredService<MachineController>();
         var gantry = services.GetRequiredService<InspectionStation>();
@@ -311,7 +311,7 @@ public sealed partial class MachineLifecycleTests
             var saved = services.GetRequiredService<MachineStore>().LoadSettings().Get<NgCarrierTransferSettings>();
             var position = point.Position.Target switch
             {
-                TeachingTarget.NgCarrierPickup => saved.GetCarrierPickupPosition()!,
+                TeachingTarget.NgCarrierPickup => saved.CarrierPickupPosition!,
                 TeachingTarget.InspectionWaiting => saved.WaitingPosition!,
                 _ => saved.ShuttlePlacePosition,
             };
@@ -883,7 +883,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             var gantry = services.GetRequiredService<InspectionStation>();
-            var pickupPosition = settings.NgCarrierTransfer.GetCarrierPickupPosition()!;
+            var pickupPosition = settings.NgCarrierTransfer.CarrierPickupPosition!;
             var shuttlePosition = settings.NgCarrierTransfer.ShuttlePlacePosition;
             await gantry.MoveToAsync(pickupPosition);
             var teaching = services.GetRequiredService<TeachingViewModel>();

@@ -530,7 +530,7 @@ public sealed class IoStartupTests
     {
         await using var services = CreateServices(new MachineSettings
         {
-            NgCarrierTransfer = new() { PickupSafeX = 0, WaitingPosition = new() },
+            NgCarrierTransfer = new() { CarrierPickupPosition = new(), WaitingPosition = new() },
             Units = new UnitSettings
             {
                 PcbSupply = false,

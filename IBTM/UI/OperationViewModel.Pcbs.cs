@@ -22,6 +22,7 @@ public partial class OperationViewModel
 
     public ObservableCollection<PcbRecord> PcbRecords { get; }
     public IAsyncRelayCommand LoadOlderPcbsCommand { get; }
+    public IAsyncRelayCommand RetryPcbSaveCommand { get; }
     public IRelayCommand ClosePcbDetailsCommand { get; }
     public PcbDetailsViewModel PcbDetails { get; }
 
@@ -47,6 +48,19 @@ public partial class OperationViewModel
 
     [ObservableProperty]
     public partial string? PcbHistoryError { get; private set; }
+
+    private async Task RetryPcbSaveAsync()
+    {
+        try
+        {
+            await Machine.PcbHistory.FlushAsync();
+        }
+        catch (Exception exception)
+        {
+            // The manager retains queued data and exposes SaveError directly to the view.
+            _log.LogError(exception, "PCB save retry failed.");
+        }
+    }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LoadOlderPcbsCommand))]

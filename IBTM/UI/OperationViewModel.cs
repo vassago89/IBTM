@@ -61,6 +61,7 @@ public partial class OperationViewModel : ObservableObject
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(HomeAsync);
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync, () => HasOlderPcbs);
+        RetryPcbSaveCommand = new AsyncRelayCommand(RetryPcbSaveAsync);
         ClosePcbDetailsCommand = new RelayCommand(ClosePcbDetails);
         PcbRecords = new();
         _pcbHistoryLimit = PcbHistoryPageSize;
@@ -373,7 +374,7 @@ public partial class OperationViewModel : ObservableObject
     {
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, StartCommand, HomeCommand, LoadOlderPcbsCommand]);
+            [StopCommand, StartCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
     }
 
     public IAsyncRelayCommand StartCommand { get; }

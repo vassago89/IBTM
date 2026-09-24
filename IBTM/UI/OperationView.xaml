@@ -320,9 +320,38 @@
                         <TextBlock Text="New → Old" Margin="14,0,0,0" Foreground="{StaticResource TextMutedBrush}"/>
                     </StackPanel>
                     <TextBlock Grid.Column="1" Margin="20,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                        Text="{Binding PcbHistoryError}" ToolTip="{Binding PcbHistoryError}" Foreground="{StaticResource AccentRedBrush}"/>
-                    <Button Grid.Column="2" Content="Older" Padding="12,2" MinHeight="24" VerticalAlignment="Center"
-                        Command="{Binding LoadOlderPcbsCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
+                        Foreground="{StaticResource AccentRedBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="{Binding Machine.PcbHistory.SaveError}"/>
+                                <Setter Property="ToolTip" Value="{Binding Machine.PcbHistory.SaveError}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
+                                        <Setter Property="Text" Value="{Binding PcbHistoryError}"/>
+                                        <Setter Property="ToolTip" Value="{Binding PcbHistoryError}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
+                            Text="{Binding Machine.PcbHistory.PendingCount, StringFormat='Pending saves: {0}'}"/>
+                        <Button Content="Retry save" Margin="0,0,8,0" Padding="12,2" MinHeight="24"
+                            Command="{Binding RetryPcbSaveCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="Older" Padding="12,2" MinHeight="24"
+                            Command="{Binding LoadOlderPcbsCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
+                    </StackPanel>
                 </Grid>
                 <ListBox Grid.Row="1" Margin="0,4,0,0" ItemsSource="{Binding PcbRecords}" SelectedItem="{Binding SelectedPcb, Mode=TwoWay}"
                     SelectionChanged="OnPcbSelectionChanged"

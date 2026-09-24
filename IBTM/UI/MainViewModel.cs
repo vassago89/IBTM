@@ -216,6 +216,7 @@ public partial class MainViewModel : ObservableObject
                 _machine.ShutdownAsync(),
                 _windows.ShutdownAsync(),
                 ShutdownAsync());
+            await _machine.PcbHistory.FlushAsync();
             return true;
         }
         catch (Exception exception)
@@ -224,8 +225,8 @@ public partial class MainViewModel : ObservableObject
             var errors = exception is AggregateException aggregate
                 ? aggregate.Flatten().InnerExceptions.Select(error => error.Message).Distinct()
                 : [exception.Message];
-            CloseError = "Device stop or shutdown could not be confirmed.\n"
-                + "Check that the equipment is safely stopped before exiting.\n\n"
+            CloseError = "Shutdown could not be completed.\n"
+                + "Check equipment stop and any unsaved PCB results before exiting.\n\n"
                 + string.Join("\n", errors)
                 + "\n\nExit the application anyway? Full details are saved in the log.";
             IsClosing = false;
@@ -236,7 +237,7 @@ public partial class MainViewModel : ObservableObject
     public void ApproveUnconfirmedExit()
     {
         IsClosing = true;
-        _log.LogInformation("Operator approved application exit after shutdown failure; device stop is unconfirmed.");
+        _log.LogInformation("Operator approved application exit after shutdown failure. See the preceding stop/save errors.");
     }
 
     public Task ShutdownAsync()

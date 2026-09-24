@@ -298,7 +298,6 @@ public sealed partial class MachineController
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.Inspection,
                 _inspectionStation.RunAsync(
-                    _recipes.Current.Pcb.BoltPoints.ToArray(),
                     cycle.Token,
                     repeat),
                 cycle));

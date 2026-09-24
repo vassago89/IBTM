@@ -32,6 +32,7 @@ public sealed class MachineStoreTests
 
         var settings = await MachineSettings.LoadAsync(store);
         var transfer = settings.NgCarrierTransfer;
+        Assert.NotSame(transfer.CarrierPickupPosition, transfer.WaitingPosition);
         Assert.Equal((157.283, 456.789), (transfer.WaitingPosition!.X, transfer.WaitingPosition.Y));
         var waiting = VirtualTest.CreateTeachingPoint(
             new(TeachingTarget.InspectionWaiting, MotionGroup.InspectionGantry, TeachMode.XYOnly), settings);
@@ -46,7 +47,7 @@ public sealed class MachineStoreTests
 
         var reloaded = (await MachineSettings.LoadAsync(store)).NgCarrierTransfer;
         Assert.Equal((120, 400), (reloaded.WaitingPosition!.X, reloaded.WaitingPosition.Y));
-        var reloadedPickup = reloaded.GetCarrierPickupPosition()!;
+        var reloadedPickup = reloaded.CarrierPickupPosition!;
         Assert.Equal((160, 460), (reloadedPickup.X, reloadedPickup.Y));
     }
 

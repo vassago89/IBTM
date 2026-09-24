@@ -1,27 +1,40 @@
 using IBTM.Core;
-using IBTM.Device;
+using System.Text.Json.Serialization;
 
 namespace IBTM.Inspection;
 
-public sealed class NgCarrierTransferSettings : Setting
+public sealed class NgCarrierTransferSettings : Setting, IJsonOnDeserialized
 {
+    private bool _hasLegacyPickupX;
+
     public NgCarrierTransferSettings()
     {
-        CarrierPickupPosition = new();
         ShuttlePlacePosition = new();
     }
 
     public AxisPosition? WaitingPosition { get; set; }
-    public double? PickupSafeX { get; set; }
-    // Keep the stored fields unchanged: pickup X is PickupSafeX, pickup Y is here.
-    public AxisPosition CarrierPickupPosition { get; set; }
+    public AxisPosition? CarrierPickupPosition { get; set; }
     public AxisPosition ShuttlePlacePosition { get; set; }
 
-    public AxisPosition? GetCarrierPickupPosition()
+    // Read the old split coordinate once; new saves contain only CarrierPickupPosition.
+    [JsonInclude, JsonPropertyName("PickupSafeX"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    private double? LegacyPickupX
     {
-        if (PickupSafeX is not { } x)
-            return null;
-        return new() { X = x, Y = CarrierPickupPosition.Y };
+        get;
+        set
+        {
+            field = value;
+            _hasLegacyPickupX = true;
+        }
     }
 
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (!_hasLegacyPickupX)
+            return;
+        CarrierPickupPosition = LegacyPickupX is { } x && CarrierPickupPosition is { } position
+            ? new() { X = x, Y = position.Y } : null;
+        LegacyPickupX = null;
+        _hasLegacyPickupX = false;
+    }
 }

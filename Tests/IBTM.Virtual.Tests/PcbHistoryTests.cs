@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -18,6 +19,166 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbHistoryTests
 {
+    [Fact]
+    public async Task LockedDatabaseDoesNotBlockAssemblyCreationOrResultCollection()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-locked-{Guid.NewGuid():N}");
+        await using var services = new ServiceCollection().AddSingleton(store)
+            .AddIbtmApplication(settings).BuildServiceProvider();
+        var history = services.GetRequiredService<PcbHistory>();
+        var work = services.GetRequiredService<PcbPlacementWork>();
+        var snapshots = new List<PcbRecord>();
+        history.Saved += snapshots.Add;
+
+        using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+        var collect = Task.Run(() =>
+        {
+            var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+            assembly.RecordPickupBolt(1, new(false, null, Error: "First result"));
+            assembly.RecordPickupBolt(1, new(true, 8));
+            return assembly;
+        });
+        try
+        {
+            var assembly = await collect.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Null(assembly.PcbNumber);
+            Assert.Equal(3, history.PendingCount);
+        }
+        finally
+        {
+            transaction.Rollback();
+            await collect;
+        }
+
+        await history.FlushAsync();
+        Assert.Equal(0, history.PendingCount);
+        Assert.Equal(3, snapshots.Count);
+        Assert.Empty(snapshots[0].PickupBoltResults);
+        Assert.Equal("First result", snapshots[1].PickupBoltResults[1].Error);
+        Assert.True(snapshots[2].PickupBoltResults[1].Success);
+        var saved = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.Equal(1, saved.Number);
+        Assert.Equal(8, saved.PickupBoltResults[1].Torque);
+        Assert.Equal(AssemblyResult.Ng, saved.FasteningResult); // Existing overwrite/sticky NG policy stays intact.
+    }
+
+    [Fact]
+    public async Task DisposalWaitsForQueuedResultsToReachTheDatabase()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-exit-{Guid.NewGuid():N}");
+        var services = new ServiceCollection().AddSingleton(store)
+            .AddIbtmApplication(settings).BuildServiceProvider();
+        _ = services.GetRequiredService<PcbHistory>();
+        using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+        var assembly = services.GetRequiredService<BoltFasteningWork>().GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordPickupBolt(1, new(true, 8.2));
+        var closing = services.DisposeAsync().AsTask();
+        try
+        {
+            Assert.False(closing.IsCompleted);
+        }
+        finally
+        {
+            transaction.Rollback();
+            await closing.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        var record = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.Equal(8.2, record.PickupBoltResults[1].Torque);
+    }
+
+    [Fact]
+    public async Task CounterFailureRetainsAssemblyAndLaterResultsForRetry()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-counter-{Guid.NewGuid():N}");
+        await using var services = new ServiceCollection().AddSingleton(store)
+            .AddIbtmApplication(settings).BuildServiceProvider();
+        var history = services.GetRequiredService<PcbHistory>();
+        var work = services.GetRequiredService<PcbPlacementWork>();
+        using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "DROP TABLE PcbCounter";
+            command.ExecuteNonQuery();
+        }
+
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        await Assert.ThrowsAsync<IOException>(history.FlushAsync);
+        Assert.NotNull(history.SaveError);
+        Assert.Null(assembly.PcbNumber);
+        assembly.RecordPickupBolt(2, new(true, 8.1));
+        Assert.Same(assembly, work.GetAssembly(HeatSinkSlot.HeatSink1));
+        Assert.Equal(2, history.PendingCount);
+
+        _ = new MachineStore(store.DatabaseFile); // Restore the missing counter.
+        await history.FlushAsync();
+        Assert.Null(history.SaveError);
+        Assert.Equal(0, history.PendingCount);
+        Assert.Equal(1, assembly.PcbNumber);
+        var saved = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.Equal(8.1, saved.PickupBoltResults[2].Torque);
+        Assert.Equal(2, store.NextPcbNumber());
+    }
+
+    [Fact]
+    public async Task SaveFailureKeepsNumberAndImageUntilOperatorRetries()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-unwritable-{Guid.NewGuid():N}");
+        File.WriteAllText(settings.PcbHistory.Directory, "A file blocks creation of the results folder.");
+        await using var services = new ServiceCollection().AddSingleton(store)
+            .AddIbtmApplication(settings).BuildServiceProvider();
+        var view = services.GetRequiredService<OperationViewModel>();
+        var history = services.GetRequiredService<PcbHistory>();
+        var work = services.GetRequiredService<InspectionWork>();
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        try
+        {
+            await Assert.ThrowsAsync<IOException>(history.FlushAsync);
+            Assert.Equal(1, assembly.PcbNumber);
+            var pixels = new byte[] { 0, 0, 255, 0, 255, 0 };
+            assembly.RecordInspectionCapture(new(1, DateTimeOffset.Now,
+                new ImageFrame(2, 1, 6, pixels), new(0, 0, 1, 1), true));
+            Array.Clear(pixels); // Encoding must use the image captured when the event was raised.
+            assembly.RecordBoltPresence(1, true);
+            assembly.CompleteInspection();
+            Assert.Equal(4, history.PendingCount);
+            Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
+        }
+        finally
+        {
+            File.Delete(settings.PcbHistory.Directory);
+        }
+
+        await view.RetryPcbSaveCommand.ExecuteAsync(null);
+        Assert.Null(history.SaveError);
+        Assert.Equal(0, history.PendingCount);
+        var record = Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.Equal(1, record.Number);
+        Assert.Equal(AssemblyResult.Ok, record.InspectionResult);
+        Assert.True(record.BoltPresenceResults[1]);
+        var image = Assert.Single(store.LoadPcbImages(record));
+        using var stream = new MemoryStream(image.Png);
+        var decoded = new System.Windows.Media.Imaging.FormatConvertedBitmap(
+            System.Windows.Media.Imaging.BitmapFrame.Create(stream), System.Windows.Media.PixelFormats.Bgr24, null, 0);
+        var restored = new byte[6];
+        decoded.CopyPixels(restored, 6, 0);
+        Assert.Equal(new byte[] { 0, 0, 255, 0, 255, 0 }, restored);
+        Assert.Equal(2, store.NextPcbNumber());
+        await view.ShutdownAsync();
+    }
+
     [Fact]
     public async Task CounterUpgradesExistingDatabaseAndContinuesAcrossReopen()
     {
@@ -114,6 +275,7 @@ public sealed class PcbHistoryTests
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddIbtmApplication(settings).BuildServiceProvider();
         var view = services.GetRequiredService<OperationViewModel>(); // Also constructs the machine/history subscription.
+        var history = services.GetRequiredService<PcbHistory>();
         var placement = services.GetRequiredService<PcbPlacementWork>();
         var fastening = services.GetRequiredService<BoltFasteningWork>();
         var inspection = services.GetRequiredService<InspectionWork>();
@@ -121,6 +283,7 @@ public sealed class PcbHistoryTests
         var second = placement.GetAssembly(HeatSinkSlot.HeatSink2);
         placement.TransferAssembliesTo(fastening, placement.CurrentJob);
         var third = placement.GetAssembly(HeatSinkSlot.HeatSink1);
+        await history.FlushAsync();
         Assert.Equal(new long[] { 3, 2, 1 }, view.PcbRecords.Select(record => record.Number));
         Assert.Same(first, fastening.GetAssembly(HeatSinkSlot.HeatSink1));
         view.SelectedPcb = view.PcbRecords.Single(record => record.Number == first.PcbNumber);
@@ -136,6 +299,7 @@ public sealed class PcbHistoryTests
             new ImageFrame(2, 1, 6, [0, 0, 255, 0, 255, 0]), new PixelRegion(0, 0, 1, 1), false,
             BrightRatio: 0.1, MinimumBrightRatio: 0.8));
         first.CompleteInspection();
+        await history.FlushAsync();
         Assert.Equal(first.PcbNumber, view.SelectedPcb!.Number);
         Assert.Equal(AssemblyResult.Ng, view.SelectedPcb.PcbBarcodeResult);
         Assert.Equal("NG torque", view.SelectedPcb.PcbBoltResults[1].Error);
@@ -155,9 +319,11 @@ public sealed class PcbHistoryTests
         var originalFolder = settings.PcbHistory.Directory;
         settings.PcbHistory.Directory = Path.Combine(originalFolder, "new folder");
         third.PcbBarcode = "Still in original file";
+        await history.FlushAsync();
         Assert.Equal("Still in original file", store.LoadPcbs(originalFolder)[0].PcbBarcode);
         Assert.False(Directory.Exists(settings.PcbHistory.Directory));
         var fourth = placement.GetAssembly(HeatSinkSlot.HeatSink2);
+        await history.FlushAsync();
         Assert.Equal(4, fourth.PcbNumber);
         Assert.Equal(4, Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).Number);
         view.ClosePcbDetailsCommand.Execute(null);
@@ -187,7 +353,7 @@ public sealed class PcbHistoryTests
         var store = VirtualTest.OpenMachineStore();
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddIbtmApplication(settings).BuildServiceProvider();
-        _ = services.GetRequiredService<PcbHistory>();
+        var history = services.GetRequiredService<PcbHistory>();
         var work = services.GetRequiredService<BoltFasteningWork>();
         services.GetRequiredService<VirtualIoService>().SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         var first = work.GetAssembly(HeatSinkSlot.HeatSink1);
@@ -197,6 +363,7 @@ public sealed class PcbHistoryTests
         work.Complete(work.CurrentJob);
         work.StartRepeat(work.CurrentJob);
         var next = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        await history.FlushAsync();
         Assert.Equal(first.PcbNumber + 1, next.PcbNumber);
         Assert.Empty(next.PcbBoltResults);
         Assert.Equal("Timeout", store.LoadPcbs(settings.PcbHistory.Directory)[1].PcbBoltResults[1].Error);

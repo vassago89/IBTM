@@ -1,4 +1,5 @@
-// Source: C:/git/AnyWave/AnyWave.Device/Lights/MOVSService.cs. Only private member names follow this project's style.
+// Source: C:/git/AnyWave/AnyWave.Device/Lights/MOVSService.cs. Private names follow this project's style;
+// Connect reuses the current open port. Manufacturer command bytes and timing are unchanged.
 #nullable disable
 using System.Threading;
 
@@ -41,7 +42,10 @@ namespace AnyWave.Device.LightControllers
             if (string.IsNullOrWhiteSpace(portName))
                 return;
 
-            _port?.Close();
+            if (_port?.IsOpen == true && string.Equals(_port.PortName, portName, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            _port?.Dispose();
             _port = new SerialPort(portName, 19200);
             _port.Open();
         }

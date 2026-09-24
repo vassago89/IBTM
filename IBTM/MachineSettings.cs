@@ -211,7 +211,9 @@ public sealed class MachineSettings
             NgConveyorHardware = values.Get<NgConveyorHardwareSettings>(),
         };
         // Older settings used one taught position for both waiting and carrier pickup.
-        settings.NgCarrierTransfer.WaitingPosition ??= settings.NgCarrierTransfer.GetCarrierPickupPosition();
+        if (settings.NgCarrierTransfer.WaitingPosition is null
+            && settings.NgCarrierTransfer.CarrierPickupPosition is { } pickup)
+            settings.NgCarrierTransfer.WaitingPosition = new() { X = pickup.X, Y = pickup.Y };
         return settings;
     }
 }

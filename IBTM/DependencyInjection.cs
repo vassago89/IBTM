@@ -233,7 +233,7 @@ public static class DependencyInjection
                         work.Motion.Feedback.PositionChanged += (x, y, _) => machine.UpdateInspectionPosition(
                             x,
                             y,
-                            settings.NgCarrierTransfer.GetCarrierPickupPosition(),
+                            settings.NgCarrierTransfer.CarrierPickupPosition,
                             settings.NgCarrierTransfer.ShuttlePlacePosition);
                     }
 

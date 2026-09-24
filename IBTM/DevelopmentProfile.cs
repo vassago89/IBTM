@@ -65,7 +65,6 @@ internal static class DevelopmentProfile
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 2, Y = 2 };
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 38, Y = 28 };
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 13.48275862, Y = 15 };
-        settings.NgCarrierTransfer.PickupSafeX = 13.48275862;
         settings.NgCarrierTransfer.WaitingPosition = new() { X = 13.48275862, Y = 15 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 26.05172414, Y = 55.625 };
 

@@ -46,7 +46,7 @@ public sealed class NgHandoffTests
             }
         };
         using var stop = new CancellationTokenSource();
-        var inspection = system.Inspection.RunAsync([], stop.Token);
+        var inspection = system.Inspection.RunAsync(stop.Token);
         system.Work.Complete(system.Work.CurrentJob);
         var conveyor = system.Conveyor.RunAsync(stop.Token);
         try
@@ -147,13 +147,13 @@ public sealed class NgHandoffTests
         motion.PositionChanged += (x, y, z) =>
             movedBeforeDown |= system.Conveyor.ShuttleLift != NgShuttleLiftState.Down;
         using var firstRun = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
-        var inspection = transfer.RunAsync([], firstRun.Token);
+        var inspection = transfer.RunAsync(firstRun.Token);
         if (restartWhileWaiting)
         {
             firstRun.Cancel();
             await inspection.WaitAsync(TimeSpan.FromSeconds(1));
             Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetState());
-            inspection = transfer.RunAsync([], stop.Token);
+            inspection = transfer.RunAsync(stop.Token);
         }
         var conveyor = system.Conveyor.RunAsync(stop.Token);
         try
@@ -267,7 +267,7 @@ public sealed class NgHandoffTests
                 lowering.TrySetResult();
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var run = system.Inspection.RunAsync([], stop.Token);
+        var run = system.Inspection.RunAsync(stop.Token);
         try
         {
             Assert.False(run.IsCompleted);
@@ -297,7 +297,7 @@ public sealed class NgHandoffTests
         var units = new UnitSettings { MainConveyor = false };
         var settings = new NgCarrierTransferSettings
         {
-            PickupSafeX = 0,
+            CarrierPickupPosition = new(),
             WaitingPosition = new(),
             ShuttlePlacePosition = new() { X = 10, Y = 10 },
         };

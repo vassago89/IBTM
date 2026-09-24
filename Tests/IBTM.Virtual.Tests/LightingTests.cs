@@ -173,10 +173,11 @@ public sealed class LightingTests
         recipe.BoltInspection.LightLevel = 91;
         recipe.BoltInspection.DataMatrix1.LightLevel = 31;
         recipe.BoltInspection.DataMatrix2.LightLevel = 62;
-        var bolt = new BoltPoint { Number = 1, LightLevel = 123 };
+        var bolt = new BoltPoint { Number = 1, X = 0, Y = 0, LightLevel = 123 };
+        recipe.Pcb.BoltPoints.Add(bolt);
         recipe.CarrierImages = [
-            new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Region = new(0, 0, 20, 20) },
-            new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(0, 0, 20, 20) },
+            new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
+            new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
             new() { BoltNumber = 1, Region = new(0, 0, 20, 20) },
         ];
 

@@ -108,7 +108,7 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.InspectionWaiting:
                     return _settings.NgCarrierTransfer.WaitingPosition;
                 case TeachingTarget.NgCarrierPickup:
-                    return _settings.NgCarrierTransfer.GetCarrierPickupPosition();
+                    return _settings.NgCarrierTransfer.CarrierPickupPosition;
                 case TeachingTarget.NgShuttlePlace:
                     return _settings.NgCarrierTransfer.ShuttlePlacePosition;
                 case TeachingTarget.DataMatrix:
@@ -344,8 +344,7 @@ public class TeachingPoint : ObservableObject
                 _settings.NgCarrierTransfer.WaitingPosition = position;
                 break;
             case TeachingTarget.NgCarrierPickup:
-                _settings.NgCarrierTransfer.PickupSafeX = position.X;
-                _settings.NgCarrierTransfer.CarrierPickupPosition.Y = position.Y;
+                _settings.NgCarrierTransfer.CarrierPickupPosition = position;
                 break;
             case TeachingTarget.NgShuttlePlace:
                 _settings.NgCarrierTransfer.ShuttlePlacePosition = position;

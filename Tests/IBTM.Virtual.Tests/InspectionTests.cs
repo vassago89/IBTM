@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -15,6 +16,73 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class InspectionTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SavingInspectionRegionWakesTeachingWaitWithoutSensorChange(bool barcode)
+    {
+        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        io.Initialize();
+        var store = OpenMachineStore();
+        var recipes = new RecipeManager(store, new());
+        recipes.Current.Name = "Teaching wait";
+        recipes.Current.Pcb.BoltPoints = [new() { Number = 1, X = 0, Y = 0 }];
+        recipes.Current.CarrierImages = [
+            new() { Number = 1, IsBarcode = true, Center = new(), Region = barcode ? null : new(0, 0, 20, 20) },
+            new() { Number = 2, BoltNumber = 1, Center = new(), Region = barcode ? new(0, 0, 20, 20) : null },
+        ];
+        store.SaveRecipe(recipes.Current.Name, recipes.Current, []);
+        var settings = new InspectionGantrySettings();
+        var transfer = new NgCarrierTransferSettings
+        {
+            WaitingPosition = new(), CarrierPickupPosition = new(), ShuttlePlacePosition = new() { X = 100, Y = 100 },
+        };
+        var operations = new OperationCancellation();
+        using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
+        motion.Initialize();
+        var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
+        var work = new InspectionWork(io, new MotionStatus(motion), transfer, units);
+        var conveyor = new NgCarrierConveyor(io, new(), work, units);
+        var station = new InspectionStation(work, motion, conveyor, operations, settings, transfer, io, units,
+            new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(), recipes);
+        Assert.True(await station.HomeHorizontalAsync());
+        io.SetInputs(
+            (InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, false),
+            (InputIo.InspectionBackupPlateUp, false), (InputIo.InspectionBackupPlateDown, true),
+            (InputIo.InspectionStopperDown, false), (InputIo.InspectionStopperUp, true),
+            (InputIo.NgCarrierPickupUp, true), (InputIo.NgCarrierPickupDown, false),
+            (InputIo.NgCarrierGripperOpen, true), (InputIo.NgCarrierGripperClosed, false));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resumed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var waitingState = barcode ? InspectionStationState.BarcodeTeachingRequired : InspectionStationState.FovTeachingRequired;
+        var resumedState = barcode ? InspectionStationState.ReadingBarcode : InspectionStationState.InspectingBolt;
+        station.Trace += message =>
+        {
+            if (message.Contains($": {waitingState} "))
+                waiting.TrySetResult();
+            if (message.Contains($": {resumedState} "))
+            {
+                resumed.TrySetResult();
+                stop.Cancel();
+            }
+        };
+        var run = station.RunAsync(stop.Token);
+        try
+        {
+            await waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            var edited = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipes.Current))!;
+            edited.CarrierImages[barcode ? 0 : 1].Region = new(0, 0, 20, 20);
+            await recipes.SaveInspectionAsync(edited);
+            await resumed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -212,7 +280,7 @@ public sealed class InspectionTests
             gantrySettings.Motion,
             operations,
             hasZ: false);
-        var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0, WaitingPosition = new() };
+        var transferSettings = new NgCarrierTransferSettings { CarrierPickupPosition = new(), WaitingPosition = new() };
         var units = new UnitSettings { MainConveyor = false };
         var recipes = new RecipeManager(OpenMachineStore(), new());
         var work = new InspectionWork(io, new MotionStatus(motion), transferSettings, units);
@@ -286,7 +354,7 @@ public sealed class InspectionTests
         Assert.Empty(work.Assemblies);
 
         using var firstStop = new CancellationTokenSource();
-        var firstRun = station.RunAsync(bolts, firstStop.Token);
+        var firstRun = station.RunAsync(firstStop.Token);
         Assert.True(
             await WaitUntilAsync(
                 () => work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults.Count == 1,
@@ -298,7 +366,7 @@ public sealed class InspectionTests
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
 
         var firstBarcode = work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode;
-        await station.RunAsync(bolts, firstStop.Token);
+        await station.RunAsync(firstStop.Token);
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
         Assert.Equal(firstBarcode, work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
 
@@ -313,7 +381,7 @@ public sealed class InspectionTests
             Assert.Equal(HeatSinkSlot.HeatSink2, station.GetActiveBolt()!.HeatSink);
         };
         using var cancellation = new CancellationTokenSource();
-        var run = station.RunAsync(bolts, cancellation.Token);
+        var run = station.RunAsync(cancellation.Token);
         Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
 
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);

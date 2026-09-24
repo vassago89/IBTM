@@ -236,8 +236,40 @@ public sealed partial class BoltFasteningStation
                     default:
                         throw new ArgumentOutOfRangeException(nameof(bolt.Head));
                 }
-                await FastenAsync(bolt, token);
-                await ClearHeadAsync(bolt.Head, token);
+                var assembly = _work.GetAssembly(job, bolt.HeatSink);
+                var result = await FastenAsync(bolt, token);
+                Exception? clearFailure = null;
+                try
+                {
+                    // Result notifications can write to disk. Finish physical clearance first.
+                    await ClearHeadAsync(bolt.Head, token);
+                }
+                catch (Exception exception)
+                {
+                    clearFailure = exception;
+                    throw;
+                }
+                finally
+                {
+                    // Keep the measured result with its original carrier even if clearance
+                    // is cancelled or fails. A storage failure must not hide a motion failure.
+                    try
+                    {
+                        switch (bolt.Head)
+                        {
+                            case FasteningHead.Shooting:
+                                assembly.RecordPcbBolt(bolt.Number, result);
+                                break;
+                            case FasteningHead.Pickup:
+                                assembly.RecordPickupBolt(bolt.Number, result);
+                                break;
+                        }
+                    }
+                    catch (Exception recordFailure) when (clearFailure is not null)
+                    {
+                        throw new AggregateException(clearFailure, recordFailure);
+                    }
+                }
             }
             carrierOperation.Token.ThrowIfCancellationRequested();
             _work.RequireCurrentJob(job);
@@ -302,12 +334,11 @@ public sealed partial class BoltFasteningStation
         }
     }
 
-    private async Task FastenAsync(
+    private async Task<BoltResult> FastenAsync(
         BoltPoint bolt,
         CancellationToken cancellationToken)
     {
         var job = _work.CurrentJob;
-        var assembly = _work.GetAssembly(job, bolt.HeatSink);
         var head = GetHead(bolt.Head);
         await head.SelectPresetAsync(1, cancellationToken);
         // The motor rotates only; the cylinder supplies the forward feed.
@@ -340,15 +371,7 @@ public sealed partial class BoltFasteningStation
                 "Bolt {Head}, {HeatSink}, point {Bolt}: cycle completed; success={Success}, source={Source}, error={Error}.",
                 bolt.Head, bolt.HeatSink, bolt.Number, completed.Success, completed.Source, completed.Error);
             _work.RequireCurrentJob(job);
-            switch (bolt.Head)
-            {
-                case FasteningHead.Shooting:
-                    assembly.RecordPcbBolt(bolt.Number, completed);
-                    break;
-                case FasteningHead.Pickup:
-                    assembly.RecordPickupBolt(bolt.Number, completed);
-                    break;
-            }
+            return completed;
         }
         catch (OperationCanceledException) when (fastening.IsCancellationRequested
             && !cancellationToken.IsCancellationRequested)
