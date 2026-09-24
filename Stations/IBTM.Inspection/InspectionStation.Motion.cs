@@ -1,13 +1,9 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.NgConveyor;
-using IBTM.Storage;
-using Microsoft.Extensions.Logging;
 
 namespace IBTM.Inspection;
 
@@ -39,6 +35,18 @@ public sealed partial class InspectionStation
         using var operation = _operations.Link(cancellationToken);
         EnsureCanMove(operation.Token);
         return await _motion.HomeHorizontalAsync(_motionSettings.HorizontalHome.SearchSpeed, operation.Token);
+    }
+
+    public async Task MoveToCarrierAsync(
+        NgTransferDestination source,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var position = GetTransferPosition(source)
+            ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to a carrier.");
+        if (Motion.IsAt(position))
+            return;
+        await MoveToAsync(position, cancellationToken: cancellationToken);
     }
 
     public Task MoveToAsync(

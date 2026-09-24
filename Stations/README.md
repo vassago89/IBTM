@@ -23,9 +23,14 @@ START에서 처음부터 선택한다. 그립이나 인계가 애매하면 현�
 - `Station.cs`: 생성자·의존성·피드백 속성·변경 이벤트·작업/인계 정보.
 - `.Automatic.cs`: 자동 실행 진입점, 다음 단계 선택, 단계 내부의 순차 동작.
 - `.Motion.cs`: 수동/자동에서 사용하는 실제 모션·I/O 동작과 인터록.
-- `.Transfer.cs`: 인계 순서가 큰 검사/메인 컨베이어의 집기·놓기·스테이션 이송.
-- `.Repeat.cs`: 검사·컨베이어의 반복 복귀 동작. 공급·장착의 Repeat 단계는 `.Automatic.cs`의 같은 switch에서 처리한다.
+- `.Transfer.cs`: 인계 순서가 큰 검사/메인 컨베이어의 집기·놓기·스테이션 이송. 검사의 Repeat 인계 완료 대기·S3 복귀도 여기에 둔다.
+- `.Repeat.cs`: 메인/NG 컨베이어의 반복 복귀 동작. 공급·장착의 Repeat 단계는 `.Automatic.cs`의 같은 switch에서 처리한다.
 - `.Vision.cs`: 검사 촬영·조명·영상 처리.
+
+볼트 공급·체결 순서는 `.Automatic.cs`, 실린더·진공·컨트롤러 명령과 피드백 대기는
+`.Motion.cs`에 둔다. 검사의 캐리어 요청·인계 소유권·준비 상태는 기본 파일에 모으고
+별도 `.Carrier.cs`를 두지 않는다. 메인 컨베이어의 수동 운전·정지·SMEMA 출력과
+공통 모터 시작은 `.Motion.cs`에 두어 정방향 이송과 Repeat 역송이 함께 사용한다.
 
 공급·장착·볼트·검사·메인 컨베이어·NG 컨베이어의 실행 진입점은 아래 형태로 통일한다.
 
@@ -83,13 +88,25 @@ Disabled는 화면·대기 표시로만 사용하며 미완료 인계 단계를 
 인계 위치 확인이 무효화되기 전에 상대가 이탈을 확인해야 하므로, 짧은 Clear 상태를
 각자 읽는 타이밍에 맡기지 않는다.
 
-단계 전환은 `.Automatic.cs`와 `.Repeat.cs`의 명시적인 시퀀스에서 수행한다.
+단계 전환은 `.Automatic.cs`, `.Transfer.cs`, `.Repeat.cs`의 명시적인 시퀀스에서 수행한다.
 `PrepareHandoffAsync` / `PrepareReceiptAsync`는 이동 후 인계 준비를 확정하는 시퀀스 진입점이다.
 티칭의 `MoveToTeachingPositionAsync`와 `.Motion.cs`의 축 이동은 시퀀스 단계를 변경하지 않는다.
 
 공통 기반인 `AutoUnit`에는 실행 수명·변경 대기·단계 통지만 둔다. 장치 호출, 분기,
 인계 판단은 각 스테이션에 명시한다. 피더처럼 감지와 보충만 하는 유닛에 별도의
 단계나 범용 실행기를 추가하지 않는다. 결과 저장은 기존 저장 관리 객체가 담당한다.
+
+## 관련 화면과 설비 초기화
+
+- `TeachingViewModel.cs`: 생성·활성화·종료, 유닛 선택, 공통 I/O 표시와 명령 갱신.
+- `TeachingViewModel.Points.cs`: 포인트 선택·추가·삭제, 위치 기록, 설정·레시피 저장.
+- `TeachingViewModel.Motion.cs`: Jog·Step·Home·Move To 명령과 각각의 실행 가능 조건.
+- `TeachingViewModel.Camera.cs`: Live·Grab, 촬영 이미지 저장·로딩, 조명과 미리보기.
+- `MachineController.Initialization.cs`: 시작 초기화 진입점과 I/O·모션·검사·체결기 초기화.
+- `MachineController.Reset.cs`: 알람 확인과 정지 후 하드웨어 복구.
+
+명령이라는 이유만으로 별도 `.Commands.cs`에 모으지 않는다. 명령 선언·실행·허용 조건은
+해당 기능 파일에서 함께 찾을 수 있게 하고, 생성자의 초기화 순서는 유지한다.
 
 ## 캐리어 작업과 장치 책임
 

@@ -436,7 +436,6 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
-            OnPropertyChanged(nameof(SupplyPositionKnown));
             OnPropertyChanged(nameof(PcbSupplyMapLeft));
             OnPropertyChanged(nameof(PcbSupplyMapTop));
         }
@@ -452,7 +451,6 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
-            OnPropertyChanged(nameof(PlacementPositionKnown));
             OnPropertyChanged(nameof(PcbPlacementMapLeft));
             OnPropertyChanged(nameof(PcbPlacementMapTop));
         }
@@ -468,7 +466,6 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
-            OnPropertyChanged(nameof(FasteningPositionKnown));
             OnPropertyChanged(nameof(ShootingHeadMapLeft));
             OnPropertyChanged(nameof(ShootingHeadMapTop));
             OnPropertyChanged(nameof(PickupHeadMapLeft));
@@ -489,7 +486,6 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
-            OnPropertyChanged(nameof(InspectionPositionKnown));
             OnPropertyChanged(nameof(InspectionGantryMapLeft));
             OnPropertyChanged(nameof(InspectionGantryMapTop));
             OnPropertyChanged(nameof(NgPickupMapLeft));

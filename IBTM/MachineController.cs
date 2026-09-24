@@ -131,28 +131,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     private bool InspectionGantryEnabled => _units.IsMotionEnabled(MotionGroup.InspectionGantry);
 
-    public async Task InitializeAsync()
-    {
-        _log?.LogInformation("Machine initialization started.");
-        using (var operation = _operations.TryBegin())
-        {
-            if (operation is null)
-                return;
-            var (alarm, error) = await InitializeHardwareAsync(operation.Token);
-            operation.Token.ThrowIfCancellationRequested();
-            if (alarm == MachineAlarm.None)
-                alarm = SafetyAlarm;
-
-            if (alarm == MachineAlarm.None)
-                _state.Refresh();
-            else
-                _state.SetError(alarm, error);
-        }
-
-        UpdateMachineIndicators();
-        _log?.LogInformation("{Message}", $"Machine initialization finished. Alarm={_state.Alarm}.");
-    }
-
     public async Task StopAsync()
     {
         await Task.Run(Stop);

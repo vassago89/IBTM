@@ -128,7 +128,7 @@ public sealed class PcbSupplyHandoffTests
         rig.Motion.SetServo(MotionAxis.X, false);
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
         rig.Motion.SetServo(MotionAxis.X, true);
-        Assert.True(rig.Supplier.IsAtHandoff());
+        Assert.True(rig.Supplier.Motion.IsAt(rig.Settings.HandoffPosition));
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
 
         await rig.Supplier.PrepareHandoffAsync(CancellationToken.None);
@@ -150,7 +150,7 @@ public sealed class PcbSupplyHandoffTests
         await rig.Motion.MoveToXYAsync(target.X, target.Y, rig.Settings.Motion.HorizontalSpeed);
         await rig.Motion.MoveAxisAsync(MotionAxis.Z, target.Z, rig.Settings.Motion.ZSpeed);
 
-        Assert.True(rig.Handler.IsAtHandoff());
+        Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
         Assert.True(rig.Handler.PcbSecured);
         Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.State);
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
@@ -201,7 +201,7 @@ public sealed class PcbSupplyHandoffTests
 
         Assert.False(commanded);
         Assert.True(rig.Handler.PcbSecured);
-        Assert.True(rig.Handler.IsAtHandoff());
+        Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public sealed class PcbSupplyHandoffTests
 
         Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
-        Assert.True(rig.Handler.IsAtHandoff());
+        Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
     }
 
     [Theory]
@@ -259,7 +259,7 @@ public sealed class PcbSupplyHandoffTests
                 rig.Io.SetInputs((InputIo.PcbSupplyRotated, false), (InputIo.PcbSupplyUnrotated, true));
                 Assert.True(await WaitUntilAsync(
                     () => rig.Supplier.Handoff == PcbSupplyHandoff.Released, TimeSpan.FromSeconds(1)));
-                Assert.True(rig.Handler.IsAtHandoff());
+                Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
             }
             else
             {
@@ -295,7 +295,7 @@ public sealed class PcbSupplyHandoffTests
             () => rig.Supplier.RunAsync(new(), rig.Placement, timeout.Token, repeat: true));
 
         Assert.False(commanded);
-        Assert.True(rig.Handler.IsAtHandoff());
+        Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
     }
 
     private sealed class HandoffRig : IDisposable

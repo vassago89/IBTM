@@ -330,7 +330,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReverseNgPickupReturnsToPickupThenSeparateWaitingPosition(bool hasWaitingPosition)
+    public async Task RepeatNgTransferReturnsToPickupThenSeparateWaitingPosition(bool hasWaitingPosition)
     {
         await using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
@@ -342,8 +342,7 @@ public sealed partial class MachineLifecycleTests
         settings.WaitingPosition = hasWaitingPosition ? new() { X = 15, Y = 30 } : null;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        // Seed the shuttle through a real virtual transfer so the carrier retains
-        // its heat-sink payload when it returns to Station 3.
+        // Repeat holds the carrier above the shuttle and returns without releasing it.
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true),
             (InputIo.InspectionHeatSink2Present, true));
@@ -351,7 +350,15 @@ public sealed partial class MachineLifecycleTests
         await gantry.MoveToAsync(settings.CarrierPickupPosition!, 10_000);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         using var transferTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await move.RunToAsync(NgTransferDestination.Shuttle, transferTimeout.Token);
+        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle,
+            InspectionStationState.PickingCarrier, transferTimeout.Token, holdAtDestination: true);
+        await move.ExecuteTransferAsync(NgTransferDestination.Shuttle,
+            InspectionStationState.PlacingCarrier, transferTimeout.Token, holdAtDestination: true);
+        Assert.True(move.IsTransferPending);
+        Assert.Equal(NgTransferGripperState.Closed, pickup.Gripper);
+        Assert.True(pickup.IsRaised);
+        Assert.True(gantry.Motion.IsAt(settings.ShuttlePlacePosition));
+        Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
         await move.Station.PrepareToReceiveAsync(transferTimeout.Token);
         var raisedAtPickup = false;
         io.OutputChanged += (output, on) =>
@@ -363,22 +370,16 @@ public sealed partial class MachineLifecycleTests
             raisedAtPickup = true;
         };
         feedback.AxisMoves.Clear();
-        var gripped = false;
         var movedBeforeGrip = false;
-        io.InputChanged += (input, value) =>
-        {
-            if (input == InputIo.NgCarrierDetected && value)
-                gripped = true;
-        };
         gantry.Feedback.PositionChanged += (_, _, _) =>
         {
-            if (!gripped)
+            if (pickup.Gripper != NgTransferGripperState.Closed)
                 movedBeforeGrip = true;
         };
 
         await move.ReturnToStationAsync(transferTimeout.Token).WaitAsync(TimeSpan.FromSeconds(3));
 
-        Assert.True(gripped);
+        Assert.False(move.IsTransferPending);
         Assert.True(raisedAtPickup);
         Assert.False(movedBeforeGrip);
         Assert.Empty(feedback.AxisMoves);

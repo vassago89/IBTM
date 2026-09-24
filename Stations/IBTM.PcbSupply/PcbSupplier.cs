@@ -52,11 +52,6 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     public IMotionFeedback Feedback => _motion;
 
-    public bool IsAtHandoff(bool live = true)
-    {
-        return Motion.IsAt(_settings.HandoffPosition, live);
-    }
-
     public bool UpstreamCarrierAvailable
     {
         get

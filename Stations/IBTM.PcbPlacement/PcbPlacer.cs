@@ -77,17 +77,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public IMotionFeedback Feedback => _motion;
 
-    public bool IsAtHandoff(bool live = true)
-    {
-        return Motion.IsAt(_settings.HandoffPosition, live);
-    }
-
-    public bool IsAtReceivePosition(bool live = true)
-    {
-        return _settings.ReceiveZ is { } z
-            && Motion.IsAt(new() { X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = z }, live);
-    }
-
     public PlacementCylinderState Lift
     {
         get

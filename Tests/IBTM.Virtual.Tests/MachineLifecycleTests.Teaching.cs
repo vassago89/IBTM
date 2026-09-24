@@ -1473,8 +1473,8 @@ public sealed partial class MachineLifecycleTests
             await machine.HomeAsync(CancellationToken.None);
             await supply.PrepareHandoffAsync(CancellationToken.None);
             await placement.PrepareHandoffAsync();
-            Assert.True(supply.IsAtHandoff());
-            Assert.True(placement.IsAtHandoff());
+            Assert.True(supply.Motion.IsAt(settings.PcbSupply.HandoffPosition));
+            Assert.True(placement.Motion.IsAt(settings.PcbPlacementHandler.HandoffPosition));
 
             foreach (var group in new[] { HardwareArea.PcbSupply, HardwareArea.PcbPlacementHandler })
             {

@@ -226,14 +226,4 @@ public sealed partial class MainConveyor
             StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorAvailableToRear);
         }
     }
-
-    private void StartMotor(CancellationToken cancellationToken, bool reverse = false)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
-        cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(OutputIo.MainConveyorForward, !reverse);
-        cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(OutputIo.MainConveyorRun, true);
-    }
 }

@@ -124,7 +124,7 @@ public sealed class PcbPlacementStateSafetyTests
         rig.Motion.SetAlarm(MotionAxis.Y, true);
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
         rig.Motion.SetAlarm(MotionAxis.Y, false);
-        Assert.True(rig.Placer.IsAtReceivePosition());
+        Assert.True(rig.Placer.Motion.IsAt(new() { X = 50, Y = 10, Z = 12 }));
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
 
         await rig.Placer.PrepareReceiptAsync();

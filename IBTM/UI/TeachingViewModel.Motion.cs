@@ -1,8 +1,10 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
@@ -11,8 +13,73 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
+public enum TeachingMoveMode
+{
+    [Description("Jog · hold to move")]
+    Jog,
+    [Description("Step · move a set distance")]
+    Step,
+}
+
+public enum TeachingDirection
+{
+    [Description("X−")]
+    XMinus,
+    [Description("X+")]
+    XPlus,
+    [Description("Y−")]
+    YMinus,
+    [Description("Y+")]
+    YPlus,
+    [Description("Z−")]
+    ZMinus,
+    [Description("Z+")]
+    ZPlus,
+}
+
+public enum TeachingMotionHint
+{
+    [Description("")]
+    None,
+    [Description("This unit is disabled in Settings.")]
+    UnitDisabled,
+    [Description("Raise the NG pickup before moving XY.")]
+    RaiseNgPickup,
+    [Description("Z Jog/Step is available with the handler lowered. Raise the handler before X/Y, Move to Position or Move Z to Standby Height.")]
+    RaisePlacementCylinders,
+    [Description("Jog/Step adjust one axis at the current height. Raise both heads before moving to a teaching position.")]
+    BoltAdjustment,
+    [Description("Home this unit before jogging or moving to a teaching position.")]
+    HomeRequired,
+    [Description("Turn on this unit's axis servos before moving.")]
+    ServoOff,
+    [Description("Clear this unit's axis alarm or emergency signal before moving.")]
+    AxisFault,
+    [Description("Motion feedback is unavailable for this unit.")]
+    MotionUnavailable,
+    [Description("Record Carrier Pickup (S3) X/Y before moving to a carrier.")]
+    NgPickupPositionRequired,
+}
+
 public partial class TeachingViewModel
 {
+    [ObservableProperty]
+    public partial double JogSpeed { get; set; } = 10.0;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StepCommand))]
+    public partial double StepDistance { get; set; } = 0.1;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ManualSpeedLabel))]
+    public partial TeachingMoveMode MoveMode { get; set; }
+
+    public TeachingMoveMode[] MoveModes { get; }
+
+    public string ManualSpeedLabel => MoveMode == TeachingMoveMode.Step ? "Step speed" : "Jog speed";
+
+    public MotionStatus Motion => State.GetMotionStatus(ActiveMotionGroup);
+
     public string MoveToHorizontalZLabel
     {
         get
@@ -90,6 +157,19 @@ public partial class TeachingViewModel
         }
     }
 
+    public IAsyncRelayCommand HomeCommand { get; }
+
+    private async Task HomeAsync(CancellationToken cancellationToken)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            ViewCancellation);
+        var group = ActiveMotionGroup;
+        await Machine.HomeAsync(group, cancellation.Token);
+    }
+
+    private bool IsHomeAllowed => Motion.Feedback.Axes.All(axis => Machine.IsHomeAxisAllowed(ActiveMotionGroup, axis));
+
     private bool IsJogAllowed(MotionAxis axis)
     {
         return !State.IsRunning
@@ -160,6 +240,16 @@ public partial class TeachingViewModel
         }
     }
 
+    public IRelayCommand JogStopCommand { get; }
+
+    private void JogStop()
+    {
+        CancelTeaching();
+    }
+
+    private bool IsMoveToHorizontalZAllowed => IsJogAllowed(MotionAxis.Z)
+        && (ActiveMotionGroup != MotionGroup.PcbPlacementHandler || _pcbPlacement.HandlerRaised);
+
     public IAsyncRelayCommand MoveToHorizontalZCommand { get; }
 
     private async Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
@@ -211,6 +301,50 @@ public partial class TeachingViewModel
         {
             Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
         }
+    }
+
+    private bool IsStepAllowed(TeachingDirection direction)
+    {
+        if (!IsMoveDirectionAllowed(direction))
+            return false;
+        var position = Motion.Position;
+        var (axis, sign) = Resolve(direction);
+        var current = axis switch
+        {
+            MotionAxis.X => position.X,
+            MotionAxis.Y => position.Y,
+            MotionAxis.Z => position.Z,
+            _ => null,
+        };
+        if (current is null)
+            return false;
+        return double.IsFinite(current.Value + sign * StepDistance);
+    }
+
+    private static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction)
+    {
+        switch (direction)
+        {
+            case TeachingDirection.XMinus:
+                return (MotionAxis.X, -1);
+            case TeachingDirection.XPlus:
+                return (MotionAxis.X, 1);
+            case TeachingDirection.YMinus:
+                return (MotionAxis.Y, -1);
+            case TeachingDirection.YPlus:
+                return (MotionAxis.Y, 1);
+            case TeachingDirection.ZMinus:
+                return (MotionAxis.Z, -1);
+            case TeachingDirection.ZPlus:
+                return (MotionAxis.Z, 1);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(direction));
+        }
+    }
+
+    private bool IsMoveDirectionAllowed(TeachingDirection direction)
+    {
+        return IsJogAllowed(Resolve(direction).Axis);
     }
 
     public IAsyncRelayCommand<TeachingDirection> StepCommand { get; }
@@ -428,34 +562,5 @@ public partial class TeachingViewModel
                     return false;
             }
         }
-    }
-
-    private void NotifyManualTeachingCommands()
-    {
-        OnPropertyChanged(nameof(HomeBlock));
-        if (!State.ManualMode
-            && (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning))
-        {
-            _ = RequestCameraStopAsync();
-        }
-
-        HomeCommand.NotifyCanExecuteChanged();
-        JogCommand.NotifyCanExecuteChanged();
-        StepCommand.NotifyCanExecuteChanged();
-        MoveToHorizontalZCommand.NotifyCanExecuteChanged();
-        foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
-            row.ToggleOutputCommand.NotifyCanExecuteChanged();
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        MoveToPointCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(ManualBlock));
-        OnPropertyChanged(nameof(IsTeachingEditAllowed));
-        OnPropertyChanged(nameof(MotionHint));
-        SaveCommand.NotifyCanExecuteChanged();
-        ReturnFromPickupCommand.NotifyCanExecuteChanged();
-        ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        GrabCommand.NotifyCanExecuteChanged();
-        ApplyLightCommand.NotifyCanExecuteChanged();
-        AddBoltPointCommand.NotifyCanExecuteChanged();
-        RemoveBoltPointCommand.NotifyCanExecuteChanged();
     }
 }

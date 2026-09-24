@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -23,11 +24,6 @@ public sealed partial class BoltFasteningStation
         return IsAt(position, live);
     }
 
-    internal bool IsAtPickupPosition(bool live = true)
-    {
-        return IsAt(_settings.PickupPosition, live);
-    }
-
     internal bool IsAtPickupXY(bool live = true)
     {
         var target = _settings.PickupPosition;
@@ -35,6 +31,154 @@ public sealed partial class BoltFasteningStation
         return Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y)
             && Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
             && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters;
+    }
+
+    public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await ShootingHead.CheckReadyAsync(cancellationToken);
+        await PickupHead.CheckReadyAsync(cancellationToken);
+    }
+
+    public async Task ResetHeadsAsync(CancellationToken cancellationToken = default)
+    {
+        List<Exception>? failures = null;
+        foreach (var head in new[] { ShootingHead, PickupHead })
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await head.ResetAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures is not null)
+        {
+            throw new AggregateException("Bolt controller reset failed.", failures);
+        }
+    }
+
+    public Task SetHeadDownAsync(
+        FasteningHead head,
+        bool down,
+        CancellationToken cancellationToken = default)
+    {
+        var output = head switch
+        {
+            FasteningHead.Pickup => OutputIo.PickupHeadDown,
+            FasteningHead.Shooting => OutputIo.ShootingHeadDown,
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
+        return _io.SetOutputAndWaitAsync(output, down, cancellationToken);
+    }
+
+    internal Task SetPickupTableDownAsync(bool down, CancellationToken cancellationToken)
+    {
+        return _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, down, cancellationToken);
+    }
+
+    public Task RaiseCylindersAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.WhenAll(
+            SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken),
+            SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken));
+    }
+
+    internal Task SetShootingEscapeForwardAsync(bool forward, CancellationToken cancellationToken = default)
+    {
+        return _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, forward, cancellationToken);
+    }
+
+    internal Task WaitForShootingTubeClearAsync(CancellationToken cancellationToken = default)
+    {
+        return _io.WaitForInputAsync(
+            InputIo.ShootingTubeBoltDetected, false, _settings.ShootingDetectionTimeoutMilliseconds, cancellationToken);
+    }
+
+    internal async Task WaitForBoltSupplyAsync(FasteningHead head, CancellationToken cancellationToken)
+    {
+        var boltDetected = head switch
+        {
+            FasteningHead.Pickup => InputIo.PickupFeederBoltDetected,
+            FasteningHead.Shooting => InputIo.ShootingFeederBoltDetected,
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
+        var changed = new AsyncAutoResetEvent();
+
+        void OnSupplyInputChanged(InputIo input, bool value)
+        {
+            if (input == boltDetected)
+                changed.Set();
+        }
+
+        // Subscribe before checking feedback so newly prepared supply is not missed.
+        _io.InputChanged += OnSupplyInputChanged;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            while (!_io.GetInput(boltDetected))
+            {
+                await changed.WaitAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+        finally
+        {
+            _io.InputChanged -= OnSupplyInputChanged;
+        }
+    }
+
+    public void StopShooting(Exception? operationFailure = null)
+    {
+        Exception? cleanupFailure = null;
+        try
+        {
+            _io.SetOutput(OutputIo.ShootBolt, false);
+        }
+        catch (Exception exception)
+        {
+            cleanupFailure = exception;
+        }
+        try
+        {
+            _io.SetOutput(OutputIo.ShootingEscapeForward, false);
+        }
+        catch (Exception exception)
+        {
+            cleanupFailure = cleanupFailure is null ? exception : new AggregateException(cleanupFailure, exception);
+        }
+        if (cleanupFailure is not null)
+            throw operationFailure is null ? cleanupFailure : new AggregateException(operationFailure, cleanupFailure);
+    }
+
+    public void StopIoStart(FasteningHead head)
+    {
+        _io.SetOutput(
+            head == FasteningHead.Pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart,
+            false);
+    }
+
+    public async Task SetVacuumAsync(
+        FasteningHead head,
+        bool on,
+        CancellationToken cancellationToken,
+        bool waitForFeedback = true)
+    {
+        var output = head == FasteningHead.Pickup
+            ? OutputIo.PickupHeadVacuumPump
+            : OutputIo.ShootingHeadVacuumPump;
+        cancellationToken.ThrowIfCancellationRequested();
+        _io.SetOutput(output, on);
+        if (waitForFeedback && head == FasteningHead.Pickup)
+            await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, on, cancellationToken);
     }
 
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)

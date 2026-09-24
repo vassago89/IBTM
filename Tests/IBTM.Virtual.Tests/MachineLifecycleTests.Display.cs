@@ -73,6 +73,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         view.Activate();
+        await view.LoadOlderPcbsCommand.ExecutionTask!;
         var notifications = 0;
         var samples = 0;
         void OnViewChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -177,7 +178,7 @@ public sealed partial class MachineLifecycleTests
             Assert.NotEqual(BoltFasteningState.Waiting, display.FasteningState);
             Assert.NotEqual(InspectionStationState.Waiting, display.InspectionState);
             Assert.NotNull(display.BoltFasteningActiveBolt);
-            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => services.GetRequiredService<PcbSupplier>().IsAtHandoff()));
+            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => services.GetRequiredService<PcbSupplier>().Motion.IsAt(settings.PcbSupply.HandoffPosition)));
             Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(
                 () => services.GetRequiredService<MainConveyor>().RunCommandOn));
 

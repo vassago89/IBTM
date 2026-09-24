@@ -134,20 +134,21 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | 모션 진단 구독·축 명령·창 종료 대기 | `IBTM/UI/MotionWindowViewModel.cs` |
 | 로그 표시·복사·일시정지 | `IBTM/UI/LogWindowViewModel.cs`, `LogTextBox.cs` |
 | 표준 로거 연결·파일 저장·최근 로그 수신 | `Shared/IBTM.Core/ApplicationLog.cs`, `IBTM/ApplicationTraceListener.cs` |
-| 메인 컨베이어 이송·감지 후 밀착 시간 | `Stations/IBTM.Conveyor/MainConveyor.cs`, `ConveyorSettings.cs` |
+| 메인 컨베이어 이송·감지 후 밀착 시간 | `Stations/IBTM.Conveyor/MainConveyor.Transfer.cs`, `ConveyorSettings.cs` |
+| 메인 컨베이어 수동 운전·모터·정지·SMEMA 출력 | `Stations/IBTM.Conveyor/MainConveyor.Motion.cs` |
 | 백업 플레이트·스토퍼 | `Shared/IBTM.Device/ConveyorStation.cs` |
-| 볼트 공급·헤드/테이블 I/O·피드백 | `Stations/IBTM.BoltFastening/BoltFasteningStation.cs` |
-| 볼트 자동 순서·체결 결과·표시 상태 | `Stations/IBTM.BoltFastening/BoltFasteningStation.Automatic.cs` |
-| 볼트 모션·티칭 이동 | `Stations/IBTM.BoltFastening/BoltFasteningStation.Motion.cs` |
-| 볼트 단독 Repeat | `Stations/IBTM.BoltFastening/BoltFasteningStation.Repeat.cs` |
-| Station 3 작업/NG 대기 | `Stations/IBTM.Inspection/InspectionStation.cs`, `InspectionStation.Carrier.cs` |
+| 볼트 상태·피드백·의존성 | `Stations/IBTM.BoltFastening/BoltFasteningStation.cs` |
+| 볼트 공급·체결 순서·결과·Repeat | `Stations/IBTM.BoltFastening/BoltFasteningStation.Automatic.cs` |
+| 볼트 모션·티칭 이동·헤드/테이블 I/O | `Stations/IBTM.BoltFastening/BoltFasteningStation.Motion.cs` |
+| Station 3 작업/NG 대기 | `Stations/IBTM.Inspection/InspectionStation.cs`, `InspectionStation.Automatic.cs` |
 | NG 픽업·복귀·XY 이동·실린더·그리퍼 | `Stations/IBTM.Inspection/InspectionStation.Transfer.cs`, `InspectionStation.Motion.cs` |
 | 셔틀·NG 벨트 | `Stations/IBTM.NgConveyor/NgCarrierConveyor.cs` |
 | 티칭 화면 배치 | `IBTM/UI/TeachingView.xaml` |
 | 공통 티칭 I/O 행·그룹 템플릿 | `IBTM/UI/IoWindowStyles.xaml` |
-| 티칭 포인트·선택 | `IBTM/UI/TeachingViewModel.cs` |
-| 티칭 Home Axes / 조그 / Move to Position | `IBTM/UI/TeachingViewModel.Motion.cs`, `TeachingViewModel.Commands.cs` |
-| 위치 기록 / Live | `IBTM/UI/TeachingViewModel.Camera.cs` |
+| 티칭 포인트·선택·위치 기록·설정 저장 | `IBTM/UI/TeachingViewModel.Points.cs` |
+| 티칭 Home Axes / 조그 / Move to Position | `IBTM/UI/TeachingViewModel.Motion.cs` |
+| Grab / Live / 촬영 이미지 저장·로딩 | `IBTM/UI/TeachingViewModel.Camera.cs` |
+| 설비 시작 초기화 | `IBTM/MachineController.Initialization.cs` |
 | 저장 이미지 / ROI / Data Matrix / 과거 결과 재검사 | `IBTM/UI/InspectionTeachingViewModel.cs` |
 | 이미지 위 ROI·십자선 그리기 | `IBTM/UI/ImageTeachingView.cs` |
 | 실제 검사 이동·촬영·판정 | `Stations/IBTM.Inspection/InspectionStation.Vision.cs` |

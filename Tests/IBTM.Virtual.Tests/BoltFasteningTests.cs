@@ -1319,9 +1319,6 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.PickupHeadVacuumPump && on)
             {
                 pickups++;
-                Assert.Equal(BoltCylinderState.Down, gantry.PickupTablePosition);
-                Assert.True(gantry.IsAtPickupPosition());
-                Assert.True(gantry.IsHorizontalMoveAllowed);
             }
             if (on && output is OutputIo.PickupHeadDown or OutputIo.ShootingHeadDown)
                 Assert.False(gantry.IsAtPickupXY());

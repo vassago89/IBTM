@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.BoltFastening;
@@ -373,6 +375,64 @@ public sealed partial class BoltFasteningStation
             default:
                 return null;
         }
+    }
+
+    internal async Task ShootBoltAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (ShootingEscape != BoltEscapeState.Backward)
+            await SetShootingEscapeForwardAsync(false, cancellationToken);
+        await WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken);
+        await WaitForShootingTubeClearAsync(cancellationToken);
+        using var passage = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task? boltPassed = null;
+        Exception? failure = null;
+        try
+        {
+            await SetShootingEscapeForwardAsync(true, cancellationToken);
+            _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
+            boltPassed = _io.WaitForInputAsync(
+                InputIo.ShootingTubeBoltDetected, true, _settings.ShootingDetectionTimeoutMilliseconds, passage.Token);
+            cancellationToken.ThrowIfCancellationRequested();
+            _io.SetOutput(OutputIo.ShootBolt, true);
+            await boltPassed;
+            var arrivalStartedAt = Stopwatch.GetTimestamp();
+            await WaitForShootingTubeClearAsync(cancellationToken);
+            await SetShootingEscapeForwardAsync(false, cancellationToken);
+            var arrivalRemaining = TimeSpan.FromSeconds(_settings.ShootingArrivalDelaySeconds)
+                - Stopwatch.GetElapsedTime(arrivalStartedAt);
+            if (arrivalRemaining > TimeSpan.Zero)
+                await Task.Delay(arrivalRemaining, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
+        finally
+        {
+            try
+            {
+                StopShooting(failure);
+            }
+            finally
+            {
+                passage.Cancel();
+                if (boltPassed is not null)
+                    await boltPassed.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            }
+        }
+    }
+
+    internal async Task FinishFasteningAsync(
+        FasteningHead head,
+        CancellationToken cancellationToken = default)
+    {
+        _log?.LogInformation("Bolt {Head}: requesting vacuum OFF.", head);
+        await SetVacuumAsync(head, false, cancellationToken);
+        _log?.LogInformation("Bolt {Head}: vacuum OFF request completed; requesting head UP.", head);
+        await SetHeadDownAsync(head, false, cancellationToken);
+        _log?.LogInformation("Bolt {Head}: head UP confirmed.", head);
     }
 
     private async Task<BoltResult> FastenAsync(

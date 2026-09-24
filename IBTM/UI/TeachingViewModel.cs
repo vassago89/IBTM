@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
@@ -27,8 +27,13 @@ public partial class TeachingViewModel : ObservableObject
     private readonly PcbSupplier _pcbSupply;
     private readonly PcbPlacer _pcbPlacement;
     private readonly BoltFasteningStation _fasteningStation;
-    private CancellationTokenSource _recipeImageCancellation;
-    private Task _recipeImageUpdate = Task.CompletedTask;
+    private readonly MachineStore _store;
+    private readonly IReadOnlyDictionary<HardwareArea, IoStatus[]> _ioGroups;
+    private readonly IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> _teachingOutputs;
+    private CancellationTokenSource _viewCancellation;
+    private readonly Dictionary<HardwareArea, TeachingIoGroup[]> _teachingIoGroups;
+    private int _manualCommandRefreshQueued;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
     [NotifyPropertyChangedFor(nameof(ActiveMotionGroup))]
@@ -38,22 +43,6 @@ public partial class TeachingViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(AddBoltPointCommand))]
     [NotifyCanExecuteChangedFor(nameof(ReturnFromPickupCommand))]
     public partial HardwareArea SelectedTeachingUnit { get; set; } = HardwareArea.InspectionGantry;
-
-    [ObservableProperty]
-    public partial FasteningHead NewFasteningHead { get; set; } = FasteningHead.Shooting;
-
-    [ObservableProperty]
-    public partial IReadOnlyList<TeachingPoint> FilteredPoints { get; set; }
-    [ObservableProperty]
-    public partial HeatSinkSlot SelectedPcb { get; set; } = HeatSinkSlot.HeatSink1;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CameraImage))]
-    public partial BitmapSource? LiveImage { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CameraImage))]
-    [NotifyCanExecuteChangedFor(nameof(GrabCommand))]
-    public partial IReadOnlyList<CarrierImageTileView> CarrierImages { get; set; }
 
     public TeachingViewModel(
         MachineSettings settings,
@@ -138,7 +127,6 @@ public partial class TeachingViewModel : ObservableObject
         LiveLightLevel = InspectionRecipe.LightLevel;
         CarrierImages = [];
 
-
         inspectionStation.FrameReady += UpdateLiveImage;
         inspectionStation.LiveViewChanged += OnLiveViewChanged;
         state.PropertyChanged += OnMachineStateChanged;
@@ -157,12 +145,6 @@ public partial class TeachingViewModel : ObservableObject
         ShowRecipeImages();
     }
 
-    public string? CameraError
-    {
-        get => field ?? Inspection.LiveViewError?.Message;
-        private set => SetProperty(ref field, value);
-    }
-
     public bool IsBusy => Array.Exists(_commands, static command => command.IsRunning);
 
     public InspectionStation Inspection { get; }
@@ -170,65 +152,13 @@ public partial class TeachingViewModel : ObservableObject
     public RecipeEditor RecipeEditor { get; }
     public RecipeManager Recipes { get; }
 
-    public HeatSinkSlot? SelectedBarcode => SelectedPoint?.Position.Target == TeachingTarget.DataMatrix ? SelectedPcb : null;
-
-    public bool IsDataMatrixSelected => SelectedBarcode is not null;
-
     public HardwareArea[] TeachingUnits { get; }
-    public FasteningHead[] FasteningHeads { get; }
-    public HeatSinkSlot[] HeatSinkSlots { get; }
 
     public BoltInspectionRecipe InspectionRecipe => Recipes.Current.BoltInspection;
 
-    public TeachingSaveBehavior SaveBehavior
-    {
-        get
-        {
-            switch (SelectedPoint)
-            {
-                case { Position.Target: TeachingTarget.BoltPickup }:
-                    return TeachingSaveBehavior.BoltPickup;
-                case { Position.Target: TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ }:
-                    return TeachingSaveBehavior.FasteningZ;
-                case { Position.Target: TeachingTarget.DataMatrix }:
-                    return TeachingSaveBehavior.BarcodeFov;
-                case { Position.Target: TeachingTarget.SupplyHandoff }:
-                    return TeachingSaveBehavior.SupplyHandoff;
-                case { Position.Target: TeachingTarget.PlacementHandoff }:
-                    return TeachingSaveBehavior.PlacementHandoff;
-                case { Position.Target: TeachingTarget.PlacementReceiveZ }:
-                    return TeachingSaveBehavior.PlacementReceiveZ;
-                case { Position.Target: TeachingTarget.NgCarrierPickup }:
-                    return TeachingSaveBehavior.NgPickup;
-                case { Position.Target: TeachingTarget.BoltPosition }:
-                    return TeachingSaveBehavior.BoltPosition;
-                case { Position.Target: TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin }:
-                    return TeachingSaveBehavior.CameraCenter;
-                case { Position.Mode: TeachMode.Image }:
-                    return TeachingSaveBehavior.Image;
-                case { Storage: TeachingStorage.Handoff }:
-                    return TeachingSaveBehavior.Handoff;
-                case { Storage: TeachingStorage.Machine }:
-                    return TeachingSaveBehavior.Machine;
-                default:
-                    return TeachingSaveBehavior.Recipe;
-            }
-        }
-    }
-
     public bool IsInspectionSelected => SelectedTeachingUnit == HardwareArea.InspectionGantry;
 
-    public bool BoltPointEditorVisible => IsFasteningSelected || IsInspectionSelected;
-
     public bool IsFasteningSelected => SelectedTeachingUnit == HardwareArea.BoltFastening;
-
-    public bool IsBoltSelected => IsInspectionSelected && SelectedPoint?.Position.Bolt is not null;
-
-    partial void OnSelectedPcbChanged(HeatSinkSlot value)
-    {
-        RefreshTeachingPoints();
-        NotifyManualTeachingCommands();
-    }
 
     partial void OnSelectedTeachingUnitChanging(HardwareArea value)
     {
@@ -252,59 +182,6 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(BoltPointEditorVisible));
         OnPropertyChanged(nameof(IsFasteningSelected));
         NotifyManualTeachingCommands();
-    }
-
-    private void OnPointTaught(TeachingPoint point)
-    {
-        if (point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
-        {
-            SelectedPoint = FilteredPoints.First(
-                candidate => candidate.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
-        }
-    }
-
-    public IRelayCommand AddBoltPointCommand { get; }
-
-    private void AddBoltPoint()
-    {
-        var number = Recipes.Current.Pcb.GetBolts(SelectedPcb).Select(bolt => bolt.Number).DefaultIfEmpty().Max() + 1;
-        var bolt = new BoltPoint
-        {
-            Number = number,
-            HeatSink = SelectedPcb,
-            Head = NewFasteningHead,
-            BrightnessThreshold = InspectionRecipe.BrightnessThreshold,
-            MinimumBrightRatio = InspectionRecipe.MinimumBrightRatio,
-        };
-        Recipes.Current.Pcb.BoltPoints.Add(bolt);
-        RefreshTeachingPoints();
-        SelectedPoint = FilteredPoints.First(
-            point => point.BoltNumber == number && point.Position.Target == TeachingTarget.BoltReference);
-    }
-
-    private bool IsAddBoltPointAllowed => IsTeachingEditAllowed && IsInspectionSelected;
-
-    public IRelayCommand RemoveBoltPointCommand { get; }
-
-    private void RemoveBoltPoint()
-    {
-        var number = SelectedPoint!.BoltNumber;
-        Recipes.Current.Pcb.BoltPoints.RemoveAll(bolt => bolt.Number == number && bolt.HeatSink == SelectedPcb);
-        Recipes.Current.CarrierImages.RemoveAll(fov =>
-            !fov.IsBarcode && fov.BoltNumber == number && fov.HeatSink == SelectedPcb);
-        CarrierImages = CarrierImages.Where(image =>
-            image.Metadata.IsBarcode || image.Metadata.BoltNumber != number || image.Metadata.HeatSink != SelectedPcb).ToArray();
-        RefreshTeachingPoints();
-    }
-
-    private bool IsRemoveBoltPointAllowed
-    {
-        get
-        {
-            return IsTeachingEditAllowed
-                && IsInspectionSelected
-                && SelectedPoint?.Position.Target == TeachingTarget.BoltReference;
-        }
     }
 
     public void Activate()
@@ -369,196 +246,174 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private void RefreshTeachingPoints()
-    {
-        var selectedTarget = SelectedPoint?.Position.Target;
-        var selectedBolt = SelectedPoint?.Position.Bolt;
-        TeachingPoint Point(TeachingTarget target, TeachMode mode, BoltPoint? bolt = null)
-        {
-            return new(new(target, ActiveMotionGroup, mode) { Bolt = bolt }, _settings, Recipes, SelectedPcb);
-        }
-        TeachingPoint[] points = SelectedTeachingUnit switch
-        {
-            HardwareArea.PcbSupply => [
-                Point(TeachingTarget.SafeZ, TeachMode.ZOnly),
-                Point(TeachingTarget.SupplyPcb1Pick, TeachMode.Full),
-                Point(TeachingTarget.SupplyPcb2Pick, TeachMode.Full),
-                Point(TeachingTarget.SupplyHandoff, TeachMode.Full),
-            ],
-            HardwareArea.PcbPlacementHandler => [
-                Point(TeachingTarget.PlacementHandoff, TeachMode.Full),
-                Point(TeachingTarget.PlacementReceiveZ, TeachMode.ZOnly),
-                Point(TeachingTarget.HeatSink1PcbPlacement, TeachMode.Full),
-                Point(TeachingTarget.HeatSink2PcbPlacement, TeachMode.Full),
-            ],
-            HardwareArea.BoltFastening => [
-                Point(TeachingTarget.SafeZ, TeachMode.ZOnly),
-                Point(TeachingTarget.ShootingHeadFasteningZ, TeachMode.ZOnly),
-                Point(TeachingTarget.ShootingHeadUpperLeftLocatingPin, TeachMode.XYOnly),
-                Point(TeachingTarget.ShootingHeadLowerRightLocatingPin, TeachMode.XYOnly),
-                Point(TeachingTarget.PickupHeadFasteningZ, TeachMode.ZOnly),
-                Point(TeachingTarget.PickupHeadUpperLeftLocatingPin, TeachMode.XYOnly),
-                Point(TeachingTarget.PickupHeadLowerRightLocatingPin, TeachMode.XYOnly),
-                Point(TeachingTarget.BoltPickup, TeachMode.Full),
-                .. Recipes.Current.Pcb.GetBolts(SelectedPcb).OrderBy(bolt => bolt.Head)
-                    .Select(bolt => Point(TeachingTarget.BoltPosition, TeachMode.XYOnly, bolt)),
-            ],
-            HardwareArea.InspectionGantry => [
-                Point(TeachingTarget.CarrierUpperLeftLocatingPin, TeachMode.XYOnly),
-                Point(TeachingTarget.CarrierLowerRightLocatingPin, TeachMode.XYOnly),
-                Point(TeachingTarget.InspectionWaiting, TeachMode.XYOnly),
-                Point(TeachingTarget.NgCarrierPickup, TeachMode.XYOnly),
-                Point(TeachingTarget.NgShuttlePlace, TeachMode.XYOnly),
-                Point(TeachingTarget.DataMatrix, TeachMode.Image),
-                .. Recipes.Current.Pcb.GetBolts(SelectedPcb)
-                    .Select(bolt => Point(TeachingTarget.BoltReference, TeachMode.Image, bolt)),
-            ],
-            _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
-        };
-        FilteredPoints = points
-            .OrderBy(point => point.Position.Target == TeachingTarget.BoltPosition ? 0 : 1)
-            .ThenBy(point => point.Group)
-            .ThenBy(point => point.Position.Target == TeachingTarget.PlacementHandoff ? 0 : 1)
-            .ToArray();
-        SelectedPoint = FilteredPoints.FirstOrDefault(
-            point => selectedBolt is not null
-                ? point.Position.Bolt?.Number == selectedBolt.Number
-                : point.Position.Target == selectedTarget)
-            ?? NextTeachingPoint
-                ?? FilteredPoints.FirstOrDefault();
-    }
-
-    private TeachingPoint? NextTeachingPoint
+    public ManualControlBlock ManualBlock
     {
         get
         {
             switch (true)
             {
-                case true when !IsInspectionSelected:
-                    return null;
-                case true when !Inspection.HasBarcodePosition(SelectedPcb):
-                    return FilteredPoints.FirstOrDefault(
-                        point => point.Position.Target == TeachingTarget.DataMatrix);
+                case true when IsTeachingEditAllowed:
+                    return ManualControlBlock.None;
+                case true when State.AutoMode:
+                    return ManualControlBlock.AutoMode;
                 default:
-                    return Recipes.Current.CarrierImages.Count == 0
-                        ? null
-                        : FilteredPoints.FirstOrDefault(
-                            point => point.Position.Bolt is { } bolt && !Inspection.HasPosition(bolt));
+                    return ManualControlBlock.Busy;
             }
         }
     }
 
-    partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
-    {
-        CancelTeaching();
-        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
-            _ = RequestCameraStopAsync();
-        LiveLightLevel = (SelectedBarcode is { } pcb
-            ? InspectionRecipe.GetDataMatrix(pcb).LightLevel : newValue?.Position.Bolt?.LightLevel)
-            ?? InspectionRecipe.LightLevel;
-        OnPropertyChanged(nameof(CameraImage));
-        SelectPreviousPointCommand.NotifyCanExecuteChanged();
-        SelectNextPointCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(SaveBehavior));
-        NotifyManualTeachingCommands();
-        OnPropertyChanged(nameof(SelectedBarcode));
-        OnPropertyChanged(nameof(IsDataMatrixSelected));
-        OnPropertyChanged(nameof(IsBoltSelected));
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        RemoveBoltPointCommand.NotifyCanExecuteChanged();
-    }
+    public bool IsTeachingEditAllowed => State.SetupEditingEnabled;
 
-    private void OnRecipeChanged()
+    public IReadOnlyList<TeachingIoGroup> TeachingIoGroups
     {
-        CameraError = null;
-        if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
-            _ = RequestCameraStopAsync();
-        SelectedPoint = null;
-        if (SelectedPcb == HeatSinkSlot.HeatSink1)
-            RefreshTeachingPoints();
-        else
-            SelectedPcb = HeatSinkSlot.HeatSink1;
-        OnPropertyChanged(nameof(InspectionRecipe));
-        ShowRecipeImages();
-    }
-
-    private void ShowRecipeImages()
-    {
-        _recipeImageCancellation.Cancel();
-        _recipeImageCancellation.Dispose();
-        _recipeImageCancellation = new();
-        CarrierImages = [];
-        _recipeImageUpdate = LoadRecipeImagesAsync(_recipeImageUpdate, _recipeImageCancellation.Token);
-    }
-
-    private async Task LoadRecipeImagesAsync(Task previous, CancellationToken cancellationToken)
-    {
-        try
+        get
         {
-            await previous;
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!PositionUpdatesActive || !IsInspectionSelected)
-                return;
-            var images = await RecipeEditor.LoadCarrierImagesAsync(cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            CarrierImages = images;
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Teaching recipe image load failed.");
-            if (!cancellationToken.IsCancellationRequested)
-                CameraError ??= exception.Message;
-        }
-    }
-
-    private void RefreshPointPositions()
-    {
-        foreach (var point in FilteredPoints)
-            point.Refresh();
-    }
-
-    public IAsyncRelayCommand SaveCommand { get; }
-
-    private bool IsSaveAllowed => IsTeachingEditAllowed && RecipeEditor.IsSaveAllowed && !RecipeEditor.IsBusy;
-
-    private async Task SaveAsync(CancellationToken cancellationToken)
-    {
-        var viewToken = ViewCancellation;
-        var activeToken = cancellationToken;
-        try
-        {
-            if (!IsSaveAllowed)
-                return;
-            using var operation = Machine.BeginManualOperation(
-                () => State.ManualMode,
-                cancellationToken,
-                viewToken);
-            if (operation is null)
-                return;
-            activeToken = operation.Token;
-            operation.Token.ThrowIfCancellationRequested();
-            RecipeEditor.Error = null;
-            if (await SaveSettingsAsync(operation.Token,
-                    _settings.PcbSupply, _settings.PcbPlacementHandler, _settings.BoltFastening,
-                    _settings.InspectionGantry, _settings.CarrierReference, _settings.NgCarrierTransfer)
-                && !await RecipeEditor.SaveAsync(operation.Token))
+            if (!_teachingIoGroups.TryGetValue(SelectedTeachingUnit, out var groups))
             {
-                SaveError = "Teaching settings were saved, but the recipe was not saved. "
-                    + (RecipeEditor.Error ?? "Save was cancelled. Save again to finish.");
+                groups = _ioGroups[SelectedTeachingUnit].Select(
+                    io =>
+                        new TeachingIoGroup(
+                            io,
+                            _teachingOutputs[SelectedTeachingUnit],
+                            Machine))
+                    .ToArray();
+                foreach (var row in groups.SelectMany(group => group.Outputs))
+                    row.ViewCancellation = ViewCancellation;
+                _teachingIoGroups.Add(SelectedTeachingUnit, groups);
             }
-            NotifyManualTeachingCommands();
+
+            return groups;
         }
-        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
-            || viewToken.IsCancellationRequested
-            || Operations.IsShuttingDown)
+    }
+
+    private IAsyncRelayCommand[] OutputCommands
+    {
+        get
         {
+            return _teachingIoGroups.Values.SelectMany(groups => groups)
+                .SelectMany(group => group.Outputs)
+                .Select(row => row.ToggleOutputCommand)
+                .ToArray();
         }
-        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+    }
+
+    private MachineController Machine { get; }
+    private MachineState State { get; }
+    private OperationCancellation Operations { get; }
+
+    private bool PositionUpdatesActive { get; set; }
+
+    private CancellationToken ViewCancellation => _viewCancellation.Token;
+
+    private void CancelTeaching(bool reportDeviceFailure = true)
+    {
+        var cancellation = _viewCancellation;
+        _viewCancellation = new CancellationTokenSource();
+        try
         {
-            Machine.ReportManualFailure(MachineAlarm.IoCommunication, exception);
+            cancellation.Cancel();
         }
+        catch (Exception exception) when (reportDeviceFailure
+            && (exception is IOException or MotionException
+                || exception is AggregateException aggregate
+                    && aggregate.Flatten().InnerExceptions.Any(error => error is IOException or MotionException)))
+        {
+            if (!State.IsError)
+                State.SetError(MachineAlarm.StopFailed, exception);
+            else
+                _logger.LogError(exception, "Teaching STOP also failed.");
+        }
+        finally
+        {
+            cancellation.Dispose();
+            foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
+            {
+                row.ViewCancellation = ViewCancellation;
+                row.ToggleOutputCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        QueueManualCommandRefresh();
+    }
+
+    private void OnTeachingMotionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MotionStatus.Position) or nameof(AxisStatus.State))
+            QueueManualCommandRefresh();
+    }
+
+    private void SubscribeMotionChanges()
+    {
+        Motion.PropertyChanged += OnTeachingMotionChanged;
+        foreach (var axis in Motion.Axes.Values)
+            axis.PropertyChanged += OnTeachingMotionChanged;
+    }
+
+    private void UnsubscribeMotionChanges()
+    {
+        Motion.PropertyChanged -= OnTeachingMotionChanged;
+        foreach (var axis in Motion.Axes.Values)
+            axis.PropertyChanged -= OnTeachingMotionChanged;
+    }
+
+    private void QueueManualCommandRefresh()
+    {
+        if (!PositionUpdatesActive
+            || Interlocked.Exchange(ref _manualCommandRefreshQueued, 1) != 0)
+        {
+            return;
+        }
+
+        Application.Current.Dispatcher.BeginInvoke(
+            () =>
+            {
+                Interlocked.Exchange(ref _manualCommandRefreshQueued, 0);
+                if (PositionUpdatesActive)
+                {
+                    NotifyManualTeachingCommands();
+                }
+            });
+    }
+
+    private void OnCommandChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
+            return;
+        OnPropertyChanged(nameof(IsBusy));
+        ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
+        ApplyLightCommand.NotifyCanExecuteChanged();
+    }
+
+    private void NotifyManualTeachingCommands()
+    {
+        OnPropertyChanged(nameof(HomeBlock));
+        if (!State.ManualMode
+            && (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning))
+        {
+            _ = RequestCameraStopAsync();
+        }
+
+        HomeCommand.NotifyCanExecuteChanged();
+        JogCommand.NotifyCanExecuteChanged();
+        StepCommand.NotifyCanExecuteChanged();
+        MoveToHorizontalZCommand.NotifyCanExecuteChanged();
+        foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
+            row.ToggleOutputCommand.NotifyCanExecuteChanged();
+        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
+        MoveToPointCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ManualBlock));
+        OnPropertyChanged(nameof(IsTeachingEditAllowed));
+        OnPropertyChanged(nameof(MotionHint));
+        SaveCommand.NotifyCanExecuteChanged();
+        ReturnFromPickupCommand.NotifyCanExecuteChanged();
+        ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
+        ApplyLightCommand.NotifyCanExecuteChanged();
+        AddBoltPointCommand.NotifyCanExecuteChanged();
+        RemoveBoltPointCommand.NotifyCanExecuteChanged();
     }
 }

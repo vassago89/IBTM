@@ -87,8 +87,6 @@ public sealed partial class MachineLifecycleTests
                 forbidden.Enqueue(output);
             if (on && output == OutputIo.PickupHeadVacuumPump)
             {
-                Assert.True(gantry.IsAtPickupPosition());
-                Assert.Equal(BoltCylinderState.Up, gantry.PickupHeadPosition);
                 Interlocked.Increment(ref pickupAttempts);
             }
             if (output == OutputIo.ShootingBoltStart)

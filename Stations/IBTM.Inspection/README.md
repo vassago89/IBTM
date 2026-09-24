@@ -2,14 +2,14 @@
 
 `InspectionStation`이 자동 검사 순서와 이동·촬영·판정을 함께 담당한다.
 촬영·조명·Live View 코드는 같은 클래스의 `InspectionStation.Vision.cs`에 둔다.
-`InspectionStation.Station`의 Job이 캐리어별 결과와 완료 소유권을 보관한다. 검사 요청·착좌 요청과 NG 인터록은 `InspectionStation.Carrier.cs`에서 관리한다.
+`InspectionStation.Station`의 Job이 캐리어별 결과와 완료 소유권을 보관한다. 검사 요청·착좌 요청과 NG 인터록 상태는 기본 파일 `InspectionStation.cs`에서 관리한다.
 검사와 NG 이송은 하나의 `InspectionStation`이 소유한다. 같은 클래스 안에서 자동 순서는
-`.Automatic.cs`, 집기·놓기 순서는 `.Transfer.cs`, 장치 동작은 `.Motion.cs`, 반복 복귀는 `.Repeat.cs`에 둔다.
+`.Automatic.cs`, 집기·놓기·Repeat 복귀 순서는 `.Transfer.cs`, 장치 동작은 `.Motion.cs`에 둔다.
 자동 루프는 `GetNextStep`으로 다음 동작을 선택하고 `ExecuteStepAsync`로 실행한다.
 실행 내부의 `EnterStep`으로 현재 단계를 알리고, 순차 동작을 끝까지 기다린다.
 실행이 외부 조건 대기를 반환하면 루프에서 `WaitForChangeAsync`로 대기한다.
 현재 단계가 물리적 위치나 인계 완료를 대신하지 않는다.
-`NgCarrierConveyor`도 같은 파일 구성으로 셔틀·벨트·Repeat 복귀를 함께 처리한다.
+`NgCarrierConveyor`는 `.Automatic.cs`에서 셔틀·벨트 순서를, `.Motion.cs`에서 장치 동작을, `.Repeat.cs`에서 반복 역송을 처리한다.
 빈 셔틀이 내려가 있으면 인계 해제와 픽업 상승·그리퍼 열림을 확인한 뒤 상승시켜 다음 캐리어를 받는다.
 
 볼트 검사는 `BinaryChecker.Check`에서 저장된 사각형 ROI를 원본 크기로 처리한다.

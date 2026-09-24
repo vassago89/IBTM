@@ -143,7 +143,7 @@ public sealed class PcbSupplyRepeatTests
         };
         motion.StateChanged += () =>
         {
-            if (!handler.IsAtHandoff() || !handler.PcbSecured)
+            if (!handler.Motion.IsAt(settings.HandoffPosition) || !handler.PcbSecured)
                 return;
             reachedHandoff = true;
             finish.Cancel();
@@ -212,7 +212,7 @@ public sealed class PcbSupplyRepeatTests
         };
         motion.StateChanged += () =>
         {
-            if (!returning && handler.IsAtHandoff() && handler.PcbSecured)
+            if (!returning && handler.Motion.IsAt(settings.HandoffPosition) && handler.PcbSecured)
             {
                 visits++;
                 returning = true;

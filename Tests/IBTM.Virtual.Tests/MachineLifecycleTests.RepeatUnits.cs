@@ -386,6 +386,12 @@ public sealed partial class MachineLifecycleTests
         var placement = services.GetRequiredService<PcbPlacer>();
         var supplier = services.GetRequiredService<PcbSupplier>();
         var placer = services.GetRequiredService<PcbPlacer>();
+        var receivePosition = new AxisPosition
+        {
+            X = settings.PcbPlacementHandler.HandoffPosition.X,
+            Y = settings.PcbPlacementHandler.HandoffPosition.Y,
+            Z = settings.PcbPlacementHandler.ReceiveZ!.Value,
+        };
         var handoffSteps = new ConcurrentQueue<string>();
         supplier.Trace += handoffSteps.Enqueue;
         placer.Trace += handoffSteps.Enqueue;
@@ -416,7 +422,7 @@ public sealed partial class MachineLifecycleTests
             if (!on && output == OutputIo.PcbSupplyGripperClosed
                 && supply.Rotation == PcbSupplyRotationState.Rotated)
                 returns++;
-            if (!on && output == OutputIo.PcbPlacementVacuumEjector && placement.IsAtReceivePosition())
+            if (!on && output == OutputIo.PcbPlacementVacuumEjector && placement.Motion.IsAt(receivePosition))
             {
                 reverseHandoffs++;
                 unsafeRelease |= !supply.PcbSecured;
@@ -434,12 +440,12 @@ public sealed partial class MachineLifecycleTests
                     && supply.Feedback.GetPosition().X < settings.PcbSupply.HandoffPosition.X - 1
                     && supply.Feedback.GetPosition().X > recipe.PcbSupply.Pcb2PickPosition.X + 1,
                 PcbRepeatStopPoint.BothHolding => supply.PcbSecured && placement.PcbSecured
-                    && placement.IsAtReceivePosition(),
+                    && placement.Motion.IsAt(receivePosition),
                 PcbRepeatStopPoint.SupplyReleasing => reverseHandoffs > 0
                     && !supply.IpmFixed && supply.Gripper == PcbSupplyCylinderState.Forward
-                    && placement.PcbSecured && placement.IsAtReceivePosition(),
+                    && placement.PcbSecured && placement.Motion.IsAt(receivePosition),
                 PcbRepeatStopPoint.PlacementHolding => reverseHandoffs > 0 && supply.PcbReleased
-                    && placement.PcbSecured && placement.IsAtReceivePosition(),
+                    && placement.PcbSecured && placement.Motion.IsAt(receivePosition),
                 _ => false,
             };
             if (reached)

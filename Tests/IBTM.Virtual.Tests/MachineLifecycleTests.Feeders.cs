@@ -125,7 +125,7 @@ public sealed partial class MachineLifecycleTests
             outputs.Enqueue((output, on));
             if (on && output == OutputIo.PickupHeadVacuumPump)
             {
-                Assert.True(gantry.IsAtPickupPosition());
+                Assert.True(gantry.Motion.IsAt(settings.BoltFastening.PickupPosition));
                 Assert.Equal(BoltCylinderState.Up, gantry.PickupHeadPosition);
                 Assert.Equal(BoltCylinderState.Up, gantry.ShootingHeadPosition);
                 Assert.Equal(BoltCylinderState.Down, gantry.PickupTablePosition);
@@ -330,6 +330,7 @@ public sealed partial class MachineLifecycleTests
         await work.SeatAsync(CancellationToken.None);
         var pickups = 0;
         var starts = 0;
+        var vacuumRequested = false;
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PickupBoltStart && on)
@@ -337,9 +338,15 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(station.IsHorizontalMoveAllowed);
                 starts++;
             }
-            if (output == OutputIo.PickupHeadVacuumPump && on)
+            vacuumRequested |= output == OutputIo.PickupHeadVacuumPump && on;
+        };
+        var atPickup = false;
+        station.Feedback.StateChanged += () =>
+        {
+            var wasAtPickup = atPickup;
+            atPickup = station.Motion.IsAt(settings.BoltFastening.PickupPosition);
+            if (atPickup && !wasAtPickup)
             {
-                Assert.True(station.IsAtPickupPosition());
                 Assert.Equal(BoltCylinderState.Up, station.PickupHeadPosition);
                 pickups++;
                 if (pickups == 1)
@@ -357,6 +364,7 @@ public sealed partial class MachineLifecycleTests
             await Assert.ThrowsAsync<IoTimeoutException>(() => station.RunAsync(timeout.Token));
             Assert.Equal(1, pickups);
             Assert.Equal(0, starts);
+            Assert.False(vacuumRequested);
             Assert.True(station.IsAtPickupXY());
             Assert.True(station.IsAtSafeZ());
             Assert.Equal(BoltCylinderState.Down, station.PickupHeadPosition);
@@ -377,6 +385,7 @@ public sealed partial class MachineLifecycleTests
             await station.RunAsync(stop.Token);
             Assert.True(work.Completed);
             Assert.Equal(2, pickups);
+            Assert.False(vacuumRequested);
             Assert.False(station.PickupBoltLoaded);
             Assert.Equal(1, starts); // Only the new carrier reaches fastening START.
             Assert.Equal(AssemblyResult.Ok, work.GetAssembly(HeatSinkSlot.HeatSink1).FasteningResult);

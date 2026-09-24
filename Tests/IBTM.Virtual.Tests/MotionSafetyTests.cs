@@ -191,8 +191,9 @@ public sealed class MotionSafetyTests
         using var placement = Motion(settings, operations);
         var placementHandler = VirtualTest.CreatePlacer(placement, io,
             new PcbPlacementHandlerSettings { HandoffPosition = handoff });
+        var supplyHandoff = new AxisPosition { X = handoff.X, Y = handoff.Y, Z = 3 };
         var supplyHandler = VirtualTest.CreateSupplier(supply, io,
-            new PcbSupplySettings { HandoffPosition = new() { X = handoff.X, Y = handoff.Y, Z = 3 } });
+            new PcbSupplySettings { HandoffPosition = supplyHandoff });
 
         io.Initialize();
         supply.Initialize();
@@ -204,27 +205,27 @@ public sealed class MotionSafetyTests
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        Assert.False(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
+        Assert.False(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
 
         await supply.MoveToXYAsync(10, 10, settings.HorizontalSpeed);
         await supply.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.False(supplyHandler.IsAtHandoff());
-        Assert.False(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
+        Assert.False(supplyHandler.Motion.IsAt(supplyHandoff));
+        Assert.False(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
         await supply.MoveAxisAsync(MotionAxis.Z, 3, settings.ZSpeed);
-        Assert.True(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
+        Assert.True(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, true);
-        Assert.False(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
+        Assert.False(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, false);
-        Assert.True(supplyHandler.IsAtHandoff() && supplyHandler.PcbSecured);
+        Assert.True(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
 
         await placement.MoveToXYAsync(10, 10, settings.HorizontalSpeed);
         await placement.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.True(placementHandler.IsAtHandoff());
-        Assert.False(placementHandler.IsAtHandoff() && placementHandler.PcbSecured);
+        Assert.True(placementHandler.Motion.IsAt(handoff));
+        Assert.False(placementHandler.Motion.IsAt(handoff) && placementHandler.PcbSecured);
         io.SetInputs(
             (InputIo.PcbPlacementPcbDetected, true),
             (InputIo.PcbPlacementVacuumDetected, true));
-        Assert.True(placementHandler.IsAtHandoff() && placementHandler.PcbSecured);
+        Assert.True(placementHandler.Motion.IsAt(handoff) && placementHandler.PcbSecured);
     }
 
     [Fact]

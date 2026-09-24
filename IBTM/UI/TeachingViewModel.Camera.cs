@@ -1,10 +1,10 @@
-using System.ComponentModel;
+using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
-using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -21,6 +21,8 @@ public partial class TeachingViewModel
     private bool _liveImageUpdateQueued;
     private Task _liveImageUpdate = Task.CompletedTask;
     private Task _cameraStop = Task.CompletedTask;
+    private CancellationTokenSource _recipeImageCancellation;
+    private Task _recipeImageUpdate = Task.CompletedTask;
 
     [ObservableProperty]
     public partial int LiveLightLevel { get; set; }
@@ -29,6 +31,21 @@ public partial class TeachingViewModel
     {
         if (value is < 0 or > 255)
             throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255.");
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CameraImage))]
+    public partial BitmapSource? LiveImage { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CameraImage))]
+    [NotifyCanExecuteChangedFor(nameof(GrabCommand))]
+    public partial IReadOnlyList<CarrierImageTileView> CarrierImages { get; set; }
+
+    public string? CameraError
+    {
+        get => field ?? Inspection.LiveViewError?.Message;
+        private set => SetProperty(ref field, value);
     }
 
     public BitmapSource? CameraImage => Inspection.IsLiveView ? LiveImage : CarrierImages.FirstOrDefault(tile =>
@@ -103,16 +120,6 @@ public partial class TeachingViewModel
 
     private bool IsToggleLiveViewAllowed => Inspection.IsLiveView
         || IsInspectionSelected && State.ManualMode && !TeachCurrentPositionCommand.IsRunning && !GrabCommand.IsRunning;
-
-    private void OnCommandChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
-            return;
-        OnPropertyChanged(nameof(IsBusy));
-        ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        GrabCommand.NotifyCanExecuteChanged();
-        ApplyLightCommand.NotifyCanExecuteChanged();
-    }
 
     private async Task CaptureTeachingImageAsync(bool recordPosition, CancellationToken cancellationToken)
     {
@@ -250,6 +257,38 @@ public partial class TeachingViewModel
                 && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
                 && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
                 && RecipeEditor.IsSaveAllowed;
+        }
+    }
+
+    private void ShowRecipeImages()
+    {
+        _recipeImageCancellation.Cancel();
+        _recipeImageCancellation.Dispose();
+        _recipeImageCancellation = new();
+        CarrierImages = [];
+        _recipeImageUpdate = LoadRecipeImagesAsync(_recipeImageUpdate, _recipeImageCancellation.Token);
+    }
+
+    private async Task LoadRecipeImagesAsync(Task previous, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await previous;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!PositionUpdatesActive || !IsInspectionSelected)
+                return;
+            var images = await RecipeEditor.LoadCarrierImagesAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            CarrierImages = images;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Teaching recipe image load failed.");
+            if (!cancellationToken.IsCancellationRequested)
+                CameraError ??= exception.Message;
         }
     }
 
