@@ -269,6 +269,7 @@ public partial class OperationViewModel
                 default:
                     return PlacementState is PcbPlacementState.WaitingForSupply
                         or PcbPlacementState.WaitingForSupplyRelease
+                        or PcbPlacementState.WaitingForSupplyClear
                         or PcbPlacementState.WaitingForCarrier
                         or PcbPlacementState.WaitingForSupplyReceipt
                         or PcbPlacementState.WaitingForSupplyGrip

@@ -199,6 +199,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     return PcbPlacementHandoff.Holding;
                 case PcbPlacementState.WaitingForSupply when !PcbSecured:
                 case PcbPlacementState.WaitingForSupplyDeparture:
+                case PcbPlacementState.WaitingForSupplyClear:
                 case PcbPlacementState.WaitingForCarrier
                     or PcbPlacementState.PlacingPcb or PcbPlacementState.CompletingCarrier:
                     return PcbPlacementHandoff.Clear;

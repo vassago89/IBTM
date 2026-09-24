@@ -15,6 +15,71 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class NgHandoffTests
 {
+    [Fact]
+    public async Task DisabledInspectionKeepsPendingTransferAndPickupClearanceInterlocks()
+    {
+        var units = new UnitSettings { MainConveyor = false };
+        var system = await CreateAsync(units);
+        using var motion = system.Motion;
+        var transfer = system.Inspection;
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
+        SetCarrier(system.Io, InputIo.InspectionHeatSink1Present, false);
+        units.Inspection = false;
+
+        Assert.True(transfer.IsTransferPending);
+        Assert.False(transfer.IsReceiveAllowed);
+        Assert.False(transfer.IsTransferAtWaitingPosition());
+
+        await transfer.SetGripperOpenAsync(true);
+        await transfer.SetLiftUpAsync(false);
+        Assert.False(transfer.IsTransferAtWaitingPosition());
+        await transfer.SetLiftUpAsync(true);
+        Assert.True(transfer.IsReceiveAllowed);
+        Assert.True(transfer.IsTransferAtWaitingPosition());
+    }
+
+    [Fact]
+    public async Task NgRepeatEndWakesWhenOnlyTransferOwnershipClears()
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var transfer = system.Inspection;
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
+        // Feedback alone must not clear an unfinished commanded handoff.
+        system.Io.AutoResponseEnabled = false;
+        system.Io.SetInputs(
+            (InputIo.NgConveyorPosition1Occupied, true),
+            (InputIo.NgCarrierGripperClosed, false),
+            (InputIo.NgCarrierGripperOpen, true));
+        Assert.True(transfer.IsTransferPending);
+        using var stop = new CancellationTokenSource();
+        var run = system.Conveyor.RunAsync(stop.Token, repeat: true);
+        var end = system.Conveyor.WaitForRepeatEndAsync(stop.Token);
+        try
+        {
+            Assert.Equal(NgConveyorState.ReadyToEject, system.Conveyor.Step);
+            Assert.False(end.IsCompleted);
+            // Inputs and the conveyor step stay unchanged; only command ownership changes.
+            await transfer.SetGripperOpenAsync(true);
+            Assert.True(transfer.IsClear);
+            await end.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+            try
+            {
+                await end;
+            }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested)
+            {
+            }
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -289,12 +354,12 @@ public sealed class NgHandoffTests
     }
 
     private static async Task<(VirtualIoService Io, VirtualMotionService Motion, InspectionStation Inspection,
-        NgCarrierConveyor Conveyor)> CreateAsync()
+        NgCarrierConveyor Conveyor)> CreateAsync(UnitSettings? units = null)
     {
         var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(),
             new NgShuttleHardwareSettings(), new NgConveyorHardwareSettings(), new ConveyorHardwareSettings()), new());
         io.Initialize();
-        var units = new UnitSettings { MainConveyor = false };
+        units ??= new UnitSettings { MainConveyor = false };
         var settings = new NgCarrierTransferSettings
         {
             CarrierPickupPosition = new(),

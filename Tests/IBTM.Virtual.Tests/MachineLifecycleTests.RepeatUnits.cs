@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.BoltFastening;
@@ -17,29 +18,56 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
-    [Fact]
-    public async Task RepeatMainOnlyReturnsFromStation3WithoutNg()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MainOnlyRepeatRequiresPreparedStation3Support(bool preparedAtStart)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
         settings.Conveyor.CarrierStopDelaySeconds = 0;
         await using var services = CreateServices(settings);
+        var conveyor = services.GetRequiredService<MainConveyor>();
+        var inspection = services.GetRequiredService<InspectionStation>();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
-        var reachedStation3 = false;
+        if (preparedAtStart)
+        {
+            io.SetInputs(
+                (InputIo.InspectionHeatSink1Present, true),
+                (InputIo.InspectionHeatSink2Present, true));
+            await inspection.Station.SeatAsync(CancellationToken.None);
+        }
+        else
+        {
+            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+        }
+        var reachedStation3 = preparedAtStart;
         io.InputChanged += (input, on) =>
         {
             if (input == InputIo.InspectionHeatSink2Present && on)
                 reachedStation3 = true;
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        var waitingForSupport = false;
+        conveyor.StepChanged += () =>
+        {
+            if (!preparedAtStart && reachedStation3
+                && conveyor.Step is MainConveyorState.WaitingForInspectionTransfer)
+            {
+                waitingForSupport = true;
+                stop.Cancel();
+            }
+        };
         var returned = false;
+        var raisedStation3 = false;
         io.OutputChanged += (output, on) =>
         {
+            if (output == OutputIo.InspectionBackupPlateUp && on)
+                raisedStation3 = true;
             if (output == OutputIo.MainConveyorRun && !on
                 && !io.GetOutput(OutputIo.MainConveyorForward)
                 && io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
@@ -54,8 +82,10 @@ public sealed partial class MachineLifecycleTests
             await machine.StartAsync(stop.Token);
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.True(reachedStation3);
-            Assert.True(returned);
-            Assert.True(io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
+            Assert.Equal(preparedAtStart, returned);
+            Assert.Equal(!preparedAtStart, waitingForSupport);
+            Assert.False(raisedStation3); // A disabled gantry cannot prepare the safe lifting position.
+            Assert.Equal(preparedAtStart, io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
         }
         finally
         {

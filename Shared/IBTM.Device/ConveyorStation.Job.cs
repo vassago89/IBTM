@@ -59,10 +59,13 @@ public sealed partial class ConveyorStation
                 $"Carrier work changed from {job.Id} to {_job.Id}; the previous work cannot update this carrier.");
     }
 
-    public void TransferAssembliesTo(ConveyorStation destination, Job job)
+    public void TransferAssembliesTo(ConveyorStation destination, Job job, Job arrivingJob)
     {
         lock (s_jobGate)
         {
+            // Arrival ownership must still match when the result is committed.
+            // Checking before this lock lets an input callback replace the destination in between.
+            destination.RequireCurrentJob(arrivingJob);
             // The carrier keeps its trace number; each station gets a new completion owner.
             var received = new Job(job.Id);
             foreach (var assembly in job.Assemblies.Values)

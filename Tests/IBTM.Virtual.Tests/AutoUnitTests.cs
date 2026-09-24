@@ -24,14 +24,18 @@ public sealed class AutoUnitTests
 
         Assert.Null(unit.Step);
         Assert.Equal(DayOfWeek.Friday, unit.LastPhase);
+        var reported = new List<Enum?>();
+        unit.StepChanged += () => reported.Add(unit.Step);
         using var resume = new CancellationTokenSource();
         await unit.RunAsync(token =>
         {
             Assert.Equal(DayOfWeek.Friday, unit.Step);
+            Assert.Equal(DayOfWeek.Friday, Assert.Single(reported));
             resume.Cancel();
             return Task.CompletedTask;
         }, resume.Token, resumePhase: true);
         Assert.Null(unit.Step);
+        Assert.Null(reported.Last());
 
         using var restart = new CancellationTokenSource();
         await unit.RunAsync(token =>

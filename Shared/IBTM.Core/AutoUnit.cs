@@ -78,6 +78,9 @@ public abstract class AutoUnit
         _waiting = false;
         Trace?.Invoke($"{GetType().Name}: run started.");
         Changed += OnChanged;
+        // A retained handoff phase becomes active even when its value has not changed.
+        if (Step is not null)
+            StepChanged?.Invoke();
     }
 
     protected void EndRun(CancellationToken cancellationToken)

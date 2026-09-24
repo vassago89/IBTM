@@ -332,7 +332,7 @@ public sealed class PcbTransferTests
             units);
         var source = supplier;
         var work = ConveyorStation.CreatePcbPlacement(io);
-        var placer = CreatePlacer(supplier, placementMotion, io, placementSettings, recipe, work);
+        var placer = CreatePlacer(supplier, placementMotion, io, placementSettings, recipe, work, units);
         var recipient = placer;
         io.Initialize();
         supplyMotion.Initialize();
@@ -504,7 +504,7 @@ public sealed class PcbTransferTests
         Assert.True(source.PcbReleased && recipient.HandlerRaised);
         Assert.True(departedInY);
         Assert.True(recipient.IsAtHorizontalZ());
-        Assert.Equal(PcbPlacementState.PlacingPcb, placer.State);
+        Assert.Equal(PcbPlacementState.PlacingPcb, placer.GetNextStep(HeatSinkSlot.HeatSink1));
         Assert.True(source.IsAtHandoff());
         io.OutputChanged += (output, on) =>
         {
@@ -1000,11 +1000,12 @@ public sealed class PcbTransferTests
         IIoService io,
         PcbPlacementHandlerSettings settings,
         PcbPlacementRecipe? recipe = null,
-        ConveyorStation? work = null)
+        ConveyorStation? work = null,
+        UnitSettings? units = null)
     {
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.PcbPlacement = recipe ?? new();
-        return new(motion, new(motion), io, settings, supply, work ?? ConveyorStation.CreatePcbPlacement(io), recipes, new());
+        return new(motion, new(motion), io, settings, supply, work ?? ConveyorStation.CreatePcbPlacement(io), recipes, units ?? new());
     }
 
     private static MotionSettings FastMotion()

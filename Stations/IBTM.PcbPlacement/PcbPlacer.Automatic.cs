@@ -20,8 +20,6 @@ public sealed partial class PcbPlacer
         {
             BeginRun(SequenceStep ?? PcbPlacementState.MovingToHandoff);
             _supply.Changed += OnChanged;
-            // ReturningPcb becomes visible again even if the retained step is unchanged.
-            NotifyChanged();
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (!Station.CarrierPresent || Station.Completed)
@@ -79,6 +77,9 @@ public sealed partial class PcbPlacer
                 return PcbPlacementState.ReceivingPcb;
             case PcbPlacementState.WaitingForSupplyRelease when _supply.Handoff == PcbSupplyHandoff.Released:
                 return PcbPlacementState.PreparingPlacement;
+            case PcbPlacementState.WaitingForSupplyClear when _supply.Handoff == PcbSupplyHandoff.Unavailable:
+                return Station.CarrierSeated && !Station.Completed
+                    ? PcbPlacementState.PlacingPcb : PcbPlacementState.WaitingForCarrier;
             case PcbPlacementState.WaitingForCarrier when Station.CarrierSeated && !Station.Completed:
                 return heatSink is null ? PcbPlacementState.CompletingCarrier : PcbPlacementState.PlacingPcb;
             default:
@@ -105,11 +106,14 @@ public sealed partial class PcbPlacer
         if (!repeat && _repeatTrip is not null)
             throw new InvalidOperationException("An unfinished Repeat PCB must be returned to its original carrier in Repeat mode before normal operation.");
         var job = _repeatTrip?.Job ?? Station.CurrentJob;
-        State = state;
+        var notifyChange = !IsRunning && !Equals(SequenceStep, state);
         EnterStep(state, heatSink?.ToString(), job.Id);
+        if (notifyChange)
+            NotifyChanged();
         if (IsPcbGripUncertain
             || state is PcbPlacementState.ReturningToSupply or PcbPlacementState.WaitingForSupplyReceipt
                 or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
+                or PcbPlacementState.WaitingForSupplyClear
                 && !PcbSecured
             || _repeatTrip is not null && state == PcbPlacementState.PreparingPlacement && !PcbSecured)
             throw new InvalidOperationException("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before moving or releasing it.");
@@ -185,14 +189,47 @@ public sealed partial class PcbPlacer
                     await PrepareHandoffAsync(cancellationToken);
                     break;
                 case PcbPlacementState.ReceivingPcb:
-                    if (!await ReceivePcbAsync(cancellationToken))
+                {
+                    if (_supply.Handoff != PcbSupplyHandoff.Holding)
                         return false;
+                    using var receipt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    void CheckSupplyHolding()
+                    {
+                        if (_supply.Handoff != PcbSupplyHandoff.Holding && !PcbSecured)
+                            receipt.Cancel();
+                    }
+                    _supply.Changed += CheckSupplyHolding;
+                    Changed += CheckSupplyHolding;
+                    try
+                    {
+                        CheckSupplyHolding();
+                        receipt.Token.ThrowIfCancellationRequested();
+                        var ipmDown = !_repeat;
+                        if (IpmLift != (ipmDown ? PlacementCylinderState.Down : PlacementCylinderState.Up))
+                            await SetIpmLiftDownAsync(ipmDown, receipt.Token);
+                        await PrepareReceiptAsync(receipt.Token);
+                        await WaitForPcbAsync(receipt.Token);
+                        await SetVacuumAsync(true, receipt.Token);
+                        receipt.Token.ThrowIfCancellationRequested();
+                        State = PcbPlacementState.WaitingForSupplyRelease;
+                    }
+                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                    {
+                        throw new InvalidOperationException("Supply lost confirmed PCB holding during receipt.");
+                    }
+                    finally
+                    {
+                        _supply.Changed -= CheckSupplyHolding;
+                        Changed -= CheckSupplyHolding;
+                    }
                     break;
+                }
                 case PcbPlacementState.PreparingPlacement:
                     await PreparePlacementAsync(heatSink ?? HeatSinkSlot.HeatSink1, cancellationToken);
                     if (PcbSecured)
-                        State = Station.CarrierSeated && !Station.Completed
-                            ? PcbPlacementState.PlacingPcb : PcbPlacementState.WaitingForCarrier;
+                        // Keep the confirmed departure position until Supply observes Clear.
+                        // Starting placement immediately can erase Clear before its loop wakes.
+                        State = PcbPlacementState.WaitingForSupplyClear;
                     else
                     {
                         State = TargetHeatSink is null && Station.CarrierSeated && !Station.Completed
@@ -281,43 +318,6 @@ public sealed partial class PcbPlacer
         {
             if (repeatOperation is not null)
                 Changed -= CheckRepeatFeedback;
-        }
-    }
-
-    private async Task<bool> ReceivePcbAsync(CancellationToken cancellationToken)
-    {
-        if (_supply.Handoff != PcbSupplyHandoff.Holding)
-            return false;
-        using var receipt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        void CheckSupplyHolding()
-        {
-            if (_supply.Handoff != PcbSupplyHandoff.Holding && !PcbSecured)
-                receipt.Cancel();
-        }
-        _supply.Changed += CheckSupplyHolding;
-        Changed += CheckSupplyHolding;
-        try
-        {
-            CheckSupplyHolding();
-            receipt.Token.ThrowIfCancellationRequested();
-            var ipmDown = !_repeat;
-            if (IpmLift != (ipmDown ? PlacementCylinderState.Down : PlacementCylinderState.Up))
-                await SetIpmLiftDownAsync(ipmDown, receipt.Token);
-            await PrepareReceiptAsync(receipt.Token);
-            await WaitForPcbAsync(receipt.Token);
-            await SetVacuumAsync(true, receipt.Token);
-            receipt.Token.ThrowIfCancellationRequested();
-            State = PcbPlacementState.WaitingForSupplyRelease;
-            return true;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new InvalidOperationException("Supply lost confirmed PCB holding during receipt.");
-        }
-        finally
-        {
-            _supply.Changed -= CheckSupplyHolding;
-            Changed -= CheckSupplyHolding;
         }
     }
 

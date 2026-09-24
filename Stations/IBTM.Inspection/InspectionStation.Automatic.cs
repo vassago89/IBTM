@@ -56,7 +56,7 @@ public sealed partial class InspectionStation
         if (CarrierSeatingRequested)
             return InspectionStationState.SeatingCarrier;
         if (repeat && Enabled && !_units.MainConveyor
-            && (IsEmptyRepeatAllowed || Station.CarrierPresent) && PickupClear)
+            && (IsEmptyRepeatAllowed || Station.CarrierPresent) && IsClear)
         {
             if (Station.Completed || IsEmptyRepeatAllowed && !Station.CarrierPresent)
             {
@@ -267,7 +267,7 @@ public sealed partial class InspectionStation
 
     private InspectionStationState WaitAtWaitingPosition(InspectionStationState waiting, bool live)
     {
-        return PickupClear && !IsTransferAtWaitingPosition(live)
+        return IsClear && !IsTransferAtWaitingPosition(live)
             ? InspectionStationState.ReturningToWaitingPosition
             : waiting;
     }

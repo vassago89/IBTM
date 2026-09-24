@@ -461,14 +461,16 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     [Trait("Category", "MachineFlow")]
-    public async Task RepeatMainReturnStopsWhenNgPickupDrops()
+    public async Task RepeatMainReturnStopsWhenNgPickupDrops(bool inspectionEnabled)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.Inspection = true;
-        settings.Units.NgConveyor = true;
+        settings.Units.Inspection = inspectionEnabled;
+        settings.Units.NgConveyor = inspectionEnabled;
         await using var services = CreateServices(settings);
         PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();

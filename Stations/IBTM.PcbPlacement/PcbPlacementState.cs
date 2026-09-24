@@ -75,4 +75,7 @@ public enum PcbPlacementState
 
     [Description("Disabled")]
     Disabled,
+
+    [Description("Waiting for Supply to Confirm Handoff Clear")]
+    WaitingForSupplyClear,
 }

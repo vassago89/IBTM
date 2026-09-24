@@ -15,6 +15,29 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbPlacementStateSafetyTests
 {
+    [Fact]
+    public async Task DepartureClearRemainsAvailableUntilSupplyAcknowledges()
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        await rig.ReceiveAsync();
+        await rig.Placer.ExecuteStepAsync(
+            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
+        Assert.Equal(PcbPlacementHandoff.Clear, rig.Placer.Handoff);
+        var position = rig.Motion.GetPosition();
+
+        // Supply has not observed Clear yet. Placement must keep that handoff
+        // available, even if its own loop runs again before Supply is scheduled.
+        Assert.False(await rig.Placer.ExecuteStepAsync(
+            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None));
+        Assert.Equal(position, rig.Motion.GetPosition());
+        Assert.True(rig.Placer.PcbSecured);
+        Assert.Equal(PcbPlacementHandoff.Clear, rig.Placer.Handoff);
+
+        rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+        Assert.Equal(PcbPlacementState.PlacingPcb, rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -122,10 +145,13 @@ public sealed class PcbPlacementStateSafetyTests
         await rig.InitializeAsync();
         await rig.ReceiveAsync();
         if (expected == PcbPlacementState.PlacingPcb)
+        {
             await rig.Placer.ExecuteStepAsync(
                 rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
+            rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+        }
         Assert.Equal(expected == PcbPlacementState.PreparingPlacement
-            ? PcbPlacementState.WaitingForSupplyRelease : expected, rig.Placer.State);
+            ? PcbPlacementState.WaitingForSupplyRelease : PcbPlacementState.WaitingForSupplyClear, rig.Placer.State);
         var lost = false;
         var lowered = false;
         var released = false;
@@ -212,6 +238,7 @@ public sealed class PcbPlacementStateSafetyTests
         await rig.InitializeAsync();
         await rig.ReceiveAsync();
         await rig.Placer.ExecuteStepAsync(rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
+        rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var interrupted = false;
         rig.Motion.PositionChanged += (x, y, z) =>
@@ -238,6 +265,7 @@ public sealed class PcbPlacementStateSafetyTests
         await rig.InitializeAsync();
         await rig.ReceiveAsync();
         await rig.Placer.ExecuteStepAsync(rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
+        rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
         var lost = false;
         rig.Io.InputChanged += (input, on) =>
         {
@@ -247,7 +275,7 @@ public sealed class PcbPlacementStateSafetyTests
                 rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, false);
             }
         };
-        Assert.Equal(PcbPlacementState.PlacingPcb, rig.Placer.State);
+        Assert.Equal(PcbPlacementState.PlacingPcb, rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1));
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => rig.Placer.ExecuteStepAsync(rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token));

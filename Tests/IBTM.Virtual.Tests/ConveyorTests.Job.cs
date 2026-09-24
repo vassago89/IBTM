@@ -13,6 +13,35 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class ConveyorTests
 {
+    [Fact]
+    public void TransferRejectsReplacedDestinationWithoutChangingEitherJob()
+    {
+        var io = CreateIo();
+        var source = ConveyorStation.CreateBoltFastening(io);
+        var destination = ConveyorStation.CreateInspection(io);
+        io.Initialize();
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        var departing = source.CurrentJob;
+        var original = source.GetAssembly(departing, HeatSinkSlot.HeatSink1);
+        original.RecordPcbBolt(1, new(false, 1.25));
+        SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+        var arrived = destination.CurrentJob;
+
+        SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+        var replacementJob = destination.CurrentJob;
+        var replacement = destination.GetAssembly(HeatSinkSlot.HeatSink2);
+        destination.Complete(replacementJob);
+        Assert.Throws<InvalidOperationException>(() =>
+            source.TransferAssembliesTo(destination, departing, arrived));
+
+        Assert.Same(departing, source.CurrentJob);
+        Assert.Same(original, Assert.Single(source.Assemblies));
+        Assert.Same(replacementJob, destination.CurrentJob);
+        Assert.Same(replacement, Assert.Single(destination.Assemblies));
+        Assert.True(destination.Completed);
+    }
+
     [Theory]
     [InlineData(InputIo.PcbPlacementHeatSink1Present, InputIo.PcbPlacementHeatSink2Present)]
     [InlineData(InputIo.BoltFasteningHeatSink1Present, InputIo.BoltFasteningHeatSink2Present)]
@@ -76,7 +105,7 @@ public sealed partial class ConveyorTests
         Assert.False(source.Completed);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        source.TransferAssembliesTo(destination.Station, departing);
+        source.TransferAssembliesTo(destination.Station, departing, destination.Station.CurrentJob);
         Assert.Equal(departing.Id, destination.Station.CurrentJob.Id);
         Assert.NotSame(departing, destination.Station.CurrentJob);
         Assert.Same(original, Assert.Single(destination.Station.Assemblies));
@@ -111,7 +140,7 @@ public sealed partial class ConveyorTests
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
         io.SetInput(InputIo.InspectionHeatSink2Present, true);
-        source.TransferAssembliesTo(destination.Station, source.CurrentJob);
+        source.TransferAssembliesTo(destination.Station, source.CurrentJob, destination.Station.CurrentJob);
 
         Assert.Empty(source.Assemblies);
         Assert.Same(assembly, Assert.Single(destination.Station.Assemblies));

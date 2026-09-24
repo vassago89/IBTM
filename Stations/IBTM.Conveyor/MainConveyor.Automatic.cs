@@ -78,7 +78,7 @@ public sealed partial class MainConveyor
                             ? MainConveyorState.DischargingInspectionCarrier
                             : MainConveyorState.WaitingForInspectionTransfer;
                     default:
-                        return _inspection.PickupClear
+                        return _inspection.IsClear
                             && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
                             ? MainConveyorState.RaisingInspectionCarrier
                             : MainConveyorState.WaitingForInspectionTransfer;
@@ -90,7 +90,7 @@ public sealed partial class MainConveyor
                     or MainConveyorState.ReceivingFrontCarrier:
                 if (_inspection.Station.CarrierSeated)
                     return transfer;
-                return _inspection.PickupClear
+                return _inspection.IsClear
                     && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
                     ? MainConveyorState.RaisingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
@@ -98,7 +98,7 @@ public sealed partial class MainConveyor
             case true when _inspection.InspectionRequested && _inspection.IsAtInspectionPosition(live ? null : runCommandOn):
                 return MainConveyorState.WaitingForInspection;
             default:
-                return _inspection.PickupClear
+                return _inspection.IsClear
                     ? MainConveyorState.PreparingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
         }

@@ -96,13 +96,12 @@ public partial class OperationViewModel : ObservableObject
         supply.Motion.PropertyChanged += OnPcbSupplyMotionChanged;
         foreach (var axis in supply.Motion.Axes.Values)
             axis.PropertyChanged += OnPcbSupplyMotionChanged;
+        // Supply/Placement also publish their handoff phase changes through Changed.
         supply.Changed += OnPcbSupplyChanged;
-        supply.StepChanged += OnPcbSupplyChanged;
         placement.Motion.PropertyChanged += OnPcbPlacementMotionChanged;
         foreach (var axis in placement.Motion.Axes.Values)
             axis.PropertyChanged += OnPcbPlacementMotionChanged;
         placement.Changed += OnPcbPlacementChanged;
-        placement.StepChanged += OnPcbPlacementChanged;
         fastening.Motion.PropertyChanged += OnBoltFasteningMotionChanged;
         foreach (var axis in fastening.Motion.Axes.Values)
             axis.PropertyChanged += OnBoltFasteningMotionChanged;

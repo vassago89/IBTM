@@ -132,13 +132,11 @@ public sealed partial class MachineController
                     return OutputBlockReason.FasteningNotAtSafeZ;
             }
 
-            if (_units.Inspection)
-            {
-                if (!_inspectionStation.IsRaised)
-                    return OutputBlockReason.NgPickupNotRaised;
-                if (_inspectionStation.IsTransferPending)
-                    return OutputBlockReason.NgTransferPending;
-            }
+            // Disabling inspection does not remove the pickup or release its carrier.
+            if (!_inspectionStation.IsRaised)
+                return OutputBlockReason.NgPickupNotRaised;
+            if (_inspectionStation.IsTransferPending)
+                return OutputBlockReason.NgTransferPending;
 
             return OutputBlockReason.None;
         }

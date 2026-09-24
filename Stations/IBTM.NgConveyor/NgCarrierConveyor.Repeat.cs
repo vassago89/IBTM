@@ -12,9 +12,12 @@ public sealed partial class NgCarrierConveyor
 {
     public async Task WaitForRepeatEndAsync(CancellationToken cancellationToken)
     {
+        var transfer = _transfer
+            ?? throw new InvalidOperationException("Connect NG transfer feedback before waiting for Repeat completion.");
         var changed = new AsyncAutoResetEvent();
         Changed += changed.Set;
         StepChanged += changed.Set;
+        transfer.Changed += changed.Set;
         try
         {
             while (Step is not NgConveyorState.ReadyToEject || RunCommandOn
@@ -26,6 +29,7 @@ public sealed partial class NgCarrierConveyor
         {
             Changed -= changed.Set;
             StepChanged -= changed.Set;
+            transfer.Changed -= changed.Set;
         }
     }
 

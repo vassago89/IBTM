@@ -45,8 +45,6 @@ public sealed partial class InspectionStation
 
     public bool CarrierSeatingRequested => ReferenceEquals(_carrierSeatingRequestedJob, Station.CurrentJob);
 
-    public bool PickupClear => IsClear;
-
     public AxisPosition? WaitingPosition => _settings.WaitingPosition;
 
     public bool IsTransferAllowed => IsTransferAllowedFor();
@@ -57,8 +55,7 @@ public sealed partial class InspectionStation
             && (IsAtInspectionPosition(conveyorRunning) || Station.CarrierSeated);
     }
 
-    public bool IsReceiveAllowed => Station.IsReceiveAllowed
-        && (!_units.Inspection || !IsTransferPending);
+    public bool IsReceiveAllowed => Station.IsReceiveAllowed && !IsTransferPending;
 
     public bool RouteToNg => !Enabled || HasNg;
 
@@ -85,17 +82,18 @@ public sealed partial class InspectionStation
 
     public bool IsTransferAtWaitingPosition(bool live = true)
     {
+        if (!IsClear)
+            return false;
         if (!_units.IsMotionEnabled(MotionGroup.InspectionGantry))
             return true;
-        return IsClear
-            && WaitingPosition is { } position
+        return WaitingPosition is { } position
             && IsAt(position, live);
     }
 
     public void RequestInspection(ConveyorStation.Job job)
     {
         Station.RequireCurrentJob(job);
-        if (!AtInspectionPosition || !PickupClear)
+        if (!AtInspectionPosition || !IsClear)
             throw new InvalidOperationException("Inspection requires a present carrier, plate DOWN, stopper UP, stopped belt and clear pickup.");
         _inspectionRequestedJob = job;
         NotifyChanged();

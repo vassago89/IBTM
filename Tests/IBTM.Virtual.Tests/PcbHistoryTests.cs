@@ -281,7 +281,7 @@ public sealed class PcbHistoryTests
         var inspection = services.GetRequiredService<InspectionStation>();
         var first = placement.GetAssembly(HeatSinkSlot.HeatSink1);
         var second = placement.GetAssembly(HeatSinkSlot.HeatSink2);
-        placement.TransferAssembliesTo(fastening, placement.CurrentJob);
+        placement.TransferAssembliesTo(fastening, placement.CurrentJob, fastening.CurrentJob);
         var third = placement.GetAssembly(HeatSinkSlot.HeatSink1);
         await history.FlushAsync();
         Assert.Equal(new long[] { 3, 2, 1 }, view.PcbRecords.Select(record => record.Number));
@@ -290,7 +290,7 @@ public sealed class PcbHistoryTests
         first.RecordPcbBolt(1, new(false, 0.5, Error: "NG torque"));
         first.RecordPickupBolt(2, new(true, 1.1));
         first.CompleteFastening();
-        fastening.TransferAssembliesTo(inspection.Station, fastening.CurrentJob);
+        fastening.TransferAssembliesTo(inspection.Station, fastening.CurrentJob, inspection.Station.CurrentJob);
         Assert.Same(first, inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1));
         Assert.Same(second, inspection.Station.GetAssembly(HeatSinkSlot.HeatSink2));
         first.PcbBarcode = null;

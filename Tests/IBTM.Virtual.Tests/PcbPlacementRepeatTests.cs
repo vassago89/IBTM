@@ -70,6 +70,9 @@ public sealed class PcbPlacementRepeatTests
     {
         using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
         await rig.InitializeAsync();
+        var trace = new System.Collections.Concurrent.ConcurrentQueue<(PcbSupplyState Supply, PcbPlacementState Placement)>();
+        rig.Supply.StepChanged += () => trace.Enqueue((rig.Supply.State, rig.Placer.State));
+        rig.Placer.StepChanged += () => trace.Enqueue((rig.Supply.State, rig.Placer.State));
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         rig.Supply.Changed += () =>
         {
@@ -91,7 +94,8 @@ public sealed class PcbPlacementRepeatTests
         try
         {
             await Task.WhenAll(supply, placement);
-            Assert.True(rig.Work.Completed, $"Supply={rig.Supply.State}, Placement={rig.Placer.State}");
+            Assert.True(rig.Work.Completed,
+                $"Supply={rig.Supply.State}, Placement={rig.Placer.State}\n{string.Join('\n', trace)}");
             Assert.Equal(2, rig.Work.Assemblies.Count());
             Assert.False(rig.Supply.PcbSecured);
             Assert.False(rig.Placer.PcbSecured);
@@ -351,7 +355,10 @@ public sealed class PcbPlacementRepeatTests
         Assert.Null(rig.Placer.ReturningPcb);
 
         var repicked = false;
-        rig.Placer.StepChanged += () => repicked |= rig.Placer.Step is PcbPlacementState.PickingPcb
+        // BeginRun can publish the retained pickup phase before selecting the return.
+        // A second pickup must be detected from its actual descent command.
+        rig.Io.OutputChanged += (output, on) => repicked |= output == OutputIo.PcbPlacementHandlerDown
+            && on && rig.Placer.Step is PcbPlacementState.PickingPcb
             && rig.Placer.TargetHeatSink == HeatSinkSlot.HeatSink1;
         using var resume = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         rig.Work.Changed += () =>

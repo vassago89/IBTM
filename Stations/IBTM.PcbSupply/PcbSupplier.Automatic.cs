@@ -151,7 +151,6 @@ public sealed partial class PcbSupplier
         var wasAtHandoff = _handoffPosition is { } handoffPosition
             && Motion.IsHoldingPosition(handoffPosition)
             && Rotation == PcbSupplyRotationState.Unrotated;
-        State = step;
         EnterStep(step, _pickStep.ToString());
         switch (step)
         {
@@ -318,38 +317,28 @@ public sealed partial class PcbSupplier
                     throw new InvalidOperationException("Supply repeat lost PCB holding feedback during forward handoff.");
                 if (PcbSecured && placement.Handoff != PcbPlacementHandoff.Holding)
                     return false;
-                else
+                if (Rotation != PcbSupplyRotationState.Unrotated)
+                    throw new MotionInterlockException("Supply must remain Unrotated while releasing the PCB.");
+                if (IpmFixed)
                 {
-                    await ReleasePcbAsync(placement, cancellationToken);
-                    State = PcbSupplyState.WaitingForPlacementClear;
+                    if (placement.Handoff != PcbPlacementHandoff.Holding)
+                        throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
+                    await SetIpmFixerAsync(false, cancellationToken);
                 }
+                if (Gripper != PcbSupplyCylinderState.Backward)
+                {
+                    if (Rotation != PcbSupplyRotationState.Unrotated)
+                        throw new MotionInterlockException("Supply lost Unrotated feedback before opening its gripper.");
+                    if (placement.Handoff != PcbPlacementHandoff.Holding)
+                        throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
+                    await SetGripperClosedAsync(false, cancellationToken);
+                }
+                State = PcbSupplyState.WaitingForPlacementClear;
                 break;
             default:
                 return false;
         }
         return true;
-    }
-
-    private async Task ReleasePcbAsync(
-        IPcbPlacementHandoff placement,
-        CancellationToken cancellationToken)
-    {
-        if (Rotation != PcbSupplyRotationState.Unrotated)
-            throw new MotionInterlockException("Supply must remain Unrotated while releasing the PCB.");
-        if (IpmFixed)
-        {
-            if (placement.Handoff != PcbPlacementHandoff.Holding)
-                throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
-            await SetIpmFixerAsync(false, cancellationToken);
-        }
-        if (Gripper != PcbSupplyCylinderState.Backward)
-        {
-            if (Rotation != PcbSupplyRotationState.Unrotated)
-                throw new MotionInterlockException("Supply lost Unrotated feedback before opening its gripper.");
-            if (placement.Handoff != PcbPlacementHandoff.Holding)
-                throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
-            await SetGripperClosedAsync(false, cancellationToken);
-        }
     }
 
     public async Task PrepareHandoffAsync(CancellationToken cancellationToken)

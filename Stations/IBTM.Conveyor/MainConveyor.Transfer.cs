@@ -117,7 +117,7 @@ public sealed partial class MainConveyor
                     && destination.CarrierPresent
                     && ReferenceEquals(destination.CurrentJob, await arrived.Task))
                 {
-                    source.TransferAssembliesTo(destination, departingJob!);
+                    source.TransferAssembliesTo(destination, departingJob!, await arrived.Task);
                 }
             }
             finally
