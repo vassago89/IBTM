@@ -197,7 +197,7 @@ public sealed class PcbPlacementStateSafetyTests
             Work = new(ConveyorStation.CreatePcbPlacement(Io), units);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition = Position;
-            Placer = new PcbPlacer(Motion,
+            Placer = new PcbPlacer(Motion, new MotionStatus(Motion),
                 Io,
                 settings,
                 Supply,

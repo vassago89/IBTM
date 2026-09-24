@@ -1587,22 +1587,10 @@ public sealed partial class MachineLifecycleTests
 
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
-            .AddSingleton(provider => new PcbPlacer(Wrap(provider, MotionGroup.PcbPlacementHandler),
-                        provider.GetRequiredService<IIoService>(),
-                        settings.PcbPlacementHandler,
-                        provider.GetRequiredService<IPcbSupplyHandoff>(),
-                        provider.GetRequiredService<PcbPlacementWork>(),
-                        provider.GetRequiredService<RecipeManager>(),
-                        provider.GetRequiredService<UnitSettings>()))
-            .AddSingleton(provider => new BoltFasteningStation(provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
-                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
-                        provider.GetRequiredService<IIoService>(),
-                        Wrap(provider, MotionGroup.BoltFastening),
-                        settings.BoltFastening,
-                        settings.CarrierReference,
-                        provider.GetRequiredService<BoltFasteningWork>(),
-                        provider.GetRequiredService<RecipeManager>(),
-                        provider.GetRequiredService<UnitSettings>()))
+            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+                Enum.GetValues<MotionGroup>().ToDictionary(group => group,
+                    group => group is MotionGroup.PcbPlacementHandler or MotionGroup.BoltFastening
+                        ? Wrap(provider, group) : provider.GetRequiredKeyedService<IXyMotion>(group)))
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -1656,23 +1644,17 @@ public sealed partial class MachineLifecycleTests
         HomeResultMotion? homeResult = null;
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
-            .AddSingleton(
-                provider =>
-                {
-                    var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
-                    homeResult = (HomeResultMotion)motion;
-                    homeResult.AwaitCleanupAfterCancellation = safetyStop;
-                    homeResult.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
-                    return new BoltFasteningStation(provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
-                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
-                        provider.GetRequiredService<IIoService>(),
-                        motion,
-                        settings.BoltFastening,
-                        settings.CarrierReference,
-                        provider.GetRequiredService<BoltFasteningWork>(),
-                        provider.GetRequiredService<RecipeManager>(),
-                        provider.GetRequiredService<UnitSettings>());
-                })
+            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+            {
+                var motions = Enum.GetValues<MotionGroup>().ToDictionary(
+                    group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group));
+                var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
+                homeResult = (HomeResultMotion)motion;
+                homeResult.AwaitCleanupAfterCancellation = safetyStop;
+                homeResult.Motion = motions[MotionGroup.BoltFastening];
+                motions[MotionGroup.BoltFastening] = motion;
+                return motions;
+            })
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();

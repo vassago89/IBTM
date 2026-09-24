@@ -51,7 +51,7 @@ public sealed class BoltFasteningTests
         {
             BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 30, 40)],
         };
-        var station = new BoltFasteningStation(head, pickup, io, motion, settings,
+        var station = new BoltFasteningStation(head, pickup, io, motion, new MotionStatus(motion), settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
@@ -146,7 +146,7 @@ public sealed class BoltFasteningTests
         {
             BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 30, 40)],
         };
-        var station = new BoltFasteningStation(head, pickup, io, motion, settings,
+        var station = new BoltFasteningStation(head, pickup, io, motion, new MotionStatus(motion), settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
@@ -637,7 +637,7 @@ public sealed class BoltFasteningTests
         var station = new BoltFasteningStation(shooting,
             pickup,
             io,
-            motion,
+            motion, new MotionStatus(motion),
             settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work,
@@ -856,7 +856,7 @@ public sealed class BoltFasteningTests
         var station = new BoltFasteningStation(shooting,
             pickup,
             io,
-            motion,
+            motion, new MotionStatus(motion),
             settings,
             new CarrierReferenceSettings
             {
@@ -972,7 +972,7 @@ public sealed class BoltFasteningTests
             BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 40, 30),
                 Bolt(3, FasteningHead.Pickup, 60, 30)],
         };
-        station = new(head, head, io, motion, settings,
+        station = new(head, head, io, motion, new(motion), settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } }, units);
@@ -1048,7 +1048,7 @@ public sealed class BoltFasteningTests
         var station = new BoltFasteningStation(CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new HantasSettings(), 2, "Virtual", 115200),
             pickupHead,
             io,
-            motion,
+            motion, new MotionStatus(motion),
             settings,
             new CarrierReferenceSettings
             {
@@ -1177,7 +1177,7 @@ public sealed class BoltFasteningTests
         var station = new BoltFasteningStation(CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new HantasSettings(), 2, "Virtual", 115200),
             CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200),
             io,
-            motion,
+            motion, new MotionStatus(motion),
             settings,
             new() { UpperLeftLocatingPin = new() { X = 100, Y = 200 }, LowerRightLocatingPin = new() { X = 140, Y = 200 } },
             work,
@@ -1338,7 +1338,7 @@ public sealed class BoltFasteningTests
         var station = new BoltFasteningStation(shootingHead,
             pickupHead,
             io,
-            motion,
+            motion, new MotionStatus(motion),
             settings,
             new CarrierReferenceSettings
             {
@@ -1521,7 +1521,7 @@ public sealed class BoltFasteningTests
         var pickup = CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
         var units = new UnitSettings();
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), units);
-        var station = new BoltFasteningStation(pickup, pickup, io, motion, settings,
+        var station = new BoltFasteningStation(pickup, pickup, io, motion, new MotionStatus(motion), settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work,
             new RecipeManager(OpenMachineStore(), new())
@@ -1643,7 +1643,7 @@ public sealed class BoltFasteningTests
         var station = new BoltFasteningStation(CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new HantasSettings(), 2, "Virtual", 115200),
             CreateAdcHead(bus, io, FasteningHead.Pickup, new HantasSettings(), 1, "Virtual", 115200),
             io,
-            motion,
+            motion, new MotionStatus(motion),
             settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 }, },
             new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new()),
@@ -1797,10 +1797,9 @@ public sealed class BoltFasteningTests
         var bolt = Bolt(1, head, 20, 30);
         var layout = new PcbLayout { BoltPoints = [bolt] };
         bolt.FasteningZOffset = 0.75;
-        var point = settings.GetTeachingPositions(layout, bolt.HeatSink)
-            .Single(point => point.Bolt == bolt);
-        var destination = point.Read();
-        Assert.Equal(TeachMode.XYOnly, point.Mode);
+        var point = new TeachingPosition(TeachingTarget.BoltPosition, MotionGroup.BoltFastening,
+            TeachMode.XYOnly, bolt.IsFasteningPositionDefined) { Bolt = bolt };
+        var destination = settings.GetBoltPosition(bolt);
         Assert.Equal(settings.GetHead(head).FasteningZ + 0.75, destination.Z);
         var tableDown = head == FasteningHead.Pickup;
         var io = new VirtualIoService(
@@ -1894,7 +1893,7 @@ public sealed class BoltFasteningTests
                 Assert.Equal((destination.X, destination.Y, destination.Z), motion.GetPosition());
             }
         }
-        Assert.Equal((destination.X, destination.Y, destination.Z), (point.Read().X, point.Read().Y, point.Read().Z));
+        Assert.Equal((destination.X, destination.Y, destination.Z), (settings.GetBoltPosition(bolt).X, settings.GetBoltPosition(bolt).Y, settings.GetBoltPosition(bolt).Z));
         Assert.True(station.IsHorizontalMoveAllowed);
         Assert.False(motion.IsMoving);
     }

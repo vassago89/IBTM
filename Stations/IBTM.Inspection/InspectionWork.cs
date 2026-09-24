@@ -15,14 +15,14 @@ public sealed class InspectionWork : StationWork, INgCarrierTransferFeedback
 
     public InspectionWork(
         IIoService io,
-        IMotionFeedback motion,
+        MotionStatus motion,
         NgCarrierTransferSettings transferSettings,
         UnitSettings units) : base(ConveyorStation.CreateInspection(io), units)
     {
         _io = io;
-        Motion = new(motion);
+        Motion = motion;
         _transferSettings = transferSettings;
-        motion.StateChanged += NotifyChanged;
+        motion.Feedback.StateChanged += NotifyChanged;
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
     }
@@ -112,10 +112,7 @@ public sealed class InspectionWork : StationWork, INgCarrierTransferFeedback
 
     public bool IsAt(AxisPosition position, bool live = true)
     {
-        var current = Motion.ReadPosition(live);
-        return Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y)
-            && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters;
+        return Motion.IsAt(position, live);
     }
 
     public void RequestInspection(Job job)

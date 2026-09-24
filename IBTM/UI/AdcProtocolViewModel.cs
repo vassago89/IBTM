@@ -33,6 +33,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private readonly HantasSettings _settings;
     private readonly MachineController _machine;
     private readonly ILogger<AdcProtocolViewModel>? _log;
+    private readonly ILogger<AdcBoltHead>? _headLog;
+    private AdcBoltHead? _connectedHead;
+    private (FasteningHead Head, byte Slave, string Port, int Baud)? _headConnection;
     private OperationCancellation.Operation? _operationCancellation;
     private TaskCompletionSource? _operationCompletion;
     private readonly MachineState _state;
@@ -86,7 +89,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         HantasSettings settings,
         MachineController machine,
         MachineState state,
-        ILogger<AdcProtocolViewModel>? log = null)
+        ILogger<AdcProtocolViewModel>? log = null,
+        ILogger<AdcBoltHead>? headLog = null)
     {
         _dispatcher = Dispatcher.CurrentDispatcher;
         _frameLogGate = new();
@@ -128,6 +132,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         _machine = machine;
         _state = state;
         _log = log;
+        _headLog = headLog;
         BindingOperations.EnableCollectionSynchronization(_frameLog, _frameLogGate);
         _frameLogView = new ListCollectionView(_frameLog);
         ((INotifyCollectionChanged)_frameLogView).CollectionChanged += OnFrameLogChanged;
@@ -281,6 +286,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             {
                 var connectedPort = Bus.PortName;
                 await Task.Run(Bus.Close);
+                _connectedHead = null;
                 ConnectionAction = "Connect";
                 ConnectionStatus = "Disconnected";
                 AppendLog($"DISCONNECT  {connectedPort}");
@@ -290,6 +296,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var portName = SelectedPort!;
             var baudRate = SelectedBaudRate;
             await Task.Run(() => Bus.Open(portName, baudRate), operation.Token);
+            _connectedHead = null;
             Monitor.IntervalMilliseconds = _settings.StatusPollMilliseconds;
             await Monitor.StartAsync(SlaveAddress, operation.Token);
             ConnectionAction = "Disconnect";
@@ -317,7 +324,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         try
         {
             operation = BeginCommand(CancellationToken.None);
-            await CreateHead().SelectPresetAsync(1, operation.Token);
+            await GetConnectedHead().SelectPresetAsync(1, operation.Token);
             ResultMessage = "Preset 1 selected";
         }
         catch (Exception exception)
@@ -345,7 +352,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             try
             {
                 _state.BoltTestRunning = true;
-                var head = CreateHead();
+                var head = GetConnectedHead();
                 await head.SelectPresetAsync(1, operation.Token);
                 ResultMessage = "Fastening...";
                 var result = await head.TightenAsync(operation.Token);
@@ -401,7 +408,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             operation = BeginCommand(CancellationToken.None);
             operation.Token.ThrowIfCancellationRequested();
             ResultMessage = "Turning START OFF...";
-            await CreateHead().StopAsync();
+            await GetConnectedHead().StopAsync();
             ResultMessage = "Stopped";
         }
         catch (Exception exception)
@@ -416,15 +423,16 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    private AdcBoltHead CreateHead()
+    private AdcBoltHead GetConnectedHead()
     {
-        return new(
-            Bus,
-            _io, SelectedHead,
-            _settings,
-            SlaveAddress,
-            Bus.PortName,
-            Bus.BaudRate);
+        var connection = (SelectedHead, SlaveAddress, Bus.PortName, Bus.BaudRate);
+        if (_connectedHead is null || _headConnection != connection)
+        {
+            _connectedHead = new(Bus, _io, SelectedHead, _settings,
+                SlaveAddress, Bus.PortName, Bus.BaudRate, _headLog);
+            _headConnection = connection;
+        }
+        return _connectedHead;
     }
 
     public IAsyncRelayCommand ReverseCommand { get; }
@@ -441,7 +449,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             {
                 _state.BoltTestRunning = true;
                 ResultMessage = "Loosening — hold to run; release to stop. No automatic completion judgement.";
-                await CreateHead().RunReverseAsync(operation.Token);
+                await GetConnectedHead().RunReverseAsync(operation.Token);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -483,7 +491,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         try
         {
             operation = BeginCommand(CancellationToken.None);
-            await CreateHead().ResetAsync(operation.Token);
+            await GetConnectedHead().ResetAsync(operation.Token);
             ResultMessage = "I/O reset confirmed";
         }
         catch (Exception exception)

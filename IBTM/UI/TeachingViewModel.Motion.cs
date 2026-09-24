@@ -52,7 +52,7 @@ public partial class TeachingViewModel
                 }
             }
             if (SelectedPoint?.Position.Target == TeachingTarget.NgCarrierPickup
-                && _ngTransferSettings.PickupSafeX is null)
+                && _settings.NgCarrierTransfer.PickupSafeX is null)
                 return TeachingMotionHint.NgPickupPositionRequired;
             switch (ActiveMotionGroup)
             {
@@ -255,7 +255,7 @@ public partial class TeachingViewModel
                     await _fasteningStation.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await Inspection.MoveAxisAsync(axis, target, _inspectionGantrySettings.Motion.HorizontalSpeed, operation.Token);
+                    await Inspection.MoveAxisAsync(axis, target, _settings.InspectionGantry.Motion.HorizontalSpeed, operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup));

@@ -93,15 +93,13 @@ public sealed class MotionStatus : INotifyPropertyChanged
     public bool IsAt(AxisPosition target, bool live = true)
     {
         if (!IsReady(live)
-            || !ReadAxisState(MotionAxis.X, live).Homed
-            || !ReadAxisState(MotionAxis.Y, live).Homed
-            || !ReadAxisState(MotionAxis.Z, live).Homed
-            || !IsSettled(live, MotionAxis.X, MotionAxis.Y, MotionAxis.Z))
+            || Feedback.Axes.Any(axis => !ReadAxisState(axis, live).Homed)
+            || !IsSettled(live, Feedback.Axes.ToArray()))
             return false;
         var current = ReadPosition(live);
         return Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Z - target.Z) <= MotionService.PositionToleranceMillimeters;
+            && (!Feedback.HasY || Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters)
+            && (!Feedback.HasZ || Math.Abs(current.Z - target.Z) <= MotionService.PositionToleranceMillimeters);
     }
 
     public void InvalidateFeedback(Exception error)

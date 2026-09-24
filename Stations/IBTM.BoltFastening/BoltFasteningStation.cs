@@ -28,6 +28,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         IBoltHead pickupHead,
         IIoService io,
         IXyMotion motion,
+        MotionStatus motionStatus,
         BoltFasteningSettings settings,
         CarrierReferenceSettings carrierReference,
         BoltFasteningWork work,
@@ -45,7 +46,7 @@ public sealed partial class BoltFasteningStation : AutoUnit
         _recipes = recipes;
         _units = units;
         _log = log;
-        Motion = new(motion);
+        Motion = motionStatus;
         InitializeRecipeBoltPositions();
         recipes.Changed += InitializeRecipeBoltPositions;
         io.InputChanged += OnInputChanged;

@@ -162,14 +162,14 @@ public partial class TeachingViewModel
             var metadata = new CarrierImageTile
             {
                 Number = previous?.Number ?? (images.Count == 0 ? 1 : images.Max(tile => tile.Metadata.Number) + 1),
-                Center = recordPosition ? captured.Center : previous!.Center,
+                Center = barcode ? (recordPosition ? captured.Center : previous!.Center) : null,
                 HeatSink = pcb,
                 BoltNumber = bolt?.Number,
                 IsBarcode = barcode,
                 Region = previous?.Region ?? PixelRegion.CenteredSquare(
                     image.PixelWidth, image.PixelHeight, Math.Min(image.PixelWidth, image.PixelHeight) / 4),
             };
-            var replacement = new CarrierImageTileView(metadata, image);
+            var replacement = new CarrierImageTileView(metadata, image, bolt);
             if (index >= 0)
                 images[index] = replacement;
             else
@@ -190,15 +190,16 @@ public partial class TeachingViewModel
                 // The bolt is centered on the camera crosshair. ROI pixels do not alter its machine XY.
                 bolt.X = captured.Center.X;
                 bolt.Y = captured.Center.Y;
-                _fasteningSettings.InitializeBoltPosition(bolt, _carrierReference);
+                _settings.BoltFastening.InitializeBoltPosition(bolt, _settings.CarrierReference);
             }
             if (await RecipeEditor.SaveCarrierImagesAsync(images, operation.Token))
             {
                 CarrierImages = images;
                 RefreshPointPositions();
+                var position = Recipes.Current.GetInspectionPosition(metadata);
                 _logger.LogInformation(
                     "Teaching image saved: recipe={Recipe}, PCB={Pcb}, point={Point}, X={X}, Y={Y}, image={Image}, database={Database}.",
-                    RecipeEditor.ActiveName, pcb, point.Name, metadata.Center.X, metadata.Center.Y,
+                    RecipeEditor.ActiveName, pcb, point.Name, position.X, position.Y,
                     metadata.Number, _store.DatabaseFile);
             }
             else

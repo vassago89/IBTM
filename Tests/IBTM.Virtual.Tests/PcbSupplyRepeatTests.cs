@@ -32,7 +32,7 @@ public sealed class PcbSupplyRepeatTests
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
         using var motion = new VirtualMotionService(settings.Motion, new());
 
-        var supplier = new PcbSupplier(motion,
+        var supplier = new PcbSupplier(motion, new MotionStatus(motion),
             io,
             settings,
             new() { PcbPlacement = false });
@@ -101,7 +101,7 @@ public sealed class PcbSupplyRepeatTests
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
         using var motion = new VirtualMotionService(settings.Motion, new());
 
-        var supplier = new PcbSupplier(motion,
+        var supplier = new PcbSupplier(motion, new MotionStatus(motion),
             io,
             settings,
             new() { PcbPlacement = false });
@@ -188,7 +188,7 @@ public sealed class PcbSupplyRepeatTests
             (recipe.Pcb1PickPosition.X, recipe.Pcb1PickPosition.Y, recipe.Pcb1PickPosition.Z),
             (recipe.Pcb2PickPosition.X, recipe.Pcb2PickPosition.Y, recipe.Pcb2PickPosition.Z), settings.HandoffPosition);
 
-        var supplier = new PcbSupplier(motion,
+        var supplier = new PcbSupplier(motion, new MotionStatus(motion),
             io,
             settings,
             new() { PcbPlacement = false });

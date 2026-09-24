@@ -278,8 +278,6 @@ public sealed partial class MachineLifecycleTests
         settings.CarrierReference.LowerRightLocatingPin = null;
         foreach (var bolt in recipe.Pcb.BoltPoints)
         {
-            bolt.X = null;
-            bolt.Y = null;
             bolt.FasteningX = null;
             bolt.FasteningY = null;
         }
@@ -304,12 +302,6 @@ public sealed partial class MachineLifecycleTests
         Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
 
         var blankImage = barcodeImage with { Pixels = new byte[barcodeImage.Pixels.Length] };
-        foreach (var bolt in recipe.Pcb.BoltPoints)
-        {
-            var position = inspector.GetFov(bolt).Center;
-            bolt.X = position.X;
-            bolt.Y = position.Y;
-        }
         var view = services.GetRequiredService<OperationViewModel>();
         var transfer = services.GetRequiredService<InspectionStation>();
         var captures = new List<(HeatSinkSlot Pcb, int? Bolt)>();
@@ -331,7 +323,7 @@ public sealed partial class MachineLifecycleTests
             captures.Add((pcb, boltNumber));
             var fov = recipe.CarrierImages.Single(fov => fov.HeatSink == pcb
                 && (boltNumber is null ? fov.IsBarcode : !fov.IsBarcode && fov.BoltNumber == boltNumber));
-            Assert.Equal((fov.Center.X, fov.Center.Y, 0d), transfer.Feedback.GetPosition());
+            Assert.Equal((recipe.GetInspectionPosition(fov).X, recipe.GetInspectionPosition(fov).Y, 0d), transfer.Feedback.GetPosition());
             Assert.False(transfer.Feedback.IsMoving);
             Assert.Equal(pcb, inspector.GetActivePcb());
             Assert.Equal(boltNumber, inspector.GetActiveBolt()?.Number);

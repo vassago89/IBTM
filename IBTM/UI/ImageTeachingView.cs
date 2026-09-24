@@ -10,8 +10,11 @@ namespace IBTM.UI;
 
 public sealed record CarrierImageTileView(
     CarrierImageTile Metadata,
-    BitmapSource Image)
+    BitmapSource Image,
+    BoltPoint? Bolt = null)
 {
+    public AxisPosition? Position => Metadata.IsBarcode ? Metadata.Center : Bolt?.InspectionPosition;
+
     public string Title => $"{Metadata.HeatSink.GetDescription()} · "
         + (Metadata.IsBarcode ? "Data Matrix" : $"Bolt {Metadata.BoltNumber}");
 

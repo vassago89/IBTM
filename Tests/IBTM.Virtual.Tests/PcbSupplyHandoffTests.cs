@@ -204,7 +204,7 @@ public sealed class PcbSupplyHandoffTests
             Io = new(new PcbSupplyHardwareSettings().Outputs, new MachineOptions { TimeoutMilliseconds = 500 });
             Motion = new(Settings.Motion, new());
 
-            Supplier = new PcbSupplier(Motion,
+            Supplier = new PcbSupplier(Motion, new MotionStatus(Motion),
                 Io,
                 Settings,
                 new());

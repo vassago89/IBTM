@@ -789,7 +789,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(teaching.Inspection.IsLiveView);
         var captured = RecordedImage(teaching)!;
         Assert.NotSame(original.Image, captured.Image);
-        Assert.Equal((17d, 29d), (captured.Metadata.Center.X, captured.Metadata.Center.Y));
+        Assert.Equal((17d, 29d), (captured.Position!.X, captured.Position!.Y));
         Assert.Equal(originalBoltPosition, (bolt?.X, bolt?.Y));
         Assert.Equal(region, captured.Metadata.Region);
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
@@ -801,7 +801,7 @@ public sealed partial class MachineLifecycleTests
         Assert.NotSame(previousEditorImage, editor.Preview.Image);
         var loaded = Assert.Single(editor.Points);
         Assert.Equal(region, loaded.Metadata.Region);
-        Assert.Equal((17d, 29d), (loaded.Metadata.Center.X, loaded.Metadata.Center.Y));
+        Assert.Equal((17d, 29d), (loaded.Position!.X, loaded.Position!.Y));
         Assert.Equal(67, barcode ? editor.DataMatrix!.LightLevel : editor.SelectedBolt!.LightLevel);
         Assert.Equal(captured.Image.PixelWidth, loaded.Image.PixelWidth);
         var recordedPoint = teaching.SelectedPoint;
@@ -932,12 +932,12 @@ public sealed partial class MachineLifecycleTests
         try
         {
             var recipe = services.GetRequiredService<RecipeManager>().Current;
-            var bolt = new BoltPoint { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 999, Y = 999 };
+            var bolt = new BoltPoint { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 12, Y = 9 };
             recipe.Pcb.BoltPoints.Add(bolt);
             recipe.CarrierImages.AddRange([
-                new() { Number = 1, BoltNumber = 1, Center = new() { X = 12, Y = 9 }, Region = new(0, 0, 20, 20) },
+                new() { Number = 1, BoltNumber = 1, Region = new(0, 0, 20, 20) },
                 new() { Number = 2, IsBarcode = true, Center = new() { X = 25, Y = 16 }, Region = new(0, 0, 20, 20) },
-                new() { Number = 3, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(0, 0, 20, 20) },
+                new() { Number = 3, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
             ]);
             var fov = recipe.CarrierImages.Single(item => item.IsBarcode == barcode && item.HeatSink == HeatSinkSlot.HeatSink1);
             var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -952,13 +952,13 @@ public sealed partial class MachineLifecycleTests
                 var recipeBefore = JsonSerializer.Serialize(recipe);
                 await gantry.MoveToAsync(new() { X = 1, Y = 2 });
                 await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
-                Assert.Equal((fov.Center.X, fov.Center.Y), (teaching.SelectedPoint.X, teaching.SelectedPoint.Y));
+                Assert.Equal((recipe.GetInspectionPosition(fov).X, recipe.GetInspectionPosition(fov).Y), (teaching.SelectedPoint.X, teaching.SelectedPoint.Y));
                 Assert.DoesNotContain("Not taught", teaching.SelectedPoint.PositionLabel);
                 Assert.False(machine.TeachingReady);
 
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
 
-                Assert.True(gantry.IsAt(fov.Center));
+                Assert.True(gantry.IsAt(recipe.GetInspectionPosition(fov)));
                 Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipe));
             }
 
@@ -1098,7 +1098,7 @@ public sealed partial class MachineLifecycleTests
         Assert.DoesNotContain(teaching.FilteredPoints, point => point.Position.Target == TeachingTarget.SafeZ);
         var handoff = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementHandoff);
         teaching.SelectedPoint = handoff;
-        await placement.MoveAxisAsync(MotionAxis.Z, 7);
+        await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveAxisAsync(MotionAxis.Z, 7));
         await WaitUntilAsync(() => teaching.IsTeachingEditAllowed && teaching.Motion.Axes[MotionAxis.Z].State is not null);
         var originalZ = settings.PcbPlacementHandler.HandoffPosition.Z;
         try

@@ -259,11 +259,11 @@ public sealed class MotionSafetyTests
         await Assert.ThrowsAsync<MotionInterlockException>(async () => await supply.MoveToRotationZAsync());
         await HomeAsync(motion, 1_000);
 
-        var points = settings.GetTeachingPositions(new()
-        {
-            Pcb1PickPosition = new() { X = 10, Y = 5, Z = 4 },
-            Pcb2PickPosition = new() { X = 20, Y = 5, Z = 4 },
-        });
+        TeachingPosition[] points = [
+            new(TeachingTarget.SupplyPcb1Pick, MotionGroup.PcbSupply, TeachMode.Full),
+            new(TeachingTarget.SupplyPcb2Pick, MotionGroup.PcbSupply, TeachMode.Full),
+            new(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full),
+        ];
         var handoff = Array.Find(points, point => point.Target == TeachingTarget.SupplyHandoff)!;
         var pickups = Array.FindAll(points,
             point => point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick);
@@ -353,7 +353,7 @@ public sealed class MotionSafetyTests
             (InputIo.PcbPlacementHandlerDown, false));
         await motion.MoveAxisAsync(MotionAxis.Z, 9, 1_000);
 
-        var standby = settings.GetHandoffTeachingPosition();
+        var standby = new TeachingPosition(TeachingTarget.PlacementHandoff, MotionGroup.PcbPlacementHandler, TeachMode.Full);
         var pending = new AxisPosition { X = 30, Y = 25, Z = 7 };
         using var stop = new CancellationTokenSource();
         var positions = new List<(double X, double Y, double Z)>();
@@ -418,7 +418,7 @@ public sealed class MotionSafetyTests
             (InputIo.PcbPlacementHandlerDown, false));
         await motion.MoveAxisAsync(MotionAxis.Z, 9, 1_000);
 
-        var point = Array.Find(settings.GetTeachingPositions(new()), point => point.Target == target)!;
+        var point = new TeachingPosition(target, MotionGroup.PcbPlacementHandler, TeachMode.Full);
         var destination = new AxisPosition { X = 30, Y = 25, Z = 7 };
         using var stop = new CancellationTokenSource();
         var positions = new List<(double X, double Y, double Z)>();

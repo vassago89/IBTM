@@ -24,6 +24,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public PcbPlacer(
         IXyMotion motion,
+        MotionStatus motionStatus,
         IIoService io,
         PcbPlacementHandlerSettings settings,
         IPcbSupplyHandoff supply,
@@ -39,7 +40,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         _recipes = recipes;
         _units = units;
         _state = PcbPlacementState.MovingToHandoff;
-        Motion = new(motion);
+        Motion = motionStatus;
         io.InputChanged += OnInputChanged;
         motion.MovingChanged += OnMovingChanged;
         motion.StateChanged += NotifyChanged;

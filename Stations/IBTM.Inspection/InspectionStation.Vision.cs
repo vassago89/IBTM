@@ -86,7 +86,7 @@ public sealed partial class InspectionStation
 
     public bool HasBarcodePosition(HeatSinkSlot pcb)
     {
-        return _recipes.Current.CarrierImages.Count(fov => fov.IsBarcode && fov.HeatSink == pcb) == 1;
+        return _recipes.Current.CarrierImages.Count(fov => fov.IsBarcode && fov.HeatSink == pcb && fov.Center is not null) == 1;
     }
 
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
@@ -94,6 +94,7 @@ public sealed partial class InspectionStation
         var size = _camera.FrameSize;
         var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsBarcode && fov.HeatSink == pcb).ToArray();
         return fovs.Length == 1
+            && fovs[0].Center is not null
             && fovs[0].Region is { } region
             && region.IsInside(size.Width, size.Height);
     }
@@ -108,12 +109,12 @@ public sealed partial class InspectionStation
 
     public bool IsAtBarcode(HeatSinkSlot pcb, bool live = true)
     {
-        return IsAt(GetBarcodeFov(pcb).Center, live);
+        return IsAt(_recipes.Current.GetInspectionPosition(GetBarcodeFov(pcb)), live);
     }
 
     public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
     {
-        return MoveToAsync(GetBarcodeFov(pcb).Center, cancellationToken: cancellationToken);
+        return MoveToAsync(_recipes.Current.GetInspectionPosition(GetBarcodeFov(pcb)), cancellationToken: cancellationToken);
     }
 
     public async Task<ImageFrame> CaptureBarcodeAsync(
@@ -154,7 +155,7 @@ public sealed partial class InspectionStation
                 throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
             var fov = GetBarcodeFov(pcb);
             var decoder = _recipes.Current.BoltInspection.GetDataMatrix(pcb);
-            settings = (fov.Center, fov.Region!, decoder, decoder.LightLevel ?? _recipes.Current.BoltInspection.LightLevel);
+            settings = (_recipes.Current.GetInspectionPosition(fov), fov.Region!, decoder, decoder.LightLevel ?? _recipes.Current.BoltInspection.LightLevel);
         }
         await MoveToAsync(settings.Center, cancellationToken: cancellationToken);
         var image = await CaptureCurrentAsync(cancellationToken, lightLevel: settings.Light);
@@ -167,7 +168,7 @@ public sealed partial class InspectionStation
 
     public bool HasPosition(BoltPoint point)
     {
-        return _recipes.Current.CarrierImages.Count(fov =>
+        return point.InspectionPosition is not null && _recipes.Current.CarrierImages.Count(fov =>
             !fov.IsBarcode
             && fov.BoltNumber == point.Number
             && fov.HeatSink == point.HeatSink) == 1;
@@ -180,7 +181,7 @@ public sealed partial class InspectionStation
             !fov.IsBarcode
             && fov.BoltNumber == point.Number
             && fov.HeatSink == point.HeatSink).ToArray();
-        return fovs.Length == 1
+        return point.InspectionPosition is not null && fovs.Length == 1
             && fovs[0].Region is { } region
             && region.IsInside(size.Width, size.Height);
     }
@@ -199,12 +200,12 @@ public sealed partial class InspectionStation
 
     internal bool IsAt(BoltPoint point, bool live = true)
     {
-        return IsAt(GetFov(point).Center, live);
+        return IsAt(_recipes.Current.GetInspectionPosition(GetFov(point)), live);
     }
 
     public Task MoveToBoltAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
-        return MoveToAsync(GetFov(point).Center, cancellationToken: cancellationToken);
+        return MoveToAsync(_recipes.Current.GetInspectionPosition(GetFov(point)), cancellationToken: cancellationToken);
     }
 
     private async Task<ImageFrame> CaptureWithLightAsync(
@@ -258,7 +259,7 @@ public sealed partial class InspectionStation
                 throw new InvalidOperationException($"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
             var fov = GetFov(point);
             var defaults = _recipes.Current.BoltInspection;
-            settings = (fov.Center, fov.Region!, point.LightLevel ?? defaults.LightLevel,
+            settings = (_recipes.Current.GetInspectionPosition(fov), fov.Region!, point.LightLevel ?? defaults.LightLevel,
                 point.BrightnessThreshold ?? defaults.BrightnessThreshold,
                 point.MinimumBrightRatio ?? defaults.MinimumBrightRatio);
         }

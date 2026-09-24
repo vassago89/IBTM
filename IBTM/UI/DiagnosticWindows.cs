@@ -117,7 +117,8 @@ public sealed class DiagnosticWindows
             _hantasSettings,
             _machine,
             _state,
-            _loggerFactory.CreateLogger<AdcProtocolViewModel>());
+            _loggerFactory.CreateLogger<AdcProtocolViewModel>(),
+            _loggerFactory.CreateLogger<IBTM.Hantas.AdcBoltHead>());
         _adc = new(_adcViewModel) { Owner = Owner };
         _adc.Closed += (_, _) =>
         {

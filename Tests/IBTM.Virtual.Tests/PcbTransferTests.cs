@@ -29,23 +29,24 @@ public sealed class PcbTransferTests
         motion.Initialize();
         await HomeAsync(motion, 2_000);
         await handler.SetRotatedAsync(true, default);
-        var picks = settings.GetTeachingPositions(recipe)
-            .Where(point => point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick).ToArray();
-        Assert.All(picks, point => Assert.False(point.HasPosition));
-        Assert.All(picks, point => Assert.False(handler.IsMoveToTeachingPositionAllowed(point)));
+        var picks = new[] { TeachingTarget.SupplyPcb1Pick, TeachingTarget.SupplyPcb2Pick }
+            .Select(target => CreateTeachingPoint(new(target, MotionGroup.PcbSupply, TeachMode.Full),
+                new() { PcbSupply = settings }, new() { PcbSupply = recipe })).ToArray();
+        Assert.All(picks, point => Assert.False(point.Position.HasPosition));
+        Assert.All(picks, point => Assert.False(handler.IsMoveToTeachingPositionAllowed(point.Position)));
         var before = motion.GetPosition();
         await Assert.ThrowsAsync<MotionInterlockException>(() =>
-            handler.MoveToTeachingPositionAsync(picks[0], picks[0].Read()));
+            handler.MoveToTeachingPositionAsync(picks[0].Position, picks[0].Read()));
         Assert.Equal(before, motion.GetPosition());
 
-        picks[0].Apply(Position(10, 30, 5));
-        picks[1].Apply(Position(20, 45, 8));
+        picks[0].Teach(10, 30, 5);
+        picks[1].Teach(20, 45, 8);
         var positions = new[] { recipe.Pcb1PickPosition, recipe.Pcb2PickPosition };
         for (var index = 0; index < picks.Length; index++)
         {
             var point = picks[index];
-            Assert.True(handler.IsMoveToTeachingPositionAllowed(point));
-            await handler.MoveToTeachingPositionAsync(point, point.Read());
+            Assert.True(handler.IsMoveToTeachingPositionAllowed(point.Position));
+            await handler.MoveToTeachingPositionAsync(point.Position, point.Read());
             var target = positions[index];
             Assert.Equal((target.X, target.Y!.Value, target.Z), motion.GetPosition());
             Assert.True(handler.IsAtPickupXY(target));
@@ -70,7 +71,7 @@ public sealed class PcbTransferTests
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, new());
 
-        var supplier = new PcbSupplier(motion,
+        var supplier = new PcbSupplier(motion, new MotionStatus(motion),
             io,
             settings,
             new());
@@ -208,7 +209,7 @@ public sealed class PcbTransferTests
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, operations);
 
-        var supplier = new PcbSupplier(supplyMotion,
+        var supplier = new PcbSupplier(supplyMotion, new MotionStatus(supplyMotion),
             io,
             supplySettings,
             new());
@@ -324,7 +325,7 @@ public sealed class PcbTransferTests
             placementSettings.Motion, operations);
 
         var units = new UnitSettings();
-        var supplier = new PcbSupplier(supplyMotion,
+        var supplier = new PcbSupplier(supplyMotion, new MotionStatus(supplyMotion),
             io,
             supplySettings,
             units);
@@ -561,7 +562,7 @@ public sealed class PcbTransferTests
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, operations);
 
-        var supplier = new PcbSupplier(supplyMotion,
+        var supplier = new PcbSupplier(supplyMotion, new MotionStatus(supplyMotion),
             io,
             supplySettings,
             new());
@@ -652,7 +653,7 @@ public sealed class PcbTransferTests
             placementRecipe.HeatSink1PcbPlacementPosition,
             placementRecipe.HeatSink2PcbPlacementPosition);
 
-        var supply = new PcbSupplier(supplyMotion,
+        var supply = new PcbSupplier(supplyMotion, new MotionStatus(supplyMotion),
             io,
             supplySettings,
             new());
@@ -816,7 +817,7 @@ public sealed class PcbTransferTests
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, operations);
 
-        var supply = new PcbSupplier(supplyMotion,
+        var supply = new PcbSupplier(supplyMotion, new MotionStatus(supplyMotion),
             io,
             supplySettings,
             new());
@@ -929,7 +930,7 @@ public sealed class PcbTransferTests
         using var placementMotion = new VirtualMotionService(
             placementSettings.Motion, operations);
 
-        var supply = new PcbSupplier(supplyMotion,
+        var supply = new PcbSupplier(supplyMotion, new MotionStatus(supplyMotion),
             io,
             supplySettings,
             new());
@@ -1001,7 +1002,7 @@ public sealed class PcbTransferTests
     {
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.PcbPlacement = recipe ?? new();
-        return new(motion, io, settings, supply, work ?? new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), recipes, new());
+        return new(motion, new(motion), io, settings, supply, work ?? new PcbPlacementWork(ConveyorStation.CreatePcbPlacement(io), new()), recipes, new());
     }
 
     private static MotionSettings FastMotion()

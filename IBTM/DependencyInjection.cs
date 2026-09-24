@@ -224,7 +224,7 @@ public static class DependencyInjection
                 {
                     var work = new InspectionWork(
                         provider.GetRequiredService<IIoService>(),
-                        provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry),
+                        provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.InspectionGantry],
                         settings.NgCarrierTransfer,
                         provider.GetRequiredService<UnitSettings>());
                     if (settings.Drivers.Control == ControlDriver.Virtual)
@@ -289,10 +289,9 @@ public static class DependencyInjection
                     {
                         var recipes = provider.GetRequiredService<RecipeManager>();
                         return new VirtualCamera(
-                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry).GetPosition,
+                            provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.InspectionGantry].GetPosition,
                             () => recipes.Current.Pcb.BoltPoints
-                                .Where(bolt => bolt.X is not null && bolt.Y is not null)
-                                .Select(settings.InspectionGantry.GetBoltPosition),
+                                .Select(bolt => bolt.InspectionPosition).OfType<AxisPosition>(),
                             // Fixed virtual labels are independent of taught FOVs and ROIs.
                             () => [
                                 new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
@@ -316,7 +315,8 @@ public static class DependencyInjection
                 provider =>
                 {
                     var supply = new PcbSupplier(
-                        provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply),
+                        provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.PcbSupply],
+                        provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.PcbSupply],
                         provider.GetRequiredService<IIoService>(),
                         settings.PcbSupply,
                         provider.GetRequiredService<UnitSettings>());
@@ -340,7 +340,8 @@ public static class DependencyInjection
                 provider =>
                 {
                     var placement = new PcbPlacer(
-                        provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler),
+                        provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.PcbPlacementHandler],
+                        provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.PcbPlacementHandler],
                         provider.GetRequiredService<IIoService>(),
                         settings.PcbPlacementHandler,
                         provider.GetRequiredService<IPcbSupplyHandoff>(),
@@ -365,7 +366,8 @@ public static class DependencyInjection
                         provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
                         provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
                         provider.GetRequiredService<IIoService>(),
-                        provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening),
+                        provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.BoltFastening],
+                        provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.BoltFastening],
                         settings.BoltFastening,
                         settings.CarrierReference,
                         provider.GetRequiredService<BoltFasteningWork>(),
@@ -381,13 +383,16 @@ public static class DependencyInjection
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(
                     group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group)))
+            .AddSingleton<IReadOnlyDictionary<MotionGroup, MotionStatus>>(provider =>
+                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>().ToDictionary(
+                    pair => pair.Key, pair => new MotionStatus(pair.Value)))
             .AddSingleton<MachineController>()
             .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
             .AddSingleton<BoltFeederUnit>()
             .AddSingleton<NgCarrierConveyor>()
             .AddSingleton(provider => new InspectionStation(
                 provider.GetRequiredService<InspectionWork>(),
-                provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry),
+                provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.InspectionGantry],
                 provider.GetRequiredService<NgCarrierConveyor>(),
                 provider.GetRequiredService<OperationCancellation>(),
                 provider.GetRequiredService<InspectionGantrySettings>(),

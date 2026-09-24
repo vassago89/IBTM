@@ -1,4 +1,7 @@
+using System;
+using System.Linq;
 using System.ComponentModel;
+using IBTM.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 using IBTM.Device;
@@ -7,9 +10,14 @@ namespace IBTM.UI;
 
 public class TeachingPoint : ObservableObject
 {
-    public double X => Position.Read().X;
-    public double Y => Position.Read().Y;
-    public double? Z => Position.Read().Z;
+    private readonly MachineSettings _settings;
+    private readonly RecipeManager _recipes;
+    private readonly HeatSinkSlot _pcb;
+    private readonly TeachingPosition _definition;
+
+    public double X => Coordinates?.X ?? 0;
+    public double Y => Coordinates?.Y ?? 0;
+    public double? Z => Coordinates?.Z;
 
     public double FasteningZOffset
     {
@@ -24,12 +32,95 @@ public class TeachingPoint : ObservableObject
         }
     }
 
-    public TeachingPoint(TeachingPosition position)
+    public TeachingPoint(TeachingPosition definition, MachineSettings settings, RecipeManager recipes,
+        HeatSinkSlot pcb = HeatSinkSlot.HeatSink1)
     {
-        Position = position;
+        _definition = definition;
+        _settings = settings;
+        _recipes = recipes;
+        _pcb = pcb;
     }
 
-    public TeachingPosition Position { get; }
+    public TeachingPosition Position => _definition with { HasPosition = Coordinates is not null };
+
+    public TeachingStorage Storage => _definition.Target is TeachingTarget.SupplyHandoff or TeachingTarget.PlacementHandoff
+        ? TeachingStorage.Handoff : Setting is null ? TeachingStorage.Recipe : TeachingStorage.Machine;
+
+    public Setting? Setting => _definition.Target switch
+    {
+        TeachingTarget.SupplyHandoff => _settings.PcbSupply,
+        TeachingTarget.PlacementHandoff or TeachingTarget.PlacementReceiveZ => _settings.PcbPlacementHandler,
+        TeachingTarget.SafeZ => _definition.MotionGroup == MotionGroup.PcbSupply
+            ? _settings.PcbSupply : _settings.BoltFastening,
+        TeachingTarget.BoltPickup or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
+            or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
+            or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin => _settings.BoltFastening,
+        TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin => _settings.CarrierReference,
+        TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace => _settings.NgCarrierTransfer,
+        _ => null,
+    };
+
+    private AxisPosition? Coordinates
+    {
+        get
+        {
+            var recipe = _recipes.Current;
+            switch (_definition.Target)
+            {
+                case TeachingTarget.SafeZ:
+                    return new() { Z = _definition.MotionGroup == MotionGroup.PcbSupply
+                        ? _settings.PcbSupply.RotationZ : _settings.BoltFastening.SafeZ };
+                case TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
+                    var pick = _definition.Target == TeachingTarget.SupplyPcb1Pick
+                        ? recipe.PcbSupply.Pcb1PickPosition : recipe.PcbSupply.Pcb2PickPosition;
+                    return pick.Y is { } y ? new() { X = pick.X, Y = y, Z = pick.Z } : null;
+                case TeachingTarget.SupplyHandoff:
+                    return _settings.PcbSupply.HandoffPosition;
+                case TeachingTarget.PlacementHandoff:
+                    return _settings.PcbPlacementHandler.HandoffPosition;
+                case TeachingTarget.PlacementReceiveZ:
+                    return _settings.PcbPlacementHandler.ReceiveZ is { } z ? new() { Z = z } : null;
+                case TeachingTarget.HeatSink1PcbPlacement:
+                    return recipe.PcbPlacement.HeatSink1PcbPlacementPosition;
+                case TeachingTarget.HeatSink2PcbPlacement:
+                    return recipe.PcbPlacement.HeatSink2PcbPlacementPosition;
+                case TeachingTarget.BoltPickup:
+                    return _settings.BoltFastening.PickupPosition;
+                case TeachingTarget.BoltPosition:
+                    return _definition.Bolt is { IsFasteningPositionDefined: true } bolt
+                        ? _settings.BoltFastening.GetBoltPosition(bolt) : null;
+                case TeachingTarget.ShootingHeadFasteningZ:
+                    return new() { Z = _settings.BoltFastening.ShootingHead.FasteningZ };
+                case TeachingTarget.PickupHeadFasteningZ:
+                    return new() { Z = _settings.BoltFastening.PickupHead.FasteningZ };
+                case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
+                    return _settings.BoltFastening.ShootingHead.UpperLeftLocatingPin;
+                case TeachingTarget.ShootingHeadLowerRightLocatingPin:
+                    return _settings.BoltFastening.ShootingHead.LowerRightLocatingPin;
+                case TeachingTarget.PickupHeadUpperLeftLocatingPin:
+                    return _settings.BoltFastening.PickupHead.UpperLeftLocatingPin;
+                case TeachingTarget.PickupHeadLowerRightLocatingPin:
+                    return _settings.BoltFastening.PickupHead.LowerRightLocatingPin;
+                case TeachingTarget.CarrierUpperLeftLocatingPin:
+                    return _settings.CarrierReference.UpperLeftLocatingPin;
+                case TeachingTarget.CarrierLowerRightLocatingPin:
+                    return _settings.CarrierReference.LowerRightLocatingPin;
+                case TeachingTarget.InspectionWaiting:
+                    return _settings.NgCarrierTransfer.WaitingPosition;
+                case TeachingTarget.NgCarrierPickup:
+                    return _settings.NgCarrierTransfer.GetCarrierPickupPosition();
+                case TeachingTarget.NgShuttlePlace:
+                    return _settings.NgCarrierTransfer.ShuttlePlacePosition;
+                case TeachingTarget.DataMatrix:
+                    return recipe.CarrierImages.SingleOrDefault(tile => tile.IsBarcode && tile.HeatSink == _pcb)?.Center;
+                case TeachingTarget.BoltReference:
+                    return recipe.CarrierImages.Count(tile => !tile.IsBarcode && tile.HeatSink == _pcb
+                        && tile.BoltNumber == _definition.Bolt?.Number) == 1 ? _definition.Bolt?.InspectionPosition : null;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(_definition.Target));
+            }
+        }
+    }
 
     public int BoltNumber => Position.Bolt?.Number ?? 0;
 
@@ -188,13 +279,86 @@ public class TeachingPoint : ObservableObject
         {
             position.Z = z;
         }
-        Position.Apply(position);
+        switch (_definition.Target)
+        {
+            case TeachingTarget.SafeZ when _definition.MotionGroup == MotionGroup.PcbSupply:
+                _settings.PcbSupply.RotationZ = position.Z;
+                break;
+            case TeachingTarget.SafeZ:
+                _settings.BoltFastening.SafeZ = position.Z;
+                break;
+            case TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
+                var pick = _definition.Target == TeachingTarget.SupplyPcb1Pick
+                    ? _recipes.Current.PcbSupply.Pcb1PickPosition : _recipes.Current.PcbSupply.Pcb2PickPosition;
+                (pick.X, pick.Y, pick.Z) = (position.X, position.Y, position.Z);
+                break;
+            case TeachingTarget.SupplyHandoff:
+                var supply = _settings.PcbSupply.HandoffPosition;
+                (supply.X, supply.Y, supply.Z) = (position.X, position.Y, position.Z);
+                break;
+            case TeachingTarget.PlacementHandoff:
+                var placement = _settings.PcbPlacementHandler.HandoffPosition;
+                (placement.X, placement.Y, placement.Z) = (position.X, position.Y, position.Z);
+                break;
+            case TeachingTarget.PlacementReceiveZ:
+                _settings.PcbPlacementHandler.ReceiveZ = position.Z;
+                break;
+            case TeachingTarget.HeatSink1PcbPlacement:
+                _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition = position;
+                break;
+            case TeachingTarget.HeatSink2PcbPlacement:
+                _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition = position;
+                break;
+            case TeachingTarget.BoltPickup:
+                _settings.BoltFastening.PickupPosition = position;
+                break;
+            case TeachingTarget.BoltPosition:
+                _definition.Bolt!.FasteningX = position.X;
+                _definition.Bolt.FasteningY = position.Y;
+                break;
+            case TeachingTarget.ShootingHeadFasteningZ:
+                _settings.BoltFastening.ShootingHead.FasteningZ = position.Z;
+                break;
+            case TeachingTarget.PickupHeadFasteningZ:
+                _settings.BoltFastening.PickupHead.FasteningZ = position.Z;
+                break;
+            case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
+                _settings.BoltFastening.ShootingHead.UpperLeftLocatingPin = position;
+                break;
+            case TeachingTarget.ShootingHeadLowerRightLocatingPin:
+                _settings.BoltFastening.ShootingHead.LowerRightLocatingPin = position;
+                break;
+            case TeachingTarget.PickupHeadUpperLeftLocatingPin:
+                _settings.BoltFastening.PickupHead.UpperLeftLocatingPin = position;
+                break;
+            case TeachingTarget.PickupHeadLowerRightLocatingPin:
+                _settings.BoltFastening.PickupHead.LowerRightLocatingPin = position;
+                break;
+            case TeachingTarget.CarrierUpperLeftLocatingPin:
+                _settings.CarrierReference.UpperLeftLocatingPin = position;
+                break;
+            case TeachingTarget.CarrierLowerRightLocatingPin:
+                _settings.CarrierReference.LowerRightLocatingPin = position;
+                break;
+            case TeachingTarget.InspectionWaiting:
+                _settings.NgCarrierTransfer.WaitingPosition = position;
+                break;
+            case TeachingTarget.NgCarrierPickup:
+                _settings.NgCarrierTransfer.PickupSafeX = position.X;
+                _settings.NgCarrierTransfer.CarrierPickupPosition.Y = position.Y;
+                break;
+            case TeachingTarget.NgShuttlePlace:
+                _settings.NgCarrierTransfer.ShuttlePlacePosition = position;
+                break;
+            default:
+                throw new InvalidOperationException("Record image positions with the camera capture command.");
+        }
         Refresh();
     }
 
     public AxisPosition Read()
     {
-        var position = Position.Read();
+        var position = Coordinates ?? new();
         return new()
         {
             X = position.X,

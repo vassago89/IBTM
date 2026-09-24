@@ -119,7 +119,7 @@ public sealed class InspectionTests
         {
             Current = { BoltInspection = recipe, CarrierImages = [fov] },
         };
-        var work = new InspectionWork(io, motion, new(), units);
+        var work = new InspectionWork(io, new MotionStatus(motion), new(), units);
         var inspector = new InspectionStation(
             work, motion, new NgCarrierConveyor(io, new(), work, units), operations, settings, new(), io,
             units,
@@ -148,9 +148,12 @@ public sealed class InspectionTests
             Assert.NotEmpty(image.Frame.Pixels);
         }
 
-        var bolt = new BoltPoint { Number = 1, X = 999, Y = 999 };
+        var bolt = new BoltPoint { Number = 1, X = 12, Y = 9 };
+        recipes.Current.Pcb.BoltPoints.Add(bolt);
+        var taughtPosition = fov.Center!;
+        fov.Center = null;
         var capturedFov = await inspector.CaptureAsync(bolt);
-        Assert.True(inspector.IsAt(fov.Center)); // Never move the camera center to the bolt / ROI center.
+        Assert.True(inspector.IsAt(taughtPosition)); // ROI pixels do not alter the taught camera XY.
         Assert.Equal(fov.Region!.Width, inspector.Check(capturedFov, fov.Region, bolt).Image.Width);
         Assert.True(inspector.HasPosition(bolt));
         Assert.True(inspector.HasRegion(bolt));
@@ -167,6 +170,7 @@ public sealed class InspectionTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureAsync(bolt));
         Assert.Equal(0, movements);
 
+        fov.Center = taughtPosition;
         fov.IsBarcode = true;
         fov.BoltNumber = null;
         fov.Region = new(180, 40, 80, 80);
@@ -211,7 +215,7 @@ public sealed class InspectionTests
         var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0, WaitingPosition = new() };
         var units = new UnitSettings { MainConveyor = false };
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        var work = new InspectionWork(io, motion, transferSettings, units);
+        var work = new InspectionWork(io, new MotionStatus(motion), transferSettings, units);
         BoltPoint[] bolts = [
             new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 9 },
             new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 21 },
@@ -221,17 +225,17 @@ public sealed class InspectionTests
         var camera = new MissingBoltCamera(
             new VirtualCamera(
                 motion.GetPosition,
-                () => bolts.Select(gantrySettings.GetBoltPosition),
+                () => bolts.Select(bolt => bolt.InspectionPosition!),
                 () => [
                     new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
                     new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2")
         ]),
             motion.GetPosition,
-            gantrySettings.GetBoltPosition(bolts[1]));
+            bolts[1].InspectionPosition!);
+        recipes.Current.Pcb.BoltPoints = [.. bolts];
         recipes.Current.CarrierImages = [.. bolts.Select((bolt, index) => new CarrierImageTile
             {
                 Number = index + 1,
-                Center = gantrySettings.GetBoltPosition(bolt),
                 Region = new(128, 88, 64, 64),
                 BoltNumber = bolt.Number,
                 HeatSink = bolt.HeatSink,
@@ -272,11 +276,12 @@ public sealed class InspectionTests
         _ = station.GetState();
         Assert.Empty(work.Assemblies);
 
+        await inspector.HomeHorizontalAsync();
         var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
         Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
         Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
         var boltImage = await inspector.CaptureAsync(bolts[0]);
-        Assert.True(inspector.IsAt(gantrySettings.GetBoltPosition(bolts[0])));
+        Assert.True(inspector.IsAt(bolts[0].InspectionPosition!));
         Assert.NotEmpty(boltImage.Pixels);
         Assert.Empty(work.Assemblies);
 
@@ -358,7 +363,7 @@ public sealed class InspectionTests
         var transferUnits = new UnitSettings();
         var transferWork = new InspectionWork(
             io,
-            motion,
+            new MotionStatus(motion),
             transferSettings,
             transferUnits);
         var transferStation = new InspectionStation(

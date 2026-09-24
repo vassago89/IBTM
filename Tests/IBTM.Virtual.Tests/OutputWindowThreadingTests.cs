@@ -747,7 +747,7 @@ public sealed class OutputWindowThreadingTests
             var recordedImage = VirtualTest.RecordedImage(teaching)!;
             Assert.NotSame(firstImage.Image, recordedImage.Image);
             Assert.Equal(firstImage.Metadata.Number, recordedImage.Metadata.Number);
-            Assert.Equal(10, recordedImage.Metadata.Center.X);
+            Assert.Equal(10, recordedImage.Position!.X);
             Assert.Equal(firstImage.Metadata.Region, recordedImage.Metadata.Region);
             Assert.Equal(10, firstBolt.Position.Bolt!.X);
             var firstMetadata = recordedImage.Metadata;

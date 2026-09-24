@@ -8,6 +8,7 @@ using IBTM.BoltFastening;
 using IBTM.BoltFeeder;
 using IBTM.Conveyor;
 using IBTM.Device;
+using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
@@ -32,10 +33,10 @@ public sealed class MachineStoreTests
         var settings = await MachineSettings.LoadAsync(store);
         var transfer = settings.NgCarrierTransfer;
         Assert.Equal((157.283, 456.789), (transfer.WaitingPosition!.X, transfer.WaitingPosition.Y));
-        var waiting = new IBTM.UI.TeachingPoint(transfer.GetTeachingPositions()
-            .Single(point => point.Target == TeachingTarget.InspectionWaiting));
-        var pickup = new IBTM.UI.TeachingPoint(transfer.GetTeachingPositions()
-            .Single(point => point.Target == TeachingTarget.NgCarrierPickup));
+        var waiting = VirtualTest.CreateTeachingPoint(
+            new(TeachingTarget.InspectionWaiting, MotionGroup.InspectionGantry, TeachMode.XYOnly), settings);
+        var pickup = VirtualTest.CreateTeachingPoint(
+            new(TeachingTarget.NgCarrierPickup, MotionGroup.InspectionGantry, TeachMode.XYOnly), settings);
 
         pickup.Teach(160, 460, 0);
         Assert.Equal((157.283, 456.789), (waiting.X, waiting.Y));

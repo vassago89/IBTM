@@ -22,16 +22,11 @@ namespace IBTM.UI;
 public partial class TeachingViewModel : ObservableObject
 {
     private readonly ILogger<TeachingViewModel> _logger;
+    private readonly MachineSettings _settings;
     private readonly IAsyncRelayCommand[] _commands;
     private readonly PcbSupplier _pcbSupply;
-    private readonly PcbSupplySettings _supplySettings;
     private readonly PcbPlacer _pcbPlacement;
     private readonly BoltFasteningStation _fasteningStation;
-    private readonly InspectionGantrySettings _inspectionGantrySettings;
-    private readonly CarrierReferenceSettings _carrierReference;
-    private readonly PcbPlacementHandlerSettings _placementSettings;
-    private readonly BoltFasteningSettings _fasteningSettings;
-    private readonly NgCarrierTransferSettings _ngTransferSettings;
     private CancellationTokenSource _recipeImageCancellation;
     private Task _recipeImageUpdate = Task.CompletedTask;
     [ObservableProperty]
@@ -61,19 +56,14 @@ public partial class TeachingViewModel : ObservableObject
     public partial IReadOnlyList<CarrierImageTileView> CarrierImages { get; set; }
 
     public TeachingViewModel(
+        MachineSettings settings,
         PcbSupplier pcbSupply,
-        PcbSupplySettings supplySettings,
         PcbPlacer pcbPlacement,
         BoltFasteningStation fasteningStation,
         InspectionStation inspectionStation,
         MachineState state,
         MachineController machine,
         OperationCancellation operations,
-        InspectionGantrySettings inspectionGantrySettings,
-        CarrierReferenceSettings carrierReference,
-        PcbPlacementHandlerSettings placementSettings,
-        BoltFasteningSettings fasteningSettings,
-        NgCarrierTransferSettings ngTransferSettings,
         RecipeEditor recipeEditor,
         RecipeManager recipes,
         MachineStore store,
@@ -82,6 +72,7 @@ public partial class TeachingViewModel : ObservableObject
         ILogger<TeachingViewModel> logger)
     {
         _logger = logger;
+        _settings = settings;
         _liveImageGate = new();
         _viewCancellation = new();
         _teachingIoGroups = [];
@@ -139,15 +130,9 @@ public partial class TeachingViewModel : ObservableObject
             command.PropertyChanged += OnCommandChanged;
 
         _pcbSupply = pcbSupply;
-        _supplySettings = supplySettings;
         _pcbPlacement = pcbPlacement;
         _fasteningStation = fasteningStation;
         Inspection = inspectionStation;
-        _inspectionGantrySettings = inspectionGantrySettings;
-        _carrierReference = carrierReference;
-        _placementSettings = placementSettings;
-        _fasteningSettings = fasteningSettings;
-        _ngTransferSettings = ngTransferSettings;
         RecipeEditor = recipeEditor;
         Recipes = recipes;
         LiveLightLevel = InspectionRecipe.LightLevel;
@@ -199,27 +184,27 @@ public partial class TeachingViewModel : ObservableObject
     {
         get
         {
-            switch (SelectedPoint?.Position)
+            switch (SelectedPoint)
             {
-                case { Target: TeachingTarget.BoltPickup }:
+                case { Position.Target: TeachingTarget.BoltPickup }:
                     return TeachingSaveBehavior.BoltPickup;
-                case { Target: TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ }:
+                case { Position.Target: TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ }:
                     return TeachingSaveBehavior.FasteningZ;
-                case { Target: TeachingTarget.DataMatrix }:
+                case { Position.Target: TeachingTarget.DataMatrix }:
                     return TeachingSaveBehavior.BarcodeFov;
-                case { Target: TeachingTarget.SupplyHandoff }:
+                case { Position.Target: TeachingTarget.SupplyHandoff }:
                     return TeachingSaveBehavior.SupplyHandoff;
-                case { Target: TeachingTarget.PlacementHandoff }:
+                case { Position.Target: TeachingTarget.PlacementHandoff }:
                     return TeachingSaveBehavior.PlacementHandoff;
-                case { Target: TeachingTarget.PlacementReceiveZ }:
+                case { Position.Target: TeachingTarget.PlacementReceiveZ }:
                     return TeachingSaveBehavior.PlacementReceiveZ;
-                case { Target: TeachingTarget.NgCarrierPickup }:
+                case { Position.Target: TeachingTarget.NgCarrierPickup }:
                     return TeachingSaveBehavior.NgPickup;
-                case { Target: TeachingTarget.BoltPosition }:
+                case { Position.Target: TeachingTarget.BoltPosition }:
                     return TeachingSaveBehavior.BoltPosition;
-                case { Target: TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin }:
+                case { Position.Target: TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin }:
                     return TeachingSaveBehavior.CameraCenter;
-                case { Mode: TeachMode.Image }:
+                case { Position.Mode: TeachMode.Image }:
                     return TeachingSaveBehavior.Image;
                 case { Storage: TeachingStorage.Handoff }:
                     return TeachingSaveBehavior.Handoff;
@@ -388,44 +373,49 @@ public partial class TeachingViewModel : ObservableObject
     {
         var selectedTarget = SelectedPoint?.Position.Target;
         var selectedBolt = SelectedPoint?.Position.Bolt;
-        TeachingPosition[] positions = SelectedTeachingUnit switch
+        TeachingPoint Point(TeachingTarget target, TeachMode mode, BoltPoint? bolt = null)
         {
-            HardwareArea.PcbSupply => _supplySettings.GetTeachingPositions(Recipes.Current.PcbSupply),
-            HardwareArea.PcbPlacementHandler
-                => [
-                    _placementSettings.GetHandoffTeachingPosition(),
-                    .. _placementSettings.GetTeachingPositions(Recipes.Current.PcbPlacement),
-                ],
-            HardwareArea.BoltFastening
-                => _fasteningSettings.GetTeachingPositions(
-                    Recipes.Current.Pcb,
-                    SelectedPcb),
-            HardwareArea.InspectionGantry
-                => [
-                    .. _inspectionGantrySettings.GetTeachingPositions(_carrierReference),
-                    .. _ngTransferSettings.GetTeachingPositions(),
-                    new(
-                        TeachingTarget.DataMatrix,
-                        MotionGroup.InspectionGantry,
-                        TeachMode.Image,
-                        () => Inspection.HasBarcodePosition(SelectedPcb)
-                        ? Inspection.GetBarcodeFov(SelectedPcb).Center
-                        : new(),
-                        apply: null,
-                        isDefined: () => Inspection.HasBarcodePosition(SelectedPcb)),
-                    .. Recipes.Current.Pcb.GetBolts(SelectedPcb).Select(bolt =>
-                    new TeachingPosition(
-                        TeachingTarget.BoltReference,
-                        MotionGroup.InspectionGantry,
-                        TeachMode.Image,
-                        () => Inspection.HasPosition(bolt) ? Inspection.GetFov(bolt).Center : new(),
-                        apply: null,
-                        isDefined: () => Inspection.HasPosition(bolt))
-                    { Bolt = bolt }),
+            return new(new(target, ActiveMotionGroup, mode) { Bolt = bolt }, _settings, Recipes, SelectedPcb);
+        }
+        TeachingPoint[] points = SelectedTeachingUnit switch
+        {
+            HardwareArea.PcbSupply => [
+                Point(TeachingTarget.SafeZ, TeachMode.ZOnly),
+                Point(TeachingTarget.SupplyPcb1Pick, TeachMode.Full),
+                Point(TeachingTarget.SupplyPcb2Pick, TeachMode.Full),
+                Point(TeachingTarget.SupplyHandoff, TeachMode.Full),
+            ],
+            HardwareArea.PcbPlacementHandler => [
+                Point(TeachingTarget.PlacementHandoff, TeachMode.Full),
+                Point(TeachingTarget.PlacementReceiveZ, TeachMode.ZOnly),
+                Point(TeachingTarget.HeatSink1PcbPlacement, TeachMode.Full),
+                Point(TeachingTarget.HeatSink2PcbPlacement, TeachMode.Full),
+            ],
+            HardwareArea.BoltFastening => [
+                Point(TeachingTarget.SafeZ, TeachMode.ZOnly),
+                Point(TeachingTarget.ShootingHeadFasteningZ, TeachMode.ZOnly),
+                Point(TeachingTarget.ShootingHeadUpperLeftLocatingPin, TeachMode.XYOnly),
+                Point(TeachingTarget.ShootingHeadLowerRightLocatingPin, TeachMode.XYOnly),
+                Point(TeachingTarget.PickupHeadFasteningZ, TeachMode.ZOnly),
+                Point(TeachingTarget.PickupHeadUpperLeftLocatingPin, TeachMode.XYOnly),
+                Point(TeachingTarget.PickupHeadLowerRightLocatingPin, TeachMode.XYOnly),
+                Point(TeachingTarget.BoltPickup, TeachMode.Full),
+                .. Recipes.Current.Pcb.GetBolts(SelectedPcb).OrderBy(bolt => bolt.Head)
+                    .Select(bolt => Point(TeachingTarget.BoltPosition, TeachMode.XYOnly, bolt)),
+            ],
+            HardwareArea.InspectionGantry => [
+                Point(TeachingTarget.CarrierUpperLeftLocatingPin, TeachMode.XYOnly),
+                Point(TeachingTarget.CarrierLowerRightLocatingPin, TeachMode.XYOnly),
+                Point(TeachingTarget.InspectionWaiting, TeachMode.XYOnly),
+                Point(TeachingTarget.NgCarrierPickup, TeachMode.XYOnly),
+                Point(TeachingTarget.NgShuttlePlace, TeachMode.XYOnly),
+                Point(TeachingTarget.DataMatrix, TeachMode.Image),
+                .. Recipes.Current.Pcb.GetBolts(SelectedPcb)
+                    .Select(bolt => Point(TeachingTarget.BoltReference, TeachMode.Image, bolt)),
             ],
             _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
         };
-        FilteredPoints = positions.Select(position => new TeachingPoint(position))
+        FilteredPoints = points
             .OrderBy(point => point.Position.Target == TeachingTarget.BoltPosition ? 0 : 1)
             .ThenBy(point => point.Group)
             .ThenBy(point => point.Position.Target == TeachingTarget.PlacementHandoff ? 0 : 1)
@@ -552,8 +542,8 @@ public partial class TeachingViewModel : ObservableObject
             operation.Token.ThrowIfCancellationRequested();
             RecipeEditor.Error = null;
             if (await SaveSettingsAsync(operation.Token,
-                    _supplySettings, _placementSettings, _fasteningSettings,
-                    _inspectionGantrySettings, _carrierReference, _ngTransferSettings)
+                    _settings.PcbSupply, _settings.PcbPlacementHandler, _settings.BoltFastening,
+                    _settings.InspectionGantry, _settings.CarrierReference, _settings.NgCarrierTransfer)
                 && !await RecipeEditor.SaveAsync(operation.Token))
             {
                 SaveError = "Teaching settings were saved, but the recipe was not saved. "

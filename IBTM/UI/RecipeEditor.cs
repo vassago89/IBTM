@@ -188,6 +188,7 @@ public partial class RecipeEditor : ObservableObject
     {
         var name = _recipes.Current.Name;
         var tiles = _recipes.Current.CarrierImages;
+        var bolts = _recipes.Current.Pcb.BoltPoints;
         if (tiles.Count == 0)
             return Task.FromResult<CarrierImageTileView[]>([]);
         return Task.Run(
@@ -201,7 +202,8 @@ public partial class RecipeEditor : ObservableObject
                         BitmapCreateOptions.PreservePixelFormat,
                         BitmapCacheOption.OnLoad).Frames[0];
                     image.Freeze();
-                    return new CarrierImageTileView(tile, image);
+                    return new CarrierImageTileView(tile, image, tile.IsBarcode ? null : bolts.SingleOrDefault(
+                        bolt => bolt.HeatSink == tile.HeatSink && bolt.Number == tile.BoltNumber));
                 })
                 .ToArray(),
             cancellationToken);

@@ -200,8 +200,8 @@ public partial class TeachingViewModel
                     var current = Motion.Feedback.GetPosition();
                     point.Teach(current.X, current.Y, current.Z);
                     RefreshPointPositions();
-                    if (point.Position.Storage == TeachingStorage.Machine
-                        && !await SaveSettingsAsync(operation.Token, point.Position.Setting!))
+                    if (point.Storage == TeachingStorage.Machine
+                        && !await SaveSettingsAsync(operation.Token, point.Setting!))
                         return;
                     operation.Token.ThrowIfCancellationRequested();
                     OnPointTaught(point);

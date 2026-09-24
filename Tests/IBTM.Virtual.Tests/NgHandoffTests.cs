@@ -307,7 +307,7 @@ public sealed class NgHandoffTests
         motion.Initialize();
         await motion.HomeAsync(MotionAxis.X, 1_000);
         await motion.HomeAsync(MotionAxis.Y, 1_000);
-        var work = new InspectionWork(io, motion, settings, units);
+        var work = new InspectionWork(io, new MotionStatus(motion), settings, units);
         var conveyor = new NgCarrierConveyor(io, new(), work, units);
         var recipes = new RecipeManager(OpenMachineStore(), new());
         var inspection = new InspectionStation(work, motion, conveyor, operations, motionSettings, settings, io, units,

@@ -20,6 +20,14 @@ namespace IBTM.Virtual.Tests;
 
 internal static class VirtualTest
 {
+    public static IBTM.UI.TeachingPoint CreateTeachingPoint(
+        TeachingPosition definition, MachineSettings settings, Recipe? recipe = null)
+    {
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.ReplaceWith(recipe ?? new());
+        return new(definition, settings, recipes, definition.Bolt?.HeatSink ?? HeatSinkSlot.HeatSink1);
+    }
+
     public static IBTM.UI.CarrierImageTileView? RecordedImage(IBTM.UI.TeachingViewModel teaching)
     {
         return teaching.CarrierImages.SingleOrDefault(image => image.Metadata.HeatSink == teaching.SelectedPcb
@@ -40,13 +48,13 @@ internal static class VirtualTest
 
     public static PcbSupplier CreateSupplier(IXyMotion motion, IIoService io, PcbSupplySettings settings)
     {
-        return new(motion, io, settings, new());
+        return new(motion, new(motion), io, settings, new());
     }
 
     public static PcbPlacer CreatePlacer(IXyMotion motion, IIoService io, PcbPlacementHandlerSettings settings)
     {
         var units = new UnitSettings();
-        return new(motion, io, settings, new UnavailableSupply(),
+        return new(motion, new(motion), io, settings, new UnavailableSupply(),
             new(ConveyorStation.CreatePcbPlacement(io), units), new(OpenMachineStore(), new()), units);
     }
 
@@ -55,7 +63,7 @@ internal static class VirtualTest
         BoltFasteningSettings settings, CarrierReferenceSettings reference)
     {
         var units = new UnitSettings();
-        return new(shooting, pickup, io, motion, settings, reference,
+        return new(shooting, pickup, io, motion, new(motion), settings, reference,
             new(ConveyorStation.CreateBoltFastening(io), units),
             new(OpenMachineStore(), new()), units);
     }
@@ -70,7 +78,7 @@ internal static class VirtualTest
         motion ??= new VirtualMotionService(motionSettings.Motion, operations, hasZ: false);
         settings ??= new();
         units ??= new();
-        var work = new InspectionWork(io, motion, settings, units);
+        var work = new InspectionWork(io, new MotionStatus(motion), settings, units);
         var conveyor = new NgCarrierConveyor(io, new(), work, units);
         return new(work, motion, conveyor, operations, motionSettings, settings, io, units,
             new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(),

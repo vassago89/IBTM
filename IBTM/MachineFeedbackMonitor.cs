@@ -6,12 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Inspection;
-using IBTM.PcbPlacement;
-using IBTM.PcbSupply;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM;
@@ -53,10 +49,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         UnitSettings units,
         IIoService io,
         IoSignals ioSignals,
-        PcbSupplier supply,
-        PcbPlacer placement,
-        BoltFasteningStation fastening,
-        InspectionStation inspection,
+        IReadOnlyDictionary<MotionGroup, MotionStatus> motions,
         ILogger<MachineFeedbackMonitor>? log = null)
     {
         _lifetime = new();
@@ -67,13 +60,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         _io = io;
         Io = ioSignals;
         _log = log;
-        Motions = new Dictionary<MotionGroup, MotionStatus>
-        {
-            [MotionGroup.PcbSupply] = supply.Motion,
-            [MotionGroup.PcbPlacementHandler] = placement.Motion,
-            [MotionGroup.BoltFastening] = fastening.Motion,
-            [MotionGroup.InspectionGantry] = inspection.Motion,
-        };
+        Motions = motions;
         io.Faulted += OnIoFaulted;
         io.OutputChanged += OnOutputChanged;
     }

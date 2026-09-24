@@ -45,27 +45,14 @@ public sealed partial class MachineLifecycleTests
         feedback = probe;
         return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings ?? FlowSettings())
-            .AddSingleton(
-                provider =>
-                {
-                    probe.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
-                    var machine = provider.GetRequiredService<VirtualMachine>();
-                    var transfer = provider.GetRequiredService<NgCarrierTransferSettings>();
-                    probe.Motion.PositionChanged += (x, y, _) => machine.UpdateInspectionPosition(
-                        x,
-                        y,
-                        transfer.GetCarrierPickupPosition(),
-                        transfer.ShuttlePlacePosition);
-                    return new InspectionWork(provider.GetRequiredService<IIoService>(),
-                        motion,
-                        provider.GetRequiredService<NgCarrierTransferSettings>(),
-                        provider.GetRequiredService<UnitSettings>());
-                })
-            .AddSingleton(provider => ActivatorUtilities.CreateInstance<InspectionStation>(provider,
-                (IXyMotion)provider.GetRequiredService<InspectionWork>().Motion.Feedback))
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
-                provider.GetRequiredService<MachineFeedbackMonitor>().Motions.ToDictionary(
-                    pair => pair.Key, pair => (IXyMotion)pair.Value.Feedback))
+            {
+                var motions = Enum.GetValues<MotionGroup>().ToDictionary(
+                    group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group));
+                probe.Motion = motions[MotionGroup.InspectionGantry];
+                motions[MotionGroup.InspectionGantry] = motion;
+                return motions;
+            })
             .BuildServiceProvider();
     }
 
@@ -103,51 +90,9 @@ public sealed partial class MachineLifecycleTests
 
         var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
-            .AddSingleton(
-                provider =>
-                    new PcbSupplier(Wrap(
-                            MotionGroup.PcbSupply,
-                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply)),
-                        provider.GetRequiredService<IIoService>(),
-                        settings.PcbSupply,
-                        provider.GetRequiredService<UnitSettings>()))
-            .AddSingleton(
-                provider =>
-                    new PcbPlacer(Wrap(
-                            MotionGroup.PcbPlacementHandler,
-                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler)),
-                        provider.GetRequiredService<IIoService>(),
-                        settings.PcbPlacementHandler,
-                        provider.GetRequiredService<IPcbSupplyHandoff>(),
-                        provider.GetRequiredService<PcbPlacementWork>(),
-                        provider.GetRequiredService<RecipeManager>(),
-                        provider.GetRequiredService<UnitSettings>()))
-            .AddSingleton(
-                provider =>
-                    new BoltFasteningStation(provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
-                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
-                        provider.GetRequiredService<IIoService>(),
-                        Wrap(
-                            MotionGroup.BoltFastening,
-                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening)),
-                        settings.BoltFastening,
-                        settings.CarrierReference,
-                        provider.GetRequiredService<BoltFasteningWork>(),
-                        provider.GetRequiredService<RecipeManager>(),
-                        provider.GetRequiredService<UnitSettings>()))
-            .AddSingleton(
-                provider =>
-                    new InspectionWork(provider.GetRequiredService<IIoService>(),
-                        Wrap(
-                            MotionGroup.InspectionGantry,
-                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry)),
-                        provider.GetRequiredService<NgCarrierTransferSettings>(),
-                        provider.GetRequiredService<UnitSettings>()))
-            .AddSingleton(provider => ActivatorUtilities.CreateInstance<InspectionStation>(provider,
-                (IXyMotion)provider.GetRequiredService<InspectionWork>().Motion.Feedback))
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
-                provider.GetRequiredService<MachineFeedbackMonitor>().Motions.ToDictionary(
-                    pair => pair.Key, pair => (IXyMotion)pair.Value.Feedback));
+                Enum.GetValues<MotionGroup>().ToDictionary(group => group,
+                    group => Wrap(group, provider.GetRequiredKeyedService<IXyMotion>(group))));
         configure?.Invoke(services);
         var provider = services.BuildServiceProvider();
         // These tests replace the handler factories that normally initialize virtual feedback.
@@ -279,7 +224,6 @@ public sealed partial class MachineLifecycleTests
         recipe.CarrierImages = recipe.Pcb.BoltPoints.Select((bolt, index) => new CarrierImageTile
         {
             Number = index + 1,
-            Center = settings.InspectionGantry.GetBoltPosition(bolt),
             Region = new(128, 88, 64, 64),
             BoltNumber = bolt.Number,
             HeatSink = bolt.HeatSink,

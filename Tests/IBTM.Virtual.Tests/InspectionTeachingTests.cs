@@ -43,7 +43,7 @@ public sealed class InspectionTeachingTests
         {
             Assert.Equal(new PixelRegion(4, 5, 6, 7), recipe.CarrierImages[0].Region);
             Assert.Equal(81, recipe.BoltInspection.DataMatrix1.BinaryThreshold);
-            Assert.Equal(30, recipe.CarrierImages[0].Center.X);
+            Assert.Equal(30, recipe.CarrierImages[0].Center!.X);
         }
         Assert.Equal(new PixelRegion(4, 5, 6, 7), captured[0].Region);
     }
@@ -85,7 +85,7 @@ public sealed class InspectionTeachingTests
         foreach (var recipe in new[] { recipes.Current, store.LoadRecipe<Recipe>("Inspection") })
         {
             Assert.Equal(new PixelRegion(4, 5, 6, 7), recipe.CarrierImages[0].Region);
-            Assert.Equal(30, recipe.CarrierImages[0].Center.X);
+            Assert.Equal(30, recipe.CarrierImages[0].Center!.X);
         }
     }
 
@@ -245,10 +245,8 @@ public sealed class InspectionTeachingTests
         recipes.Current.BoltInspection.LightLevel = 99;
         recipes.Current.BoltInspection.DataMatrix1.LightLevel = 53;
         recipes.Current.BoltInspection.DataMatrix2.LightLevel = 61;
-        recipes.Current.CarrierImages[1].Center = new() { X = 333, Y = 444 };
         await recipes.SaveAsync("Inspection");
         editor.Draft.Pcb.BoltPoints[0].X = -999;
-        editor.Draft.CarrierImages[1].Center.X = -999;
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Null(editor.Error);
@@ -259,7 +257,7 @@ public sealed class InspectionTeachingTests
             Assert.Equal((123d, 234d), (recipe.Pcb.BoltPoints[0].FasteningX, recipe.Pcb.BoltPoints[0].FasteningY));
             Assert.Equal(-0.75, recipe.Pcb.BoltPoints[0].FasteningZOffset);
             Assert.Equal(FasteningHead.Pickup, recipe.Pcb.BoltPoints[0].Head);
-            Assert.Equal(333, recipe.CarrierImages[1].Center.X);
+            Assert.Null(recipe.CarrierImages[1].Center);
             Assert.Equal(new PixelRegion(6, 6, 8, 8), recipe.CarrierImages[0].Region);
             Assert.Equal(53, recipe.BoltInspection.DataMatrix1.LightLevel);
             Assert.Equal(61, recipe.BoltInspection.DataMatrix2.LightLevel);

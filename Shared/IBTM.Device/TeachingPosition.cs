@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel;
 using IBTM.Core;
 
@@ -109,63 +108,13 @@ public enum TeachingTarget
 
 }
 
-public sealed class TeachingPosition
+// Command metadata only. Teaching values and writes are owned by the teaching UI.
+public sealed record TeachingPosition(
+    TeachingTarget Target,
+    MotionGroup MotionGroup,
+    TeachMode Mode,
+    bool HasPosition = true)
 {
-    private readonly Func<AxisPosition> _read;
-    private readonly Action<AxisPosition>? _apply;
-    private readonly Func<bool>? _isDefined;
-
-    public TeachingPosition(
-        TeachingTarget target,
-        MotionGroup motionGroup,
-        TeachMode mode,
-        Func<AxisPosition> read,
-        Action<AxisPosition>? apply,
-        Setting? setting = null,
-        Func<bool>? isDefined = null)
-    {
-        _read = read;
-        _apply = apply;
-        _isDefined = isDefined;
-        Target = target;
-        MotionGroup = motionGroup;
-        Mode = mode;
-        Setting = setting;
-    }
-
-    public TeachingTarget Target { get; }
-    public MotionGroup MotionGroup { get; }
-    public TeachMode Mode { get; }
-    public Setting? Setting { get; }
     public BoltPoint? Bolt { get; init; }
-
-    public TeachingStorage Storage
-    {
-        get
-        {
-            switch (true)
-            {
-                case true when Target is TeachingTarget.SupplyHandoff or TeachingTarget.PlacementHandoff:
-                    return TeachingStorage.Handoff;
-                case true when Setting is null:
-                    return TeachingStorage.Recipe;
-                default:
-                    return TeachingStorage.Machine;
-            }
-        }
-    }
-
-    public bool HasPosition => _isDefined?.Invoke() ?? true;
-
-    public bool IsTeachAllowed => _apply is not null;
-
-    public AxisPosition Read()
-    {
-        return _read();
-    }
-
-    public void Apply(AxisPosition position)
-    {
-        _apply!(position);
-    }
+    public bool IsTeachAllowed => Mode != TeachMode.Image;
 }

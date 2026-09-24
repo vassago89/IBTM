@@ -43,7 +43,7 @@ public sealed partial class MachineLifecycleTests
             }
         };
         var barcodePosition = recipe.CarrierImages.Single(image => image.IsBarcode
-            && image.HeatSink == HeatSinkSlot.HeatSink1).Center;
+            && image.HeatSink == HeatSinkSlot.HeatSink1).Center!;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);

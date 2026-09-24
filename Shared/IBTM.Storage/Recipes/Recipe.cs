@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System;
 using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
@@ -8,7 +10,7 @@ using IBTM.PcbSupply;
 
 namespace IBTM;
 
-public sealed class Recipe
+public sealed class Recipe : IJsonOnDeserialized
 {
     public const double DefaultCarrierImageMillimetersPerPixel = 0.05;
 
@@ -28,6 +30,30 @@ public sealed class Recipe
     public BoltInspectionRecipe BoltInspection { get; set; }
     public double CarrierImageMillimetersPerPixel { get; set; } = DefaultCarrierImageMillimetersPerPixel;
     public List<CarrierImageTile> CarrierImages { get; set; }
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        // Old recipes duplicated bolt XY in the image metadata. Automatic inspection
+        // used Center, so preserve that location when consolidating the stored values.
+        foreach (var tile in CarrierImages.Where(tile => !tile.IsBarcode && tile.Center is not null))
+        {
+            var bolt = Pcb.BoltPoints.SingleOrDefault(
+                bolt => bolt.HeatSink == tile.HeatSink && bolt.Number == tile.BoltNumber);
+            if (bolt is null)
+                continue;
+            bolt.X = tile.Center!.X;
+            bolt.Y = tile.Center.Y;
+            tile.Center = null;
+        }
+    }
+
+    public AxisPosition GetInspectionPosition(CarrierImageTile tile)
+    {
+        var position = tile.IsBarcode ? tile.Center : Pcb.BoltPoints.SingleOrDefault(
+            bolt => bolt.HeatSink == tile.HeatSink && bolt.Number == tile.BoltNumber)?.InspectionPosition;
+        return position ?? throw new InvalidOperationException(
+            $"Record an inspection position for {tile.HeatSink}, image {tile.Number}.");
+    }
 
     public void ApplyInspectionSettings(Recipe source)
     {

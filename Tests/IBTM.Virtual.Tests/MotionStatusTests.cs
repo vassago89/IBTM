@@ -12,6 +12,31 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MotionStatusTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PositionChecksOnlyInstalledAxesAndRequiresTheirHomeFeedback(bool hasY)
+    {
+        using var motion = new VirtualMotionService(new(), new(), hasY: hasY, hasZ: false);
+        var status = new MotionStatus(motion);
+        motion.Initialize();
+        var target = new AxisPosition { X = 0, Y = hasY ? 0 : 123, Z = 456 };
+        Assert.False(status.IsAt(target));
+        Assert.False(status.IsAt(target, live: false));
+        await motion.HomeAsync(MotionAxis.X, 1_000);
+        if (hasY)
+        {
+            Assert.False(status.IsAt(target));
+            await motion.HomeAsync(MotionAxis.Y, 1_000);
+        }
+        Assert.True(status.IsAt(target));
+        status.RefreshMonitorFeedback();
+        status.RefreshControlFeedback();
+        Assert.True(status.IsAt(target, live: false));
+        target.X = 10;
+        Assert.False(status.IsAt(target));
+    }
+
     [Fact]
     public void DiagnosticErrorsKeepLatestExceptionAndReportOnceUntilFeedbackRecovers()
     {

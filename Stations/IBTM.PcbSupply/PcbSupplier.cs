@@ -23,14 +23,14 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     // Commissioning input, kept only for this application session.
     private volatile bool _testUpstreamCarrierAvailable;
 
-    public PcbSupplier(IXyMotion motion, IIoService io, PcbSupplySettings settings, UnitSettings units)
+    public PcbSupplier(IXyMotion motion, MotionStatus motionStatus, IIoService io, PcbSupplySettings settings, UnitSettings units)
     {
         _motion = motion;
         _io = io;
         _settings = settings;
         _units = units;
         _state = PcbSupplyState.MovingToPickup;
-        Motion = new(motion);
+        Motion = motionStatus;
         io.InputChanged += OnInputChanged;
         motion.MovingChanged += OnMovingChanged;
         motion.StateChanged += NotifyChanged;

@@ -180,7 +180,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
                     .ThenBy(tile => tile.BoltNumber).Select(tile =>
                     {
                         token.ThrowIfCancellationRequested();
-                        return new CarrierImageTileView(tile, DecodeImage(_store.LoadRecipeImage(name, tile.Number)));
+                        return new CarrierImageTileView(tile, DecodeImage(_store.LoadRecipeImage(name, tile.Number)),
+                            tile.IsBarcode ? null : recipe.Pcb.BoltPoints.SingleOrDefault(
+                                bolt => bolt.HeatSink == tile.HeatSink && bolt.Number == tile.BoltNumber));
                     }).ToArray();
                 return (Recipe: recipe, Images: images);
             }, token);

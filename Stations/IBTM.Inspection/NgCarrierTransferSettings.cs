@@ -24,36 +24,4 @@ public sealed class NgCarrierTransferSettings : Setting
         return new() { X = x, Y = CarrierPickupPosition.Y };
     }
 
-    public TeachingPosition[] GetTeachingPositions()
-    {
-        return [
-            new(
-                TeachingTarget.InspectionWaiting,
-                MotionGroup.InspectionGantry,
-                TeachMode.XYOnly,
-                () => WaitingPosition ?? new(),
-                p => WaitingPosition = p,
-                this,
-                () => WaitingPosition is not null),
-            new(
-                TeachingTarget.NgCarrierPickup,
-                MotionGroup.InspectionGantry,
-                TeachMode.XYOnly,
-                () => GetCarrierPickupPosition() ?? new() { Y = CarrierPickupPosition.Y },
-                p =>
-                {
-                    PickupSafeX = p.X;
-                    CarrierPickupPosition.Y = p.Y;
-                },
-                this,
-                () => PickupSafeX is not null),
-            new(
-                TeachingTarget.NgShuttlePlace,
-                MotionGroup.InspectionGantry,
-                TeachMode.XYOnly,
-                () => ShuttlePlacePosition,
-                p => ShuttlePlacePosition = p,
-                this),
-        ];
-    }
 }

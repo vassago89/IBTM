@@ -20,6 +20,24 @@ namespace IBTM.Virtual.Tests;
 public sealed class DiagnosticToolsTests
 {
     [Fact]
+    public async Task StationsAndMonitorUseTheRegisteredMotionAndStatusInstances()
+    {
+        await using var services = CreateServices(new RecordingLight());
+        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+        var statuses = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>();
+        var monitor = services.GetRequiredService<MachineFeedbackMonitor>();
+        Assert.Same(statuses, monitor.Motions);
+        foreach (var (group, status) in statuses)
+            Assert.Same(motions[group], status.Feedback);
+        Assert.Same(statuses[MotionGroup.PcbSupply], services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>().Motion);
+        Assert.Same(statuses[MotionGroup.PcbPlacementHandler], services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>().Motion);
+        Assert.Same(statuses[MotionGroup.BoltFastening], services.GetRequiredService<IBTM.BoltFastening.BoltFasteningStation>().Motion);
+        Assert.Same(statuses[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionWork>().Motion);
+        Assert.Same(statuses[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionStation>().Motion);
+        Assert.Same(motions[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionStation>().Feedback);
+    }
+
+    [Fact]
     public async Task LightTestOwnsOperationUntilOffAndStopsOnAuto()
     {
         var light = new RecordingLight();
@@ -205,15 +223,10 @@ public sealed class DiagnosticToolsTests
             new RecordingLight(),
             collection =>
                 collection
-                    .AddSingleton(provider => new InspectionWork(
-                        provider.GetRequiredService<IIoService>(),
-                        probe,
-                        provider.GetRequiredService<NgCarrierTransferSettings>(),
-                        provider.GetRequiredService<UnitSettings>()))
-                    .AddSingleton(provider => ActivatorUtilities.CreateInstance<InspectionStation>(provider, probe))
                     .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
-                        provider.GetRequiredService<MachineFeedbackMonitor>().Motions.ToDictionary(
-                            pair => pair.Key, pair => (IXyMotion)pair.Value.Feedback)));
+                        Enum.GetValues<MotionGroup>().ToDictionary(group => group,
+                            group => group == MotionGroup.InspectionGantry
+                                ? probe : provider.GetRequiredKeyedService<IXyMotion>(group))));
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var settings = services.GetRequiredService<MachineSettings>();

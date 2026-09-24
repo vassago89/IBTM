@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -54,96 +53,6 @@ public sealed class BoltFasteningSettings : Setting
     public AxisPosition PickupPosition { get; set; }
     public BoltHeadSettings ShootingHead { get; set; }
     public BoltHeadSettings PickupHead { get; set; }
-
-    public TeachingPosition[] GetTeachingPositions(
-        PcbLayout pcb,
-        HeatSinkSlot slot)
-    {
-        return [
-            new(
-                TeachingTarget.SafeZ,
-                MotionGroup.BoltFastening,
-                TeachMode.ZOnly,
-                () => new() { Z = SafeZ },
-                p => SafeZ = p.Z,
-                this),
-            new(
-                TeachingTarget.ShootingHeadFasteningZ,
-                MotionGroup.BoltFastening,
-                TeachMode.ZOnly,
-                () => new() { Z = ShootingHead.FasteningZ },
-                p => ShootingHead.FasteningZ = p.Z,
-                this),
-            new(
-                TeachingTarget.ShootingHeadUpperLeftLocatingPin,
-                MotionGroup.BoltFastening,
-                TeachMode.XYOnly,
-                () => ShootingHead.UpperLeftLocatingPin ?? new(),
-                p => ShootingHead.UpperLeftLocatingPin = p,
-                this,
-                () => ShootingHead.UpperLeftLocatingPin is not null),
-            new(
-                TeachingTarget.ShootingHeadLowerRightLocatingPin,
-                MotionGroup.BoltFastening,
-                TeachMode.XYOnly,
-                () => ShootingHead.LowerRightLocatingPin ?? new(),
-                p => ShootingHead.LowerRightLocatingPin = p,
-                this,
-                () => ShootingHead.LowerRightLocatingPin is not null),
-            ..pcb.GetBolts(slot)
-                .Where(bolt => bolt.Head == FasteningHead.Shooting)
-                .Select(GetBoltTeachingPosition),
-            new(
-                TeachingTarget.PickupHeadFasteningZ,
-                MotionGroup.BoltFastening,
-                TeachMode.ZOnly,
-                () => new() { Z = PickupHead.FasteningZ },
-                p => PickupHead.FasteningZ = p.Z,
-                this),
-            new(
-                TeachingTarget.PickupHeadUpperLeftLocatingPin,
-                MotionGroup.BoltFastening,
-                TeachMode.XYOnly,
-                () => PickupHead.UpperLeftLocatingPin ?? new(),
-                p => PickupHead.UpperLeftLocatingPin = p,
-                this,
-                () => PickupHead.UpperLeftLocatingPin is not null),
-            new(
-                TeachingTarget.PickupHeadLowerRightLocatingPin,
-                MotionGroup.BoltFastening,
-                TeachMode.XYOnly,
-                () => PickupHead.LowerRightLocatingPin ?? new(),
-                p => PickupHead.LowerRightLocatingPin = p,
-                this,
-                () => PickupHead.LowerRightLocatingPin is not null),
-            new(
-                TeachingTarget.BoltPickup,
-                MotionGroup.BoltFastening,
-                TeachMode.Full,
-                () => PickupPosition,
-                p => PickupPosition = p,
-                this),
-            ..pcb.GetBolts(slot)
-                .Where(bolt => bolt.Head == FasteningHead.Pickup)
-                .Select(GetBoltTeachingPosition),
-        ];
-    }
-
-    private TeachingPosition GetBoltTeachingPosition(BoltPoint bolt)
-    {
-        return new(
-            TeachingTarget.BoltPosition,
-            MotionGroup.BoltFastening,
-            TeachMode.XYOnly,
-            () => bolt.IsFasteningPositionDefined ? GetBoltPosition(bolt) : new(),
-            position =>
-            {
-                bolt.FasteningX = position.X;
-                bolt.FasteningY = position.Y;
-            },
-            isDefined: () => bolt.IsFasteningPositionDefined)
-        { Bolt = bolt };
-    }
 
     public BoltHeadSettings GetHead(FasteningHead head)
     {

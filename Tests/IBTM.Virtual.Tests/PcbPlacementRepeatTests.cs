@@ -339,11 +339,11 @@ public sealed class PcbPlacementRepeatTests
                 x, y, z, (10, 30, 5), (20, 30, 5), supplySettings.HandoffPosition);
 
             var units = new UnitSettings { PcbSupply = enableSupply };
-            Supply = new PcbSupplier(_supplyMotion, Io, supplySettings, units);
+            Supply = new PcbSupplier(_supplyMotion, new MotionStatus(_supplyMotion), Io, supplySettings, units);
             Work = new(ConveyorStation.CreatePcbPlacement(Io), units);
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbPlacement = Recipe;
-            Placer = new PcbPlacer(Motion,
+            Placer = new PcbPlacer(Motion, new MotionStatus(Motion),
                 Io,
                 settings,
                 Supply,
