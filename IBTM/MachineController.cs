@@ -30,6 +30,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly UnitSettings _units;
     private readonly RecipeManager _recipes;
     private readonly IIoService _io;
+    private readonly IReadOnlyDictionary<MotionGroup, IXyMotion> _motions;
     private readonly MainConveyor _conveyor;
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly PcbSupplier _pcbSupply;
@@ -71,6 +72,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         InspectionStation inspectionStation,
         BoltFeederUnit boltFeeder,
         PcbHistory pcbHistory,
+        IReadOnlyDictionary<MotionGroup, IXyMotion> motions,
         ILogger<MachineController>? log = null)
     {
         _resetGate = new();
@@ -82,6 +84,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _units = units;
         _recipes = recipes;
         _io = io;
+        _motions = motions;
         _conveyor = conveyor;
         _ngConveyor = ngConveyor;
         _pcbSupply = pcbSupply;
@@ -170,10 +173,10 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
         Action[] stops = [
             StopRunOutputs,
-            _pcbSupply.StopMotion,
-            _pcbPlacement.StopMotion,
-            _fasteningStation.StopMotion,
-            _inspectionStation.StopMotion,
+            _motions[MotionGroup.PcbSupply].Stop,
+            _motions[MotionGroup.PcbPlacementHandler].Stop,
+            _motions[MotionGroup.BoltFastening].Stop,
+            _motions[MotionGroup.InspectionGantry].Stop,
         ];
         foreach (var stop in stops)
         {

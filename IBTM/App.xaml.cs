@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -21,7 +20,6 @@ public partial class App : System.Windows.Application
     private ServiceProvider? _serviceProvider;
     private ILogger<App>? _log;
     private ILoggerFactory? _loggerFactory;
-    private ApplicationTraceListener? _traceListener;
     private IDisposable? _camera;
     private object? _displayedError;
     private int _exitCode;
@@ -142,8 +140,6 @@ public partial class App : System.Windows.Application
             settings.RetentionDays);
         _loggerFactory = applicationLog.CreateLoggerFactory();
         _log = _loggerFactory.CreateLogger<App>();
-        _traceListener = new ApplicationTraceListener(_loggerFactory.CreateLogger<ApplicationTraceListener>());
-        Trace.Listeners.Add(_traceListener);
         _log.LogInformation("Application starting. Base directory: {Directory}", AppContext.BaseDirectory);
         _log.LogInformation("Log folder: {Directory}; retention: {Days} days.", logDirectory, settings.RetentionDays);
         return applicationLog;
@@ -193,9 +189,6 @@ public partial class App : System.Windows.Application
             DispatcherUnhandledException -= OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException -= OnUnhandledException;
             TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
-            if (_traceListener is not null)
-                Trace.Listeners.Remove(_traceListener);
-            _traceListener?.Dispose();
             if (_loggerFactory is not null)
                 await Task.Run(_loggerFactory.Dispose);
         }

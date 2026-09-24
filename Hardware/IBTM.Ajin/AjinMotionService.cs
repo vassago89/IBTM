@@ -57,7 +57,13 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         _axisZ = axisZ?.Number;
         _axisParameters = new[] { axisX, axisY, axisZ }
             .OfType<AxisHardware>()
-            .ToDictionary(axis => axis.Number);
+            .ToDictionary(axis => axis.Number, axis => new AxisHardware
+            {
+                Number = axis.Number,
+                HomeDirection = axis.HomeDirection,
+                MoveUnit = axis.MoveUnit,
+                MovePulse = axis.MovePulse,
+            });
     }
 
     public override bool IsReady

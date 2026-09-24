@@ -518,7 +518,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.TraceError("Teaching recipe image load failed. {0}", exception);
+            _logger.LogError(exception, "Teaching recipe image load failed.");
             if (!cancellationToken.IsCancellationRequested)
                 CameraError ??= exception.Message;
         }

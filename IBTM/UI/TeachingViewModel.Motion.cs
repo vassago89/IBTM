@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -114,6 +115,7 @@ public partial class TeachingViewModel
         var activeCancellation = cancellationToken;
         try
         {
+            SaveError = null;
             if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
@@ -147,6 +149,11 @@ public partial class TeachingViewModel
             || Operations.IsShuttingDown)
         {
         }
+        catch (ArgumentException exception)
+        {
+            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
+        }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
         {
             Machine.ReportManualFailure(Machine.GetMotionAlarm(group), exception);
@@ -162,6 +169,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
+            SaveError = null;
             if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
@@ -194,6 +202,11 @@ public partial class TeachingViewModel
             || Operations.IsShuttingDown)
         {
         }
+        catch (ArgumentException exception)
+        {
+            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
+        }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
         {
             Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
@@ -209,6 +222,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
+            SaveError = null;
             if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
@@ -252,6 +266,11 @@ public partial class TeachingViewModel
             || Operations.IsShuttingDown)
         {
         }
+        catch (ArgumentException exception)
+        {
+            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
+        }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
         {
             Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
@@ -267,6 +286,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
+            SaveError = null;
             if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
@@ -283,6 +303,11 @@ public partial class TeachingViewModel
             || viewToken.IsCancellationRequested
             || Operations.IsShuttingDown)
         {
+        }
+        catch (ArgumentException exception)
+        {
+            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
         {
@@ -310,6 +335,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
+            SaveError = null;
             if (State.IsRunningFor())
                 return;
             using var operation = Machine.BeginManualOperation(
@@ -351,6 +377,11 @@ public partial class TeachingViewModel
             || viewToken.IsCancellationRequested
             || Operations.IsShuttingDown)
         {
+        }
+        catch (ArgumentException exception)
+        {
+            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
         {

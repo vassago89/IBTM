@@ -230,7 +230,7 @@ public static class DependencyInjection
                     if (settings.Drivers.Control == ControlDriver.Virtual)
                     {
                         var machine = provider.GetRequiredService<VirtualMachine>();
-                        work.Feedback.PositionChanged += (x, y, _) => machine.UpdateInspectionPosition(
+                        work.Motion.Feedback.PositionChanged += (x, y, _) => machine.UpdateInspectionPosition(
                             x,
                             y,
                             settings.NgCarrierTransfer.GetCarrierPickupPosition(),
@@ -289,7 +289,7 @@ public static class DependencyInjection
                     {
                         var recipes = provider.GetRequiredService<RecipeManager>();
                         return new VirtualCamera(
-                            provider.GetRequiredService<InspectionWork>().Feedback.GetPosition,
+                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry).GetPosition,
                             () => recipes.Current.Pcb.BoltPoints
                                 .Where(bolt => bolt.X is not null && bolt.Y is not null)
                                 .Select(settings.InspectionGantry.GetBoltPosition),
@@ -378,11 +378,27 @@ public static class DependencyInjection
             .AddSingleton<MachineState>()
             .AddSingleton<PcbHistory>()
             .AddSingleton<PcbDetailsViewModel>()
+            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+                Enum.GetValues<MotionGroup>().ToDictionary(
+                    group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group)))
             .AddSingleton<MachineController>()
             .AddSingleton<IPcbSupplyHandoff>(provider => provider.GetRequiredService<PcbSupplier>())
             .AddSingleton<BoltFeederUnit>()
             .AddSingleton<NgCarrierConveyor>()
-            .AddSingleton<InspectionStation>();
+            .AddSingleton(provider => new InspectionStation(
+                provider.GetRequiredService<InspectionWork>(),
+                provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry),
+                provider.GetRequiredService<NgCarrierConveyor>(),
+                provider.GetRequiredService<OperationCancellation>(),
+                provider.GetRequiredService<InspectionGantrySettings>(),
+                provider.GetRequiredService<NgCarrierTransferSettings>(),
+                provider.GetRequiredService<IIoService>(),
+                provider.GetRequiredService<UnitSettings>(),
+                provider.GetRequiredService<ICamera>(),
+                provider.GetRequiredService<ILightController>(),
+                provider.GetRequiredService<LightingSettings>(),
+                provider.GetRequiredService<RecipeManager>(),
+                provider.GetRequiredService<ILogger<InspectionStation>>()));
 
         services
             .AddSingleton<RecipeEditor>()

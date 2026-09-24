@@ -543,6 +543,10 @@ public sealed class AlarmRecoveryTests
             view.Settings.AlphaMotion.ControllerNumber = 3;
             var motion = view.Settings.InspectionGantry.Motion;
             var speed = motion.HorizontalSpeed;
+            motion.HorizontalSpeed = 0;
+            await view.SaveSettingsCommand.ExecuteAsync(null);
+            Assert.Contains(nameof(motion.HorizontalSpeed), view.DatabaseMessage);
+            Assert.False(services.GetRequiredService<MachineStore>().HasData);
             motion.HorizontalSpeed = double.NaN;
             await view.SaveSettingsCommand.ExecuteAsync(null);
             Assert.StartsWith("Settings not saved:", view.DatabaseMessage);

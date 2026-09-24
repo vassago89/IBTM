@@ -1,6 +1,5 @@
 using System;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -265,19 +264,19 @@ public partial class MainViewModel : ObservableObject
     {
         // Acknowledge even when hardware recovery is blocked; the controller owns admission.
         ResetError = null;
-        Trace.TraceInformation("On-screen RESET requested.");
+        _log.LogInformation("On-screen RESET requested.");
         try
         {
             await _machine.ResetAsync();
         }
         catch (OperationCanceledException)
         {
-            Trace.TraceInformation("On-screen RESET cancelled.");
+            _log.LogInformation("On-screen RESET cancelled.");
         }
         catch (Exception exception)
         {
             ResetError = $"RESET failed: {exception.Message}";
-            Trace.TraceError("On-screen RESET failed. {0}", exception);
+            _log.LogError(exception, "On-screen RESET failed.");
         }
     }
 
@@ -319,7 +318,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception exception)
         {
             NavigationError = $"Page change failed: {exception.Message}";
-            Trace.TraceError("Page change failed while leaving {0}. {1}", SelectedPage, exception);
+            _log.LogError(exception, "Page change failed while leaving {Page}.", SelectedPage);
             if (!_shuttingDown)
                 ActivateCurrentPage();
         }

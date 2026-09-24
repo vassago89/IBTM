@@ -165,26 +165,6 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             && Motion.IsAt(new() { X = position.X, Y = y, Z = position.Z }, live: true);
     }
 
-    public void InitializeMotion()
-    {
-        _motion.Initialize();
-    }
-
-    public void StopMotion()
-    {
-        _motion.Stop();
-    }
-
-    public Task ResetMotionAsync(CancellationToken cancellationToken = default)
-    {
-        return _motion.ResetAsync(cancellationToken);
-    }
-
-    public void SetServo(MotionAxis axis, bool on)
-    {
-        _motion.SetServo(axis, on);
-    }
-
     public void SetUpstreamReady(bool ready)
     {
         if (!_io.GetInput(InputIo.AutoMode))

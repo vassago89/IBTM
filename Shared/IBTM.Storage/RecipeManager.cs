@@ -12,12 +12,14 @@ public sealed class RecipeManager
 {
     private readonly MachineStore _database;
     private readonly RecipeSelectionSettings _selection;
+    private readonly SemaphoreSlim _saveGate;
     private string? _imageRecipeName;
 
     public RecipeManager(MachineStore database, RecipeSelectionSettings selection)
     {
         _database = database;
         _selection = selection;
+        _saveGate = new(1, 1);
         InspectionSync = new();
         Current = new();
     }
@@ -31,12 +33,20 @@ public sealed class RecipeManager
     public async Task SaveInspectionAsync(Recipe edited, CancellationToken cancellationToken = default)
     {
         var snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(edited))!;
-        await Task.Run(() => _database.SaveInspectionSettings(snapshot, cancellationToken), cancellationToken);
-        // Publish only committed settings. Automatic inspection snapshots these at each point's start.
-        lock (InspectionSync)
+        await _saveGate.WaitAsync(cancellationToken);
+        try
         {
-            if (Current.Name == snapshot.Name)
-                Current.ApplyInspectionSettings(snapshot);
+            await Task.Run(() => _database.SaveInspectionSettings(snapshot, cancellationToken), cancellationToken);
+            // Publish before allowing another save to snapshot the current recipe.
+            lock (InspectionSync)
+            {
+                if (Current.Name == snapshot.Name)
+                    Current.ApplyInspectionSettings(snapshot);
+            }
+        }
+        finally
+        {
+            _saveGate.Release();
         }
     }
 
@@ -47,46 +57,76 @@ public sealed class RecipeManager
 
     public void New()
     {
-        Current.ReplaceWith(new Recipe { Name = "New" });
-        _imageRecipeName = null;
+        lock (InspectionSync)
+        {
+            Current.ReplaceWith(new Recipe { Name = "New" });
+            _imageRecipeName = null;
+        }
         Changed?.Invoke();
     }
 
     public async Task LoadAsync(string name, CancellationToken cancellationToken = default)
     {
-        var loaded = await Task.Run(() => _database.LoadRecipe<Recipe>(name), cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_selection.LastRecipeName != loaded.Name)
+        await _saveGate.WaitAsync(cancellationToken);
+        try
         {
-            await _database.SaveSettingsAsync(
-                [new RecipeSelectionSettings { LastRecipeName = loaded.Name }],
-                cancellationToken);
-        }
+            var loaded = await Task.Run(() => _database.LoadRecipe<Recipe>(name), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_selection.LastRecipeName != loaded.Name)
+            {
+                await _database.SaveSettingsAsync(
+                    [new RecipeSelectionSettings { LastRecipeName = loaded.Name }],
+                    cancellationToken);
+            }
 
-        // Apply a committed selection even if cancellation arrives afterward.
-        Current.ReplaceWith(loaded);
-        _imageRecipeName = Current.Name;
-        _selection.LastRecipeName = Current.Name;
+            // Apply a committed selection even if cancellation arrives afterward.
+            lock (InspectionSync)
+            {
+                Current.ReplaceWith(loaded);
+                _imageRecipeName = Current.Name;
+                _selection.LastRecipeName = Current.Name;
+            }
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
         Changed?.Invoke();
     }
 
     public async Task SaveAsync(string name, CancellationToken cancellationToken = default)
     {
-        await Task.Run(
-            () =>
+        await _saveGate.WaitAsync(cancellationToken);
+        try
+        {
+            Recipe snapshot;
+            string? imageRecipeName;
+            lock (InspectionSync)
             {
-                var document = JsonSerializer.SerializeToNode(Current)!;
-                document[nameof(Recipe.Name)] = name;
-                _database.SaveRecipe(
+                snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(Current))!;
+                imageRecipeName = _imageRecipeName;
+            }
+            var originalName = snapshot.Name;
+            snapshot.Name = name;
+            await Task.Run(
+                () => _database.SaveRecipe(
                     name,
-                    document,
-                    Current.CarrierImages.Select(tile => tile.Number).ToArray(),
-                    _imageRecipeName,
+                    snapshot,
+                    snapshot.CarrierImages.Select(tile => tile.Number).ToArray(),
+                    imageRecipeName,
                     selection: new RecipeSelectionSettings { LastRecipeName = name },
-                    cancellationToken: cancellationToken);
-            },
-            cancellationToken);
-        Saved(name);
+                    cancellationToken: cancellationToken),
+                cancellationToken);
+            lock (InspectionSync)
+            {
+                if (Current.Name == originalName)
+                    Saved(name);
+            }
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
     }
 
     public async Task SaveImagesAsync(
@@ -95,23 +135,50 @@ public sealed class RecipeManager
         IEnumerable<RecipeImage> images,
         CancellationToken cancellationToken = default)
     {
-        await Task.Run(
-            () =>
+        await _saveGate.WaitAsync(cancellationToken);
+        try
+        {
+            Recipe snapshot;
+            lock (InspectionSync)
             {
-                var document = JsonSerializer.SerializeToNode(Current)!;
-                document[nameof(Recipe.Name)] = name;
-                document[nameof(Recipe.CarrierImages)] = JsonSerializer.SerializeToNode(tiles);
-                _database.SaveRecipe(
+                snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(Current))!;
+            }
+            var originalName = snapshot.Name;
+            var capturedTiles = JsonSerializer.Deserialize<List<CarrierImageTile>>(JsonSerializer.Serialize(tiles))!;
+            foreach (var tile in capturedTiles)
+            {
+                // Gantry capture owns images/positions; inspection teaching owns existing ROIs.
+                var current = snapshot.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
+                    && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltNumber == tile.BoltNumber);
+                if (current is not null)
+                    tile.Region = current.Region;
+            }
+            snapshot.Name = name;
+            snapshot.CarrierImages = capturedTiles;
+            await Task.Run(
+                () => _database.SaveRecipe(
                     name,
-                    document,
-                    tiles.Select(tile => tile.Number).ToArray(),
+                    snapshot,
+                    capturedTiles.Select(tile => tile.Number).ToArray(),
                     images: images,
                     selection: new RecipeSelectionSettings { LastRecipeName = name },
-                    cancellationToken: cancellationToken);
-            },
-            cancellationToken);
-        Current.CarrierImages = tiles;
-        Saved(name);
+                    cancellationToken: cancellationToken),
+                cancellationToken);
+            lock (InspectionSync)
+            {
+                if (Current.Name == originalName)
+                {
+                    for (var index = 0; index < tiles.Count; index++)
+                        tiles[index].Region = capturedTiles[index].Region;
+                    Current.CarrierImages = tiles;
+                    Saved(name);
+                }
+            }
+        }
+        finally
+        {
+            _saveGate.Release();
+        }
     }
 
     private void Saved(string name)

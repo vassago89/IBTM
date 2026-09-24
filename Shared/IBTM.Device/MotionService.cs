@@ -55,6 +55,7 @@ public interface IAxisMotion : IMotionFeedback
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken = default);
+    // Reset drive alarms only. The machine sequence owns servo enablement.
     Task ResetAsync(CancellationToken cancellationToken = default);
     void SetServo(MotionAxis axis, bool on);
 }
@@ -249,11 +250,6 @@ public abstract class MotionService : IXyMotion
         cancellationToken = operation.Token;
         cancellationToken.ThrowIfCancellationRequested();
         await ResetAlarmAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var axis in Axes)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            SetServo(axis, true);
-        }
     }
 
     protected abstract Task MoveXYAsync(

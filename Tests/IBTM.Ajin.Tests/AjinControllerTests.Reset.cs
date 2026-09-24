@@ -10,20 +10,17 @@ namespace IBTM.Ajin.Tests;
 public sealed partial class AjinControllerTests
 {
     [Fact]
-    public async Task AlarmResetReleasesOutputsBeforeServoOnAndPreservesPositionAndHomeFeedback()
+    public async Task AlarmResetReleasesOutputsWithoutServoEnableAndPreservesPositionAndHomeFeedback()
     {
         using var controller = new AjinController(new());
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 4, HomeResult: 1, Position: 12340);
         AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 4, HomeResult: 0, Position: -5670);
         var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
             null, new(), new(), new());
-        AjinSdk.BeforeCall = call =>
-        {
-            if (call.Operation == nameof(CAXM.AxmSignalServoOn))
-                Assert.All(AjinSdk.MotionAxes.Values, axis => Assert.Equal(0U, axis.AlarmReset));
-        };
+
 
         await motion.ResetAsync();
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmSignalServoOn));
 
         foreach (var axis in new[] { 9, 10 })
         {

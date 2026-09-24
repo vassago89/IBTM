@@ -134,26 +134,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             && Motion.IsSettled(live, MotionAxis.Z);
     }
 
-    public void InitializeMotion()
-    {
-        _motion.Initialize();
-    }
-
-    public void StopMotion()
-    {
-        _motion.Stop();
-    }
-
-    public Task ResetMotionAsync(CancellationToken cancellationToken = default)
-    {
-        return _motion.ResetAsync(cancellationToken);
-    }
-
-    public void SetServo(MotionAxis axis, bool on)
-    {
-        _motion.SetServo(axis, on);
-    }
-
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
         EnsureHandlerRaised(cancellationToken);

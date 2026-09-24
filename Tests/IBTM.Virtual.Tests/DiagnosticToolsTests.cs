@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -7,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
@@ -202,13 +204,16 @@ public sealed class DiagnosticToolsTests
         await using var services = CreateServices(
             new RecordingLight(),
             collection =>
-                collection.AddSingleton(
-                    provider =>
-                        new IBTM.Inspection.InspectionWork(
-                            provider.GetRequiredService<IIoService>(),
-                            probe,
-                            provider.GetRequiredService<IBTM.Inspection.NgCarrierTransferSettings>(),
-                            provider.GetRequiredService<UnitSettings>())));
+                collection
+                    .AddSingleton(provider => new InspectionWork(
+                        provider.GetRequiredService<IIoService>(),
+                        probe,
+                        provider.GetRequiredService<NgCarrierTransferSettings>(),
+                        provider.GetRequiredService<UnitSettings>()))
+                    .AddSingleton(provider => ActivatorUtilities.CreateInstance<InspectionStation>(provider, probe))
+                    .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+                        provider.GetRequiredService<MachineFeedbackMonitor>().Motions.ToDictionary(
+                            pair => pair.Key, pair => (IXyMotion)pair.Value.Feedback)));
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var settings = services.GetRequiredService<MachineSettings>();

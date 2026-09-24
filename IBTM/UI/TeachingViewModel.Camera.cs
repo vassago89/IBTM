@@ -63,7 +63,7 @@ public partial class TeachingViewModel
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.TraceError("Teaching light adjustment failed. {0}", exception);
+            _logger.LogError(exception, "Teaching light adjustment failed.");
             CameraError = exception.Message;
         }
     }
@@ -96,7 +96,7 @@ public partial class TeachingViewModel
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.TraceError("Camera live view operation failed. {0}", exception);
+            _logger.LogError(exception, "Camera live view operation failed.");
             CameraError = exception.Message;
         }
     }
@@ -276,7 +276,7 @@ public partial class TeachingViewModel
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.TraceError("Camera live view stop failed. {0}", exception);
+            _logger.LogError(exception, "Camera live view stop failed.");
         }
     }
 
@@ -309,7 +309,7 @@ public partial class TeachingViewModel
 
     private async Task HandlePreviewFailureAsync(Exception exception)
     {
-        System.Diagnostics.Trace.TraceError("Camera preview conversion failed. {0}", exception);
+        _logger.LogError(exception, "Camera preview conversion failed.");
         await RequestCameraStopAsync();
         CameraError = exception.Message;
         lock (_liveImageGate)

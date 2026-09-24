@@ -37,26 +37,6 @@ public sealed partial class BoltFasteningStation
             && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters;
     }
 
-    public void InitializeMotion()
-    {
-        _motion.Initialize();
-    }
-
-    public void StopMotion()
-    {
-        _motion.Stop();
-    }
-
-    public Task ResetMotionAsync(CancellationToken cancellationToken = default)
-    {
-        return _motion.ResetAsync(cancellationToken);
-    }
-
-    public void SetServo(MotionAxis axis, bool on)
-    {
-        _motion.SetServo(axis, on);
-    }
-
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
         if (axis != MotionAxis.Z)

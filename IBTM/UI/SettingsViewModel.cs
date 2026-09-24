@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -205,6 +204,12 @@ public partial class SettingsViewModel : ObservableObject
         DatabaseMessage = "Saving settings...";
         try
         {
+            foreach (var (group, section) in _motions)
+            {
+                var hasZ = section.Hardware.AxisSignals.ContainsKey(MotionAxis.Z);
+                if (section.Settings.GetValidationError(hasZ) is { } error)
+                    throw new InvalidOperationException($"{group}: {error}");
+            }
             if (string.IsNullOrWhiteSpace(LogDirectory) || !Path.IsPathFullyQualified(LogDirectory))
                 throw new InvalidOperationException("Choose an absolute folder path for logs.");
             _ = Path.GetFullPath(LogDirectory);
@@ -219,13 +224,13 @@ public partial class SettingsViewModel : ObservableObject
 
             await Settings.SaveAsync(_store);
             DatabaseMessage = "Settings saved. Restart to apply hardware and logging changes.";
-            Trace.TraceInformation(
-                "Settings saved to {0}. Restart required for hardware and logging changes.",
+            _log.LogInformation(
+                "Settings saved to {Database}. Restart required for hardware and logging changes.",
                 _store.DatabaseFile);
         }
         catch (Exception exception)
         {
-            Trace.TraceError("Machine settings save failed. {0}", exception);
+            _log.LogError(exception, "Machine settings save failed.");
             DatabaseMessage = $"Settings not saved: {exception.GetBaseException().Message}";
         }
     }
@@ -297,7 +302,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            Trace.TraceError("Virtual camera image load failed. {0}", exception);
+            _log.LogError(exception, "Virtual camera image load failed.");
             VirtualImageError = exception.Message;
         }
     }

@@ -121,7 +121,7 @@ public sealed class InspectionTests
         };
         var work = new InspectionWork(io, motion, new(), units);
         var inspector = new InspectionStation(
-            work, new NgCarrierConveyor(io, new(), work, units), operations, settings, new(), io,
+            work, motion, new NgCarrierConveyor(io, new(), work, units), operations, settings, new(), io,
             units,
             new VirtualCamera(
                 motion.GetPosition,
@@ -249,7 +249,7 @@ public sealed class InspectionTests
             ];
         var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), work, units);
         var station = new InspectionStation(
-            work, conveyor, operations, gantrySettings, transferSettings, io,
+            work, motion, conveyor, operations, gantrySettings, transferSettings, io,
             units,
             camera,
             new VirtualLightController(),
@@ -362,7 +362,7 @@ public sealed class InspectionTests
             transferSettings,
             transferUnits);
         var transferStation = new InspectionStation(
-            transferWork, new NgCarrierConveyor(io, new(), transferWork, transferUnits),
+            transferWork, motion, new NgCarrierConveyor(io, new(), transferWork, transferUnits),
             operations, gantrySettings, transferSettings, io,
             transferUnits,
             camera,

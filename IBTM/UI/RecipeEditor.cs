@@ -10,11 +10,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Device;
 using IBTM.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
 public partial class RecipeEditor : ObservableObject
 {
+    private readonly ILogger<RecipeEditor>? _log;
     private readonly RecipeManager _recipes;
     private readonly OperationCancellation _operations;
 
@@ -31,7 +33,8 @@ public partial class RecipeEditor : ObservableObject
 
     public RecipeEditor(
         RecipeManager recipes,
-        OperationCancellation operations)
+        OperationCancellation operations,
+        ILogger<RecipeEditor>? log = null)
     {
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsSaveAllowed);
         LoadCommand = new AsyncRelayCommand<string>(LoadAsync);
@@ -39,6 +42,7 @@ public partial class RecipeEditor : ObservableObject
         SaveCommand.PropertyChanged += OnCommandChanged;
         LoadCommand.PropertyChanged += OnCommandChanged;
 
+        _log = log;
         _recipes = recipes;
         _operations = operations;
         Name = recipes.Current.Name;
@@ -175,7 +179,7 @@ public partial class RecipeEditor : ObservableObject
 
     private void ReportError(Exception exception)
     {
-        System.Diagnostics.Trace.TraceError("Recipe operation failed. {0}", exception);
+        _log?.LogError(exception, "Recipe operation failed.");
         Error = $"Recipe operation failed: {exception.GetBaseException().Message}";
     }
 

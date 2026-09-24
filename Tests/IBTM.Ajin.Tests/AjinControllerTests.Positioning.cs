@@ -12,6 +12,33 @@ namespace IBTM.Ajin.Tests;
 public sealed partial class AjinControllerTests
 {
     [Fact]
+    public void AxisMappingAndScaleStayFixedUntilDriverIsRecreated()
+    {
+        using var controller = new AjinController(new());
+        var axis = new AxisHardware { Number = 9, MoveUnit = 10, MovePulse = 100 };
+        var motion = new AjinMotionService(controller, axis, null, null, new(), new(), new());
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        motion.Initialize();
+        var unit = AjinSdk.MotionAxes[9];
+        axis.Number = 10;
+        axis.MoveUnit = 2;
+        axis.MovePulse = 200;
+        AjinSdk.Calls.Clear();
+
+        motion.Initialize();
+
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMotSetMoveUnitPerPulse));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Axis == 10);
+        Assert.Equal(unit, AjinSdk.MotionAxes[9]);
+
+        AjinSdk.MotionAxes[10] = new();
+        var restarted = new AjinMotionService(controller, axis, null, null, new(), new(), new());
+        restarted.Initialize();
+        Assert.Equal(2, AjinSdk.MotionAxes[10].Unit);
+        Assert.Equal(200, AjinSdk.MotionAxes[10].Pulse);
+    }
+
+    [Fact]
     public void ActualPositionUsesSdkUnitsWithoutRescalingFromStoredAxisSettings()
     {
         using var controller = new AjinController(new());

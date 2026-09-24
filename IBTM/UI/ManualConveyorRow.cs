@@ -5,20 +5,24 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
 public sealed partial class ManualConveyorRow : ObservableObject
 {
+    private readonly ILogger<ManualConveyorRow>? _log;
     private readonly MachineController _machine;
     [ObservableProperty]
     public partial string? ActionMessage { get; set; }
 
-    public ManualConveyorRow(IoOutputStatus io, MachineController machine)
+    public ManualConveyorRow(
+        IoOutputStatus io, MachineController machine, ILogger<ManualConveyorRow>? log = null)
     {
         RunCommand = new AsyncRelayCommand(RunAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
 
+        _log = log;
         _machine = machine;
         Io = io;
     }
@@ -61,7 +65,7 @@ public sealed partial class ManualConveyorRow : ObservableObject
         catch (Exception exception)
         {
             ActionMessage = exception.Message;
-            System.Diagnostics.Trace.TraceError("Manual conveyor STOP failed. {0}", exception);
+            _log?.LogError(exception, "Manual conveyor STOP failed.");
         }
     }
 }

@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -258,8 +259,8 @@ public partial class TeachingViewModel
         try
         {
             await _store.SaveSettingsAsync(settings, cancellationToken);
-            System.Diagnostics.Trace.TraceInformation(
-                "Teaching settings saved: {0}.",
+            _logger.LogInformation(
+                "Teaching settings saved: {Group}.",
                 ActiveMotionGroup);
             return true;
         }
@@ -270,10 +271,8 @@ public partial class TeachingViewModel
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.TraceError(
-                "Teaching settings save failed: {0}. {1}",
-                ActiveMotionGroup,
-                exception);
+            _logger.LogError(exception,
+                "Teaching settings save failed: {Group}.", ActiveMotionGroup);
             SaveError = $"Teaching values were not saved: {exception.GetBaseException().Message}";
             return false;
         }
@@ -380,7 +379,7 @@ public partial class TeachingViewModel
             if (!State.IsError)
                 State.SetError(MachineAlarm.StopFailed, exception);
             else
-                System.Diagnostics.Trace.TraceError("Teaching STOP also failed. {0}", exception);
+                _logger.LogError(exception, "Teaching STOP also failed.");
         }
         finally
         {

@@ -23,6 +23,73 @@ namespace IBTM.Virtual.Tests;
 public sealed class InspectionTeachingTests
 {
     [Fact]
+    public async Task CaptureSavePreservesInspectionEditsMadeAfterCaptureStarted()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var png = await SaveRecipeAsync(store);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        var captured = JsonSerializer.Deserialize<List<CarrierImageTile>>(
+            JsonSerializer.Serialize(recipes.Current.CarrierImages))!;
+        captured[0].Center = new() { X = 30, Y = 40 };
+        var edited = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipes.Current))!;
+        edited.CarrierImages[0].Region = new(4, 5, 6, 7);
+        edited.BoltInspection.DataMatrix1.BinaryThreshold = 81;
+        await recipes.SaveInspectionAsync(edited);
+
+        await recipes.SaveImagesAsync("Inspection", captured, [new(1, png), new(2, png)]);
+
+        foreach (var recipe in new[] { recipes.Current, store.LoadRecipe<Recipe>("Inspection") })
+        {
+            Assert.Equal(new PixelRegion(4, 5, 6, 7), recipe.CarrierImages[0].Region);
+            Assert.Equal(81, recipe.BoltInspection.DataMatrix1.BinaryThreshold);
+            Assert.Equal(30, recipe.CarrierImages[0].Center.X);
+        }
+        Assert.Equal(new PixelRegion(4, 5, 6, 7), captured[0].Region);
+    }
+
+    [Fact]
+    public async Task InspectionSaveWaitsForCaptureCommitAndKeepsCapturedPosition()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var png = await SaveRecipeAsync(store);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        var edited = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipes.Current))!;
+        edited.CarrierImages[0].Region = new(4, 5, 6, 7);
+        var captured = JsonSerializer.Deserialize<List<CarrierImageTile>>(
+            JsonSerializer.Serialize(recipes.Current.CarrierImages))!;
+        captured[0].Center = new() { X = 30, Y = 40 };
+        using var writing = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        IEnumerable<RecipeImage> Images()
+        {
+            writing.Set();
+            Assert.True(release.Wait(TimeSpan.FromSeconds(5)));
+            yield return new(1, png);
+            yield return new(2, png);
+        }
+        var capture = recipes.SaveImagesAsync("Inspection", captured, Images());
+        Task save = Task.CompletedTask;
+        try
+        {
+            Assert.True(await Task.Run(() => writing.Wait(TimeSpan.FromSeconds(5))));
+            save = recipes.SaveInspectionAsync(edited);
+            Assert.False(save.IsCompleted);
+        }
+        finally
+        {
+            release.Set();
+            await Task.WhenAll(capture, save);
+        }
+        foreach (var recipe in new[] { recipes.Current, store.LoadRecipe<Recipe>("Inspection") })
+        {
+            Assert.Equal(new PixelRegion(4, 5, 6, 7), recipe.CarrierImages[0].Region);
+            Assert.Equal(30, recipe.CarrierImages[0].Center.X);
+        }
+    }
+
+    [Fact]
     public async Task PointSelectionUpdatesBoundParameters()
     {
         var store = VirtualTest.OpenMachineStore();

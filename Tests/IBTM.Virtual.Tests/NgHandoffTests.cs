@@ -310,7 +310,7 @@ public sealed class NgHandoffTests
         var work = new InspectionWork(io, motion, settings, units);
         var conveyor = new NgCarrierConveyor(io, new(), work, units);
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        var inspection = new InspectionStation(work, conveyor, operations, motionSettings, settings, io, units,
+        var inspection = new InspectionStation(work, motion, conveyor, operations, motionSettings, settings, io, units,
             new VirtualCamera(() => (0, 0, 0), () => []), new VirtualLightController(), new(), recipes);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await inspection.Station.SeatAsync(CancellationToken.None);

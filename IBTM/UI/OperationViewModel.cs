@@ -401,7 +401,7 @@ public partial class OperationViewModel : ObservableObject
             if (!State.IsError)
                 State.SetError(MachineAlarm.StopFailed, exception);
             else
-                System.Diagnostics.Trace.TraceError("Machine STOP also failed. {0}", exception);
+                _log.LogError(exception, "Machine STOP also failed.");
         }
     }
 

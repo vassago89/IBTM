@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.PcbSupply;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
@@ -13,7 +14,8 @@ public sealed class ManualHardwareViewModel : ObservableObject
         IoSignals signals,
         MachineController machine,
         PcbSupplier supply,
-        MainConveyor conveyor)
+        MainConveyor conveyor,
+        ILogger<ManualConveyorRow> conveyorLog)
     {
         Signals = signals;
         Supply = supply;
@@ -21,8 +23,8 @@ public sealed class ManualHardwareViewModel : ObservableObject
         supply.Changed += OnSupplyChanged;
         conveyor.Changed += OnConveyorChanged;
         Conveyors = [
-            new(signals.Outputs[OutputIo.MainConveyorRun], machine),
-            new(signals.Outputs[OutputIo.NgConveyorRun], machine),
+            new(signals.Outputs[OutputIo.MainConveyorRun], machine, conveyorLog),
+            new(signals.Outputs[OutputIo.NgConveyorRun], machine, conveyorLog),
         ];
     }
 

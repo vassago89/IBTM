@@ -9,11 +9,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
 
 public partial class MotionWindowViewModel : ObservableObject
 {
+    private readonly ILogger<MotionWindowViewModel>? _log;
     private readonly MachineController _machine;
     private readonly MachineState _state;
     private Dispatcher? _dispatcher;
@@ -28,10 +30,13 @@ public partial class MotionWindowViewModel : ObservableObject
     [ObservableProperty]
     public partial bool EnabledOnly { get; set; } = true;
 
-    public MotionWindowViewModel(MachineController machine, MachineState state, MachineSettings settings)
+    public MotionWindowViewModel(
+        MachineController machine, MachineState state, MachineSettings settings,
+        ILogger<MotionWindowViewModel>? log = null)
     {
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
 
+        _log = log;
         _machine = machine;
         _state = state;
         // Capture the running application's axis numbers, not later unsaved mapping edits.
@@ -109,7 +114,7 @@ public partial class MotionWindowViewModel : ObservableObject
             if (!_state.IsError)
                 _state.SetError(MachineAlarm.StopFailed, exception);
             else
-                System.Diagnostics.Trace.TraceError("Motion window STOP also failed. {0}", exception);
+                _log?.LogError(exception, "Motion window STOP also failed.");
         }
     }
 
@@ -180,7 +185,7 @@ public partial class MotionWindowViewModel : ObservableObject
         {
             IsClosing = false;
             CloseError = exception.Message;
-            System.Diagnostics.Trace.TraceError("Motion window shutdown failed. {0}", exception);
+            _log?.LogError(exception, "Motion window shutdown failed.");
             return false;
         }
     }

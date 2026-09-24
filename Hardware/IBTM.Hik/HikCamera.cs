@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -8,11 +7,13 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using MvCameraControl;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.Hik;
 
 public sealed class HikCamera : ICamera, IDisposable
 {
+    private readonly ILogger<HikCamera>? _log;
     private readonly InspectionCameraSettings _settings;
     private static readonly MvGvspPixelType s_conversionPixelType = MvGvspPixelType.PixelType_Gvsp_RGB8_Packed;
 
@@ -27,8 +28,9 @@ public sealed class HikCamera : ICamera, IDisposable
     private bool _grabbing;
     private volatile bool _liveView;
 
-    public HikCamera(InspectionCameraSettings settings)
+    public HikCamera(InspectionCameraSettings settings, ILogger<HikCamera>? log = null)
     {
+        _log = log;
         _settings = settings;
         _deviceId = _settings.DeviceId;
         _grabGate = new();
@@ -346,7 +348,7 @@ public sealed class HikCamera : ICamera, IDisposable
         return devices;
     }
 
-    private static void ConfigureAreaCamera(IDevice device)
+    private void ConfigureAreaCamera(IDevice device)
     {
         ConfigureGigE(device);
 
@@ -356,7 +358,7 @@ public sealed class HikCamera : ICamera, IDisposable
         Check(parameters.SetEnumValueByString("TriggerMode", "Off"), "Set continuous acquisition");
     }
 
-    private static void ConfigureGigE(IDevice device)
+    private void ConfigureGigE(IDevice device)
     {
         if (device is not IGigEDevice gigEDevice)
         {
@@ -367,7 +369,7 @@ public sealed class HikCamera : ICamera, IDisposable
         if (result == MvError.MV_OK)
             result = device.Parameters.SetIntValue("GevSCPSPacketSize", packetSize);
         if (result != MvError.MV_OK)
-            Trace.TraceWarning("Hik GigE packet size setup failed. MVS error code: 0x{0:X8}", result);
+            _log?.LogWarning("Hik GigE packet size setup failed. MVS error code: 0x{Code:X8}", result);
     }
 
     private static ImageFrame? CopyAndReleaseFrame(

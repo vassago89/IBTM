@@ -15,20 +15,17 @@ public sealed class InspectionWork : StationWork, INgCarrierTransferFeedback
 
     public InspectionWork(
         IIoService io,
-        IXyMotion motion,
+        IMotionFeedback motion,
         NgCarrierTransferSettings transferSettings,
         UnitSettings units) : base(ConveyorStation.CreateInspection(io), units)
     {
         _io = io;
-        Feedback = motion;
         Motion = new(motion);
         _transferSettings = transferSettings;
         motion.StateChanged += NotifyChanged;
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
     }
-
-    public IXyMotion Feedback { get; }
 
     public MotionStatus Motion { get; }
 

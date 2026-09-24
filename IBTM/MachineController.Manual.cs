@@ -130,21 +130,7 @@ public sealed partial class MachineController
             if (operation is null)
                 return;
             var on = !_state.GetMotionStatus(group).Feedback.GetAxisState(axis).ServoOn;
-            switch (group)
-            {
-                case MotionGroup.PcbSupply:
-                    _pcbSupply.SetServo(axis, on);
-                    break;
-                case MotionGroup.PcbPlacementHandler:
-                    _pcbPlacement.SetServo(axis, on);
-                    break;
-                case MotionGroup.BoltFastening:
-                    _fasteningStation.SetServo(axis, on);
-                    break;
-                case MotionGroup.InspectionGantry:
-                    _inspectionStation.SetServo(axis, on);
-                    break;
-            }
+            _motions[group].SetServo(axis, on);
         }
         catch (Exception exception)
         {

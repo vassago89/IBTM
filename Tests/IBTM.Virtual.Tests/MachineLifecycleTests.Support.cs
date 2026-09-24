@@ -61,6 +61,11 @@ public sealed partial class MachineLifecycleTests
                         provider.GetRequiredService<NgCarrierTransferSettings>(),
                         provider.GetRequiredService<UnitSettings>());
                 })
+            .AddSingleton(provider => ActivatorUtilities.CreateInstance<InspectionStation>(provider,
+                (IXyMotion)provider.GetRequiredService<InspectionWork>().Motion.Feedback))
+            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+                provider.GetRequiredService<MachineFeedbackMonitor>().Motions.ToDictionary(
+                    pair => pair.Key, pair => (IXyMotion)pair.Value.Feedback))
             .BuildServiceProvider();
     }
 
@@ -137,7 +142,12 @@ public sealed partial class MachineLifecycleTests
                             MotionGroup.InspectionGantry,
                             provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry)),
                         provider.GetRequiredService<NgCarrierTransferSettings>(),
-                        provider.GetRequiredService<UnitSettings>()));
+                        provider.GetRequiredService<UnitSettings>()))
+            .AddSingleton(provider => ActivatorUtilities.CreateInstance<InspectionStation>(provider,
+                (IXyMotion)provider.GetRequiredService<InspectionWork>().Motion.Feedback))
+            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+                provider.GetRequiredService<MachineFeedbackMonitor>().Motions.ToDictionary(
+                    pair => pair.Key, pair => (IXyMotion)pair.Value.Feedback));
         configure?.Invoke(services);
         var provider = services.BuildServiceProvider();
         // These tests replace the handler factories that normally initialize virtual feedback.

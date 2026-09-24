@@ -125,28 +125,14 @@ public sealed partial class MachineController
 
             try
             {
-                switch (group)
+                var motion = _motions[group];
+                motion.Initialize();
+                operation.Token.ThrowIfCancellationRequested();
+                await motion.ResetAsync(operation.Token);
+                foreach (var axis in motion.Axes)
                 {
-                    case MotionGroup.PcbSupply:
-                        _pcbSupply.InitializeMotion();
-                        operation.Token.ThrowIfCancellationRequested();
-                        await _pcbSupply.ResetMotionAsync(operation.Token);
-                        break;
-                    case MotionGroup.PcbPlacementHandler:
-                        _pcbPlacement.InitializeMotion();
-                        operation.Token.ThrowIfCancellationRequested();
-                        await _pcbPlacement.ResetMotionAsync(operation.Token);
-                        break;
-                    case MotionGroup.BoltFastening:
-                        _fasteningStation.InitializeMotion();
-                        operation.Token.ThrowIfCancellationRequested();
-                        await _fasteningStation.ResetMotionAsync(operation.Token);
-                        break;
-                    case MotionGroup.InspectionGantry:
-                        _inspectionStation.InitializeMotion();
-                        operation.Token.ThrowIfCancellationRequested();
-                        await _inspectionStation.ResetMotionAsync(operation.Token);
-                        break;
+                    operation.Token.ThrowIfCancellationRequested();
+                    motion.SetServo(axis, true);
                 }
             }
             catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
@@ -279,7 +265,7 @@ public sealed partial class MachineController
             {
                 stage = "PCB supply motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
-                _pcbSupply.InitializeMotion();
+                _motions[MotionGroup.PcbSupply].Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
@@ -287,7 +273,7 @@ public sealed partial class MachineController
             {
                 stage = "PCB placement motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
-                _pcbPlacement.InitializeMotion();
+                _motions[MotionGroup.PcbPlacementHandler].Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
@@ -295,7 +281,7 @@ public sealed partial class MachineController
             {
                 stage = "Bolt fastening motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
-                _fasteningStation.InitializeMotion();
+                _motions[MotionGroup.BoltFastening].Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
@@ -303,7 +289,7 @@ public sealed partial class MachineController
             {
                 stage = "Inspection motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
-                _inspectionStation.InitializeMotion();
+                _motions[MotionGroup.InspectionGantry].Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
             }
 

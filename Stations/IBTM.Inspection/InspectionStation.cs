@@ -7,11 +7,13 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.NgConveyor;
 using IBTM.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.Inspection;
 
 public sealed partial class InspectionStation : AutoUnit
 {
+    private readonly ILogger<InspectionStation>? _log;
     private readonly InspectionWork _work;
     private readonly IIoService _io;
     private readonly IXyMotion _motion;
@@ -29,6 +31,7 @@ public sealed partial class InspectionStation : AutoUnit
 
     public InspectionStation(
         InspectionWork work,
+        IXyMotion motion,
         NgCarrierConveyor ngConveyor,
         OperationCancellation operations,
         InspectionGantrySettings motionSettings,
@@ -38,11 +41,13 @@ public sealed partial class InspectionStation : AutoUnit
         ICamera camera,
         ILightController light,
         LightingSettings lightingSettings,
-        RecipeManager recipes)
+        RecipeManager recipes,
+        ILogger<InspectionStation>? log = null)
     {
+        _log = log;
         _work = work;
         _io = io;
-        _motion = work.Feedback;
+        _motion = motion;
         _operations = operations;
         _motionSettings = motionSettings.Motion;
         _settings = settings;
@@ -702,26 +707,6 @@ public sealed partial class InspectionStation : AutoUnit
     public MotionStatus Motion => _work.Motion;
 
     public IMotionFeedback Feedback => _motion;
-
-    public void InitializeMotion()
-    {
-        _motion.Initialize();
-    }
-
-    public void StopMotion()
-    {
-        _motion.Stop();
-    }
-
-    public Task ResetMotionAsync(CancellationToken cancellationToken = default)
-    {
-        return _motion.ResetAsync(cancellationToken);
-    }
-
-    public void SetServo(MotionAxis axis, bool on)
-    {
-        _motion.SetServo(axis, on);
-    }
 
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {

@@ -30,12 +30,14 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task EmergencyInputStopsConveyorBeforeReadingUnrelatedMotionFeedback()
     {
-        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.MainConveyor) };
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
         settings.Units.Inspection = true;
         await using var services = CreateDisplayServices(out var feedback, settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         await machine.InitializeAsync();
         await machine.HomeAsync(default);
         var run = machine.StartAsync();
@@ -43,7 +45,8 @@ public sealed partial class MachineLifecycleTests
         var readsBeforeStop = 0;
         try
         {
-            await WaitUntilAsync(() => state.AutomaticRunning);
+            await WaitUntilAsync(() => state.AutomaticRunning || run.IsCompleted);
+            Assert.True(state.AutomaticRunning, $"{machine.StartBlock}: {state.AlarmDetail}");
             io.SetOutput(OutputIo.MainConveyorRun, true);
             feedback.BeforeRead = () =>
             {
@@ -1308,7 +1311,7 @@ public sealed partial class MachineLifecycleTests
         if (autoMode)
             io.SetInput(InputIo.AutoMode, false);
         else
-            gantry.SetServo(MotionAxis.X, false);
+            motion.SetServo(MotionAxis.X, false);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => jog.WaitAsync(TimeSpan.FromSeconds(2)));
         var stopped = gantry.Feedback.GetPosition();

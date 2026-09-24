@@ -6,6 +6,7 @@ using System;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace IBTM.Inspection;
 
@@ -426,7 +427,7 @@ public sealed partial class InspectionStation
             failure = cleanupFailure;
         }
         PublishLiveView(failure);
-        System.Diagnostics.Trace.TraceError("Inspection live view failed. {0}", failure);
+        _log?.LogError(failure, "Inspection live view failed.");
     }
 
     private void PublishLiveView(Exception? failure = null)

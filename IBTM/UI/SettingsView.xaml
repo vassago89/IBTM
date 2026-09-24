@@ -96,27 +96,27 @@
             <UniformGrid Columns="2">
                 <StackPanel Margin="0,0,8,10">
                     <TextBlock Text="Search (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                    <TextBox Text="{Binding SearchSpeed, UpdateSourceTrigger=LostFocus}"/>
+                    <TextBox Text="{Binding SearchSpeed, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                 </StackPanel>
                 <StackPanel Margin="0,0,0,10">
                     <TextBlock Text="After Detection (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                    <TextBox Text="{Binding DetectionSpeed, UpdateSourceTrigger=LostFocus}"/>
+                    <TextBox Text="{Binding DetectionSpeed, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                 </StackPanel>
                 <StackPanel Margin="0,0,8,10">
                     <TextBlock Text="Approach (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                    <TextBox Text="{Binding ApproachSpeed, UpdateSourceTrigger=LostFocus}"/>
+                    <TextBox Text="{Binding ApproachSpeed, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                 </StackPanel>
                 <StackPanel Margin="0,0,0,10">
                     <TextBlock Text="Fine / Index (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                    <TextBox Text="{Binding FineSpeed, UpdateSourceTrigger=LostFocus}"/>
+                    <TextBox Text="{Binding FineSpeed, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                 </StackPanel>
                 <StackPanel Margin="0,0,8,0">
                     <TextBlock Text="Search Acceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
-                    <TextBox Text="{Binding SearchAccelerationSeconds, UpdateSourceTrigger=LostFocus}"/>
+                    <TextBox Text="{Binding SearchAccelerationSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                 </StackPanel>
                 <StackPanel>
                     <TextBlock Text="Detection Acceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
-                    <TextBox Text="{Binding DetectionAccelerationSeconds, UpdateSourceTrigger=LostFocus}"/>
+                    <TextBox Text="{Binding DetectionAccelerationSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                 </StackPanel>
             </UniformGrid>
         </DataTemplate>
@@ -413,27 +413,28 @@
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
                                 <TextBlock Text="Travel" Style="{StaticResource SettingSectionTitle}"/>
+                                <TextBlock Text="Speeds and acceleration times must be greater than 0. Valid edits apply to subsequent moves; Save keeps them after restart." Style="{StaticResource SettingHelpText}"/>
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="X / Y Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding CurrentMotionSettings.HorizontalSpeed, UpdateSourceTrigger=LostFocus}"/>
+                                            Text="{Binding CurrentMotionSettings.HorizontalSpeed, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,8,0"
                                         Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="Z Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding CurrentMotionSettings.ZSpeed, UpdateSourceTrigger=LostFocus}"/>
+                                            Text="{Binding CurrentMotionSettings.ZSpeed, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="Acceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding CurrentMotionSettings.AccelerationSeconds, UpdateSourceTrigger=LostFocus}"/>
+                                            Text="{Binding CurrentMotionSettings.AccelerationSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                                     </StackPanel>
                                     <StackPanel>
                                         <TextBlock Text="Deceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding CurrentMotionSettings.DecelerationSeconds, UpdateSourceTrigger=LostFocus}"/>
+                                            Text="{Binding CurrentMotionSettings.DecelerationSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
                                     </StackPanel>
                                 </UniformGrid>
                             </StackPanel>
@@ -476,6 +477,7 @@
                                     <TextBlock Grid.Column="3" Text="SDK Pulse" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="4" Text="HOME Direction" Style="{StaticResource SettingFieldLabel}"/>
                                 </Grid>
+                                <TextBlock Text="Axis number, unit/pulse and HOME direction changes require Save and application restart." Style="{StaticResource SettingHelpText}"/>
                                 <ListBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                     ItemsSource="{Binding CurrentAxisMappings}"
                                     Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}"

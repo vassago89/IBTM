@@ -116,7 +116,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         try
         {
             RecipeNames = _recipes.GetRecipeNames();
-            if (!LoadRecipeCommand.IsRunning && !RefreshImagesCommand.IsRunning)
+            if (!IsBusy)
             {
                 if (IsLoaded)
                     _ = RefreshImagesCommand.ExecuteAsync(null);

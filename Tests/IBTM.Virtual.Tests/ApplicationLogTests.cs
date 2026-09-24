@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -156,34 +155,6 @@ public sealed class ApplicationLogTests
         Assert.Contains(nameof(RetainsFullExceptionDetails), entry.Text);
         Assert.Contains("Native error", entry.Text);
         Assert.Contains("[ERROR] AJIN input read", entry.Text);
-    }
-
-    [Fact]
-    public void TraceListenerKeepsEachFormattedEventTogetherWithItsSeverity()
-    {
-        var log = new ApplicationLog();
-        using var factory = log.CreateLoggerFactory();
-        using var listener = new ApplicationTraceListener(factory.CreateLogger<ApplicationTraceListener>());
-
-        listener.TraceEvent(
-            null,
-            "IBTM",
-            TraceEventType.Error,
-            0,
-            "Settings failed: {0}",
-            "test failure");
-        listener.TraceEvent(null, "IBTM", TraceEventType.Information, 0, "Settings saved");
-        listener.TraceEvent(null, "IBTM", TraceEventType.Warning, 0, "Feedback delayed");
-        listener.TraceEvent(null, "IBTM", TraceEventType.Critical, 0, "Control disconnected");
-
-        var entries = log.Snapshot();
-        Assert.Equal(4, entries.Length);
-        Assert.Equal("ERROR", entries[0].Level);
-        Assert.Equal("Settings failed: test failure", entries[0].Message);
-        Assert.Equal("INFORMATION", entries[1].Level);
-        Assert.Equal("Settings saved", entries[1].Message);
-        Assert.Equal("WARNING", entries[2].Level);
-        Assert.Equal("FATAL", entries[3].Level);
     }
 
     [Fact]
