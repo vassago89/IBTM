@@ -78,12 +78,6 @@ public sealed partial class InspectionStation
             ExceptionDispatchInfo.Throw(failure);
     }
 
-    public BinaryCheckResult Check(ImageFrame image, PixelRegion region, BoltPoint point)
-    {
-        return BinaryChecker.Check(image, region,
-            point.BrightnessThreshold ?? _recipes.Current.BoltInspection.BrightnessThreshold);
-    }
-
     public bool HasBarcodePosition(HeatSinkSlot pcb)
     {
         return _recipes.Current.CarrierImages.Count(fov => fov.IsBarcode && fov.HeatSink == pcb && fov.Center is not null) == 1;
@@ -107,25 +101,9 @@ public sealed partial class InspectionStation
         return fov;
     }
 
-    public bool IsAtBarcode(HeatSinkSlot pcb, bool live = true)
-    {
-        return IsAt(_recipes.Current.GetInspectionPosition(GetBarcodeFov(pcb)), live);
-    }
-
     public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
     {
         return MoveToAsync(_recipes.Current.GetInspectionPosition(GetBarcodeFov(pcb)), cancellationToken: cancellationToken);
-    }
-
-    public async Task<ImageFrame> CaptureBarcodeAsync(
-        HeatSinkSlot pcb,
-        CancellationToken cancellationToken = default)
-    {
-        if (!HasBarcodeRegion(pcb))
-            throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
-        await MoveToBarcodeAsync(pcb, cancellationToken);
-        return await CaptureCurrentAsync(
-            cancellationToken, lightLevel: _recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel);
     }
 
     public async Task<ImageFrame> CaptureCurrentAsync(
@@ -198,11 +176,6 @@ public sealed partial class InspectionStation
         return fov;
     }
 
-    internal bool IsAt(BoltPoint point, bool live = true)
-    {
-        return IsAt(_recipes.Current.GetInspectionPosition(GetFov(point)), live);
-    }
-
     public Task MoveToBoltAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
         return MoveToAsync(_recipes.Current.GetInspectionPosition(GetFov(point)), cancellationToken: cancellationToken);
@@ -237,17 +210,6 @@ public sealed partial class InspectionStation
         {
             await Task.Run(() => TurnLightOff(channel, failure)).ConfigureAwait(false);
         }
-    }
-
-    public async Task<ImageFrame> CaptureAsync(
-        BoltPoint point,
-        CancellationToken cancellationToken = default)
-    {
-        if (!HasRegion(point))
-            throw new InvalidOperationException(
-                $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
-        await MoveToBoltAsync(point, cancellationToken);
-        return await CaptureCurrentAsync(cancellationToken, lightLevel: point.LightLevel);
     }
 
     internal async Task<InspectionCapture> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
@@ -298,7 +260,7 @@ public sealed partial class InspectionStation
                     var position = feedback.GetPosition();
                     var center = new AxisPosition { X = position.X, Y = position.Y };
                     var frame = await CaptureWithLightAsync(lightLevel, cancellationToken, keepLiveView: true).ConfigureAwait(false);
-                    if (!IsAt(center))
+                    if (!Motion.IsAt(center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);
                 },

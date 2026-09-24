@@ -64,7 +64,7 @@ same carrier handshake.
 `MovingToHandoff` reaches handoff Z before any XY approach. The motion call receives
 this height explicitly, so it cannot first move back to the default Rotation Z.
 `MovingToPickup` also owns withdrawal: give-height XY to the next pickup, then
-Rotation Z and Rotated feedback. `MovingToHandoff` owns PCB securing, rotation and
+Rotation Z and Rotated feedback. `PickingPcb` secures the PCB; `MovingToHandoff` owns rotation and
 handoff approach. Rotation completes at Rotation Z before the give-height approach.
 
 ## Direct handoff and live feedback
@@ -136,7 +136,8 @@ need not have received the last PCB yet.
 
 Board Available OFF resets the next slot to PCB 1. A stale ON cannot start another
 carrier. If availability disappears during a pickup, cancel that pickup; a late
-completion cannot advance a replacement carrier. Slot progress belongs to the current run.
+completion cannot advance a replacement carrier. Cancellation during either pickup
+resets the next carrier to PCB 1. Slot progress belongs to the current run.
 In automatic mode, STOP
 preserves Ready while the upstream carrier remains available.
 
@@ -147,7 +148,7 @@ control remains available. TEST OFF followed by ON starts the next carrier.
 
 ## Repeat and verification
 
-`PcbSupplier.Repeat.cs` uses the existing `PcbSupplyState` values for the reverse
+The same switch in `PcbSupplier.Automatic.cs` uses `PcbSupplyState` values for the reverse
 operations. With Placement disabled, Supply initially picks one PCB, visits
 handoff, then returns to pickup XY at Rotation Z while retaining its grip and
 fixer. It repeats with that PCB without descending into or releasing at a source

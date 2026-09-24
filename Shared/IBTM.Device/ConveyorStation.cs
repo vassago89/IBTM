@@ -52,6 +52,8 @@ public sealed partial class ConveyorStation
         HeatSink2Input = heatSink2;
         _backupPlate = backupPlate;
         _stopper = stopper;
+        if (io.IsReady)
+            _lastNotifiedPresence = CarrierPresent;
         io.InputChanged += OnInputChanged;
     }
 
@@ -60,15 +62,7 @@ public sealed partial class ConveyorStation
     public event Action? Changed;
     public event Action<bool>? CarrierChanged;
 
-    public bool CarrierPresent
-    {
-        get
-        {
-            var present = _io.GetInput(_heatSink1) || _io.GetInput(HeatSink2Input);
-            _lastNotifiedPresence ??= present;
-            return present;
-        }
-    }
+    public bool CarrierPresent => _io.GetInput(_heatSink1) || _io.GetInput(HeatSink2Input);
 
     public StationCylinderState BackupPlate
     {
@@ -239,7 +233,9 @@ public sealed partial class ConveyorStation
             _lastNotifiedPresence = present;
             if (previous != present)
             {
-                if (present)
+                // The initial job also owns a carrier already present at startup.
+                // Only an observed absence followed by arrival replaces that owner.
+                if (previous == false && present)
                 {
                     lock (s_jobGate)
                         _job = new();

@@ -324,10 +324,10 @@ public sealed class MotionSafetyTests
 
         // The station uses the current teaching value, not a value retained by the device.
         settings.RotationZ = 4;
-        Assert.False(supply.IsAtRotationZ());
+        Assert.False(supply.Motion.IsAtZ(settings.RotationZ, live: true));
         await supply.MoveToRotationZAsync();
         Assert.Equal(4, motion.GetPosition().Z);
-        Assert.True(supply.IsAtRotationZ());
+        Assert.True(supply.Motion.IsAtZ(settings.RotationZ, live: true));
     }
 
     [Theory]

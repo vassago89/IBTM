@@ -837,7 +837,7 @@ public sealed class PcbTransferTests
                 && io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
             {
                 readyDroppedBeforeClear |= !pcb2Visited
-                    || !supplyHandler.IsAtRotationZ()
+                    || !supplyHandler.Motion.IsAtZ(supplySettings.RotationZ, live: true)
                     || supplyHandler.Pcb == PcbSupplyPcbState.Detected;
             }
         };
@@ -885,7 +885,7 @@ public sealed class PcbTransferTests
         var checkedBoth = await WaitUntilAsync(
             () => pcb1Visited && pcb2Visited && !io.GetOutput(OutputIo.PcbSupplyReadyToFront1),
             TimeSpan.FromSeconds(5));
-        var atRotationZ = supply.IsAtRotationZ();
+        var atRotationZ = supply.Motion.IsAtZ(supplySettings.RotationZ, live: true);
         var nextCarrierAccepted = true;
         if (secondPcbPresent && checkedBoth)
         {
@@ -963,7 +963,7 @@ public sealed class PcbTransferTests
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PcbSupplyRotate && !on)
-                unrotatedAtRotationZ = supplyHandler.IsAtRotationZ();
+                unrotatedAtRotationZ = supplyHandler.Motion.IsAtZ(supplySettings.RotationZ, live: true);
         };
         supplyMotion.PositionChanged += (x, y, z) =>
         {

@@ -13,6 +13,60 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbSupplyHandoffTests
 {
     [Fact]
+    public async Task CarrierLeavingDuringSecondPickupResetsTheNextCarrierToPcbOne()
+    {
+        using var rig = new HandoffRig();
+        rig.Io.Initialize();
+        rig.Motion.Initialize();
+        await HomeAsync(rig.Motion, 2_000);
+        rig.Io.SetInput(InputIo.AutoMode, false);
+        rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        var recipe = new PcbSupplyRecipe
+        {
+            Pcb1PickPosition = new() { X = 10, Y = 10, Z = 8 },
+            Pcb2PickPosition = new() { X = 20, Y = 10, Z = 8 },
+        };
+        var departed = false;
+        var replacement = false;
+        var approachingReplacement = false;
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var picked = new TaskCompletionSource<double>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        rig.Supplier.StepChanged += () =>
+        {
+            var position = rig.Motion.GetPosition();
+            if (!departed && rig.Supplier.Step is PcbSupplyState.PickingPcb
+                && position.X == 20 && position.Z == 8)
+            {
+                departed = true;
+                rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            }
+            if (departed && !replacement && rig.Supplier.Step is PcbSupplyState.WaitingForCarrier)
+                waiting.TrySetResult();
+            if (replacement && rig.Supplier.Step is PcbSupplyState.MovingToPickup)
+                approachingReplacement = true;
+            if (approachingReplacement && rig.Supplier.Step is PcbSupplyState.PickingPcb)
+            {
+                picked.TrySetResult(position.X);
+                stop.Cancel();
+            }
+        };
+        var run = rig.Supplier.RunAsync(recipe, rig.Placement, stop.Token);
+        try
+        {
+            await waiting.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            replacement = true;
+            rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+            Assert.Equal(recipe.Pcb1PickPosition.X, await picked.Task.WaitAsync(TimeSpan.FromSeconds(1)));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+    }
+
+    [Fact]
     public async Task DisabledRunDoesNotReplaceTheSupplyHandoffPhase()
     {
         using var rig = new HandoffRig();

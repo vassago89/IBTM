@@ -16,6 +16,23 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbPlacementStateSafetyTests
 {
     [Fact]
+    public async Task RepeatStepKeepsIpmRaisedWithoutDependingOnRunLoopState()
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        await rig.Handler.SetIpmLiftDownAsync(false);
+        var pressed = false;
+        rig.Io.OutputChanged += (output, value) =>
+            pressed |= output == OutputIo.PcbPlacementIpmDown && value;
+
+        await rig.Placer.ExecuteStepAsync(
+            PcbPlacementState.MovingToHandoff, HeatSinkSlot.HeatSink1, default, repeat: true);
+
+        Assert.False(pressed);
+        Assert.Equal(PlacementCylinderState.Up, rig.Placer.IpmLift);
+    }
+
+    [Fact]
     public async Task DepartureClearRemainsAvailableUntilSupplyAcknowledges()
     {
         using var rig = new PlacementRig();
@@ -224,7 +241,8 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.True(await rig.Placer.ExecuteStepAsync(
             rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token));
         Assert.True(rig.Handler.IsAtHorizontalZ());
-        Assert.True(rig.Handler.IsAtY(rig.Position));
+        Assert.True(rig.Handler.Motion.IsSettled(true, MotionAxis.Y));
+        Assert.Equal(rig.Position.Y, rig.Motion.GetPosition().Y);
         Assert.Equal(50, rig.Motion.GetPosition().X);
         Assert.True(rig.Handler.PcbSecured);
         Assert.Equal(PlacementCylinderState.Down, rig.Handler.IpmLift);

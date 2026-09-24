@@ -14,6 +14,59 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class ConveyorTests
 {
     [Fact]
+    public void FirstPresenceNotificationAfterIoStartupKeepsTheExistingCarrierResults()
+    {
+        var io = CreateIo();
+        io.IsReady = false;
+        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+        var station = ConveyorStation.CreatePcbPlacement(io);
+        io.IsReady = true;
+        var job = station.CurrentJob;
+        var assembly = station.GetAssembly(HeatSinkSlot.HeatSink1);
+        station.Complete(job);
+
+        // Physical I/O's initial scan has no arrival notification. A later
+        // second sensor change must not replace the carrier already being worked.
+        io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+
+        Assert.Same(job, station.CurrentJob);
+        Assert.Same(assembly, Assert.Single(station.Assemblies));
+        Assert.True(station.Completed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReadingPresenceFromAnEarlierInputSubscriberDoesNotConsumeTheArrival(bool presentAtStartup)
+    {
+        var io = CreateIo();
+        io.SetInput(InputIo.PcbPlacementHeatSink1Present, presentAtStartup);
+        ConveyorStation? station = null;
+        io.InputChanged += (input, value) =>
+        {
+            if (station is not null)
+                _ = station.CarrierPresent;
+        };
+        station = ConveyorStation.CreatePcbPlacement(io);
+        var edges = new List<bool>();
+        station.CarrierChanged += edges.Add;
+        var initialJob = station.CurrentJob;
+
+        io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+
+        if (presentAtStartup)
+        {
+            Assert.Empty(edges);
+            Assert.Same(initialJob, station.CurrentJob);
+        }
+        else
+        {
+            Assert.Equal(new[] { true }, edges);
+            Assert.NotSame(initialJob, station.CurrentJob);
+        }
+    }
+
+    [Fact]
     public void TransferRejectsReplacedDestinationWithoutChangingEitherJob()
     {
         var io = CreateIo();

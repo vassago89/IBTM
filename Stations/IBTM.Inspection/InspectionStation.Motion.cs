@@ -67,11 +67,6 @@ public sealed partial class InspectionStation
         return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
-    public bool IsAt(AxisPosition position, bool live = true)
-    {
-        return Motion.IsAt(position, live);
-    }
-
     private void EnsureCanMove(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

@@ -17,11 +17,10 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private readonly RecipeManager _recipes;
     private readonly UnitSettings _units;
 
-    private bool _repeat;
     // Ownership until the PCB is placed back on its original carrier, including STOP.
     private RepeatPcbTrip? _repeatTrip;
 
-    public HeatSinkSlot? ReturningPcb => _repeat && _repeatTrip is { } trip
+    public HeatSinkSlot? ReturningPcb => IsRunning && _repeatTrip is { } trip
         && State is PcbPlacementState.ReturningToSupply or PcbPlacementState.WaitingForSupplyReceipt
             or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
         ? trip.HeatSink : null;

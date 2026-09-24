@@ -24,30 +24,9 @@ public sealed partial class PcbPlacer
             cancellationToken);
     }
 
-    public bool IsAtXY(AxisPosition position, bool live = true)
-    {
-        if (!Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y))
-            return false;
-        var current = Motion.ReadPosition(live);
-        return Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters;
-    }
-
-    public bool IsAtZ(AxisPosition position, bool live = true)
-    {
-        return Motion.IsSettled(live, MotionAxis.Z)
-            && Math.Abs(Motion.ReadPosition(live).Z - position.Z) <= MotionService.PositionToleranceMillimeters;
-    }
-
     public Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default)
     {
         return MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, cancellationToken);
-    }
-
-    public bool IsAtY(AxisPosition position, bool live = true)
-    {
-        return Motion.IsSettled(live, MotionAxis.Y)
-            && Math.Abs(Motion.ReadPosition(live).Y - position.Y) <= MotionService.PositionToleranceMillimeters;
     }
 
     public Task MoveAxisAsync(

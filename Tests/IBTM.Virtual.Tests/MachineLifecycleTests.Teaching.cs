@@ -910,7 +910,7 @@ public sealed partial class MachineLifecycleTests
 
             Assert.True(axesMovedTogether);
             Assert.Empty(feedback.AxisMoves);
-            Assert.True(gantry.IsAt(shuttlePosition));
+            Assert.True(gantry.Motion.IsAt(shuttlePosition));
         }
         finally
         {
@@ -958,7 +958,7 @@ public sealed partial class MachineLifecycleTests
 
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
 
-                Assert.True(gantry.IsAt(recipe.GetInspectionPosition(fov)));
+                Assert.True(gantry.Motion.IsAt(recipe.GetInspectionPosition(fov)));
                 Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipe));
             }
 
@@ -1001,14 +1001,17 @@ public sealed partial class MachineLifecycleTests
         var frame = new ImageFrame(1, 1, 3, [160, 160, 160]);
         var region = new PixelRegion(0, 0, 1, 1);
         recipes.Current.BoltInspection.BrightnessThreshold = 128;
-        Assert.Equal(1, inspector.Check(frame, region, new()).BrightRatio);
+        preview.Clear(bolt: new());
+        preview.SetSavedImage(InspectionPreview.CreateBitmap(frame), region);
+        await preview.InspectAsync(CancellationToken.None);
+        Assert.StartsWith("OK", preview.Result);
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
         var saved = new Recipe
         {
             Name = "Other",
             BoltInspection = new() { BrightnessThreshold = 200 },
             Pcb = new() { BoltPoints = [legacyBolt] },
-            CarrierImages = [new() { Number = 1, IsBarcode = true, Region = region }],
+            CarrierImages = [new() { Number = 1, IsBarcode = true, Center = new(), Region = region }],
         };
         services.GetRequiredService<MachineStore>().SaveRecipe(saved.Name, saved, [1]);
 
@@ -1017,7 +1020,8 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal("Other", editor.ActiveName);
         Assert.Equal("Other", editor.Name);
         Assert.Equal(200, preview.BrightnessThreshold);
-        Assert.Equal(0, inspector.Check(frame, region, new()).BrightRatio);
+        await preview.InspectAsync(CancellationToken.None);
+        Assert.StartsWith("NG", preview.Result);
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
         Assert.Same(recipes.Current.CarrierImages[0], inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1));
         var loadedBolt = Assert.Single(recipes.Current.Pcb.BoltPoints);

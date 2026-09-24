@@ -235,7 +235,7 @@ public sealed class NgHandoffTests
             Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
             io.SetInput(InputIo.NgShuttleUp, false);
             Assert.True(await WaitUntilAsync(
-                () => transfer.IsAt(new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
+                () => transfer.Motion.IsAt(new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
                 TimeSpan.FromSeconds(1)));
             Assert.False(movedBeforeDown);
         }

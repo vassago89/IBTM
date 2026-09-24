@@ -297,10 +297,12 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
 
         var inspector = services.GetRequiredService<InspectionStation>();
-        var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
-        Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
-        Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
+        var barcodeResult = await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None);
+        Assert.True(barcodeResult.Success);
+        Assert.Equal("PCB-2", barcodeResult.Barcode);
+        Assert.True(inspector.Motion.IsAt(recipe.GetInspectionPosition(inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
 
+        var barcodeImage = barcodeResult.Frame;
         var blankImage = barcodeImage with { Pixels = new byte[barcodeImage.Pixels.Length] };
         var view = services.GetRequiredService<OperationViewModel>();
         var transfer = services.GetRequiredService<InspectionStation>();

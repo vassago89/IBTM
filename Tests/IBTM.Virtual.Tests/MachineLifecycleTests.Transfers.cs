@@ -358,7 +358,7 @@ public sealed partial class MachineLifecycleTests
         {
             if (output != OutputIo.InspectionBackupPlateUp || !on)
                 return;
-            Assert.True(gantry.IsAt(settings.CarrierPickupPosition!));
+            Assert.True(gantry.Motion.IsAt(settings.CarrierPickupPosition!));
             Assert.True(pickup.IsRaised);
             raisedAtPickup = true;
         };
@@ -386,13 +386,13 @@ public sealed partial class MachineLifecycleTests
         Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
         Assert.True(pickup.IsRaised);
         Assert.Equal(NgTransferGripperState.Open, pickup.Gripper);
-        Assert.True(gantry.IsAt(settings.CarrierPickupPosition!));
+        Assert.True(gantry.Motion.IsAt(settings.CarrierPickupPosition!));
         if (!hasWaitingPosition)
         {
             var position = settings.CarrierPickupPosition!;
             await Assert.ThrowsAsync<InvalidOperationException>(() => move.ClearStationAsync(CancellationToken.None));
             Assert.Empty(feedback.AxisMoves);
-            Assert.True(gantry.IsAt(position));
+            Assert.True(gantry.Motion.IsAt(position));
             return;
         }
 
@@ -401,7 +401,7 @@ public sealed partial class MachineLifecycleTests
         await move.ClearStationAsync(CancellationToken.None);
         Assert.True(movedAfterReturn);
         Assert.Empty(feedback.AxisMoves);
-        Assert.True(gantry.IsAt(settings.WaitingPosition!));
+        Assert.True(gantry.Motion.IsAt(settings.WaitingPosition!));
         Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
         Assert.False(io.GetInput(InputIo.NgCarrierDetected));
     }
@@ -451,7 +451,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(await move.ExecuteTransferAsync(
             NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None));
         Assert.Empty(feedback.AxisMoves);
-        Assert.True(gantry.IsAt(pickupPosition));
+        Assert.True(gantry.Motion.IsAt(pickupPosition));
         Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
         Assert.Equal(settings.CarrierPickupPosition!.X, gantry.Feedback.GetPosition().X);
 
@@ -484,7 +484,7 @@ public sealed partial class MachineLifecycleTests
         }
         Assert.True(axesMovedTogether);
         Assert.Empty(feedback.AxisMoves);
-        Assert.True(gantry.IsAt(settings.ShuttlePlacePosition));
+        Assert.True(gantry.Motion.IsAt(settings.ShuttlePlacePosition));
     }
 
     [Theory]

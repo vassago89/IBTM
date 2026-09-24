@@ -14,7 +14,9 @@ public sealed partial class PcbPlacer
         CancellationToken cancellationToken = default,
         bool repeat = false)
     {
-        _repeat = repeat;
+        // Reject a mode change before publishing the retained handoff to Supply.
+        if (Enabled && !repeat && _repeatTrip is not null && !cancellationToken.IsCancellationRequested)
+            throw new InvalidOperationException("An unfinished Repeat PCB must be returned to its original carrier in Repeat mode before normal operation.");
         _runTargets = null;
         try
         {
@@ -26,7 +28,7 @@ public sealed partial class PcbPlacer
                 {
                     _runTargets = null;
                 }
-                if (Enabled && _repeat && !_units.MainConveyor && Station.Completed
+                if (Enabled && repeat && !_units.MainConveyor && Station.Completed
                     && Station.CarrierSeated && State == PcbPlacementState.WaitingForCarrier)
                     Station.StartRepeat(Station.CurrentJob);
                 if (Station.CarrierSeated)
@@ -47,7 +49,6 @@ public sealed partial class PcbPlacer
         {
             _supply.Changed -= OnChanged;
             _runTargets = null;
-            _repeat = false;
             EndRun(cancellationToken);
         }
     }
@@ -185,7 +186,7 @@ public sealed partial class PcbPlacer
                 case PcbPlacementState.MovingToHandoff:
                     await SetLiftDownAsync(false, cancellationToken);
                     await MoveToHorizontalZAsync(cancellationToken);
-                    await SetIpmLiftDownAsync(!_repeat, cancellationToken);
+                    await SetIpmLiftDownAsync(!repeat, cancellationToken);
                     await PrepareHandoffAsync(cancellationToken);
                     break;
                 case PcbPlacementState.ReceivingPcb:
@@ -204,7 +205,7 @@ public sealed partial class PcbPlacer
                     {
                         CheckSupplyHolding();
                         receipt.Token.ThrowIfCancellationRequested();
-                        var ipmDown = !_repeat;
+                        var ipmDown = !repeat;
                         if (IpmLift != (ipmDown ? PlacementCylinderState.Down : PlacementCylinderState.Up))
                             await SetIpmLiftDownAsync(ipmDown, receipt.Token);
                         await PrepareReceiptAsync(receipt.Token);
@@ -225,7 +226,7 @@ public sealed partial class PcbPlacer
                     break;
                 }
                 case PcbPlacementState.PreparingPlacement:
-                    await PreparePlacementAsync(heatSink ?? HeatSinkSlot.HeatSink1, cancellationToken);
+                    await PreparePlacementAsync(heatSink ?? HeatSinkSlot.HeatSink1, repeat, cancellationToken);
                     if (PcbSecured)
                         // Keep the confirmed departure position until Supply observes Clear.
                         // Starting placement immediately can erase Clear before its loop wakes.
@@ -258,7 +259,7 @@ public sealed partial class PcbPlacer
                         CheckPlacementFeedback();
                         operation.Token.ThrowIfCancellationRequested();
                         var position = GetHeatSinkPosition(target);
-                        await SetIpmLiftDownAsync(!_repeat, operation.Token);
+                        await SetIpmLiftDownAsync(!repeat, operation.Token);
                         await SetLiftDownAsync(false, operation.Token);
                         await MoveToHorizontalZAsync(operation.Token);
                         await MoveAxisAsync(MotionAxis.Y, position.Y, operation.Token);
@@ -275,7 +276,7 @@ public sealed partial class PcbPlacer
                         checkingPcbPresence = true;
                         CheckPlacementFeedback();
                         operation.Token.ThrowIfCancellationRequested();
-                        if (!_repeat)
+                        if (!repeat)
                             await SetIpmLiftDownAsync(true, operation.Token);
                         CheckPlacementFeedback();
                         operation.Token.ThrowIfCancellationRequested();
@@ -299,10 +300,10 @@ public sealed partial class PcbPlacer
                     break;
                 }
                 case PcbPlacementState.CompletingCarrier:
-                    await PreparePlacementAsync(null, cancellationToken);
+                    await PreparePlacementAsync(null, repeat, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
                     Station.Complete(job);
-                    State = _repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff;
+                    State = repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff;
                     break;
                 default:
                     return false;
@@ -321,7 +322,7 @@ public sealed partial class PcbPlacer
         }
     }
 
-    private async Task PreparePlacementAsync(HeatSinkSlot? departure, CancellationToken cancellationToken)
+    private async Task PreparePlacementAsync(HeatSinkSlot? departure, bool repeat, CancellationToken cancellationToken)
     {
         var carryingPcb = PcbSecured;
         using var preparation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -335,7 +336,7 @@ public sealed partial class PcbPlacer
         {
             CheckHolding();
             preparation.Token.ThrowIfCancellationRequested();
-            await SetIpmLiftDownAsync(carryingPcb && !_repeat, preparation.Token);
+            await SetIpmLiftDownAsync(carryingPcb && !repeat, preparation.Token);
             await SetLiftDownAsync(false, preparation.Token);
             await MoveToHorizontalZAsync(preparation.Token);
             if (carryingPcb && departure is { } destination)

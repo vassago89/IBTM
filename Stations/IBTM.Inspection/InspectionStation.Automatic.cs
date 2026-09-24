@@ -277,7 +277,7 @@ public sealed partial class InspectionStation
         cancellationToken.ThrowIfCancellationRequested();
         var position = WaitingPosition
             ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
-        if (!IsAt(position))
+        if (!Motion.IsAt(position))
             await MoveToAsync(position, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (_waitingForShuttleDown)

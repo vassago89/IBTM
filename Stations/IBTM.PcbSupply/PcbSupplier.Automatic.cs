@@ -277,6 +277,7 @@ public sealed partial class PcbSupplier
                 {
                     if (repeat)
                         throw new InvalidOperationException("The upstream carrier left during the initial repeat pickup.");
+                    _pickStep = PickStep.Pcb1;
                     State = PcbSupplyState.WaitingForCarrier;
                 }
                 finally

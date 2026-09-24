@@ -143,11 +143,6 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
     }
 
-    public bool IsAtRotationZ(bool live = true)
-    {
-        return Motion.IsAtZ(_settings.RotationZ, live);
-    }
-
     public bool IsAtPickupXY(PcbPickPosition position)
     {
         if (position.Y is not { } y)
@@ -156,12 +151,6 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         return Motion.IsSettled(true, MotionAxis.X, MotionAxis.Y)
             && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
             && Math.Abs(current.Y - y) <= MotionService.PositionToleranceMillimeters;
-    }
-
-    public bool IsAtPickup(PcbPickPosition position)
-    {
-        return position.Y is { } y
-            && Motion.IsAt(new() { X = position.X, Y = y, Z = position.Z }, live: true);
     }
 
     public void SetUpstreamReady(bool ready)

@@ -123,7 +123,8 @@ public sealed class PcbSupplyRepeatTests
         {
             if (input != InputIo.PcbSupplyGripperClosed || !on)
                 return;
-            grippedAtPickup = handler.IsAtPickup(recipe.Pcb1PickPosition)
+            var pickup = recipe.Pcb1PickPosition;
+            grippedAtPickup = handler.Motion.IsAt(new() { X = pickup.X, Y = pickup.Y!.Value, Z = pickup.Z })
                 && handler.Rotation == PcbSupplyRotationState.Rotated;
         };
 
@@ -218,7 +219,7 @@ public sealed class PcbSupplyRepeatTests
                 io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             }
             if (returning && handler.Rotation == PcbSupplyRotationState.Rotated
-                && handler.IsAtPickupXY(recipe.Pcb1PickPosition) && handler.IsAtRotationZ())
+                && handler.IsAtPickupXY(recipe.Pcb1PickPosition) && handler.Motion.IsAtZ(settings.RotationZ, live: true))
             {
                 returning = false;
                 returns++;

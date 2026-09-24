@@ -192,7 +192,7 @@ public sealed class PcbPlacementRepeatTests
             if (output != OutputIo.PcbPlacementHandlerDown || !on)
                 return;
             var position = rig.Recipe.HeatSink1PcbPlacementPosition;
-            descendedAtPickup = rig.Handler.IsAtXY(position) && rig.Handler.IsAtZ(position);
+            descendedAtPickup = rig.Handler.Motion.IsAt(position);
             stop.Cancel();
         };
         await rig.Placer.RunAsync(stop.Token, repeat: true);
@@ -489,11 +489,14 @@ public sealed class PcbPlacementRepeatTests
 
         rig.Units.PcbPlacement = true;
         var commanded = false;
+        var offeredReturn = false;
+        rig.Placer.Changed += () => offeredReturn |= rig.Placer.ReturningPcb is not null;
         rig.Motion.MovingChanged += moving => commanded |= moving;
         rig.Io.OutputChanged += (output, on) => commanded = true;
         using var normal = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Placer.RunAsync(normal.Token));
         Assert.False(commanded);
+        Assert.False(offeredReturn);
         Assert.True(rig.Placer.PcbSecured);
         Assert.Equal(HeatSinkSlot.HeatSink1, rig.Placer.TargetHeatSink);
     }
@@ -509,7 +512,10 @@ public sealed class PcbPlacementRepeatTests
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
         Assert.False(rig.Io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
-        Assert.True(rig.Handler.IsAtXY(rig.Recipe.HeatSink1PcbPlacementPosition));
+        Assert.True(rig.Handler.Motion.IsSettled(true, MotionAxis.X, MotionAxis.Y));
+        var position = rig.Handler.Feedback.GetPosition();
+        Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.X, position.X);
+        Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.Y, position.Y);
     }
 
     private sealed class RepeatRig : IDisposable

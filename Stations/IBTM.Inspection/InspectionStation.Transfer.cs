@@ -24,8 +24,8 @@ public sealed partial class InspectionStation
         var source = GetOppositeDestination(destination);
         var destinationPosition = GetTransferPosition(destination);
         var sourcePosition = GetTransferPosition(source);
-        var atDestination = destinationPosition is not null && IsAt(destinationPosition, live);
-        var atSource = sourcePosition is not null && IsAt(sourcePosition, live);
+        var atDestination = destinationPosition is not null && Motion.IsAt(destinationPosition, live);
+        var atSource = sourcePosition is not null && Motion.IsAt(sourcePosition, live);
         // Repeat turns around above the shuttle with the carrier still raised and gripped.
         var holdAtShuttle = holdAtDestination && destination == NgTransferDestination.Shuttle;
         var destinationPresent = !holdAtShuttle && IsCarrierPresent(destination);
@@ -147,7 +147,7 @@ public sealed partial class InspectionStation
                         || !allowEmpty && !IsCarrierPresent(source)
                         || Lift != NgTransferLiftState.Down
                         || GetTransferPosition(source) is not { } gripPosition
-                        || !IsAt(gripPosition)))
+                        || !Motion.IsAt(gripPosition)))
                 {
                     throw new InvalidOperationException("NG transfer grip is uncertain away from its supported pickup position. Check the carrier before resuming.");
                 }
@@ -168,7 +168,7 @@ public sealed partial class InspectionStation
             {
                 var position = GetTransferPosition(destination)
                     ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before returning to Station 3.");
-                var supported = IsAt(position) && Lift == NgTransferLiftState.Down
+                var supported = Motion.IsAt(position) && Lift == NgTransferLiftState.Down
                     && IsSupportReady(destination) && (allowEmpty || IsCarrierPresent(destination));
                 if (IsTransferPending && (!supported || holdAtDestination))
                 {
@@ -185,7 +185,7 @@ public sealed partial class InspectionStation
                         carrying.Token.ThrowIfCancellationRequested();
                         if (destination == NgTransferDestination.Station && !IsSupportReady(destination))
                             await SeatStationAsync(carrying.Token);
-                        else if (!IsAt(position))
+                        else if (!Motion.IsAt(position))
                             await MoveToAsync(position, cancellationToken: carrying.Token);
                         CheckGrip();
                         carrying.Token.ThrowIfCancellationRequested();
@@ -209,7 +209,7 @@ public sealed partial class InspectionStation
 
                 if (holdAtDestination && IsTransferPending)
                     break;
-                if (!IsAt(position) || !IsSupportReady(destination))
+                if (!Motion.IsAt(position) || !IsSupportReady(destination))
                     return false;
                 if (IsTransferPending || Gripper != NgTransferGripperState.Open)
                 {
@@ -250,7 +250,7 @@ public sealed partial class InspectionStation
         cancellationToken.ThrowIfCancellationRequested();
         var position = GetTransferPosition(source)
             ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to a carrier.");
-        if (IsAt(position))
+        if (Motion.IsAt(position))
             return;
         await MoveToAsync(position, cancellationToken: cancellationToken);
     }

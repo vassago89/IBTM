@@ -207,7 +207,7 @@ public sealed partial class MachineLifecycleTests
                     pickup.Gripper == NgTransferGripperState.Closed));
             }
             if (output == OutputIo.NgCarrierGripperClose && !on
-                && gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition))
+                && gantry.Motion.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition))
                 releasedAtShuttle = true;
             mainRan |= output == OutputIo.MainConveyorRun && on;
             ngConveyorRan |= output == OutputIo.NgConveyorRun && on;
@@ -219,13 +219,13 @@ public sealed partial class MachineLifecycleTests
             if (args.PropertyName != nameof(MachineController.RepeatDisplayPhase))
                 return;
             if (machine.RepeatDisplayPhase == RepeatPhase.ReturnToStation3
-                && gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition)
+                && gantry.Motion.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition)
                 && pickup.IsRaised && pickup.Gripper == NgTransferGripperState.Closed)
                 raisedShuttleVisits++;
             if (machine.RepeatDisplayPhase != RepeatPhase.Automatic
                 || descents.Count != expectedDescents.Length || stop.IsCancellationRequested)
                 return;
-            returnedTwice = gantry.IsAt(settings.NgCarrierTransfer.WaitingPosition)
+            returnedTwice = gantry.Motion.IsAt(settings.NgCarrierTransfer.WaitingPosition)
                 && work.Station.CarrierPresent == startsWithCarrierHeld
                 && work.Station.BackupPlate == StationCylinderState.Up && pickup.IsClear
                 && pickup.Gripper == NgTransferGripperState.Open;
@@ -293,7 +293,7 @@ public sealed partial class MachineLifecycleTests
             await machine.StartAsync(stop.Token);
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.False(lowered);
-            Assert.True(gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition));
+            Assert.True(gantry.Motion.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition));
             Assert.True(gantry.IsRaised);
             Assert.True(gantry.IsTransferPending);
             Assert.True(io.GetInput(InputIo.NgCarrierDetected));
@@ -471,7 +471,7 @@ public sealed partial class MachineLifecycleTests
         supply.Feedback.StateChanged += () =>
         {
             if (supply.PcbSecured && supply.Rotation == PcbSupplyRotationState.Rotated
-                && !supply.IsAtRotationZ())
+                && !supply.Motion.IsAtZ(settings.PcbSupply.RotationZ, live: true))
                 descendedToSourceSlot = true;
             StopAtHandoff();
         };

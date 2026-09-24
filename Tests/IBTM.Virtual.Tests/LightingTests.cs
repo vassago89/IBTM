@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -181,14 +180,14 @@ public sealed class LightingTests
             new() { BoltNumber = 1, Region = new(0, 0, 20, 20) },
         ];
 
-        await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink1);
+        await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
         Assert.Equal(31, light.LastLevel);
-        await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
+        await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None);
         Assert.Equal(62, light.LastLevel);
-        await inspector.CaptureAsync(bolt);
+        await inspector.InspectAsync(bolt);
         Assert.Equal(123, light.LastLevel);
         bolt.LightLevel = null;
-        await inspector.CaptureAsync(bolt);
+        await inspector.InspectAsync(bolt);
         Assert.Equal(91, light.LastLevel);
 
         await inspector.StartLiveViewAsync(lightLevel: 45);
@@ -230,7 +229,7 @@ public sealed class LightingTests
         recipes.Current.Pcb.BoltPoints.Add(bolt);
         recipes.Current.CarrierImages = [new() { BoltNumber = 1, Region = new(0, 0, 1, 1) }];
         var edited = new Recipe();
-        edited.Pcb.BoltPoints.Add(new() { Number = 1, LightLevel = 87, BrightnessThreshold = 0, MinimumBrightRatio = 0 });
+        edited.Pcb.BoltPoints.Add(new(bolt.Id) { Number = 1, LightLevel = 87, BrightnessThreshold = 0, MinimumBrightRatio = 0 });
         edited.CarrierImages = [new() { BoltNumber = 1, Region = new(0, 0, 1, 1) }];
         camera.OnCapture = () =>
         {
@@ -238,13 +237,12 @@ public sealed class LightingTests
                 recipes.Current.ApplyInspectionSettings(edited);
         };
 
-        var inspect = typeof(InspectionStation).GetMethod("InspectAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var first = await (Task<InspectionCapture>)inspect.Invoke(inspector, [bolt, CancellationToken.None])!;
+        var first = await inspector.InspectAsync(bolt);
         Assert.Equal(23, light.LastLevel);
         Assert.False(first.Success);
         Assert.Equal(0.5, first.MinimumBrightRatio);
         camera.OnCapture = null;
-        var second = await (Task<InspectionCapture>)inspect.Invoke(inspector, [bolt, CancellationToken.None])!;
+        var second = await inspector.InspectAsync(bolt);
         Assert.Equal(23, light.LastLevel);
         Assert.True(second.Success);
         Assert.Equal(0, second.MinimumBrightRatio);

@@ -87,7 +87,7 @@ public sealed partial class InspectionStation
         if (!_units.IsMotionEnabled(MotionGroup.InspectionGantry))
             return true;
         return WaitingPosition is { } position
-            && IsAt(position, live);
+            && Motion.IsAt(position, live);
     }
 
     public void RequestInspection(ConveyorStation.Job job)

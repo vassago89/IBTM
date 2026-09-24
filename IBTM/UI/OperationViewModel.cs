@@ -167,8 +167,6 @@ public partial class OperationViewModel : ObservableObject
 
     public bool PcbSupplyPcbDetected => Supply.Pcb != PcbSupplyPcbState.None;
 
-    public bool PcbSupplyPcbSecured => Supply.Pcb == PcbSupplyPcbState.Secured;
-
     public bool PcbPlacementPcbDetected => Placement.Pcb != PlacementPcbState.None;
 
     public bool PcbPlacementIpmDown => Placement.IpmLift == PlacementCylinderState.Down;
@@ -591,7 +589,6 @@ public partial class OperationViewModel : ObservableObject
             return;
 
         OnPropertyChanged(nameof(PcbSupplyPcbDetected));
-        OnPropertyChanged(nameof(PcbSupplyPcbSecured));
         OnPropertyChanged(nameof(PcbSupplyGripperClosed));
         OnPropertyChanged(nameof(SupplyPositionKnown));
         OnPropertyChanged(nameof(Supply));
