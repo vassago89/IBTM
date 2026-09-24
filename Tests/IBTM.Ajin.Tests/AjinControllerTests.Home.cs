@@ -214,6 +214,6 @@ public sealed partial class AjinControllerTests
         }
         return new AjinMotionService(
             controller, new() { Number = 9 }, hasY ? new() { Number = 10 } : null,
-            null, settings ?? new(), new(), new(), null);
+            null, settings ?? new(), new(), new());
     }
 }

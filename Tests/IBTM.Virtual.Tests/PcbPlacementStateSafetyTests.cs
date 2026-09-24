@@ -190,7 +190,7 @@ public sealed class PcbPlacementStateSafetyTests
             };
             Position = new() { X = 70, Y = 20, Z = 10 };
             Io = new(Outputs(new PcbPlacementHandlerHardwareSettings(), new ConveyorHardwareSettings()), new());
-            Motion = new(settings.Motion, new(), horizontalZ: () => settings.HandoffPosition.Z);
+            Motion = new(settings.Motion, new());
 
             Supply = new() { Handoff = PcbSupplyHandoff.Released };
             var units = new UnitSettings();

@@ -540,7 +540,7 @@ public sealed partial class MachineLifecycleTests
                     return ReportReady || _initialized;
             }
             if (!method.IsSpecialName
-                || name is "get_IsAtHorizontalZ" or "get_IsMoving" or "get_IsMovingHorizontal")
+                || name is "get_IsMoving" or "get_IsMovingHorizontal")
             {
                 BeforeHardwareRead?.Invoke();
                 Interlocked.Increment(ref HardwareCalls);

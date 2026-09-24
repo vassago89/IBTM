@@ -117,25 +117,21 @@ public static class DependencyInjection
             services,
             settings.Drivers.Control,
             settings.PcbSupply.Motion,
-            () => settings.PcbSupply.RotationZ,
             settings.PcbSupplyHardware);
         AddXyMotion(
             services,
             settings.Drivers.Control,
             settings.PcbPlacementHandler.Motion,
-            () => settings.PcbPlacementHandler.HandoffPosition.Z,
             settings.PcbPlacementHandlerHardware);
         AddXyMotion(
             services,
             settings.Drivers.Control,
             settings.BoltFastening.Motion,
-            () => settings.BoltFastening.SafeZ,
             settings.BoltFasteningHardware);
         AddXyMotion(
             services,
             settings.Drivers.Control,
             settings.InspectionGantry.Motion,
-            null,
             settings.InspectionGantryHardware);
 
         services
@@ -408,7 +404,6 @@ public static class DependencyInjection
         IServiceCollection services,
         ControlDriver driver,
         MotionSettings settings,
-        Func<double>? horizontalZ,
         MotionHardwareSettings hardware)
     {
         services.AddKeyedSingleton<IXyMotion>(
@@ -429,7 +424,6 @@ public static class DependencyInjection
                         settings,
                         provider.GetRequiredService<MachineOptions>(),
                         cancellation,
-                        horizontalZ,
                         provider.GetRequiredService<ILogger<AjinMotionService>>());
                 }
 
@@ -439,7 +433,6 @@ public static class DependencyInjection
                     cancellation,
                     hasY: y is not null,
                     hasZ: z is not null,
-                    horizontalZ: horizontalZ,
                     servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn),
                     axisResolutionMillimeters: (
                         x.MoveUnit / x.MovePulse / 1000,

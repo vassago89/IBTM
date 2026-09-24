@@ -50,14 +50,16 @@ public sealed class PcbPlacementRepeatTests
     {
         using var rig = new RepeatRig(loadPcbs: true);
         await rig.InitializeAsync();
-        await rig.Motion.MoveToAsync(50, 10, 12);
+        await rig.Motion.MoveToXYAsync(50, 10, 2_000);
+        await rig.Motion.MoveAxisAsync(MotionAxis.Z, 12, 2_000);
         rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         await rig.Handler.SetVacuumAsync(true);
         Assert.Equal(PcbPlacementState.MovingToHandoff, rig.Placer.State);
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
 
         var target = rig.Recipe.HeatSink2PcbPlacementPosition;
-        await rig.Motion.MoveToAsync(target.X, target.Y, target.Z);
+        await rig.Motion.MoveToXYAsync(target.X, target.Y, 2_000);
+        await rig.Motion.MoveAxisAsync(MotionAxis.Z, target.Z, 2_000);
         Assert.Equal(PcbPlacementState.MovingToHandoff, rig.Placer.State);
         Assert.Equal(HeatSinkSlot.HeatSink1, rig.Placer.TargetHeatSink);
         Assert.Empty(rig.Work.Assemblies);
@@ -327,8 +329,8 @@ public sealed class PcbPlacementRepeatTests
             Io = new(
                 Outputs(new PcbPlacementHandlerHardwareSettings(), new PcbSupplyHardwareSettings(), new ConveyorHardwareSettings()),
                 new MachineOptions { TimeoutMilliseconds = 1_000 });
-            Motion = new(motion, new OperationCancellation(), horizontalZ: () => settings.HandoffPosition.Z);
-            _supplyMotion = new(motion, new(), horizontalZ: () => supplySettings.RotationZ);
+            Motion = new(motion, new OperationCancellation());
+            _supplyMotion = new(motion, new());
             var simulation = new VirtualMachine(Io, [], incomingCarrierHasPcbs: () => loadPcbs);
             Motion.PositionChanged += (x, y, z) => simulation.UpdatePlacementPosition(
                 x, y, z, settings.HandoffPosition, settings.ReceiveZ,

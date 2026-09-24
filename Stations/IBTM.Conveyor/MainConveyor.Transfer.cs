@@ -56,7 +56,7 @@ public sealed partial class MainConveyor
             }
             else if (!_repeat && !EntryCarrierDetected)
             {
-                _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, true);
+                SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, true);
             }
 
             destination.Changed += ObserveArrival;
@@ -76,7 +76,7 @@ public sealed partial class MainConveyor
                 {
                     throw new IoTimeoutException(InputIo.MainConveyorEntryCarrierDetected, true, timeoutMilliseconds);
                 }
-                _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
+                SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
             }
             try
             {
@@ -159,8 +159,8 @@ public sealed partial class MainConveyor
         Exception? failure = null;
         try
         {
-            _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
-            _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorAvailableToRear, true);
+            SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
+            SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, true);
             ObserveRear();
             if (rearReleased.Task.IsCompleted)
                 return;

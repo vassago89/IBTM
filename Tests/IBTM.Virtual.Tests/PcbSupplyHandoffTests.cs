@@ -24,7 +24,8 @@ public sealed class PcbSupplyHandoffTests
         await rig.Handler.SetIpmFixerAsync(true);
         rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         var target = rig.Settings.HandoffPosition;
-        await rig.Motion.MoveToAsync(target.X, target.Y, target.Z);
+        await rig.Motion.MoveToXYAsync(target.X, target.Y, rig.Settings.Motion.HorizontalSpeed);
+        await rig.Motion.MoveAxisAsync(MotionAxis.Z, target.Z, rig.Settings.Motion.ZSpeed);
 
         Assert.True(rig.Handler.IsAtHandoff());
         Assert.True(rig.Handler.PcbSecured);
@@ -201,7 +202,7 @@ public sealed class PcbSupplyHandoffTests
                 HandoffPosition = new() { X = 50, Y = 10, Z = 7 },
             };
             Io = new(new PcbSupplyHardwareSettings().Outputs, new MachineOptions { TimeoutMilliseconds = 500 });
-            Motion = new(Settings.Motion, new(), horizontalZ: () => Settings.RotationZ);
+            Motion = new(Settings.Motion, new());
 
             Supplier = new PcbSupplier(Motion,
                 Io,

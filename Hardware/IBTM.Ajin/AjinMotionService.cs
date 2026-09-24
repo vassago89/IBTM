@@ -42,14 +42,12 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         MotionSettings settings,
         MachineOptions options,
         OperationCancellation operationCancellation,
-        Func<double>? horizontalZ,
         ILogger<AjinMotionService>? log = null)
         : base(
             settings,
             operationCancellation,
             hasY: axisY is not null,
-            hasZ: axisZ is not null,
-            horizontalZ: horizontalZ)
+            hasZ: axisZ is not null)
     {
         _controller = controller;
         _log = log;

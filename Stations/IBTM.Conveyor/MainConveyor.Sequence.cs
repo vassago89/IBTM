@@ -222,11 +222,11 @@ public sealed partial class MainConveyor
                                 && !IsNgTransferRequired
                                 && _inspectionWork.IsTransferAllowed
                                 && _inspectionWork.IsTransferAtWaitingPosition();
-                            _io.SetAutomaticSmemaOutput(
+                            SetSmemaOutput(
                                 OutputIo.MainConveyorReadyToFront2,
                                 !_repeat && _placementWork.IsReceiveAllowed && !rearAvailable
                                     && (!_inspectionWork.Station.CarrierPresent || _inspectionWork.Station.CarrierSeated));
-                            _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
+                            SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
                             await WaitForChangeAsync(cancellationToken);
                             break;
                     }

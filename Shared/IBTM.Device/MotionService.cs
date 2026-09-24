@@ -37,8 +37,6 @@ public interface IMotionFeedback
 
     MotionCommand Command { get; }
 
-    bool IsAtHorizontalZ { get; }
-
     (double X, double Y, double Z) GetPosition();
     AxisState GetAxisState(MotionAxis axis);
 }
@@ -52,7 +50,6 @@ public interface IAxisMotion : IMotionFeedback
         double position,
         double velocity,
         CancellationToken cancellationToken = default);
-    Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default, double? travelZ = null);
     Task<bool> HomeAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default);
     Task JogAsync(
         MotionAxis axis,
@@ -69,7 +66,6 @@ public interface IXyMotion : IAxisMotion
         double position,
         double velocity,
         CancellationToken cancellationToken = default);
-    Task MoveToAsync(double x, double y, double z, CancellationToken cancellationToken = default);
     Task MoveToXYAsync(
         double x,
         double y,
@@ -82,7 +78,6 @@ public abstract class MotionService : IXyMotion
 {
     public const double PositionToleranceMillimeters = 0.05;
 
-    private readonly Func<double>? _horizontalZ;
     private int _activeMotions;
     private int _activeHorizontalMotions;
     private MotionCommand _command = MotionCommand.Positioning;
@@ -91,14 +86,12 @@ public abstract class MotionService : IXyMotion
         MotionSettings settings,
         OperationCancellation operationCancellation,
         bool hasY = true,
-        bool hasZ = true,
-        Func<double>? horizontalZ = null)
+        bool hasZ = true)
     {
         Settings = settings;
         Operations = operationCancellation;
         HasY = hasY;
         HasZ = hasZ;
-        _horizontalZ = horizontalZ;
         Axes = (hasY, hasZ) switch
         {
             (true, true) => new[] { MotionAxis.X, MotionAxis.Y, MotionAxis.Z },
@@ -128,18 +121,6 @@ public abstract class MotionService : IXyMotion
     // Command ownership is not hardware movement: external moves have no local command.
     public MotionCommand Command => Volatile.Read(ref _activeMotions) > 0 ? _command : MotionCommand.None;
 
-    private double HorizontalZ => _horizontalZ!();
-
-    public bool IsAtHorizontalZ
-    {
-        get
-        {
-            return !HasZ
-                || GetAxisState(MotionAxis.Z).Homed
-                && Math.Abs(GetPosition().Z - HorizontalZ) <= PositionToleranceMillimeters;
-        }
-    }
-
     public abstract void Initialize();
 
     public async Task AdjustAxisAsync(
@@ -166,26 +147,6 @@ public abstract class MotionService : IXyMotion
             if (Volatile.Read(ref _activeMotions) == 0)
                 _command = MotionCommand.Positioning;
         }
-    }
-
-    public async Task MoveToAsync(
-        double x,
-        double y,
-        double z,
-        CancellationToken cancellationToken = default)
-    {
-        using var operation = Operations.Link(cancellationToken);
-        cancellationToken = operation.Token;
-        ValidatePositive(Settings.HorizontalSpeed, nameof(Settings.HorizontalSpeed));
-        ValidatePositive(Settings.ZSpeed, nameof(Settings.ZSpeed));
-        EnsureHasY();
-        EnsureHasZ();
-        ValidateTarget(MotionAxis.X, x);
-        ValidateTarget(MotionAxis.Y, y);
-        ValidateTarget(MotionAxis.Z, z);
-        EnsureStopped();
-        await MoveXYAsync(x, y, Settings.HorizontalSpeed, cancellationToken);
-        await MoveAsync(MotionAxis.Z, z, Settings.ZSpeed, cancellationToken);
     }
 
     public async Task MoveAxisAsync(
@@ -223,26 +184,6 @@ public abstract class MotionService : IXyMotion
         ValidateTarget(MotionAxis.Y, y);
         EnsureStopped();
         await MoveXYAsync(x, y, velocity, cancellationToken);
-    }
-
-    public async Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default, double? travelZ = null)
-    {
-        using var operation = Operations.Link(cancellationToken);
-        cancellationToken = operation.Token;
-        ValidatePositive(Settings.ZSpeed, nameof(Settings.ZSpeed));
-        EnsureHasZ();
-        var targetZ = travelZ ?? HorizontalZ;
-        ValidateTarget(MotionAxis.Z, targetZ);
-        EnsureStopped();
-        if (!GetAxisState(MotionAxis.Z).Homed)
-        {
-            throw new MotionInterlockException("Z axis must be homed before moving to its reference.");
-        }
-
-        if (Math.Abs(GetPosition().Z - targetZ) > PositionToleranceMillimeters)
-        {
-            await MoveAsync(MotionAxis.Z, targetZ, Settings.ZSpeed, cancellationToken);
-        }
     }
 
     public abstract Task JogAsync(

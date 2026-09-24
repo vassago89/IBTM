@@ -50,6 +50,13 @@ public sealed partial class MainConveyor : AutoUnit
 
     public override event Action? Changed;
 
+    private void SetSmemaOutput(OutputIo output, bool value)
+    {
+        // The selector contact is ON in teaching/manual mode; direct OUTPUTS remain available.
+        if (!_io.GetInput(InputIo.AutoMode))
+            _io.SetOutput(output, value);
+    }
+
     public MainConveyorState State => GetState(RunCommandOn);
 
     private bool IsNgTransferRequired => _units.Inspection && _inspectionWork.RouteToNg;

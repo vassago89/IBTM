@@ -16,7 +16,7 @@ public sealed partial class AjinControllerTests
     {
         using var controller = new AjinController(new());
         var axis = new AxisHardware { Number = 9, MoveUnit = 10, MovePulse = 100 };
-        var motion = new AjinMotionService(controller, axis, null, null, new(), new(), new(), null);
+        var motion = new AjinMotionService(controller, axis, null, null, new(), new(), new());
         AjinSdk.MotionAxes[9] = new(Position: 12340, Unit: 10, Pulse: 100);
         Assert.Equal(12.34, motion.GetPosition().X);
 
@@ -38,7 +38,7 @@ public sealed partial class AjinControllerTests
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
             controller, new() { Number = 9 }, new() { Number = 10 }, new() { Number = 11 },
-            new(), new(), new(), () => -5);
+            new(), new(), new());
         foreach (var axis in new[] { 9, 10, 11 })
         {
             AjinSdk.MotionAxes[axis] = new(
@@ -91,7 +91,7 @@ public sealed partial class AjinControllerTests
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
             controller, new() { Number = 9 }, new() { Number = 10 }, null,
-            new(), new(), new(), null);
+            new(), new(), new());
         foreach (var axis in new[] { 9, 10 })
         {
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1, AbsRelMode: 1);
@@ -117,7 +117,7 @@ public sealed partial class AjinControllerTests
         using var controller = new AjinController(new());
         var motion = new AjinMotionService(
             controller, new() { Number = 9 }, null, null,
-            new(), new() { TimeoutMilliseconds = 20 }, new(), null);
+            new(), new() { TimeoutMilliseconds = 20 }, new());
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 9)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = 0;
@@ -146,7 +146,7 @@ public sealed partial class AjinControllerTests
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
             controller, new() { Number = 9 }, new() { Number = 10 }, new() { Number = 11 },
-            new(), new(), operations, () => 0);
+            new(), new(), operations);
         var axes = xy ? new[] { 9, 10 } : new[] { 11 };
         foreach (var axis in new[] { 9, 10, 11 })
         {

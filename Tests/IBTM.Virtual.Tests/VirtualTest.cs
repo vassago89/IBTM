@@ -102,7 +102,6 @@ internal static class VirtualTest
     {
         return new(
             settings,
-            horizontalZ: () => 0,
             operationCancellation: operations);
     }
 

@@ -1603,13 +1603,17 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => teaching.SaveCommand.CanExecute(null));
-        await services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply).MoveToAsync(70, 20, 4);
+        var supplyMotion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
+        await supplyMotion.MoveToXYAsync(70, 20, settings.PcbSupply.Motion.HorizontalSpeed);
+        await supplyMotion.MoveAxisAsync(MotionAxis.Z, 4, settings.PcbSupply.Motion.ZSpeed);
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Equal((70, 20, 4), (settings.PcbSupply.HandoffPosition.X,
             settings.PcbSupply.HandoffPosition.Y, settings.PcbSupply.HandoffPosition.Z));
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-        await services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler).MoveToAsync(75, 25, 7);
+        var placementMotion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler);
+        await placementMotion.MoveToXYAsync(75, 25, settings.PcbPlacementHandler.Motion.HorizontalSpeed);
+        await placementMotion.MoveAxisAsync(MotionAxis.Z, 7, settings.PcbPlacementHandler.Motion.ZSpeed);
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementHandoff);
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         teaching.RecipeEditor.Name = "Unsaved product name";

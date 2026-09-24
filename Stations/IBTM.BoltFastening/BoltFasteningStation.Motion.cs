@@ -12,7 +12,7 @@ public sealed partial class BoltFasteningStation
     public bool IsAtSafeZ(bool live = true)
     {
         return Motion.IsSettled(live, MotionAxis.Z)
-            && (live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.SafeZ));
+            && Motion.IsAtZ(_settings.SafeZ, live);
     }
 
     internal bool IsAt(BoltPoint bolt, bool live = true, bool atSafeZ = false)
@@ -82,6 +82,9 @@ public sealed partial class BoltFasteningStation
 
     public Task MoveZAsync(double z, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_motion.GetAxisState(MotionAxis.Z).Homed)
+            throw new MotionInterlockException("Home fastening Z before moving to a taught height.");
         return _motion.MoveAxisAsync(MotionAxis.Z, z, _settings.Motion.ZSpeed, cancellationToken);
     }
 
@@ -214,7 +217,7 @@ public sealed partial class BoltFasteningStation
 
     public Task MoveToSafeZAsync(CancellationToken cancellationToken = default)
     {
-        return _motion.MoveToHorizontalZAsync(cancellationToken);
+        return MoveZAsync(_settings.SafeZ, cancellationToken);
     }
 
     private bool IsAt(AxisPosition target, bool live = true)

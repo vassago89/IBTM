@@ -37,7 +37,7 @@ public sealed class BoltFasteningTests
         var io = new VirtualIoService(
             Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings(), controllerSettings), new());
         io.Initialize();
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
         await HomeAsync(motion, 20_000);
         using var pickupBus = new VirtualAdcBus();
@@ -122,7 +122,7 @@ public sealed class BoltFasteningTests
         var io = new VirtualIoService(
             Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
         io.Initialize();
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
         await HomeAsync(motion, 20_000);
         using var bus = new AdcControllerStub();
@@ -621,7 +621,7 @@ public sealed class BoltFasteningTests
             Outputs(new BoltFasteningHardwareSettings(), new BoltFeederHardwareSettings(), new ConveyorHardwareSettings(), controllerSettings),
             new() { TimeoutMilliseconds = missingDownFeedback ? 100 : 2_000 })
         { AutoResponseEnabled = false };
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
         await HomeAsync(motion, 20_000);
         using var pickupBus = new VirtualAdcBus();
@@ -949,7 +949,7 @@ public sealed class BoltFasteningTests
         var io = new VirtualIoService(
             Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
         io.Initialize();
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
         await HomeAsync(motion, 20_000);
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -1160,7 +1160,7 @@ public sealed class BoltFasteningTests
         settings.PickupHead.LowerRightLocatingPin = new() { X = -50, Y = 210 };
         var io = new VirtualIoService(
             Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
-        using var motion = new VirtualMotionService(settings.Motion, operationCancellation: new(), horizontalZ: () => settings.SafeZ);
+        using var motion = new VirtualMotionService(settings.Motion, operationCancellation: new());
         using var bus = new VirtualAdcBus();
         using var shootingBus = new VirtualAdcBus();
 
@@ -1320,7 +1320,6 @@ public sealed class BoltFasteningTests
         var shootingHead = CreateAdcHead(shootingBus, io, FasteningHead.Shooting, connection, 2, "Virtual", 115200);
         using var motion = new VirtualMotionService(
             settings.Motion,
-            horizontalZ: () => settings.SafeZ,
             operationCancellation: new());
 
         var work = new BoltFasteningWork(ConveyorStation.CreateBoltFastening(io), new());
@@ -1461,7 +1460,7 @@ public sealed class BoltFasteningTests
                 item.Head == 1 ? settings.PickupHead.FasteningZ : settings.ShootingHead.FasteningZ,
                 item.Z));
             Assert.True(gantry.IsHorizontalMoveAllowed);
-            Assert.True(motion.IsAtHorizontalZ);
+            Assert.True(gantry.IsAtSafeZ());
             Assert.Equal(
                 new (byte Head, ushort Preset)[] { (2, 1), (2, 1), (1, 1), (1, 1) },
                 tightenings);
@@ -1515,7 +1514,7 @@ public sealed class BoltFasteningTests
             Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()),
             new() { TimeoutMilliseconds = 500 });
         io.Initialize();
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
         await HomeAsync(motion, 20_000);
         using var bus = new AdcControllerStub();
@@ -1633,7 +1632,6 @@ public sealed class BoltFasteningTests
         { AutoResponseEnabled = false };
         using var motion = new VirtualMotionService(
             settings.Motion,
-            horizontalZ: () => settings.SafeZ,
             operationCancellation: new OperationCancellation());
         using var bus = new VirtualAdcBus();
         using var shootingBus = new VirtualAdcBus();
@@ -1814,7 +1812,7 @@ public sealed class BoltFasteningTests
             (InputIo.PickupTableUp, tableDown), (InputIo.PickupTableDown, !tableDown),
             (InputIo.PickupHeadUp, true), (InputIo.PickupHeadDown, false),
             (InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.SafeZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
         using var bus = new VirtualAdcBus();
         using var shootingBus = new VirtualAdcBus();
         var station = CreateFastening(

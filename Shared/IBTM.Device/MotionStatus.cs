@@ -134,9 +134,12 @@ public sealed class MotionStatus : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new(nameof(Position)));
     }
 
-    // Display only; motion commands read Feedback again when they execute.
-    public bool IsAtZ(double z)
+    public bool IsAtZ(double z, bool live = false)
     {
+        if (live)
+            return !Feedback.HasZ
+                || Feedback.GetAxisState(MotionAxis.Z).Homed
+                && Math.Abs(Feedback.GetPosition().Z - z) <= MotionService.PositionToleranceMillimeters;
         return !Feedback.HasZ
             || Axes[MotionAxis.Z].State is { Homed: true }
             && Position.Z is { } current

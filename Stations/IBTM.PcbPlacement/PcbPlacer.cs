@@ -130,13 +130,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public bool IsAtHorizontalZ(bool live = true)
     {
-        return live
-            ? !_motion.IsMoving
-                && _motion.GetAxisState(MotionAxis.Z).InPosition
-                && _motion.IsAtHorizontalZ
-            : !Motion.IsMoving
-                && Motion.Axes[MotionAxis.Z].State is { InPosition: true }
-                && Motion.IsAtZ(_settings.HandoffPosition.Z);
+        return Motion.IsAtZ(_settings.HandoffPosition.Z, live)
+            && Motion.IsSettled(live, MotionAxis.Z);
     }
 
     public void InitializeMotion()
@@ -188,10 +183,9 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             && Math.Abs(Motion.ReadPosition(live).Z - position.Z) <= MotionService.PositionToleranceMillimeters;
     }
 
-    public async Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default)
+    public Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default)
     {
-        EnsureHandlerRaised(cancellationToken);
-        await _motion.MoveToHorizontalZAsync(cancellationToken);
+        return MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, cancellationToken);
     }
 
     public async Task MoveToHandoffXYAsync(CancellationToken cancellationToken = default)
@@ -231,6 +225,8 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         EnsureHandlerRaised(cancellationToken);
         var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
+        if (axis == MotionAxis.Z && !_motion.GetAxisState(axis).Homed)
+            throw new MotionInterlockException("Home Placement Z before moving to a taught height.");
         return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
 
@@ -243,13 +239,6 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             position.Y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
-    }
-
-    public async Task MoveToAsync(double x, double y, double z, CancellationToken cancellationToken = default)
-    {
-        await MoveToHorizontalZAsync(cancellationToken);
-        EnsureHandlerRaised(cancellationToken);
-        await _motion.MoveToAsync(x, y, z, cancellationToken);
     }
 
     public async Task MoveToTeachingPositionAsync(
@@ -267,7 +256,7 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 break;
             case TeachMode.Full when point.Target == TeachingTarget.PlacementHandoff:
                 EnsureHandlerRaised(cancellationToken);
-                await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: position.Z);
+                await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 await MoveAxisAsync(MotionAxis.X, position.X, cancellationToken);
                 await MoveAxisAsync(MotionAxis.Y, position.Y, cancellationToken);
                 break;
@@ -279,7 +268,12 @@ public sealed partial class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
             case TeachMode.Full:
-                await MoveToAsync(position.X, position.Y, position.Z, cancellationToken);
+                if (!double.IsFinite(position.Z))
+                    throw new ArgumentOutOfRangeException(nameof(position), "Target Z must be finite before XY movement.");
+                await MoveToHorizontalZAsync(cancellationToken);
+                EnsureHandlerRaised(cancellationToken);
+                await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
+                await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(point));

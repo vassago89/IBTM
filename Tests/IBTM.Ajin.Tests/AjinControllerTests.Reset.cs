@@ -16,7 +16,7 @@ public sealed partial class AjinControllerTests
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 4, HomeResult: 1, Position: 12340);
         AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 4, HomeResult: 0, Position: -5670);
         var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
-            null, new(), new(), new(), null);
+            null, new(), new(), new());
         AjinSdk.BeforeCall = call =>
         {
             if (call.Operation == nameof(CAXM.AxmSignalServoOn))
@@ -44,7 +44,7 @@ public sealed partial class AjinControllerTests
         AjinSdk.MotionAxes[9] = new();
         AjinSdk.MotionAxes[10] = new();
         var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
-            null, new(), new(), new(), null);
+            null, new(), new(), new());
         using var stop = new CancellationTokenSource();
         AjinSdk.BeforeCall = call =>
         {
@@ -67,7 +67,7 @@ public sealed partial class AjinControllerTests
         AjinSdk.MotionAxes[9] = new();
         AjinSdk.MotionAxes[10] = new();
         var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
-            null, new(), new(), new(), null);
+            null, new(), new(), new());
         if (failOnCommand)
             AjinSdk.Results[new(nameof(CAXM.AxmSignalServoAlarmReset), Value: 1, Axis: 9)] = 1;
         AjinSdk.Results[new(nameof(CAXM.AxmSignalServoAlarmReset), Value: 0, Axis: 9)] = 1;

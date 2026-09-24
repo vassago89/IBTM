@@ -146,7 +146,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     public bool IsAtRotationZ(bool live = true)
     {
-        return live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.RotationZ);
+        return Motion.IsAtZ(_settings.RotationZ, live);
     }
 
     public bool IsAtPickupXY(PcbPickPosition position)
@@ -187,7 +187,8 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     public void SetUpstreamReady(bool ready)
     {
-        _io.SetAutomaticSmemaOutput(OutputIo.PcbSupplyReadyToFront1, ready);
+        if (!_io.GetInput(InputIo.AutoMode))
+            _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, ready);
     }
 
     public void StopUpstream()
@@ -208,7 +209,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         position ??= _settings.HandoffPosition;
         if (automaticPosition)
             State = PcbSupplyState.MovingToHandoff;
-        await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: position.Z);
+        await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
         await _motion.MoveToXYAsync(
             position.X,
             position.Y,
@@ -235,7 +236,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         State = PcbSupplyState.PickingPcb;
         if (Pcb == PcbSupplyPcbState.None)
         {
-            await _motion.MoveToHorizontalZAsync(cancellationToken);
+            await MoveToRotationZAsync(cancellationToken);
             State = PcbSupplyState.WaitingForCarrier;
             return;
         }
@@ -252,7 +253,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         if (position.Y is not { } y)
             throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
         State = PcbSupplyState.MovingToPickup;
-        await _motion.MoveToHorizontalZAsync(cancellationToken);
+        await MoveToRotationZAsync(cancellationToken);
         await _motion.MoveToXYAsync(
             position.X,
             y,
@@ -293,7 +294,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             case TeachMode.Full when point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
                 if (!point.HasPosition)
                     throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
-                await _motion.MoveToHorizontalZAsync(cancellationToken);
+                await MoveToRotationZAsync(cancellationToken);
                 await _motion.MoveToXYAsync(
                     position.X,
                     position.Y,
@@ -317,7 +318,7 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         if (nextPick.Y is not { } y)
             throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
         State = PcbSupplyState.MovingToPickup;
-        await _motion.MoveToHorizontalZAsync(cancellationToken, travelZ: _settings.HandoffPosition.Z);
+        await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, cancellationToken);
         await _motion.MoveToXYAsync(
             nextPick.X,
             y,
@@ -353,6 +354,9 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         CancellationToken cancellationToken = default)
     {
         var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (axis == MotionAxis.Z && !_motion.GetAxisState(axis).Homed)
+            throw new MotionInterlockException("Home Supply Z before moving to a taught height.");
         return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
 
@@ -369,12 +373,12 @@ public sealed partial class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     public Task MoveToRotationZAsync(CancellationToken cancellationToken = default)
     {
-        return _motion.MoveToHorizontalZAsync(cancellationToken);
+        return MoveAxisAsync(MotionAxis.Z, _settings.RotationZ, cancellationToken);
     }
 
     public async Task SetRotatedAsync(bool rotated, CancellationToken cancellationToken = default)
     {
-        await _motion.MoveToHorizontalZAsync(cancellationToken);
+        await MoveToRotationZAsync(cancellationToken);
         await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, rotated, cancellationToken);
     }
 

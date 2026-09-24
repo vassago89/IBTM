@@ -33,15 +33,13 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         bool hasY = true,
         bool hasZ = true,
         double resolutionMillimeters = 0.001,
-        Func<double>? horizontalZ = null,
         Func<bool>? servoPowerOn = null,
         (double X, double Y, double Z)? axisResolutionMillimeters = null)
         : base(
             settings,
             operationCancellation,
             hasY,
-            hasZ,
-            horizontalZ)
+            hasZ)
     {
         _servoPowerOn = servoPowerOn;
         _resolution = axisResolutionMillimeters

@@ -23,7 +23,7 @@ public sealed class PcbTransferTests
         var recipe = System.Text.Json.JsonSerializer.Deserialize<PcbSupplyRecipe>(
             """{"Pcb1PickPosition":{"X":10,"Z":5},"Pcb2PickPosition":{"X":20,"Z":8}}""")!;
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
         var handler = VirtualTest.CreateSupplier(motion, io, settings);
         io.Initialize();
         motion.Initialize();
@@ -66,9 +66,9 @@ public sealed class PcbTransferTests
         var io = new VirtualIoService(
             Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
             new MachineOptions());
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, new(), horizontalZ: () => placementSettings.HandoffPosition.Z);
+            placementSettings.Motion, new());
 
         var supplier = new PcbSupplier(motion,
             io,
@@ -206,7 +206,7 @@ public sealed class PcbTransferTests
             new MachineOptions());
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
+            placementSettings.Motion, operations);
 
         var supplier = new PcbSupplier(supplyMotion,
             io,
@@ -319,9 +319,9 @@ public sealed class PcbTransferTests
             Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
             new MachineOptions());
         using var supplyMotion = new VirtualMotionService(
-            supplySettings.Motion, operations, horizontalZ: () => supplySettings.RotationZ);
+            supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
+            placementSettings.Motion, operations);
 
         var units = new UnitSettings();
         var supplier = new PcbSupplier(supplyMotion,
@@ -343,7 +343,8 @@ public sealed class PcbTransferTests
         Assert.False(source.IsAtHandoff() && source.PcbSecured);
         await source.MoveToHandoffAsync(CancellationToken.None);
         Assert.True(source.IsAtHandoff() && source.PcbSecured);
-        await placementMotion.MoveToAsync(50, 10, placementSettings.ReceiveZ!.Value);
+        await placementMotion.MoveToXYAsync(50, 10, placementSettings.Motion.HorizontalSpeed);
+        await placementMotion.MoveAxisAsync(MotionAxis.Z, placementSettings.ReceiveZ!.Value, placementSettings.Motion.ZSpeed);
         await recipient.SetIpmLiftDownAsync(true);
         io.SetInputs(
             (InputIo.PcbPlacementHeatSink1Present, true),
@@ -558,7 +559,7 @@ public sealed class PcbTransferTests
             new MachineOptions());
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
+            placementSettings.Motion, operations);
 
         var supplier = new PcbSupplier(supplyMotion,
             io,
@@ -575,7 +576,8 @@ public sealed class PcbTransferTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
         await source.MoveToHandoffAsync(CancellationToken.None);
-        await placementMotion.MoveToAsync(50, 10, placementSettings.ReceiveZ!.Value);
+        await placementMotion.MoveToXYAsync(50, 10, placementSettings.Motion.HorizontalSpeed);
+        await placementMotion.MoveAxisAsync(MotionAxis.Z, placementSettings.ReceiveZ!.Value, placementSettings.Motion.ZSpeed);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
         await recipient.MoveToReceiveZAsync();
@@ -633,7 +635,7 @@ public sealed class PcbTransferTests
         io.SetInput(InputIo.AutoMode, false);
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
+            placementSettings.Motion, operations);
         supplyMotion.PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
             x,
             y,
@@ -812,7 +814,7 @@ public sealed class PcbTransferTests
             new MachineOptions());
         using var supplyMotion = Motion(supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
+            placementSettings.Motion, operations);
 
         var supply = new PcbSupplier(supplyMotion,
             io,
@@ -867,7 +869,10 @@ public sealed class PcbTransferTests
         placementMotion.Initialize();
         await Task.WhenAll(HomeAsync(supplyMotion, 2_000), HomeAsync(placementMotion, 2_000));
         if (secondPcbPresent)
-            await placementMotion.MoveToAsync(50, 10, 8);
+        {
+            await placementMotion.MoveToXYAsync(50, 10, placementSettings.Motion.HorizontalSpeed);
+            await placementMotion.MoveAxisAsync(MotionAxis.Z, 8, placementSettings.Motion.ZSpeed);
+        }
         io.SetInput(InputIo.AutoMode, false); // Production SMEMA uses the physical inputs.
         using var cancellation = new CancellationTokenSource();
         var run = supply.RunAsync(recipe, placement, cancellation.Token);
@@ -877,7 +882,7 @@ public sealed class PcbTransferTests
         var checkedBoth = await WaitUntilAsync(
             () => pcb1Visited && pcb2Visited && !io.GetOutput(OutputIo.PcbSupplyReadyToFront1),
             TimeSpan.FromSeconds(5));
-        var atRotationZ = supplyMotion.IsAtHorizontalZ;
+        var atRotationZ = supply.IsAtRotationZ();
         var nextCarrierAccepted = true;
         if (secondPcbPresent && checkedBoth)
         {
@@ -920,9 +925,9 @@ public sealed class PcbTransferTests
             Outputs(new PcbSupplyHardwareSettings(), new PcbPlacementHandlerHardwareSettings()),
             new MachineOptions());
         using var supplyMotion = new VirtualMotionService(
-            supplySettings.Motion, operations, horizontalZ: () => supplySettings.RotationZ);
+            supplySettings.Motion, operations);
         using var placementMotion = new VirtualMotionService(
-            placementSettings.Motion, operations, horizontalZ: () => placementSettings.HandoffPosition.Z);
+            placementSettings.Motion, operations);
 
         var supply = new PcbSupplier(supplyMotion,
             io,
@@ -944,7 +949,8 @@ public sealed class PcbTransferTests
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
 
         await placementHandler.SetIpmLiftDownAsync(true);
-        await placementMotion.MoveToAsync(50, 10, 8);
+        await placementMotion.MoveToXYAsync(50, 10, placementSettings.Motion.HorizontalSpeed);
+        await placementMotion.MoveAxisAsync(MotionAxis.Z, 8, placementSettings.Motion.ZSpeed);
 
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var interrupted = false;

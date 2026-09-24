@@ -229,7 +229,7 @@ public sealed class IoStartupTests
         await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var sequenceIo = services.GetRequiredService<IIoService>();
+        var supply = services.GetRequiredService<PcbSupplier>();
         OutputIo[] smema = [OutputIo.PcbSupplyReadyToFront1,
             OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear];
         io.AutoResponseEnabled = false;
@@ -240,29 +240,22 @@ public sealed class IoStartupTests
         {
             Assert.All(smema, output => Assert.False(io.GetOutput(output)));
             io.SetInput(InputIo.AutoMode, false);
-            foreach (var output in smema)
-            {
-                sequenceIo.SetAutomaticSmemaOutput(output, true);
-                Assert.True(io.GetOutput(output));
-            }
+            supply.SetUpstreamReady(true);
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
             io.SetInputs((InputIo.AutoMode, true));
+            Assert.All(smema, output => Assert.False(io.GetOutput(output)));
+            supply.SetUpstreamReady(true);
+            Assert.False(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
             foreach (var output in smema)
             {
-                Assert.False(io.GetOutput(output));
-                sequenceIo.SetAutomaticSmemaOutput(output, true);
-                Assert.False(io.GetOutput(output));
                 io.SetOutput(output, true);
-                sequenceIo.SetAutomaticSmemaOutput(output, false);
+                supply.SetUpstreamReady(false);
                 Assert.True(io.GetOutput(output));
                 io.SetOutput(output, false);
             }
             io.SetInput(InputIo.AutoMode, false);
-            foreach (var output in smema)
-            {
-                Assert.False(io.GetOutput(output));
-                sequenceIo.SetAutomaticSmemaOutput(output, true);
-                Assert.True(io.GetOutput(output));
-            }
+            supply.SetUpstreamReady(true);
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
         }
         finally
         {

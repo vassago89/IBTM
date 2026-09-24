@@ -70,6 +70,14 @@ internal static partial class CAXM
         return AjinSdk.Record(new(nameof(AxmStatusGetActPos), Axis: axis));
     }
 
+    public static uint AxmStatusSetActPos(int axis, double value)
+    {
+        var result = AjinSdk.Record(new(nameof(AxmStatusSetActPos), Axis: axis));
+        if (result == 0)
+            AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { Position = value };
+        return result;
+    }
+
     public static uint AxmSignalServoOn(int axis, uint on)
     {
         var result = AjinSdk.Record(new(nameof(AxmSignalServoOn), Value: on, Axis: axis));

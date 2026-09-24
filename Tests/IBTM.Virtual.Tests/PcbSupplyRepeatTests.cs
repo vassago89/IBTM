@@ -30,7 +30,7 @@ public sealed class PcbSupplyRepeatTests
             Pcb2PickPosition = new() { X = 20, Y = 10, Z = 5 },
         };
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
 
         var supplier = new PcbSupplier(motion,
             io,
@@ -99,7 +99,7 @@ public sealed class PcbSupplyRepeatTests
             Pcb2PickPosition = new() { X = 20, Y = 10, Z = 5 },
         };
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
 
         var supplier = new PcbSupplier(motion,
             io,
@@ -181,7 +181,7 @@ public sealed class PcbSupplyRepeatTests
             Pcb2PickPosition = new() { X = 20, Y = 10, Z = 5 },
         };
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions { TimeoutMilliseconds = 1_000 });
-        using var motion = new VirtualMotionService(settings.Motion, new(), horizontalZ: () => settings.RotationZ);
+        using var motion = new VirtualMotionService(settings.Motion, new());
         var simulation = new VirtualMachine(io, [motion]);
         motion.PositionChanged += (x, y, z) => simulation.UpdateSupplyPosition(
             x, y, z,
