@@ -120,7 +120,7 @@ public sealed partial class MachineController
             {
                 if (!_pcbPlacement.HandlerRaised)
                     return OutputBlockReason.PlacementNotRaised;
-                if (!_pcbPlacement.IsAtHorizontalZ())
+                if (!_pcbPlacement.IsAtHorizontalZ)
                     return OutputBlockReason.PlacementNotAtSafeZ;
             }
 
@@ -128,7 +128,7 @@ public sealed partial class MachineController
             {
                 if (!_fasteningStation.IsHorizontalMoveAllowed)
                     return OutputBlockReason.FasteningNotRaised;
-                if (!_fasteningStation.IsAtSafeZ())
+                if (!_fasteningStation.IsAtSafeZ)
                     return OutputBlockReason.FasteningNotAtSafeZ;
             }
 

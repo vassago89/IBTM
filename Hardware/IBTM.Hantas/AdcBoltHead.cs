@@ -93,7 +93,7 @@ public sealed class AdcBoltHead : IBoltHead
         cancellationToken.ThrowIfCancellationRequested();
         if (preset is < 1 or > 3)
             throw new ArgumentOutOfRangeException(nameof(preset), "IO bolt presets are 1, 2 and 3.");
-        if (Monitor.Status is { Alarm: > 0 })
+        if (Monitor.Sample?.Status is { Alarm: > 0 })
         {
             _logger.LogWarning("ADC {Port}/{Slave} last ADC sample reported an alarm; resetting once before the next bolt.",
                 _portName, _slaveAddress);
@@ -269,7 +269,7 @@ public sealed class AdcBoltHead : IBoltHead
                         else
                             failure = new InvalidOperationException(
                                 $"RUN OFF, but no new completed fastening result: "
-                                + $"start event={fastening.EventCount}, event={result.EventCount}, status={result.Status}, alarm={Monitor.Status?.Alarm}.");
+                                + $"start event={fastening.EventCount}, event={result.EventCount}, status={result.Status}, alarm={Monitor.Sample?.Status?.Alarm}.");
                     }
                 }
                 catch (Exception exception) when (exception is AdcResponseException or AdcUnexpectedResponseException)
@@ -292,11 +292,11 @@ public sealed class AdcBoltHead : IBoltHead
         {
             failure = new TimeoutException(
                 $"ADC {_portName}/{_slaveAddress} fastening timed out after {_connection.FasteningTimeoutMilliseconds} ms; "
-                + $"waiting for RUN ON then OFF / one result read; RUN observed={runObserved}, last RUN={Monitor.Status?.Running}; "
+                + $"waiting for RUN ON then OFF / one result read; RUN observed={runObserved}, last RUN={Monitor.Sample?.Status?.Running}; "
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
                 + $"direction={lastResult?.Direction}, error={lastResult?.Error}; "
-                + $"last status error={Monitor.Error?.Message ?? "none"}.");
+                + $"last status error={Monitor.Sample?.Error?.Message ?? "none"}.");
             if (!waitingForResult)
                 throw failure;
         }
@@ -315,7 +315,7 @@ public sealed class AdcBoltHead : IBoltHead
         cancellationToken.ThrowIfCancellationRequested();
         if (ioFailure is not null)
             throw ioFailure;
-        if (completed is null && Monitor.Status is { Alarm: > 0 } status)
+        if (completed is null && Monitor.Sample?.Status is { Alarm: > 0 } status)
             failure ??= new InvalidOperationException(AdcControllerError.Describe(status.Alarm));
         if (failure is not null)
         {

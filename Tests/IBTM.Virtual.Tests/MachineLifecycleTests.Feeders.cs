@@ -114,7 +114,7 @@ public sealed partial class MachineLifecycleTests
         await work.SeatAsync(CancellationToken.None);
         // Standalone fastening starts from plate UP even if the stopper is still UP.
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningStopperUp, true);
-        gantry.Feedback.PositionChanged += (x, y, _) =>
+        gantry.Motion.Feedback.PositionChanged += (x, y, _) =>
         {
             if (Math.Abs(x - settings.BoltFastening.PickupPosition.X) < 0.01
                 && Math.Abs(y - settings.BoltFastening.PickupPosition.Y) < 0.01)
@@ -129,7 +129,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(BoltCylinderState.Up, gantry.PickupHeadPosition);
                 Assert.Equal(BoltCylinderState.Up, gantry.ShootingHeadPosition);
                 Assert.Equal(BoltCylinderState.Down, gantry.PickupTablePosition);
-                var position = gantry.Feedback.GetPosition();
+                var position = gantry.Motion.Feedback.Position;
                 pickups.Enqueue((position.X, position.Y, position.Z));
             }
             if (on && output is OutputIo.ShootingBoltStart or OutputIo.PickupBoltStart)
@@ -139,13 +139,13 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(io.GetOutput(shooting ? OutputIo.ShootingBoltPreset1 : OutputIo.PickupBoltPreset1));
                 Assert.False(io.GetOutput(shooting ? OutputIo.ShootingBoltPreset2 : OutputIo.PickupBoltPreset2));
                 Assert.False(io.GetOutput(shooting ? OutputIo.ShootingBoltPreset3 : OutputIo.PickupBoltPreset3));
-                var position = gantry.Feedback.GetPosition();
+                var position = gantry.Motion.Feedback.Position;
                 starts.Enqueue((output == OutputIo.ShootingBoltStart ? FasteningHead.Shooting : FasteningHead.Pickup,
                     position.X, position.Y, position.Z));
             }
             if (on && output is OutputIo.ShootingHeadDown or OutputIo.PickupHeadDown)
             {
-                var position = gantry.Feedback.GetPosition();
+                var position = gantry.Motion.Feedback.Position;
                 Assert.True(io.GetOutput(output == OutputIo.ShootingHeadDown
                     ? OutputIo.ShootingBoltStart : OutputIo.PickupBoltStart));
                 descents.Enqueue((output == OutputIo.ShootingHeadDown ? FasteningHead.Shooting : FasteningHead.Pickup,
@@ -195,7 +195,7 @@ public sealed partial class MachineLifecycleTests
             if (!pickupFeeding)
             {
                 Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));
-                Assert.False(gantry.PickupBoltLoaded);
+                Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
             }
             if (!shootingFeeding)
                 Assert.DoesNotContain(outputs, command =>
@@ -242,7 +242,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
         if (head == FasteningHead.Pickup)
-            await station.SetPickupTableDownAsync(true, CancellationToken.None);
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, CancellationToken.None);
         settings.Options.TimeoutMilliseconds = 100;
         io.AutoResponseEnabled = false;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -341,7 +341,7 @@ public sealed partial class MachineLifecycleTests
             vacuumRequested |= output == OutputIo.PickupHeadVacuumPump && on;
         };
         var atPickup = false;
-        station.Feedback.StateChanged += () =>
+        station.Motion.Feedback.StateChanged += () =>
         {
             var wasAtPickup = atPickup;
             atPickup = station.Motion.IsAt(settings.BoltFastening.PickupPosition);
@@ -365,10 +365,10 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(1, pickups);
             Assert.Equal(0, starts);
             Assert.False(vacuumRequested);
-            Assert.True(station.IsAtPickupXY());
-            Assert.True(station.IsAtSafeZ());
+            Assert.True(station.IsAtPickupXY);
+            Assert.True(station.IsAtSafeZ);
             Assert.Equal(BoltCylinderState.Down, station.PickupHeadPosition);
-            Assert.False(station.PickupBoltLoaded);
+            Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
             Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults);
 
             settings.Options.TimeoutMilliseconds = 2_000;
@@ -386,7 +386,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(work.Completed);
             Assert.Equal(2, pickups);
             Assert.False(vacuumRequested);
-            Assert.False(station.PickupBoltLoaded);
+            Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
             Assert.Equal(1, starts); // Only the new carrier reaches fastening START.
             Assert.Equal(AssemblyResult.Ok, work.GetAssembly(HeatSinkSlot.HeatSink1).FasteningResult);
             Assert.True(station.IsHorizontalMoveAllowed);

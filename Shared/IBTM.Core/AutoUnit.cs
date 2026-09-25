@@ -19,13 +19,9 @@ public abstract class AutoUnit
     public event Action? StepChanged;
     public event Action<string>? Trace;
 
-    // Selected execution step, also used to coordinate operation boundaries.
-    // It never replaces physical feedback or ownership of an unfinished handoff.
-    public Enum? Step => IsRunning ? DisplayStep : null;
-    protected virtual Enum? DisplayStep => SequenceStep;
-    // The last selected phase can retain unfinished handoff history across STOP.
-    // It is never exposed as an active step outside Run.
-    protected Enum? SequenceStep { get; private set; }
+    // Current execution/wait only. Units own any unfinished handoff history.
+    // Reading this property never selects the next operation or reads hardware.
+    public Enum? Step { get; private set; }
     public bool IsRunning { get; private set; }
 
     protected void OnChanged()
@@ -35,16 +31,17 @@ public abstract class AutoUnit
 
     protected void EnterStep(Enum step, string? target = null, long? workId = null, string? waitingFor = null)
     {
-        if (!Equals(SequenceStep, step))
+        if (!IsRunning)
+            return;
+        if (!Equals(Step, step))
         {
-            SequenceStep = step;
-            if (IsRunning)
-                StepChanged?.Invoke();
+            Step = step;
+            StepChanged?.Invoke();
         }
         TraceStep(step, target, workId, waitingFor);
     }
 
-    // Report temporary waiting conditions without replacing an unfinished sequence.
+    // Add the target/wait reason without changing the executing step.
     protected void TraceStep(Enum step, string? target = null, long? workId = null, string? waitingFor = null)
     {
         if (!IsRunning || Trace is null)
@@ -60,25 +57,26 @@ public abstract class AutoUnit
         Trace.Invoke(detail);
     }
 
-    protected Task WaitForChangeAsync(CancellationToken cancellationToken)
+    protected Task WaitForChangeAsync(CancellationToken cancellationToken, TimeSpan? timeout = null)
     {
         if (!_waiting && _lastStep is not null)
         {
             _waiting = true;
             Trace?.Invoke($"Waiting for feedback / work change: {_lastStep}");
         }
-        return _stateChanged.WaitAsync(cancellationToken);
+        return timeout is { } duration
+            ? _stateChanged.WaitAsync(duration, cancellationToken)
+            : _stateChanged.WaitAsync(cancellationToken);
     }
 
     protected void BeginRun(Enum? initialStep = null)
     {
-        SequenceStep = initialStep;
+        Step = initialStep;
         IsRunning = true;
         _lastStep = null;
         _waiting = false;
         Trace?.Invoke($"{GetType().Name}: run started.");
         Changed += OnChanged;
-        // A retained handoff phase becomes active even when its value has not changed.
         if (Step is not null)
             StepChanged?.Invoke();
     }
@@ -87,6 +85,7 @@ public abstract class AutoUnit
     {
         Changed -= OnChanged;
         IsRunning = false;
+        Step = null;
         StepChanged?.Invoke();
         Trace?.Invoke(
             $"{GetType().Name}: run ended; cancelled={cancellationToken.IsCancellationRequested}; "

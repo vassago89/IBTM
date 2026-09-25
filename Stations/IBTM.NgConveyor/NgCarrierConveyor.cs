@@ -41,14 +41,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 
     public override event Action? Changed;
 
-    public bool RunCommandOn => _io.GetOutput(OutputIo.NgConveyorRun);
-
-    public bool Position1Occupied => _io.GetInput(InputIo.NgConveyorPosition1Occupied);
-
-    public bool Position2Occupied => _io.GetInput(InputIo.NgConveyorPosition2Occupied);
-
-    public bool Position3Occupied => _io.GetInput(InputIo.NgShuttleCarrierDetected);
-
     public NgShuttleLiftState ShuttleLift
     {
         get
@@ -65,43 +57,42 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         }
     }
 
-    public int CarrierCount => (Position1Occupied ? 1 : 0) + (Position2Occupied ? 1 : 0) + (Position3Occupied ? 1 : 0);
+    public int CarrierCount => (_io.GetInput(InputIo.NgConveyorPosition1Occupied) ? 1 : 0)
+        + (_io.GetInput(InputIo.NgConveyorPosition2Occupied) ? 1 : 0)
+        + (_io.GetInput(InputIo.NgShuttleCarrierDetected) ? 1 : 0);
 
-    public int AlarmCarrierCount => _settings.AlarmCarrierCount;
-
-    public bool AlarmRequired => CarrierCount >= AlarmCarrierCount;
+    public bool AlarmRequired => CarrierCount >= _settings.AlarmCarrierCount;
 
     public bool Full => CarrierCount == 3;
-
-    private bool EjectRequested => _io.GetInput(InputIo.NgCarrierEjectButton);
-
-    private bool EjectConfirmed => _io.GetInput(InputIo.NgCarrierEjectCompleteButton);
 
     private bool IsShuttleRaiseRequired(bool runCommandOn)
     {
         return !runCommandOn
-            && ((!Position3Occupied
+            && ((!_io.GetInput(InputIo.NgShuttleCarrierDetected)
                     && (_movement == Movement.None
-                        || _movement == Movement.ToPosition1 && Position1Occupied
-                        || _movement == Movement.ToPosition2 && Position2Occupied))
+                        || _movement == Movement.ToPosition1 && _io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                        || _movement == Movement.ToPosition2 && _io.GetInput(InputIo.NgConveyorPosition2Occupied)))
                 || Full && _movement == Movement.None);
     }
-
-    public NgConveyorState State => Step is NgConveyorState step ? step : GetNextStep(RunCommandOn);
 
     // Pending ownership is cleared by the release operation, never by presence DI.
     private bool IsTransferClear => _transfer?.IsClear == true
         && _io.GetInput(InputIo.NgCarrierGripperOpen)
         && !_io.GetInput(InputIo.NgCarrierGripperClosed);
 
-    public bool IsReceiveAllowed(bool? conveyorRunning = null)
+    public bool IsReceiveAllowed
     {
-        return ShuttleLift == NgShuttleLiftState.Up
-            && !Position3Occupied
-            && IsAcceptCarrierAllowed(conveyorRunning);
+        get
+        {
+            return ShuttleLift == NgShuttleLiftState.Up
+                && !_io.GetInput(InputIo.NgShuttleCarrierDetected)
+                && IsAcceptCarrierAllowed();
+        }
     }
 
-    private bool NeedsCompaction => _movement == Movement.Compacting || !Position1Occupied && Position2Occupied;
+    private bool NeedsCompaction => _movement == Movement.Compacting
+        || !_io.GetInput(InputIo.NgConveyorPosition1Occupied)
+            && _io.GetInput(InputIo.NgConveyorPosition2Occupied);
 
     private bool IsAcceptCarrierAllowed(bool? runCommandOn = null)
     {
@@ -109,8 +100,8 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             && _ejectionPhase == EjectionPhase.Idle
             && !Full
             && !NeedsCompaction
-            && (_repeat || !EjectRequested)
-            && !(runCommandOn ?? RunCommandOn);
+            && (_repeat || !_io.GetInput(InputIo.NgCarrierEjectButton))
+            && !(runCommandOn ?? _io.GetOutput(OutputIo.NgConveyorRun));
     }
 
     private void OnInputChanged(InputIo input, bool value)
@@ -159,7 +150,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         using var motor = new ConveyorRun(_io, OutputIo.NgConveyorRun, cancellationToken, OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         try
         {
-            if (_units.NgConveyor && !repeat && _ejectionPhase == EjectionPhase.Idle && EjectRequested)
+            if (_units.NgConveyor && !repeat && _ejectionPhase == EjectionPhase.Idle && _io.GetInput(InputIo.NgCarrierEjectButton))
             {
                 _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
                 Changed?.Invoke();
@@ -168,7 +159,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             BeginRun();
             while (!cancellationToken.IsCancellationRequested)
             {
-                var step = GetNextStep(RunCommandOn);
+                var step = GetNextStep(_io.GetOutput(OutputIo.NgConveyorRun));
                 if (!await ExecuteStepAsync(step, cancellationToken))
                     await WaitForChangeAsync(cancellationToken);
             }
@@ -196,7 +187,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         if (ShuttleLift != NgShuttleLiftState.Up && IsShuttleRaiseRequired(runCommandOn))
             return IsTransferClear
                 ? NgConveyorState.RaisingShuttle : NgConveyorState.WaitingForTransferRelease;
-        if (Position3Occupied && IsAcceptCarrierAllowed(runCommandOn))
+        if (_io.GetInput(InputIo.NgShuttleCarrierDetected) && IsAcceptCarrierAllowed(runCommandOn))
         {
             if (!IsTransferClear)
                 return NgConveyorState.WaitingForTransferRelease;
@@ -208,9 +199,9 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         if (!runCommandOn
             && (_movement switch
             {
-                Movement.ToPosition1 => !Position1Occupied && !Position3Occupied,
-                Movement.ToPosition2 => !Position2Occupied && !Position3Occupied,
-                Movement.Compacting => !Position1Occupied && !Position2Occupied,
+                Movement.ToPosition1 => !_io.GetInput(InputIo.NgConveyorPosition1Occupied) && !_io.GetInput(InputIo.NgShuttleCarrierDetected),
+                Movement.ToPosition2 => !_io.GetInput(InputIo.NgConveyorPosition2Occupied) && !_io.GetInput(InputIo.NgShuttleCarrierDetected),
+                Movement.Compacting => !_io.GetInput(InputIo.NgConveyorPosition1Occupied) && !_io.GetInput(InputIo.NgConveyorPosition2Occupied),
                 _ => false,
             }))
         {
@@ -232,9 +223,9 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                 return NgConveyorState.WaitingForEjectButtonRelease;
         }
 
-        if (Position1Occupied
+        if (_io.GetInput(InputIo.NgConveyorPosition1Occupied)
             && !_repeat
-            && EjectRequested
+            && _io.GetInput(InputIo.NgCarrierEjectButton)
             && ShuttleLift == NgShuttleLiftState.Up)
         {
             return NgConveyorState.EjectingCarrier;
@@ -243,11 +234,11 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         switch (_movement)
         {
             case Movement.ToPosition1:
-                return Position1Occupied && !Position3Occupied
+                return _io.GetInput(InputIo.NgConveyorPosition1Occupied) && !_io.GetInput(InputIo.NgShuttleCarrierDetected)
                     ? NgConveyorState.WaitingForShuttleUp
                     : NgConveyorState.MovingToPosition1;
             case Movement.ToPosition2:
-                return Position2Occupied && !Position3Occupied
+                return _io.GetInput(InputIo.NgConveyorPosition2Occupied) && !_io.GetInput(InputIo.NgShuttleCarrierDetected)
                     ? NgConveyorState.WaitingForShuttleUp
                     : NgConveyorState.MovingToPosition2;
             case Movement.Compacting:
@@ -256,15 +247,15 @@ public sealed partial class NgCarrierConveyor : AutoUnit
 
         if (NeedsCompaction)
             return NgConveyorState.CompactingCarriers;
-        if (!Position3Occupied)
-            return Position1Occupied ? NgConveyorState.ReadyToEject : NgConveyorState.WaitingForCarrier;
+        if (!_io.GetInput(InputIo.NgShuttleCarrierDetected))
+            return _io.GetInput(InputIo.NgConveyorPosition1Occupied) ? NgConveyorState.ReadyToEject : NgConveyorState.WaitingForCarrier;
         if (Full)
             return NgConveyorState.Full;
         if (ShuttleLift != NgShuttleLiftState.Down)
             return NgConveyorState.WaitingForShuttleDown;
-        if (!Position1Occupied)
+        if (!_io.GetInput(InputIo.NgConveyorPosition1Occupied))
             return NgConveyorState.MovingToPosition1;
-        return !Position2Occupied ? NgConveyorState.MovingToPosition2 : NgConveyorState.Full;
+        return !_io.GetInput(InputIo.NgConveyorPosition2Occupied) ? NgConveyorState.MovingToPosition2 : NgConveyorState.Full;
     }
 
     private async Task<bool> ExecuteStepAsync(NgConveyorState state, CancellationToken cancellationToken)
@@ -296,7 +287,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             case NgConveyorState.MovingToPosition1 or NgConveyorState.MovingToPosition2:
                 var toPosition1 = state == NgConveyorState.MovingToPosition1;
                 _movement = toPosition1 ? Movement.ToPosition1 : Movement.ToPosition2;
-                await SetStopperDownAsync(false, cancellationToken);
+                await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
                 await RunUntilAsync(
                     toPosition1 ? InputIo.NgConveyorPosition1Occupied : InputIo.NgConveyorPosition2Occupied,
                     true, false, cancellationToken);
@@ -312,33 +303,33 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             case NgConveyorState.EjectingCarrier:
                 _ejectionPhase = EjectionPhase.Ejecting;
                 _io.SetOutput(OutputIo.NgCarrierEjectLamp, false);
-                if (Position1Occupied)
+                if (_io.GetInput(InputIo.NgConveyorPosition1Occupied))
                 {
-                    await SetStopperDownAsync(true, cancellationToken);
+                    await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false, cancellationToken);
                     await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, false, false, cancellationToken);
                 }
 
-                await SetStopperDownAsync(false, cancellationToken);
+                await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
                 _ejectionPhase = EjectionPhase.WaitingForConfirmation;
                 Changed?.Invoke();
                 _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, true);
                 break;
             case NgConveyorState.SecuringEjectStopper:
-                await SetStopperDownAsync(false, cancellationToken);
+                await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
                 break;
             case NgConveyorState.CompactingCarriers:
                 _movement = Movement.Compacting;
-                await SetStopperDownAsync(false, cancellationToken);
+                await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
                 await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, true, false, cancellationToken);
                 _movement = Movement.None;
                 Changed?.Invoke();
                 break;
-            case NgConveyorState.WaitingForEjectConfirmation when EjectConfirmed:
+            case NgConveyorState.WaitingForEjectConfirmation when _io.GetInput(InputIo.NgCarrierEjectCompleteButton):
                 _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
                 _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, false);
                 Changed?.Invoke();
                 break;
-            case NgConveyorState.WaitingForEjectButtonRelease when !EjectRequested && !EjectConfirmed:
+            case NgConveyorState.WaitingForEjectButtonRelease when !_io.GetInput(InputIo.NgCarrierEjectButton) && !_io.GetInput(InputIo.NgCarrierEjectCompleteButton):
                 _ejectionPhase = EjectionPhase.Idle;
                 Changed?.Invoke();
                 break;
@@ -400,11 +391,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             ExceptionDispatchInfo.Throw(failures[0]);
         if (failures is not null)
             throw new AggregateException("NG conveyor outputs could not all be stopped.", failures);
-    }
-
-    private Task SetStopperDownAsync(bool down, CancellationToken cancellationToken)
-    {
-        return _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, !down, cancellationToken);
     }
 
     internal async Task RunUntilAsync(

@@ -142,7 +142,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         CancellationToken cancellationToken = default)
     {
         var axisYNumber = _axisY!.Value;
-        var position = GetPosition();
+        var position = Position;
         var distanceX = Math.Abs(x - position.X);
         var distanceY = Math.Abs(y - position.Y);
 
@@ -242,12 +242,15 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         PublishStateChanged();
     }
 
-    public override (double X, double Y, double Z) GetPosition()
+    public override (double X, double Y, double Z) Position
     {
-        return (
-            ReadPosition(_axisX),
-            _axisY is null ? 0 : ReadPosition(_axisY.Value),
-            _axisZ is null ? 0 : ReadPosition(_axisZ.Value));
+        get
+        {
+            return (
+                ReadPosition(_axisX),
+                _axisY is null ? 0 : ReadPosition(_axisY.Value),
+                _axisZ is null ? 0 : ReadPosition(_axisZ.Value));
+        }
     }
 
     public override AxisState GetAxisState(MotionAxis axis)
@@ -707,7 +710,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
     private void PublishPosition()
     {
-        var position = GetPosition();
+        var position = Position;
         PublishPositionChanged(position.X, position.Y, position.Z);
     }
 }

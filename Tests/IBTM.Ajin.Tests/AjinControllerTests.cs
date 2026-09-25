@@ -241,7 +241,7 @@ public sealed partial class AjinControllerTests
         feedback.RefreshControlFeedback();
         Assert.True(feedback.IsMoving);
         Assert.Equal(AxisCondition.Moving, feedback.Axes[MotionAxis.X].Condition);
-        Assert.Equal(1.2, motion.GetPosition().X);
+        Assert.Equal(1.2, motion.Position.X);
 
         motion.Initialize();
         Assert.True(motion.IsMoving);
@@ -258,11 +258,11 @@ public sealed partial class AjinControllerTests
         Assert.False(motion.IsMoving);
         Assert.False(feedback.IsMoving);
         Assert.Equal(AxisCondition.NotInPosition, feedback.Axes[MotionAxis.X].Condition);
-        Assert.Equal(2.4, motion.GetPosition().X);
+        Assert.Equal(2.4, motion.Position.X);
 
         AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = 24, Pulse = 100 };
         Assert.True(motion.IsReady);
-        Assert.Equal(0.024, motion.GetPosition().X);
+        Assert.Equal(0.024, motion.Position.X);
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMotSet"));
 
         AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { InMotion = 1 };
@@ -285,7 +285,7 @@ public sealed partial class AjinControllerTests
 
         var read = new AjinSdk.Call(nameof(CAXM.AxmStatusGetActPos), Axis: 9);
         AjinSdk.Results[read] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
-        Assert.Throws<IOException>(() => motion.GetPosition()); // Never substitute zero.
+        Assert.Throws<IOException>(() => motion.Position); // Never substitute zero.
 
         AjinSdk.Results.Clear();
         AjinSdk.Results[new(nameof(CAXM.AxmMotGetAccelUnit), Axis: 9)] =
@@ -380,9 +380,9 @@ public sealed partial class AjinControllerTests
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         await motion.AdjustAxisAsync(MotionAxis.Z, 2.5, 3);
-        Assert.Equal(2.5, motion.GetPosition().Z);
+        Assert.Equal(2.5, motion.Position.Z);
         await motion.MoveToXYAsync(2, 3, 3);
-        Assert.Equal((2.0, 3.0, 2.5), motion.GetPosition());
+        Assert.Equal((2.0, 3.0, 2.5), motion.Position);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             motion.JogAsync(MotionAxis.Z, 3, cancellation.Token));
         Assert.True(await motion.HomeAsync(MotionAxis.Z, 3));
@@ -784,7 +784,7 @@ public sealed partial class AjinControllerTests
         Assert.Equal(10, status.Position.Y);
         Assert.IsType<IOException>(status.MonitorAxes[MotionAxis.X].Snapshot.ReadError);
         Assert.Throws<IOException>(() => status.ReadPosition(live: false));
-        Assert.Throws<IOException>(() => motion.GetPosition());
+        Assert.Throws<IOException>(() => motion.Position);
         await Assert.ThrowsAsync<IOException>(() => motion.MoveToXYAsync(20, 30, 1));
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMove", StringComparison.Ordinal));
         Assert.False(operations.HasActiveOperations);
@@ -814,7 +814,7 @@ public sealed partial class AjinControllerTests
         var move = Assert.Single(AjinSdk.Moves);
         Assert.Equal(new[] { 3 }, move.Axes);
         Assert.Equal(new double[] { 189162 }, move.Positions);
-        Assert.Equal(189.064, motion.GetPosition().X);
+        Assert.Equal(189.064, motion.Position.X);
         Assert.False(operations.HasActiveOperations);
     }
 
@@ -853,7 +853,7 @@ public sealed partial class AjinControllerTests
         Assert.Equal(2000d / 3, move.Velocities[1], 9);
         Assert.Equal(move.Velocities.Select(value => value / 0.25), move.Accelerations);
         Assert.Equal(move.Velocities.Select(value => value / 0.75), move.Decelerations);
-        Assert.Equal(19.902, motion.GetPosition().Y);
+        Assert.Equal(19.902, motion.Position.Y);
         Assert.False(operations.HasActiveOperations);
     }
 

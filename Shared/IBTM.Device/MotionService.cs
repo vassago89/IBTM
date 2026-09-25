@@ -37,7 +37,7 @@ public interface IMotionFeedback
 
     MotionCommand Command { get; }
 
-    (double X, double Y, double Z) GetPosition();
+    (double X, double Y, double Z) Position { get; }
     AxisState GetAxisState(MotionAxis axis);
 }
 
@@ -206,7 +206,7 @@ public abstract class MotionService : IXyMotion
 
     public abstract void SetServo(MotionAxis axis, bool on);
 
-    public abstract (double X, double Y, double Z) GetPosition();
+    public abstract (double X, double Y, double Z) Position { get; }
 
     public abstract AxisState GetAxisState(MotionAxis axis);
 

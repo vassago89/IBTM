@@ -426,7 +426,7 @@ public sealed partial class MachineLifecycleTests
                 BeforeHome?.Invoke();
             if (method!.Name == nameof(IMotionFeedback.GetAxisState))
                 BeforeRead?.Invoke();
-            if (method.Name == nameof(IMotionFeedback.GetPosition))
+            if (method.Name == $"get_{nameof(IMotionFeedback.Position)}")
                 BeforePositionRead?.Invoke();
             if (method.Name == nameof(IAxisMotion.MoveAxisAsync))
             {

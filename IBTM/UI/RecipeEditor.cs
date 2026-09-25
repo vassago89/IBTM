@@ -18,6 +18,7 @@ public partial class RecipeEditor : ObservableObject
 {
     private readonly ILogger<RecipeEditor>? _log;
     private readonly RecipeManager _recipes;
+    private readonly MachineStore _database;
     private readonly OperationCancellation _operations;
 
     [ObservableProperty]
@@ -33,6 +34,7 @@ public partial class RecipeEditor : ObservableObject
 
     public RecipeEditor(
         RecipeManager recipes,
+        MachineStore database,
         OperationCancellation operations,
         ILogger<RecipeEditor>? log = null)
     {
@@ -44,9 +46,10 @@ public partial class RecipeEditor : ObservableObject
 
         _log = log;
         _recipes = recipes;
+        _database = database;
         _operations = operations;
         Name = recipes.Current.Name;
-        Recipes = recipes.GetRecipeNames();
+        Recipes = database.RecipeNames;
         recipes.Changed += OnRecipeChanged;
     }
 
@@ -64,7 +67,7 @@ public partial class RecipeEditor : ObservableObject
 
     public void Refresh()
     {
-        Recipes = _recipes.GetRecipeNames();
+        Recipes = _database.RecipeNames;
     }
 
     public Task ShutdownAsync()

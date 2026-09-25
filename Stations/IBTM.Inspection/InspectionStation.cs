@@ -86,36 +86,16 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public override event Action? Changed;
 
-    public BoltPoint? GetActiveBolt(bool? mainConveyorRunning = null)
-    {
-        return Enabled
-            && IsReadyToInspect(mainConveyorRunning)
-            ? InspectionTarget.Bolt
-            : null;
-    }
+    public BoltPoint? ActiveBolt => InspectionTarget.Bolt;
 
-    public HeatSinkSlot? GetActivePcb(bool? mainConveyorRunning = null)
-    {
-        return Enabled && IsReadyToInspect(mainConveyorRunning)
-            ? InspectionTarget.Pcb
-            : null;
-    }
+    public HeatSinkSlot? ActivePcb => InspectionTarget.Pcb;
 
     private (HeatSinkSlot? Pcb, BoltPoint? Bolt) InspectionTarget
     {
         get
         {
-            if (_runPoints is { } points)
-            {
-                var index = _pointIndex;
-                return index < points.Length ? points[index] : (null, null);
-            }
-            foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
-            {
-                if (Station.IsHeatSinkPresent(pcb))
-                    return (pcb, null);
-            }
-            return (null, null);
+            var index = _pointIndex;
+            return _runPoints is { } points && index < points.Length ? points[index] : (null, null);
         }
     }
 
@@ -171,8 +151,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public MotionStatus Motion { get; }
 
-    public IMotionFeedback Feedback => _motion;
-
     // Unfinished pickup/release ownership, not proof that material is present.
     public bool IsTransferPending
     {
@@ -191,35 +169,33 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public bool IsClear => IsRaised && !IsTransferPending;
 
-    public bool Enabled => _units.Inspection;
-
-    public bool AtInspectionPosition => IsAtInspectionPosition();
-
-    public bool IsAtInspectionPosition(bool? conveyorRunning = null)
+    public bool IsAtInspectionPosition
     {
-        return Station.CarrierPresent
-            && Station.BackupPlate == StationCylinderState.Down
-            && Station.Stopper == StationCylinderState.Up
-            && !(conveyorRunning ?? _io.GetOutput(OutputIo.MainConveyorRun));
+        get
+        {
+            return Station.CarrierPresent
+                && Station.BackupPlate == StationCylinderState.Down
+                && Station.Stopper == StationCylinderState.Up
+                && !_io.GetOutput(OutputIo.MainConveyorRun);
+        }
     }
 
     public bool InspectionRequested => ReferenceEquals(_inspectionRequestedJob, Station.CurrentJob);
 
     public bool CarrierSeatingRequested => ReferenceEquals(_carrierSeatingRequestedJob, Station.CurrentJob);
 
-    public AxisPosition? WaitingPosition => _settings.WaitingPosition;
-
-    public bool IsTransferAllowed => IsTransferAllowedFor();
-
-    public bool IsTransferAllowedFor(bool? conveyorRunning = null)
+    public bool IsTransferAllowed
     {
-        return Station.CarrierPresent && Station.Completed
-            && (IsAtInspectionPosition(conveyorRunning) || Station.CarrierSeated);
+        get
+        {
+            return Station.CarrierPresent && Station.Completed
+                && (IsAtInspectionPosition || Station.CarrierSeated);
+        }
     }
 
     public bool IsReceiveAllowed => Station.IsReceiveAllowed && !IsTransferPending;
 
-    public bool RouteToNg => !Enabled || HasNg;
+    public bool RouteToNg => !_units.Inspection || HasNg;
 
     public bool HasNg
     {
@@ -227,7 +203,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         {
             return Station.CarrierPresent
                 && (Station.HasNg
-                    || Enabled && Station.Completed
+                    || _units.Inspection && Station.Completed
                         && !Station.Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending));
         }
     }
@@ -235,27 +211,33 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     internal bool IsWaitingForConveyor => Station.CarrierPresent && !Station.Completed
         && _units.MainConveyor && !InspectionRequested;
 
-    internal bool IsReadyToInspect(bool? conveyorRunning = null)
+    private bool IsReadyToInspect
     {
-        return Station.CarrierPresent && !Station.Completed
-            && (!_units.MainConveyor || InspectionRequested)
-            && IsAtInspectionPosition(conveyorRunning) && IsClear;
+        get
+        {
+            return Station.CarrierPresent && !Station.Completed
+                && (!_units.MainConveyor || InspectionRequested)
+                && IsAtInspectionPosition && IsClear;
+        }
     }
 
-    public bool IsTransferAtWaitingPosition(bool live = true)
+    public bool IsTransferAtWaitingPosition
     {
-        if (!IsClear)
-            return false;
-        if (!_units.IsMotionEnabled(MotionGroup.InspectionGantry))
-            return true;
-        return WaitingPosition is { } position
-            && Motion.IsAt(position, live);
+        get
+        {
+            if (!IsClear)
+                return false;
+            if (!_units.IsMotionEnabled(MotionGroup.InspectionGantry))
+                return true;
+            return _settings.WaitingPosition is { } position
+                && Motion.IsAt(position);
+        }
     }
 
     public void RequestInspection(ConveyorStation.Job job)
     {
         Station.RequireCurrentJob(job);
-        if (!AtInspectionPosition || !IsClear)
+        if (!IsAtInspectionPosition || !IsClear)
             throw new InvalidOperationException("Inspection requires a present carrier, plate DOWN, stopper UP, stopped belt and clear pickup.");
         _inspectionRequestedJob = job;
         NotifyChanged();
@@ -313,11 +295,11 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         BeginRun();
         try
         {
-            if (Enabled)
+            if (_units.Inspection)
                 Station.Restart(Station.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
-                var step = !Enabled && !CarrierSeatingRequested
+                var step = !_units.Inspection && !CarrierSeatingRequested
                     ? InspectionStationState.Disabled : GetNextStep(repeat);
                 if (!await ExecuteStepAsync(step, repeat, cancellationToken))
                     await WaitForChangeAsync(cancellationToken);
@@ -334,11 +316,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
     }
 
-    public InspectionStationState GetNextStep(
-        bool repeat = false,
-        bool live = true,
-        bool? conveyorRunning = null,
-        bool? mainConveyorRunning = null)
+    public InspectionStationState GetNextStep(bool repeat = false)
     {
         if (_waitingForShuttleDown && IsClear && Gripper == NgTransferGripperState.Open)
             return _ngConveyor.ShuttleLift == NgShuttleLiftState.Down
@@ -346,7 +324,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 : InspectionStationState.WaitingForShuttleDown;
         if (CarrierSeatingRequested)
             return InspectionStationState.SeatingCarrier;
-        if (repeat && Enabled && !_units.MainConveyor
+        if (repeat && _units.Inspection && !_units.MainConveyor
             && (IsEmptyRepeatAllowed || Station.CarrierPresent) && IsClear)
         {
             if (Station.Completed || IsEmptyRepeatAllowed && !Station.CarrierPresent)
@@ -365,22 +343,21 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 NgTransferDestination.Shuttle,
                 canPickUp: repeat && IsEmptyRepeatAllowed && !Station.CarrierPresent
                     || Station.CarrierSeated && Station.Completed && (repeat || RouteToNg),
-                canReceive: repeat || _ngConveyor.IsReceiveAllowed(conveyorRunning),
+                canReceive: repeat || _ngConveyor.IsReceiveAllowed,
                 holdAtDestination: repeat,
-                live: live,
                 allowEmpty: repeat && IsEmptyRepeatAllowed);
             if (transferState is not InspectionStationState.Waiting and not InspectionStationState.TransferCompleted)
                 return transferState;
         }
 
-        var enabled = Enabled;
-        if (!enabled || !IsReadyToInspect(mainConveyorRunning))
+        var enabled = _units.Inspection;
+        if (!enabled || !IsReadyToInspect)
         {
             var waiting = !enabled ? InspectionStationState.Disabled
                 : IsWaitingForConveyor
                     ? InspectionStationState.WaitingForConveyor
                     : InspectionStationState.Waiting;
-            return WaitAtWaitingPosition(waiting, live);
+            return WaitAtWaitingPosition(waiting);
         }
         if (_runJob is null || _inspectionOperation?.IsCancellationRequested == true
             || !ReferenceEquals(_runJob, Station.CurrentJob))
@@ -392,11 +369,11 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         {
             return HasBarcodeRegion(target.Pcb.Value)
                 ? InspectionStationState.ReadingBarcode
-                : WaitAtWaitingPosition(InspectionStationState.BarcodeTeachingRequired, live);
+                : WaitAtWaitingPosition(InspectionStationState.BarcodeTeachingRequired);
         }
         return HasRegion(target.Bolt)
             ? InspectionStationState.InspectingBolt
-            : WaitAtWaitingPosition(InspectionStationState.FovTeachingRequired, live);
+            : WaitAtWaitingPosition(InspectionStationState.FovTeachingRequired);
     }
 
     private async Task<bool> ExecuteStepAsync(
@@ -459,7 +436,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 await MoveToWaitingPositionAsync(cancellationToken);
                 return true;
             case InspectionStationState.Disabled:
-                if (Station.CarrierSeated || AtInspectionPosition)
+                if (Station.CarrierSeated || IsAtInspectionPosition)
                     Station.Complete(Station.CurrentJob);
                 return false;
             case InspectionStationState.Waiting
@@ -533,7 +510,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         lock (operation)
         {
             if (ReferenceEquals(operation, _inspectionOperation)
-                && (!IsReadyToInspect() || !ReferenceEquals(_runJob, Station.CurrentJob)))
+                && (!IsReadyToInspect || !ReferenceEquals(_runJob, Station.CurrentJob)))
                 operation.Cancel();
         }
     }
@@ -556,9 +533,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         NotifyChanged();
     }
 
-    private InspectionStationState WaitAtWaitingPosition(InspectionStationState waiting, bool live)
+    private InspectionStationState WaitAtWaitingPosition(InspectionStationState waiting)
     {
-        return IsClear && !IsTransferAtWaitingPosition(live)
+        return IsClear && !IsTransferAtWaitingPosition
             ? InspectionStationState.ReturningToWaitingPosition
             : waiting;
     }
@@ -566,7 +543,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     private async Task MoveToWaitingPositionAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var position = WaitingPosition
+        var position = _settings.WaitingPosition
             ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
         if (!Motion.IsAt(position))
             await MoveToAsync(position, cancellationToken: cancellationToken);
@@ -583,14 +560,13 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         bool canPickUp,
         bool canReceive = true,
         bool holdAtDestination = false,
-        bool live = true,
         bool allowEmpty = false)
     {
         var source = GetOppositeDestination(destination);
         var destinationPosition = GetTransferPosition(destination);
         var sourcePosition = GetTransferPosition(source);
-        var atDestination = destinationPosition is not null && Motion.IsAt(destinationPosition, live);
-        var atSource = sourcePosition is not null && Motion.IsAt(sourcePosition, live);
+        var atDestination = destinationPosition is not null && Motion.IsAt(destinationPosition);
+        var atSource = sourcePosition is not null && Motion.IsAt(sourcePosition);
         // Repeat turns around above the shuttle with the carrier still raised and gripped.
         var holdAtShuttle = holdAtDestination && destination == NgTransferDestination.Shuttle;
         var destinationPresent = !holdAtShuttle && IsCarrierPresent(destination);
@@ -694,7 +670,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         EnterStep(state, destination.ToString(), waitingFor: state == InspectionStationState.WaitingForDestination
             ? $"source support={IsSupportReady(GetOppositeDestination(destination))}, "
                 + $"destination support={IsSupportReady(destination)}, destination occupied={IsCarrierPresent(destination)}, "
-                + $"shuttle={_ngConveyor.ShuttleLift}, receive={_ngConveyor.IsReceiveAllowed()}, "
+                + $"shuttle={_ngConveyor.ShuttleLift}, receive={_ngConveyor.IsReceiveAllowed}, "
                 + $"pickup={Lift}, gripper={Gripper}, pending={IsTransferPending}"
             : null);
         switch (state)
@@ -1143,13 +1119,12 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             var image = await Task.Run(
                 async () =>
                 {
-                    var feedback = Feedback;
-                    if (feedback.IsMoving
-                        || !feedback.GetAxisState(MotionAxis.X).InPosition
-                        || !feedback.GetAxisState(MotionAxis.Y).InPosition)
+                    if (_motion.IsMoving
+                        || !_motion.GetAxisState(MotionAxis.X).InPosition
+                        || !_motion.GetAxisState(MotionAxis.Y).InPosition)
                         throw new InvalidOperationException("Stop jogging before adding a map image.");
 
-                    var position = feedback.GetPosition();
+                    var position = _motion.Position;
                     var center = new AxisPosition { X = position.X, Y = position.Y };
                     var frame = await CaptureWithLightAsync(lightLevel, cancellationToken, keepLiveView: true).ConfigureAwait(false);
                     if (!Motion.IsAt(center))

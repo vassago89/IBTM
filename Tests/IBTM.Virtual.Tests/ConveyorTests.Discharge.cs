@@ -57,7 +57,7 @@ public sealed partial class ConveyorTests
         };
 
         var run = conveyor.RunAsync(cancellation.Token);
-        Assert.True(await WaitUntilAsync(() => inspectionWork.AtInspectionPosition, TimeSpan.FromSeconds(3)));
+        Assert.True(await WaitUntilAsync(() => inspectionWork.IsAtInspectionPosition, TimeSpan.FromSeconds(3)));
         assembly.CompleteInspection();
         inspectionWork.Station.Complete(inspectionWork.Station.CurrentJob);
         await Task.Delay(100);
@@ -113,9 +113,9 @@ public sealed partial class ConveyorTests
         Assert.True(inspectionWork.HasNg);
         virtualIo.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         virtualIo.SetInput(InputIo.MainConveyorReadyFromRear, false);
-        Assert.NotEqual(MainConveyorState.DischargingInspectionCarrier, conveyor.State);
+        Assert.NotEqual(MainConveyorState.DischargingInspectionCarrier, conveyor.GetNextStep(io.GetOutput(OutputIo.MainConveyorRun)));
         units.Inspection = false;
-        Assert.Equal(MainConveyorState.WaitingForRearEquipment, conveyor.State);
+        Assert.Equal(MainConveyorState.WaitingForRearEquipment, conveyor.GetNextStep(io.GetOutput(OutputIo.MainConveyorRun)));
 
         using var cancellation = new CancellationTokenSource();
         var run = conveyor.RunAsync(cancellation.Token);
@@ -124,7 +124,7 @@ public sealed partial class ConveyorTests
             Assert.True(await WaitUntilAsync(
                 () => io.GetOutput(OutputIo.MainConveyorAvailableToRear),
                 TimeSpan.FromSeconds(1)));
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
             Assert.False(discharged.Task.IsCompleted);
 
@@ -139,7 +139,7 @@ public sealed partial class ConveyorTests
         }
 
         Assert.False(io.GetInput(InputIo.InspectionHeatSink1Present));
-        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
     }
 
@@ -204,7 +204,7 @@ public sealed partial class ConveyorTests
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
             SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
             await Task.Delay(50);
-            Assert.True(conveyor.RunCommandOn); // S3 clearing alone does not stop discharge.
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun)); // S3 clearing alone does not stop discharge.
             var elapsed = Stopwatch.StartNew();
             if (teaching)
                 conveyor.TestDownstreamReady = false;
@@ -213,7 +213,7 @@ public sealed partial class ConveyorTests
             if (delaySeconds > 0)
             {
                 await Task.Delay(40);
-                Assert.True(conveyor.RunCommandOn);
+                Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
             }
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, false);
             Assert.True(elapsed.Elapsed.TotalSeconds >= delaySeconds - 0.02);
@@ -278,7 +278,7 @@ public sealed partial class ConveyorTests
         {
             await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, false);
             Assert.False(started);
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         }
         finally
         {
@@ -295,7 +295,7 @@ public sealed partial class ConveyorTests
         var error = await Assert.ThrowsAsync<IoTimeoutException>(() => conveyor.RunAsync());
         Assert.Equal(new IoTimeoutException(
             InputIo.MainConveyorReadyFromRear, false, 200).Message, error.Message);
-        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
     }
 
@@ -329,7 +329,7 @@ public sealed partial class ConveyorTests
             () => conveyor.RunAsync(stop.Token));
         Assert.False(started);
         Assert.Equal(duringRelease, released);
-        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
     }
 
@@ -348,7 +348,7 @@ public sealed partial class ConveyorTests
             SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
             io.SetInput(InputIo.MainConveyorReadyFromRear, false);
             await Task.Delay(50);
-            Assert.True(conveyor.RunCommandOn);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
         }
         finally
         {
@@ -358,7 +358,7 @@ public sealed partial class ConveyorTests
                 conveyor.Stop();
             await run.WaitAsync(TimeSpan.FromSeconds(1));
         }
-        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
 
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
@@ -374,8 +374,8 @@ public sealed partial class ConveyorTests
         {
             await Task.Delay(100);
             Assert.False(started);
-            Assert.False(conveyor.RunCommandOn);
-            Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.State);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.Step);
         }
         finally
         {

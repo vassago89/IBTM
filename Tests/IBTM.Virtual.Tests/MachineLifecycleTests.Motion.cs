@@ -318,11 +318,11 @@ public sealed partial class MachineLifecycleTests
             var move = axis == MotionAxis.Z
                 ? placement.MoveAxisAsync(axis, 10, stop.Token)
                 : placement.JogAsync(axis, 10, stop.Token);
-            await WaitUntilAsync(() => placement.Feedback.IsMoving);
+            await WaitUntilAsync(() => placement.Motion.Feedback.IsMoving);
             io.SetInput(InputIo.PcbPlacementHandlerUp, false);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => move);
             Assert.Equal(MachineAlarm.PcbPlacement, state.Alarm);
-            Assert.False(placement.Feedback.IsMoving);
+            Assert.False(placement.Motion.Feedback.IsMoving);
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveAxisAsync(MotionAxis.Z, 10));
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.JogAsync(MotionAxis.X, 10));
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.AdjustAxisAsync(MotionAxis.X, 10, 10));
@@ -349,15 +349,15 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(default);
         void TripWhileMotionHasNotFinished(bool moving)
         {
-            if (!moving || !placement.Feedback.IsMovingHorizontal)
+            if (!moving || !placement.Motion.Feedback.IsMovingHorizontal)
                 return;
             io.SetInput(InputIo.EmergencyStop1Pressed, true);
             Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
-            Assert.True(placement.Feedback.IsMovingHorizontal);
+            Assert.True(placement.Motion.Feedback.IsMovingHorizontal);
             io.SetInput(InputIo.PcbPlacementHandlerUp, false);
         }
 
-        placement.Feedback.MovingChanged += TripWhileMotionHasNotFinished;
+        placement.Motion.Feedback.MovingChanged += TripWhileMotionHasNotFinished;
         try
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -365,12 +365,12 @@ public sealed partial class MachineLifecycleTests
 
             Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
             Assert.Contains("handler lift Up", state.AlarmDetail);
-            Assert.False(placement.Feedback.IsMoving);
+            Assert.False(placement.Motion.Feedback.IsMoving);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         }
         finally
         {
-            placement.Feedback.MovingChanged -= TripWhileMotionHasNotFinished;
+            placement.Motion.Feedback.MovingChanged -= TripWhileMotionHasNotFinished;
             await machine.ShutdownAsync();
         }
     }
@@ -469,7 +469,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Contains("Home feedback read failed.", state.AlarmDetail);
         Assert.False(state.IsHoming);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-        Assert.False(services.GetRequiredService<InspectionStation>().Feedback.IsMoving);
+        Assert.False(services.GetRequiredService<InspectionStation>().Motion.Feedback.IsMoving);
     }
 
     [Theory]
@@ -562,9 +562,9 @@ public sealed partial class MachineLifecycleTests
 
         var fault = new InvalidOperationException("Jog feedback failed.");
         var failed = 0;
-        gantry.Feedback.PositionChanged += (_, _, _) =>
+        gantry.Motion.Feedback.PositionChanged += (_, _, _) =>
         {
-            if (gantry.Feedback.IsMoving && Interlocked.Exchange(ref failed, 1) == 0)
+            if (gantry.Motion.Feedback.IsMoving && Interlocked.Exchange(ref failed, 1) == 0)
             {
                 io.SetOutput(OutputIo.NgConveyorRun, true);
                 throw fault;
@@ -577,7 +577,7 @@ public sealed partial class MachineLifecycleTests
             .WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         Assert.Contains(fault.Message, state.AlarmDetail);
-        Assert.False(gantry.Feedback.IsMoving);
+        Assert.False(gantry.Motion.Feedback.IsMoving);
         Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
 
         await machine.ResetAsync();
@@ -585,11 +585,11 @@ public sealed partial class MachineLifecycleTests
         Assert.Null(state.AlarmDetail);
         using var stopped = new CancellationTokenSource();
         var jog = gantry.JogAsync(MotionAxis.X, 10, stopped.Token);
-        Assert.True(gantry.Feedback.IsMoving);
+        Assert.True(gantry.Motion.Feedback.IsMoving);
         stopped.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => jog.WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.False(gantry.Feedback.IsMoving);
+        Assert.False(gantry.Motion.Feedback.IsMoving);
         Assert.Equal(MachineAlarm.None, state.Alarm);
     }
 
@@ -677,7 +677,7 @@ public sealed partial class MachineLifecycleTests
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
             await WaitUntilAsync(() => axis.HomeCommand.CanExecute(null));
             var moved = false;
-            gantry.Feedback.MovingChanged += moving =>
+            gantry.Motion.Feedback.MovingChanged += moving =>
             {
                 if (moving)
                 {
@@ -699,7 +699,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(moved);
                 Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
                 Assert.True(io.GetInput(InputIo.NgCarrierDetected));
-                Assert.True(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
+                Assert.True(gantry.Motion.Feedback.GetAxisState(MotionAxis.X).Homed);
                 Assert.Equal(MachineAlarm.None, state.Alarm);
                 Assert.False(state.IsHoming);
             }
@@ -728,14 +728,14 @@ public sealed partial class MachineLifecycleTests
             await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
             io.SetInput(InputIo.NgCarrierDetected, true);
             var ngMoved = false;
-            gantry.Feedback.MovingChanged += moving => ngMoved |= moving;
+            gantry.Motion.Feedback.MovingChanged += moving => ngMoved |= moving;
             teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
             await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
 
             await teaching.HomeCommand.ExecuteAsync(null);
 
             var fastening = services.GetRequiredService<BoltFasteningStation>();
-            Assert.All(fastening.Feedback.Axes, axis => Assert.True(fastening.Feedback.GetAxisState(axis).Homed));
+            Assert.All(fastening.Motion.Feedback.Axes, axis => Assert.True(fastening.Motion.Feedback.GetAxisState(axis).Homed));
             Assert.False(ngMoved);
             Assert.True(io.GetInput(InputIo.NgCarrierPickupDown));
             Assert.True(io.GetInput(InputIo.NgCarrierDetected));
@@ -768,10 +768,10 @@ public sealed partial class MachineLifecycleTests
             output => signals.SetOutputAndWaitAsync(output, true)));
         var motions = new[]
         {
-            services.GetRequiredService<PcbSupplier>().Feedback,
-            services.GetRequiredService<PcbPlacer>().Feedback,
-            services.GetRequiredService<BoltFasteningStation>().Feedback,
-            services.GetRequiredService<InspectionStation>().Feedback,
+            services.GetRequiredService<PcbSupplier>().Motion.Feedback,
+            services.GetRequiredService<PcbPlacer>().Motion.Feedback,
+            services.GetRequiredService<BoltFasteningStation>().Motion.Feedback,
+            services.GetRequiredService<InspectionStation>().Motion.Feedback,
         };
         var moved = false;
         var movedBeforeRaised = false;
@@ -803,9 +803,9 @@ public sealed partial class MachineLifecycleTests
         Assert.False(state.ManualSetupEnabled);
         Assert.False(machine.IsHomeAllowed);
         await homing;
-        await WaitUntilAsync(() => machine.IsHomeAllowed && state.Homed);
+        await WaitUntilAsync(() => machine.IsHomeAllowed && state.FeedbackReadiness.Homed);
         Assert.True(machine.IsHomeAllowed);
-        Assert.True(state.Homed);
+        Assert.True(state.FeedbackReadiness.Homed);
         Assert.False(state.IsHoming);
         Assert.True(moved);
         Assert.False(movedBeforeRaised);
@@ -833,7 +833,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await placement.SetLiftDownAsync(true);
-        await placement.SetIpmLiftDownAsync(true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
         io.SetInput(InputIo.PcbPlacementPcbDetected, holdingPcb);
         io.SetInput(InputIo.AutoMode, false);
         var started = false;
@@ -937,7 +937,7 @@ public sealed partial class MachineLifecycleTests
         await operation.StopCommand.ExecuteAsync(null);
         await running;
         Assert.False(state.IsHoming);
-        Assert.Equal(start, state.Homed);
+        Assert.Equal(start, state.FeedbackReadiness.Homed);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.True(io.GetOutput(OutputIo.PcbPlacementHandlerDown));
@@ -947,7 +947,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
         Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.False(state.IsRunning);
-        Assert.Equal(start, state.Homed);
+        Assert.Equal(start, state.FeedbackReadiness.Homed);
     }
 
     [Theory]
@@ -1024,14 +1024,14 @@ public sealed partial class MachineLifecycleTests
         Assert.True(machine.IsHomeAllowed);
         await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.HomeAxisAsync(MotionAxis.X));
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
-        Assert.False(state.Homed);
+        Assert.False(state.FeedbackReadiness.Homed);
 
         var transfer = services.GetRequiredService<InspectionStation>();
         Assert.False(transfer.IsRaised);
         Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
 
         var unsafeMovement = false;
-        gantry.Feedback.MovingChanged += moving =>
+        gantry.Motion.Feedback.MovingChanged += moving =>
         {
             if (moving && state.IsHoming)
             {
@@ -1039,7 +1039,7 @@ public sealed partial class MachineLifecycleTests
             }
         };
         await machine.HomeAsync(CancellationToken.None);
-        Assert.True(state.Homed);
+        Assert.True(state.FeedbackReadiness.Homed);
         Assert.False(unsafeMovement);
         Assert.True(transfer.IsRaised);
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
@@ -1053,10 +1053,10 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierPickupDown, false);
         io.SetInput(InputIo.NgCarrierPickupUp, true);
         var moving = gantry.MoveToAsync(new AxisPosition { X = 20, Y = 10 }, 10);
-        await WaitUntilAsync(() => gantry.Feedback.IsMoving);
+        await WaitUntilAsync(() => gantry.Motion.Feedback.IsMoving);
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => moving);
-        Assert.False(gantry.Feedback.IsMoving);
+        Assert.False(gantry.Motion.Feedback.IsMoving);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
         Assert.Contains("pickup Up", state.AlarmDetail);
         Assert.Contains("Current lift: Between", state.AlarmDetail);
@@ -1086,7 +1086,7 @@ public sealed partial class MachineLifecycleTests
         var placement = services.GetRequiredService<PcbPlacer>();
         var fastening = services.GetRequiredService<BoltFasteningStation>();
         var isPlacement = group == MotionGroup.PcbPlacementHandler;
-        var feedback = isPlacement ? placement.Feedback : fastening.Feedback;
+        var feedback = isPlacement ? placement.Motion.Feedback : fastening.Motion.Feedback;
         Task MoveXY()
         {
             return isPlacement
@@ -1104,7 +1104,7 @@ public sealed partial class MachineLifecycleTests
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveAxisAsync(MotionAxis.Z, 1));
         else
             await fastening.MoveZAsync(1);
-        Assert.Equal(isPlacement ? 0 : 1, feedback.GetPosition().Z);
+        Assert.Equal(isPlacement ? 0 : 1, feedback.Position.Z);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         await Assert.ThrowsAsync<MotionInterlockException>(MoveXY);
         await Assert.ThrowsAsync<MotionInterlockException>(
@@ -1140,7 +1140,7 @@ public sealed partial class MachineLifecycleTests
         var placement = services.GetRequiredService<PcbPlacer>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        Assert.True(state.Homed);
+        Assert.True(state.FeedbackReadiness.Homed);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.False(machine.IsHomeAllowed);
@@ -1149,14 +1149,14 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmDown));
 
         var move = placement.MoveToXYAsync(new() { X = 20, Y = 20 });
-        await WaitUntilAsync(() => placement.Feedback.IsMovingHorizontal);
+        await WaitUntilAsync(() => placement.Motion.Feedback.IsMovingHorizontal);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false);
         await move;
 
         Assert.Equal(HomeBlockReason.None, machine.HomeBlock);
         Assert.Equal(
             (20, 20, settings.PcbPlacementHandler.HandoffPosition.Z),
-            placement.Feedback.GetPosition());
+            placement.Motion.Feedback.Position);
         Assert.Equal(MachineAlarm.None, state.Alarm);
     }
 
@@ -1195,27 +1195,27 @@ public sealed partial class MachineLifecycleTests
             if (output is OutputIo.PickupHeadVacuumPump or OutputIo.ShootingHeadVacuumPump)
                 vacuumChanged = true;
             if (value && output is OutputIo.PickupHeadDown or OutputIo.ShootingHeadDown)
-                loweredAt.Enqueue(gantry.Feedback.GetPosition());
+                loweredAt.Enqueue(gantry.Motion.Feedback.Position);
             if (output == OutputIo.PickupTableDown && value)
             {
                 Assert.True(gantry.IsHorizontalMoveAllowed);
-                Assert.Equal(settings.BoltFastening.SafeZ, gantry.Feedback.GetPosition().Z);
+                Assert.Equal(settings.BoltFastening.SafeZ, gantry.Motion.Feedback.Position.Z);
                 Interlocked.Increment(ref tableDescents);
             }
         };
-        gantry.Feedback.PositionChanged += (_, _, _) =>
-            movedXyWithHeadDown |= gantry.Feedback.IsMovingHorizontal
+        gantry.Motion.Feedback.PositionChanged += (_, _, _) =>
+            movedXyWithHeadDown |= gantry.Motion.Feedback.IsMovingHorizontal
                 && !gantry.IsHorizontalMoveAllowed;
 
         var move = teaching.MoveToPointCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => tableDescents == 1);
-        Assert.Equal((0, 0, 5), gantry.Feedback.GetPosition());
+        Assert.Equal((0, 0, 5), gantry.Motion.Feedback.Position);
         Assert.False(move.IsCompleted);
         Assert.False(io.GetInput(InputIo.PickupTableDown));
         teaching.JogStopCommand.Execute(null);
         await move.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal((0, 0, 5), gantry.Feedback.GetPosition());
-        Assert.False(gantry.Feedback.IsMoving);
+        Assert.Equal((0, 0, 5), gantry.Motion.Feedback.Position);
+        Assert.False(gantry.Motion.Feedback.IsMoving);
         Assert.True(io.GetOutput(OutputIo.PickupTableDown)); // Stop keeps pneumatic outputs.
 
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
@@ -1223,12 +1223,12 @@ public sealed partial class MachineLifecycleTests
         Assert.False(retry.IsCompleted);
         io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, true));
         await retry.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal((40, 30, 12), gantry.Feedback.GetPosition());
+        Assert.Equal((40, 30, 12), gantry.Motion.Feedback.Position);
         Assert.Equal(BoltCylinderState.Up, gantry.PickupHeadPosition);
         Assert.Equal(BoltCylinderState.Up, gantry.ShootingHeadPosition);
         await WaitUntilAsync(() => teaching.ReturnFromPickupCommand.CanExecute(null));
         var stopAtSafeZ = true;
-        gantry.Feedback.PositionChanged += (_, _, z) =>
+        gantry.Motion.Feedback.PositionChanged += (_, _, z) =>
         {
             if (stopAtSafeZ
                 && Math.Abs(z - settings.BoltFastening.SafeZ) <= MotionService.PositionToleranceMillimeters)
@@ -1239,13 +1239,13 @@ public sealed partial class MachineLifecycleTests
         };
         await teaching.ReturnFromPickupCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(stopAtSafeZ);
-        Assert.Equal((40, 30, 5), gantry.Feedback.GetPosition());
+        Assert.Equal((40, 30, 5), gantry.Motion.Feedback.Position);
         Assert.True(gantry.IsHorizontalMoveAllowed);
-        Assert.False(gantry.Feedback.IsMoving);
+        Assert.False(gantry.Motion.Feedback.IsMoving);
 
         var returning = teaching.ReturnFromPickupCommand.ExecuteAsync(null);
         await returning.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal((40, 30, 5), gantry.Feedback.GetPosition());
+        Assert.Equal((40, 30, 5), gantry.Motion.Feedback.Position);
         Assert.True(gantry.IsHorizontalMoveAllowed);
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
         Assert.True(io.GetOutput(OutputIo.PickupHeadVacuumPump));
@@ -1286,8 +1286,8 @@ public sealed partial class MachineLifecycleTests
         await (returning ? teaching.ReturnFromPickupCommand : teaching.MoveToPointCommand).ExecuteAsync(null);
 
         Assert.Equal(MachineAlarm.BoltFastening, state.Alarm);
-        Assert.False(gantry.Feedback.IsMoving);
-        Assert.Equal(settings.BoltFastening.SafeZ, gantry.Feedback.GetPosition().Z);
+        Assert.False(gantry.Motion.Feedback.IsMoving);
+        Assert.Equal(settings.BoltFastening.SafeZ, gantry.Motion.Feedback.Position.Z);
         Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
         Assert.False(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
     }
@@ -1307,18 +1307,18 @@ public sealed partial class MachineLifecycleTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true);
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
         var jog = motion.JogAsync(MotionAxis.X, 1);
-        await WaitUntilAsync(() => gantry.Feedback.GetPosition().X > 0);
+        await WaitUntilAsync(() => gantry.Motion.Feedback.Position.X > 0);
         if (autoMode)
             io.SetInput(InputIo.AutoMode, false);
         else
             motion.SetServo(MotionAxis.X, false);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => jog.WaitAsync(TimeSpan.FromSeconds(2)));
-        var stopped = gantry.Feedback.GetPosition();
-        Assert.Equal(MotionCommand.None, gantry.Feedback.Command);
+        var stopped = gantry.Motion.Feedback.Position;
+        Assert.Equal(MotionCommand.None, gantry.Motion.Feedback.Command);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => gantry.AdjustAxisAsync(MotionAxis.X, 20, 1));
-        Assert.Equal(stopped, gantry.Feedback.GetPosition());
+        Assert.Equal(stopped, gantry.Motion.Feedback.Position);
         Assert.True(io.GetInput(InputIo.ShootingHeadDown));
     }
 
@@ -1333,21 +1333,21 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveZAsync(10);
-        var before = gantry.Feedback.GetPosition();
+        var before = gantry.Motion.Feedback.Position;
         io.AutoResponseEnabled = false;
-        gantry.Feedback.MovingChanged += moving =>
+        gantry.Motion.Feedback.MovingChanged += moving =>
         {
-            if (moving && !gantry.Feedback.IsMovingHorizontal)
+            if (moving && !gantry.Motion.Feedback.IsMovingHorizontal)
                 io.SetInput(InputIo.PickupHeadUp, false);
         };
 
         await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.MoveToXYAsync(20, 20));
 
-        var after = gantry.Feedback.GetPosition();
+        var after = gantry.Motion.Feedback.Position;
         Assert.Equal(before.X, after.X);
         Assert.Equal(before.Y, after.Y);
         Assert.Equal(settings.BoltFastening.SafeZ, after.Z);
-        Assert.False(gantry.Feedback.IsMoving);
+        Assert.False(gantry.Motion.Feedback.IsMoving);
     }
 
     [Theory]
@@ -1377,7 +1377,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.True(state.Available);
-        Assert.False(state.Faulted);
+        Assert.False(state.FeedbackReadiness.Faulted);
         Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => state.Ready);
@@ -1397,16 +1397,16 @@ public sealed partial class MachineLifecycleTests
             teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
             teaching.StepDistance = 0.1;
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
-            var before = probes[group].Motion.GetPosition();
+            var before = probes[group].Motion.Position;
             await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
-            Assert.Equal(before.X + 0.1, probes[group].Motion.GetPosition().X, precision: 6);
+            Assert.Equal(before.X + 0.1, probes[group].Motion.Position.X, precision: 6);
         }
 
         if (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler)
         {
             var placer = services.GetRequiredService<PcbPlacer>();
             Assert.NotEqual(PcbPlacementState.ReceivingPcb,
-                placer.State);
+                placer.Phase);
         }
 
         foreach (var row in manual.Axes.Where(row => row.Group != group))
@@ -1474,7 +1474,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(failedCalls, probes[MotionGroup.PcbSupply].HardwareCalls);
         // Re-enabling the same faulty hardware makes it mandatory again.
         settings.Units.PcbSupply = true;
-        Assert.True(state.Faulted);
+        Assert.True(state.FeedbackReadiness.Faulted);
         Assert.False(state.ManualControlsEnabled);
         var placementResets = probes[MotionGroup.PcbPlacementHandler].ResetCalls;
         await machine.ResetAsync();
@@ -1509,14 +1509,14 @@ public sealed partial class MachineLifecycleTests
             ? teaching.HomeCommand.ExecuteAsync(null)
             : machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(
-            () => placement.Feedback.IsMoving && (teachingHome || fastening.Feedback.IsMoving));
+            () => placement.Motion.Feedback.IsMoving && (teachingHome || fastening.Motion.Feedback.IsMoving));
         Assert.False(state.ManualSetupEnabled);
         io.SetInput(input, value);
         await homing.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(state.IsHoming);
-        Assert.False(placement.Feedback.IsMoving);
-        Assert.False(fastening.Feedback.IsMoving);
-        Assert.False(placement.Feedback.GetAxisState(MotionAxis.Z).Homed);
+        Assert.False(placement.Motion.Feedback.IsMoving);
+        Assert.False(fastening.Motion.Feedback.IsMoving);
+        Assert.False(placement.Motion.Feedback.GetAxisState(MotionAxis.Z).Homed);
         Assert.NotEqual(HomeBlockReason.None, machine.GetHomeBlock(requireRaised: true));
         await WaitUntilAsync(() => machine.IsHomeAllowed);
         if (teachingHome)

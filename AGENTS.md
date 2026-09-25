@@ -5,6 +5,7 @@
 - Simplify code in the affected path; do not add speculative frameworks, duplicate state or repeated cleanup passes without a concrete benefit.
 - Refactoring should remove duplicated work, storage and forwarding layers. Do not add helper classes, generic dispatchers or new packages merely to shorten individual methods. Keep device implementations aligned with the supplied originals.
 - Keep handwritten class members in the main class file; retain `.Repeat.cs` only for separate repeat operations. Keep `partial` where XAML or source generators require it, without splitting ordinary code into additional files.
+- Do not add properties that only rename a fixed I/O read or forward an already accessible setting/state member. Read the original source at the call site and bind directly to existing observable state. Keep actual decisions, device/interface boundaries, synchronization and necessary change notifications.
 
 # Verification workflow
 

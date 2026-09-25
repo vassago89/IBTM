@@ -49,8 +49,6 @@ public sealed partial class MainConveyor : AutoUnit
 
     public override event Action? Changed;
 
-    public MainConveyorState State => Step is MainConveyorState step ? step : GetNextStep(RunCommandOn);
-
     private bool IsNgTransferRequired => _units.Inspection && _inspection.RouteToNg;
 
     public bool UpstreamCarrierAvailable
@@ -100,10 +98,6 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    public bool RunCommandOn => _io.GetOutput(OutputIo.MainConveyorRun);
-
-    public bool EntryCarrierDetected => _io.GetInput(InputIo.MainConveyorEntryCarrierDetected);
-
     private void OnInputChanged(InputIo input, bool value)
     {
         if (input == InputIo.AutoMode && !value)
@@ -139,7 +133,7 @@ public sealed partial class MainConveyor : AutoUnit
             BeginRun();
             while (!cancellationToken.IsCancellationRequested)
             {
-                var step = GetNextStep(RunCommandOn);
+                var step = GetNextStep(_io.GetOutput(OutputIo.MainConveyorRun));
                 if (!await ExecuteStepAsync(step, cancellationToken))
                     await WaitForChangeAsync(cancellationToken);
             }
@@ -159,7 +153,7 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    public MainConveyorState GetNextStep(bool runCommandOn, bool live = true)
+    public MainConveyorState GetNextStep(bool runCommandOn)
     {
         switch (true)
         {
@@ -176,7 +170,7 @@ public sealed partial class MainConveyor : AutoUnit
                 return MainConveyorState.SeatingCarriers;
         }
 
-        var transfer = GetNextTransfer(live, live ? null : runCommandOn);
+        var transfer = GetNextTransfer();
         switch (true)
         {
             case true when !_inspection.Station.CarrierPresent:
@@ -189,9 +183,9 @@ public sealed partial class MainConveyor : AutoUnit
                         return transfer;
                     case true when !_repeat
                         && !IsNgTransferRequired
-                        && _inspection.IsTransferAllowedFor(live ? null : runCommandOn)
+                        && _inspection.IsTransferAllowed
                         && DownstreamReady:
-                        return _inspection.IsTransferAtWaitingPosition(live)
+                        return _inspection.IsTransferAtWaitingPosition
                             ? MainConveyorState.DischargingInspectionCarrier
                             : MainConveyorState.WaitingForInspectionTransfer;
                     default:
@@ -212,7 +206,7 @@ public sealed partial class MainConveyor : AutoUnit
                     ? MainConveyorState.RaisingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
             // 검사 요청 이후에는 검사와 전용 대기 위치 복귀가 끝날 때까지 벨트를 정지한다.
-            case true when _inspection.InspectionRequested && _inspection.IsAtInspectionPosition(live ? null : runCommandOn):
+            case true when _inspection.InspectionRequested && _inspection.IsAtInspectionPosition:
                 return MainConveyorState.WaitingForInspection;
             default:
                 return _inspection.IsClear
@@ -290,7 +284,7 @@ public sealed partial class MainConveyor : AutoUnit
                 var rearAvailable = !_repeat
                     && !IsNgTransferRequired
                     && _inspection.IsTransferAllowed
-                    && _inspection.IsTransferAtWaitingPosition();
+                    && _inspection.IsTransferAtWaitingPosition;
                 SetSmemaOutput(
                     OutputIo.MainConveyorReadyToFront2,
                     !_repeat && _placement.IsReceiveAllowed && !rearAvailable
@@ -301,15 +295,15 @@ public sealed partial class MainConveyor : AutoUnit
         return true;
     }
 
-    private MainConveyorState GetNextTransfer(bool live = true, bool? conveyorRunning = null)
+    private MainConveyorState GetNextTransfer()
     {
         // 이송 우선순위: S3 배출 → S2→S3 → S1→S2 → 전단 반입.
         switch (true)
         {
             case true when !_repeat
                 && !IsNgTransferRequired
-                && _inspection.IsTransferAllowedFor(conveyorRunning)
-                && _inspection.IsTransferAtWaitingPosition(live)
+                && _inspection.IsTransferAllowed
+                && _inspection.IsTransferAtWaitingPosition
                 && DownstreamReady:
                 return MainConveyorState.DischargingInspectionCarrier;
             case true when (!_repeat || ReferenceEquals(RepeatEndStation, _inspection.Station))
@@ -319,12 +313,12 @@ public sealed partial class MainConveyor : AutoUnit
                 && _placement.IsTransferAllowed && _fastening.IsReceiveAllowed:
                 return MainConveyorState.MovingPcbPlacementToBoltFastening;
             case true when _placement.IsReceiveAllowed
-                && (EntryCarrierDetected || !_repeat && UpstreamCarrierAvailable):
+                && (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable):
                 return MainConveyorState.ReceivingFrontCarrier;
             case true when !_repeat
                 && !IsNgTransferRequired
-                && _inspection.IsTransferAllowedFor(conveyorRunning)
-                && _inspection.IsTransferAtWaitingPosition(live):
+                && _inspection.IsTransferAllowed
+                && _inspection.IsTransferAtWaitingPosition:
                 return MainConveyorState.WaitingForRearEquipment;
             case true when _fastening.CarrierPresent:
                 return _fastening.Completed
@@ -400,7 +394,7 @@ public sealed partial class MainConveyor : AutoUnit
                 await source.ReleaseAsync(cancellationToken);
                 RequireSeatingPushPosition(destination);
             }
-            else if (!_repeat && !EntryCarrierDetected)
+            else if (!_repeat && !_io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
             {
                 SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, true);
             }
@@ -409,7 +403,7 @@ public sealed partial class MainConveyor : AutoUnit
             if (receiving)
                 _io.InputChanged += ObserveEntry;
             ObserveArrival();
-            if (receiving && EntryCarrierDetected)
+            if (receiving && _io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                 entered.TrySetResult();
             StartMotor(cancellationToken);
             if (receiving)
@@ -434,8 +428,9 @@ public sealed partial class MainConveyor : AutoUnit
             }
             if (!destination.CarrierPresent)
                 carrierLeft.Set();
-            EnterStep(State, target: "seating push", workId: destination.CurrentJob.Id, waitingFor:
-                $"Heat Sink 2 detected; push for {_settings.CarrierStopDelaySeconds} s");
+            if (Step is MainConveyorState step)
+                TraceStep(step, target: "seating push", workId: destination.CurrentJob.Id, waitingFor:
+                    $"Heat Sink 2 detected; push for {_settings.CarrierStopDelaySeconds} s");
             var lostCarrier = await carrierLeft.WaitAsync(
                 TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
                 cancellationToken);
@@ -525,7 +520,7 @@ public sealed partial class MainConveyor : AutoUnit
             if (_repeat
                 || IsNgTransferRequired
                 || !_inspection.IsTransferAllowed
-                || !_inspection.IsTransferAtWaitingPosition())
+                || !_inspection.IsTransferAtWaitingPosition)
             {
                 throw new MotionInterlockException(
                     "Rear discharge requires a completed carrier and the raised, clear inspection pickup at its waiting position.");
@@ -537,7 +532,7 @@ public sealed partial class MainConveyor : AutoUnit
             _inspection.Station.RequireCurrentJob(departingJob);
             if (_inspection.Station.BackupPlate != StationCylinderState.Down
                 || _inspection.Station.Stopper != StationCylinderState.Down
-                || !_inspection.IsTransferAtWaitingPosition())
+                || !_inspection.IsTransferAtWaitingPosition)
             {
                 throw new MotionInterlockException(
                     "Rear discharge lost support release or inspection pickup clearance before starting the belt.");

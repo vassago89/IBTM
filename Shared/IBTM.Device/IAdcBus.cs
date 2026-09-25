@@ -17,7 +17,7 @@ public interface IAdcBus
     // Receive notifications are raw chunks, not necessarily complete or valid frames.
     event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
-    string[] GetPortNames();
+    string[] PortNames { get; }
     // An existing connection must match both requested settings; otherwise Open must fail.
     void Open(string portName, int baudRate);
     void Close();

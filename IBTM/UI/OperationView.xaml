@@ -230,9 +230,9 @@
                         <TextBlock Tag="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}"
                             Style="{StaticResource FeederDetectionStyle}"/>
                         <TextBlock Margin="0,6,0,0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                            <Run Text="ADC · Ready "/><Run Text="{Binding Fastening.PickupHead.Monitor.Status.Ready, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
-                            <Run Text=" · Run "/><Run Text="{Binding Fastening.PickupHead.Monitor.Status.Running, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
-                            <Run Text=" · Alarm "/><Run Text="{Binding Fastening.PickupHead.Monitor.Status.Alarm, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
+                            <Run Text="ADC · Ready "/><Run Text="{Binding Fastening.PickupHead.Monitor.Sample.Status.Ready, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
+                            <Run Text=" · Run "/><Run Text="{Binding Fastening.PickupHead.Monitor.Sample.Status.Running, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
+                            <Run Text=" · Alarm "/><Run Text="{Binding Fastening.PickupHead.Monitor.Sample.Status.Alarm, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
                         </TextBlock>
                     </StackPanel>
                 </Border>
@@ -247,9 +247,9 @@
                         <TextBlock Tag="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn}"
                             Style="{StaticResource FeederDetectionStyle}"/>
                         <TextBlock Margin="0,6,0,0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                            <Run Text="ADC · Ready "/><Run Text="{Binding Fastening.ShootingHead.Monitor.Status.Ready, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
-                            <Run Text=" · Run "/><Run Text="{Binding Fastening.ShootingHead.Monitor.Status.Running, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
-                            <Run Text=" · Alarm "/><Run Text="{Binding Fastening.ShootingHead.Monitor.Status.Alarm, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
+                            <Run Text="ADC · Ready "/><Run Text="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Ready, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
+                            <Run Text=" · Run "/><Run Text="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Running, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
+                            <Run Text=" · Alarm "/><Run Text="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Alarm, TargetNullValue=—, FallbackValue=—, Mode=OneWay}"/>
                         </TextBlock>
                         <Grid Margin="0,6,0,0">
                             <Grid.ColumnDefinitions>

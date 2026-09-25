@@ -112,7 +112,7 @@
                             <Border Tag="{Binding Fastening.PickupHeadPosition}" Style="{StaticResource ToolHeadFootprintStyle}"/>
                             <Border Width="14" Height="4" Background="{StaticResource TextMutedBrush}" CornerRadius="2"/>
                             <Ellipse Style="{StaticResource VacuumDetectedVisualStyle}"
-                                Visibility="{Binding Fastening.PickupBoltLoaded, Converter={StaticResource BoolToVis}}"/>
+                                Visibility="{Binding Signals.Inputs[PickupHeadVacuumDetected].IsOn, Converter={StaticResource BoolToVis}}"/>
                         </Grid>
                     </Canvas>
                 </Grid>

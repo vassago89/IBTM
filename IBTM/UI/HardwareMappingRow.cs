@@ -16,8 +16,6 @@ public sealed class HardwareMappingRow
     public HardwareSettings Hardware { get; }
     public Enum Signal { get; }
 
-    public HardwareArea Area => Hardware.Area;
-
     public IoSection? Section => Hardware.GetSection(Signal);
 
     public int Order => Convert.ToInt32(Signal);

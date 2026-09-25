@@ -34,8 +34,6 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<AdcStatusSample>? Sampled;
     public AdcStatusSample? Sample => Volatile.Read(ref _sample);
-    public AdcControllerStatus? Status => Sample?.Status;
-    public Exception? Error => Sample?.Error;
     public byte SlaveAddress { get; private set; }
     public int IntervalMilliseconds
     {
@@ -197,10 +195,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     private void Publish(AdcStatusSample sample)
     {
         var previous = Interlocked.Exchange(ref _sample, sample);
-        if (previous?.Status != sample.Status)
-            PropertyChanged?.Invoke(this, new(nameof(Status)));
-        if (previous?.Error != sample.Error)
-            PropertyChanged?.Invoke(this, new(nameof(Error)));
+        if (previous?.Status != sample.Status || previous?.Error != sample.Error)
+            PropertyChanged?.Invoke(this, new(nameof(Sample)));
         Sampled?.Invoke(sample);
     }
 

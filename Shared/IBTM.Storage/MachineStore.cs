@@ -97,10 +97,13 @@ public sealed class MachineStore
         await Task.Run(() => SaveSettings(settings, cancellationToken), cancellationToken);
     }
 
-    public IReadOnlyList<string> GetRecipeNames()
+    public IReadOnlyList<string> RecipeNames
     {
-        using var db = new MachineDb(_options);
-        return db.Recipes.OrderBy(row => row.Name).Select(row => row.Name).ToArray();
+        get
+        {
+            using var db = new MachineDb(_options);
+            return db.Recipes.OrderBy(row => row.Name).Select(row => row.Name).ToArray();
+        }
     }
 
     public T LoadRecipe<T>(string name)

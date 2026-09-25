@@ -41,10 +41,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     public int BaudRate => _port?.BaudRate ?? 0;
 
-    public string[] GetPortNames()
-    {
-        return SerialPort.GetPortNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
-    }
+    public string[] PortNames => SerialPort.GetPortNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
 
     public void Open(string portName, int baudRate)
     {

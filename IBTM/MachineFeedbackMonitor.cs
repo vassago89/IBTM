@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
-internal readonly record struct MotionReadiness(bool Homed, bool ServosOn, bool Faulted);
+public readonly record struct MotionReadiness(bool Homed, bool ServosOn, bool Faulted);
 
 internal sealed record MotionFeedbackSample(
     long StartedAt,

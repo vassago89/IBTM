@@ -11,7 +11,29 @@ namespace IBTM.Virtual.Tests;
 public sealed class AutoUnitTests
 {
     [Fact]
-    public async Task StoppedPhaseIsInactiveAndOnlyResumesWhenExplicitlyRequested()
+    public async Task TimedWaitCompletesNormallyAndStillRespondsToChangesAndCancellation()
+    {
+        var unit = new TestUnit();
+        using var stop = new CancellationTokenSource();
+        await unit.RunAsync(async token =>
+        {
+            await unit.WaitAsync(token, TimeSpan.FromMilliseconds(10));
+
+            var changed = unit.WaitAsync(token, TimeSpan.FromSeconds(5));
+            Assert.False(changed.IsCompleted);
+            unit.NotifyChanged();
+            await changed.WaitAsync(TimeSpan.FromSeconds(1));
+
+            var cancelled = unit.WaitAsync(token, TimeSpan.FromSeconds(5));
+            Assert.False(cancelled.IsCompleted);
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
+        }, stop.Token);
+        Assert.False(unit.HasSubscribers);
+    }
+
+    [Fact]
+    public async Task StoppedStepIsClearedAndRestartRequiresAnExplicitInitialStep()
     {
         var unit = new TestUnit();
         using var stop = new CancellationTokenSource();
@@ -23,7 +45,6 @@ public sealed class AutoUnitTests
         }, stop.Token);
 
         Assert.Null(unit.Step);
-        Assert.Equal(DayOfWeek.Friday, unit.LastPhase);
         var reported = new List<Enum?>();
         unit.StepChanged += () => reported.Add(unit.Step);
         using var resume = new CancellationTokenSource();
@@ -33,7 +54,7 @@ public sealed class AutoUnitTests
             Assert.Equal(DayOfWeek.Friday, Assert.Single(reported));
             resume.Cancel();
             return Task.CompletedTask;
-        }, resume.Token, resumePhase: true);
+        }, resume.Token, initialStep: DayOfWeek.Friday);
         Assert.Null(unit.Step);
         Assert.Null(reported.Last());
 
@@ -238,7 +259,6 @@ public sealed class AutoUnitTests
         public override event Action? Changed;
 
         public bool HasSubscribers => Changed is not null;
-        public Enum? LastPhase => SequenceStep;
 
         public void NotifyChanged()
         {
@@ -250,18 +270,18 @@ public sealed class AutoUnitTests
             EnterStep(DayOfWeek.Friday, "PCB 2", 17, "CarrierPresent=ON");
         }
 
-        public Task WaitAsync(CancellationToken token)
+        public Task WaitAsync(CancellationToken token, TimeSpan? timeout = null)
         {
-            return WaitForChangeAsync(token);
+            return WaitForChangeAsync(token, timeout);
         }
 
         public async Task RunAsync(
             Func<CancellationToken, Task> execute,
             CancellationToken token,
             Func<bool>? completed = null,
-            bool resumePhase = false)
+            Enum? initialStep = null)
         {
-            BeginRun(resumePhase ? SequenceStep : null);
+            BeginRun(initialStep);
             try
             {
                 while (!token.IsCancellationRequested && !(completed?.Invoke() ?? false))

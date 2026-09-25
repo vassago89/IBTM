@@ -69,17 +69,8 @@ public sealed class BoltFeederUnit : AutoUnit
                         waitMilliseconds = Math.Min(waitMilliseconds, runOnRemaining);
                 }
 
-                using var wake = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                if (double.IsFinite(waitMilliseconds))
-                    wake.CancelAfter(TimeSpan.FromMilliseconds(waitMilliseconds));
-                try
-                {
-                    await WaitForChangeAsync(wake.Token);
-                }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                {
-                    // A timer elapsed. Recheck both live inputs before alarming or stopping supply.
-                }
+                await WaitForChangeAsync(cancellationToken,
+                    double.IsFinite(waitMilliseconds) ? TimeSpan.FromMilliseconds(Math.Ceiling(waitMilliseconds)) : null);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

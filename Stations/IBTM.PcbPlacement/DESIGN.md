@@ -12,7 +12,10 @@ Handler Rotate output stays OFF during automatic, repeat and manual operation.
 6. Return to receiving XY for the second PCB and repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
 7. Complete the carrier after the final placement is raised, then return to receiving standby.
 
-`State` reads the selected phase from `AutoUnit.SequenceStep`; coordinates do not select stages or heat sinks. `ExecuteStepAsync` starts
+`Phase` retains unfinished handoff progress in this unit. `AutoUnit.Step` reports only
+the current execution/wait and becomes null after STOP. Both are updated through
+`EnterStep`; `GetNextStep` and `Handoff` only read state and feedback.
+Coordinates do not select stages or heat sinks. `ExecuteStepAsync` starts
 receipt when Supply's `Handoff` is `Holding`, and returns Z to standby followed by placement Y once it is
 `Released`. Placement publishes `Holding` while securing the PCB at the receiving
 position, and `Clear` after the Y departure settles. Internal placement/press stages

@@ -324,7 +324,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         try
         {
             operation = BeginCommand(CancellationToken.None);
-            await GetConnectedHead().SelectPresetAsync(1, operation.Token);
+            await ConnectedHead.SelectPresetAsync(1, operation.Token);
             ResultMessage = "Preset 1 selected";
         }
         catch (Exception exception)
@@ -352,7 +352,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             try
             {
                 _state.BoltTestRunning = true;
-                var head = GetConnectedHead();
+                var head = ConnectedHead;
                 await head.SelectPresetAsync(1, operation.Token);
                 ResultMessage = "Fastening...";
                 var result = await head.TightenAsync(operation.Token);
@@ -408,7 +408,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             operation = BeginCommand(CancellationToken.None);
             operation.Token.ThrowIfCancellationRequested();
             ResultMessage = "Turning START OFF...";
-            await GetConnectedHead().StopAsync();
+            await ConnectedHead.StopAsync();
             ResultMessage = "Stopped";
         }
         catch (Exception exception)
@@ -423,16 +423,19 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    private AdcBoltHead GetConnectedHead()
+    private AdcBoltHead ConnectedHead
     {
-        var connection = (SelectedHead, SlaveAddress, Bus.PortName, Bus.BaudRate);
-        if (_connectedHead is null || _headConnection != connection)
+        get
         {
-            _connectedHead = new(Bus, _io, SelectedHead, _settings,
-                SlaveAddress, Bus.PortName, Bus.BaudRate, _headLog);
-            _headConnection = connection;
+            var connection = (SelectedHead, SlaveAddress, Bus.PortName, Bus.BaudRate);
+            if (_connectedHead is null || _headConnection != connection)
+            {
+                _connectedHead = new(Bus, _io, SelectedHead, _settings,
+                    SlaveAddress, Bus.PortName, Bus.BaudRate, _headLog);
+                _headConnection = connection;
+            }
+            return _connectedHead;
         }
-        return _connectedHead;
     }
 
     public IAsyncRelayCommand ReverseCommand { get; }
@@ -449,7 +452,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             {
                 _state.BoltTestRunning = true;
                 ResultMessage = "Loosening — hold to run; release to stop. No automatic completion judgement.";
-                await GetConnectedHead().RunReverseAsync(operation.Token);
+                await ConnectedHead.RunReverseAsync(operation.Token);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -480,7 +483,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         ReverseCommand.Cancel();
     }
 
-    private bool IsTestBoltHeadAllowed => ProtocolEnabled && _machine.IsTestBoltHeadAllowed;
+    private bool IsTestBoltHeadAllowed => ProtocolEnabled && _state.ManualSetupEnabled;
 
     public IAsyncRelayCommand ResetAlarmCommand { get; }
 
@@ -491,7 +494,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         try
         {
             operation = BeginCommand(CancellationToken.None);
-            await GetConnectedHead().ResetAsync(operation.Token);
+            await ConnectedHead.ResetAsync(operation.Token);
             ResultMessage = "I/O reset confirmed";
         }
         catch (Exception exception)
@@ -829,7 +832,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     {
         var selected = SelectedPort ?? (SelectedHead == FasteningHead.Pickup
             ? _settings.PickupPortName : _settings.ShootingPortName);
-        var ports = Bus.GetPortNames();
+        var ports = Bus.PortNames;
         PortNames = ports;
         SelectedPort = ports.FirstOrDefault(
             port => string.Equals(port, selected, StringComparison.OrdinalIgnoreCase));

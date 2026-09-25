@@ -37,14 +37,14 @@ public sealed partial class MachineLifecycleTests
         var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => state.Homed && !state.IsRunning);
+        await WaitUntilAsync(() => state.FeedbackReadiness.Homed && !state.IsRunning);
         view.Activate();
         var notifications = new ConcurrentQueue<string?>();
         view.PropertyChanged += (_, e) => notifications.Enqueue(e.PropertyName);
         try
         {
             motion.SetServo(MotionAxis.X, false);
-            await WaitUntilAsync(() => !state.ServosOn
+            await WaitUntilAsync(() => !state.FeedbackReadiness.ServosOn
                 && notifications.Contains(nameof(OperationViewModel.MachineDisplayState)));
             Assert.Equal(MachineDisplayState.ServoOff, view.MachineDisplayState);
             Assert.Contains(nameof(OperationViewModel.SupplyDisplayState), notifications);
@@ -137,7 +137,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => state.Homed);
+        await WaitUntilAsync(() => state.FeedbackReadiness.Homed);
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         foreach (var probe in probes.Values)
             probe.BeforeHardwareRead = BeforeHardwareRead;
@@ -175,12 +175,16 @@ public sealed partial class MachineLifecycleTests
             readingDisplay.Value = true;
             var display = services.GetRequiredService<OperationViewModel>();
             Assert.True(state.Available);
-            Assert.NotEqual(BoltFasteningState.Waiting, display.FasteningState);
-            Assert.NotEqual(InspectionStationState.Waiting, display.InspectionState);
-            Assert.NotNull(display.BoltFasteningActiveBolt);
+            // A machine-level flag cannot invent an executing step in an idle unit.
+            Assert.Null(display.FasteningState);
+            Assert.Null(display.InspectionState);
+            Assert.Null(display.BoltFasteningActiveBolt);
+            Assert.Null(services.GetRequiredService<BoltFasteningStation>().ActiveBolt);
+            Assert.Null(services.GetRequiredService<InspectionStation>().ActiveBolt);
+            Assert.Null(services.GetRequiredService<InspectionStation>().ActivePcb);
             Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => services.GetRequiredService<PcbSupplier>().Motion.IsAt(settings.PcbSupply.HandoffPosition)));
             Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(
-                () => services.GetRequiredService<MainConveyor>().RunCommandOn));
+                () => services.GetRequiredService<IIoService>().GetOutput(OutputIo.MainConveyorRun)));
 
             readingDisplay.Value = false;
             io.SetInput(InputIo.InspectionBackupPlateUp, false);
@@ -190,9 +194,9 @@ public sealed partial class MachineLifecycleTests
             var work = services.GetRequiredService<InspectionStation>();
             work.RequestInspection(work.Station.CurrentJob);
             readingDisplay.Value = true;
-            Assert.Equal(MainConveyorState.WaitingForInspection, display.ConveyorState);
-            Assert.NotNull(display.InspectionState);
-            Assert.NotNull(display.InspectionActivePcb);
+            Assert.Null(display.ConveyorState);
+            Assert.Null(display.InspectionState);
+            Assert.Null(display.InspectionActivePcb);
             _ = display.InspectionActiveBolt;
 
             // Unavailable sampled feedback must remain unknown instead of reading the SDK.
@@ -297,7 +301,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
         await machine.InitializeAsync();
-        Assert.False(state.Homed);
+        Assert.False(state.FeedbackReadiness.Homed);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var released = new ManualResetEventSlim();
         var blocked = 0;
@@ -332,7 +336,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(state.AutomaticRunning);
             Assert.False(run.IsCompleted);
             Assert.Equal(MachineAlarm.None, state.Alarm);
-            Assert.True(state.Homed);
+            Assert.True(state.FeedbackReadiness.Homed);
         }
         finally
         {
@@ -405,7 +409,7 @@ public sealed partial class MachineLifecycleTests
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         var row = manual.Axes.Single(
             axis => axis.Group == MotionGroup.InspectionGantry && axis.Axis == MotionAxis.X);
-        var motion = services.GetRequiredService<InspectionStation>().Feedback;
+        var motion = services.GetRequiredService<InspectionStation>().Motion.Feedback;
         void FailOnce()
         {
             motion.StateChanged -= FailOnce;
@@ -438,7 +442,7 @@ public sealed partial class MachineLifecycleTests
         await operations.ShutdownAsync();
         await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
 
-        Assert.False(services.GetRequiredService<PcbSupplier>().Feedback.IsMoving);
+        Assert.False(services.GetRequiredService<PcbSupplier>().Motion.Feedback.IsMoving);
         Assert.False(operations.HasActiveOperations);
         Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
     }

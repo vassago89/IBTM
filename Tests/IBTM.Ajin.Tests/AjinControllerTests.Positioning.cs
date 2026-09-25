@@ -45,15 +45,15 @@ public sealed partial class AjinControllerTests
         var axis = new AxisHardware { Number = 9, MoveUnit = 10, MovePulse = 100 };
         var motion = new AjinMotionService(controller, axis, null, null, new(), new(), new());
         AjinSdk.MotionAxes[9] = new(Position: 12340, Unit: 10, Pulse: 100);
-        Assert.Equal(12.34, motion.GetPosition().X);
+        Assert.Equal(12.34, motion.Position.X);
 
         // Editing configuration must not change a coordinate already scaled by the SDK.
         axis.MoveUnit = 1;
         axis.MovePulse = 1000;
-        Assert.Equal(12.34, motion.GetPosition().X);
+        Assert.Equal(12.34, motion.Position.X);
         Assert.Equal(12.34, motion.ReadDiagnosticPosition(MotionAxis.X).Position);
         AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = -5670, Unit = 0.1, Pulse = 1 };
-        Assert.Equal(-5.67, motion.GetPosition().X);
+        Assert.Equal(-5.67, motion.Position.X);
         Assert.All(AjinSdk.Calls, call => Assert.Equal(nameof(CAXM.AxmStatusGetActPos), call.Operation));
     }
 
@@ -105,7 +105,7 @@ public sealed partial class AjinControllerTests
                 await motion.MoveAxisAsync(MotionAxis.Z, -30 - attempt, 10);
         }
 
-        Assert.Equal(xy ? (21.0, 31.0, -10.0) : (-10.0, -10.0, -31.0), motion.GetPosition());
+        Assert.Equal(xy ? (21.0, 31.0, -10.0) : (-10.0, -10.0, -31.0), motion.Position);
         foreach (var axis in xy ? new[] { 9, 10 } : new[] { 11 })
             Assert.Equal(0U, AjinSdk.MotionAxes[axis].AbsRelMode);
     }
@@ -132,7 +132,7 @@ public sealed partial class AjinControllerTests
 
         Assert.Contains(failedOperation, failure.Message);
         Assert.Empty(AjinSdk.Moves);
-        Assert.Equal((0.0, 0.0, 0.0), motion.GetPosition());
+        Assert.Equal((0.0, 0.0, 0.0), motion.Position);
         Assert.Equal(MotionCommand.None, motion.Command);
     }
 

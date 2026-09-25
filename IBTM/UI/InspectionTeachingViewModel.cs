@@ -115,7 +115,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         try
         {
-            RecipeNames = _recipes.GetRecipeNames();
+            RecipeNames = _store.RecipeNames;
             if (!IsBusy)
             {
                 if (IsLoaded)

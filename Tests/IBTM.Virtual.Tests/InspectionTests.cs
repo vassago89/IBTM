@@ -34,7 +34,7 @@ public sealed class InspectionTests
         var carrier = ConveyorStation.CreateInspection(io);
         var station = new InspectionStation(carrier, motion, new(motion), new NgCarrierConveyor(io, new(), units),
             operations, settings, transfer, io, units,
-            new VirtualCamera(motion.GetPosition, () => []), new VirtualLightController(), new(), recipes);
+            new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes);
         Assert.True(await station.HomeHorizontalAsync());
         io.SetInputs(
             (InputIo.InspectionHeatSink1Present, true),
@@ -99,7 +99,7 @@ public sealed class InspectionTests
             transfer,
             io,
             units,
-            new VirtualCamera(motion.GetPosition, () => []),
+            new VirtualCamera(() => motion.Position, () => []),
             new VirtualLightController(),
             new(),
             recipes);
@@ -118,8 +118,8 @@ public sealed class InspectionTests
         {
             if (station.Step is not (InspectionStationState.ReadingBarcode or InspectionStationState.InspectingBolt))
                 return;
-            var bolt = station.GetActiveBolt()?.Number;
-            visited.Add((station.GetActivePcb(), bolt));
+            var bolt = station.ActiveBolt?.Number;
+            visited.Add((station.ActivePcb, bolt));
             if (interrupt && bolt == 2)
                 firstStop.Cancel();
         };
@@ -136,6 +136,8 @@ public sealed class InspectionTests
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
         Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
         Assert.False(work.Completed);
+        Assert.Null(station.ActivePcb);
+        Assert.Null(station.ActiveBolt);
         visited.Clear();
         interrupt = false;
         await station.RunAsync(secondStop.Token);
@@ -146,6 +148,8 @@ public sealed class InspectionTests
         Assert.True(work.Completed);
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
         Assert.Null(station.Step);
+        Assert.Null(station.ActivePcb);
+        Assert.Null(station.ActiveBolt);
     }
 
     [Theory]
@@ -185,7 +189,7 @@ public sealed class InspectionTests
             transfer,
             io,
             units,
-            new VirtualCamera(motion.GetPosition, () => []),
+            new VirtualCamera(() => motion.Position, () => []),
             new VirtualLightController(),
             new(),
             recipes);
@@ -338,7 +342,7 @@ public sealed class InspectionTests
             io,
             units,
             new VirtualCamera(
-                motion.GetPosition,
+                () => motion.Position,
                 () => [],
                 () => [new(new() { X = 15, Y = 7 }, 4, 4, "PCB-000123")]),
             new VirtualLightController(),
@@ -440,13 +444,13 @@ public sealed class InspectionTests
         ];
         var camera = new MissingBoltCamera(
             new VirtualCamera(
-                motion.GetPosition,
+                () => motion.Position,
                 () => bolts.Select(bolt => bolt.InspectionPosition!),
                 () => [
                     new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
                     new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2")
         ]),
-            motion.GetPosition,
+            () => motion.Position,
             bolts[1].InspectionPosition!);
         recipes.Current.Pcb.BoltPoints = [.. bolts];
         recipes.Current.CarrierImages = [.. bolts.Select((bolt, index) => new CarrierImageTile
@@ -495,8 +499,11 @@ public sealed class InspectionTests
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
 
         Assert.Empty(work.Assemblies);
-        Assert.Equal(HeatSinkSlot.HeatSink1, station.GetActivePcb());
+        Assert.Null(station.ActivePcb);
+        Assert.Null(station.ActiveBolt);
         _ = station.GetNextStep();
+        Assert.Null(station.ActivePcb);
+        Assert.Null(station.ActiveBolt);
         Assert.Empty(work.Assemblies);
 
         await inspector.HomeHorizontalAsync();
@@ -529,12 +536,12 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
         camera.AfterCapture = () =>
         {
-            if (station.GetActiveBolt() is null)
+            if (station.ActiveBolt is null)
                 return;
             camera.AfterCapture = null;
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
             io.SetInput(InputIo.InspectionHeatSink2Present, false);
-            Assert.Equal(HeatSinkSlot.HeatSink2, station.GetActiveBolt()!.HeatSink);
+            Assert.Equal(HeatSinkSlot.HeatSink2, station.ActiveBolt!.HeatSink);
         };
         using var cancellation = new CancellationTokenSource();
         var run = station.RunAsync(cancellation.Token);
@@ -578,7 +585,7 @@ public sealed class InspectionTests
         Assert.Empty(work.Assemblies);
         Assert.False(work.Completed);
 
-        var position = motion.GetPosition();
+        var position = motion.Position;
         transferSettings.ShuttlePlacePosition = new AxisPosition
         {
             X = position.X,

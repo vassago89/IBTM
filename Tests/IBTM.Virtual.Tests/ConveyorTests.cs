@@ -44,7 +44,7 @@ public sealed partial class ConveyorTests
         try
         {
             await waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             if (receive)
                 conveyor.TestUpstreamCarrierAvailable = true;
             else
@@ -63,7 +63,7 @@ public sealed partial class ConveyorTests
             stop.Cancel();
             await run.WaitAsync(TimeSpan.FromSeconds(1));
         }
-        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         Assert.Equal(receive, conveyor.TestUpstreamCarrierAvailable);
         Assert.Equal(!receive, conveyor.TestDownstreamReady);
 
@@ -146,14 +146,14 @@ public sealed partial class ConveyorTests
 
         Assert.False(io.GetOutput(plate));
         io.SetInputs((other, true), (destination, false));
-        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         Assert.True(io.GetInput(other));
         using var idleStop = new CancellationTokenSource();
         var idle = conveyor.RunAsync(idleStop.Token);
         try
         {
             await WaitForOutputAsync(io, plate, true);
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         }
         finally
         {
@@ -249,9 +249,9 @@ public sealed partial class ConveyorTests
             var failure = await Assert.ThrowsAsync<InvalidOperationException>(
                 () => run.WaitAsync(TimeSpan.FromSeconds(2)));
             Assert.Contains("lost during the seating push", failure.Message);
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
-            Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.State);
+            Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.GetNextStep(io.GetOutput(OutputIo.MainConveyorRun)));
         }
         finally
         {
@@ -266,7 +266,7 @@ public sealed partial class ConveyorTests
         };
         using var restartStop = new CancellationTokenSource();
         var restarted = conveyor.RunAsync(restartStop.Token);
-        Assert.Equal(MainConveyorState.WaitingForPcbPlacement, conveyor.State);
+        Assert.Equal(MainConveyorState.WaitingForPcbPlacement, conveyor.Step);
         restartStop.Cancel();
         await restarted.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(unsafeOutput);
@@ -293,11 +293,11 @@ public sealed partial class ConveyorTests
                 (InputIo.PcbPlacementHeatSink1Present, arrived),
                 (InputIo.PcbPlacementHeatSink2Present, arrived));
             await Task.Delay(50);
-            Assert.True(conveyor.RunCommandOn);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
 
             conveyor.Stop();
 
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             await run.WaitAsync(TimeSpan.FromSeconds(1));
             Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
         }
@@ -325,13 +325,13 @@ public sealed partial class ConveyorTests
             Assert.False(io.GetOutput(OutputIo.MainConveyorForward));
             VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
-            Assert.True(conveyor.RunCommandOn);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(run.IsCompleted);
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, false);
             io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
 
             await run.WaitAsync(TimeSpan.FromSeconds(1));
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         }
         finally
         {
@@ -487,7 +487,7 @@ public sealed partial class ConveyorTests
             Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateDown));
             Assert.False(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
             Assert.True(io.GetInput(InputIo.PcbPlacementStopperDown));
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         }
     }
 
@@ -511,7 +511,7 @@ public sealed partial class ConveyorTests
             Assert.False(run.IsCompleted);
             io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
             await run.WaitAsync(TimeSpan.FromSeconds(1));
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         }
         finally
         {
@@ -536,13 +536,13 @@ public sealed partial class ConveyorTests
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
             await Task.Delay(150);
             Assert.False(run.IsCompleted);
-            Assert.True(conveyor.RunCommandOn);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
             if (stopBeforeEntry)
                 stop.Cancel();
             else
                 io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
             // RUN must already be OFF in the same input/cancellation callback.
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             if (stopBeforeEntry)
                 await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
             else
@@ -572,7 +572,7 @@ public sealed partial class ConveyorTests
         await conveyor.ReturnToStartAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(1));
 
         Assert.False(started);
-        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
     }
 
     [Theory]
@@ -610,7 +610,7 @@ public sealed partial class ConveyorTests
 
         Assert.True(stoppedDuringSetup);
         Assert.False(started);
-        Assert.False(conveyor.RunCommandOn);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
     }
 
@@ -630,8 +630,8 @@ public sealed partial class ConveyorTests
             io.SetOutputAndWaitAsync(OutputIo.BoltFasteningBackupPlateUp, false),
             io.SetOutputAndWaitAsync(OutputIo.BoltFasteningStopperUp, true));
 
-        Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.State);
-        Assert.False(conveyor.RunCommandOn);
+        Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.GetNextStep(io.GetOutput(OutputIo.MainConveyorRun)));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
     }
 
     [Fact]
@@ -662,7 +662,7 @@ public sealed partial class ConveyorTests
         try
         {
             await WaitForOutputAsync(io, OutputIo.PcbPlacementBackupPlateUp, true);
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         }
         finally
         {
@@ -694,7 +694,7 @@ public sealed partial class ConveyorTests
             {
                 if (!enabled
                     && (station.CarrierSeated
-                        || ReferenceEquals(station, inspection.Station) && inspection.AtInspectionPosition))
+                        || ReferenceEquals(station, inspection.Station) && inspection.IsAtInspectionPosition))
                     station.Complete(station.CurrentJob);
             }
 

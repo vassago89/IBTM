@@ -141,9 +141,9 @@ public sealed class OutputWindowThreadingTests
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => teaching.StepCommand.CanExecute(TeachingDirection.XPlus),
                 TimeSpan.FromSeconds(2)));
-            var before = inspection.GetPosition();
+            var before = inspection.Position;
             await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
-            Assert.Equal(before.X + teaching.StepDistance, inspection.GetPosition().X, 3);
+            Assert.Equal(before.X + teaching.StepDistance, inspection.Position.X, 3);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
 
             var monitor = services.GetRequiredService<MotionWindowViewModel>();
@@ -185,7 +185,7 @@ public sealed class OutputWindowThreadingTests
                 TimeSpan.FromSeconds(2)));
             Assert.False(teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-            Assert.Equal(inspection.GetPosition().X, taughtPoint.X, 3);
+            Assert.Equal(inspection.Position.X, taughtPoint.X, 3);
             Assert.True(teaching.ToggleLiveViewCommand.CanExecute(null));
         }
         finally
@@ -453,7 +453,10 @@ public sealed class OutputWindowThreadingTests
         var sensor = new CheckBox();
         foreach (var (path, signal) in new[]
         {
-            ("Conveyor.EntryCarrierDetected", InputIo.MainConveyorEntryCarrierDetected),
+            ("Signals.Inputs[MainConveyorEntryCarrierDetected].IsOn", InputIo.MainConveyorEntryCarrierDetected),
+            ("Signals.Inputs[PcbSupplyIpmFixerForward].IsOn", InputIo.PcbSupplyIpmFixerForward),
+            ("Signals.Inputs[PcbPlacementVacuumDetected].IsOn", InputIo.PcbPlacementVacuumDetected),
+            ("Signals.Inputs[PickupHeadVacuumDetected].IsOn", InputIo.PickupHeadVacuumDetected),
             ("Placement.Station.CarrierPresent", InputIo.PcbPlacementHeatSink1Present),
             ("Signals.Inputs[NgCarrierDetected].IsOn", InputIo.NgCarrierDetected),
             ("Signals.Inputs[NgShuttleCarrierDetected].IsOn", InputIo.NgShuttleCarrierDetected),
@@ -738,11 +741,14 @@ public sealed class OutputWindowThreadingTests
             await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             var liveLightOnCalls = light.OnCalls;
+            var liveLightOffCalls = light.OffCalls;
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Null(teaching.CameraError);
             Assert.True(teaching.Inspection.IsLiveView);
             Assert.True(light.IsOn);
-            Assert.Equal(liveLightOnCalls, light.OnCalls);
+            // Capture reapplies the selected light level without stopping Live or turning light off.
+            Assert.Equal(liveLightOnCalls + 1, light.OnCalls);
+            Assert.Equal(liveLightOffCalls, light.OffCalls);
             Assert.Single(teaching.CarrierImages);
             var recordedImage = VirtualTest.RecordedImage(teaching)!;
             Assert.NotSame(firstImage.Image, recordedImage.Image);
@@ -773,8 +779,8 @@ public sealed class OutputWindowThreadingTests
                 Assert.True(teaching.Inspection.HasBarcodeRegion(heatSink));
             }
             Assert.Equal(4, teaching.CarrierImages.Count);
-            Assert.True(teaching.Inspection.IsLiveView);
-            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            // Selecting another point stops Live before applying its saved light level.
+            Assert.False(teaching.Inspection.IsLiveView);
 
             var originalName = teaching.RecipeEditor.ActiveName;
             teaching.RecipeEditor.Name = "ThreadingScanCopy";
@@ -995,6 +1001,7 @@ public sealed class OutputWindowThreadingTests
         public Action? BeforeOn { get; set; }
         public Action? BeforeOff { get; set; }
         public int OnCalls { get; private set; }
+        public int OffCalls { get; private set; }
         public bool IsOn { get; private set; }
         public bool FailOff { get; set; }
         public IOException OffFailure { get; }
@@ -1012,11 +1019,13 @@ public sealed class OutputWindowThreadingTests
 
         public void TurnOffAll()
         {
+            OffCalls++;
             IsOn = false;
         }
 
         public void TurnOff(int channel)
         {
+            OffCalls++;
             BeforeOff?.Invoke();
             if (FailOff)
                 throw OffFailure;

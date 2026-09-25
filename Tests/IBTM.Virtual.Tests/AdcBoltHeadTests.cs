@@ -86,8 +86,14 @@ public sealed class AdcBoltHeadTests
     {
         using var bus = new AdcControllerStub { StatusReadDelayMilliseconds = 15 };
         var (io, head) = Create(bus, new() { StatusPollMilliseconds = 20 });
+        var notifiedSamples = new System.Collections.Concurrent.ConcurrentQueue<AdcStatusSample?>();
+        bus.Monitor.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(AdcStatusMonitor.Sample))
+                notifiedSamples.Enqueue(bus.Monitor.Sample);
+        };
         await head.CheckReadyAsync();
-        Assert.Null(head.Monitor.Error);
+        Assert.Null(head.Monitor.Sample?.Error);
         await Task.WhenAll(bus.Monitor.StartAsync(1, CancellationToken.None),
             bus.Monitor.StartAsync(1, CancellationToken.None));
         var reads = bus.StatusReads;
@@ -95,26 +101,28 @@ public sealed class AdcBoltHeadTests
         Assert.False(bus.ConcurrentStatusReadsDetected);
         Assert.Equal(0, bus.ResultReads);
         Assert.Equal(0, bus.StartWrites);
-        Assert.True(head.Monitor.Status!.Ready);
+        Assert.True(head.Monitor.Sample?.Status!.Ready);
         bus.StatusReadFailure = new IOException("Status disconnected");
-        Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Error is not null, TimeSpan.FromSeconds(2)));
-        Assert.Null(head.Monitor.Status);
+        Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Sample?.Error is not null, TimeSpan.FromSeconds(2)));
+        Assert.Null(head.Monitor.Sample?.Status);
         bus.StatusReadFailure = null;
-        Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Status is not null, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Sample?.Status is not null, TimeSpan.FromSeconds(2)));
         using var disconnectTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var pending = head.Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), disconnectTimeout.Token);
         bus.Close();
         var disconnected = await Assert.ThrowsAsync<IOException>(() => pending);
         Assert.Contains("Controller test bus/1", disconnected.Message);
-        Assert.Null(head.Monitor.Status);
+        Assert.Null(head.Monitor.Sample?.Status);
         reads = bus.StatusReads;
         await Task.Delay(80);
         Assert.Equal(reads, bus.StatusReads);
         await head.CheckReadyAsync();
-        Assert.True(head.Monitor.Status!.Ready);
-        Assert.Null(head.Monitor.Error);
+        Assert.True(head.Monitor.Sample?.Status!.Ready);
+        Assert.Null(head.Monitor.Sample?.Error);
         Assert.False(bus.ConcurrentStatusReadsDetected);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.Contains(notifiedSamples, sample => sample is { Status.Ready: true, Error: null });
+        Assert.Contains(notifiedSamples, sample => sample is { Status: null, Error: IOException });
     }
 
     [Fact]
@@ -227,7 +235,7 @@ public sealed class AdcBoltHeadTests
         await Assert.ThrowsAsync<IOException>(() => first.WaitAsync(TimeSpan.FromSeconds(2)));
         await Assert.ThrowsAsync<IOException>(() => second.WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal(0, bus.ResultReads);
-        Assert.Null(bus.Monitor.Status);
+        Assert.Null(bus.Monitor.Sample?.Status);
 
         bus.StatusReadBarrier = null;
         bus.Open("Virtual", 115200);
@@ -243,12 +251,12 @@ public sealed class AdcBoltHeadTests
         var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         var cycle = head.TightenAsync();
-        Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Status?.Running == true, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Sample?.Status?.Running == true, TimeSpan.FromSeconds(2)));
         bus.StatusReadFailure = new IOException("Status lost");
         await Assert.ThrowsAsync<AggregateException>(() => cycle);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.Equal(0, bus.ResultReads);
-        Assert.Null(head.Monitor.Status);
+        Assert.Null(head.Monitor.Sample?.Status);
     }
 
     [Fact]
@@ -266,7 +274,7 @@ public sealed class AdcBoltHeadTests
             if (ReferenceEquals(sample.Error, rejection))
             {
                 rejected = true;
-                unknownDuringRejection = head.Monitor.Status is null;
+                unknownDuringRejection = head.Monitor.Sample?.Status is null;
                 bus.StatusReadFailure = null;
                 bus.SuppressCompletion = false;
             }
@@ -342,7 +350,7 @@ public sealed class AdcBoltHeadTests
         var cycle = head.TightenAsync();
         Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StartWrites == 1, TimeSpan.FromSeconds(2)));
         Assert.False(cycle.IsCompleted);
-        Assert.False(head.Monitor.Status!.Running); // Initial OFF cannot finish a new cycle.
+        Assert.False(head.Monitor.Sample?.Status!.Running); // Initial OFF cannot finish a new cycle.
         Assert.Equal(1, bus.EventReads);
         Assert.Equal(0, bus.ResultReads);
         Assert.True((await cycle).Success);
@@ -550,7 +558,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         Assert.True((await head.TightenAsync(dryRunMilliseconds: dryRun ? 20 : 0)).Success);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal(dryRun, head.Monitor.Status!.Running);
+        Assert.Equal(dryRun, head.Monitor.Sample?.Status!.Running);
         Assert.True(bus.StatusReads >= (dryRun ? 2 : 4));
         if (dryRun)
             await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
@@ -571,7 +579,7 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(1, bus.EventReads);
         Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(head.Monitor.Status!.Running);
+        Assert.True(head.Monitor.Sample?.Status!.Running);
         Assert.Equal(2, bus.StatusReads);
     }
 
@@ -673,8 +681,8 @@ public sealed class AdcBoltHeadTests
         Assert.False(edges[1].On);
         Assert.True(edges[1].Time - edges[0].Time >= 90);
         Assert.Equal(1, bus.ResetWrites);
-        Assert.Equal((ushort)0, head.Monitor.Status!.Alarm);
-        Assert.True(head.Monitor.Status.Ready);
+        Assert.Equal((ushort)0, head.Monitor.Sample?.Status!.Alarm);
+        Assert.True(head.Monitor.Sample?.Status?.Ready);
         Assert.True(bus.StatusReads >= 6); // Shared monitoring includes RUN transitions.
         bus.ResultStatus = AdcEventStatus.FasteningOk;
         bus.ResultError = 0;
@@ -694,7 +702,7 @@ public sealed class AdcBoltHeadTests
         var result = await cycle;
         Assert.False(result.Success);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal((ushort)125, head.Monitor.Status!.Alarm);
+        Assert.Equal((ushort)125, head.Monitor.Sample?.Status!.Alarm);
         Assert.Equal(2, bus.StatusReads);
     }
 

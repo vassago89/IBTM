@@ -68,14 +68,14 @@ public sealed partial class MachineLifecycleTests
                 or OutputIo.NgCarrierPickupDown or OutputIo.NgCarrierGripperClose)
                 workOutputs.Enqueue(output);
         };
-        Assert.False(services.GetRequiredService<BoltFasteningStation>().Enabled);
+        Assert.False(services.GetRequiredService<UnitSettings>().BoltFastening);
         Assert.True(machine.IsStartAllowed);
         var run = machine.StartAsync();
         try
         {
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => inspection.Station.CarrierSeated, TimeSpan.FromSeconds(5)),
-                $"Conveyor={conveyor.State}, FasteningCompleted={fastening.Completed}, "
+                $"Conveyor={conveyor.Step}, FasteningCompleted={fastening.Completed}, "
                     + $"FasteningSeated={fastening.CarrierSeated}, InspectionCanReceive={inspection.IsReceiveAllowed}, "
                     + $"Alarm={state.AlarmMessage}");
             Assert.Equal(new[] { true, false }, fasteningPlate);
@@ -83,7 +83,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1));
             Assert.True(inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2));
             Assert.True(io.GetInput(InputIo.NgCarrierDetected));
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.True(state.AutomaticRunning);
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.True(inspection.Station.Completed);
@@ -226,7 +226,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(
                     await VirtualTest.WaitUntilAsync(() => conveyorStarted, TimeSpan.FromSeconds(2)),
                     $"Automatic={state.AutomaticRunning}, Alarm={state.AlarmMessage}, "
-                        + $"Conveyor={services.GetRequiredService<MainConveyor>().State}, "
+                        + $"Conveyor={services.GetRequiredService<MainConveyor>().Step}, "
                         + $"Teaching={io.GetInput(InputIo.AutoMode)}");
                 Assert.True(state.AutomaticRunning);
                 Assert.All(plates, plate => Assert.False(io.GetOutput(plate)));
@@ -311,13 +311,13 @@ public sealed partial class MachineLifecycleTests
         {
             if (message.Contains(": ReadingBarcode ", StringComparison.Ordinal))
             {
-                Assert.Null(inspector.GetActiveBolt());
+                Assert.Null(inspector.ActiveBolt);
                 Assert.Contains("Data Matrix", message);
-                camera.SourceImage = inspector.GetActivePcb() == unreadPcb ? blankImage : null;
+                camera.SourceImage = inspector.ActivePcb == unreadPcb ? blankImage : null;
             }
             else if (message.Contains(": InspectingBolt ", StringComparison.Ordinal))
             {
-                camera.SourceImage = inspector.GetActiveBolt()?.Number == 3 ? blankImage : null;
+                camera.SourceImage = inspector.ActiveBolt?.Number == 3 ? blankImage : null;
             }
         };
         inspector.InspectionCaptured += (image, pcb, boltNumber) =>
@@ -325,10 +325,10 @@ public sealed partial class MachineLifecycleTests
             captures.Add((pcb, boltNumber));
             var fov = recipe.CarrierImages.Single(fov => fov.HeatSink == pcb
                 && (boltNumber is null ? fov.IsBarcode : !fov.IsBarcode && fov.BoltNumber == boltNumber));
-            Assert.Equal((recipe.GetInspectionPosition(fov).X, recipe.GetInspectionPosition(fov).Y, 0d), transfer.Feedback.GetPosition());
-            Assert.False(transfer.Feedback.IsMoving);
-            Assert.Equal(pcb, inspector.GetActivePcb());
-            Assert.Equal(boltNumber, inspector.GetActiveBolt()?.Number);
+            Assert.Equal((recipe.GetInspectionPosition(fov).X, recipe.GetInspectionPosition(fov).Y, 0d), transfer.Motion.Feedback.Position);
+            Assert.False(transfer.Motion.Feedback.IsMoving);
+            Assert.Equal(pcb, inspector.ActivePcb);
+            Assert.Equal(boltNumber, inspector.ActiveBolt?.Number);
             Assert.Equal($"{pcb.GetDescription()} · " + (boltNumber is null ? "Data Matrix" : $"Bolt {boltNumber}"),
                 view.InspectionImageCaption);
             if (boltNumber is null && pcb != unreadPcb)
@@ -339,8 +339,8 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.InspectionHeatSink2Present, true);
         await work.Station.PrepareToReceiveAsync(CancellationToken.None);
         io.SetInput(InputIo.AutoMode, false);
-        Assert.True(work.AtInspectionPosition);
-        await WaitUntilAsync(() => state.Homed);
+        Assert.True(work.IsAtInspectionPosition);
+        await WaitUntilAsync(() => state.FeedbackReadiness.Homed);
         Assert.True(machine.IsStartAllowed);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var run = machine.StartAsync(stop.Token);
@@ -463,18 +463,18 @@ public sealed partial class MachineLifecycleTests
             }
         }
 
-        gantry.Feedback.PositionChanged += StopDuringTransfer;
+        gantry.Motion.Feedback.PositionChanged += StopDuringTransfer;
         using var initialTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await machine.StartAsync(initialTimeout.Token);
-        gantry.Feedback.PositionChanged -= StopDuringTransfer;
+        gantry.Motion.Feedback.PositionChanged -= StopDuringTransfer;
         Assert.False(initialTimeout.IsCancellationRequested,
-            $"Inspection={gantry.GetNextStep()}, Main={services.GetRequiredService<MainConveyor>().State}, "
+            $"Inspection={gantry.GetNextStep()}, Main={services.GetRequiredService<MainConveyor>().Step}, "
             + $"Completed={services.GetRequiredService<InspectionStation>().Station.Completed}, NG={services.GetRequiredService<InspectionStation>().HasNg}, "
-            + $"Position={gantry.Feedback.GetPosition()}, Lift={gantry.Lift}, Gripper={gantry.Gripper}, Alarm={state.AlarmDetail}");
-        var stoppedX = gantry.Feedback.GetPosition().X;
+            + $"Position={gantry.Motion.Feedback.Position}, Lift={gantry.Lift}, Gripper={gantry.Gripper}, Alarm={state.AlarmDetail}");
+        var stoppedX = gantry.Motion.Feedback.Position.X;
         Assert.InRange(stoppedX, 40, 149);
         Assert.Equal(1, pickupDescents);
-        Assert.False(gantry.Feedback.IsMoving);
+        Assert.False(gantry.Motion.Feedback.IsMoving);
         Assert.True(io.GetInput(InputIo.NgCarrierGripperClosed));
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -639,7 +639,7 @@ public sealed partial class MachineLifecycleTests
 
         var expectNg = inspectionEnabled && ng;
         Assert.Equal(expectNg, inspection.GetNextStep() == InspectionStationState.PickingCarrier);
-        Assert.Equal(!expectNg, conveyor.State == MainConveyorState.DischargingInspectionCarrier);
+        Assert.Equal(!expectNg, conveyor.GetNextStep(io.GetOutput(OutputIo.MainConveyorRun)) == MainConveyorState.DischargingInspectionCarrier);
         await machine.ShutdownAsync();
     }
 
@@ -711,7 +711,7 @@ public sealed partial class MachineLifecycleTests
         };
         await diagnostics.StartCommand.ExecuteAsync(null);
         Assert.StartsWith("OK", diagnostics.ResultMessage);
-        Assert.True(machine.IsTestBoltHeadAllowed);
+        Assert.True(services.GetRequiredService<MachineState>().ManualSetupEnabled);
         Assert.True(machine.IsUseAdcProtocolAllowed);
         Assert.False(state.IsRunning);
         Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -721,7 +721,7 @@ public sealed partial class MachineLifecycleTests
         await machine.ResetAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.Equal(StartBlockReason.None, machine.StartBlock);
-        Assert.True(machine.IsTestBoltHeadAllowed);
+        Assert.True(services.GetRequiredService<MachineState>().ManualSetupEnabled);
         Assert.Equal(interruptedEvent + 1, (await bus.ReadFasteningResultAsync(slave)).EventCount);
     }
 
@@ -887,22 +887,22 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync();
         try
         {
-            Assert.Equal(NgConveyorState.WaitingForTransferRelease, shuttle.State);
+            Assert.Equal(NgConveyorState.WaitingForTransferRelease, shuttle.Step);
             Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
-            Assert.False(gantry.Feedback.GetAxisState(MotionAxis.X).ServoOn);
-            Assert.False(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
+            Assert.False(gantry.Motion.Feedback.GetAxisState(MotionAxis.X).ServoOn);
+            Assert.False(gantry.Motion.Feedback.GetAxisState(MotionAxis.X).Homed);
 
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             io.SetInput(InputIo.NgCarrierGripperOpen, true);
-            Assert.Equal(NgConveyorState.WaitingForTransferRelease, shuttle.State);
+            Assert.Equal(NgConveyorState.WaitingForTransferRelease, shuttle.Step);
             Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
 
             io.SetInput(InputIo.NgCarrierPickupDown, false);
             io.SetInput(InputIo.NgCarrierPickupUp, true);
             await ((IIoService)io).WaitForInputAsync(InputIo.NgShuttleDown, true);
             Assert.True(io.GetInput(InputIo.NgCarrierDetected));
-            Assert.False(gantry.Feedback.GetAxisState(MotionAxis.X).ServoOn);
-            Assert.False(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
+            Assert.False(gantry.Motion.Feedback.GetAxisState(MotionAxis.X).ServoOn);
+            Assert.False(gantry.Motion.Feedback.GetAxisState(MotionAxis.X).Homed);
         }
         finally
         {
@@ -1159,7 +1159,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(machine.IsResetAllowed);
 
         await machine.HomeAsync(CancellationToken.None);
-        Assert.True(state.Homed);
+        Assert.True(state.FeedbackReadiness.Homed);
 
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.IsStartAllowed);
@@ -1174,15 +1174,15 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Equal(MachineAlarm.DoorOpen, state.Alarm);
         Assert.False(state.IsRunning);
-        Assert.False(state.ServosOn);
+        Assert.False(state.FeedbackReadiness.ServosOn);
 
         io.SetInput(InputIo.AutoMode, true);
         io.SetInput(InputIo.ResetButton, true);
         await WaitUntilAsync(() => !state.IsError);
         io.SetInput(InputIo.ResetButton, false);
 
-        Assert.True(state.ServosOn);
-        Assert.True(state.Homed);
+        Assert.True(state.FeedbackReadiness.ServosOn);
+        Assert.True(state.FeedbackReadiness.Homed);
 
         io.SetInput(InputIo.Door1Open, true);
         io.SetInput(InputIo.AutoMode, false);
@@ -1307,8 +1307,8 @@ public sealed partial class MachineLifecycleTests
         await machine.ResetAsync();
 
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.False(state.Faulted);
-        Assert.True(state.ServosOn);
+        Assert.False(state.FeedbackReadiness.Faulted);
+        Assert.True(state.FeedbackReadiness.ServosOn);
         var resumed = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
         machine.Stop();

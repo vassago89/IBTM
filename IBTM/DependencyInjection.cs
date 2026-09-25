@@ -254,8 +254,10 @@ public static class DependencyInjection
                     provider =>
                     {
                         var recipes = provider.GetRequiredService<RecipeManager>();
+                        var motion = provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()
+                            [MotionGroup.InspectionGantry];
                         return new VirtualCamera(
-                            provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()[MotionGroup.InspectionGantry].GetPosition,
+                            () => motion.Position,
                             () => recipes.Current.Pcb.BoltPoints
                                 .Select(bolt => bolt.InspectionPosition).OfType<AxisPosition>(),
                             // Fixed virtual labels are independent of taught FOVs and ROIs.
@@ -290,7 +292,7 @@ public static class DependencyInjection
                     {
                         var machine = provider.GetRequiredService<VirtualMachine>();
                         var recipes = provider.GetRequiredService<RecipeManager>();
-                        supply.Feedback.PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
+                        supply.Motion.Feedback.PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
                             x, y, z,
                             (recipes.Current.PcbSupply.Pcb1PickPosition.X,
                                 recipes.Current.PcbSupply.Pcb1PickPosition.Y,
@@ -318,7 +320,7 @@ public static class DependencyInjection
                     {
                         var machine = provider.GetRequiredService<VirtualMachine>();
                         var recipes = provider.GetRequiredService<RecipeManager>();
-                        placement.Feedback.PositionChanged += (x, y, z) => machine.UpdatePlacementPosition(
+                        placement.Motion.Feedback.PositionChanged += (x, y, z) => machine.UpdatePlacementPosition(
                             x, y, z, settings.PcbPlacementHandler.HandoffPosition,
                             settings.PcbPlacementHandler.ReceiveZ,
                             recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition,

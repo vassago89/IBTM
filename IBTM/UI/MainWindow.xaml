@@ -272,13 +272,13 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                            <Ellipse Tag="{Binding Operation.State.Homed}" Style="{StaticResource SetupLedStyle}"/>
+                            <Ellipse Tag="{Binding Operation.State.FeedbackReadiness.Homed}" Style="{StaticResource SetupLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="NOT HOMED"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.State.Homed}" Value="True">
+                                            <DataTrigger Binding="{Binding Operation.State.FeedbackReadiness.Homed}" Value="True">
                                                 <Setter Property="Text" Value="HOMED"/>
                                             </DataTrigger>
                                         </Style.Triggers>

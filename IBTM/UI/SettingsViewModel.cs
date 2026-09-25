@@ -161,7 +161,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public MotionSettings CurrentMotionSettings => _motions[SelectedMotionGroup].Settings;
 
-    public IEnumerable<HardwareMappingRow> CurrentAxisMappings => AxisMappings.Where(row => row.Area == CurrentMotionHardwareSettings.Area);
+    public IEnumerable<HardwareMappingRow> CurrentAxisMappings => AxisMappings.Where(row => row.Hardware.Area == CurrentMotionHardwareSettings.Area);
 
     public MotionHardwareSettings CurrentMotionHardwareSettings => _motions[SelectedMotionGroup].Hardware;
 
@@ -362,12 +362,12 @@ public partial class SettingsViewModel : ObservableObject
     {
         var view = CollectionViewSource.GetDefaultView(mappings);
         view.SortDescriptions.Add(
-            new(nameof(HardwareMappingRow.Area), System.ComponentModel.ListSortDirection.Ascending));
+            new($"{nameof(HardwareMappingRow.Hardware)}.{nameof(HardwareSettings.Area)}", System.ComponentModel.ListSortDirection.Ascending));
         view.SortDescriptions.Add(
             new(nameof(HardwareMappingRow.Section), System.ComponentModel.ListSortDirection.Ascending));
         view.SortDescriptions.Add(
             new(nameof(HardwareMappingRow.Order), System.ComponentModel.ListSortDirection.Ascending));
-        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(HardwareMappingRow.Area)));
+        view.GroupDescriptions.Add(new PropertyGroupDescription($"{nameof(HardwareMappingRow.Hardware)}.{nameof(HardwareSettings.Area)}"));
         view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(HardwareMappingRow.Section)));
         return view;
     }

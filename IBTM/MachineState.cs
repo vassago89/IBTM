@@ -142,17 +142,11 @@ public sealed class MachineState : INotifyPropertyChanged
 
     public Exception? ReadError => _feedback.ReadError;
 
-    public bool ServoPowerOn => ServoMainContactorOn && ServosOn;
+    public bool ServoPowerOn => ServoMainContactorOn && FeedbackReadiness.ServosOn;
 
     internal MotionReadiness MotionReadiness => _feedback.ReadLiveReadiness();
 
-    internal MotionReadiness FeedbackReadiness => _feedback.Readiness;
-
-    public bool Homed => FeedbackReadiness.Homed;
-
-    public bool ServosOn => FeedbackReadiness.ServosOn;
-
-    public bool Faulted => FeedbackReadiness.Faulted;
+    public MotionReadiness FeedbackReadiness => _feedback.Readiness;
 
     public bool Ready => Available && IsMotionReady(FeedbackReadiness);
 
@@ -347,9 +341,7 @@ public sealed class MachineState : INotifyPropertyChanged
 
     private void OnMotionReadinessChanged()
     {
-        PropertyChanged?.Invoke(this, new(nameof(Homed)));
-        PropertyChanged?.Invoke(this, new(nameof(ServosOn)));
-        PropertyChanged?.Invoke(this, new(nameof(Faulted)));
+        PropertyChanged?.Invoke(this, new(nameof(FeedbackReadiness)));
         PropertyChanged?.Invoke(this, new(nameof(ServoPowerOn)));
         PropertyChanged?.Invoke(this, new(nameof(Ready)));
         NotifyManualControlsChanged();

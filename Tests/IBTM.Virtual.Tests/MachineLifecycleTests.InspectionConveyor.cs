@@ -116,7 +116,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => transfer.Feedback.IsMoving, TimeSpan.FromSeconds(2)));
+                () => transfer.Motion.Feedback.IsMoving, TimeSpan.FromSeconds(2)));
             Assert.Equal(InspectionStationState.SeatingCarrier, station.GetNextStep());
             Assert.False(raised);
             stop.Cancel();
@@ -250,9 +250,9 @@ public sealed partial class MachineLifecycleTests
         {
             if (!inspected && message.Contains(": InspectingBolt ", StringComparison.Ordinal))
             {
-                Assert.True(work.AtInspectionPosition);
-                Assert.False(conveyor.RunCommandOn);
-                Assert.Equal(MainConveyorState.WaitingForInspection, conveyor.State);
+                Assert.True(work.IsAtInspectionPosition);
+                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+                Assert.Equal(MainConveyorState.WaitingForInspection, conveyor.Step);
                 inspected = true;
                 // A carrier arriving after inspection was requested must wait for it to finish.
                 io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
@@ -260,7 +260,7 @@ public sealed partial class MachineLifecycleTests
             if (inspected && message.Contains(": CompletingInspection ", StringComparison.Ordinal))
             {
                 Assert.False(work.Station.Completed);
-                Assert.False(conveyor.RunCommandOn);
+                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
                 returned = true;
             }
         };
@@ -270,8 +270,8 @@ public sealed partial class MachineLifecycleTests
             {
                 Assert.True(work.Station.Completed);
                 Assert.Equal(InspectionStationState.SeatingCarrier, station.GetNextStep());
-                Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.State);
-                Assert.False(conveyor.RunCommandOn);
+                Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.Step);
+                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
                 Assert.True(pickup.Motion.IsAt(services.GetRequiredService<NgCarrierTransferSettings>().CarrierPickupPosition!));
                 Interlocked.Increment(ref raises);
             }
@@ -289,16 +289,16 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(ng ? AssemblyResult.Ng : AssemblyResult.Ok, inspectedAssembly.InspectionResult);
             if (!ng)
                 Assert.True(work.Station.Completed);
-            if (conveyor.State == MainConveyorState.DischargingInspectionCarrier)
+            if (conveyor.Step is MainConveyorState.DischargingInspectionCarrier)
             {
                 Assert.False(ng);
-                Assert.True(work.IsTransferAtWaitingPosition());
+                Assert.True(work.IsTransferAtWaitingPosition);
                 Assert.True(pickup.Motion.IsAt(waitingPosition));
                 discharged.TrySetResult();
             }
             else
             {
-                Assert.Equal(MainConveyorState.MovingPcbPlacementToBoltFastening, conveyor.State);
+                Assert.Equal(MainConveyorState.MovingPcbPlacementToBoltFastening, conveyor.Step);
                 Assert.Equal(StationCylinderState.Up, work.Station.BackupPlate);
             }
             beltStarted.TrySetResult();
@@ -309,7 +309,7 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => beltStarted.Task.IsCompleted, TimeSpan.FromSeconds(5)),
-                $"State={conveyor.State}; alarm={machineState.AlarmMessage}; "
+                $"State={conveyor.Step}; alarm={machineState.AlarmMessage}; "
                     + string.Join(" | ", conveyorSteps));
             if (!ng && rearReady)
             {
@@ -330,8 +330,8 @@ public sealed partial class MachineLifecycleTests
                     io.SetInput(InputIo.MainConveyorReadyFromRear, true);
                     Assert.True(await VirtualTest.WaitUntilAsync(
                         () => discharged.Task.IsCompleted, TimeSpan.FromSeconds(5)),
-                        $"State={conveyor.State}; completed={work.Station.Completed}; seated={work.Station.CarrierSeated}; "
-                            + $"parked={work.IsTransferAtWaitingPosition()}; ready={conveyor.DownstreamReady}; "
+                        $"State={conveyor.Step}; completed={work.Station.Completed}; seated={work.Station.CarrierSeated}; "
+                            + $"parked={work.IsTransferAtWaitingPosition}; ready={conveyor.DownstreamReady}; "
                             + $"alarm={machineState.AlarmMessage}; "
                             + string.Join(" | ", conveyorSteps));
                 }
@@ -400,8 +400,8 @@ public sealed partial class MachineLifecycleTests
             if (inspected || !message.Contains(": InspectingBolt ", StringComparison.Ordinal))
                 return;
             Assert.True(work.InspectionRequested);
-            Assert.True(work.AtInspectionPosition);
-            Assert.False(conveyor.RunCommandOn);
+            Assert.True(work.IsAtInspectionPosition);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.True(fastening.CarrierSeated);
             Assert.Equal(carrierWaitingAtS1, placement.CarrierSeated);
             Assert.Equal(arrivingJob.Id, work.Station.CurrentJob.Id);
@@ -422,8 +422,8 @@ public sealed partial class MachineLifecycleTests
                 if (on)
                 {
                     Assert.Equal(InspectionStationState.SeatingCarrier, inspection.GetNextStep());
-                    Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.State);
-                    Assert.False(conveyor.RunCommandOn);
+                    Assert.Equal(MainConveyorState.WaitingForInspectionTransfer, conveyor.Step);
+                    Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
                     Assert.True(services.GetRequiredService<InspectionStation>()
                         .Motion.IsAt(services.GetRequiredService<NgCarrierTransferSettings>().CarrierPickupPosition!));
                 }
@@ -431,7 +431,7 @@ public sealed partial class MachineLifecycleTests
             }
             if (output != OutputIo.MainConveyorRun || !on)
                 return;
-            var state = conveyor.State;
+            var state = Assert.IsType<MainConveyorState>(conveyor.Step);
             moves.Enqueue(state);
             if (state == MainConveyorState.MovingBoltFasteningToInspection)
                 return;
@@ -488,7 +488,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => work.IsTransferAtWaitingPosition(), TimeSpan.FromSeconds(2)));
+                () => work.IsTransferAtWaitingPosition, TimeSpan.FromSeconds(2)));
             Assert.True(gantry.Motion.IsAt(waitingPosition));
             Assert.Equal(InspectionStationState.Waiting, station.GetNextStep());
             io.SetInput(InputIo.InspectionHeatSink1Present, true);

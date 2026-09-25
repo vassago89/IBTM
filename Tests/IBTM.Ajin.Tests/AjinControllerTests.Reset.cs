@@ -28,7 +28,7 @@ public sealed partial class AjinControllerTests
             Assert.Contains(new AjinSdk.Call(nameof(CAXM.AxmSignalServoAlarmReset), Value: 0, Axis: axis), AjinSdk.Calls);
             Assert.Equal(0U, AjinSdk.MotionAxes[axis].AlarmReset);
         }
-        Assert.Equal((12.34, -5.67, 0), motion.GetPosition());
+        Assert.Equal((12.34, -5.67, 0), motion.Position);
         Assert.True(motion.GetAxisState(MotionAxis.X).Homed);
         Assert.False(motion.GetAxisState(MotionAxis.Y).Homed);
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));

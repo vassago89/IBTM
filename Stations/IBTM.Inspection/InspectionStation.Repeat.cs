@@ -34,7 +34,7 @@ public sealed partial class InspectionStation
     public async Task ClearStationAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var waitingPosition = WaitingPosition
+        var waitingPosition = _settings.WaitingPosition
             ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
         if ((!IsEmptyRepeatAllowed && !Station.CarrierPresent)
             || IsTransferPending

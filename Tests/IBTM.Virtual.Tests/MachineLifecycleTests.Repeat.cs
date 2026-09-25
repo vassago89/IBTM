@@ -126,7 +126,7 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => mainReturns >= 2 || state.IsError, TimeSpan.FromSeconds(55)),
-                $"Returns={mainReturns}; Phase={machine.RepeatDisplayPhase}; Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().State}; {state.AlarmDetail}");
+                $"Returns={mainReturns}; Phase={machine.RepeatDisplayPhase}; Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().Step}; {state.AlarmDetail}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(mainReturns >= 2);
             Assert.True(shootingStarts >= 4);
@@ -411,7 +411,7 @@ public sealed partial class MachineLifecycleTests
             await waiting.Task.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.True(state.AutomaticRunning);
-            Assert.False(conveyor.RunCommandOn);
+            Assert.False(services.GetRequiredService<IIoService>().GetOutput(OutputIo.MainConveyorRun));
         }
         finally
         {
@@ -631,7 +631,7 @@ public sealed partial class MachineLifecycleTests
                 await VirtualTest.WaitUntilAsync(
                     () => mainReturns >= 2 || state.IsError,
                     TimeSpan.FromSeconds(22)),
-                $"Repeat timed out. Returns={mainReturns}, Phase={machine.RepeatDisplayPhase}, Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().State}, Alarm={state.AlarmMessage}");
+                $"Repeat timed out. Returns={mainReturns}, Phase={machine.RepeatDisplayPhase}, Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().Step}, Alarm={state.AlarmMessage}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(mainReturns >= 2, state.AlarmDetail);
             Assert.True(ngReverse >= 2);

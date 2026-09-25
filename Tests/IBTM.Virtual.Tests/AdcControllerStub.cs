@@ -72,10 +72,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
 
     public int BaudRate => 115200;
 
-    public string[] GetPortNames()
-    {
-        return [];
-    }
+    public string[] PortNames => [];
 
     public void Open(string portName, int baudRate)
     {

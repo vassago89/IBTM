@@ -105,13 +105,13 @@ public sealed partial class MachineLifecycleTests
             Assert.Empty(outputs);
             var motions = new[]
             {
-                services.GetRequiredService<PcbPlacer>().Feedback,
-                services.GetRequiredService<BoltFasteningStation>().Feedback,
-                services.GetRequiredService<PcbSupplier>().Feedback,
+                services.GetRequiredService<PcbPlacer>().Motion.Feedback,
+                services.GetRequiredService<BoltFasteningStation>().Motion.Feedback,
+                services.GetRequiredService<PcbSupplier>().Motion.Feedback,
             };
             foreach (var motion in motions)
             {
-                Assert.Equal((0, 0, 0), motion.GetPosition());
+                Assert.Equal((0, 0, 0), motion.Position);
                 Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).Homed));
             }
             Assert.False(state.IsHoming);

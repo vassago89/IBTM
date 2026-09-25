@@ -101,10 +101,7 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         PublishStateChanged();
     }
 
-    public override (double X, double Y, double Z) GetPosition()
-    {
-        return (_x, _y, _z);
-    }
+    public override (double X, double Y, double Z) Position => (_x, _y, _z);
 
     public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
     {

@@ -137,7 +137,7 @@ public sealed class RecipeTests
         var selection = new RecipeSelectionSettings();
         var recipes = new RecipeManager(database, selection) { Current = { Name = "Active" } };
         var recipe = recipes.Current;
-        var editor = new RecipeEditor(recipes, new());
+        var editor = new RecipeEditor(recipes, database, new());
         await editor.SaveAsync();
         var currentInspection = recipe.BoltInspection;
         var corrected = new Recipe
@@ -225,7 +225,7 @@ public sealed class RecipeTests
         var database = VirtualTest.OpenMachineStore();
         var recipes = new RecipeManager(database, new());
         recipes.Current.ReplaceWith(recipe);
-        var editor = new RecipeEditor(recipes, new());
+        var editor = new RecipeEditor(recipes, database, new());
         await editor.SaveAsync();
         var loaded = database.LoadRecipe<Recipe>(recipe.Name);
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count);
@@ -502,7 +502,7 @@ public sealed class RecipeTests
         var recipes = new RecipeManager(database, selection);
         recipes.Current.ReplaceWith(recipe);
         recipe = recipes.Current;
-        var editor = new RecipeEditor(recipes, operations);
+        var editor = new RecipeEditor(recipes, database, operations);
         bool? activeAtChange = null;
         string? selectedAtChange = null;
         editor.PropertyChanged += (_, args) =>
@@ -520,7 +520,7 @@ public sealed class RecipeTests
         Assert.False(await editor.SaveAsync()); // Direct autosave calls use the same name check.
         Assert.NotNull(editor.Error);
         Assert.False(await editor.SaveCarrierImagesAsync([]));
-        Assert.Empty(database.GetRecipeNames());
+        Assert.Empty(database.RecipeNames);
         Assert.Equal(savedName, recipe.Name);
         editor.Name = savedName;
 
@@ -535,7 +535,7 @@ public sealed class RecipeTests
         Assert.False(await editor.SaveAsync(cancellation.Token));
         operations.ActivityChanged -= CancelWhenStarted;
         Assert.Null(editor.Error);
-        Assert.Empty(database.GetRecipeNames());
+        Assert.Empty(database.RecipeNames);
         Assert.Null(selection.LastRecipeName);
         Assert.Null(database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
         Assert.False(operations.HasActiveOperations);
@@ -601,11 +601,11 @@ public sealed class RecipeTests
         var database = VirtualTest.OpenMachineStore();
         var sourceRecipes = new RecipeManager(database, new()) { Current = { Name = "Source" } };
         var source = sourceRecipes.Current;
-        var sourceEditor = new RecipeEditor(sourceRecipes, new());
+        var sourceEditor = new RecipeEditor(sourceRecipes, database, new());
         var targetSelection = new RecipeSelectionSettings();
         var targetRecipes = new RecipeManager(database, targetSelection) { Current = { Name = "Target" } };
         var target = targetRecipes.Current;
-        var targetEditor = new RecipeEditor(targetRecipes, new());
+        var targetEditor = new RecipeEditor(targetRecipes, database, new());
         CarrierImageTileView[] Images(double x, byte value)
         {
             return [
@@ -687,7 +687,7 @@ public sealed class RecipeTests
         Assert.Contains("selection failure", targetEditor.Error);
         Assert.Equal("Target", targetEditor.ActiveName);
         Assert.Equal("Target", targetSelection.LastRecipeName);
-        Assert.DoesNotContain("Rejected", database.GetRecipeNames());
+        Assert.DoesNotContain("Rejected", database.RecipeNames);
         Assert.DoesNotContain("Rejected", targetEditor.Recipes);
         Assert.Throws<InvalidOperationException>(() => database.LoadRecipeImage("Rejected", 1));
 

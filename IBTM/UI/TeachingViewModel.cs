@@ -167,7 +167,7 @@ public partial class TeachingViewModel : ObservableObject
         Inspection = inspectionStation;
         RecipeEditor = recipeEditor;
         Recipes = recipes;
-        LiveLightLevel = InspectionRecipe.LightLevel;
+        LiveLightLevel = Recipes.Current.BoltInspection.LightLevel;
         CarrierImages = [];
 
         inspectionStation.FrameReady += UpdateLiveImage;
@@ -207,8 +207,6 @@ public partial class TeachingViewModel : ObservableObject
     public RecipeManager Recipes { get; }
 
     public HardwareArea[] TeachingUnits { get; }
-
-    public BoltInspectionRecipe InspectionRecipe => Recipes.Current.BoltInspection;
 
     public bool IsInspectionSelected => SelectedTeachingUnit == HardwareArea.InspectionGantry;
 
@@ -306,7 +304,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             switch (true)
             {
-                case true when IsTeachingEditAllowed:
+                case true when State.SetupEditingEnabled:
                     return ManualControlBlock.None;
                 case true when State.AutoMode:
                     return ManualControlBlock.AutoMode;
@@ -315,8 +313,6 @@ public partial class TeachingViewModel : ObservableObject
             }
         }
     }
-
-    public bool IsTeachingEditAllowed => State.SetupEditingEnabled;
 
     public IReadOnlyList<TeachingIoGroup> TeachingIoGroups
     {
@@ -332,7 +328,7 @@ public partial class TeachingViewModel : ObservableObject
                             Machine))
                     .ToArray();
                 foreach (var row in groups.SelectMany(group => group.Outputs))
-                    row.ViewCancellation = ViewCancellation;
+                    row.ViewCancellation = _viewCancellation.Token;
                 _teachingIoGroups.Add(SelectedTeachingUnit, groups);
             }
 
@@ -353,13 +349,11 @@ public partial class TeachingViewModel : ObservableObject
 
     private MachineController Machine { get; }
 
-    private MachineState State { get; }
+    public MachineState State { get; }
 
     private OperationCancellation Operations { get; }
 
     private bool PositionUpdatesActive { get; set; }
-
-    private CancellationToken ViewCancellation => _viewCancellation.Token;
 
     private void CancelTeaching(bool reportDeviceFailure = true)
     {
@@ -384,7 +378,7 @@ public partial class TeachingViewModel : ObservableObject
             cancellation.Dispose();
             foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
             {
-                row.ViewCancellation = ViewCancellation;
+                row.ViewCancellation = _viewCancellation.Token;
                 row.ToggleOutputCommand.NotifyCanExecuteChanged();
             }
         }
@@ -462,7 +456,6 @@ public partial class TeachingViewModel : ObservableObject
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(ManualBlock));
-        OnPropertyChanged(nameof(IsTeachingEditAllowed));
         OnPropertyChanged(nameof(MotionHint));
         SaveCommand.NotifyCanExecuteChanged();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
@@ -500,8 +493,8 @@ public partial class TeachingViewModel : ObservableObject
         if (Inspection.IsLiveView || ToggleLiveViewCommand.IsRunning)
             _ = RequestCameraStopAsync();
         LiveLightLevel = (SelectedBarcode is { } pcb
-            ? InspectionRecipe.GetDataMatrix(pcb).LightLevel : newValue?.Position.Bolt?.LightLevel)
-            ?? InspectionRecipe.LightLevel;
+            ? Recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel : newValue?.Position.Bolt?.LightLevel)
+            ?? Recipes.Current.BoltInspection.LightLevel;
         OnPropertyChanged(nameof(CameraImage));
         SelectPreviousPointCommand.NotifyCanExecuteChanged();
         SelectNextPointCommand.NotifyCanExecuteChanged();
@@ -671,7 +664,6 @@ public partial class TeachingViewModel : ObservableObject
             RefreshTeachingPoints();
         else
             SelectedPcb = HeatSinkSlot.HeatSink1;
-        OnPropertyChanged(nameof(InspectionRecipe));
         ShowRecipeImages();
     }
 
@@ -685,8 +677,8 @@ public partial class TeachingViewModel : ObservableObject
             Number = number,
             HeatSink = SelectedPcb,
             Head = NewFasteningHead,
-            BrightnessThreshold = InspectionRecipe.BrightnessThreshold,
-            MinimumBrightRatio = InspectionRecipe.MinimumBrightRatio,
+            BrightnessThreshold = Recipes.Current.BoltInspection.BrightnessThreshold,
+            MinimumBrightRatio = Recipes.Current.BoltInspection.MinimumBrightRatio,
         };
         Recipes.Current.Pcb.BoltPoints.Add(bolt);
         RefreshTeachingPoints();
@@ -694,7 +686,7 @@ public partial class TeachingViewModel : ObservableObject
             point => point.BoltNumber == number && point.Position.Target == TeachingTarget.BoltReference);
     }
 
-    private bool IsAddBoltPointAllowed => IsTeachingEditAllowed && IsInspectionSelected;
+    private bool IsAddBoltPointAllowed => State.SetupEditingEnabled && IsInspectionSelected;
 
     public IRelayCommand RemoveBoltPointCommand { get; }
 
@@ -713,7 +705,7 @@ public partial class TeachingViewModel : ObservableObject
     {
         get
         {
-            return IsTeachingEditAllowed
+            return State.SetupEditingEnabled
                 && IsInspectionSelected
                 && SelectedPoint?.Position.Target == TeachingTarget.BoltReference;
         }
@@ -747,7 +739,7 @@ public partial class TeachingViewModel : ObservableObject
                 await CaptureTeachingImageAsync(recordPosition: true, cancellationToken);
             return;
         }
-        var viewToken = ViewCancellation;
+        var viewToken = _viewCancellation.Token;
         var activeToken = cancellationToken;
         try
         {
@@ -766,7 +758,7 @@ public partial class TeachingViewModel : ObservableObject
                 case { Position.Mode: not TeachMode.Image, Position.IsTeachAllowed: true } point
                     when Motion.Feedback.IsReady && IsReadTeachingPositionAllowed(point, live: true):
                     SaveError = null;
-                    var current = Motion.Feedback.GetPosition();
+                    var current = Motion.Feedback.Position;
                     point.Teach(current.X, current.Y, current.Z);
                     RefreshPointPositions();
                     if (point.Storage == TeachingStorage.Machine
@@ -799,7 +791,7 @@ public partial class TeachingViewModel : ObservableObject
             if (SelectedPoint?.Position.Mode == TeachMode.Image)
                 return IsRecordImagePositionAllowed;
             return SelectedPoint is { Position.Mode: not TeachMode.Image, Position.IsTeachAllowed: true } point
-                && IsTeachingEditAllowed
+                && State.SetupEditingEnabled
                 && IsReadTeachingPositionAllowed(point, live: false);
         }
     }
@@ -833,7 +825,7 @@ public partial class TeachingViewModel : ObservableObject
 
     private async Task SaveAsync(CancellationToken cancellationToken)
     {
-        var viewToken = ViewCancellation;
+        var viewToken = _viewCancellation.Token;
         var activeToken = cancellationToken;
         try
         {
@@ -869,7 +861,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsSaveAllowed => IsTeachingEditAllowed && RecipeEditor.IsSaveAllowed && !RecipeEditor.IsBusy;
+    private bool IsSaveAllowed => State.SetupEditingEnabled && RecipeEditor.IsSaveAllowed && !RecipeEditor.IsBusy;
 
     private async Task<bool> SaveSettingsAsync(
         CancellationToken cancellationToken,
@@ -998,7 +990,7 @@ public partial class TeachingViewModel : ObservableObject
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
-            ViewCancellation);
+            _viewCancellation.Token);
         var group = ActiveMotionGroup;
         await Machine.HomeAsync(group, cancellation.Token);
     }
@@ -1026,7 +1018,7 @@ public partial class TeachingViewModel : ObservableObject
         var group = ActiveMotionGroup;
         var (axis, sign) = Resolve(direction);
         var velocity = sign * JogSpeed;
-        var viewCancellation = ViewCancellation;
+        var viewCancellation = _viewCancellation.Token;
         var activeCancellation = cancellationToken;
         try
         {
@@ -1090,7 +1082,7 @@ public partial class TeachingViewModel : ObservableObject
     private async Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
     {
         var commandGroup = ActiveMotionGroup;
-        var viewToken = ViewCancellation;
+        var viewToken = _viewCancellation.Token;
         var activeToken = cancellationToken;
         try
         {
@@ -1187,7 +1179,7 @@ public partial class TeachingViewModel : ObservableObject
     private async Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
         var commandGroup = ActiveMotionGroup;
-        var viewToken = ViewCancellation;
+        var viewToken = _viewCancellation.Token;
         var activeToken = cancellationToken;
         try
         {
@@ -1202,7 +1194,7 @@ public partial class TeachingViewModel : ObservableObject
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            var current = Motion.Feedback.GetPosition();
+            var current = Motion.Feedback.Position;
             var (axis, sign) = Resolve(direction);
             var position = axis switch
             {
@@ -1251,7 +1243,7 @@ public partial class TeachingViewModel : ObservableObject
     private async Task ReturnFromPickupAsync(CancellationToken cancellationToken)
     {
         var commandGroup = ActiveMotionGroup;
-        var viewToken = ViewCancellation;
+        var viewToken = _viewCancellation.Token;
         var activeToken = cancellationToken;
         try
         {
@@ -1300,7 +1292,7 @@ public partial class TeachingViewModel : ObservableObject
     {
         var point = SelectedPoint!;
         var commandGroup = ActiveMotionGroup;
-        var viewToken = ViewCancellation;
+        var viewToken = _viewCancellation.Token;
         var activeToken = cancellationToken;
         try
         {
@@ -1448,7 +1440,7 @@ public partial class TeachingViewModel : ObservableObject
     {
         if (!IsApplyLightAllowed)
             return;
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ViewCancellation);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _viewCancellation.Token);
         try
         {
             CameraError = null;
@@ -1464,14 +1456,14 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsApplyLightAllowed => IsInspectionSelected && IsTeachingEditAllowed && Inspection.IsLiveView;
+    private bool IsApplyLightAllowed => IsInspectionSelected && State.SetupEditingEnabled && Inspection.IsLiveView;
 
     public IAsyncRelayCommand ToggleLiveViewCommand { get; }
 
     private async Task ToggleLiveViewAsync(CancellationToken cancellationToken)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken, ViewCancellation);
+            cancellationToken, _viewCancellation.Token);
         try
         {
             if (Inspection.IsLiveView)
@@ -1510,7 +1502,7 @@ public partial class TeachingViewModel : ObservableObject
         var pcb = SelectedPcb;
         var lightLevel = LiveLightLevel;
         var commandGroup = ActiveMotionGroup;
-        var viewToken = ViewCancellation;
+        var viewToken = _viewCancellation.Token;
         var activeToken = cancellationToken;
         _logger.LogInformation(
             "Teaching capture requested: recipe={Recipe}, PCB={Pcb}, point={Point}, recordPosition={RecordPosition}, live={Live}.",
@@ -1565,7 +1557,7 @@ public partial class TeachingViewModel : ObservableObject
             var previousY = bolt?.Y;
             var previousFasteningX = bolt?.FasteningX;
             var previousFasteningY = bolt?.FasteningY;
-            var dataMatrix = barcode ? InspectionRecipe.GetDataMatrix(pcb) : null;
+            var dataMatrix = barcode ? Recipes.Current.BoltInspection.GetDataMatrix(pcb) : null;
             var previousLight = dataMatrix is not null ? dataMatrix.LightLevel : bolt!.LightLevel;
             if (dataMatrix is not null)
                 dataMatrix.LightLevel = lightLevel;

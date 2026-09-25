@@ -217,8 +217,8 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return State.AutomaticRunning && FasteningState is { } state
-                ? Fastening.GetActiveBolt(state) : null;
+            return State.AutomaticRunning && FasteningState is not null
+                ? Fastening.ActiveBolt : null;
         }
     }
 
@@ -226,8 +226,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return InspectionStateVisible && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running
-                ? Inspection.GetActiveBolt(running) : null;
+            return InspectionStateVisible ? Inspection.ActiveBolt : null;
         }
     }
 
@@ -235,8 +234,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return InspectionStateVisible && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running
-                ? Inspection.GetActivePcb(running) : null;
+            return InspectionStateVisible ? Inspection.ActivePcb : null;
         }
     }
 
@@ -513,8 +511,8 @@ public partial class OperationViewModel : ObservableObject
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is null or nameof(MachineState.Available) or nameof(MachineState.SafetyReady)
-            or nameof(MachineState.Alarm) or nameof(MachineState.Faulted) or nameof(MachineState.IsHoming)
-            or nameof(MachineState.ServoPowerOn) or nameof(MachineState.Homed) or nameof(MachineState.IsRunning))
+            or nameof(MachineState.Alarm) or nameof(MachineState.FeedbackReadiness) or nameof(MachineState.IsHoming)
+            or nameof(MachineState.ServoPowerOn) or nameof(MachineState.IsRunning))
             OnPropertyChanged(nameof(MachineDisplayState));
         if (e.PropertyName is null or nameof(MachineState.AutoMode) or nameof(MachineState.Available))
             OnPropertyChanged(nameof(ModeText));
@@ -615,7 +613,6 @@ public partial class OperationViewModel : ObservableObject
             return;
 
         OnPropertyChanged(nameof(PlacementState));
-        OnPropertyChanged(nameof(PlacementTarget));
         OnPropertyChanged(nameof(PlacementPositionKnown));
         OnPropertyChanged(nameof(PlacementStatus));
         OnPropertyChanged(nameof(PcbPlacementPcbDetected));
@@ -697,9 +694,9 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             if (!State.Available
-                || Signals.Outputs[OutputIo.MainConveyorRun].IsOn is not { } running)
+                || Signals.Outputs[OutputIo.MainConveyorRun].IsOn is null)
                 return null;
-            return Conveyor.Step is MainConveyorState step ? step : Conveyor.GetNextStep(running, live: false);
+            return Conveyor.Step as MainConveyorState?;
         }
     }
 
@@ -708,9 +705,9 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             if (!State.Available
-                || Signals.Outputs[OutputIo.NgConveyorRun].IsOn is not { } running)
+                || Signals.Outputs[OutputIo.NgConveyorRun].IsOn is null)
                 return null;
-            return NgConveyor.Step is NgConveyorState step ? step : NgConveyor.GetNextStep(running);
+            return NgConveyor.Step as NgConveyorState?;
         }
     }
 
@@ -720,11 +717,9 @@ public partial class OperationViewModel : ObservableObject
         {
             if (!State.Available || !PlacementPositionKnown || !Placement.Motion.IsReady(live: false))
                 return null;
-            return Placement.State;
+            return Placement.Step as PcbPlacementState?;
         }
     }
-
-    public HeatSinkSlot? PlacementTarget => Placement.TargetHeatSink;
 
     public BoltFasteningState? FasteningState
     {
@@ -733,7 +728,7 @@ public partial class OperationViewModel : ObservableObject
             if (!State.Available || !Units.BoltFastening || !Machine.TeachingReady
                 || !FasteningPositionKnown || !Fastening.Motion.IsReady(live: false))
                 return null;
-            return Fastening.Step is BoltFasteningState step ? step : Fastening.GetNextStep(live: false);
+            return Fastening.Step as BoltFasteningState?;
         }
     }
 
@@ -743,12 +738,10 @@ public partial class OperationViewModel : ObservableObject
         {
             if (!State.Available || !Units.Inspection || !Machine.TeachingReady
                 || !InspectionPositionKnown || !Inspection.Motion.IsReady(live: false)
-                || Signals.Outputs[OutputIo.MainConveyorRun].IsOn is not { } mainRunning
-                || Signals.Outputs[OutputIo.NgConveyorRun].IsOn is not { } running)
+                || Signals.Outputs[OutputIo.MainConveyorRun].IsOn is null
+                || Signals.Outputs[OutputIo.NgConveyorRun].IsOn is null)
                 return null;
-            return Inspection.Step is InspectionStationState step ? step
-                : Inspection.GetNextStep(State.RepeatEnabled, live: false,
-                    conveyorRunning: running, mainConveyorRunning: mainRunning);
+            return Inspection.Step as InspectionStationState?;
         }
     }
 
@@ -796,7 +789,7 @@ public partial class OperationViewModel : ObservableObject
         {
             var display = SupplyDisplayState;
             return display is HandlerDisplayState.Working or HandlerDisplayState.Moving or HandlerDisplayState.Waiting
-                ? Supply.State
+                ? Supply.Step ?? display
                 : display;
         }
     }
@@ -843,13 +836,13 @@ public partial class OperationViewModel : ObservableObject
                     return MachineDisplayState.SafetyStop;
                 case { Alarm: not MachineAlarm.None }:
                     return MachineDisplayState.Alarm;
-                case { Faulted: true }:
+                case { FeedbackReadiness.Faulted: true }:
                     return MachineDisplayState.MotionFault;
                 case { IsHoming: true }:
                     return MachineDisplayState.Homing;
                 case { ServoPowerOn: false }:
                     return MachineDisplayState.ServoOff;
-                case { Homed: false }:
+                case { FeedbackReadiness.Homed: false }:
                     return MachineDisplayState.HomeRequired;
                 case { IsRunning: true }:
                     return MachineDisplayState.Running;
@@ -915,7 +908,7 @@ public partial class OperationViewModel : ObservableObject
                 case true when !State.AutomaticRunning:
                     return HandlerDisplayState.Stopped;
                 default:
-                    return Supply.State is PcbSupplyState.WaitingForCarrier
+                    return Supply.Step is PcbSupplyState.WaitingForCarrier
                         or PcbSupplyState.WaitingForCarrierExit
                         or PcbSupplyState.HandingOff
                         or PcbSupplyState.WaitingForPlacementClear

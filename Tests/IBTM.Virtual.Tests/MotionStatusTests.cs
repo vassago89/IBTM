@@ -20,9 +20,9 @@ public sealed class MotionStatusTests
         var target = new AxisPosition { X = 12 };
         Assert.True(status.IsHoldingPosition(target));
 
-        motion.Position = (15, 0, 0); // External encoder change, without an application move event.
+        motion.ReportedPosition = (15, 0, 0); // External encoder change, without an application move event.
         Assert.False(status.IsHoldingPosition(target));
-        motion.Position = (12, 0, 0);
+        motion.ReportedPosition = (12, 0, 0);
         motion.State = motion.State with { ServoOn = false };
         Assert.False(status.IsHoldingPosition(target));
         motion.State = motion.State with { ServoOn = true, Alarm = true };
@@ -155,7 +155,7 @@ public sealed class MotionStatusTests
         Assert.False(status.XyHomed);
         // External card state can change while no application move is active.
         motion.State = motion.State with { ServoOn = false };
-        motion.Position = (24, 0, 0); // No PositionChanged event from an external adjustment.
+        motion.ReportedPosition = (24, 0, 0); // No PositionChanged event from an external adjustment.
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         Assert.Equal(new MotionPosition(24, null, null), status.Position);
@@ -195,7 +195,7 @@ public sealed class MotionStatusTests
         public Exception? ReadinessFailure;
         public int Reads;
         public int PositionReads;
-        public (double X, double Y, double Z) Position;
+        public (double X, double Y, double Z) ReportedPosition { get; set; }
 
         public StatusMotion()
             : base(
@@ -209,15 +209,18 @@ public sealed class MotionStatusTests
                 null)
         {
             State = new(true, true, false, true, false, false, false, false);
-            Position = (12, 0, 0);
+            ReportedPosition = (12, 0, 0);
         }
 
         public override bool IsReady => ReadinessFailure is { } failure ? throw failure : true;
 
-        public override (double X, double Y, double Z) GetPosition()
+        public override (double X, double Y, double Z) Position
         {
-            PositionReads++;
-            return Failure is { } failure ? throw failure : Position;
+            get
+            {
+                PositionReads++;
+                return Failure is { } failure ? throw failure : ReportedPosition;
+            }
         }
 
         public override AxisState GetAxisState(MotionAxis axis)
@@ -235,7 +238,7 @@ public sealed class MotionStatusTests
         (double? Position, Exception? Error) IMotionDiagnostics.ReadDiagnosticPosition(MotionAxis axis)
         {
             PositionReads++;
-            return Failure is { } failure ? (null, failure) : (Position.X, null);
+            return Failure is { } failure ? (null, failure) : (ReportedPosition.X, null);
         }
 
         protected override Task MoveAsync(

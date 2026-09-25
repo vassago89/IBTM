@@ -85,7 +85,7 @@ public sealed class BoltFasteningTests
             if (!failClearance)
             {
                 Assert.Equal(BoltCylinderState.Up, station.ShootingHeadPosition);
-                Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                Assert.Equal(settings.SafeZ, motion.Position.Z);
             }
             throw storageFailure;
         };
@@ -157,7 +157,7 @@ public sealed class BoltFasteningTests
                 Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
                 Assert.False(bus.Running);
                 Assert.Equal(BoltCylinderState.Up, station.ShootingHeadPosition);
-                Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                Assert.Equal(settings.SafeZ, motion.Position.Z);
                 raisedAfterTimeout = true;
                 bus.SuppressCompletion = false;
             }
@@ -254,7 +254,7 @@ public sealed class BoltFasteningTests
                 Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
                 Assert.False(bus.Running);
                 Assert.Equal(BoltCylinderState.Up, station.ShootingHeadPosition);
-                Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                Assert.Equal(settings.SafeZ, motion.Position.Z);
                 raisedAfterResult = true;
             }
         };
@@ -797,7 +797,7 @@ public sealed class BoltFasteningTests
                     Assert.True(io.GetInput(InputIo.ShootingEscapeForward));
                     Assert.True(gantry.IsHorizontalMoveAllowed);
                     Assert.Equal(BoltCylinderState.Up, gantry.PickupTablePosition);
-                    Assert.NotEqual((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.GetPosition());
+                    Assert.NotEqual((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.Position);
                     shotElapsed.Restart();
                     if (preparationFailure == ShootingPreparationFailure.Stop)
                         stop.Cancel();
@@ -816,12 +816,12 @@ public sealed class BoltFasteningTests
                 if (on)
                 {
                     Assert.True(gantry.IsHorizontalMoveAllowed);
-                    Assert.Equal(settings.GetHead(selectedHead).FasteningZ, motion.GetPosition().Z);
+                    Assert.Equal(settings.GetHead(selectedHead).FasteningZ, motion.Position.Z);
                     if (selectedHead == FasteningHead.Shooting)
                     {
                         Assert.True(shotElapsed.IsRunning);
                         Assert.True(shotElapsed.Elapsed >= TimeSpan.FromSeconds(settings.ShootingArrivalDelaySeconds - 0.005));
-                        Assert.Equal((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.GetPosition());
+                        Assert.Equal((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.Position);
                         Assert.False(motion.IsMoving);
                         Assert.Equal(!shootWithoutVacuum, io.GetInput(InputIo.ShootingHeadVacuumDetected));
                         Assert.False(io.GetOutput(OutputIo.ShootBolt));
@@ -860,7 +860,7 @@ public sealed class BoltFasteningTests
                 Assert.True(shotElapsed.IsRunning);
                 if (preparationFailure != ShootingPreparationFailure.Stop)
                     Assert.True(shootingOverlappedMove);
-                Assert.NotEqual((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.GetPosition());
+                Assert.NotEqual((bolt.X!.Value, bolt.Y!.Value, settings.ShootingHead.FasteningZ), motion.Position);
                 Assert.False(io.GetOutput(OutputIo.ShootBolt));
                 Assert.False(motion.IsMoving);
                 Assert.Empty(commands);
@@ -1055,7 +1055,7 @@ public sealed class BoltFasteningTests
         {
             Started = () =>
             {
-                starts.Add(station!.GetActiveBolt()!.Number);
+                starts.Add(station!.ActiveBolt!.Number);
                 if (starts.Count == 2)
                     firstStop.Cancel();
             },
@@ -1094,7 +1094,7 @@ public sealed class BoltFasteningTests
             if (x == settings.PickupPosition.X && y == settings.PickupPosition.Y)
             {
                 visitedPickup = true;
-                Assert.Equal(3, station.GetActiveBolt()!.Number);
+                Assert.Equal(3, station.ActiveBolt!.Number);
             }
         };
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -1106,7 +1106,7 @@ public sealed class BoltFasteningTests
         await station.RunAsync(finish.Token);
         Assert.True(work.Completed,
             $"State={station.GetNextStep()}, starts={string.Join(',', starts)}, pickup={station.PickupHeadPosition}, "
-            + $"vacuum={station.PickupBoltLoaded}, XY={motion.GetPosition()}, visitedPickup={visitedPickup}");
+            + $"vacuum={io.GetInput(InputIo.PickupHeadVacuumDetected)}, XY={motion.Position}, visitedPickup={visitedPickup}");
         Assert.Equal(new[] { 1, 2, 1, 2, 3 }, starts);
         Assert.NotSame(firstResult, assembly.PcbBoltResults[1]);
         Assert.Equal(!pickupAlreadyLoaded, visitedPickup);
@@ -1215,7 +1215,7 @@ public sealed class BoltFasteningTests
             io.SetInput(InputIo.PickupHeadDown, false);
             io.SetInput(InputIo.PickupHeadUp, true);
             Assert.Equal(BoltFasteningState.PreparingCarrier, station.GetNextStep());
-            Assert.Equal(1, station.GetActiveBolt()!.Number);
+            Assert.Null(station.ActiveBolt);
         }
 
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
@@ -1286,7 +1286,7 @@ public sealed class BoltFasteningTests
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 20_000);
-        await station.SetPickupTableDownAsync(true, CancellationToken.None);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, CancellationToken.None);
         await ((IAdcBus)shootingBus).SelectPresetAsync(2, 4);
         await ((IAdcBus)bus).SelectPresetAsync(1, 5);
         var presets = new List<(byte Head, ushort Preset)>();
@@ -1302,7 +1302,7 @@ public sealed class BoltFasteningTests
             if (output is not (OutputIo.PickupBoltStart or OutputIo.ShootingBoltStart))
                 return;
             var head = (byte)(output == OutputIo.PickupBoltStart ? 1 : 2);
-            var position = motion.GetPosition();
+            var position = motion.Position;
             starts.Add((head, position.X, position.Y, position.Z));
             Assert.Equal(head == 2 ? BoltCylinderState.Up : BoltCylinderState.Down, gantry.PickupTablePosition);
         };
@@ -1311,7 +1311,7 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.PickupTableDown && on)
             {
                 tableDescents++;
-                Assert.True(gantry.IsAtSafeZ());
+                Assert.True(gantry.IsAtSafeZ);
                 Assert.True(gantry.IsHorizontalMoveAllowed);
                 Assert.Equal(2, starts.Count);
                 Assert.All(work.Assemblies, assembly => Assert.Single(assembly.PcbBoltResults));
@@ -1321,7 +1321,7 @@ public sealed class BoltFasteningTests
                 pickups++;
             }
             if (on && output is OutputIo.PickupHeadDown or OutputIo.ShootingHeadDown)
-                Assert.False(gantry.IsAtPickupXY());
+                Assert.False(gantry.IsAtPickupXY);
         };
         motion.PositionChanged += (_, _, z) =>
         {
@@ -1339,7 +1339,7 @@ public sealed class BoltFasteningTests
         {
             Assert.True(await WaitUntilAsync(
                 () => station.GetNextStep() == BoltFasteningState.Waiting, TimeSpan.FromSeconds(2)));
-            Assert.Equal((280d, 410d, 5d), (motion.GetPosition().X, motion.GetPosition().Y, motion.GetPosition().Z));
+            Assert.Equal((280d, 410d, 5d), (motion.Position.X, motion.Position.Y, motion.Position.Z));
             Assert.Empty(starts);
             Assert.Equal(BoltCylinderState.Up, gantry.PickupTablePosition);
             io.SetInputs(
@@ -1360,7 +1360,7 @@ public sealed class BoltFasteningTests
             Assert.All(work.Assemblies, assembly => Assert.Single(assembly.PickupBoltResults));
             Assert.True(await WaitUntilAsync(
                 () => station.GetNextStep() == BoltFasteningState.Waiting, TimeSpan.FromSeconds(2)));
-            Assert.Equal((280d, 410d, 5d), (motion.GetPosition().X, motion.GetPosition().Y, motion.GetPosition().Z));
+            Assert.Equal((280d, 410d, 5d), (motion.Position.X, motion.Position.Y, motion.Position.Z));
             Assert.Equal(BoltCylinderState.Up, gantry.PickupTablePosition);
         }
         finally
@@ -1462,7 +1462,7 @@ public sealed class BoltFasteningTests
             {
                 Assert.True(gantry.IsHorizontalMoveAllowed);
                 runningHeads.Add(head);
-                fasteningHeights.Add((head, motion.GetPosition().Z));
+                fasteningHeights.Add((head, motion.Position.Z));
             }
             else
                 runningHeads.Remove(head);
@@ -1518,7 +1518,7 @@ public sealed class BoltFasteningTests
                     settings.Motion.ZSpeed = 20_000;
                 }
                 Assert.InRange(
-                    motion.GetPosition().Z,
+                    motion.Position.Z,
                     settings.SafeZ + 0.05,
                     settings.ShootingHead.FasteningZ - 0.05);
                 Assert.Empty(tightenings);
@@ -1556,7 +1556,7 @@ public sealed class BoltFasteningTests
                 item.Head == 1 ? settings.PickupHead.FasteningZ : settings.ShootingHead.FasteningZ,
                 item.Z));
             Assert.True(gantry.IsHorizontalMoveAllowed);
-            Assert.True(gantry.IsAtSafeZ());
+            Assert.True(gantry.IsAtSafeZ);
             Assert.Equal(
                 new (byte Head, ushort Preset)[] { (2, 1), (2, 1), (1, 1), (1, 1) },
                 tightenings);
@@ -1631,12 +1631,12 @@ public sealed class BoltFasteningTests
         var vacuumRequested = false;
         var pickupAttempts = 0;
         var confirmedAfterLift = false;
-        var previousZ = motion.GetPosition().Z;
+        var previousZ = motion.Position.Z;
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PickupHeadVacuumPump && on)
             {
-                Assert.Equal(settings.PickupPosition.Z, motion.GetPosition().Z);
+                Assert.Equal(settings.PickupPosition.Z, motion.Position.Z);
                 Assert.False(io.GetOutput(OutputIo.PickupHeadDown));
                 vacuumRequested = true;
                 // A signal at the feeder is not proof that the bolt stayed on the lifted head.
@@ -1662,16 +1662,16 @@ public sealed class BoltFasteningTests
         try
         {
             Assert.True(await WaitUntilAsync(
-                () => vacuumRequested && station.IsAtPickupXY() && station.IsAtSafeZ(),
+                () => vacuumRequested && station.IsAtPickupXY && station.IsAtSafeZ,
                 TimeSpan.FromSeconds(2)));
             await Task.Delay(40);
-            Assert.Equal((10, 10, settings.SafeZ), motion.GetPosition());
+            Assert.Equal((10, 10, settings.SafeZ), motion.Position);
             Assert.Equal(0, bus.StartWrites);
             Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
             if (successfulAttempt > 0)
             {
                 Assert.True(await WaitUntilAsync(
-                    () => pickupAttempts == successfulAttempt && station.IsAtPickupXY() && station.IsAtSafeZ(),
+                    () => pickupAttempts == successfulAttempt && station.IsAtPickupXY && station.IsAtSafeZ,
                     TimeSpan.FromSeconds(3)));
                 Assert.Equal(0, bus.StartWrites);
                 confirmedAfterLift = true;
@@ -1679,7 +1679,7 @@ public sealed class BoltFasteningTests
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.Equal(successfulAttempt, pickupAttempts);
                 Assert.Equal(1, bus.StartWrites);
-                Assert.Equal(settings.PickupHead.FasteningZ, motion.GetPosition().Z);
+                Assert.Equal(settings.PickupHead.FasteningZ, motion.Position.Z);
             }
             else if (cancelDuringRetry)
             {
@@ -1693,7 +1693,7 @@ public sealed class BoltFasteningTests
                 var error = await Assert.ThrowsAsync<IoTimeoutException>(() => run);
                 Assert.Contains("Vacuum", error.Message);
                 Assert.Equal(retryCount + 1, pickupAttempts);
-                Assert.Equal((10, 10, settings.SafeZ), motion.GetPosition());
+                Assert.Equal((10, 10, settings.SafeZ), motion.Position);
                 Assert.Equal(0, bus.StartWrites);
             }
         }
@@ -1779,7 +1779,7 @@ public sealed class BoltFasteningTests
             if (head == FasteningHead.Pickup)
             {
                 Assert.Equal(BoltCylinderState.Up, station.PickupHeadPosition);
-                Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                Assert.Equal(settings.SafeZ, motion.Position.Z);
                 Assert.False(io.GetOutput(OutputIo.PickupHeadDown));
                 Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
             }
@@ -1820,10 +1820,10 @@ public sealed class BoltFasteningTests
             if (head == FasteningHead.Pickup)
             {
                 Assert.True(await WaitUntilAsync(
-                    () => station.IsAtPickupXY() && station.IsAtSafeZ(),
+                    () => station.IsAtPickupXY && station.IsAtSafeZ,
                     TimeSpan.FromSeconds(1)));
                 Assert.Equal(BoltCylinderState.Up, station.PickupHeadPosition);
-                Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                Assert.Equal(settings.SafeZ, motion.Position.Z);
                 Assert.False(io.GetOutput(OutputIo.PickupHeadDown));
                 Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
                 io.SetInput(InputIo.PickupFeederBoltDetected, true);
@@ -1859,7 +1859,7 @@ public sealed class BoltFasteningTests
         Assert.True(gantryChanges > 0); // Display listeners still receive head feedback.
         Assert.Equal(
             head == FasteningHead.Pickup ? settings.PickupPosition.Z : settings.ShootingHead.FasteningZ,
-            motion.GetPosition().Z);
+            motion.Position.Z);
     }
 
     [Theory]
@@ -1925,7 +1925,7 @@ public sealed class BoltFasteningTests
             steps.Add(motion.IsMovingHorizontal ? "XY" : "Z");
             if (motion.IsMovingHorizontal)
             {
-                Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                Assert.Equal(settings.SafeZ, motion.Position.Z);
                 Assert.Equal(tableDown ? BoltCylinderState.Down : BoltCylinderState.Up, station.PickupTablePosition);
             }
         };
@@ -1941,7 +1941,7 @@ public sealed class BoltFasteningTests
         {
             Assert.Equal(OutputIo.PickupTableDown, output);
             Assert.Equal(tableDown, on);
-            Assert.Equal((0, 0, settings.SafeZ), motion.GetPosition());
+            Assert.Equal((0, 0, settings.SafeZ), motion.Position);
             steps.Add("Table");
             tableCommand.TrySetResult();
         };
@@ -1950,18 +1950,18 @@ public sealed class BoltFasteningTests
         await tableCommand.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(move.IsCompleted);
         Assert.Equal(new[] { "Z", "Table" }, steps);
-        Assert.Equal((0, 0, settings.SafeZ), motion.GetPosition());
+        Assert.Equal((0, 0, settings.SafeZ), motion.Position);
         if (stopAtTable)
         {
             stop.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => move);
-            Assert.Equal((0, 0, settings.SafeZ), motion.GetPosition());
+            Assert.Equal((0, 0, settings.SafeZ), motion.Position);
         }
         else if (conflictingTableFeedback)
         {
             io.SetInputs((InputIo.PickupTableUp, true), (InputIo.PickupTableDown, true));
             await Assert.ThrowsAsync<IoTimeoutException>(() => move);
-            Assert.Equal((0, 0, settings.SafeZ), motion.GetPosition());
+            Assert.Equal((0, 0, settings.SafeZ), motion.Position);
         }
         else
         {
@@ -1971,22 +1971,22 @@ public sealed class BoltFasteningTests
                 await Assert.ThrowsAsync<MotionInterlockException>(() => move);
                 if (loseTableDuringFasteningZ)
                 {
-                    Assert.Equal(destination.X, motion.GetPosition().X);
-                    Assert.Equal(destination.Y, motion.GetPosition().Y);
-                    Assert.InRange(motion.GetPosition().Z, settings.SafeZ, destination.Z - 0.05);
+                    Assert.Equal(destination.X, motion.Position.X);
+                    Assert.Equal(destination.Y, motion.Position.Y);
+                    Assert.InRange(motion.Position.Z, settings.SafeZ, destination.Z - 0.05);
                 }
                 else
                 {
-                    Assert.InRange(motion.GetPosition().X, 0, destination.X - 0.05);
-                    Assert.InRange(motion.GetPosition().Y, 0, destination.Y - 0.05);
-                    Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
+                    Assert.InRange(motion.Position.X, 0, destination.X - 0.05);
+                    Assert.InRange(motion.Position.Y, 0, destination.Y - 0.05);
+                    Assert.Equal(settings.SafeZ, motion.Position.Z);
                 }
             }
             else
             {
                 await move;
                 Assert.Equal(new[] { "Z", "Table", "XY", "Z" }, steps);
-                Assert.Equal((destination.X, destination.Y, destination.Z), motion.GetPosition());
+                Assert.Equal((destination.X, destination.Y, destination.Z), motion.Position);
             }
         }
         Assert.Equal((destination.X, destination.Y, destination.Z), (settings.GetBoltPosition(bolt).X, settings.GetBoltPosition(bolt).Y, settings.GetBoltPosition(bolt).Z));

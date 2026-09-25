@@ -64,8 +64,6 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public ConveyorStation Station { get; }
 
-    public bool Enabled => _units.BoltFastening;
-
     private bool IsReadyToFasten => Station.CarrierSeated && !Station.Completed;
 
     public override event Action? Changed;
@@ -83,12 +81,6 @@ public sealed class BoltFasteningStation : AutoUnit
     }
 
     public MotionStatus Motion { get; }
-
-    public IMotionFeedback Feedback => _motion;
-
-    public bool PickupBoltLoaded => _io.GetInput(InputIo.PickupHeadVacuumDetected);
-
-    internal bool ShootingTubeBoltDetected => _io.GetInput(InputIo.ShootingTubeBoltDetected);
 
     public BoltCylinderState PickupHeadPosition
     {
@@ -195,7 +187,7 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    private BoltPoint? ActiveBolt
+    public BoltPoint? ActiveBolt
     {
         get
         {
@@ -215,16 +207,6 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    private IEnumerable<HeatSinkSlot> Targets
-    {
-        get
-        {
-            return _runTargets is { } targets
-                ? targets
-                : Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent);
-        }
-    }
-
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
         if (cancellationToken.IsCancellationRequested)
@@ -234,13 +216,13 @@ public sealed class BoltFasteningStation : AutoUnit
         try
         {
             BeginRun();
-            if (Enabled)
+            if (_units.BoltFastening)
                 Station.Restart(Station.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (Enabled && repeat && !_units.MainConveyor && Station.Completed)
+                if (_units.BoltFastening && repeat && !_units.MainConveyor && Station.Completed)
                 {
-                    if (!Station.CarrierSeated || !IsHorizontalMoveAllowed || !IsAtSafeZ())
+                    if (!Station.CarrierSeated || !IsHorizontalMoveAllowed || !IsAtSafeZ)
                         throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads at safe height.");
                     Station.StartRepeat(Station.CurrentJob);
                 }
@@ -263,7 +245,7 @@ public sealed class BoltFasteningStation : AutoUnit
             ClearCarrierOperation();
             try
             {
-                if (Enabled)
+                if (_units.BoltFastening)
                     StopShooting(failure);
             }
             finally
@@ -273,16 +255,15 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    public BoltFasteningState GetNextStep(bool live = true)
+    public BoltFasteningState GetNextStep()
     {
-        var bolt = _runBolts is null ? ApplicableBolts.FirstOrDefault() : ActiveBolt;
-        if (!Enabled)
+        if (!_units.BoltFastening)
             return BoltFasteningState.Disabled;
         if (!IsReadyToFasten)
         {
             var standby = StandbyBolt;
             return standby is not null && standby.IsFasteningPositionDefined
-                && (!IsHorizontalMoveAllowed || !IsAt(standby, live, atSafeZ: true)
+                && (!IsHorizontalMoveAllowed || !IsAt(standby, atSafeZ: true)
                     || PickupTablePosition != BoltCylinderState.Up)
                 ? BoltFasteningState.MovingToStandby
                 : BoltFasteningState.Waiting;
@@ -292,7 +273,7 @@ public sealed class BoltFasteningStation : AutoUnit
             || !ReferenceEquals(_runJob, Station.CurrentJob))
             return BoltFasteningState.PreparingCarrier;
 
-        switch (bolt?.Head)
+        switch (ActiveBolt?.Head)
         {
             case FasteningHead.Shooting:
                 return BoltFasteningState.FasteningPcb;
@@ -306,7 +287,10 @@ public sealed class BoltFasteningStation : AutoUnit
     private async Task<bool> ExecuteStepAsync(BoltFasteningState step, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        EnterStep(step, GetActiveBolt(step)?.ToString(), Station.CurrentJob.Id);
+        var selectedBolt = step == BoltFasteningState.MovingToStandby ? StandbyBolt : ActiveBolt;
+        var target = selectedBolt is null ? null
+            : $"{selectedBolt.HeatSink}, bolt {selectedBolt.Number}, {selectedBolt.Head}";
+        EnterStep(step, target, Station.CurrentJob.Id);
         switch (step)
         {
             case BoltFasteningState.Disabled:
@@ -317,7 +301,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 var position = _settings.GetBoltPosition(StandbyBolt!);
                 await RaiseCylindersAsync(cancellationToken);
                 await MoveToSafeZAsync(cancellationToken);
-                await SetPickupTableDownAsync(false, cancellationToken);
+                await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
                 EnsureCanMoveHorizontal(cancellationToken);
                 await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
                 return true;
@@ -333,7 +317,12 @@ public sealed class BoltFasteningStation : AutoUnit
                             $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
                 }
                 _runJob = Station.CurrentJob;
-                _runBolts = ApplicableBolts.ToArray();
+                _runBolts = _recipes.Current.Pcb.BoltPoints
+                    .Where(bolt => _runTargets.Contains(bolt.HeatSink))
+                    .OrderBy(bolt => bolt.Head == FasteningHead.Shooting ? 0 : 1)
+                    .ThenBy(bolt => bolt.HeatSink)
+                    .ThenBy(bolt => bolt.Number)
+                    .ToArray();
                 _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 Station.Changed += CheckCarrier;
                 CheckCarrier();
@@ -373,11 +362,12 @@ public sealed class BoltFasteningStation : AutoUnit
             {
                 case FasteningHead.Shooting:
                 {
+                    TraceStep(step, target, job.Id, "head/table clearance, shooting feed and point movement");
                     if (PickupTablePosition != BoltCylinderState.Up)
                     {
                         await RaiseCylindersAsync(token);
                         await MoveToSafeZAsync(token);
-                        await SetPickupTableDownAsync(false, token);
+                        await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
                     }
                     if (ShootingHeadPosition != BoltCylinderState.Up
                         && (!IsAt(bolt) || feeding))
@@ -413,29 +403,33 @@ public sealed class BoltFasteningStation : AutoUnit
                     {
                         await RaiseCylindersAsync(token);
                         await MoveToSafeZAsync(token);
-                        await SetPickupTableDownAsync(true, token);
+                        await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, token);
                     }
 
-                    if (!PickupBoltLoaded)
+                    if (!_io.GetInput(InputIo.PickupHeadVacuumDetected))
                     {
+                        TraceStep(step, target, job.Id, "pickup XY movement");
                         await MoveToPickupXYAsync(token);
                         var retryCount = _settings.PickupRetryCount;
                         for (var retry = 0; ; retry++)
                         {
                             token.ThrowIfCancellationRequested();
                             // Late feedback at Safe Z can confirm the previous attempt.
-                            if (retry > 0 && PickupBoltLoaded)
+                            if (retry > 0 && _io.GetInput(InputIo.PickupHeadVacuumDetected))
                                 break;
+                            TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: bolt supply and descent");
                             if (feeding)
                                 await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
                             await MoveToPickupZAsync(token);
                             if (feeding)
                                 await SetVacuumAsync(FasteningHead.Pickup, true, token, waitForFeedback: false);
+                            TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: return to Safe Z");
                             await ReturnFromPickupAsync(token);
                             if (!feeding)
                                 break;
                             try
                             {
+                                TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: vacuum detection at Safe Z");
                                 await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, true, token);
                                 break;
                             }
@@ -449,10 +443,11 @@ public sealed class BoltFasteningStation : AutoUnit
                         token.ThrowIfCancellationRequested();
                         Station.RequireCurrentJob(job);
                     }
-                    else if (IsAtPickupXY())
+                    else if (IsAtPickupXY)
                         await ReturnFromPickupAsync(token);
                     if (!IsAt(bolt))
                     {
+                        TraceStep(step, target, job.Id, "fastening point movement");
                         await RaiseCylindersAsync(token);
                         await MoveToBoltAsync(bolt, token);
                     }
@@ -462,11 +457,13 @@ public sealed class BoltFasteningStation : AutoUnit
                     throw new ArgumentOutOfRangeException(nameof(bolt.Head));
             }
             var assembly = Station.GetAssembly(job, bolt.HeatSink);
+            TraceStep(step, target, job.Id, "fastening controller result");
             var result = await FastenAsync(bolt, token);
             Exception? clearFailure = null;
             try
             {
                 // Result notifications can write to disk. Finish physical clearance first.
+                TraceStep(step, target, job.Id, "head retraction");
                 await ClearHeadAsync(bolt.Head, token);
             }
             catch (Exception exception)
@@ -538,24 +535,11 @@ public sealed class BoltFasteningStation : AutoUnit
         _boltIndex = 0;
     }
 
-    public BoltPoint? GetActiveBolt(BoltFasteningState? state = null)
-    {
-        switch (state ?? (Step is BoltFasteningState step ? step : GetNextStep()))
-        {
-            case BoltFasteningState.MovingToStandby:
-                return StandbyBolt;
-            case BoltFasteningState.PreparingCarrier or BoltFasteningState.FasteningPcb or BoltFasteningState.FasteningPickup:
-                return _runBolts is null ? ApplicableBolts.FirstOrDefault() : ActiveBolt;
-            default:
-                return null;
-        }
-    }
-
     internal async Task ShootBoltAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (ShootingEscape != BoltEscapeState.Backward)
-            await SetShootingEscapeForwardAsync(false, cancellationToken);
+            await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false, cancellationToken);
         await WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken);
         await WaitForShootingTubeClearAsync(cancellationToken);
         using var passage = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -563,7 +547,7 @@ public sealed class BoltFasteningStation : AutoUnit
         Exception? failure = null;
         try
         {
-            await SetShootingEscapeForwardAsync(true, cancellationToken);
+            await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true, cancellationToken);
             _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
             boltPassed = _io.WaitForInputAsync(
                 InputIo.ShootingTubeBoltDetected, true, _settings.ShootingDetectionTimeoutMilliseconds, passage.Token);
@@ -572,7 +556,7 @@ public sealed class BoltFasteningStation : AutoUnit
             await boltPassed;
             var arrivalStartedAt = Stopwatch.GetTimestamp();
             await WaitForShootingTubeClearAsync(cancellationToken);
-            await SetShootingEscapeForwardAsync(false, cancellationToken);
+            await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false, cancellationToken);
             var arrivalRemaining = TimeSpan.FromSeconds(_settings.ShootingArrivalDelaySeconds)
                 - Stopwatch.GetElapsedTime(arrivalStartedAt);
             if (arrivalRemaining > TimeSpan.Zero)
@@ -678,40 +662,38 @@ public sealed class BoltFasteningStation : AutoUnit
         await MoveToSafeZAsync(cancellationToken);
     }
 
-    private IEnumerable<BoltPoint> ApplicableBolts
+    public bool IsAtSafeZ
     {
         get
         {
-            return _recipes.Current.Pcb
-                .BoltPoints
-                .Where(bolt => Targets.Contains(bolt.HeatSink))
-                .OrderBy(bolt => bolt.Head == FasteningHead.Shooting ? 0 : 1)
-                .ThenBy(bolt => bolt.HeatSink)
-                .ThenBy(bolt => bolt.Number);
+            return Motion.IsSettled(live: true, MotionAxis.Z)
+                && Motion.IsAtZ(_settings.SafeZ, live: true);
         }
     }
 
-    public bool IsAtSafeZ(bool live = true)
-    {
-        return Motion.IsSettled(live, MotionAxis.Z)
-            && Motion.IsAtZ(_settings.SafeZ, live);
-    }
-
-    internal bool IsAt(BoltPoint bolt, bool live = true, bool atSafeZ = false)
+    internal bool IsAt(BoltPoint bolt, bool atSafeZ = false)
     {
         var position = _settings.GetBoltPosition(bolt);
         if (atSafeZ)
             position.Z = _settings.SafeZ;
-        return IsAt(position, live);
+        var current = _motion.Position;
+        return Motion.IsSettled(live: true, MotionAxis.X, MotionAxis.Y)
+            && _motion.GetAxisState(MotionAxis.Z).InPosition
+            && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Z - position.Z) <= MotionService.PositionToleranceMillimeters;
     }
 
-    internal bool IsAtPickupXY(bool live = true)
+    internal bool IsAtPickupXY
     {
-        var target = _settings.PickupPosition;
-        var current = Motion.ReadPosition(live);
-        return Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y)
-            && Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters;
+        get
+        {
+            var target = _settings.PickupPosition;
+            var current = _motion.Position;
+            return Motion.IsSettled(live: true, MotionAxis.X, MotionAxis.Y)
+                && Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
+                && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters;
+        }
     }
 
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
@@ -761,21 +743,11 @@ public sealed class BoltFasteningStation : AutoUnit
         return _io.SetOutputAndWaitAsync(output, down, cancellationToken);
     }
 
-    internal Task SetPickupTableDownAsync(bool down, CancellationToken cancellationToken)
-    {
-        return _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, down, cancellationToken);
-    }
-
     public Task RaiseCylindersAsync(CancellationToken cancellationToken = default)
     {
         return Task.WhenAll(
             SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken),
             SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken));
-    }
-
-    internal Task SetShootingEscapeForwardAsync(bool forward, CancellationToken cancellationToken = default)
-    {
-        return _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, forward, cancellationToken);
     }
 
     internal Task WaitForShootingTubeClearAsync(CancellationToken cancellationToken = default)
@@ -925,7 +897,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 _log?.LogInformation("Bolt teaching Move To: Safe Z completed; requesting pickup table {Table}.",
                     tableDown ? "DOWN" : "UP");
                 EnsureCanMoveHorizontal(cancellationToken);
-                await SetPickupTableDownAsync(tableDown, cancellationToken);
+                await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, tableDown, cancellationToken);
                 _log?.LogInformation("Bolt teaching Move To: pickup table feedback confirmed.");
                 using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 void CheckTeachingTable()
@@ -1005,7 +977,7 @@ public sealed class BoltFasteningStation : AutoUnit
         await RaiseCylindersAsync(cancellationToken);
         await MoveToSafeZAsync(cancellationToken);
         if (PickupTablePosition != BoltCylinderState.Down)
-            await SetPickupTableDownAsync(true, cancellationToken);
+            await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, cancellationToken);
         EnsureCanMoveHorizontal(cancellationToken);
         await _motion.MoveToXYAsync(
             _settings.PickupPosition.X,
@@ -1023,16 +995,6 @@ public sealed class BoltFasteningStation : AutoUnit
     public Task MoveToSafeZAsync(CancellationToken cancellationToken = default)
     {
         return MoveZAsync(_settings.SafeZ, cancellationToken);
-    }
-
-    private bool IsAt(AxisPosition target, bool live = true)
-    {
-        var current = Motion.ReadPosition(live);
-        return Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y)
-            && Motion.ReadAxisState(MotionAxis.Z, live).InPosition
-            && Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Z - target.Z) <= MotionService.PositionToleranceMillimeters;
     }
 
     private void EnsureCanMoveHorizontal(CancellationToken cancellationToken)

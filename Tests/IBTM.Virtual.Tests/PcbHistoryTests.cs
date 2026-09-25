@@ -202,7 +202,7 @@ public sealed class PcbHistoryTests
         var reopened = new MachineStore(store.DatabaseFile);
         Assert.Equal(10, reopened.NextPcbNumber());
         Assert.Equal(settings.Directory, reopened.LoadSettings().Get<PcbHistorySettings>().Directory);
-        Assert.Equal("Existing", Assert.Single(reopened.GetRecipeNames()));
+        Assert.Equal("Existing", Assert.Single(reopened.RecipeNames));
         using var db = new SqliteConnection($"Data Source={store.DatabaseFile}");
         db.Open();
         using var query = db.CreateCommand();

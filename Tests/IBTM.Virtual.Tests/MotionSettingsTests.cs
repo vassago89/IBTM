@@ -92,10 +92,10 @@ public sealed class MotionSettingsTests
 
         using var motion = new VirtualMotionService(loaded.PcbSupply.Motion, new());
         motion.Initialize();
-        var position = motion.GetPosition();
+        var position = motion.Position;
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => motion.MoveToXYAsync(10, 20, loaded.PcbSupply.Motion.HorizontalSpeed));
-        Assert.Equal(position, motion.GetPosition());
+        Assert.Equal(position, motion.Position);
 
         loaded.PcbSupply.Motion.HorizontalSpeed = 25;
         loaded.PcbSupply.Motion.ZHome.SearchSpeed = 5;

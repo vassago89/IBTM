@@ -35,8 +35,8 @@ public sealed class NgConveyorTests
             Assert.False(io.GetInput(InputIo.NgCarrierEjectButton));
             Assert.True(await WaitUntilAsync(
                 () => conveyor.Step is NgConveyorState.ReadyToEject, TimeSpan.FromSeconds(1)));
-            Assert.False(conveyor.RunCommandOn);
-            Assert.True(conveyor.Position1Occupied);
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
         }
         finally
         {
@@ -68,14 +68,14 @@ public sealed class NgConveyorTests
             if (enabled)
                 await system.Signals.WaitForInputAsync(InputIo.NgConveyorPosition1Occupied, true, stop.Token);
             else
-                Assert.Equal(NgConveyorState.WaitingForCarrier, system.Conveyor.State);
+                Assert.Equal(NgConveyorState.WaitingForCarrier, system.Conveyor.Step);
             Assert.Equal(enabled ? 1 : 0, shuttleCommands);
             Assert.Equal(enabled ? 1 : 0, beltStarts);
         }
         finally
         {
             stop.Cancel();
-            Assert.False(system.Conveyor.RunCommandOn);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
             // Output stops immediately; drain the existing five-second settling delay.
             await run.WaitAsync(TimeSpan.FromSeconds(6));
         }
@@ -86,17 +86,17 @@ public sealed class NgConveyorTests
     public void ReceiveRequiresAvailableConveyorAndRaisedEmptyShuttle()
     {
         var system = CreateSystem();
-        Assert.True(system.Conveyor.IsReceiveAllowed());
+        Assert.True(system.Conveyor.IsReceiveAllowed);
         system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
-        Assert.False(system.Conveyor.IsReceiveAllowed());
+        Assert.False(system.Conveyor.IsReceiveAllowed);
         system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, false);
-        Assert.True(system.Conveyor.IsReceiveAllowed());
+        Assert.True(system.Conveyor.IsReceiveAllowed);
         system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.False(system.Conveyor.IsReceiveAllowed());
+        Assert.False(system.Conveyor.IsReceiveAllowed);
         system.Io.SetInput(InputIo.NgShuttleCarrierDetected, false);
         system.Io.SetInput(InputIo.NgShuttleUp, false);
         system.Io.SetInput(InputIo.NgShuttleDown, true);
-        Assert.False(system.Conveyor.IsReceiveAllowed());
+        Assert.False(system.Conveyor.IsReceiveAllowed);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public sealed class NgConveyorTests
             system.Io.SetInputs((InputIo.NgShuttleDown, false), (InputIo.NgShuttleUp, true));
             await end.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal(NgConveyorState.ReadyToEject, system.Conveyor.Step);
-            Assert.False(system.Conveyor.RunCommandOn);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         }
         finally
         {
@@ -137,7 +137,7 @@ public sealed class NgConveyorTests
 
         Assert.False(run.IsCompleted);
         Assert.False(system.Io.GetOutput(OutputIo.NgShuttleDown));
-        Assert.False(system.Conveyor.RunCommandOn);
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => run.WaitAsync(TimeSpan.FromSeconds(2)));
@@ -159,7 +159,7 @@ public sealed class NgConveyorTests
         {
             Assert.False(run.IsCompleted);
             Assert.False(system.Io.GetOutput(OutputIo.NgShuttleDown));
-            Assert.False(system.Conveyor.RunCommandOn);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
 
             system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
             await lowering.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -186,11 +186,12 @@ public sealed class NgConveyorTests
                 beltStarted = true;
             }
         };
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        // Allow the existing five-second equipment-debug delay after arrival.
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await system.Conveyor.ReturnFromConveyorAsync(stop.Token);
         Assert.True(beltStarted);
-        Assert.False(system.Conveyor.RunCommandOn);
-        Assert.True(system.Conveyor.Position3Occupied);
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+        Assert.True(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
         Assert.Equal(NgShuttleLiftState.Up, system.Conveyor.ShuttleLift);
     }
 
@@ -215,7 +216,7 @@ public sealed class NgConveyorTests
             Assert.False(run.IsCompleted);
             system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
             await WaitForOutputAsync(system.Io, OutputIo.NgShuttleDown, false);
-            Assert.False(system.Conveyor.RunCommandOn);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
             system.Io.SetInputs((InputIo.NgShuttleDown, false), (InputIo.NgShuttleUp, true));
             await run.WaitAsync(TimeSpan.FromSeconds(1));
             Assert.Equal(severalOccupiedSensors, system.Io.GetInput(InputIo.NgConveyorPosition1Occupied));
@@ -247,12 +248,12 @@ public sealed class NgConveyorTests
             // Arrival starts the existing non-cancellable settling delay.
             await Task.Delay(100);
             Assert.False(run.IsCompleted);
-            Assert.True(system.Conveyor.RunCommandOn);
+            Assert.True(system.Io.GetOutput(OutputIo.NgConveyorRun));
             if (losePickupClearance)
                 system.Io.SetInput(InputIo.NgCarrierPickupUp, false);
             else
                 stop.Cancel();
-            Assert.False(system.Conveyor.RunCommandOn);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
             Assert.True(system.Io.GetOutput(OutputIo.NgShuttleDown));
         }
         finally
@@ -297,7 +298,7 @@ public sealed class NgConveyorTests
         Assert.Equal(1, downCommands);
         Assert.Equal(0, upCommands);
         Assert.Equal(0, motorStarts);
-        Assert.False(system.Conveyor.RunCommandOn);
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
     }
 
     [Fact]
@@ -364,7 +365,7 @@ public sealed class NgConveyorTests
                 TimeSpan.FromSeconds(7)));
             Assert.True(system.Io.GetOutput(OutputIo.NgCarrierEjectCompleteLamp));
             Assert.True(loweredBeforeRun);
-            Assert.False(system.Conveyor.Position1Occupied);
+            Assert.False(system.Io.GetInput(InputIo.NgConveyorPosition1Occupied));
             Assert.True(system.Io.GetOutput(OutputIo.NgConveyorStopperUp));
             Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperUp));
             Assert.False(system.Io.GetInput(InputIo.NgConveyorStopperDown));
@@ -408,17 +409,18 @@ public sealed class NgConveyorTests
         system.Io.OutputChanged += StopBetweenSensors;
         await system.Conveyor.RunAsync(stop.Token);
         system.Io.OutputChanged -= StopBetweenSensors;
-        Assert.False(system.Conveyor.RunCommandOn);
-        Assert.Equal(NgConveyorState.WaitingForCarrier, system.Conveyor.State);
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+        Assert.Null(system.Conveyor.Step);
+        Assert.Equal(NgConveyorState.WaitingForCarrier, system.Conveyor.GetNextStep(system.Io.GetOutput(OutputIo.NgConveyorRun)));
         system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-        Assert.True(system.Conveyor.Position1Occupied);
-        Assert.False(system.Conveyor.RunCommandOn);
+        Assert.True(system.Io.GetInput(InputIo.NgConveyorPosition1Occupied));
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         using var nextStop = new CancellationTokenSource();
         var nextRun = system.Conveyor.RunAsync(nextStop.Token);
         try
         {
-            Assert.Equal(NgConveyorState.ReadyToEject, system.Conveyor.State);
-            Assert.False(system.Conveyor.RunCommandOn);
+            Assert.Equal(NgConveyorState.ReadyToEject, system.Conveyor.Step);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         }
         finally
         {
@@ -448,7 +450,7 @@ public sealed class NgConveyorTests
         await system.Conveyor.RunAsync(stop.Token);
         Assert.True(stop.IsCancellationRequested);
         Assert.False(started);
-        Assert.False(system.Conveyor.RunCommandOn);
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         Assert.True(system.Io.GetOutput(OutputIo.NgConveyorNormalSpeed));
     }
 
@@ -471,7 +473,7 @@ public sealed class NgConveyorTests
 
         Assert.Equal(2, system.Conveyor.CarrierCount);
         Assert.True(system.Conveyor.AlarmRequired);
-        Assert.False(system.Conveyor.Position3Occupied);
+        Assert.False(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
 
         await LoadShuttleAsync(system, lower: false);
         await system.Signals.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true);
@@ -492,7 +494,7 @@ public sealed class NgConveyorTests
         if (stopAfterEject)
         {
             await runs;
-            Assert.False(system.Conveyor.RunCommandOn);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
             Assert.True(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
             Assert.True(system.Io.GetInput(InputIo.NgShuttleUp));
             Assert.True(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
@@ -574,7 +576,7 @@ public sealed class NgConveyorTests
             nextStop.Cancel();
             await restarted.WaitAsync(TimeSpan.FromSeconds(2));
         }
-        Assert.False(system.Conveyor.RunCommandOn);
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         Assert.Equal(stopAtDestination ? 1 : 2, motorStarts);
     }
 
@@ -623,7 +625,7 @@ public sealed class NgConveyorTests
             new(),
             io,
             units,
-            new VirtualCamera(motion.GetPosition, () => []),
+            new VirtualCamera(() => motion.Position, () => []),
             new VirtualLightController(),
             new(),
             new(OpenMachineStore(), new()));

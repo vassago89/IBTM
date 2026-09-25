@@ -28,7 +28,7 @@ public sealed partial class MainConveyor
         StepChanged += changed.Set;
         try
         {
-            while (RunCommandOn
+            while (_io.GetOutput(OutputIo.MainConveyorRun)
                 || Step is MainConveyorState.ReceivingFrontCarrier
                     or MainConveyorState.MovingPcbPlacementToBoltFastening
                     or MainConveyorState.MovingBoltFasteningToInspection
@@ -80,7 +80,7 @@ public sealed partial class MainConveyor
                     _fastening.ReleaseAsync(cancellationToken),
                     _inspection.Station.ReleaseAsync(cancellationToken));
 
-                if (EntryCarrierDetected)
+                if (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                     StopAtEntry(InputIo.MainConveyorEntryCarrierDetected, true);
                 if (arrived.Task.IsCompleted)
                 {

@@ -42,8 +42,8 @@ public sealed class PcbSupplyRepeatTests
         await HomeAsync(motion, 2_000);
         await handler.SetRotatedAsync(true);
         await motion.MoveToXYAsync(30, 20, 2_000);
-        await handler.SetGripperClosedAsync(true);
-        await handler.SetIpmFixerAsync(false);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false);
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
         io.SetInput(InputIo.PcbSupplyPcbDetected, pcbDetected);
@@ -75,7 +75,7 @@ public sealed class PcbSupplyRepeatTests
             await supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat);
             Assert.True(reachedPickup);
             Assert.Equal(PcbSupplyCylinderState.Backward, handler.Gripper);
-            Assert.False(handler.IpmFixed);
+            Assert.False(io.GetInput(InputIo.PcbSupplyIpmFixerForward));
         }
 
         Assert.False(motion.IsMoving);
@@ -109,14 +109,14 @@ public sealed class PcbSupplyRepeatTests
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);
-        await handler.SetGripperClosedAsync(false);
-        await handler.SetIpmFixerAsync(false);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false);
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         Assert.Equal(PcbSupplyPcbState.Detected, handler.Pcb);
         Assert.False(supplier.PcbSecured);
-        Assert.NotEqual(PcbSupplyState.MovingToHandoff, supplier.State);
+        Assert.NotEqual(PcbSupplyState.MovingToHandoff, supplier.Phase);
 
         var grippedAtPickup = false;
         io.InputChanged += (input, on) =>

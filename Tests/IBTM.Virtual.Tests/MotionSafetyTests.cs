@@ -33,7 +33,7 @@ public sealed class MotionSafetyTests
             () => motion.MoveToXYAsync(10, 10, speed, timeout.Token));
 
         Assert.False(moved);
-        Assert.Equal((0, 0, 5), motion.GetPosition());
+        Assert.Equal((0, 0, 5), motion.Position);
     }
 
     [Theory]
@@ -57,7 +57,7 @@ public sealed class MotionSafetyTests
         };
         await motion.AdjustAxisAsync(axis, target, 10_000);
 
-        var position = motion.GetPosition();
+        var position = motion.Position;
         Assert.Equal(x, position.X, 6);
         Assert.Equal(y, position.Y, 6);
         Assert.Equal(z, position.Z, 6);
@@ -116,15 +116,15 @@ public sealed class MotionSafetyTests
         var jog = motion.JogAsync(MotionAxis.X, velocity, stop.Token);
         Assert.False(jog.IsCompleted);
         Assert.True(
-            await WaitUntilAsync(() => motion.GetPosition().X >= pulseLength, TimeSpan.FromSeconds(1)));
+            await WaitUntilAsync(() => motion.Position.X >= pulseLength, TimeSpan.FromSeconds(1)));
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => jog.WaitAsync(TimeSpan.FromSeconds(1)));
         Assert.False(motion.IsMoving);
 
-        var stoppedPosition = motion.GetPosition();
+        var stoppedPosition = motion.Position;
         await Task.Delay(30);
-        Assert.Equal(stoppedPosition, motion.GetPosition());
+        Assert.Equal(stoppedPosition, motion.Position);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => motion.JogAsync(MotionAxis.X, velocity, stop.Token));
         Assert.False(motion.IsMoving);
@@ -141,8 +141,8 @@ public sealed class MotionSafetyTests
         motion.Initialize();
         await motion.HomeHorizontalAsync(100);
         await motion.MoveToXYAsync(1.234, 1.234, 100);
-        Assert.Equal(1.234, motion.GetPosition().X, 6);
-        Assert.Equal(1.23, motion.GetPosition().Y, 6);
+        Assert.Equal(1.234, motion.Position.X, 6);
+        Assert.Equal(1.23, motion.Position.Y, 6);
     }
 
     [Theory]
@@ -172,7 +172,7 @@ public sealed class MotionSafetyTests
             MotionAxis.Y => (0, 10, 8),
             _ => (10, 20, 8),
         };
-        Assert.Equal(expected, motion.GetPosition());
+        Assert.Equal(expected, motion.Position);
         Assert.False(zChanged);
     }
 
@@ -274,7 +274,7 @@ public sealed class MotionSafetyTests
         await Assert.ThrowsAsync<MotionInterlockException>(() => supply.PrepareHandoffAsync(default));
         await supply.MoveAxisAsync(MotionAxis.Z, 5);
         await supply.MoveAxisAsync(MotionAxis.X, 0);
-        Assert.Equal(5, motion.GetPosition().Z);
+        Assert.Equal(5, motion.Position.Z);
 
         var xyMovedTogether = false;
         var yMovedAtHandoff = false;
@@ -298,18 +298,18 @@ public sealed class MotionSafetyTests
         await supply.SetRotatedAsync(false);
         Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
         Assert.All(pickups, point => Assert.False(supply.IsMoveToTeachingPositionAllowed(point)));
-        Assert.Equal(settings.RotationZ, motion.GetPosition().Z);
+        Assert.Equal(settings.RotationZ, motion.Position.Z);
         await supply.MoveAxisAsync(MotionAxis.Z, 5);
         await supply.MoveToTeachingPositionAsync(handoff, new() { X = 20, Y = 15, Z = 7 });
 
         Assert.True(xyMovedTogether);
         Assert.False(movedAtWrongZ);
-        Assert.Equal((20, 15, settings.HandoffPosition.Z), motion.GetPosition());
+        Assert.Equal((20, 15, settings.HandoffPosition.Z), motion.Position);
         Assert.Equal(TeachMode.Full, handoff.Mode);
 
         await supply.MoveAxisAsync(MotionAxis.Y, 14);
         await supply.MoveAxisAsync(MotionAxis.Z, 6);
-        Assert.Equal((20, 14, 6), motion.GetPosition());
+        Assert.Equal((20, 14, 6), motion.Position);
 
         // XY departure keeps handoff Z until the handler is outside.
         Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
@@ -317,7 +317,7 @@ public sealed class MotionSafetyTests
             new() { X = 0, Y = 0, Z = settings.HandoffPosition.Z });
         Assert.True(yMovedAtHandoff);
         Assert.False(movedAtWrongZ);
-        Assert.Equal((0, 0, settings.HandoffPosition.Z), motion.GetPosition());
+        Assert.Equal((0, 0, settings.HandoffPosition.Z), motion.Position);
 
         io.SetInput(InputIo.PcbSupplyRotated, true); // Both inputs ON is unknown.
         Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));
@@ -327,7 +327,7 @@ public sealed class MotionSafetyTests
         settings.RotationZ = 4;
         Assert.False(supply.Motion.IsAtZ(settings.RotationZ, live: true));
         await supply.MoveToRotationZAsync();
-        Assert.Equal(4, motion.GetPosition().Z);
+        Assert.Equal(4, motion.Position.Z);
         Assert.True(supply.Motion.IsAtZ(settings.RotationZ, live: true));
     }
 
@@ -372,12 +372,12 @@ public sealed class MotionSafetyTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
                 () => placement.MoveToTeachingPositionAsync(standby, pending, stop.Token));
             var expectedX = cancelAfterAxis == MotionAxis.X ? pending.X : 0;
-            Assert.Equal((expectedX, 0, pending.Z), motion.GetPosition());
+            Assert.Equal((expectedX, 0, pending.Z), motion.Position);
         }
         else
         {
             await placement.MoveToTeachingPositionAsync(standby, pending, stop.Token);
-            Assert.Equal((pending.X, pending.Y, pending.Z), motion.GetPosition());
+            Assert.Equal((pending.X, pending.Y, pending.Z), motion.Position);
         }
 
         Assert.NotEmpty(positions);
@@ -435,12 +435,12 @@ public sealed class MotionSafetyTests
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
                 () => placement.MoveToTeachingPositionAsync(point, destination, stop.Token));
-            Assert.Equal((0, destination.Y, settings.HandoffPosition.Z), motion.GetPosition());
+            Assert.Equal((0, destination.Y, settings.HandoffPosition.Z), motion.Position);
         }
         else
         {
             await placement.MoveToTeachingPositionAsync(point, destination, stop.Token);
-            Assert.Equal((destination.X, destination.Y, destination.Z), motion.GetPosition());
+            Assert.Equal((destination.X, destination.Y, destination.Z), motion.Position);
         }
 
         Assert.NotEmpty(positions);

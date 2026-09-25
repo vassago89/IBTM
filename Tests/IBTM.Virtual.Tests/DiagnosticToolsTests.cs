@@ -33,7 +33,7 @@ public sealed class DiagnosticToolsTests
         Assert.Same(statuses[MotionGroup.PcbPlacementHandler], services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>().Motion);
         Assert.Same(statuses[MotionGroup.BoltFastening], services.GetRequiredService<IBTM.BoltFastening.BoltFasteningStation>().Motion);
         Assert.Same(statuses[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionStation>().Motion);
-        Assert.Same(motions[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionStation>().Feedback);
+        Assert.Same(motions[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionStation>().Motion.Feedback);
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public sealed class DiagnosticToolsTests
             Assert.True(
                 await VirtualTest.WaitUntilAsync(
                     () => state.Available
-                        && state.Faulted
+                        && state.FeedbackReadiness.Faulted
                         && !state.ServoPowerOn,
                     TimeSpan.FromSeconds(2)));
             var view = new MotionWindowViewModel(machine, state, settings);
@@ -257,7 +257,7 @@ public sealed class DiagnosticToolsTests
                     TimeSpan.FromSeconds(2)));
             Assert.Equal(MachineAlarm.None, state.Alarm); // Disabled axes are diagnostic only.
             Assert.Equal(42, position.Position.X);
-            Assert.False(state.Faulted);
+            Assert.False(state.FeedbackReadiness.Faulted);
 
             // Movement started outside the application still makes the machine busy.
             diagnostics.InMotion = true;
@@ -313,7 +313,7 @@ public sealed class DiagnosticToolsTests
             Assert.True(x.Refresh());
             Assert.False(x.Refresh());
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Faulted && state.ReadError is not null && !y.ToggleServoCommand.CanExecute(null),
+                () => state.FeedbackReadiness.Faulted && state.ReadError is not null && !y.ToggleServoCommand.CanExecute(null),
                 TimeSpan.FromSeconds(2)));
             Assert.NotNull(state.ReadError); // Explicit failure without another throwing control read.
             diagnostics.FailX = false;

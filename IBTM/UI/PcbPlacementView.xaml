@@ -116,8 +116,8 @@
                             </Border.Style>
                         </Border>
                     </Grid>
-                    <Border Tag="{Binding Supply.IpmFixed}" Style="{StaticResource LeftGripperJawStyle}"/>
-                    <Border Tag="{Binding Supply.IpmFixed}" Style="{StaticResource RightGripperJawStyle}"/>
+                    <Border Tag="{Binding Signals.Inputs[PcbSupplyIpmFixerForward].IsOn}" Style="{StaticResource LeftGripperJawStyle}"/>
+                    <Border Tag="{Binding Signals.Inputs[PcbSupplyIpmFixerForward].IsOn}" Style="{StaticResource RightGripperJawStyle}"/>
                 </Grid>
             </Grid>
 
@@ -144,7 +144,7 @@
                     <Ellipse Width="9" Height="9" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,7"
                         Fill="{StaticResource EquipBgBrush}" Stroke="{StaticResource AccentGreenBrush}" StrokeThickness="2"
                         Panel.ZIndex="2"
-                        Visibility="{Binding Placement.VacuumDetected,
+                        Visibility="{Binding Signals.Inputs[PcbPlacementVacuumDetected].IsOn,
                                                   Converter={StaticResource BoolToVis}}"/>
                     <Border Width="24" Height="6" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,10"
                         Background="{StaticResource MaterialIpmBrush}" CornerRadius="1"

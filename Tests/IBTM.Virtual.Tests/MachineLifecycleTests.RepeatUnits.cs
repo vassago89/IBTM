@@ -202,7 +202,7 @@ public sealed partial class MachineLifecycleTests
         {
             if (output == OutputIo.NgCarrierPickupDown && on)
             {
-                var position = gantry.Feedback.GetPosition();
+                var position = gantry.Motion.Feedback.Position;
                 descents.Enqueue((position.X, position.Y,
                     pickup.Gripper == NgTransferGripperState.Closed));
             }
@@ -436,13 +436,13 @@ public sealed partial class MachineLifecycleTests
             var reached = stopPoint switch
             {
                 PcbRepeatStopPoint.SupplyReturning => reverseHandoffs == 2 && supply.PcbSecured
-                    && supplier.State == PcbSupplyState.MovingToPickup && supply.Feedback.IsMovingHorizontal
-                    && supply.Feedback.GetPosition().X < settings.PcbSupply.HandoffPosition.X - 1
-                    && supply.Feedback.GetPosition().X > recipe.PcbSupply.Pcb2PickPosition.X + 1,
+                    && supplier.Phase == PcbSupplyState.MovingToPickup && supply.Motion.Feedback.IsMovingHorizontal
+                    && supply.Motion.Feedback.Position.X < settings.PcbSupply.HandoffPosition.X - 1
+                    && supply.Motion.Feedback.Position.X > recipe.PcbSupply.Pcb2PickPosition.X + 1,
                 PcbRepeatStopPoint.BothHolding => supply.PcbSecured && placement.PcbSecured
                     && placement.Motion.IsAt(receivePosition),
                 PcbRepeatStopPoint.SupplyReleasing => reverseHandoffs > 0
-                    && !supply.IpmFixed && supply.Gripper == PcbSupplyCylinderState.Forward
+                    && !io.GetInput(InputIo.PcbSupplyIpmFixerForward) && supply.Gripper == PcbSupplyCylinderState.Forward
                     && placement.PcbSecured && placement.Motion.IsAt(receivePosition),
                 PcbRepeatStopPoint.PlacementHolding => reverseHandoffs > 0 && supply.PcbReleased
                     && placement.PcbSecured && placement.Motion.IsAt(receivePosition),
@@ -456,10 +456,10 @@ public sealed partial class MachineLifecycleTests
         }
         supply.Changed += StopAtHandoff;
         placement.Changed += StopAtHandoff;
-        supply.Feedback.PositionChanged += (x, y, z) => StopAtHandoff();
-        placement.Feedback.PositionChanged += (x, y, z) =>
+        supply.Motion.Feedback.PositionChanged += (x, y, z) => StopAtHandoff();
+        placement.Motion.Feedback.PositionChanged += (x, y, z) =>
         {
-            if (placer.State is PcbPlacementState.WaitingForSupply or PcbPlacementState.WaitingForSupplyRelease
+            if (placer.Phase is PcbPlacementState.WaitingForSupply or PcbPlacementState.WaitingForSupplyRelease
                 && y > settings.PcbPlacementHandler.HandoffPosition.Y
                 && y < recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y)
             {
@@ -472,9 +472,9 @@ public sealed partial class MachineLifecycleTests
         supplier.Trace += message =>
         {
             if (message.StartsWith("PcbSupplier: MovingToPickup ", StringComparison.Ordinal))
-                Assert.Equal(recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y, placement.Feedback.GetPosition().Y);
+                Assert.Equal(recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y, placement.Motion.Feedback.Position.Y);
         };
-        supply.Feedback.StateChanged += () =>
+        supply.Motion.Feedback.StateChanged += () =>
         {
             if (supply.PcbSecured && supply.Rotation == PcbSupplyRotationState.Rotated
                 && !supply.Motion.IsAtZ(settings.PcbSupply.RotationZ, live: true))
@@ -490,15 +490,15 @@ public sealed partial class MachineLifecycleTests
             {
                 await run.WaitAsync(TimeSpan.FromSeconds(20));
                 Assert.True(stopped,
-                    $"Supply={supplier.State}, Placement={placer.State}, {state.AlarmDetail}");
+                    $"Supply={supplier.Phase}, Placement={placer.Phase}, {state.AlarmDetail}");
                 Assert.False(state.IsError, state.AlarmDetail);
                 Assert.True(supply.PcbSecured || placement.PcbSecured);
                 run = machine.StartAsync(timeout.Token);
             }
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => mainReturned || state.IsError, TimeSpan.FromSeconds(27)),
-                $"Supply={supplier.State}/{supplier.Handoff}/{supply.Pcb}/{supply.Rotation}/{supply.Feedback.GetPosition()}, "
-                    + $"Placement={placer.State}/{placer.Handoff}/{placement.Pcb}/{placement.IpmLift}/{placement.Feedback.GetPosition()}, "
+                $"Supply={supplier.Phase}/{supplier.Handoff}/{supply.Pcb}/{supply.Rotation}/{supply.Motion.Feedback.Position}, "
+                    + $"Placement={placer.Phase}/{placer.Handoff}/{placement.Pcb}/{placement.IpmLift}/{placement.Motion.Feedback.Position}, "
                     + $"Phase={machine.RepeatDisplayPhase}, {state.AlarmDetail}\n"
                     + string.Join('\n', handoffSteps));
             Assert.False(state.IsError, state.AlarmDetail);

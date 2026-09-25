@@ -111,9 +111,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
         ngConveyor.Changed += OnNgConveyorChanged;
         io.InputChanged += OnInputChanged;
         feedback.IoFaulted += OnIoFaulted;
-        pcbPlacement.Feedback.MovingChanged += _ => CheckMotionInterlocks();
-        fasteningStation.Feedback.StateChanged += CheckMotionInterlocks;
-        inspectionStation.Feedback.MovingChanged += _ => CheckMotionInterlocks();
+        pcbPlacement.Motion.Feedback.MovingChanged += _ => CheckMotionInterlocks();
+        fasteningStation.Motion.Feedback.StateChanged += CheckMotionInterlocks;
+        inspectionStation.Motion.Feedback.MovingChanged += _ => CheckMotionInterlocks();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -343,7 +343,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private void CheckMotionInterlocks()
     {
         if (_units.BoltFastening
-            && _fasteningStation.Feedback.Command == MotionCommand.Adjustment
+            && _fasteningStation.Motion.Feedback.Command == MotionCommand.Adjustment
             && (!IsManualMotionReady(MotionGroup.BoltFastening)
                 || _state.AutomaticRunning
                 || _state.IsHoming
@@ -353,16 +353,16 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
 
         var fasteningBlocked = _units.BoltFastening
-            && _fasteningStation.Feedback.Command != MotionCommand.Adjustment
+            && _fasteningStation.Motion.Feedback.Command != MotionCommand.Adjustment
             && !_fasteningStation.IsHorizontalMoveAllowed
-            && _fasteningStation.Feedback.IsMovingHorizontal;
+            && _fasteningStation.Motion.Feedback.IsMovingHorizontal;
         var alarm = MachineAlarm.None;
         string? interlockDetail = null;
         if (_units.PcbPlacement
             && !_pcbPlacement.HandlerRaised
-            && _pcbPlacement.Feedback.IsMoving
-            && (_pcbPlacement.Feedback.Command != MotionCommand.Adjustment
-                || _pcbPlacement.Feedback.IsMovingHorizontal
+            && _pcbPlacement.Motion.Feedback.IsMoving
+            && (_pcbPlacement.Motion.Feedback.Command != MotionCommand.Adjustment
+                || _pcbPlacement.Motion.Feedback.IsMovingHorizontal
                 || !IsManualMotionReady(MotionGroup.PcbPlacementHandler)
                 || _state.AutomaticRunning
                 || _state.IsHoming))
@@ -379,7 +379,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 + $"shooting head: {_fasteningStation.ShootingHeadPosition}.";
         }
         else if (InspectionGantryEnabled
-            && _inspectionStation.Feedback.IsMoving
+            && _inspectionStation.Motion.Feedback.IsMoving
             && !_inspectionStation.IsRaised)
         {
             alarm = MachineAlarm.NgCarrierTransfer;
@@ -1191,7 +1191,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 _pcbPlacement.SetLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
             if (!pcbDetected && !_io.GetInput(InputIo.PcbPlacementPcbDetected))
                 await ObserveRaiseAsync(
-                    _pcbPlacement.SetIpmLiftDownAsync(false, operation.Token), MachineAlarm.PcbPlacement);
+                    _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false, operation.Token), MachineAlarm.PcbPlacement);
         }
         if (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
             await ObserveRaiseAsync(_fasteningStation.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening);
@@ -1320,14 +1320,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
             if (exception is not OperationCanceledException)
                 _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
             throw;
-        }
-    }
-
-    public bool IsTestBoltHeadAllowed
-    {
-        get
-        {
-            return _state.ManualSetupEnabled;
         }
     }
 
@@ -1960,20 +1952,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
             }
             switch (output.Signal)
             {
-                case OutputIo.PcbSupplyGripperClosed:
-                    await _pcbSupply.SetGripperClosedAsync(value, operation.Token);
-                    break;
-                case OutputIo.PcbSupplyIpmFixerForward:
-                    await _pcbSupply.SetIpmFixerAsync(value, operation.Token);
-                    break;
                 case OutputIo.PcbSupplyRotate:
                     await _pcbSupply.SetRotatedAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbPlacementHandlerDown:
                     await _pcbPlacement.SetLiftDownAsync(value, operation.Token);
-                    break;
-                case OutputIo.PcbPlacementIpmDown:
-                    await _pcbPlacement.SetIpmLiftDownAsync(value, operation.Token);
                     break;
                 case OutputIo.PcbPlacementVacuumEjector:
                     await _pcbPlacement.SetVacuumAsync(value, operation.Token);
@@ -1999,6 +1982,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 case OutputIo.NgShuttleDown:
                     await _ngConveyor.SetShuttleDownAsync(value, operation.Token);
                     break;
+                case OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward or OutputIo.PcbPlacementIpmDown:
                 case OutputIo.PickupTableDown:
                 case OutputIo.PcbPlacementBackupPlateUp:
                 case OutputIo.BoltFasteningBackupPlateUp:

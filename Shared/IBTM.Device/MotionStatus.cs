@@ -75,7 +75,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
     public (double X, double Y, double Z) ReadPosition(bool live)
     {
         if (live)
-            return Feedback.GetPosition();
+            return Feedback.Position;
         var position = Position;
         if (position.X is null
             || Feedback.HasY && position.Y is null
@@ -107,7 +107,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
         if (!Feedback.IsReady || Feedback.Axes.Any(axis => Feedback.GetAxisState(axis)
             is not { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true }))
             return false;
-        var current = Feedback.GetPosition();
+        var current = Feedback.Position;
         return Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
             && (!Feedback.HasY || Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters)
             && (!Feedback.HasZ || Math.Abs(current.Z - position.Z) <= MotionService.PositionToleranceMillimeters);
@@ -148,7 +148,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
         if (live)
             return !Feedback.HasZ
                 || Feedback.GetAxisState(MotionAxis.Z).Homed
-                && Math.Abs(Feedback.GetPosition().Z - z) <= MotionService.PositionToleranceMillimeters;
+                && Math.Abs(Feedback.Position.Z - z) <= MotionService.PositionToleranceMillimeters;
         return !Feedback.HasZ
             || Axes[MotionAxis.Z].State is { Homed: true }
             && Position.Z is { } current

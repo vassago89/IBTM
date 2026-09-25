@@ -44,10 +44,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         }
     }
 
-    public string[] GetPortNames()
-    {
-        return [VirtualPort];
-    }
+    public string[] PortNames => [VirtualPort];
 
     public void Open(string portName, int baudRate)
     {

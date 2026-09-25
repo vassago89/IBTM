@@ -57,11 +57,6 @@ public sealed class RecipeManager
             InspectionSettingsChanged?.Invoke();
     }
 
-    public IReadOnlyList<string> GetRecipeNames()
-    {
-        return _database.GetRecipeNames();
-    }
-
     public void New()
     {
         lock (InspectionSync)

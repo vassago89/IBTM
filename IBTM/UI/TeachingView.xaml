@@ -29,7 +29,7 @@
         </Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,10">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0"
-                IsEnabled="{Binding IsTeachingEditAllowed}">
+                IsEnabled="{Binding State.SetupEditingEnabled}">
                 <TextBlock Text="Recipe" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <TextBox Text="{Binding RecipeEditor.Name, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
                     Width="180" Margin="0,0,6,0" ToolTip="Recipe name"/>
@@ -131,7 +131,7 @@
                             <TextBlock Text="{Binding SelectedPoint.Name}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
                             <TextBlock Text="{Binding SelectedPoint.Description}" TextWrapping="Wrap"
                                 Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
-                            <StackPanel Margin="0,0,0,8" IsEnabled="{Binding IsTeachingEditAllowed}">
+                            <StackPanel Margin="0,0,0,8" IsEnabled="{Binding State.SetupEditingEnabled}">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -193,7 +193,7 @@
                                 ToolTip="Save a new reference image for the recorded point. Coordinates and ROI are preserved. Record Position first for a new point."/>
                             <TextBlock Text="{Binding SelectedPoint.Name}" VerticalAlignment="Center"/>
                         </WrapPanel>
-                        <StackPanel Grid.Row="1" Margin="0,0,0,8" IsEnabled="{Binding IsTeachingEditAllowed}">
+                        <StackPanel Grid.Row="1" Margin="0,0,0,8" IsEnabled="{Binding State.SetupEditingEnabled}">
                             <WrapPanel>
                                 <TextBlock Text="Live light (0–255)" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <TextBox Width="65" Margin="0,0,8,0"
