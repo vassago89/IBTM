@@ -422,28 +422,27 @@ public partial class SettingsViewModel : ObservableObject
 
     private async Task OffTestLightAsync()
     {
-        switch (true)
+        if (TestLightCommand.IsRunning)
         {
-            case true when TestLightCommand.IsRunning:
-                TestLightCommand.Cancel();
-                if (TestLightCommand.ExecutionTask is { } test)
-                    await test;
-                return;
-            case true when PendingLightOffChannel is { } channel:
-                try
-                {
-                    using var operation = _operations.Link();
-                    var failure = await TurnTestLightOffAsync(channel);
-                    LightTestMessage = failure?.Message ?? $"OFF command sent · channel {channel}.";
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                finally
-                {
-                    RefreshCommands();
-                }
-                break;
+            TestLightCommand.Cancel();
+            if (TestLightCommand.ExecutionTask is { } test)
+                await test;
+            return;
+        }
+        if (PendingLightOffChannel is not { } channel)
+            return;
+        try
+        {
+            using var operation = _operations.Link();
+            var failure = await TurnTestLightOffAsync(channel);
+            LightTestMessage = failure?.Message ?? $"OFF command sent · channel {channel}.";
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            RefreshCommands();
         }
     }
 

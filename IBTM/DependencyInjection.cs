@@ -177,24 +177,36 @@ public static class DependencyInjection
                     var io = provider.GetRequiredService<IoSignals>();
                     return new Dictionary<HardwareArea, IoStatus[]>
                     {
-                        [HardwareArea.PcbSupply] = [settings.PcbSupplyHardware.CreateIoStatus(io)],
+                        [HardwareArea.PcbSupply] = [
+                            io.Select(settings.PcbSupplyHardware.Area,
+                                settings.PcbSupplyHardware.Inputs.Keys, settings.PcbSupplyHardware.Outputs.Keys),
+                        ],
                         [HardwareArea.PcbPlacementHandler] = [
-                            provider.GetRequiredService<PcbPlacer>()
-                                .Station.CreateIoStatus(HardwareArea.PcbPlacementStation, io),
-                            settings.PcbPlacementHandlerHardware.CreateIoStatus(io),
+                            io.Select(HardwareArea.PcbPlacementStation,
+                                settings.PcbPlacementStationHardware.Inputs.Keys,
+                                [OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp]),
+                            io.Select(settings.PcbPlacementHandlerHardware.Area,
+                                settings.PcbPlacementHandlerHardware.Inputs.Keys, settings.PcbPlacementHandlerHardware.Outputs.Keys),
                         ],
                         [HardwareArea.BoltFastening] = [
-                            provider.GetRequiredService<BoltFasteningStation>()
-                                .Station.CreateIoStatus(HardwareArea.BoltFasteningStation, io),
-                            settings.BoltFasteningHardware.CreateIoStatus(io),
-                            settings.IoBoltHardware.CreateIoStatus(io),
-                            settings.BoltFeederHardware.CreateIoStatus(io),
+                            io.Select(HardwareArea.BoltFasteningStation,
+                                settings.BoltFasteningStationHardware.Inputs.Keys,
+                                [OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp]),
+                            io.Select(settings.BoltFasteningHardware.Area,
+                                settings.BoltFasteningHardware.Inputs.Keys, settings.BoltFasteningHardware.Outputs.Keys),
+                            io.Select(settings.IoBoltHardware.Area,
+                                settings.IoBoltHardware.Inputs.Keys, settings.IoBoltHardware.Outputs.Keys),
+                            io.Select(settings.BoltFeederHardware.Area,
+                                settings.BoltFeederHardware.Inputs.Keys, settings.BoltFeederHardware.Outputs.Keys),
                         ],
                         [HardwareArea.InspectionGantry] = [
-                            provider.GetRequiredService<InspectionStation>()
-                                .Station.CreateIoStatus(HardwareArea.InspectionStation, io),
-                            settings.NgCarrierTransferHardware.CreateIoStatus(io),
-                            settings.NgShuttleHardware.CreateIoStatus(io),
+                            io.Select(HardwareArea.InspectionStation,
+                                settings.InspectionStationHardware.Inputs.Keys,
+                                [OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp]),
+                            io.Select(settings.NgCarrierTransferHardware.Area,
+                                settings.NgCarrierTransferHardware.Inputs.Keys, settings.NgCarrierTransferHardware.Outputs.Keys),
+                            io.Select(settings.NgShuttleHardware.Area,
+                                settings.NgShuttleHardware.Inputs.Keys, settings.NgShuttleHardware.Outputs.Keys),
                         ],
                     };
                 });
@@ -287,6 +299,7 @@ public static class DependencyInjection
                         provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>()[MotionGroup.PcbSupply],
                         provider.GetRequiredService<IIoService>(),
                         settings.PcbSupply,
+                        provider.GetRequiredService<RecipeManager>(),
                         provider.GetRequiredService<UnitSettings>());
                     if (settings.Drivers.Control == ControlDriver.Virtual)
                     {

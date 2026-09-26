@@ -185,11 +185,14 @@ public sealed class PcbHistoryTests
         var store = VirtualTest.OpenMachineStore();
         var settings = new PcbHistorySettings { Directory = Path.Combine(Path.GetTempPath(), "PCB results") };
         store.SaveSettings([settings]);
-        store.SaveRecipe("Existing", new { Name = "Existing", X = 123.4 }, []);
         using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
         {
             connection.Open();
             using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO Recipes (Name, Value) VALUES ('Existing', '{"Name":"Existing","X":123.4}')
+                """;
+            command.ExecuteNonQuery();
             command.CommandText = "DROP TABLE PcbCounter";
             command.ExecuteNonQuery();
         }

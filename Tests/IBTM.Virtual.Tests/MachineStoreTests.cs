@@ -352,9 +352,9 @@ public sealed class MachineStoreTests
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.IoBoltHardware.Outputs[OutputIo.ShootingBoltStart].Number = 115;
         await settings.SaveAsync(store);
-        var recipe = new Recipe { Name = "Part" };
+        var recipe = new Recipe { Name = "Part", CarrierImages = [new() { Number = 1 }] };
         recipe.BoltInspection.LightLevel = 90;
-        store.SaveRecipe("Part", recipe, [1], images: [new(1, [1, 2, 3])]);
+        store.SaveRecipe(recipe, images: [new(1, [1, 2, 3])]);
 
         _ = new MachineStore(store.DatabaseFile);
         var reopened = new MachineStore(store.DatabaseFile);
@@ -367,7 +367,7 @@ public sealed class MachineStoreTests
         }
         Assert.Equal(
             JsonSerializer.Serialize(recipe),
-            JsonSerializer.Serialize(reopened.LoadRecipe<Recipe>("Part")));
+            JsonSerializer.Serialize(reopened.LoadRecipe("Part")));
         Assert.Equal(new byte[] { 1, 2, 3 }, reopened.LoadRecipeImage("Part", 1));
     }
 

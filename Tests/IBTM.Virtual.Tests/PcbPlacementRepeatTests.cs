@@ -89,7 +89,7 @@ public sealed class PcbPlacementRepeatTests
             if (rig.Work.Completed)
                 stop.Cancel();
         };
-        var supply = rig.Supply.RunAsync(rig.SupplyRecipe, rig.Placer, stop.Token, repeat: true);
+        var supply = rig.Supply.RunAsync(rig.Placer, stop.Token, repeat: true);
         var placement = rig.Placer.RunAsync(stop.Token, repeat: true);
         try
         {
@@ -192,7 +192,7 @@ public sealed class PcbPlacementRepeatTests
             if (output != OutputIo.PcbPlacementHandlerDown || !on)
                 return;
             var position = rig.Recipe.HeatSink1PcbPlacementPosition;
-            descendedAtPickup = rig.Handler.Motion.IsAt(position);
+            descendedAtPickup = MotionService.IsAt(rig.Handler.Motion.Feedback, position);
             stop.Cancel();
         };
         await rig.Placer.RunAsync(stop.Token, repeat: true);
@@ -254,7 +254,7 @@ public sealed class PcbPlacementRepeatTests
             await rig.Handler.SetLiftDownAsync(true);
             Assert.Equal(PlacementPcbState.Detected, rig.Handler.Pcb);
             await rig.Handler.SetLiftDownAsync(false);
-            await rig.Handler.MoveToHorizontalZAsync();
+            await rig.Handler.MoveAxisAsync(MotionAxis.Z, rig.Settings.HandoffPosition.Z);
         }
     }
 
@@ -396,13 +396,14 @@ public sealed class PcbPlacementRepeatTests
         rig.Placer.StepChanged += StopAtHandoff;
         rig.Supply.StepChanged += StopAtHandoff;
         await Task.WhenAll(
-            rig.Supply.RunAsync(rig.SupplyRecipe, rig.Placer, stop.Token, repeat: true),
+            rig.Supply.RunAsync(rig.Placer, stop.Token, repeat: true),
             rig.Placer.RunAsync(stop.Token, repeat: true));
         rig.Placer.StepChanged -= StopAtHandoff;
         rig.Supply.StepChanged -= StopAtHandoff;
         Assert.True(stoppedAtHandoff);
         Assert.Single(rig.Work.Assemblies);
         Assert.Equal(HeatSinkSlot.HeatSink2, rig.Placer.TargetHeatSink);
+        Assert.Null(rig.Placer.ActivePcb);
 
         var repicked = false;
         var visitedOriginalSlot = false;
@@ -423,7 +424,7 @@ public sealed class PcbPlacementRepeatTests
                 resume.Cancel();
         };
         await Task.WhenAll(
-            rig.Supply.RunAsync(rig.SupplyRecipe, rig.Placer, resume.Token, repeat: true),
+            rig.Supply.RunAsync(rig.Placer, resume.Token, repeat: true),
             rig.Placer.RunAsync(resume.Token, repeat: true));
 
         Assert.False(repicked);
@@ -485,7 +486,6 @@ public sealed class PcbPlacementRepeatTests
         };
         await rig.Placer.RunAsync(disabled.Token);
         Assert.False(rig.Work.Completed);
-        Assert.False(rig.Work.IsTransferAllowed);
 
         rig.Units.PcbPlacement = true;
         var commanded = false;
@@ -512,7 +512,7 @@ public sealed class PcbPlacementRepeatTests
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
         Assert.False(rig.Io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
-        Assert.True(rig.Handler.Motion.IsSettled(true, MotionAxis.X, MotionAxis.Y));
+        Assert.True(MotionService.IsSettled(rig.Handler.Motion.Feedback, MotionAxis.X, MotionAxis.Y));
         var position = rig.Handler.Motion.Feedback.Position;
         Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.X, position.X);
         Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.Y, position.Y);
@@ -531,7 +531,7 @@ public sealed class PcbPlacementRepeatTests
             };
 
             var motion = new MotionSettings { HorizontalSpeed = 2_000, ZSpeed = 2_000 };
-            var settings = new PcbPlacementHandlerSettings
+            Settings = new PcbPlacementHandlerSettings
             {
                 Motion = motion,
                 HandoffPosition = new() { X = 50, Y = 10, Z = 8 },
@@ -555,19 +555,20 @@ public sealed class PcbPlacementRepeatTests
             _supplyMotion = new(motion, new());
             var simulation = new VirtualMachine(Io, [], incomingCarrierHasPcbs: () => loadPcbs);
             Motion.PositionChanged += (x, y, z) => simulation.UpdatePlacementPosition(
-                x, y, z, settings.HandoffPosition, settings.ReceiveZ,
+                x, y, z, Settings.HandoffPosition, Settings.ReceiveZ,
                 Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition);
             _supplyMotion.PositionChanged += (x, y, z) => simulation.UpdateSupplyPosition(
                 x, y, z, (10, 30, 5), (20, 30, 5), supplySettings.HandoffPosition);
 
             Units = new() { PcbSupply = enableSupply };
-            Supply = new PcbSupplier(_supplyMotion, new MotionStatus(_supplyMotion), Io, supplySettings, Units);
-            Work = ConveyorStation.CreatePcbPlacement(Io);
             var recipes = new RecipeManager(OpenMachineStore(), new());
+            recipes.Current.PcbSupply = SupplyRecipe;
+            Supply = new PcbSupplier(_supplyMotion, new MotionStatus(_supplyMotion), Io, supplySettings, recipes, Units);
+            Work = ConveyorStation.CreatePcbPlacement(Io);
             recipes.Current.PcbPlacement = Recipe;
             Placer = new PcbPlacer(Motion, new MotionStatus(Motion),
                 Io,
-                settings,
+                Settings,
                 Supply,
                 Work,
                 recipes,
@@ -575,6 +576,7 @@ public sealed class PcbPlacementRepeatTests
             Handler = Placer;
         }
 
+        public PcbPlacementHandlerSettings Settings { get; }
         public VirtualIoService Io { get; }
         public UnitSettings Units { get; }
         public VirtualMotionService Motion { get; }
@@ -602,7 +604,7 @@ public sealed class PcbPlacementRepeatTests
             await ((IIoService)Io).WaitForInputAsync(InputIo.PcbPlacementHeatSink2Present, true);
             Io.SetOutput(OutputIo.MainConveyorRun, false);
             await Work.SeatAsync(CancellationToken.None);
-            await Handler.MoveToHorizontalZAsync();
+            await Handler.MoveAxisAsync(MotionAxis.Z, Settings.HandoffPosition.Z);
         }
 
         public void Dispose()

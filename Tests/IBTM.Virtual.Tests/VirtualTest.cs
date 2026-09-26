@@ -48,7 +48,7 @@ internal static class VirtualTest
 
     public static PcbSupplier CreateSupplier(IXyMotion motion, IIoService io, PcbSupplySettings settings)
     {
-        return new(motion, new(motion), io, settings, new());
+        return new(motion, new(motion), io, settings, new(OpenMachineStore(), new()), new());
     }
 
     public static PcbPlacer CreatePlacer(IXyMotion motion, IIoService io, PcbPlacementHandlerSettings settings)

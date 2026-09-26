@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -46,7 +44,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         RefreshHistoryCommand = new AsyncRelayCommand(RefreshHistoryAsync);
         LoadOlderCommand = new AsyncRelayCommand(LoadOlderAsync);
         LoadRecordCommand = new AsyncRelayCommand(LoadRecordAsync);
-        DrawRegionCommand = new RelayCommand<Rect>(DrawRegion, IsDrawRegionAllowed);
+        DrawRegionCommand = new RelayCommand<Rect>(DrawRegion, _ => IsDrawRegionAllowed);
         UseHistoryImageCommand = new RelayCommand(UseHistoryImage, () => IsUseHistoryImageAllowed);
         ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
         MeasureCommand = new RelayCommand<ImageRuler>(Measure);
@@ -102,10 +100,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public bool IsBusy => _commands.Any(command => command.IsRunning);
     public bool IsIdle => !IsBusy;
     public bool IsDataMatrixSelected => SelectedPoint?.Metadata.IsBarcode == true;
-    public bool IsBoltSelected => SelectedBolt is not null;
-    public BoltPoint? SelectedBolt => SelectedPoint is { Metadata.IsBarcode: false } point
-        ? Draft.Pcb.BoltPoints.SingleOrDefault(bolt => bolt.HeatSink == point.Metadata.HeatSink && bolt.Number == point.Metadata.BoltNumber)
-        : null;
     public DataMatrixInspectionRecipe? DataMatrix => IsDataMatrixSelected
         ? Draft.BoltInspection.GetDataMatrix(SelectedPoint!.Metadata.HeatSink) : null;
     public double? RulerResolution => Ruler is { PixelLength: >= 1 } ruler && RulerMillimeters is > 0
@@ -175,12 +169,12 @@ public partial class InspectionTeachingViewModel : ObservableObject
             }
             var loaded = await Task.Run(() =>
             {
-                var recipe = activeRecipe ?? _store.LoadRecipe<Recipe>(name);
+                var recipe = activeRecipe ?? _store.LoadRecipe(name);
                 var images = recipe.CarrierImages.OrderBy(tile => tile.HeatSink).ThenBy(tile => !tile.IsBarcode)
                     .ThenBy(tile => tile.BoltNumber).Select(tile =>
                     {
                         token.ThrowIfCancellationRequested();
-                        return new CarrierImageTileView(tile, DecodeImage(_store.LoadRecipeImage(name, tile.Number)),
+                        return new CarrierImageTileView(tile, InspectionPreview.DecodeImage(_store.LoadRecipeImage(name, tile.Number)),
                             tile.IsBarcode ? null : recipe.Pcb.BoltPoints.SingleOrDefault(
                                 bolt => bolt.HeatSink == tile.HeatSink && bolt.Number == tile.BoltNumber));
                     }).ToArray();
@@ -215,8 +209,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         ShowRecipeImage();
         OnPropertyChanged(nameof(IsDataMatrixSelected));
-        OnPropertyChanged(nameof(IsBoltSelected));
-        OnPropertyChanged(nameof(SelectedBolt));
         OnPropertyChanged(nameof(DataMatrix));
         UseHistoryImageCommand.NotifyCanExecuteChanged();
     }
@@ -229,7 +221,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Ruler = null;
         RulerMillimeters = null;
         OriginalResult = null;
-        Preview.Clear(IsDataMatrixSelected ? SelectedPoint!.Metadata.HeatSink : null, SelectedBolt);
+        Preview.Clear(IsDataMatrixSelected ? SelectedPoint!.Metadata.HeatSink : null, SelectedPoint?.Bolt);
         if (SelectedPoint is not { } point)
             return;
         var region = point.Metadata.Region ?? PixelRegion.CenteredSquare(point.Image.PixelWidth, point.Image.PixelHeight,
@@ -247,10 +239,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             + (point.Metadata.IsBarcode ? "Data Matrix" : $"Bolt {point.Metadata.BoltNumber}");
     }
 
-    private bool IsDrawRegionAllowed(Rect bounds)
-    {
-        return !IsBusy && !IsMeasuring && SelectedPoint is not null && Preview.HasImage;
-    }
+    private bool IsDrawRegionAllowed => !IsBusy && !IsMeasuring && SelectedPoint is not null && Preview.HasImage;
 
     private void DrawRegion(Rect bounds)
     {
@@ -343,7 +332,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         try
         {
             var images = await Task.Run(() => _store.LoadPcbImages(record)
-                .Select(image => new PcbInspectionImageView(image, DecodeImage(image.Png))).ToArray(), token);
+                .Select(image => new PcbInspectionImageView(image, InspectionPreview.DecodeImage(image.Png))).ToArray(), token);
             token.ThrowIfCancellationRequested();
             LoadedRecord = record;
             HistoryImages = images;
@@ -378,7 +367,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Error = null;
         SelectedPoint = target;
         InspectCommand.Cancel();
-        Preview.Clear(IsDataMatrixSelected ? target.Metadata.HeatSink : null, SelectedBolt);
+        Preview.Clear(IsDataMatrixSelected ? target.Metadata.HeatSink : null, target.Bolt);
         try
         {
             Preview.SetSavedImage(saved.Image, target.Metadata.Region ?? saved.Record.Region);
@@ -393,13 +382,5 @@ public partial class InspectionTeachingViewModel : ObservableObject
         OriginalResult = $"Recorded {saved.Verdict} · {saved.Details}";
         Ruler = null;
         RulerMillimeters = null;
-    }
-
-    private static BitmapSource DecodeImage(byte[] png)
-    {
-        using var stream = new MemoryStream(png, writable: false);
-        var image = new PngBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
-        image.Freeze();
-        return image;
     }
 }

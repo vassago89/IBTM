@@ -178,11 +178,13 @@ public sealed partial class MachineLifecycleTests
             // A machine-level flag cannot invent an executing step in an idle unit.
             Assert.Null(display.FasteningState);
             Assert.Null(display.InspectionState);
+            Assert.Null(display.Placement.ActivePcb);
             Assert.Null(display.BoltFasteningActiveBolt);
             Assert.Null(services.GetRequiredService<BoltFasteningStation>().ActiveBolt);
             Assert.Null(services.GetRequiredService<InspectionStation>().ActiveBolt);
             Assert.Null(services.GetRequiredService<InspectionStation>().ActivePcb);
-            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => services.GetRequiredService<PcbSupplier>().Motion.IsAt(settings.PcbSupply.HandoffPosition)));
+            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() =>
+                MotionService.IsAt(services.GetRequiredService<PcbSupplier>().Motion.Feedback, settings.PcbSupply.HandoffPosition)));
             Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(
                 () => services.GetRequiredService<IIoService>().GetOutput(OutputIo.MainConveyorRun)));
 
@@ -297,6 +299,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateDisplayServices(out var motion, settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var feedback = services.GetRequiredService<MachineFeedbackMonitor>();

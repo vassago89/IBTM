@@ -38,9 +38,12 @@ public sealed class MachineStore
 
     public MachineStore(string? databaseFile = null)
     {
-        DatabaseFile = Path.GetFullPath(databaseFile ?? MachineDb.DefaultFile);
+        DatabaseFile = Path.GetFullPath(
+            databaseFile ?? Path.Combine(AppContext.BaseDirectory, "Data", "Machine.db"));
         Directory.CreateDirectory(Path.GetDirectoryName(DatabaseFile)!);
-        _options = MachineDb.CreateOptions(DatabaseFile);
+        _options = new DbContextOptionsBuilder<MachineDb>().UseSqlite(
+            new SqliteConnectionStringBuilder { DataSource = DatabaseFile }.ToString())
+            .Options;
         using var db = new MachineDb(_options);
         // Settings and recipes evolve inside JSON, not as database columns.
         db.Database.EnsureCreated();
@@ -106,11 +109,11 @@ public sealed class MachineStore
         }
     }
 
-    public T LoadRecipe<T>(string name)
+    public Recipe LoadRecipe(string name)
     {
         using var db = new MachineDb(_options);
         var json = db.Recipes.Where(row => row.Name == name).Select(row => row.Value).Single();
-        return JsonSerializer.Deserialize<T>(json) ?? throw new InvalidDataException(
+        return JsonSerializer.Deserialize<Recipe>(json) ?? throw new InvalidDataException(
             $"Recipe '{name}' is empty.");
     }
 
@@ -128,16 +131,16 @@ public sealed class MachineStore
         transaction.Commit();
     }
 
-    public void SaveRecipe<T>(
-        string name,
-        T recipe,
-        IReadOnlyCollection<int> imageNumbers,
+    public void SaveRecipe(
+        Recipe recipe,
         string? sourceRecipe = null,
         IEnumerable<RecipeImage>? images = null,
-        Setting? selection = null,
+        RecipeSelectionSettings? selection = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var name = recipe.Name;
+        var imageNumbers = recipe.CarrierImages.Select(tile => tile.Number).ToArray();
         using var db = new MachineDb(_options);
         using var transaction = db.Database.BeginTransaction();
         var copyImages = images is null
@@ -147,7 +150,7 @@ public sealed class MachineStore
         {
             var count = db.RecipeImages.Count(
                 row => row.RecipeName == sourceRecipe && imageNumbers.Contains(row.Number));
-            if (count != imageNumbers.Count)
+            if (count != imageNumbers.Length)
                 throw new InvalidDataException($"Recipe '{sourceRecipe}' has missing images.");
         }
 
@@ -175,7 +178,7 @@ public sealed class MachineStore
             {
                 db.RecipeImages.Where(row => row.RecipeName == name).ExecuteDelete();
                 // Copy BLOBs inside SQLite, without loading every image into application memory.
-                if (imageNumbers.Count > 0)
+                if (imageNumbers.Length > 0)
                     db.Database.ExecuteSql(
                         $"INSERT INTO RecipeImages (RecipeName, Number, Image) SELECT {saved.Name}, Number, Image FROM RecipeImages WHERE RecipeName = {sourceRecipe}");
             }
@@ -186,11 +189,11 @@ public sealed class MachineStore
 
         if (selection is not null)
         {
-            var key = selection.GetType().Name;
+            var key = nameof(RecipeSelectionSettings);
             var row = db.Settings.SingleOrDefault(row => row.Key == key);
             if (row is null)
                 db.Settings.Add(row = new() { Key = key });
-            row.Value = JsonSerializer.Serialize(selection, selection.GetType());
+            row.Value = JsonSerializer.Serialize(selection);
             db.SaveChanges();
         }
 

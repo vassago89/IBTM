@@ -359,7 +359,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         var alarm = MachineAlarm.None;
         string? interlockDetail = null;
         if (_units.PcbPlacement
-            && !_pcbPlacement.HandlerRaised
+            && _pcbPlacement.Lift != PlacementCylinderState.Up
             && _pcbPlacement.Motion.Feedback.IsMoving
             && (_pcbPlacement.Motion.Feedback.Command != MotionCommand.Adjustment
                 || _pcbPlacement.Motion.Feedback.IsMovingHorizontal
@@ -435,17 +435,13 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         get
         {
-            switch (true)
-            {
-                case true when _options.UseEmergencyStop && !_state.EmergencyStopReleased:
-                    return MachineAlarm.EmergencyStop;
-                case true when !_state.DoorInterlockReady:
-                    return MachineAlarm.DoorOpen;
-                default:
-                    return _options.UseAirPressureInterlock && !_state.AirPressureOk
-                        ? MachineAlarm.AirPressureLow
-                        : MachineAlarm.None;
-            }
+            if (_options.UseEmergencyStop && !_state.EmergencyStopReleased)
+                return MachineAlarm.EmergencyStop;
+            if (!_state.DoorInterlockReady)
+                return MachineAlarm.DoorOpen;
+            return _options.UseAirPressureInterlock && !_state.AirPressureOk
+                ? MachineAlarm.AirPressureLow
+                : MachineAlarm.None;
         }
     }
 
@@ -666,19 +662,15 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         get
         {
-            switch (true)
-            {
-                case true when (_units.BoltFastening || _units.Inspection)
-                    && _recipes.Current.Pcb.BoltPoints.Count == 0:
-                    return false;
-                case true when _units.BoltFastening
-                    && _recipes.Current.Pcb.BoltPoints.Any(bolt => !bolt.IsFasteningPositionDefined):
-                    return false;
-                default:
-                    return !_units.Inspection
-                        || _recipes.Current.Pcb.BoltPoints.All(_inspectionStation.HasRegion)
-                            && Enum.GetValues<HeatSinkSlot>().All(_inspectionStation.HasBarcodeRegion);
-            }
+            if ((_units.BoltFastening || _units.Inspection)
+                && _recipes.Current.Pcb.BoltPoints.Count == 0)
+                return false;
+            if (_units.BoltFastening
+                && _recipes.Current.Pcb.BoltPoints.Any(bolt => !bolt.IsFasteningPositionDefined))
+                return false;
+            return !_units.Inspection
+                || _recipes.Current.Pcb.BoltPoints.All(_inspectionStation.HasRegion)
+                    && Enum.GetValues<HeatSinkSlot>().All(_inspectionStation.HasBarcodeRegion);
         }
     }
 
@@ -691,35 +683,31 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     private StartBlockReason GetStartBlock(MotionReadiness motion)
     {
-        switch (true)
-        {
-            case true when _state.Alarm == MachineAlarm.EmergencyStop:
-                return StartBlockReason.EmergencyStop;
-            case true when _state.Alarm == MachineAlarm.DoorOpen:
-                return StartBlockReason.DoorOpen;
-            case true when _state.Alarm == MachineAlarm.AirPressureLow:
-                return StartBlockReason.AirPressure;
-            case true when _state.IsError:
-                return StartBlockReason.Alarm;
-            case true when _options.UseEmergencyStop && !_state.EmergencyStopReleased:
-                return StartBlockReason.EmergencyStop;
-            case true when _options.UseAirPressureInterlock && !_state.AirPressureOk:
-                return StartBlockReason.AirPressure;
-            case true when motion.Faulted:
-                return StartBlockReason.MotionFault;
-            case true when !motion.ServosOn || !_state.ServoMainContactorOn:
-                return StartBlockReason.ServoOff;
-            case true when !_state.DoorInterlockReady:
-                return StartBlockReason.DoorOpen;
-            case true when !motion.Homed:
-                return StartBlockReason.HomeRequired;
-            case true when _state.RepeatEnabled && !_state.ManualMode:
-                return StartBlockReason.TeachingMode;
-            case true when !TeachingReady:
-                return StartBlockReason.TeachingIncomplete;
-            default:
-                return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
-        }
+        if (_state.Alarm == MachineAlarm.EmergencyStop)
+            return StartBlockReason.EmergencyStop;
+        if (_state.Alarm == MachineAlarm.DoorOpen)
+            return StartBlockReason.DoorOpen;
+        if (_state.Alarm == MachineAlarm.AirPressureLow)
+            return StartBlockReason.AirPressure;
+        if (_state.IsError)
+            return StartBlockReason.Alarm;
+        if (_options.UseEmergencyStop && !_state.EmergencyStopReleased)
+            return StartBlockReason.EmergencyStop;
+        if (_options.UseAirPressureInterlock && !_state.AirPressureOk)
+            return StartBlockReason.AirPressure;
+        if (motion.Faulted)
+            return StartBlockReason.MotionFault;
+        if (!motion.ServosOn || !_state.ServoMainContactorOn)
+            return StartBlockReason.ServoOff;
+        if (!_state.DoorInterlockReady)
+            return StartBlockReason.DoorOpen;
+        if (!motion.Homed)
+            return StartBlockReason.HomeRequired;
+        if (_state.RepeatEnabled && !_state.ManualMode)
+            return StartBlockReason.TeachingMode;
+        if (!TeachingReady)
+            return StartBlockReason.TeachingIncomplete;
+        return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
@@ -748,13 +736,12 @@ public sealed partial class MachineController : INotifyPropertyChanged
             return;
         void StopWhenOperationBecomesUnavailable()
         {
-            switch (true)
+            if (operation.IsCancellationRequested)
+                return;
+            if (_state.IsError)
             {
-                case true when operation.IsCancellationRequested:
-                    return;
-                case true when _state.IsError:
-                    operation.Cancel();
-                    return;
+                operation.Cancel();
+                return;
             }
 
             try
@@ -797,16 +784,15 @@ public sealed partial class MachineController : INotifyPropertyChanged
         {
             // Live admission already checked the equipment. Do not apply a scan that
             // began before this run (for example, while Home was still completing).
-            switch (true)
+            if (operation.IsCancellationRequested
+                || sample.StartedAt < feedbackStartedAt
+                || !sample.Enabled
+                || !_units.IsMotionEnabled(group))
+                return;
+            if (_state.IsError)
             {
-                case true when operation.IsCancellationRequested
-                    || sample.StartedAt < feedbackStartedAt
-                    || !sample.Enabled
-                    || !_units.IsMotionEnabled(group):
-                    return;
-                case true when _state.IsError:
-                    operation.Cancel();
-                    return;
+                operation.Cancel();
+                return;
             }
 
             var motion = sample.Readiness;
@@ -903,7 +889,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         {
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PcbSupply,
-                _pcbSupply.RunAsync(_recipes.Current.PcbSupply, _pcbPlacement, cycle.Token, repeat),
+                _pcbSupply.RunAsync(_pcbPlacement, cycle.Token, repeat),
                 cycle));
         }
 
@@ -1030,38 +1016,32 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     internal HomeBlockReason GetHomeBlock(MotionGroup? group = null, bool requireRaised = false)
     {
-        switch (true)
-        {
-            case true when !_io.IsReady:
-                return HomeBlockReason.IoUnavailable;
-            case true when group is { } motionGroup && !_units.IsMotionEnabled(motionGroup):
-                return HomeBlockReason.UnitDisabled;
-            case true when !_state.ManualMode && !_state.DoorInterlockReady:
-                return HomeBlockReason.DoorOpen;
-            case true when (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
-                || group is null
-                && PcbHandlersEnabled)
-                && _io.GetInput(InputIo.PcbPlacementPcbDetected)
-                && _pcbPlacement.IpmLift != PlacementCylinderState.Up:
-                return HomeBlockReason.PlacementHoldingPcb;
-            case true when requireRaised
-                && (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
-                    || group is null && PcbHandlersEnabled)
-                && (!_pcbPlacement.HandlerRaised
-                    || _pcbPlacement.IpmLift != PlacementCylinderState.Up):
-                return HomeBlockReason.PlacementNotRaised;
-            case true when requireRaised
-                && (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
-                && !_fasteningStation.IsHorizontalMoveAllowed:
-                return HomeBlockReason.FasteningNotRaised;
-            case true when requireRaised && (group == MotionGroup.InspectionGantry
-                || group is null
-                && InspectionGantryEnabled)
-                && !_inspectionStation.IsRaised:
-                return HomeBlockReason.NgPickupNotRaised;
-            default:
-                return HomeBlockReason.None;
-        }
+        if (!_io.IsReady)
+            return HomeBlockReason.IoUnavailable;
+        if (group is { } motionGroup && !_units.IsMotionEnabled(motionGroup))
+            return HomeBlockReason.UnitDisabled;
+        if (!_state.ManualMode && !_state.DoorInterlockReady)
+            return HomeBlockReason.DoorOpen;
+        if ((group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
+            || group is null && PcbHandlersEnabled)
+            && _io.GetInput(InputIo.PcbPlacementPcbDetected)
+            && _pcbPlacement.IpmLift != PlacementCylinderState.Up)
+            return HomeBlockReason.PlacementHoldingPcb;
+        if (requireRaised
+            && (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
+                || group is null && PcbHandlersEnabled)
+            && (_pcbPlacement.Lift != PlacementCylinderState.Up
+                || _pcbPlacement.IpmLift != PlacementCylinderState.Up))
+            return HomeBlockReason.PlacementNotRaised;
+        if (requireRaised
+            && (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
+            && !_fasteningStation.IsHorizontalMoveAllowed)
+            return HomeBlockReason.FasteningNotRaised;
+        if (requireRaised
+            && (group == MotionGroup.InspectionGantry || group is null && InspectionGantryEnabled)
+            && !_inspectionStation.IsRaised)
+            return HomeBlockReason.NgPickupNotRaised;
+        return HomeBlockReason.None;
     }
 
     private bool IsHomeAxisReady(
@@ -1074,7 +1054,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             return false;
 
         var motion = _state.GetMotionStatus(group);
-        return motion.IsReady(live)
+        return (live ? motion.Feedback.IsReady : motion.IsFeedbackAvailable)
             && motion.Feedback.Axes.Where(candidate => axis is null || candidate == axis)
                 .All(
                     candidate =>
@@ -1472,22 +1452,16 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     private bool IsResetAllowedFor(bool running)
     {
-        switch (true)
-        {
-            case true when _operations.IsShuttingDown
-                || _feedback.Failure is not null
-                || running:
-                return false;
-            case true when _state.Alarm == MachineAlarm.IoCommunication:
-                return true;
-            case true when !_state.SafetyReady || !(_state.ManualMode || _state.DoorInterlockReady):
-                return false;
-            // Hardware recovery admission, not permission to acknowledge the buzzer.
-            // A failed feedback scan must leave recovery usable without another native read.
-            case true when _state.IsError
-                || _feedback.ReadError is not null:
-                return true;
-        }
+        if (_operations.IsShuttingDown || _feedback.Failure is not null || running)
+            return false;
+        if (_state.Alarm == MachineAlarm.IoCommunication)
+            return true;
+        if (!_state.SafetyReady || !(_state.ManualMode || _state.DoorInterlockReady))
+            return false;
+        // Hardware recovery admission, not permission to acknowledge the buzzer.
+        // A failed feedback scan must leave recovery usable without another native read.
+        if (_state.IsError || _feedback.ReadError is not null)
+            return true;
         var motion = _state.FeedbackReadiness;
         return motion.Faulted || !motion.ServosOn || !_state.ServoMainContactorOn;
     }
@@ -1503,19 +1477,17 @@ public sealed partial class MachineController : INotifyPropertyChanged
         lock (_resetGate)
         {
             // Repeated clicks acknowledge the buzzer, but share the current recovery.
-            switch (true)
+            if (!_resetTask.IsCompleted)
+                return _resetTask;
+            if (_state.IsError && _operations.HasActiveOperations
+                && !_operations.IsShuttingDown && _feedback.Failure is null)
+                return _resetTask = ResetHardwareAsync();
+            if (!IsResetAllowed)
             {
-                case true when !_resetTask.IsCompleted:
-                    return _resetTask;
-                case true when _state.IsError && _operations.HasActiveOperations
-                    && !_operations.IsShuttingDown && _feedback.Failure is null:
-                    return _resetTask = ResetHardwareAsync();
-                case true when !IsResetAllowed:
-                    _log?.LogInformation("Machine RESET: buzzer silenced; hardware recovery conditions are not satisfied.");
-                    return Task.CompletedTask;
-                default:
-                    return _resetTask = ResetHardwareAsync();
+                _log?.LogInformation("Machine RESET: buzzer silenced; hardware recovery conditions are not satisfied.");
+                return Task.CompletedTask;
             }
+            return _resetTask = ResetHardwareAsync();
         }
     }
 
@@ -1548,14 +1520,13 @@ public sealed partial class MachineController : INotifyPropertyChanged
             return;
         var (alarm, error) = await InitializeIoAsync(operation.Token);
         operation.Token.ThrowIfCancellationRequested();
-        switch (true)
+        if (alarm != MachineAlarm.None)
         {
-            case true when alarm != MachineAlarm.None:
-                _state.SetError(alarm, error);
-                return;
-            case true when !_state.SafetyReady || !_state.ManualMode && !_state.DoorInterlockReady:
-                return;
+            _state.SetError(alarm, error);
+            return;
         }
+        if (!_state.SafetyReady || !_state.ManualMode && !_state.DoorInterlockReady)
+            return;
 
         var failures = new List<Exception>();
         void RecordFailure(MachineAlarm deviceAlarm, string device, Exception exception)
@@ -1740,19 +1711,15 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         get
         {
-            switch (true)
-            {
-                case true when _operations.IsShuttingDown:
-                    return OutputBlockReason.ShuttingDown;
-                case true when !_io.IsReady:
-                    return OutputBlockReason.IoUnavailable;
-                case true when !_state.ManualMode:
-                    return OutputBlockReason.AutoMode;
-                case true when !_state.EmergencyStopReleased:
-                    return OutputBlockReason.EmergencyStop;
-                default:
-                    return OutputBlockReason.None;
-            }
+            if (_operations.IsShuttingDown)
+                return OutputBlockReason.ShuttingDown;
+            if (!_io.IsReady)
+                return OutputBlockReason.IoUnavailable;
+            if (!_state.ManualMode)
+                return OutputBlockReason.AutoMode;
+            if (!_state.EmergencyStopReleased)
+                return OutputBlockReason.EmergencyStop;
+            return OutputBlockReason.None;
         }
     }
 

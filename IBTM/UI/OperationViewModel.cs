@@ -183,14 +183,6 @@ public partial class OperationViewModel : ObservableObject
 
     public double? NgPickupMapTop => _map.GetNgPickupPosition(Inspection.Motion.Position)?.Y;
 
-    public bool PcbSupplyPcbDetected => Supply.Pcb != PcbSupplyPcbState.None;
-
-    public bool PcbPlacementPcbDetected => Placement.Pcb != PlacementPcbState.None;
-
-    public bool PcbPlacementIpmDown => Placement.IpmLift == PlacementCylinderState.Down;
-
-    public bool PcbSupplyGripperClosed => Supply.Gripper == PcbSupplyCylinderState.Forward;
-
     public bool PcbPlacementHeatSink1Completed
     {
         get
@@ -430,15 +422,11 @@ public partial class OperationViewModel : ObservableObject
     private static AssemblyResult GetAssemblyResult(ConveyorStation station, HeatSinkSlot heatSink, bool inspection)
     {
         var assembly = station.Assemblies.FirstOrDefault(item => item.HeatSink == heatSink);
-        switch (true)
-        {
-            case true when assembly is null:
-                return AssemblyResult.Pending;
-            case true when inspection:
-                return assembly.InspectionResult;
-            default:
-                return assembly.FasteningResult;
-        }
+        if (assembly is null)
+            return AssemblyResult.Pending;
+        if (inspection)
+            return assembly.InspectionResult;
+        return assembly.FasteningResult;
     }
 
     private void OnPcbSupplyMotionChanged(object? sender, PropertyChangedEventArgs e)
@@ -599,8 +587,6 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
-        OnPropertyChanged(nameof(PcbSupplyPcbDetected));
-        OnPropertyChanged(nameof(PcbSupplyGripperClosed));
         OnPropertyChanged(nameof(SupplyPositionKnown));
         OnPropertyChanged(nameof(Supply));
         OnPropertyChanged(nameof(SupplyDisplayState));
@@ -615,8 +601,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PlacementState));
         OnPropertyChanged(nameof(PlacementPositionKnown));
         OnPropertyChanged(nameof(PlacementStatus));
-        OnPropertyChanged(nameof(PcbPlacementPcbDetected));
-        OnPropertyChanged(nameof(PcbPlacementIpmDown));
         OnPropertyChanged(nameof(Placement));
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));
@@ -715,7 +699,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            if (!State.Available || !PlacementPositionKnown || !Placement.Motion.IsReady(live: false))
+            if (!State.Available || !PlacementPositionKnown || !Placement.Motion.IsFeedbackAvailable)
                 return null;
             return Placement.Step as PcbPlacementState?;
         }
@@ -726,7 +710,7 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             if (!State.Available || !Units.BoltFastening || !Machine.TeachingReady
-                || !FasteningPositionKnown || !Fastening.Motion.IsReady(live: false))
+                || !FasteningPositionKnown || !Fastening.Motion.IsFeedbackAvailable)
                 return null;
             return Fastening.Step as BoltFasteningState?;
         }
@@ -737,7 +721,7 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             if (!State.Available || !Units.Inspection || !Machine.TeachingReady
-                || !InspectionPositionKnown || !Inspection.Motion.IsReady(live: false)
+                || !InspectionPositionKnown || !Inspection.Motion.IsFeedbackAvailable
                 || Signals.Outputs[OutputIo.MainConveyorRun].IsOn is null
                 || Signals.Outputs[OutputIo.NgConveyorRun].IsOn is null)
                 return null;
@@ -809,18 +793,14 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            switch (true)
-            {
-                case true when !Units.MainConveyor:
-                    return HandlerDisplayState.Disabled;
-                case true when State.Available
-                    && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running:
-                    return !State.AutomaticRunning && !running
-                        ? HandlerDisplayState.Stopped
-                        : ConveyorState ?? (Enum)MachineDisplayState.Unavailable;
-                default:
-                    return MachineDisplayState.Unavailable;
-            }
+            if (!Units.MainConveyor)
+                return HandlerDisplayState.Disabled;
+            if (State.Available
+                && Signals.Outputs[OutputIo.MainConveyorRun].IsOn is { } running)
+                return !State.AutomaticRunning && !running
+                    ? HandlerDisplayState.Stopped
+                    : ConveyorState ?? (Enum)MachineDisplayState.Unavailable;
+            return MachineDisplayState.Unavailable;
         }
     }
 
@@ -895,29 +875,25 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            switch (true)
-            {
-                case true when !Units.PcbSupply:
-                    return HandlerDisplayState.Disabled;
-                case true when Alarm is MachineAlarm.PcbSupply:
-                    return HandlerDisplayState.IoAlarm;
-                case true when !SupplyPositionKnown:
-                    return HandlerDisplayState.PositionUnknown;
-                case true when Supply.Motion.IsMoving:
-                    return HandlerDisplayState.Moving;
-                case true when !State.AutomaticRunning:
-                    return HandlerDisplayState.Stopped;
-                default:
-                    return Supply.Step is PcbSupplyState.WaitingForCarrier
-                        or PcbSupplyState.WaitingForCarrierExit
-                        or PcbSupplyState.HandingOff
-                        or PcbSupplyState.WaitingForPlacementClear
-                        or PcbSupplyState.WaitingForReturnedPcb
-                        or PcbSupplyState.WaitingForReturnedPcbGrip
-                        or PcbSupplyState.WaitingForReturnClear
-                        ? HandlerDisplayState.Waiting
-                        : HandlerDisplayState.Working;
-            }
+            if (!Units.PcbSupply)
+                return HandlerDisplayState.Disabled;
+            if (Alarm is MachineAlarm.PcbSupply)
+                return HandlerDisplayState.IoAlarm;
+            if (!SupplyPositionKnown)
+                return HandlerDisplayState.PositionUnknown;
+            if (Supply.Motion.IsMoving)
+                return HandlerDisplayState.Moving;
+            if (!State.AutomaticRunning)
+                return HandlerDisplayState.Stopped;
+            return Supply.Step is PcbSupplyState.WaitingForCarrier
+                or PcbSupplyState.WaitingForCarrierExit
+                or PcbSupplyState.HandingOff
+                or PcbSupplyState.WaitingForPlacementClear
+                or PcbSupplyState.WaitingForReturnedPcb
+                or PcbSupplyState.WaitingForReturnedPcbGrip
+                or PcbSupplyState.WaitingForReturnClear
+                ? HandlerDisplayState.Waiting
+                : HandlerDisplayState.Working;
         }
     }
 
@@ -925,29 +901,25 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            switch (true)
-            {
-                case true when !Units.PcbPlacement:
-                    return HandlerDisplayState.Disabled;
-                case true when Alarm is MachineAlarm.PcbPlacement:
-                    return HandlerDisplayState.IoAlarm;
-                case true when !PlacementPositionKnown:
-                    return HandlerDisplayState.PositionUnknown;
-                case true when Placement.Motion.IsMoving:
-                    return HandlerDisplayState.Moving;
-                case true when !State.AutomaticRunning:
-                    return HandlerDisplayState.Stopped;
-                default:
-                    return PlacementState is PcbPlacementState.WaitingForSupply
-                        or PcbPlacementState.WaitingForSupplyRelease
-                        or PcbPlacementState.WaitingForSupplyClear
-                        or PcbPlacementState.WaitingForCarrier
-                        or PcbPlacementState.WaitingForSupplyReceipt
-                        or PcbPlacementState.WaitingForSupplyGrip
-                        or PcbPlacementState.WaitingForSupplyDeparture
-                        ? HandlerDisplayState.Waiting
-                        : HandlerDisplayState.Working;
-            }
+            if (!Units.PcbPlacement)
+                return HandlerDisplayState.Disabled;
+            if (Alarm is MachineAlarm.PcbPlacement)
+                return HandlerDisplayState.IoAlarm;
+            if (!PlacementPositionKnown)
+                return HandlerDisplayState.PositionUnknown;
+            if (Placement.Motion.IsMoving)
+                return HandlerDisplayState.Moving;
+            if (!State.AutomaticRunning)
+                return HandlerDisplayState.Stopped;
+            return PlacementState is PcbPlacementState.WaitingForSupply
+                or PcbPlacementState.WaitingForSupplyRelease
+                or PcbPlacementState.WaitingForSupplyClear
+                or PcbPlacementState.WaitingForCarrier
+                or PcbPlacementState.WaitingForSupplyReceipt
+                or PcbPlacementState.WaitingForSupplyGrip
+                or PcbPlacementState.WaitingForSupplyDeparture
+                ? HandlerDisplayState.Waiting
+                : HandlerDisplayState.Working;
         }
     }
 
@@ -955,29 +927,25 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            switch (true)
-            {
-                case true when !Units.BoltFastening:
-                    return StationDisplayState.Disabled;
-                case true when Alarm is MachineAlarm.PickupBoltFeeder
-                    or MachineAlarm.ShootingBoltFeeder
-                    or MachineAlarm.BoltFastening:
-                    return StationDisplayState.IoAlarm;
-                case true when !FasteningPositionKnown:
-                    return StationDisplayState.PositionUnknown;
-                case true when Fastening.Motion.IsMoving || State.BoltTestRunning:
-                    return StationDisplayState.Working;
-                case true when !State.AutomaticRunning:
-                    return StationDisplayState.Stopped;
-                case true when !Fastening.Station.CarrierPresent:
-                    return StationDisplayState.WaitingForCarrier;
-                case true when Fastening.Station.Completed:
-                    return StationDisplayState.WaitingForTransfer;
-                default:
-                    return FasteningStateVisible
-                        ? StationDisplayState.Working
-                        : StationDisplayState.HeatSinkDetected;
-            }
+            if (!Units.BoltFastening)
+                return StationDisplayState.Disabled;
+            if (Alarm is MachineAlarm.PickupBoltFeeder
+                or MachineAlarm.ShootingBoltFeeder
+                or MachineAlarm.BoltFastening)
+                return StationDisplayState.IoAlarm;
+            if (!FasteningPositionKnown)
+                return StationDisplayState.PositionUnknown;
+            if (Fastening.Motion.IsMoving || State.BoltTestRunning)
+                return StationDisplayState.Working;
+            if (!State.AutomaticRunning)
+                return StationDisplayState.Stopped;
+            if (!Fastening.Station.CarrierPresent)
+                return StationDisplayState.WaitingForCarrier;
+            if (Fastening.Station.Completed)
+                return StationDisplayState.WaitingForTransfer;
+            return FasteningStateVisible
+                ? StationDisplayState.Working
+                : StationDisplayState.HeatSinkDetected;
         }
     }
 
@@ -1004,31 +972,27 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            switch (true)
-            {
-                case true when !Units.Inspection:
-                    return StationDisplayState.Disabled;
-                case true when Alarm is MachineAlarm.Inspection or MachineAlarm.NgCarrierTransfer:
-                    return StationDisplayState.IoAlarm;
-                case true when !InspectionPositionKnown:
-                    return StationDisplayState.PositionUnknown;
-                case true when !State.AutomaticRunning && !Inspection.Motion.IsMoving:
-                    return StationDisplayState.Stopped;
-                case true when Inspection.Motion.IsMoving
-                    || Inspection.IsTransferPending
-                    || InspectionState is InspectionStationState.PreparingTransfer
-                        or InspectionStationState.PickingCarrier or InspectionStationState.PlacingCarrier
-                        or InspectionStationState.WaitingForShuttleDown:
-                    return StationDisplayState.Working;
-                case true when !Inspection.Station.CarrierPresent:
-                    return StationDisplayState.WaitingForCarrier;
-                case true when Inspection.Station.Completed:
-                    return StationDisplayState.WaitingForTransfer;
-                default:
-                    return InspectionStateVisible
-                        ? StationDisplayState.Working
-                        : StationDisplayState.HeatSinkDetected;
-            }
+            if (!Units.Inspection)
+                return StationDisplayState.Disabled;
+            if (Alarm is MachineAlarm.Inspection or MachineAlarm.NgCarrierTransfer)
+                return StationDisplayState.IoAlarm;
+            if (!InspectionPositionKnown)
+                return StationDisplayState.PositionUnknown;
+            if (!State.AutomaticRunning && !Inspection.Motion.IsMoving)
+                return StationDisplayState.Stopped;
+            if (Inspection.Motion.IsMoving
+                || Inspection.IsTransferPending
+                || InspectionState is InspectionStationState.PreparingTransfer
+                    or InspectionStationState.PickingCarrier or InspectionStationState.PlacingCarrier
+                    or InspectionStationState.WaitingForShuttleDown)
+                return StationDisplayState.Working;
+            if (!Inspection.Station.CarrierPresent)
+                return StationDisplayState.WaitingForCarrier;
+            if (Inspection.Station.Completed)
+                return StationDisplayState.WaitingForTransfer;
+            return InspectionStateVisible
+                ? StationDisplayState.Working
+                : StationDisplayState.HeatSinkDetected;
         }
     }
 

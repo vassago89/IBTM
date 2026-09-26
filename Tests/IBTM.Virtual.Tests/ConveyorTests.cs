@@ -415,7 +415,7 @@ public sealed partial class ConveyorTests
             }
         };
 
-        await station.RaisePlateAndLowerStopperAsync(CancellationToken.None);
+        await station.SeatAsync(CancellationToken.None);
         Assert.True(io.GetOutput(output));
         Assert.Equal(StationCylinderState.Up, station.BackupPlate);
         Assert.False(io.GetOutput(stopper));

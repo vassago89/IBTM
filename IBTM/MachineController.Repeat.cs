@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.PcbPlacement;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM;
@@ -33,7 +34,7 @@ public sealed partial class MachineController
             if (_units.PcbSupply && !_units.PcbPlacement)
                 independentUnits.Add(ObserveAutomaticUnitAsync(
                     MachineAlarm.PcbSupply,
-                    _pcbSupply.RunAsync(_recipes.Current.PcbSupply, _pcbPlacement, repeat.Token, repeat: true),
+                    _pcbSupply.RunAsync(_pcbPlacement, repeat.Token, repeat: true),
                     repeat));
             if (_units.NgConveyor && !_units.Inspection)
                 independentUnits.Add(ObserveAutomaticUnitAsync(
@@ -118,7 +119,7 @@ public sealed partial class MachineController
         {
             if (_units.PcbPlacement)
             {
-                if (!_pcbPlacement.HandlerRaised)
+                if (_pcbPlacement.Lift != PlacementCylinderState.Up)
                     return OutputBlockReason.PlacementNotRaised;
                 if (!_pcbPlacement.IsAtHorizontalZ)
                     return OutputBlockReason.PlacementNotAtSafeZ;

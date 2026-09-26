@@ -84,8 +84,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         recipes.InspectionSettingsChanged += NotifyChanged;
     }
 
-    public override event Action? Changed;
-
     public BoltPoint? ActiveBolt => InspectionTarget.Bolt;
 
     public HeatSinkSlot? ActivePcb => InspectionTarget.Pcb;
@@ -97,11 +95,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             var index = _pointIndex;
             return _runPoints is { } points && index < points.Length ? points[index] : (null, null);
         }
-    }
-
-    private void NotifyChanged()
-    {
-        Changed?.Invoke();
     }
 
     public ConveyorStation Station { get; }
@@ -188,12 +181,12 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     {
         get
         {
-            return Station.CarrierPresent && Station.Completed
+            return Station.Completed
                 && (IsAtInspectionPosition || Station.CarrierSeated);
         }
     }
 
-    public bool IsReceiveAllowed => Station.IsReceiveAllowed && !IsTransferPending;
+    public bool IsReceiveAllowed => !Station.CarrierPresent && !IsTransferPending;
 
     public bool RouteToNg => !_units.Inspection || HasNg;
 
@@ -230,7 +223,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             if (!_units.IsMotionEnabled(MotionGroup.InspectionGantry))
                 return true;
             return _settings.WaitingPosition is { } position
-                && Motion.IsAt(position);
+                && MotionService.IsAt(_motion, position);
         }
     }
 
@@ -316,7 +309,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
     }
 
-    public InspectionStationState GetNextStep(bool repeat = false)
+    internal InspectionStationState GetNextStep(bool repeat = false)
     {
         if (_waitingForShuttleDown && IsClear && Gripper == NgTransferGripperState.Open)
             return _ngConveyor.ShuttleLift == NgShuttleLiftState.Down
@@ -545,7 +538,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         cancellationToken.ThrowIfCancellationRequested();
         var position = _settings.WaitingPosition
             ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
-        if (!Motion.IsAt(position))
+        if (!MotionService.IsAt(_motion, position))
             await MoveToAsync(position, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (_waitingForShuttleDown)
@@ -555,7 +548,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
     }
 
-    public InspectionStationState GetNextTransferStep(
+    internal InspectionStationState GetNextTransferStep(
         NgTransferDestination destination,
         bool canPickUp,
         bool canReceive = true,
@@ -565,8 +558,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         var source = GetOppositeDestination(destination);
         var destinationPosition = GetTransferPosition(destination);
         var sourcePosition = GetTransferPosition(source);
-        var atDestination = destinationPosition is not null && Motion.IsAt(destinationPosition);
-        var atSource = sourcePosition is not null && Motion.IsAt(sourcePosition);
+        var atDestination = destinationPosition is not null && MotionService.IsAt(_motion, destinationPosition);
+        var atSource = sourcePosition is not null && MotionService.IsAt(_motion, sourcePosition);
         // Repeat turns around above the shuttle with the carrier still raised and gripped.
         var holdAtShuttle = holdAtDestination && destination == NgTransferDestination.Shuttle;
         var destinationPresent = !holdAtShuttle && IsCarrierPresent(destination);
@@ -659,7 +652,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     }
 
     // False means the caller can wait or perform inspection while the transfer is idle.
-    public async Task<bool> ExecuteTransferAsync(
+    internal async Task<bool> ExecuteTransferAsync(
         NgTransferDestination destination,
         InspectionStationState state,
         CancellationToken cancellationToken,
@@ -688,7 +681,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         || !allowEmpty && !IsCarrierPresent(source)
                         || Lift != NgTransferLiftState.Down
                         || GetTransferPosition(source) is not { } gripPosition
-                        || !Motion.IsAt(gripPosition)))
+                        || !MotionService.IsAt(_motion, gripPosition)))
                 {
                     throw new InvalidOperationException("NG transfer grip is uncertain away from its supported pickup position. Check the carrier before resuming.");
                 }
@@ -709,7 +702,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             {
                 var position = GetTransferPosition(destination)
                     ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before returning to Station 3.");
-                var supported = Motion.IsAt(position) && Lift == NgTransferLiftState.Down
+                var supported = MotionService.IsAt(_motion, position) && Lift == NgTransferLiftState.Down
                     && IsSupportReady(destination) && (allowEmpty || IsCarrierPresent(destination));
                 if (IsTransferPending && (!supported || holdAtDestination))
                 {
@@ -726,7 +719,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         carrying.Token.ThrowIfCancellationRequested();
                         if (destination == NgTransferDestination.Station && !IsSupportReady(destination))
                             await SeatStationAsync(carrying.Token);
-                        else if (!Motion.IsAt(position))
+                        else if (!MotionService.IsAt(_motion, position))
                             await MoveToAsync(position, cancellationToken: carrying.Token);
                         CheckGrip();
                         carrying.Token.ThrowIfCancellationRequested();
@@ -750,7 +743,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
                 if (holdAtDestination && IsTransferPending)
                     break;
-                if (!Motion.IsAt(position) || !IsSupportReady(destination))
+                if (!MotionService.IsAt(_motion, position) || !IsSupportReady(destination))
                     return false;
                 if (IsTransferPending || Gripper != NgTransferGripperState.Open)
                 {
@@ -845,7 +838,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         cancellationToken.ThrowIfCancellationRequested();
         var position = GetTransferPosition(source)
             ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to a carrier.");
-        if (Motion.IsAt(position))
+        if (MotionService.IsAt(_motion, position))
             return;
         await MoveToAsync(position, cancellationToken: cancellationToken);
     }
@@ -1127,7 +1120,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     var position = _motion.Position;
                     var center = new AxisPosition { X = position.X, Y = position.Y };
                     var frame = await CaptureWithLightAsync(lightLevel, cancellationToken, keepLiveView: true).ConfigureAwait(false);
-                    if (!Motion.IsAt(center))
+                    if (!MotionService.IsAt(_motion, center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);
                 },

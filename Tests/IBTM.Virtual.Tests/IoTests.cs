@@ -258,7 +258,7 @@ public sealed class IoTests
             if (args.PropertyName == nameof(IoSignals.InputsAvailable))
                 availabilityChanges++;
         };
-        var status = hardware.CreateIoStatus(signals);
+        var status = signals.Select(hardware.Area, hardware.Inputs.Keys, hardware.Outputs.Keys);
         Assert.Equal(hardware.Area, status.Area);
         Assert.Equal(hardware.Inputs.Keys.Order(), status.Inputs.Select(row => row.Signal));
         var output = Assert.Single(status.Outputs);

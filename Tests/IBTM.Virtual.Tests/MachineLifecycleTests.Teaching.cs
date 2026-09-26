@@ -402,7 +402,8 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         if (unit == HardwareArea.PcbPlacementHandler)
-            await services.GetRequiredService<PcbPlacer>().MoveToHorizontalZAsync();
+            await services.GetRequiredService<PcbPlacer>().MoveAxisAsync(
+                MotionAxis.Z, services.GetRequiredService<PcbPlacementHandlerSettings>().HandoffPosition.Z);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = unit;
         await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
@@ -570,7 +571,8 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         if (group == MotionGroup.PcbPlacementHandler)
-            await services.GetRequiredService<PcbPlacer>().MoveToHorizontalZAsync();
+            await services.GetRequiredService<PcbPlacer>().MoveAxisAsync(
+                MotionAxis.Z, services.GetRequiredService<PcbPlacementHandlerSettings>().HandoffPosition.Z);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = group switch
         {
@@ -803,7 +805,7 @@ public sealed partial class MachineLifecycleTests
         var loaded = Assert.Single(editor.Points);
         Assert.Equal(region, loaded.Metadata.Region);
         Assert.Equal((17d, 29d), (loaded.Position!.X, loaded.Position!.Y));
-        Assert.Equal(67, barcode ? editor.DataMatrix!.LightLevel : editor.SelectedBolt!.LightLevel);
+        Assert.Equal(67, barcode ? editor.DataMatrix!.LightLevel : editor.SelectedPoint!.Bolt!.LightLevel);
         Assert.Equal(captured.Image.PixelWidth, loaded.Image.PixelWidth);
         var recordedPoint = teaching.SelectedPoint;
         teaching.LiveLightLevel = 99;
@@ -843,7 +845,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Contains("bolt image write failed", teaching.CameraError);
         Assert.Same(original, RecordedImage(teaching));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
-        Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName)));
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe(teaching.RecipeEditor.ActiveName)));
         Assert.Equal(imageBefore, store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number));
         command.CommandText = "DROP TRIGGER FailBoltImage";
         command.ExecuteNonQuery();
@@ -866,7 +868,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(cancelled);
         Assert.Same(original, RecordedImage(teaching));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.Recipes.Current));
-        Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName)));
+        Assert.Equal(recipeBefore, JsonSerializer.Serialize(store.LoadRecipe(teaching.RecipeEditor.ActiveName)));
         Assert.Equal(imageBefore, store.LoadRecipeImage(teaching.RecipeEditor.ActiveName, original.Metadata.Number));
         await machine.ShutdownAsync();
     }
@@ -911,7 +913,7 @@ public sealed partial class MachineLifecycleTests
 
             Assert.True(axesMovedTogether);
             Assert.Empty(feedback.AxisMoves);
-            Assert.True(gantry.Motion.IsAt(shuttlePosition));
+            Assert.True(MotionService.IsAt(gantry.Motion.Feedback, shuttlePosition));
         }
         finally
         {
@@ -959,7 +961,7 @@ public sealed partial class MachineLifecycleTests
 
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
 
-                Assert.True(gantry.Motion.IsAt(recipe.GetInspectionPosition(fov)));
+                Assert.True(MotionService.IsAt(gantry.Motion.Feedback, recipe.GetInspectionPosition(fov)));
                 Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipe));
             }
 
@@ -1014,7 +1016,7 @@ public sealed partial class MachineLifecycleTests
             Pcb = new() { BoltPoints = [legacyBolt] },
             CarrierImages = [new() { Number = 1, IsBarcode = true, Center = new(), Region = region }],
         };
-        services.GetRequiredService<MachineStore>().SaveRecipe(saved.Name, saved, [1]);
+        services.GetRequiredService<MachineStore>().SaveRecipe(saved);
 
         await recipes.LoadAsync(saved.Name);
 
@@ -1131,7 +1133,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(originalZ, settings.PcbPlacementHandler.HandoffPosition.Z);
             teaching.SelectedPoint = handoff;
 
-            await placement.MoveToHorizontalZAsync();
+            await placement.MoveAxisAsync(MotionAxis.Z, settings.PcbPlacementHandler.HandoffPosition.Z);
             Assert.True(await placement.HomeHorizontalAsync());
             await placement.MoveAxisAsync(MotionAxis.Z, 7);
             await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
@@ -1326,7 +1328,8 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         // HOME ends at the origin; this test explicitly prepares the horizontal travel height.
-        await services.GetRequiredService<PcbPlacer>().MoveToHorizontalZAsync();
+        await services.GetRequiredService<PcbPlacer>().MoveAxisAsync(
+            MotionAxis.Z, services.GetRequiredService<PcbPlacementHandlerSettings>().HandoffPosition.Z);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         Assert.True(state.Ready, state.AlarmDetail);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
@@ -1474,8 +1477,8 @@ public sealed partial class MachineLifecycleTests
             await machine.HomeAsync(CancellationToken.None);
             await supply.PrepareHandoffAsync(CancellationToken.None);
             await placement.PrepareHandoffAsync();
-            Assert.True(supply.Motion.IsAt(settings.PcbSupply.HandoffPosition));
-            Assert.True(placement.Motion.IsAt(settings.PcbPlacementHandler.HandoffPosition));
+            Assert.True(MotionService.IsAt(supply.Motion.Feedback, settings.PcbSupply.HandoffPosition));
+            Assert.True(MotionService.IsAt(placement.Motion.Feedback, settings.PcbPlacementHandler.HandoffPosition));
 
             foreach (var group in new[] { HardwareArea.PcbSupply, HardwareArea.PcbPlacementHandler })
             {
@@ -1681,7 +1684,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(75, savedPlacement.HandoffPosition.X);
         Assert.Equal(25, savedPlacement.HandoffPosition.Y);
         Assert.Equal(7, savedPlacement.HandoffPosition.Z);
-        var savedRecipe = store.LoadRecipe<Recipe>("Unified teaching");
+        var savedRecipe = store.LoadRecipe("Unified teaching");
         Assert.Equal(34, savedRecipe.PcbSupply.Pcb1PickPosition.Y);
         Assert.Equal(123, savedRecipe.BoltInspection.LightLevel);
         Assert.Equal("Unified teaching", teaching.RecipeEditor.ActiveName);
@@ -1743,7 +1746,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Null(teaching.SaveError);
         Assert.Null(teaching.RecipeEditor.Error);
         Assert.Equal("Teaching retry", teaching.RecipeEditor.ActiveName);
-        Assert.Equal(123, store.LoadRecipe<Recipe>("Teaching retry").BoltInspection.LightLevel);
+        Assert.Equal(123, store.LoadRecipe("Teaching retry").BoltInspection.LightLevel);
     }
 
     [Fact]

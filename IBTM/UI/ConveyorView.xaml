@@ -112,7 +112,7 @@
                 Pcb1Placed="{Binding PcbPlacementHeatSink1Completed}"
                 Pcb2Placed="{Binding PcbPlacementHeatSink2Completed}"
                 ShowPcbSlots="True"
-                ActiveHeatSink="{Binding Placement.TargetHeatSink}">
+                ActiveHeatSink="{Binding Placement.ActivePcb}">
                 <ui:CarrierView.Style>
                     <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
                         <Setter Property="Visibility" Value="Collapsed"/>

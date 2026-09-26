@@ -95,7 +95,7 @@ public sealed class MotionSafetyTests
         motion.SetServo(MotionAxis.X, false);
         display.RefreshMonitorFeedback();
         display.RefreshControlFeedback();
-        Assert.False(display.Axes[MotionAxis.X].ServoOn);
+        Assert.False(display.Axes[MotionAxis.X].State?.ServoOn);
         Assert.Equal(AxisCondition.ServoOff, display.Axes[MotionAxis.X].Condition);
         Assert.True(display.Axes[MotionAxis.X].State!.Value.Homed);
     }
@@ -205,27 +205,27 @@ public sealed class MotionSafetyTests
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        Assert.False(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.False(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
 
         await supply.MoveToXYAsync(10, 10, settings.HorizontalSpeed);
         await supply.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.False(supplyHandler.Motion.IsAt(supplyHandoff));
-        Assert.False(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.False(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff));
+        Assert.False(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
         await supply.MoveAxisAsync(MotionAxis.Z, 3, settings.ZSpeed);
-        Assert.True(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.True(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, true);
-        Assert.False(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.False(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, false);
-        Assert.True(supplyHandler.Motion.IsAt(supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.True(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
 
         await placement.MoveToXYAsync(10, 10, settings.HorizontalSpeed);
         await placement.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.True(placementHandler.Motion.IsAt(handoff));
-        Assert.False(placementHandler.Motion.IsAt(handoff) && placementHandler.PcbSecured);
+        Assert.True(MotionService.IsAt(placementHandler.Motion.Feedback, handoff));
+        Assert.False(MotionService.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
         io.SetInputs(
             (InputIo.PcbPlacementPcbDetected, true),
             (InputIo.PcbPlacementVacuumDetected, true));
-        Assert.True(placementHandler.Motion.IsAt(handoff) && placementHandler.PcbSecured);
+        Assert.True(MotionService.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
     }
 
     [Fact]
@@ -257,7 +257,8 @@ public sealed class MotionSafetyTests
 
         io.Initialize();
         motion.Initialize();
-        await Assert.ThrowsAsync<MotionInterlockException>(async () => await supply.MoveToRotationZAsync());
+        await Assert.ThrowsAsync<MotionInterlockException>(
+            async () => await supply.MoveAxisAsync(MotionAxis.Z, settings.RotationZ));
         await HomeAsync(motion, 1_000);
 
         TeachingPosition[] points = [
@@ -325,10 +326,10 @@ public sealed class MotionSafetyTests
 
         // The station uses the current teaching value, not a value retained by the device.
         settings.RotationZ = 4;
-        Assert.False(supply.Motion.IsAtZ(settings.RotationZ, live: true));
-        await supply.MoveToRotationZAsync();
+        Assert.False(MotionService.IsAtZ(supply.Motion.Feedback, settings.RotationZ));
+        await supply.MoveAxisAsync(MotionAxis.Z, settings.RotationZ);
         Assert.Equal(4, motion.Position.Z);
-        Assert.True(supply.Motion.IsAtZ(settings.RotationZ, live: true));
+        Assert.True(MotionService.IsAtZ(supply.Motion.Feedback, settings.RotationZ));
     }
 
     [Theory]

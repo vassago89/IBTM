@@ -181,28 +181,30 @@ public sealed partial class AjinControllerTests
         using var io = new PhysicalIoService(
             alpha, ajin, inputs, new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>(), new());
         var work = ConveyorStation.CreateInspection(io);
-        var arrivals = 0;
+        var presentNotifications = 0;
         work.CarrierChanged += present =>
         {
             if (present)
             {
-                arrivals++;
+                presentNotifications++;
                 Assert.True(work.CarrierSeated);
             }
         };
         AjinSdk.Inputs[0] = 0b111;
         io.Initialize();
-        Assert.Equal(0, arrivals); // Initial levels are not new input edges.
+        Assert.Equal(0, presentNotifications); // Initial levels are not new input edges.
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.RecordPcbBolt(1, new BoltResult(false, 1.25));
         work.Complete(work.CurrentJob);
-        Assert.True(work.IsTransferAllowed);
+        Assert.True(work.Completed);
         var job = work.CurrentJob;
         AjinSdk.Inputs[0] = 0b1110; // Heat Sink 1 -> 2 in one complete physical scan.
         io.RefreshInputs();
         Assert.Same(job, work.CurrentJob);
-        Assert.True(work.IsTransferAllowed);
-        Assert.Equal(0, arrivals);
+        Assert.Same(assembly, Assert.Single(work.Assemblies));
+        Assert.True(work.Completed);
+        // The first notification establishes presence without creating a new carrier job.
+        Assert.Equal(1, presentNotifications);
         AjinSdk.Inputs[0] = 0b110;
         io.RefreshInputs();
         Assert.False(work.CarrierPresent);
@@ -214,12 +216,12 @@ public sealed partial class AjinControllerTests
         io.Initialize();
 
         Assert.True(work.CarrierSeated);
+        Assert.NotSame(job, work.CurrentJob);
         Assert.False(work.Completed);
-        Assert.False(work.IsTransferAllowed);
         Assert.Empty(work.Assemblies);
-        Assert.Equal(1, arrivals);
+        Assert.Equal(2, presentNotifications);
         io.RefreshInputs();
-        Assert.Equal(1, arrivals);
+        Assert.Equal(2, presentNotifications);
     }
 
     [Fact]
@@ -783,7 +785,7 @@ public sealed partial class AjinControllerTests
         Assert.Null(status.Position.X);
         Assert.Equal(10, status.Position.Y);
         Assert.IsType<IOException>(status.MonitorAxes[MotionAxis.X].Snapshot.ReadError);
-        Assert.Throws<IOException>(() => status.ReadPosition(live: false));
+        Assert.False(status.IsFeedbackAvailable);
         Assert.Throws<IOException>(() => motion.Position);
         await Assert.ThrowsAsync<IOException>(() => motion.MoveToXYAsync(20, 30, 1));
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMove", StringComparison.Ordinal));

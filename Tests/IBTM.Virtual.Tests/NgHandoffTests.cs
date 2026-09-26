@@ -16,6 +16,62 @@ namespace IBTM.Virtual.Tests;
 public sealed class NgHandoffTests
 {
     [Fact]
+    public async Task InspectionRepeatEndRequiresActiveHoldingStepAndWakesOnStepChange()
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var transfer = system.Inspection;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        SetCarrier(system.Io, InputIo.InspectionHeatSink1Present, false);
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token,
+            holdAtDestination: true);
+        Assert.True(transfer.IsTransferPending);
+        Assert.True(transfer.IsRaised);
+        Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
+        Assert.Null(transfer.Step);
+
+        var end = transfer.WaitForRepeatEndAsync(stop.Token);
+        var run = Task.CompletedTask;
+        try
+        {
+            // The same physical position while idle is not an active Repeat completion.
+            Assert.False(end.IsCompleted);
+            run = transfer.RunAsync(stop.Token, repeat: true);
+            // Entering the holding step changes no sensor; StepChanged must wake the waiter.
+            await end.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.Equal(InspectionStationState.HoldingAtDestination, transfer.Step);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+            try
+            {
+                await end;
+            }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested)
+            {
+            }
+        }
+
+        Assert.Null(transfer.Step);
+        using var next = new CancellationTokenSource();
+        var nextEnd = transfer.WaitForRepeatEndAsync(next.Token);
+        try
+        {
+            Assert.False(nextEnd.IsCompleted);
+        }
+        finally
+        {
+            next.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => nextEnd);
+        }
+    }
+
+    [Fact]
     public async Task DisabledInspectionKeepsPendingTransferAndPickupClearanceInterlocks()
     {
         var units = new UnitSettings { MainConveyor = false };
@@ -235,7 +291,7 @@ public sealed class NgHandoffTests
             Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
             io.SetInput(InputIo.NgShuttleUp, false);
             Assert.True(await WaitUntilAsync(
-                () => transfer.Motion.IsAt(new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
+                () => MotionService.IsAt(transfer.Motion.Feedback, new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
                 TimeSpan.FromSeconds(1)));
             Assert.False(movedBeforeDown);
         }

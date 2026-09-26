@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace IBTM.Storage;
@@ -11,20 +8,11 @@ internal sealed class MachineDb : DbContext
     {
     }
 
-    internal static string DefaultFile => Path.Combine(AppContext.BaseDirectory, "Data", "Machine.db");
-
     internal DbSet<SettingRow> Settings => Set<SettingRow>();
 
     internal DbSet<RecipeRow> Recipes => Set<RecipeRow>();
 
     internal DbSet<RecipeImageRow> RecipeImages => Set<RecipeImageRow>();
-
-    internal static DbContextOptions<MachineDb> CreateOptions(string path)
-    {
-        return new DbContextOptionsBuilder<MachineDb>().UseSqlite(
-            new SqliteConnectionStringBuilder { DataSource = path }.ToString())
-            .Options;
-    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

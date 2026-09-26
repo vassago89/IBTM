@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -95,9 +94,7 @@ public partial class PcbDetailsViewModel : ObservableObject
                 return saved.Select(image =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    using var stream = new MemoryStream(image.Png, writable: false);
-                    var bitmap = new PngBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
-                    bitmap.Freeze();
+                    var bitmap = InspectionPreview.DecodeImage(image.Png);
                     return new PcbInspectionImageView(image, bitmap);
                 }).ToArray();
             }, cancellationToken);

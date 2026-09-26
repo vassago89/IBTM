@@ -814,7 +814,7 @@ public sealed class OutputWindowThreadingTests
                     io.SetInput(InputIo.AutoMode, false);
                 releaseStop.Set();
                 await Task.WhenAll(capture, closing).WaitAsync(TimeSpan.FromSeconds(2));
-                var saved = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(teaching.RecipeEditor.ActiveName);
+                var saved = services.GetRequiredService<MachineStore>().LoadRecipe(teaching.RecipeEditor.ActiveName);
                 Assert.Equal(4, saved.CarrierImages.Count);
                 Assert.Equivalent(previous!.Metadata, saved.CarrierImages.Single(image => image.Number == previous.Metadata.Number));
                 Assert.Null(teaching.CameraError);
@@ -826,7 +826,7 @@ public sealed class OutputWindowThreadingTests
                     () => teaching.CarrierImages.Count == 4 && teaching.TeachCurrentPositionCommand.CanExecute(null),
                     TimeSpan.FromSeconds(2)));
             }
-            var originalRecipe = services.GetRequiredService<MachineStore>().LoadRecipe<Recipe>(originalName);
+            var originalRecipe = services.GetRequiredService<MachineStore>().LoadRecipe(originalName);
             Assert.Equal(4, originalRecipe.CarrierImages.Count);
         }
         finally

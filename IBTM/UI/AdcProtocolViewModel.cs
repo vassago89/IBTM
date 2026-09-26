@@ -70,8 +70,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ConnectionStatus { get; set; } = "Disconnected";
     [ObservableProperty]
-    public partial string ConnectionAction { get; set; } = "Connect";
-    [ObservableProperty]
     public partial string ResultMessage { get; set; } = "No result read";
     [ObservableProperty]
     public partial string RegisterResult { get; set; } = "-";
@@ -149,6 +147,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     private IAdcBus Bus => SelectedHead == FasteningHead.Pickup ? _pickupBus : _shootingBus;
     public AdcStatusMonitor Monitor => Bus.Monitor;
+    public string ConnectionAction => Bus.IsOpen ? "Disconnect" : "Connect";
 
     public string FrameLogText
     {
@@ -249,7 +248,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         ResultMessage = "No result read";
         RegisterResult = "-";
         RefreshPorts();
-        ConnectionAction = Bus.IsOpen ? "Disconnect" : "Connect";
         if (Bus.IsOpen)
         {
             SelectedPort = Bus.PortName;
@@ -287,7 +285,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                 var connectedPort = Bus.PortName;
                 await Task.Run(Bus.Close);
                 _connectedHead = null;
-                ConnectionAction = "Connect";
                 ConnectionStatus = "Disconnected";
                 AppendLog($"DISCONNECT  {connectedPort}");
                 return;
@@ -299,7 +296,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             _connectedHead = null;
             Monitor.IntervalMilliseconds = _settings.StatusPollMilliseconds;
             await Monitor.StartAsync(SlaveAddress, operation.Token);
-            ConnectionAction = "Disconnect";
             ConnectionStatus = $"{portName} | {baudRate}";
             AppendLog($"CONNECT  {Bus.PortName} | {Bus.BaudRate}");
         }
@@ -796,6 +792,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     public void RefreshControls()
     {
+        OnPropertyChanged(nameof(ConnectionAction));
         OnPropertyChanged(nameof(ConnectionControlsEnabled));
         OnPropertyChanged(nameof(PortSelectionEnabled));
         OnPropertyChanged(nameof(SlaveSelectionEnabled));

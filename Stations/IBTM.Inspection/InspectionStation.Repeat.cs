@@ -12,16 +12,18 @@ public sealed partial class InspectionStation
     {
         var changed = new AsyncAutoResetEvent();
         Changed += changed.Set;
+        StepChanged += changed.Set;
         try
         {
-            while (GetNextTransferStep(NgTransferDestination.Shuttle,
-                canPickUp: true, holdAtDestination: true,
-                allowEmpty: IsEmptyRepeatAllowed) != InspectionStationState.HoldingAtDestination)
+            while (Step is not InspectionStationState.HoldingAtDestination
+                || !IsTransferPending || !IsRaised || Gripper != NgTransferGripperState.Closed
+                || _settings.ShuttlePlacePosition is not { } position || !MotionService.IsAt(_motion, position))
                 await changed.WaitAsync(cancellationToken);
         }
         finally
         {
             Changed -= changed.Set;
+            StepChanged -= changed.Set;
         }
     }
 
@@ -42,7 +44,7 @@ public sealed partial class InspectionStation
             || !IsRaised)
             throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the waiting position.");
 
-        if (!Motion.IsAt(waitingPosition))
+        if (!MotionService.IsAt(_motion, waitingPosition))
             await MoveToAsync(waitingPosition, cancellationToken: cancellationToken);
     }
 }

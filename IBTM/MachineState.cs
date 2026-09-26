@@ -316,21 +316,17 @@ public sealed class MachineState : INotifyPropertyChanged
         MotionReadiness motion,
         bool? running = null)
     {
-        switch (this)
-        {
-            case { IsError: true }:
-                return ManualControlBlock.Alarm;
-            case var _ when !IsMotionReady(motion):
-                return ManualControlBlock.MotionNotReady;
-            case { SafetyReady: false }:
-                return ManualControlBlock.SafetyNotReady;
-            case { AutoMode: true }:
-                return ManualControlBlock.AutoMode;
-            case var _ when running ?? IsRunning:
-                return ManualControlBlock.Busy;
-            default:
-                return ManualControlBlock.None;
-        }
+        if (IsError)
+            return ManualControlBlock.Alarm;
+        if (!IsMotionReady(motion))
+            return ManualControlBlock.MotionNotReady;
+        if (!SafetyReady)
+            return ManualControlBlock.SafetyNotReady;
+        if (AutoMode)
+            return ManualControlBlock.AutoMode;
+        if (running ?? IsRunning)
+            return ManualControlBlock.Busy;
+        return ManualControlBlock.None;
     }
 
     public void Refresh()

@@ -199,7 +199,7 @@ public sealed partial class MachineLifecycleTests
         var stoppedForConfiguration = false;
         void CheckPickup()
         {
-            if (gantry.Motion.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition)
+            if (MotionService.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition)
                 && pickup.Lift == NgTransferLiftState.Down
                 && pickup.Gripper == NgTransferGripperState.Closed
                 && io.GetInput(InputIo.NgCarrierDetected))
@@ -207,7 +207,7 @@ public sealed partial class MachineLifecycleTests
                 loweredWhileHolding = true;
             }
 
-            if (gantry.Motion.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition)
+            if (MotionService.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition)
                 && io.GetInput(InputIo.NgShuttleCarrierDetected)
                 && pickup.IsRaised
                 && pickup.Gripper == NgTransferGripperState.Open
@@ -228,7 +228,7 @@ public sealed partial class MachineLifecycleTests
                 && io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                 mainReturned = true;
             if (output == OutputIo.NgCarrierGripperClose && !on
-                && gantry.Motion.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition))
+                && MotionService.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition))
                 openedAtShuttle = true;
             if (output == OutputIo.NgShuttleDown)
             {

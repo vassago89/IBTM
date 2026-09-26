@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using IBTM.Core;
 
 namespace IBTM.Device;
 
@@ -16,7 +15,6 @@ public sealed class MotionStatus : INotifyPropertyChanged
         Feedback = motion;
         Axes = motion.Axes.ToDictionary(axis => axis, _ => new AxisStatus());
         MonitorAxes = motion.Axes.ToDictionary(axis => axis, _ => new MotionDiagnostics());
-
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -60,58 +58,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
         }
     }
 
-    // The caller chooses the source explicitly. Cached reads never fall back to the SDK.
-    public bool IsReady(bool live)
-    {
-        return live ? Feedback.IsReady : Axes.Values.All(axis => axis.State is not null);
-    }
-
-    public AxisState ReadAxisState(MotionAxis axis, bool live)
-    {
-        return live ? Feedback.GetAxisState(axis)
-            : Axes[axis].State ?? throw new IOException($"Axis {axis} feedback is unavailable.");
-    }
-
-    public (double X, double Y, double Z) ReadPosition(bool live)
-    {
-        if (live)
-            return Feedback.Position;
-        var position = Position;
-        if (position.X is null
-            || Feedback.HasY && position.Y is null
-            || Feedback.HasZ && position.Z is null)
-            throw new IOException("Motion position feedback is unavailable.");
-        return (position.X.Value, position.Y ?? 0, position.Z ?? 0);
-    }
-
-    public bool IsSettled(bool live, params MotionAxis[] axes)
-    {
-        return !(live ? Feedback.IsMoving : IsMoving)
-            && axes.All(axis => ReadAxisState(axis, live).InPosition);
-    }
-
-    public bool IsAt(AxisPosition target, bool live = true)
-    {
-        if (!IsReady(live)
-            || Feedback.Axes.Any(axis => !ReadAxisState(axis, live).Homed)
-            || !IsSettled(live, Feedback.Axes.ToArray()))
-            return false;
-        var current = ReadPosition(live);
-        return Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
-            && (!Feedback.HasY || Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters)
-            && (!Feedback.HasZ || Math.Abs(current.Z - target.Z) <= MotionService.PositionToleranceMillimeters);
-    }
-
-    public bool IsHoldingPosition(AxisPosition position)
-    {
-        if (!Feedback.IsReady || Feedback.Axes.Any(axis => Feedback.GetAxisState(axis)
-            is not { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true }))
-            return false;
-        var current = Feedback.Position;
-        return Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
-            && (!Feedback.HasY || Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters)
-            && (!Feedback.HasZ || Math.Abs(current.Z - position.Z) <= MotionService.PositionToleranceMillimeters);
-    }
+    public bool IsFeedbackAvailable => Axes.Values.All(axis => axis.State is not null);
 
     public void InvalidateFeedback(Exception error)
     {
@@ -143,20 +90,9 @@ public sealed class MotionStatus : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new(nameof(Position)));
     }
 
-    public bool IsAtZ(double z, bool live = false)
-    {
-        if (live)
-            return !Feedback.HasZ
-                || Feedback.GetAxisState(MotionAxis.Z).Homed
-                && Math.Abs(Feedback.Position.Z - z) <= MotionService.PositionToleranceMillimeters;
-        return !Feedback.HasZ
-            || Axes[MotionAxis.Z].State is { Homed: true }
-            && Position.Z is { } current
-            && Math.Abs(current - z) <= MotionService.PositionToleranceMillimeters;
-    }
-
     public void RefreshControlFeedback(bool available = true)
     {
+        var wasAvailable = IsFeedbackAvailable;
         var wasHomed = XyHomed;
         var wasMoving = IsMoving;
         try
@@ -188,6 +124,8 @@ public sealed class MotionStatus : INotifyPropertyChanged
         }
         finally
         {
+            if (wasAvailable != IsFeedbackAvailable)
+                PropertyChanged?.Invoke(this, new(nameof(IsFeedbackAvailable)));
             if (wasMoving != IsMoving)
                 PropertyChanged?.Invoke(this, new(nameof(IsMoving)));
             if (wasHomed != XyHomed)

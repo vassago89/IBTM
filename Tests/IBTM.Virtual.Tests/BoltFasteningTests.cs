@@ -1482,7 +1482,7 @@ public sealed class BoltFasteningTests
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 20_000);
-        await gantry.MoveToSafeZAsync();
+        await gantry.MoveZAsync(settings.SafeZ);
         motion.PositionChanged += (_, _, z) =>
             movedBelowTravelZ |= motion.IsMovingHorizontal
                 && Math.Abs(z - settings.SafeZ) > MotionService.PositionToleranceMillimeters;

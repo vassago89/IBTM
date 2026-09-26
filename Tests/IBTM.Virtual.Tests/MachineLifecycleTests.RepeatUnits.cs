@@ -207,7 +207,7 @@ public sealed partial class MachineLifecycleTests
                     pickup.Gripper == NgTransferGripperState.Closed));
             }
             if (output == OutputIo.NgCarrierGripperClose && !on
-                && gantry.Motion.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition))
+                && MotionService.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition))
                 releasedAtShuttle = true;
             mainRan |= output == OutputIo.MainConveyorRun && on;
             ngConveyorRan |= output == OutputIo.NgConveyorRun && on;
@@ -219,13 +219,13 @@ public sealed partial class MachineLifecycleTests
             if (args.PropertyName != nameof(MachineController.RepeatDisplayPhase))
                 return;
             if (machine.RepeatDisplayPhase == RepeatPhase.ReturnToStation3
-                && gantry.Motion.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition)
+                && MotionService.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition)
                 && pickup.IsRaised && pickup.Gripper == NgTransferGripperState.Closed)
                 raisedShuttleVisits++;
             if (machine.RepeatDisplayPhase != RepeatPhase.Automatic
                 || descents.Count != expectedDescents.Length || stop.IsCancellationRequested)
                 return;
-            returnedTwice = gantry.Motion.IsAt(settings.NgCarrierTransfer.WaitingPosition)
+            returnedTwice = MotionService.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.WaitingPosition)
                 && work.Station.CarrierPresent == startsWithCarrierHeld
                 && work.Station.BackupPlate == StationCylinderState.Up && pickup.IsClear
                 && pickup.Gripper == NgTransferGripperState.Open;
@@ -293,7 +293,7 @@ public sealed partial class MachineLifecycleTests
             await machine.StartAsync(stop.Token);
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.False(lowered);
-            Assert.True(gantry.Motion.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition));
+            Assert.True(MotionService.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition));
             Assert.True(gantry.IsRaised);
             Assert.True(gantry.IsTransferPending);
             Assert.True(io.GetInput(InputIo.NgCarrierDetected));
@@ -422,7 +422,7 @@ public sealed partial class MachineLifecycleTests
             if (!on && output == OutputIo.PcbSupplyGripperClosed
                 && supply.Rotation == PcbSupplyRotationState.Rotated)
                 returns++;
-            if (!on && output == OutputIo.PcbPlacementVacuumEjector && placement.Motion.IsAt(receivePosition))
+            if (!on && output == OutputIo.PcbPlacementVacuumEjector && MotionService.IsAt(placement.Motion.Feedback, receivePosition))
             {
                 reverseHandoffs++;
                 unsafeRelease |= !supply.PcbSecured;
@@ -440,12 +440,12 @@ public sealed partial class MachineLifecycleTests
                     && supply.Motion.Feedback.Position.X < settings.PcbSupply.HandoffPosition.X - 1
                     && supply.Motion.Feedback.Position.X > recipe.PcbSupply.Pcb2PickPosition.X + 1,
                 PcbRepeatStopPoint.BothHolding => supply.PcbSecured && placement.PcbSecured
-                    && placement.Motion.IsAt(receivePosition),
+                    && MotionService.IsAt(placement.Motion.Feedback, receivePosition),
                 PcbRepeatStopPoint.SupplyReleasing => reverseHandoffs > 0
                     && !io.GetInput(InputIo.PcbSupplyIpmFixerForward) && supply.Gripper == PcbSupplyCylinderState.Forward
-                    && placement.PcbSecured && placement.Motion.IsAt(receivePosition),
+                    && placement.PcbSecured && MotionService.IsAt(placement.Motion.Feedback, receivePosition),
                 PcbRepeatStopPoint.PlacementHolding => reverseHandoffs > 0 && supply.PcbReleased
-                    && placement.PcbSecured && placement.Motion.IsAt(receivePosition),
+                    && placement.PcbSecured && MotionService.IsAt(placement.Motion.Feedback, receivePosition),
                 _ => false,
             };
             if (reached)
@@ -477,7 +477,7 @@ public sealed partial class MachineLifecycleTests
         supply.Motion.Feedback.StateChanged += () =>
         {
             if (supply.PcbSecured && supply.Rotation == PcbSupplyRotationState.Rotated
-                && !supply.Motion.IsAtZ(settings.PcbSupply.RotationZ, live: true))
+                && !MotionService.IsAtZ(supply.Motion.Feedback, settings.PcbSupply.RotationZ))
                 descendedToSourceSlot = true;
             StopAtHandoff();
         };

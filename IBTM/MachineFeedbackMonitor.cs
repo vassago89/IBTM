@@ -82,15 +82,12 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
     {
         get
         {
-            switch (true)
-            {
-                case true when _failure is { } failure:
-                    return failure;
-                case true when !_io.IsReady:
-                    return null;
-                case true when _outputReadError is { } outputError:
-                    return outputError;
-            }
+            if (_failure is { } failure)
+                return failure;
+            if (!_io.IsReady)
+                return null;
+            if (_outputReadError is { } outputError)
+                return outputError;
             foreach (var (group, sample) in _samples)
             {
                 if (_units.IsMotionEnabled(group) && sample.ReadError is { } error)
@@ -124,13 +121,10 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
     internal Task StartAsync()
     {
-        switch (true)
-        {
-            case true when _failure is { } failure:
-                return Task.FromException(failure);
-            case true when _completion is not null:
-                return _firstSamples;
-        }
+        if (_failure is { } failure)
+            return Task.FromException(failure);
+        if (_completion is not null)
+            return _firstSamples;
 
         var firstInputs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstOutputs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -264,12 +264,19 @@ public sealed class AdcBoltHead : IBoltHead
                         var result = await Monitor.EnqueueAsync(
                             token => _bus.ReadFasteningResultAsync(_slaveAddress, token), timeout.Token);
                         lastResult = result;
-                        if (IsCompleted(result, fastening))
-                            completed = result;
-                        else
+                        var hasNewResult = result.EventCount != fastening.EventCount
+                            && result.Status is AdcEventStatus.Error or AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg;
+                        if (!hasNewResult)
                             failure = new InvalidOperationException(
                                 $"RUN OFF, but no new completed fastening result: "
                                 + $"start event={fastening.EventCount}, event={result.EventCount}, status={result.Status}, alarm={Monitor.Sample?.Status?.Alarm}.");
+                        else if (result.Status != AdcEventStatus.Error
+                            && (result.Preset != fastening.Preset || result.Direction != AdcDirection.Fastening))
+                            throw new InvalidOperationException(
+                                $"ADC {_slaveAddress} result event {result.EventCount} does not match this fastening: "
+                                + $"preset {result.Preset}, direction {result.Direction}; expected preset {fastening.Preset}, Fastening.");
+                        else
+                            completed = result;
                     }
                 }
                 catch (Exception exception) when (exception is AdcResponseException or AdcUnexpectedResponseException)
@@ -368,24 +375,5 @@ public sealed class AdcBoltHead : IBoltHead
         {
             throw new AggregateException("ADC operation and STOP cleanup both failed.", failure, stopError);
         }
-    }
-
-    private bool IsCompleted(AdcFasteningResult result, (ushort EventCount, ushort Preset) pending)
-    {
-        switch (true)
-        {
-            case true when result.EventCount == pending.EventCount:
-                return false;
-            case true when result.Status == AdcEventStatus.Error:
-                return true;
-            case true when result.Status is not (AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg):
-                return false;
-        }
-        if (result.Preset != pending.Preset
-            || result.Direction != AdcDirection.Fastening)
-            throw new InvalidOperationException(
-                $"ADC {_slaveAddress} result event {result.EventCount} does not match this fastening: "
-                + $"preset {result.Preset}, direction {result.Direction}; expected preset {pending.Preset}, Fastening.");
-        return true;
     }
 }

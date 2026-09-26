@@ -33,8 +33,6 @@ public sealed class AxisStatus : INotifyPropertyChanged
 
     public AxisState? State { get; private set; }
 
-    public bool ServoOn => State is { ServoOn: true };
-
     public AxisCondition Condition => GetCondition(State);
 
     public static AxisCondition GetCondition(AxisState? state)
@@ -70,7 +68,6 @@ public sealed class AxisStatus : INotifyPropertyChanged
             return;
         State = state;
         PropertyChanged?.Invoke(this, new(nameof(State)));
-        PropertyChanged?.Invoke(this, new(nameof(ServoOn)));
         PropertyChanged?.Invoke(this, new(nameof(Condition)));
     }
 }

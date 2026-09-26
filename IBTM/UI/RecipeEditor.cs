@@ -156,7 +156,16 @@ public partial class RecipeEditor : ObservableObject
             await _recipes.SaveImagesAsync(
                 name,
                 images.Select(image => image.Metadata).ToList(),
-                images.Select(image => EncodeImage(image, operation.Token)),
+                images.Select(image =>
+                {
+                    operation.Token.ThrowIfCancellationRequested();
+                    using var stream = new MemoryStream();
+                    var encoder = new PngBitmapEncoder();
+                    // Encode pixels only; decoder metadata can belong to another thread.
+                    encoder.Frames.Add(BitmapFrame.Create(image.Image, null, null, null));
+                    encoder.Save(stream);
+                    return new RecipeImage(image.Metadata.Number, stream.ToArray());
+                }),
                 operation.Token);
             Saved();
             return true;
@@ -199,27 +208,11 @@ public partial class RecipeEditor : ObservableObject
                 tile =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    using var stream = new MemoryStream(_recipes.LoadImage(name, tile.Number), writable: false);
-                    var image = new PngBitmapDecoder(
-                        stream,
-                        BitmapCreateOptions.PreservePixelFormat,
-                        BitmapCacheOption.OnLoad).Frames[0];
-                    image.Freeze();
+                    var image = InspectionPreview.DecodeImage(_database.LoadRecipeImage(name, tile.Number));
                     return new CarrierImageTileView(tile, image, tile.IsBarcode ? null : bolts.SingleOrDefault(
                         bolt => bolt.HeatSink == tile.HeatSink && bolt.Number == tile.BoltNumber));
                 })
                 .ToArray(),
             cancellationToken);
-    }
-
-    private static RecipeImage EncodeImage(CarrierImageTileView image, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        using var stream = new MemoryStream();
-        var encoder = new PngBitmapEncoder();
-        // Encode pixels only; decoder metadata can belong to another thread.
-        encoder.Frames.Add(BitmapFrame.Create(image.Image, null, null, null));
-        encoder.Save(stream);
-        return new(image.Metadata.Number, stream.ToArray());
     }
 }

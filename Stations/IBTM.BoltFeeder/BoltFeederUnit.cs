@@ -25,8 +25,6 @@ public sealed class BoltFeederUnit : AutoUnit
         io.InputChanged += OnInputChanged;
     }
 
-    public override event Action? Changed;
-
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
         var pickupEnabled = _units.PickupBoltFeeder;
@@ -130,6 +128,6 @@ public sealed class BoltFeederUnit : AutoUnit
             default:
                 return;
         }
-        Changed?.Invoke();
+        NotifyChanged();
     }
 }

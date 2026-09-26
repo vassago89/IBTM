@@ -467,7 +467,7 @@ public sealed partial class ConveyorTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.BoltFasteningStopperUp, true);
         Assert.True(source.CarrierSeated);
         source.Complete(source.CurrentJob);
-        Assert.True(source.IsTransferAllowed);
+        Assert.True(source.Completed);
         io.AutoResponseEnabled = false;
         var inspectionWaiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         conveyor.Trace += message =>

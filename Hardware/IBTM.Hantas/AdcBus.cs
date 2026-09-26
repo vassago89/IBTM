@@ -160,16 +160,6 @@ public sealed class AdcBus : IAdcBus, IDisposable
             AdcRtuFrame.Build(slaveAddress, function, data),
             cancellationToken,
             expectedByteCount: count * 2);
-        return DecodeRegisters(response, count);
-    }
-
-    private static ushort[] DecodeRegisters(byte[] response, ushort count)
-    {
-        var byteCount = response[2];
-        if (byteCount != count * 2)
-        {
-            throw new InvalidDataException($"ADC returned {byteCount} data bytes; expected {count * 2}.");
-        }
 
         var values = new ushort[count];
         for (var index = 0; index < count; index++)
@@ -302,7 +292,25 @@ public sealed class AdcBus : IAdcBus, IDisposable
         AdcFunctionCode function, int? expectedByteCount = null)
     {
         // Integrity and request ownership are separate: a different function is not a broken frame.
-        ValidateFrame(frame, slaveAddress, frame.Length >= 2 ? frame[1] : (byte)function);
+        if (frame.Length is < 5 or > 256 || (frame[1] & ~ExceptionFunctionMask) == 0
+            || ResponseLength(frame) != frame.Length)
+            throw new InvalidDataException($"Invalid Modbus RTU response shape; RX={Convert.ToHexString(frame)}.");
+        var receivedCrc = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));
+        var calculatedCrc = AdcRtuFrame.CalculateCrc(frame.AsSpan(0, frame.Length - 2));
+        if (receivedCrc != calculatedCrc)
+        {
+            throw new InvalidDataException(
+                $"ADC response CRC is invalid: received=0x{receivedCrc:X4}, calculated=0x{calculatedCrc:X4}; "
+                + $"RX={Convert.ToHexString(frame)}; expected address={slaveAddress}, request function=0x{(byte)function:X2}.");
+        }
+        if (frame[0] != slaveAddress)
+        {
+            throw new InvalidDataException(
+                $"ADC response address={frame[0]}, function=0x{frame[1]:X2}; "
+                + $"expected address={slaveAddress}, request function=0x{(byte)function:X2}; "
+                + $"CRC valid (0x{receivedCrc:X4}); RX={Convert.ToHexString(frame)}.");
+        }
+
         var isException = (frame[1] & ExceptionFunctionMask) != 0;
         var expectedFunction = isException ? (byte)((byte)function | ExceptionFunctionMask) : (byte)function;
         if (frame[1] != expectedFunction)
@@ -443,28 +451,6 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 await operation.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             }
             throw;
-        }
-    }
-
-    private static void ValidateFrame(byte[] frame, byte slaveAddress, byte function)
-    {
-        if (frame.Length is < 5 or > 256 || (frame[1] & ~ExceptionFunctionMask) == 0
-            || ResponseLength(frame) != frame.Length)
-            throw new InvalidDataException($"Invalid Modbus RTU response shape; RX={Convert.ToHexString(frame)}.");
-        var receivedCrc = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));
-        var calculatedCrc = AdcRtuFrame.CalculateCrc(frame.AsSpan(0, frame.Length - 2));
-        if (receivedCrc != calculatedCrc)
-        {
-            throw new InvalidDataException(
-                $"ADC response CRC is invalid: received=0x{receivedCrc:X4}, calculated=0x{calculatedCrc:X4}; "
-                + $"RX={Convert.ToHexString(frame)}; expected address={slaveAddress}, function=0x{function:X2}.");
-        }
-        if (frame[0] != slaveAddress || frame[1] != function)
-        {
-            throw new InvalidDataException(
-                $"ADC response address={frame[0]}, function=0x{frame[1]:X2}; "
-                + $"expected address={slaveAddress}, function=0x{function:X2}; "
-                + $"CRC valid (0x{receivedCrc:X4}); RX={Convert.ToHexString(frame)}.");
         }
     }
 

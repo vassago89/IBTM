@@ -1,11 +1,10 @@
 using System.Linq;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Device;
 
 namespace IBTM.UI;
 
-public class OutputWindowViewModel : ObservableObject
+public class OutputWindowViewModel
 {
     public OutputWindowViewModel(IoSignals signals, MachineController machine)
     {

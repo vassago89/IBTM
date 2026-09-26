@@ -58,7 +58,7 @@ public sealed class InspectionTeachingTests
         Assert.Equal(73, editor.Draft.BoltInspection.DataMatrix1.BinaryThreshold);
 
         await editor.SaveCommand.ExecuteAsync(null);
-        var saved = store.LoadRecipe<Recipe>("Inspection");
+        var saved = store.LoadRecipe("Inspection");
         Assert.Equal(replacement.Id, saved.Pcb.BoltPoints[0].Id);
         Assert.Equal(180, saved.Pcb.BoltPoints[0].BrightnessThreshold);
         Assert.Null(saved.CarrierImages[1].Region);
@@ -81,7 +81,7 @@ public sealed class InspectionTeachingTests
 
         await recipes.SaveImagesAsync("Inspection", captured, [new(1, png), new(2, png)]);
 
-        foreach (var recipe in new[] { recipes.Current, store.LoadRecipe<Recipe>("Inspection") })
+        foreach (var recipe in new[] { recipes.Current, store.LoadRecipe("Inspection") })
         {
             Assert.Equal(new PixelRegion(4, 5, 6, 7), recipe.CarrierImages[0].Region);
             Assert.Equal(81, recipe.BoltInspection.DataMatrix1.BinaryThreshold);
@@ -124,7 +124,7 @@ public sealed class InspectionTeachingTests
             release.Set();
             await Task.WhenAll(capture, save);
         }
-        foreach (var recipe in new[] { recipes.Current, store.LoadRecipe<Recipe>("Inspection") })
+        foreach (var recipe in new[] { recipes.Current, store.LoadRecipe("Inspection") })
         {
             Assert.Equal(new PixelRegion(4, 5, 6, 7), recipe.CarrierImages[0].Region);
             Assert.Equal(30, recipe.CarrierImages[0].Center!.X);
@@ -136,7 +136,7 @@ public sealed class InspectionTeachingTests
     {
         var store = VirtualTest.OpenMachineStore();
         var png = await SaveRecipeAsync(store);
-        var recipe = store.LoadRecipe<Recipe>("Inspection");
+        var recipe = store.LoadRecipe("Inspection");
         recipe.BoltInspection.DataMatrix1.BinaryThreshold = 51;
         recipe.BoltInspection.DataMatrix2.BinaryThreshold = 180;
         recipe.BoltInspection.DataMatrix2.TryInverted = false;
@@ -145,7 +145,7 @@ public sealed class InspectionTeachingTests
         recipe.Pcb.BoltPoints.Add(new() { Number = 2, BrightnessThreshold = 172, MinimumBrightRatio = 0.75 });
         recipe.CarrierImages.Add(new() { Number = 3, BoltNumber = 2, Region = new(2, 2, 10, 10) });
         recipe.CarrierImages.Add(new() { Number = 4, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(2, 2, 10, 10) });
-        store.SaveRecipe(recipe.Name, recipe, [1, 2, 3, 4], images: [new(1, png), new(2, png), new(3, png), new(4, png)]);
+        store.SaveRecipe(recipe, images: [new(1, png), new(2, png), new(3, png), new(4, png)]);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
         var editor = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance);
@@ -197,13 +197,13 @@ public sealed class InspectionTeachingTests
                 Assert.False(inverted.IsChecked);
                 list.SelectedItem = editor.Points.Single(point => point.Metadata.BoltNumber == 1);
                 Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                Assert.Equal(1, editor.SelectedBolt!.Number);
+                Assert.Equal(1, editor.SelectedPoint!.Bolt!.Number);
                 Assert.Equal("91", threshold.Text);
                 Assert.Equal("25", minimum.Text);
                 threshold.Text = "103";
                 list.SelectedItem = editor.Points.Single(point => point.Metadata.BoltNumber == 2);
                 Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                Assert.Equal(2, editor.SelectedBolt!.Number);
+                Assert.Equal(2, editor.SelectedPoint!.Bolt!.Number);
                 Assert.Equal("172", threshold.Text);
                 Assert.Equal("75", minimum.Text);
                 Assert.Equal(103, editor.Draft.Pcb.BoltPoints[0].BrightnessThreshold);
@@ -292,7 +292,7 @@ public sealed class InspectionTeachingTests
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Null(editor.Error);
-        var stored = store.LoadRecipe<Recipe>("Inspection");
+        var stored = store.LoadRecipe("Inspection");
         foreach (var recipe in new[] { stored, recipes.Current })
         {
             Assert.Equal((333d, 444d), (recipe.Pcb.BoltPoints[0].X, recipe.Pcb.BoltPoints[0].Y));
@@ -323,7 +323,7 @@ public sealed class InspectionTeachingTests
         Assert.Null(editor.Error);
         Assert.Equal("Other", recipes.Current.Name);
         Assert.Equal(87, bolt.LightLevel);
-        Assert.Equal(87, store.LoadRecipe<Recipe>("Inspection").Pcb.BoltPoints[0].LightLevel);
+        Assert.Equal(87, store.LoadRecipe("Inspection").Pcb.BoltPoints[0].LightLevel);
     }
 
     [Fact]
@@ -347,7 +347,7 @@ public sealed class InspectionTeachingTests
 
         Assert.NotNull(editor.Error);
         Assert.Equal(before, JsonSerializer.Serialize(recipes.Current));
-        Assert.Equal(before, JsonSerializer.Serialize(store.LoadRecipe<Recipe>("Inspection")));
+        Assert.Equal(before, JsonSerializer.Serialize(store.LoadRecipe("Inspection")));
     }
 
     [Fact]
@@ -445,7 +445,7 @@ public sealed class InspectionTeachingTests
         // Remove Bolt edits the active recipe before the operator saves it to the database.
         recipes.Current.Pcb.BoltPoints.Clear();
         recipes.Current.CarrierImages.RemoveAll(tile => !tile.IsBarcode);
-        Assert.Single(store.LoadRecipe<Recipe>("Inspection").Pcb.BoltPoints);
+        Assert.Single(store.LoadRecipe("Inspection").Pcb.BoltPoints);
 
         editor.Activate();
         await editor.RefreshImagesCommand.ExecutionTask!;
@@ -454,7 +454,7 @@ public sealed class InspectionTeachingTests
         Assert.Empty(editor.Draft.Pcb.BoltPoints);
         Assert.True(Assert.Single(editor.Points).Metadata.IsBarcode);
         Assert.Same(editor.Points[0], editor.SelectedPoint);
-        Assert.Null(editor.SelectedBolt);
+        Assert.Null(editor.SelectedPoint!.Bolt);
         Assert.True(editor.IsDataMatrixSelected);
         Assert.True(editor.Preview.HasImage);
         Assert.Equal(73, editor.DataMatrix!.BinaryThreshold);
@@ -465,8 +465,8 @@ public sealed class InspectionTeachingTests
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
         Assert.Empty(recipes.Current.Pcb.BoltPoints);
-        Assert.Empty(store.LoadRecipe<Recipe>("Inspection").Pcb.BoltPoints);
-        Assert.True(Assert.Single(store.LoadRecipe<Recipe>("Inspection").CarrierImages).IsBarcode);
+        Assert.Empty(store.LoadRecipe("Inspection").Pcb.BoltPoints);
+        Assert.True(Assert.Single(store.LoadRecipe("Inspection").CarrierImages).IsBarcode);
         Assert.True(Assert.Single(editor.Points).Metadata.IsBarcode);
 
         // An empty active list must also clear the previous selection and preview.
@@ -521,7 +521,7 @@ public sealed class InspectionTeachingTests
             new() { Number = 1, IsBarcode = true, Region = new(2, 2, 10, 10), Center = new() { X = 1, Y = 2 } },
             new() { Number = 2, BoltNumber = 1, Region = new(2, 2, 10, 10), Center = new() { X = 10, Y = 20 } },
         ];
-        store.SaveRecipe(recipe.Name, recipe, [1, 2], images: [new(1, png), new(2, png)]);
+        store.SaveRecipe(recipe, images: [new(1, png), new(2, png)]);
         return png;
     }
 }

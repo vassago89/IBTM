@@ -125,7 +125,7 @@ public sealed partial class MachineLifecycleTests
             outputs.Enqueue((output, on));
             if (on && output == OutputIo.PickupHeadVacuumPump)
             {
-                Assert.True(gantry.Motion.IsAt(settings.BoltFastening.PickupPosition));
+                Assert.True(MotionService.IsAt(gantry.Motion.Feedback, settings.BoltFastening.PickupPosition));
                 Assert.Equal(BoltCylinderState.Up, gantry.PickupHeadPosition);
                 Assert.Equal(BoltCylinderState.Up, gantry.ShootingHeadPosition);
                 Assert.Equal(BoltCylinderState.Down, gantry.PickupTablePosition);
@@ -344,7 +344,7 @@ public sealed partial class MachineLifecycleTests
         station.Motion.Feedback.StateChanged += () =>
         {
             var wasAtPickup = atPickup;
-            atPickup = station.Motion.IsAt(settings.BoltFastening.PickupPosition);
+            atPickup = MotionService.IsAt(station.Motion.Feedback, settings.BoltFastening.PickupPosition);
             if (atPickup && !wasAtPickup)
             {
                 Assert.Equal(BoltCylinderState.Up, station.PickupHeadPosition);

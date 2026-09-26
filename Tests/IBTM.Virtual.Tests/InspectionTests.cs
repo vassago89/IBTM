@@ -167,7 +167,7 @@ public sealed class InspectionTests
             new() { Number = 1, IsBarcode = true, Center = new(), Region = barcode ? null : new(0, 0, 20, 20) },
             new() { Number = 2, BoltNumber = 1, Center = new(), Region = barcode ? new(0, 0, 20, 20) : null },
         ];
-        store.SaveRecipe(recipes.Current.Name, recipes.Current, []);
+        store.SaveRecipe(recipes.Current);
         var settings = new InspectionGantrySettings();
         var transfer = new NgCarrierTransferSettings
         {
@@ -360,7 +360,7 @@ public sealed class InspectionTests
             movements = 0;
             var image = await inspector.CaptureCarrierImageAsync();
             Assert.Equal((center.X, center.Y), (image.Center.X, image.Center.Y));
-            Assert.True(inspector.Motion.IsAt(center));
+            Assert.True(MotionService.IsAt(inspector.Motion.Feedback, center));
             Assert.Equal(live, inspector.IsLiveView);
             Assert.Equal(0, movements);
             Assert.NotEmpty(image.Frame.Pixels);
@@ -371,7 +371,7 @@ public sealed class InspectionTests
         var taughtPosition = fov.Center!;
         fov.Center = null;
         var capturedFov = await inspector.InspectAsync(bolt);
-        Assert.True(inspector.Motion.IsAt(taughtPosition)); // ROI pixels do not alter the taught camera XY.
+        Assert.True(MotionService.IsAt(inspector.Motion.Feedback, taughtPosition)); // ROI pixels do not alter the taught camera XY.
         Assert.Equal(fov.Region, capturedFov.Region);
         Assert.NotEmpty(capturedFov.Frame.Pixels);
         Assert.True(inspector.HasPosition(bolt));
@@ -394,7 +394,7 @@ public sealed class InspectionTests
         fov.BoltNumber = null;
         fov.Region = new(180, 40, 80, 80);
         var barcodeResult = await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
-        Assert.True(inspector.Motion.IsAt(fov.Center));
+        Assert.True(MotionService.IsAt(inspector.Motion.Feedback, fov.Center));
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-000123", barcodeResult.Barcode);
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
@@ -508,11 +508,11 @@ public sealed class InspectionTests
 
         await inspector.HomeHorizontalAsync();
         var barcodeResult = await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None);
-        Assert.True(inspector.Motion.IsAt(recipes.Current.GetInspectionPosition(inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
+        Assert.True(MotionService.IsAt(inspector.Motion.Feedback, recipes.Current.GetInspectionPosition(inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-2", barcodeResult.Barcode);
         var boltResult = await inspector.InspectAsync(bolts[0]);
-        Assert.True(inspector.Motion.IsAt(bolts[0].InspectionPosition!));
+        Assert.True(MotionService.IsAt(inspector.Motion.Feedback, bolts[0].InspectionPosition!));
         Assert.NotEmpty(boltResult.Frame.Pixels);
         Assert.Empty(work.Assemblies);
 

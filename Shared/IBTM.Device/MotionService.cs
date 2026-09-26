@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using System;
+using IBTM.Core;
 
 namespace IBTM.Device;
 
@@ -78,6 +79,42 @@ public interface IXyMotion : IAxisMotion
 public abstract class MotionService : IXyMotion
 {
     public const double PositionToleranceMillimeters = 0.05;
+
+    // Sequence checks always use current device feedback, never display snapshots.
+    public static bool IsSettled(IMotionFeedback motion, params MotionAxis[] axes)
+    {
+        return !motion.IsMoving && axes.All(axis => motion.GetAxisState(axis).InPosition);
+    }
+
+    public static bool IsAt(IMotionFeedback motion, AxisPosition target)
+    {
+        if (!motion.IsReady
+            || motion.Axes.Any(axis => !motion.GetAxisState(axis).Homed)
+            || !IsSettled(motion, motion.Axes.ToArray()))
+            return false;
+        var current = motion.Position;
+        return Math.Abs(current.X - target.X) <= PositionToleranceMillimeters
+            && (!motion.HasY || Math.Abs(current.Y - target.Y) <= PositionToleranceMillimeters)
+            && (!motion.HasZ || Math.Abs(current.Z - target.Z) <= PositionToleranceMillimeters);
+    }
+
+    public static bool IsHoldingPosition(IMotionFeedback motion, AxisPosition position)
+    {
+        if (!motion.IsReady || motion.Axes.Any(axis => motion.GetAxisState(axis)
+            is not { Homed: true, ServoOn: true, Alarm: false, Emergency: false, InMotion: false, InPosition: true }))
+            return false;
+        var current = motion.Position;
+        return Math.Abs(current.X - position.X) <= PositionToleranceMillimeters
+            && (!motion.HasY || Math.Abs(current.Y - position.Y) <= PositionToleranceMillimeters)
+            && (!motion.HasZ || Math.Abs(current.Z - position.Z) <= PositionToleranceMillimeters);
+    }
+
+    public static bool IsAtZ(IMotionFeedback motion, double z)
+    {
+        return !motion.HasZ
+            || motion.GetAxisState(MotionAxis.Z).Homed
+            && Math.Abs(motion.Position.Z - z) <= PositionToleranceMillimeters;
+    }
 
     private int _activeMotions;
     private int _activeHorizontalMotions;

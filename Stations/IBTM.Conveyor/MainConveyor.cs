@@ -47,8 +47,6 @@ public sealed partial class MainConveyor : AutoUnit
         inspection.Changed += NotifyChanged;
     }
 
-    public override event Action? Changed;
-
     private bool IsNgTransferRequired => _units.Inspection && _inspection.RouteToNg;
 
     public bool UpstreamCarrierAvailable
@@ -81,7 +79,7 @@ public sealed partial class MainConveyor : AutoUnit
             if (_testUpstreamCarrierAvailable == value)
                 return;
             _testUpstreamCarrierAvailable = value;
-            Changed?.Invoke();
+            NotifyChanged();
         }
     }
 
@@ -94,7 +92,7 @@ public sealed partial class MainConveyor : AutoUnit
             if (_testDownstreamReady == value)
                 return;
             _testDownstreamReady = value;
-            Changed?.Invoke();
+            NotifyChanged();
         }
     }
 
@@ -111,13 +109,8 @@ public sealed partial class MainConveyor : AutoUnit
             or InputIo.MainConveyorReadyFromRear
             or InputIo.MainConveyorEntryCarrierDetected)
         {
-            Changed?.Invoke();
+            NotifyChanged();
         }
-    }
-
-    private void NotifyChanged()
-    {
-        Changed?.Invoke();
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
@@ -153,66 +146,58 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    public MainConveyorState GetNextStep(bool runCommandOn)
+    internal MainConveyorState GetNextStep(bool runCommandOn)
     {
-        switch (true)
-        {
-            case true when runCommandOn:
-                return MainConveyorState.Running;
-            case true when _inspection.CarrierSeatingRequested:
-                return MainConveyorState.WaitingForInspectionTransfer;
-            // S1/S2 착좌는 벨트 이송보다 먼저 처리한다.
-            case true when _fastening.CarrierPresent
-                && !_fastening.CarrierSeated:
-                return MainConveyorState.SeatingCarriers;
-            case true when _placement.CarrierPresent
-                && !_placement.CarrierSeated:
-                return MainConveyorState.SeatingCarriers;
-        }
+        if (runCommandOn)
+            return MainConveyorState.Running;
+        if (_inspection.CarrierSeatingRequested)
+            return MainConveyorState.WaitingForInspectionTransfer;
+        // S1/S2 착좌는 벨트 이송보다 먼저 처리한다.
+        if (_fastening.CarrierPresent && !_fastening.CarrierSeated
+            || _placement.CarrierPresent && !_placement.CarrierSeated)
+            return MainConveyorState.SeatingCarriers;
 
         var transfer = GetNextTransfer();
-        switch (true)
+        if (!_inspection.Station.CarrierPresent)
+            return transfer;
+        if (_inspection.Station.Completed)
         {
-            case true when !_inspection.Station.CarrierPresent:
+            // 검사 완료: 바로 배출할 수 없으면 플레이트를 올려 벨트에서 분리한다.
+            if (_inspection.Station.CarrierSeated)
                 return transfer;
-            case true when _inspection.Station.Completed:
-                // 검사 완료: 바로 배출할 수 없으면 플레이트를 올려 벨트에서 분리한다.
-                switch (true)
-                {
-                    case true when _inspection.Station.CarrierSeated:
-                        return transfer;
-                    case true when !_repeat
-                        && !IsNgTransferRequired
-                        && _inspection.IsTransferAllowed
-                        && DownstreamReady:
-                        return _inspection.IsTransferAtWaitingPosition
-                            ? MainConveyorState.DischargingInspectionCarrier
-                            : MainConveyorState.WaitingForInspectionTransfer;
-                    default:
-                        return _inspection.IsClear
-                            && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
-                            ? MainConveyorState.RaisingInspectionCarrier
-                            : MainConveyorState.WaitingForInspectionTransfer;
-                }
-            // 검사 전에는 S3를 올려 다른 물류를 먼저 처리한다.
-            case true when !_inspection.InspectionRequested
-                && transfer is MainConveyorState.DischargingInspectionCarrier
-                    or MainConveyorState.MovingPcbPlacementToBoltFastening
-                    or MainConveyorState.ReceivingFrontCarrier:
-                if (_inspection.Station.CarrierSeated)
-                    return transfer;
-                return _inspection.IsClear
-                    && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
-                    ? MainConveyorState.RaisingInspectionCarrier
+            if (!_repeat
+                && !IsNgTransferRequired
+                && _inspection.IsTransferAllowed
+                && DownstreamReady)
+                return _inspection.IsTransferAtWaitingPosition
+                    ? MainConveyorState.DischargingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
-            // 검사 요청 이후에는 검사와 전용 대기 위치 복귀가 끝날 때까지 벨트를 정지한다.
-            case true when _inspection.InspectionRequested && _inspection.IsAtInspectionPosition:
-                return MainConveyorState.WaitingForInspection;
-            default:
-                return _inspection.IsClear
-                    ? MainConveyorState.PreparingInspectionCarrier
-                    : MainConveyorState.WaitingForInspectionTransfer;
+            return _inspection.IsClear
+                && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
+                ? MainConveyorState.RaisingInspectionCarrier
+                : MainConveyorState.WaitingForInspectionTransfer;
         }
+
+        // 검사 전에는 S3를 올려 다른 물류를 먼저 처리한다.
+        if (!_inspection.InspectionRequested
+            && transfer is MainConveyorState.DischargingInspectionCarrier
+                or MainConveyorState.MovingPcbPlacementToBoltFastening
+                or MainConveyorState.ReceivingFrontCarrier)
+        {
+            if (_inspection.Station.CarrierSeated)
+                return transfer;
+            return _inspection.IsClear
+                && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
+                ? MainConveyorState.RaisingInspectionCarrier
+                : MainConveyorState.WaitingForInspectionTransfer;
+        }
+
+        // 검사 요청 이후에는 검사와 전용 대기 위치 복귀가 끝날 때까지 벨트를 정지한다.
+        if (_inspection.InspectionRequested && _inspection.IsAtInspectionPosition)
+            return MainConveyorState.WaitingForInspection;
+        return _inspection.IsClear
+            ? MainConveyorState.PreparingInspectionCarrier
+            : MainConveyorState.WaitingForInspectionTransfer;
     }
 
     private async Task<bool> ExecuteStepAsync(MainConveyorState state, CancellationToken cancellationToken)
@@ -233,10 +218,10 @@ public sealed partial class MainConveyor : AutoUnit
             MainConveyorState.WaitingForBoltFastening =>
                 $"S2 work complete; enabled={_units.BoltFastening}, completed={_fastening.Completed}, "
                     + $"plate={_fastening.BackupPlate}, stopper={_fastening.Stopper}, "
-                    + $"canTransfer={_fastening.IsTransferAllowed}, work={_fastening.CurrentJob.Id}",
+                    + $"work={_fastening.CurrentJob.Id}",
             MainConveyorState.WaitingForInspectionClear =>
                 $"S3 vacant and NG pickup empty; S2 enabled={_units.BoltFastening}, "
-                    + $"completed={_fastening.Completed}, canTransfer={_fastening.IsTransferAllowed}; "
+                    + $"completed={_fastening.Completed}; "
                     + $"S3 canReceive={_inspection.IsReceiveAllowed}, HS1={_inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)}, "
                     + $"HS2={_inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)}",
             _ => null,
@@ -269,8 +254,78 @@ public sealed partial class MainConveyor : AutoUnit
                 cancellationToken.ThrowIfCancellationRequested();
                 break;
             case MainConveyorState.DischargingInspectionCarrier:
-                await DischargeInspectionAsync(cancellationToken);
+            {
+                var departingJob = _inspection.Station.CurrentJob;
+                var rearReleased = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var extraRun = TimeSpan.FromSeconds(_settings.RearSmemaOffDelaySeconds);
+                var timeout = TimeSpan.FromSeconds(_settings.TransferTimeoutSeconds);
+                void ObserveRear()
+                {
+                    if (!DownstreamReady)
+                        rearReleased.TrySetResult(Stopwatch.GetTimestamp());
+                }
+
+                Changed += ObserveRear;
+                Exception? failure = null;
+                try
+                {
+                    SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
+                    SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, true);
+                    ObserveRear();
+                    if (rearReleased.Task.IsCompleted)
+                        return true;
+                    _inspection.Station.RequireCurrentJob(departingJob);
+                    if (_repeat
+                        || IsNgTransferRequired
+                        || !_inspection.IsTransferAllowed
+                        || !_inspection.IsTransferAtWaitingPosition)
+                    {
+                        throw new MotionInterlockException(
+                            "Rear discharge requires a completed carrier and the raised, clear inspection pickup at its waiting position.");
+                    }
+                    await _inspection.Station.ReleaseAsync(cancellationToken);
+
+                    if (rearReleased.Task.IsCompleted)
+                        return true;
+                    _inspection.Station.RequireCurrentJob(departingJob);
+                    if (_inspection.Station.BackupPlate != StationCylinderState.Down
+                        || _inspection.Station.Stopper != StationCylinderState.Down
+                        || !_inspection.IsTransferAtWaitingPosition)
+                    {
+                        throw new MotionInterlockException(
+                            "Rear discharge lost support release or inspection pickup clearance before starting the belt.");
+                    }
+                    EnterStep(MainConveyorState.DischargingInspectionCarrier, waitingFor: "Rear Ready=OFF");
+                    StartMotor(cancellationToken);
+                    try
+                    {
+                        await rearReleased.Task.WaitAsync(timeout, cancellationToken);
+                    }
+                    catch (TimeoutException)
+                    {
+                        throw new IoTimeoutException(
+                            InputIo.MainConveyorReadyFromRear, false, (int)timeout.TotalMilliseconds);
+                    }
+
+                    EnterStep(MainConveyorState.DischargingInspectionCarrier,
+                        target: $"Rear Ready OFF; extra run {extraRun.TotalSeconds} s");
+                    // Only this discharge owns the OFF timestamp; STOP discards the remaining delay.
+                    var remaining = extraRun - Stopwatch.GetElapsedTime(await rearReleased.Task);
+                    if (remaining > TimeSpan.Zero)
+                        await Task.Delay(remaining, cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    failure = exception;
+                    throw;
+                }
+                finally
+                {
+                    Changed -= ObserveRear;
+                    StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorAvailableToRear);
+                }
                 break;
+            }
             case MainConveyorState.MovingBoltFasteningToInspection:
                 await TransferAsync(_fastening, _inspection.Station, cancellationToken);
                 break;
@@ -287,7 +342,7 @@ public sealed partial class MainConveyor : AutoUnit
                     && _inspection.IsTransferAtWaitingPosition;
                 SetSmemaOutput(
                     OutputIo.MainConveyorReadyToFront2,
-                    !_repeat && _placement.IsReceiveAllowed && !rearAvailable
+                    !_repeat && !_placement.CarrierPresent && !rearAvailable
                         && (!_inspection.Station.CarrierPresent || _inspection.Station.CarrierSeated));
                 SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
                 return false;
@@ -298,37 +353,33 @@ public sealed partial class MainConveyor : AutoUnit
     private MainConveyorState GetNextTransfer()
     {
         // 이송 우선순위: S3 배출 → S2→S3 → S1→S2 → 전단 반입.
-        switch (true)
-        {
-            case true when !_repeat
-                && !IsNgTransferRequired
-                && _inspection.IsTransferAllowed
-                && _inspection.IsTransferAtWaitingPosition
-                && DownstreamReady:
-                return MainConveyorState.DischargingInspectionCarrier;
-            case true when (!_repeat || ReferenceEquals(RepeatEndStation, _inspection.Station))
-                && _fastening.IsTransferAllowed && _inspection.IsReceiveAllowed:
-                return MainConveyorState.MovingBoltFasteningToInspection;
-            case true when (!_repeat || !ReferenceEquals(RepeatEndStation, _placement))
-                && _placement.IsTransferAllowed && _fastening.IsReceiveAllowed:
-                return MainConveyorState.MovingPcbPlacementToBoltFastening;
-            case true when _placement.IsReceiveAllowed
-                && (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable):
-                return MainConveyorState.ReceivingFrontCarrier;
-            case true when !_repeat
-                && !IsNgTransferRequired
-                && _inspection.IsTransferAllowed
-                && _inspection.IsTransferAtWaitingPosition:
-                return MainConveyorState.WaitingForRearEquipment;
-            case true when _fastening.CarrierPresent:
-                return _fastening.Completed
-                    ? MainConveyorState.WaitingForInspectionClear
-                    : MainConveyorState.WaitingForBoltFastening;
-            default:
-                return _placement.CarrierPresent
-                    ? MainConveyorState.WaitingForPcbPlacement
-                    : MainConveyorState.WaitingForFrontCarrier;
-        }
+        if (!_repeat
+            && !IsNgTransferRequired
+            && _inspection.IsTransferAllowed
+            && _inspection.IsTransferAtWaitingPosition
+            && DownstreamReady)
+            return MainConveyorState.DischargingInspectionCarrier;
+        if ((!_repeat || ReferenceEquals(RepeatEndStation, _inspection.Station))
+            && _fastening.Completed && _inspection.IsReceiveAllowed)
+            return MainConveyorState.MovingBoltFasteningToInspection;
+        if ((!_repeat || !ReferenceEquals(RepeatEndStation, _placement))
+            && _placement.Completed && !_fastening.CarrierPresent)
+            return MainConveyorState.MovingPcbPlacementToBoltFastening;
+        if (!_placement.CarrierPresent
+            && (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable))
+            return MainConveyorState.ReceivingFrontCarrier;
+        if (!_repeat
+            && !IsNgTransferRequired
+            && _inspection.IsTransferAllowed
+            && _inspection.IsTransferAtWaitingPosition)
+            return MainConveyorState.WaitingForRearEquipment;
+        if (_fastening.CarrierPresent)
+            return _fastening.Completed
+                ? MainConveyorState.WaitingForInspectionClear
+                : MainConveyorState.WaitingForBoltFastening;
+        return _placement.CarrierPresent
+            ? MainConveyorState.WaitingForPcbPlacement
+            : MainConveyorState.WaitingForFrontCarrier;
     }
 
     public Task PrepareEmptyStationsAsync(CancellationToken cancellationToken)
@@ -338,10 +389,10 @@ public sealed partial class MainConveyor : AutoUnit
         // Preserve the support under an interrupted placement/fastening operation.
         // Keep Station 3 supported while an NG transfer has not released its grip.
         var preparation = new List<Task>(3);
-        if (_placement.IsReceiveAllowed && _placement.BackupPlate != StationCylinderState.Down)
+        if (!_placement.CarrierPresent && _placement.BackupPlate != StationCylinderState.Down)
             preparation.Add(_io.SetOutputAndWaitAsync(
                 OutputIo.PcbPlacementBackupPlateUp, false, cancellationToken));
-        if (_fastening.IsReceiveAllowed && _fastening.BackupPlate != StationCylinderState.Down)
+        if (!_fastening.CarrierPresent && _fastening.BackupPlate != StationCylinderState.Down)
             preparation.Add(_io.SetOutputAndWaitAsync(
                 OutputIo.BoltFasteningBackupPlateUp, false, cancellationToken));
         if (_inspection.IsReceiveAllowed && _inspection.Station.BackupPlate != StationCylinderState.Down)
@@ -385,8 +436,9 @@ public sealed partial class MainConveyor : AutoUnit
             {
                 source.RequireCurrentJob(departingJob!);
                 if (!source.CarrierSeated
-                    || !source.IsTransferAllowed
-                    || !(ReferenceEquals(destination, _inspection.Station) ? _inspection.IsReceiveAllowed : destination.IsReceiveAllowed))
+                    || !source.Completed
+                    || !(ReferenceEquals(destination, _inspection.Station)
+                        ? _inspection.IsReceiveAllowed : !destination.CarrierPresent))
                 {
                     throw new InvalidOperationException(
                         "Transfer requires the completed source carrier to remain seated and the destination to remain empty.");
@@ -492,79 +544,6 @@ public sealed partial class MainConveyor : AutoUnit
         {
             throw new InvalidOperationException(
                 "Seating push requires backup plate DOWN and stopper UP feedback. Check the stopped carrier position.");
-        }
-    }
-
-    private async Task DischargeInspectionAsync(CancellationToken cancellationToken)
-    {
-        var departingJob = _inspection.Station.CurrentJob;
-        var rearReleased = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var extraRun = TimeSpan.FromSeconds(_settings.RearSmemaOffDelaySeconds);
-        var timeout = TimeSpan.FromSeconds(_settings.TransferTimeoutSeconds);
-        void ObserveRear()
-        {
-            if (!DownstreamReady)
-                rearReleased.TrySetResult(Stopwatch.GetTimestamp());
-        }
-
-        Changed += ObserveRear;
-        Exception? failure = null;
-        try
-        {
-            SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
-            SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, true);
-            ObserveRear();
-            if (rearReleased.Task.IsCompleted)
-                return;
-            _inspection.Station.RequireCurrentJob(departingJob);
-            if (_repeat
-                || IsNgTransferRequired
-                || !_inspection.IsTransferAllowed
-                || !_inspection.IsTransferAtWaitingPosition)
-            {
-                throw new MotionInterlockException(
-                    "Rear discharge requires a completed carrier and the raised, clear inspection pickup at its waiting position.");
-            }
-            await _inspection.Station.ReleaseAsync(cancellationToken);
-
-            if (rearReleased.Task.IsCompleted)
-                return;
-            _inspection.Station.RequireCurrentJob(departingJob);
-            if (_inspection.Station.BackupPlate != StationCylinderState.Down
-                || _inspection.Station.Stopper != StationCylinderState.Down
-                || !_inspection.IsTransferAtWaitingPosition)
-            {
-                throw new MotionInterlockException(
-                    "Rear discharge lost support release or inspection pickup clearance before starting the belt.");
-            }
-            EnterStep(MainConveyorState.DischargingInspectionCarrier, waitingFor: "Rear Ready=OFF");
-            StartMotor(cancellationToken);
-            try
-            {
-                await rearReleased.Task.WaitAsync(timeout, cancellationToken);
-            }
-            catch (TimeoutException)
-            {
-                throw new IoTimeoutException(
-                    InputIo.MainConveyorReadyFromRear, false, (int)timeout.TotalMilliseconds);
-            }
-
-            EnterStep(MainConveyorState.DischargingInspectionCarrier,
-                target: $"Rear Ready OFF; extra run {extraRun.TotalSeconds} s");
-            // Only this discharge owns the OFF timestamp; STOP discards the remaining delay.
-            var remaining = extraRun - Stopwatch.GetElapsedTime(await rearReleased.Task);
-            if (remaining > TimeSpan.Zero)
-                await Task.Delay(remaining, cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-            throw;
-        }
-        finally
-        {
-            Changed -= ObserveRear;
-            StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorAvailableToRear);
         }
     }
 

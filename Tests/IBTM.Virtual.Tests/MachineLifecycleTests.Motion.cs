@@ -326,7 +326,8 @@ public sealed partial class MachineLifecycleTests
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveAxisAsync(MotionAxis.Z, 10));
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.JogAsync(MotionAxis.X, 10));
             await Assert.ThrowsAsync<MotionInterlockException>(() => placement.AdjustAxisAsync(MotionAxis.X, 10, 10));
-            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.MoveToHorizontalZAsync());
+            await Assert.ThrowsAsync<MotionInterlockException>(
+                () => placement.MoveAxisAsync(MotionAxis.Z, settings.PcbPlacementHandler.HandoffPosition.Z));
         }
         finally
         {
@@ -417,12 +418,16 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateDisplayServices(out var feedback, settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         if (!home)
             await machine.HomeAsync(CancellationToken.None);
-        Assert.True(home ? machine.IsHomeAllowed : machine.IsStartAllowed);
+        Assert.True(
+            await VirtualTest.WaitUntilAsync(
+                () => home ? machine.IsHomeAllowed : machine.IsStartAllowed, TimeSpan.FromSeconds(2)),
+            $"Command blocked: home={machine.HomeBlock}, start={machine.StartBlock}, alarm={state.AlarmDetail}");
         var failure = new IOException("Motion feedback failed while admitting the command.");
         feedback.BeforeRead = () =>
         {
@@ -843,7 +848,7 @@ public sealed partial class MachineLifecycleTests
             if (!state.AutomaticRunning || started)
                 return;
             started = true;
-            readyBeforeStarting = placement.HandlerRaised
+            readyBeforeStarting = placement.Lift == PlacementCylinderState.Up
                 && placement.IpmLift == (holdingPcb ? PlacementCylinderState.Down : PlacementCylinderState.Up);
             machine.Stop();
         }
@@ -1145,7 +1150,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.False(machine.IsHomeAllowed);
         Assert.Equal(HomeBlockReason.PlacementHoldingPcb, machine.HomeBlock);
-        Assert.True(placement.HandlerRaised);
+        Assert.Equal(PlacementCylinderState.Up, placement.Lift);
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmDown));
 
         var move = placement.MoveToXYAsync(new() { X = 20, Y = 20 });
@@ -1276,7 +1281,7 @@ public sealed partial class MachineLifecycleTests
             point => point.Position.Target == TeachingTarget.BoltPickup);
         if (returning)
         {
-            await gantry.MoveToPickupPositionAsync();
+            await gantry.MoveToTeachingPositionAsync(teaching.SelectedPoint.Position, settings.BoltFastening.PickupPosition);
             // Feedback can change outside the command; an UP request is not confirmation.
             io.SetInputs((InputIo.PickupHeadUp, false), (InputIo.PickupHeadDown, true));
         }

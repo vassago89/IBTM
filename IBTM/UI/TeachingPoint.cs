@@ -21,10 +21,10 @@ public class TeachingPoint : ObservableObject
 
     public double FasteningZOffset
     {
-        get => Position.Bolt?.FasteningZOffset ?? 0;
+        get => _definition.Bolt?.FasteningZOffset ?? 0;
         set
         {
-            if (Position.Target != TeachingTarget.BoltPosition || Position.Bolt is not { } bolt)
+            if (_definition.Target != TeachingTarget.BoltPosition || _definition.Bolt is not { } bolt)
                 return;
             bolt.FasteningZOffset = value;
             OnPropertyChanged();
@@ -122,25 +122,25 @@ public class TeachingPoint : ObservableObject
         }
     }
 
-    public int BoltNumber => Position.Bolt?.Number ?? 0;
+    public int BoltNumber => _definition.Bolt?.Number ?? 0;
 
     public string Name
     {
         get
         {
-            if (Position.Bolt is { } bolt)
+            if (_definition.Bolt is { } bolt)
             {
-                return Position.Target == TeachingTarget.BoltPosition
+                return _definition.Target == TeachingTarget.BoltPosition
                     ? $"Bolt {bolt.Number} Fastening · {bolt.Head.GetDescription()}"
                     : $"Bolt {bolt.Number} Inspection";
             }
 
-            switch ((Position.Target, Position.MotionGroup))
+            switch ((_definition.Target, _definition.MotionGroup))
             {
                 case (TeachingTarget.SafeZ, MotionGroup.PcbSupply):
                     return "PCB Rotation Z";
                 default:
-                    return Position.Target.GetDescription();
+                    return _definition.Target.GetDescription();
             }
         }
     }
@@ -149,7 +149,7 @@ public class TeachingPoint : ObservableObject
     {
         get
         {
-            switch (Position.Target)
+            switch (_definition.Target)
             {
                 case TeachingTarget.BoltPosition:
                     return TeachingPointGroup.Fastening;
@@ -175,9 +175,9 @@ public class TeachingPoint : ObservableObject
     {
         get
         {
-            switch (Position.Target)
+            switch (_definition.Target)
             {
-                case TeachingTarget.SafeZ when Position.MotionGroup == MotionGroup.PcbSupply:
+                case TeachingTarget.SafeZ when _definition.MotionGroup == MotionGroup.PcbSupply:
                     return "Z height used before PCB rotation and for travel above the pickup positions. Moving to this height moves only Z.";
                 case TeachingTarget.SafeZ:
                     return "Z height for horizontal travel with both fastening heads raised.";
@@ -235,26 +235,26 @@ public class TeachingPoint : ObservableObject
     {
         get
         {
-            if (!Position.HasPosition)
+            if (Coordinates is not { } position)
             {
-                if (Position.Target == TeachingTarget.BoltPosition)
+                if (_definition.Target == TeachingTarget.BoltPosition)
                     return "Record fastening XY; initial conversion needs inspection XY and both sets of reference pins";
                 return "Not taught";
             }
-            if (Position.Target == TeachingTarget.BoltPosition)
-                return $"X {X:F3}  Y {Y:F3}  Z {Z:F3}";
-            switch (Position.Mode)
+            if (_definition.Target == TeachingTarget.BoltPosition)
+                return $"X {position.X:F3}  Y {position.Y:F3}  Z {position.Z:F3}";
+            switch (_definition.Mode)
             {
                 case TeachMode.Image or TeachMode.XYOnly:
-                    return $"X {X:F3}  Y {Y:F3}";
+                    return $"X {position.X:F3}  Y {position.Y:F3}";
                 case TeachMode.XOnly:
-                    return $"X {X:F3}";
+                    return $"X {position.X:F3}";
                 case TeachMode.YOnly:
-                    return $"Y {Y:F3}";
+                    return $"Y {position.Y:F3}";
                 case TeachMode.ZOnly:
-                    return Z is { } z ? $"Z {z:F3}" : "—";
+                    return $"Z {position.Z:F3}";
                 default:
-                    return $"X {X:F3}  Y {Y:F3}  Z {Z:F3}";
+                    return $"X {position.X:F3}  Y {position.Y:F3}  Z {position.Z:F3}";
             }
         }
     }
@@ -262,7 +262,7 @@ public class TeachingPoint : ObservableObject
     public void Teach(double x, double y, double z)
     {
         var position = Read();
-        if (Position.Mode is TeachMode.Image
+        if (_definition.Mode is TeachMode.Image
             or TeachMode.XYOnly
             or TeachMode.Full
             or TeachMode.XOnly)
@@ -270,12 +270,12 @@ public class TeachingPoint : ObservableObject
             position.X = x;
         }
 
-        if (Position.Mode is TeachMode.Image or TeachMode.XYOnly or TeachMode.Full or TeachMode.YOnly)
+        if (_definition.Mode is TeachMode.Image or TeachMode.XYOnly or TeachMode.Full or TeachMode.YOnly)
         {
             position.Y = y;
         }
 
-        if (Position.Mode is TeachMode.Full or TeachMode.ZOnly)
+        if (_definition.Mode is TeachMode.Full or TeachMode.ZOnly)
         {
             position.Z = z;
         }
@@ -362,7 +362,7 @@ public class TeachingPoint : ObservableObject
         {
             X = position.X,
             Y = position.Y,
-            Z = Position.Mode == TeachMode.Image ? 0 : position.Z,
+            Z = _definition.Mode == TeachMode.Image ? 0 : position.Z,
         };
     }
 

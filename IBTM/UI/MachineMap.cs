@@ -200,7 +200,42 @@ public sealed class MachineMap
 
     public (double X, double Y)? GetNgPickupPosition(MotionPosition current)
     {
-        return InspectionDefined && current is { X: { } x, Y: { } y } ? MapNgPickup(x, y) : null;
+        if (!InspectionDefined || current is not { X: { } x, Y: { } y })
+            return null;
+        var upperLeft = _carrier.UpperLeftLocatingPin!;
+        var lowerRight = _carrier.LowerRightLocatingPin!;
+        var first = (upperLeft.X, upperLeft.Y);
+        var second = (lowerRight.X, lowerRight.Y);
+        var pickup = _transfer.CarrierPickupPosition;
+        var shuttle = _transfer.ShuttlePlacePosition;
+        var pickupSide = pickup is null ? 0 : MachinePlan.GetSide((pickup.X, pickup.Y), first, second);
+        var shuttleSide = MachinePlan.GetSide((shuttle.X, shuttle.Y), first, second);
+        var cameraUpperLeft = MachinePlan.Offset(
+            MapCarrier(first.X, first.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight),
+            MachinePlan.CameraCenter);
+        var cameraLowerRight = MachinePlan.Offset(
+            MapCarrier(second.X, second.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight),
+            MachinePlan.CameraCenter);
+
+        if (pickup is not null && pickupSide * shuttleSide < 0)
+        {
+            var towardPickup = MachinePlan.GetSide((x, y), first, second) * pickupSide >= 0;
+            return FromThreePoints(
+                x,
+                y,
+                first,
+                second,
+                towardPickup ? (pickup.X, pickup.Y) : (
+                    shuttle.X,
+                    shuttle.Y),
+                cameraUpperLeft,
+                cameraLowerRight,
+                MachinePlan.Offset(
+                    towardPickup ? MachinePlan.InspectionCarrierCenter : MachinePlan.NgShuttleCenter,
+                    MachinePlan.NgPickerCenter));
+        }
+
+        return FromTwoPoints(x, y, first, second, cameraUpperLeft, cameraLowerRight);
     }
 
     public (double X, double Y)? GetInspectionTargetPosition(BoltPoint bolt)
@@ -266,46 +301,6 @@ public sealed class MachineMap
         var sourceSecond = (centerX + (first.X <= second.X ? halfWidth : -halfWidth),
             centerY + (first.Y <= second.Y ? halfHeight : -halfHeight));
         return FromTwoPoints(x, y, sourceFirst, sourceSecond, upperLeft, lowerRight);
-    }
-
-    private (double X, double Y) MapNgPickup(double x, double y)
-    {
-        if (!InspectionDefined)
-            return default;
-        var upperLeft = _carrier.UpperLeftLocatingPin!;
-        var lowerRight = _carrier.LowerRightLocatingPin!;
-        var first = (upperLeft.X, upperLeft.Y);
-        var second = (lowerRight.X, lowerRight.Y);
-        var pickup = _transfer.CarrierPickupPosition;
-        var shuttle = _transfer.ShuttlePlacePosition;
-        var pickupSide = pickup is null ? 0 : MachinePlan.GetSide((pickup.X, pickup.Y), first, second);
-        var shuttleSide = MachinePlan.GetSide((shuttle.X, shuttle.Y), first, second);
-        var cameraUpperLeft = MachinePlan.Offset(
-            MapCarrier(first.X, first.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight),
-            MachinePlan.CameraCenter);
-        var cameraLowerRight = MachinePlan.Offset(
-            MapCarrier(second.X, second.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight),
-            MachinePlan.CameraCenter);
-
-        if (pickup is not null && pickupSide * shuttleSide < 0)
-        {
-            var towardPickup = MachinePlan.GetSide((x, y), first, second) * pickupSide >= 0;
-            return FromThreePoints(
-                x,
-                y,
-                first,
-                second,
-                towardPickup ? (pickup.X, pickup.Y) : (
-                    shuttle.X,
-                    shuttle.Y),
-                cameraUpperLeft,
-                cameraLowerRight,
-                MachinePlan.Offset(
-                    towardPickup ? MachinePlan.InspectionCarrierCenter : MachinePlan.NgShuttleCenter,
-                    MachinePlan.NgPickerCenter));
-        }
-
-        return FromTwoPoints(x, y, first, second, cameraUpperLeft, cameraLowerRight);
     }
 
     private static (double X, double Y) FromTwoPoints(

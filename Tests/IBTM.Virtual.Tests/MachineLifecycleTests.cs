@@ -300,7 +300,7 @@ public sealed partial class MachineLifecycleTests
         var barcodeResult = await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None);
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-2", barcodeResult.Barcode);
-        Assert.True(inspector.Motion.IsAt(recipe.GetInspectionPosition(inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
+        Assert.True(MotionService.IsAt(inspector.Motion.Feedback, recipe.GetInspectionPosition(inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
 
         var barcodeImage = barcodeResult.Frame;
         var blankImage = barcodeImage with { Pixels = new byte[barcodeImage.Pixels.Length] };

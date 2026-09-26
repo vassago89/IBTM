@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
 
@@ -32,9 +33,12 @@ public sealed class PcbSupplyRepeatTests
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
         using var motion = new VirtualMotionService(settings.Motion, new());
 
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.PcbSupply = recipe;
         var supplier = new PcbSupplier(motion, new MotionStatus(motion),
             io,
             settings,
+            recipes,
             new() { PcbPlacement = false });
         var handler = supplier;
         io.Initialize();
@@ -66,13 +70,13 @@ public sealed class PcbSupplyRepeatTests
         if (pcbDetected)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat));
+                () => supplier.RunAsync(new NoPlacement(), stop.Token, repeat));
             Assert.False(commanded);
             Assert.Equal(PcbSupplyCylinderState.Forward, handler.Gripper);
         }
         else
         {
-            await supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat);
+            await supplier.RunAsync(new NoPlacement(), stop.Token, repeat);
             Assert.True(reachedPickup);
             Assert.Equal(PcbSupplyCylinderState.Backward, handler.Gripper);
             Assert.False(io.GetInput(InputIo.PcbSupplyIpmFixerForward));
@@ -101,9 +105,12 @@ public sealed class PcbSupplyRepeatTests
         var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
         using var motion = new VirtualMotionService(settings.Motion, new());
 
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.PcbSupply = recipe;
         var supplier = new PcbSupplier(motion, new MotionStatus(motion),
             io,
             settings,
+            recipes,
             new() { PcbPlacement = false });
         var handler = supplier;
         io.Initialize();
@@ -124,7 +131,7 @@ public sealed class PcbSupplyRepeatTests
             if (input != InputIo.PcbSupplyGripperClosed || !on)
                 return;
             var pickup = recipe.Pcb1PickPosition;
-            grippedAtPickup = handler.Motion.IsAt(new() { X = pickup.X, Y = pickup.Y!.Value, Z = pickup.Z })
+            grippedAtPickup = MotionService.IsAt(handler.Motion.Feedback, new() { X = pickup.X, Y = pickup.Y!.Value, Z = pickup.Z })
                 && handler.Rotation == PcbSupplyRotationState.Rotated;
         };
 
@@ -143,7 +150,7 @@ public sealed class PcbSupplyRepeatTests
         };
         motion.StateChanged += () =>
         {
-            if (!handler.Motion.IsAt(settings.HandoffPosition) || !handler.PcbSecured)
+            if (!MotionService.IsAt(handler.Motion.Feedback, settings.HandoffPosition) || !handler.PcbSecured)
                 return;
             reachedHandoff = true;
             finish.Cancel();
@@ -151,13 +158,13 @@ public sealed class PcbSupplyRepeatTests
         if (loseGrip)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => supplier.RunAsync(recipe, new NoPlacement(), finish.Token, repeat));
+                () => supplier.RunAsync(new NoPlacement(), finish.Token, repeat));
             Assert.True(lostGrip);
             Assert.False(motion.IsMoving);
         }
         else
         {
-            await supplier.RunAsync(recipe, new NoPlacement(), finish.Token, repeat);
+            await supplier.RunAsync(new NoPlacement(), finish.Token, repeat);
         }
         Assert.Equal(!loseGrip, reachedHandoff);
         Assert.True(grippedAtPickup);
@@ -189,9 +196,12 @@ public sealed class PcbSupplyRepeatTests
             (recipe.Pcb1PickPosition.X, recipe.Pcb1PickPosition.Y, recipe.Pcb1PickPosition.Z),
             (recipe.Pcb2PickPosition.X, recipe.Pcb2PickPosition.Y, recipe.Pcb2PickPosition.Z), settings.HandoffPosition);
 
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.PcbSupply = recipe;
         var supplier = new PcbSupplier(motion, new MotionStatus(motion),
             io,
             settings,
+            recipes,
             new() { PcbPlacement = false });
         var handler = supplier;
         io.Initialize();
@@ -212,14 +222,14 @@ public sealed class PcbSupplyRepeatTests
         };
         motion.StateChanged += () =>
         {
-            if (!returning && handler.Motion.IsAt(settings.HandoffPosition) && handler.PcbSecured)
+            if (!returning && MotionService.IsAt(handler.Motion.Feedback, settings.HandoffPosition) && handler.PcbSecured)
             {
                 visits++;
                 returning = true;
                 io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             }
             if (returning && handler.Rotation == PcbSupplyRotationState.Rotated
-                && handler.IsAtPickupXY(recipe.Pcb1PickPosition) && handler.Motion.IsAtZ(settings.RotationZ, live: true))
+                && handler.IsAtPickupXY(recipe.Pcb1PickPosition) && MotionService.IsAtZ(handler.Motion.Feedback, settings.RotationZ))
             {
                 returning = false;
                 returns++;
@@ -240,13 +250,13 @@ public sealed class PcbSupplyRepeatTests
         if (loseHolding)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat: true));
+                () => supplier.RunAsync(new NoPlacement(), stop.Token, repeat: true));
             Assert.True(lost);
             Assert.Equal(0, returns);
         }
         else
         {
-            await supplier.RunAsync(recipe, new NoPlacement(), stop.Token, repeat: true);
+            await supplier.RunAsync(new NoPlacement(), stop.Token, repeat: true);
             Assert.Equal(2, returns);
             Assert.True(visits >= 2);
         }

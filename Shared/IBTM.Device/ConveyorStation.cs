@@ -159,21 +159,6 @@ public sealed class ConveyorStation
             OutputIo.InspectionStopperUp);
     }
 
-    public IoStatus CreateIoStatus(HardwareArea area, IoSignals io)
-    {
-        return io.Select(
-            area,
-            [
-                _backupPlateUp,
-                _backupPlateDown,
-                _stopperUp,
-                _stopperDown,
-                _heatSink1,
-                HeatSink2Input,
-            ],
-            [_backupPlate, _stopper]);
-    }
-
     public bool IsHeatSinkPresent(HeatSinkSlot heatSink)
     {
         return _io.GetInput(heatSink == HeatSinkSlot.HeatSink1 ? _heatSink1 : HeatSink2Input);
@@ -196,11 +181,6 @@ public sealed class ConveyorStation
     public async Task SeatAsync(CancellationToken cancellationToken)
     {
         await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
-        await RaisePlateAndLowerStopperAsync(cancellationToken);
-    }
-
-    public async Task RaisePlateAndLowerStopperAsync(CancellationToken cancellationToken)
-    {
         await _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken);
         await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
     }
@@ -275,11 +255,7 @@ public sealed class ConveyorStation
 
     public IEnumerable<HeatSinkAssembly> Assemblies => _job.Assemblies.Values.ToArray();
 
-    public bool IsReceiveAllowed => !CarrierPresent;
-
     public bool HasNg => Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
-
-    public bool IsTransferAllowed => CarrierPresent && Completed;
 
     public HeatSinkAssembly GetAssembly(HeatSinkSlot heatSink)
     {

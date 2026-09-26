@@ -72,7 +72,7 @@ public sealed class RecipeManager
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
-            var loaded = await Task.Run(() => _database.LoadRecipe<Recipe>(name), cancellationToken);
+            var loaded = await Task.Run(() => _database.LoadRecipe(name), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (_selection.LastRecipeName != loaded.Name)
             {
@@ -112,9 +112,7 @@ public sealed class RecipeManager
             snapshot.Name = name;
             await Task.Run(
                 () => _database.SaveRecipe(
-                    name,
                     snapshot,
-                    snapshot.CarrierImages.Select(tile => tile.Number).ToArray(),
                     imageRecipeName,
                     selection: new RecipeSelectionSettings { LastRecipeName = name },
                     cancellationToken: cancellationToken),
@@ -159,9 +157,7 @@ public sealed class RecipeManager
             snapshot.CarrierImages = capturedTiles;
             await Task.Run(
                 () => _database.SaveRecipe(
-                    name,
                     snapshot,
-                    capturedTiles.Select(tile => tile.Number).ToArray(),
                     images: images,
                     selection: new RecipeSelectionSettings { LastRecipeName = name },
                     cancellationToken: cancellationToken),
@@ -188,10 +184,5 @@ public sealed class RecipeManager
         Current.Name = name;
         _imageRecipeName = name;
         _selection.LastRecipeName = name;
-    }
-
-    public byte[] LoadImage(string name, int number)
-    {
-        return _database.LoadRecipeImage(name, number);
     }
 }

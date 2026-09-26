@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -14,7 +15,7 @@ public partial class InspectionPreview : ObservableObject
 {
     private readonly Recipe _recipe;
     private ImageFrame? _frame;
-    private BinaryCheckResult? _check;
+    private double? _brightRatio;
     private HeatSinkSlot? _pcb;
     private BoltPoint? _bolt;
     private PixelRegion? _sourceRegion;
@@ -22,8 +23,6 @@ public partial class InspectionPreview : ObservableObject
     public partial BitmapSource? Image { get; set; }
     [ObservableProperty]
     public partial BitmapSource? Overlay { get; set; }
-    [ObservableProperty]
-    public partial Rect? Region { get; set; }
     [ObservableProperty]
     public partial string? Result { get; set; }
 
@@ -33,6 +32,10 @@ public partial class InspectionPreview : ObservableObject
     }
 
     public bool HasImage => _frame is not null;
+
+    public Rect? Region => _sourceRegion is { } region
+        ? new Rect(region.X, region.Y, region.Width, region.Height)
+        : null;
 
     public string BinaryDescription => _pcb is null ? $"Binary ROI · threshold {BrightnessThreshold}"
         : DataMatrixThreshold is { } threshold ? $"Binary ROI · threshold {threshold}"
@@ -89,7 +92,7 @@ public partial class InspectionPreview : ObservableObject
         _sourceRegion = null;
         _frame = null;
         Image = null;
-        Region = null;
+        OnPropertyChanged(nameof(Region));
         ClearResult();
         OnPropertyChanged(nameof(HasImage));
         OnPropertyChanged(nameof(BrightnessThreshold));
@@ -103,7 +106,7 @@ public partial class InspectionPreview : ObservableObject
         _frame = CreateFrame(image);
         _sourceRegion = region;
         Image = image;
-        RefreshRegion();
+        OnPropertyChanged(nameof(Region));
         RefreshBinaryImage();
         OnPropertyChanged(nameof(HasImage));
     }
@@ -124,22 +127,27 @@ public partial class InspectionPreview : ObservableObject
         }
 
         var threshold = BrightnessThreshold;
-        var check = await Task.Run(() => BinaryChecker.Check(frame, region, threshold), token);
-        var binary = await Task.Run(() => CreateBitmap(check.Image), token);
+        var (ratio, binary) = await Task.Run(() =>
+        {
+            var check = BinaryChecker.Check(frame, region, threshold);
+            token.ThrowIfCancellationRequested();
+            return (check.BrightRatio, CreateBitmap(check.Image));
+        }, token);
         token.ThrowIfCancellationRequested();
         if (threshold != BrightnessThreshold)
         {
-            check = BinaryChecker.Check(frame, region, BrightnessThreshold);
+            var check = BinaryChecker.Check(frame, region, BrightnessThreshold);
+            ratio = check.BrightRatio;
             binary = CreateBitmap(check.Image);
         }
-        _check = check;
+        _brightRatio = ratio;
         Overlay = binary;
         RefreshResult();
     }
 
     private void ClearResult()
     {
-        _check = null;
+        _brightRatio = null;
         Overlay = null;
         Result = null;
     }
@@ -156,8 +164,9 @@ public partial class InspectionPreview : ObservableObject
             }
             else if (_bolt is not null)
             {
-                _check = BinaryChecker.Check(_frame, region, BrightnessThreshold);
-                Overlay = CreateBitmap(_check.Image);
+                var check = BinaryChecker.Check(_frame, region, BrightnessThreshold);
+                _brightRatio = check.BrightRatio;
+                Overlay = CreateBitmap(check.Image);
                 RefreshResult();
             }
         }
@@ -166,18 +175,10 @@ public partial class InspectionPreview : ObservableObject
 
     private void RefreshResult()
     {
-        if (_check is null)
+        if (_brightRatio is not { } ratio)
             return;
-        var ratio = _check.BrightRatio;
         var minimum = _bolt?.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio;
         Result = $"{(ratio >= minimum ? "OK" : "NG")} · Bright {ratio * 100:0.###}%";
-    }
-
-    private void RefreshRegion()
-    {
-        Region = _sourceRegion is { } region
-            ? new Rect(region.X, region.Y, region.Width, region.Height)
-            : null;
     }
 
     public static BitmapSource CreateBitmap(ImageFrame frame)
@@ -191,6 +192,15 @@ public partial class InspectionPreview : ObservableObject
             null,
             frame.Pixels,
             frame.Stride);
+        image.Freeze();
+        return image;
+    }
+
+    public static BitmapSource DecodeImage(byte[] png)
+    {
+        using var stream = new MemoryStream(png, writable: false);
+        var image = new PngBitmapDecoder(
+            stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
         image.Freeze();
         return image;
     }

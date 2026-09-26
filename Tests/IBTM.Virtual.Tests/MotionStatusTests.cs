@@ -17,20 +17,26 @@ public sealed class MotionStatusTests
     {
         var motion = new StatusMotion();
         var status = new MotionStatus(motion);
+        status.RefreshMonitorFeedback();
+        status.RefreshControlFeedback();
         var target = new AxisPosition { X = 12 };
-        Assert.True(status.IsHoldingPosition(target));
+        Assert.True(MotionService.IsHoldingPosition(motion, target));
 
         motion.ReportedPosition = (15, 0, 0); // External encoder change, without an application move event.
-        Assert.False(status.IsHoldingPosition(target));
+        Assert.Equal(12, status.Position.X);
+        Assert.False(MotionService.IsHoldingPosition(motion, target));
         motion.ReportedPosition = (12, 0, 0);
         motion.State = motion.State with { ServoOn = false };
-        Assert.False(status.IsHoldingPosition(target));
+        Assert.True(status.Axes[MotionAxis.X].State?.ServoOn);
+        Assert.False(MotionService.IsHoldingPosition(motion, target));
         motion.State = motion.State with { ServoOn = true, Alarm = true };
-        Assert.False(status.IsHoldingPosition(target));
+        Assert.False(MotionService.IsHoldingPosition(motion, target));
         motion.State = motion.State with { Alarm = false, InMotion = true };
-        Assert.False(status.IsHoldingPosition(target));
+        Assert.False(MotionService.IsHoldingPosition(motion, target));
         motion.State = motion.State with { InMotion = false };
-        Assert.True(status.IsHoldingPosition(target));
+        Assert.True(MotionService.IsHoldingPosition(motion, target));
+        motion.Failure = new IOException("Current feedback is unavailable.");
+        Assert.Throws<IOException>(() => MotionService.IsHoldingPosition(motion, target));
     }
 
     [Theory]
@@ -42,20 +48,22 @@ public sealed class MotionStatusTests
         var status = new MotionStatus(motion);
         motion.Initialize();
         var target = new AxisPosition { X = 0, Y = hasY ? 0 : 123, Z = 456 };
-        Assert.False(status.IsAt(target));
-        Assert.False(status.IsAt(target, live: false));
+        Assert.False(MotionService.IsAt(motion, target));
+        Assert.False(status.IsFeedbackAvailable);
         await motion.HomeAsync(MotionAxis.X, 1_000);
         if (hasY)
         {
-            Assert.False(status.IsAt(target));
+            Assert.False(MotionService.IsAt(motion, target));
             await motion.HomeAsync(MotionAxis.Y, 1_000);
         }
-        Assert.True(status.IsAt(target));
+        Assert.True(MotionService.IsAt(motion, target));
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
-        Assert.True(status.IsAt(target, live: false));
+        Assert.True(status.IsFeedbackAvailable);
+        Assert.True(status.XyHomed);
+        Assert.Equal(0, status.Position.X);
         target.X = 10;
-        Assert.False(status.IsAt(target));
+        Assert.False(MotionService.IsAt(motion, target));
     }
 
     [Fact]
@@ -121,6 +129,7 @@ public sealed class MotionStatusTests
 
         Assert.Same(first, second);
         Assert.Equal(AxisCondition.Unavailable, first.Condition);
+        Assert.False(status.IsFeedbackAvailable);
         Assert.Null(status.Position.X);
         motion.Publish();
         Assert.Equal(0, motion.Reads);
@@ -130,6 +139,7 @@ public sealed class MotionStatusTests
         Assert.Equal(new MotionPosition(12, null, null), status.Position);
         Assert.Equal(status.MonitorAxes[MotionAxis.X].Snapshot.Position, status.Position.X);
         Assert.Equal(AxisCondition.Ready, first.Condition);
+        Assert.True(status.IsFeedbackAvailable);
         Assert.True(status.XyHomed);
         Assert.Equal(1, motion.Reads);
         Assert.Equal(1, motion.PositionReads); // Control refresh and bindings do not read coordinates again.
@@ -141,6 +151,7 @@ public sealed class MotionStatusTests
         status.RefreshControlFeedback();
         var reads = motion.Reads;
         Assert.Equal(AxisCondition.Unavailable, first.Condition);
+        Assert.False(status.IsFeedbackAvailable);
         Assert.Null(second.State);
         Assert.False(status.XyHomed);
         Assert.Null(status.Position.X);

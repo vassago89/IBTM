@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
@@ -26,6 +27,7 @@ public sealed class PcbSupplyHandoffTests
             Pcb1PickPosition = new() { X = 10, Y = 10, Z = 8 },
             Pcb2PickPosition = new() { X = 20, Y = 10, Z = 8 },
         };
+        rig.Recipes.Current.PcbSupply = recipe;
         var departed = false;
         var replacement = false;
         var approachingReplacement = false;
@@ -51,7 +53,7 @@ public sealed class PcbSupplyHandoffTests
                 stop.Cancel();
             }
         };
-        var run = rig.Supplier.RunAsync(recipe, rig.Placement, stop.Token);
+        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token);
         try
         {
             await waiting.Task.WaitAsync(TimeSpan.FromSeconds(3));
@@ -83,7 +85,7 @@ public sealed class PcbSupplyHandoffTests
             }
         };
 
-        await rig.Supplier.RunAsync(new(), rig.Placement, stop.Token);
+        await rig.Supplier.RunAsync(rig.Placement, stop.Token);
 
         Assert.Null(rig.Supplier.Step);
         rig.Units.PcbSupply = true;
@@ -101,7 +103,7 @@ public sealed class PcbSupplyHandoffTests
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var run = rig.Supplier.RunAsync(new(), rig.Placement, stop.Token, repeat: true);
+        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token, repeat: true);
         try
         {
             Assert.Equal(PcbSupplyState.HandingOff, rig.Supplier.Step);
@@ -149,7 +151,7 @@ public sealed class PcbSupplyHandoffTests
         rig.Motion.SetServo(MotionAxis.X, false);
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
         rig.Motion.SetServo(MotionAxis.X, true);
-        Assert.True(rig.Supplier.Motion.IsAt(rig.Settings.HandoffPosition));
+        Assert.True(MotionService.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
 
         await rig.Supplier.PrepareHandoffAsync(CancellationToken.None);
@@ -171,7 +173,7 @@ public sealed class PcbSupplyHandoffTests
         await rig.Motion.MoveToXYAsync(target.X, target.Y, rig.Settings.Motion.HorizontalSpeed);
         await rig.Motion.MoveAxisAsync(MotionAxis.Z, target.Z, rig.Settings.Motion.ZSpeed);
 
-        Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
+        Assert.True(MotionService.IsAt(rig.Handler.Motion.Feedback, rig.Settings.HandoffPosition));
         Assert.True(rig.Handler.PcbSecured);
         Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.Phase);
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
@@ -218,11 +220,11 @@ public sealed class PcbSupplyHandoffTests
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await Assert.ThrowsAsync<MotionInterlockException>(
-            () => rig.Supplier.RunAsync(new(), rig.Placement, timeout.Token));
+            () => rig.Supplier.RunAsync(rig.Placement, timeout.Token));
 
         Assert.False(commanded);
         Assert.True(rig.Handler.PcbSecured);
-        Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
+        Assert.True(MotionService.IsAt(rig.Handler.Motion.Feedback, rig.Settings.HandoffPosition));
     }
 
     [Fact]
@@ -242,11 +244,11 @@ public sealed class PcbSupplyHandoffTests
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await Assert.ThrowsAsync<MotionInterlockException>(
-            () => rig.Supplier.RunAsync(new(), rig.Placement, timeout.Token));
+            () => rig.Supplier.RunAsync(rig.Placement, timeout.Token));
 
         Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
-        Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
+        Assert.True(MotionService.IsAt(rig.Handler.Motion.Feedback, rig.Settings.HandoffPosition));
     }
 
     [Theory]
@@ -269,7 +271,7 @@ public sealed class PcbSupplyHandoffTests
             }
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        var run = rig.Supplier.RunAsync(new(), rig.Placement, stop.Token, repeat: true);
+        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token, repeat: true);
         try
         {
             await rotationStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
@@ -280,7 +282,7 @@ public sealed class PcbSupplyHandoffTests
                 rig.Io.SetInputs((InputIo.PcbSupplyRotated, false), (InputIo.PcbSupplyUnrotated, true));
                 Assert.True(await WaitUntilAsync(
                     () => rig.Supplier.Handoff == PcbSupplyHandoff.Released, TimeSpan.FromSeconds(1)));
-                Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
+                Assert.True(MotionService.IsAt(rig.Handler.Motion.Feedback, rig.Settings.HandoffPosition));
             }
             else
             {
@@ -313,10 +315,10 @@ public sealed class PcbSupplyHandoffTests
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await Assert.ThrowsAsync<MotionInterlockException>(
-            () => rig.Supplier.RunAsync(new(), rig.Placement, timeout.Token, repeat: true));
+            () => rig.Supplier.RunAsync(rig.Placement, timeout.Token, repeat: true));
 
         Assert.False(commanded);
-        Assert.True(rig.Handler.Motion.IsAt(rig.Settings.HandoffPosition));
+        Assert.True(MotionService.IsAt(rig.Handler.Motion.Feedback, rig.Settings.HandoffPosition));
     }
 
     private sealed class HandoffRig : IDisposable
@@ -341,14 +343,17 @@ public sealed class PcbSupplyHandoffTests
                 FeedbackProbe.Motion = Motion;
                 FeedbackProbe.ReportReady = true;
             }
-            Supplier = new PcbSupplier(Motion, new MotionStatus(feedback),
+            Recipes = new(OpenMachineStore(), new());
+            Supplier = new PcbSupplier((IXyMotion)feedback, new MotionStatus(feedback),
                 Io,
                 Settings,
+                Recipes,
                 Units);
             Handler = Supplier;
             Placement = new();
         }
 
+        public RecipeManager Recipes { get; }
         public PcbSupplySettings Settings { get; }
         public UnitSettings Units { get; }
         public VirtualIoService Io { get; }

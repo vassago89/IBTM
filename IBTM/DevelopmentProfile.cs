@@ -80,7 +80,7 @@ internal static class DevelopmentProfile
             new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 25, Y = 19 },
         ];
         settings.RecipeSelection.LastRecipeName = recipe.Name;
-        await Task.Run(() => database.SaveRecipe(recipe.Name, recipe, []));
+        await Task.Run(() => database.SaveRecipe(recipe));
         await settings.SaveAsync(database);
     }
 }

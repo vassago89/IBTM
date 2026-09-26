@@ -21,7 +21,7 @@ public sealed class AutoUnitTests
 
             var changed = unit.WaitAsync(token, TimeSpan.FromSeconds(5));
             Assert.False(changed.IsCompleted);
-            unit.NotifyChanged();
+            unit.ReportFeedback();
             await changed.WaitAsync(TimeSpan.FromSeconds(1));
 
             var cancelled = unit.WaitAsync(token, TimeSpan.FromSeconds(5));
@@ -29,7 +29,6 @@ public sealed class AutoUnitTests
             stop.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
         }, stop.Token);
-        Assert.False(unit.HasSubscribers);
     }
 
     [Fact]
@@ -87,7 +86,7 @@ public sealed class AutoUnitTests
         var run = unit.RunAsync(ExecuteAsync, stop.Token);
         Assert.True(unit.IsRunning);
         Assert.Equal(DayOfWeek.Friday, unit.Step);
-        unit.NotifyChanged();
+        unit.ReportFeedback();
         unit.ReportStep();
         Assert.Single(reported);
         Assert.Equal(DayOfWeek.Friday, unit.Step);
@@ -107,7 +106,6 @@ public sealed class AutoUnitTests
         Assert.Null(unit.Step);
         Assert.Equal(2, reported.Count);
         Assert.Null(reported.Last());
-        Assert.False(unit.HasSubscribers);
 
         using var restart = new CancellationTokenSource();
         await unit.RunAsync(token =>
@@ -132,7 +130,7 @@ public sealed class AutoUnitTests
         {
             unit.ReportStep();
             if (++rounds < 4)
-                unit.NotifyChanged();
+                unit.ReportFeedback();
             return unit.WaitAsync(token);
         }
 
@@ -181,7 +179,7 @@ public sealed class AutoUnitTests
 
         var run = unit.RunAsync(ExecuteAsync, stop.Token);
         for (var i = 0; i < 20; i++)
-            unit.NotifyChanged();
+            unit.ReportFeedback();
         Assert.Equal(1, executions);
         finishAction.SetResult();
 
@@ -189,14 +187,12 @@ public sealed class AutoUnitTests
         Assert.Equal(3, executions);
         stop.Cancel();
         await run;
-        Assert.False(unit.HasSubscribers);
 
         using var restarted = new CancellationTokenSource();
         run = unit.RunAsync(ExecuteAsync, restarted.Token);
         Assert.Equal(4, executions);
         restarted.Cancel();
         await run;
-        Assert.False(unit.HasSubscribers);
     }
 
     [Theory]
@@ -211,7 +207,6 @@ public sealed class AutoUnitTests
             () => unit.RunAsync(_ => Task.FromException(error), CancellationToken.None));
 
         Assert.Same(error, actual);
-        Assert.False(unit.HasSubscribers);
     }
 
     [Fact]
@@ -223,7 +218,7 @@ public sealed class AutoUnitTests
         Task ExecuteAsync(CancellationToken token)
         {
             executions++;
-            unit.NotifyChanged();
+            unit.ReportFeedback();
             stop.Cancel();
             return Task.CompletedTask;
         }
@@ -232,7 +227,6 @@ public sealed class AutoUnitTests
         await unit.RunAsync(ExecuteAsync, stop.Token);
 
         Assert.Equal(1, executions);
-        Assert.False(unit.HasSubscribers);
     }
 
     [Fact]
@@ -251,18 +245,67 @@ public sealed class AutoUnitTests
             () => count == 2);
         Assert.Equal(2, count);
         Assert.False(stop.IsCancellationRequested);
-        Assert.False(unit.HasSubscribers);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FeedbackAfterExitNotifiesObserversWithoutWakingNextRun(bool fail)
+    {
+        var unit = new TestUnit();
+        var notifications = 0;
+        unit.Changed += () => notifications++;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var failure = new InvalidOperationException("device failure");
+        var run = unit.RunAsync(async token =>
+        {
+            await unit.WaitAsync(token);
+            if (fail)
+                throw failure;
+        }, stop.Token);
+        Assert.False(run.IsCompleted);
+
+        if (fail)
+        {
+            unit.ReportFeedback();
+            Assert.Same(failure, await Record.ExceptionAsync(() => run));
+        }
+        else
+        {
+            stop.Cancel();
+            await run;
+        }
+
+        Assert.False(unit.IsRunning);
+        var before = notifications;
+        unit.ReportFeedback();
+        Assert.Equal(before + 1, notifications);
+
+        using var restart = new CancellationTokenSource();
+        var executions = 0;
+        run = unit.RunAsync(token =>
+        {
+            executions++;
+            return unit.WaitAsync(token);
+        }, restart.Token);
+        try
+        {
+            // Idle feedback remains visible, but must not queue a wake-up for the next run.
+            Assert.Equal(1, executions);
+            Assert.False(run.IsCompleted);
+        }
+        finally
+        {
+            restart.Cancel();
+            await run;
+        }
     }
 
     private sealed class TestUnit : AutoUnit
     {
-        public override event Action? Changed;
-
-        public bool HasSubscribers => Changed is not null;
-
-        public void NotifyChanged()
+        public void ReportFeedback()
         {
-            Changed?.Invoke();
+            NotifyChanged();
         }
 
         public void ReportStep()

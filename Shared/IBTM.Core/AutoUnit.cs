@@ -15,7 +15,7 @@ public abstract class AutoUnit
         _stateChanged = new();
     }
 
-    public abstract event Action? Changed;
+    public event Action? Changed;
     public event Action? StepChanged;
     public event Action<string>? Trace;
 
@@ -24,7 +24,13 @@ public abstract class AutoUnit
     public Enum? Step { get; private set; }
     public bool IsRunning { get; private set; }
 
-    protected void OnChanged()
+    protected void NotifyChanged()
+    {
+        Changed?.Invoke();
+    }
+
+    // Peer changes wake this loop without broadcasting back to the peer.
+    protected void WakeRun()
     {
         _stateChanged.Set();
     }
@@ -76,14 +82,14 @@ public abstract class AutoUnit
         _lastStep = null;
         _waiting = false;
         Trace?.Invoke($"{GetType().Name}: run started.");
-        Changed += OnChanged;
+        Changed += WakeRun;
         if (Step is not null)
             StepChanged?.Invoke();
     }
 
     protected void EndRun(CancellationToken cancellationToken)
     {
-        Changed -= OnChanged;
+        Changed -= WakeRun;
         IsRunning = false;
         Step = null;
         StepChanged?.Invoke();

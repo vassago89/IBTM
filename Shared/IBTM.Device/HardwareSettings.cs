@@ -84,14 +84,6 @@ public abstract class InputHardwareSettings : HardwareSettings
     }
 
     public virtual Dictionary<InputIo, int> Inputs { get; set; }
-
-    public IoStatus CreateIoStatus(IoSignals io)
-    {
-        return io.Select(
-            Area,
-            Inputs.Keys,
-            this is IoHardwareSettings hardware ? hardware.Outputs.Keys : []);
-    }
 }
 
 public abstract class IoHardwareSettings : InputHardwareSettings

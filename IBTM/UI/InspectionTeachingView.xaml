@@ -120,7 +120,16 @@
                             <TextBox Text="{Binding Preview.DataMatrixThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                             <TextBlock Text="Blank = automatic threshold. Test using Inspect Image." TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                         </StackPanel>
-                        <StackPanel Visibility="{Binding IsBoltSelected, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPoint.Bolt, FallbackValue={x:Null}}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
                             <TextBlock Text="Bolt presence" FontWeight="SemiBold" Margin="0,16,0,8"/>
                             <TextBlock Text="Threshold (0–255)" Margin="0,0,0,4"/>
                             <TextBox Text="{Binding Preview.BrightnessThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
