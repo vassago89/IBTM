@@ -22,6 +22,55 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class IoStartupTests
 {
+    [Fact]
+    public async Task ReleasingReverseDuringReadyCheckDoesNotPulseMotorStart()
+    {
+        var virtualIo = new VirtualIoService(VirtualTest.Outputs(), new());
+        var io = new StartupIo(virtualIo);
+        io.Initialize();
+        using var bus = new AdcControllerStub();
+        bus.BindIo(virtualIo, FasteningHead.Pickup);
+        var head = new AdcBoltHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
+        using var release = new CancellationTokenSource();
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.PickupBoltDirection && on)
+                io.BeforeOutputRead = release.Cancel;
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => head.RunReverseAsync(release.Token));
+
+        Assert.Equal(0, bus.StartWrites);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task StopDuringResetAdmissionPreventsHardwareInitialization()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        var initializations = io.Initializations;
+        state.SetError(MachineAlarm.Inspection);
+        io.BeforeOutputRead = machine.Stop;
+        try
+        {
+            await machine.ResetAsync();
+
+            Assert.Equal(initializations, io.Initializations);
+            Assert.Equal(MachineAlarm.Inspection, state.Alarm);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.BeforeOutputRead = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -97,6 +146,42 @@ public sealed class IoStartupTests
         }
         finally
         {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ResetReportsAdmissionInputReadFailure()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        var initializations = io.Initializations;
+        var error = new IOException("RESET selector read failed.");
+        try
+        {
+            state.SetError(MachineAlarm.Inspection);
+            io.BeforeInputRead = input =>
+            {
+                if (input != InputIo.AutoMode)
+                    return;
+                io.BeforeInputRead = null;
+                throw error;
+            };
+            await machine.ResetAsync();
+            Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+            Assert.Contains(error.Message, state.AlarmDetail);
+            Assert.Equal(initializations, io.Initializations);
+
+            await machine.ResetAsync();
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            io.BeforeInputRead = null;
             await machine.ShutdownAsync();
         }
     }
@@ -328,6 +413,42 @@ public sealed class IoStartupTests
             () => io.GetInput(InputIo.PcbPlacementCarrierPresent)).Message);
         await Assert.ThrowsAsync<IOException>(
             () => io.WaitForInputAsync(InputIo.PcbPlacementHeatSink1Present, false));
+    }
+
+    [Fact]
+    public async Task DiagnosticOutputReportsSafetyReadFailureAndCancelsActiveOperations()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        using var operation = services.GetRequiredService<OperationCancellation>().Link();
+        var error = new IOException("Diagnostic selector read failed.");
+        try
+        {
+            io.BeforeInputRead = input =>
+            {
+                if (input != InputIo.AutoMode)
+                    return;
+                io.BeforeInputRead = null;
+                throw error;
+            };
+
+            Assert.Same(error, Assert.Throws<IOException>(
+                () => machine.ToggleDiagnosticOutput(OutputIo.ShootBolt)));
+            Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+            Assert.Contains(error.Message, state.AlarmDetail);
+            Assert.True(operation.IsCancellationRequested);
+            Assert.False(io.GetOutput(OutputIo.ShootBolt));
+        }
+        finally
+        {
+            io.BeforeInputRead = null;
+            operation.Dispose();
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -1109,6 +1230,124 @@ public sealed class IoStartupTests
     [Theory]
     [InlineData(OutputIo.MainConveyorRun)]
     [InlineData(OutputIo.NgConveyorRun)]
+    public async Task StopDuringManualConveyorAdmissionDoesNotStartMotor(OutputIo output)
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var started = false;
+        io.BeforeInputRead = input =>
+        {
+            if (input != InputIo.AutoMode)
+                return;
+            io.BeforeInputRead = null;
+            machine.Stop();
+        };
+        io.BeforeOutputWrite = (signal, value) =>
+        {
+            if (signal == output && value)
+            {
+                started = true;
+                stop.Cancel();
+            }
+        };
+        try
+        {
+            await machine.RunManualConveyorAsync(output, stop.Token);
+
+            Assert.False(started);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.False(services.GetRequiredService<MachineState>().IsError);
+        }
+        finally
+        {
+            io.BeforeInputRead = null;
+            io.BeforeOutputWrite = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task IndividualHomeDoesNotStartAfterStopDuringBusyRead()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        var homeStarted = false;
+        state.Changed += () => homeStarted |= state.IsHoming;
+        io.BeforeOutputRead = machine.Stop;
+        try
+        {
+            await machine.HomeAsync(MotionGroup.InspectionGantry, CancellationToken.None);
+
+            Assert.False(homeStarted);
+            Assert.False(state.IsError);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.BeforeOutputRead = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TeachingCommandDoesNotStartAfterStopDuringBusyRead(bool outputCommand)
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        var outputs = services.GetRequiredService<VirtualIoService>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var motion = services.GetRequiredService<InspectionStation>().Motion.Feedback;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        var started = false;
+        motion.MovingChanged += moving =>
+        {
+            if (!moving)
+                return;
+            started = true;
+            machine.Stop();
+        };
+        outputs.OutputChanged += (output, value) =>
+        {
+            if (output == OutputIo.NgCarrierPickupDown && value)
+                started = true;
+        };
+        io.BeforeOutputRead = machine.Stop;
+        try
+        {
+            if (outputCommand)
+                await machine.ToggleTeachingOutputAsync(
+                    services.GetRequiredService<IoSignals>().Outputs[OutputIo.NgCarrierPickupDown], default, default);
+            else
+                await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus).WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.False(started);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.False(services.GetRequiredService<MachineState>().IsError);
+        }
+        finally
+        {
+            io.BeforeOutputRead = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(OutputIo.MainConveyorRun)]
+    [InlineData(OutputIo.NgConveyorRun)]
     public async Task ManualConveyorReadFailureWaitsForDeviceCleanup(OutputIo output)
     {
         await using var services = CreateServices();
@@ -1160,6 +1399,116 @@ public sealed class IoStartupTests
             releaseCleanup.Set();
             io.BeforeOutputWrite = null;
             io.OutputReadError = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LightTestAvailabilityReadFailureStopsTestAndReportsAlarm()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        var settings = services.GetRequiredService<SettingsViewModel>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        var testing = settings.TestLightCommand.ExecuteAsync(null);
+        try
+        {
+            await WaitUntilAsync(() => settings.PendingLightOffChannel is not null);
+            var failure = new IOException("Lighting test manual input read failed.");
+            io.BeforeInputRead = input =>
+            {
+                if (input != InputIo.AutoMode)
+                    return;
+                io.BeforeInputRead = null;
+                throw failure;
+            };
+
+            Assert.Null(Record.Exception(state.Refresh));
+            await testing.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Null(settings.PendingLightOffChannel);
+            Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+            Assert.Contains(failure.Message, state.AlarmDetail);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.BeforeInputRead = null;
+            machine.Stop();
+            await testing;
+            await settings.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task AdcDiagnosticAvailabilityReadFailureStopsMotorAndReportsAlarm()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        var headIo = new VirtualIoService(VirtualTest.Outputs(), new());
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        bus.BindIo(headIo, FasteningHead.Pickup);
+        using var diagnostics = new AdcProtocolViewModel(
+            bus, new VirtualAdcBus(), headIo,
+            services.GetRequiredService<MachineSettings>().Hantas, machine, state);
+        var testing = diagnostics.StartCommand.ExecuteAsync(null);
+        try
+        {
+            await WaitUntilAsync(() => headIo.GetOutput(OutputIo.PickupBoltStart));
+            var failure = new IOException("ADC diagnostic safety input read failed.");
+            io.BeforeInputRead = input =>
+            {
+                if (input != InputIo.AutoMode)
+                    return;
+                io.BeforeInputRead = null;
+                throw failure;
+            };
+
+            Assert.Null(Record.Exception(state.Refresh));
+            await testing.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.False(headIo.GetOutput(OutputIo.PickupBoltStart));
+            Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+            Assert.Contains(failure.Message, state.AlarmDetail);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.BeforeInputRead = null;
+            machine.Stop();
+            await testing;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task AdcDiagnosticsDoNotAcquireControlAfterStopDuringAdmission()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        io.BeforeOutputRead = machine.Stop;
+        try
+        {
+            Assert.Throws<OperationCanceledException>(() =>
+            {
+                using var operation = machine.BeginAdcProtocol(CancellationToken.None);
+            });
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.BeforeOutputRead = null;
             await machine.ShutdownAsync();
         }
     }

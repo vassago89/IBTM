@@ -23,7 +23,6 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         Monitor = new(this);
         ResultReplies = new();
         RunReplies = new();
-        ResultReadFailuresRemaining = 1;
     }
 
     public AdcStatusMonitor Monitor { get; }
@@ -41,22 +40,17 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public int EventReads { get; private set; }
     public int StatusReads { get; private set; }
 
-    public ushort CurrentPreset { get; set; } = 3;
+    private ushort CurrentPreset { get; set; } = 3;
     public ushort CurrentAlarm { get; set; }
     public bool NotReady { get; set; }
     public int ResetPollsRemaining { get; set; }
     public int ResetWrites { get; private set; }
-    public AdcDirection CurrentDirection { get; set; }
-    public bool IgnorePresetWrites { get; set; }
-    public bool IgnoreDirectionWrites { get; init; }
+    private AdcDirection CurrentDirection { get; set; }
     public ushort? ResultPreset { get; init; }
     public AdcDirection? ResultDirection { get; init; }
     public int StopPollsRemaining { get; set; }
     public IOException? StopWriteFailure { get; set; }
-    public int StopWriteFailuresRemaining { get; set; } = -1;
-    public IOException? StopReadFailure { get; init; }
-    public IOException? ResultReadFailure { get; set; }
-    public int ResultReadFailuresRemaining { get; set; }
+    public IOException? NextResultReadFailure { get; set; }
     public IOException? BaselineReadFailure { get; init; }
     public bool SuppressCompletion { get; set; }
     public AdcEventStatus ResultStatus { get; set; } = AdcEventStatus.FasteningOk;
@@ -65,7 +59,6 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public bool Running { get; private set; }
     public int StartWrites { get; private set; }
     public int StopWrites { get; private set; }
-    public int StopFeedbackReads { get; private set; }
     public bool IsOpen { get; private set; }
 
     public string PortName => "Controller test bus";
@@ -119,10 +112,10 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                 ResetWrites++;
                 _resetRequested = true;
                 break;
-            case AdcRemoteRegister.Preset when !IgnorePresetWrites:
+            case AdcRemoteRegister.Preset:
                 CurrentPreset = value;
                 break;
-            case AdcRemoteRegister.Direction when !IgnoreDirectionWrites:
+            case AdcRemoteRegister.Direction:
                 CurrentDirection = (AdcDirection)value;
                 break;
             case AdcRemoteRegister.RemoteStart:
@@ -137,12 +130,8 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                 else
                 {
                     StopWrites++;
-                    if (StopWriteFailure is not null && StopWriteFailuresRemaining != 0)
-                    {
-                        if (StopWriteFailuresRemaining > 0)
-                            StopWriteFailuresRemaining--;
+                    if (StopWriteFailure is not null)
                         throw StopWriteFailure;
-                    }
                     _stopRequested = true;
                 }
                 break;
@@ -207,11 +196,8 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
                         else if (_runSamples++ > 0 && !SuppressCompletion)
                             Running = false;
                     }
-                    if (StopWrites > 0 && StopReadFailure is not null)
-                        throw StopReadFailure;
                     if (_stopRequested)
                     {
-                        StopFeedbackReads++;
                         if (StopPollsRemaining == 0)
                         {
                             Running = false;
@@ -257,10 +243,9 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         var received = ResultReplies.TryDequeue(out var queued)
             ? queued : AdcFasteningResult.FromRegisters(ResultRegisters);
         ResultReadWhileRunning |= Running;
-        if (ResultReadFailure is { } failure && ResultReadFailuresRemaining != 0)
+        if (NextResultReadFailure is { } failure)
         {
-            if (ResultReadFailuresRemaining > 0)
-                ResultReadFailuresRemaining--;
+            NextResultReadFailure = null;
             throw failure;
         }
         if (received.Status == AdcEventStatus.Error)

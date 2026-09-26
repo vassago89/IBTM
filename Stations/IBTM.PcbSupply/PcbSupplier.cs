@@ -408,7 +408,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 void CheckReturnHolding()
                 {
                     if (!PcbSecured)
-                        returning.Cancel();
+                        OperationCancellation.CancelIfNotDisposed(returning);
                 }
                 Changed += CheckReturnHolding;
                 try
@@ -456,19 +456,18 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                     : recipe.Pcb2PickPosition;
                 using var pickup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 var carrierChanged = false;
-                void StopWhenCarrierLeaves()
+                void CheckPickupFeedback()
                 {
                     if (!UpstreamCarrierAvailable)
-                    {
                         carrierChanged = true;
-                        pickup.Cancel();
-                    }
+                    if (carrierChanged || Rotation != PcbSupplyRotationState.Rotated)
+                        OperationCancellation.CancelIfNotDisposed(pickup);
                 }
 
-                Changed += StopWhenCarrierLeaves;
+                Changed += CheckPickupFeedback;
                 try
                 {
-                    StopWhenCarrierLeaves();
+                    CheckPickupFeedback();
                     EnterStep(PcbSupplyState.PickingPcb, pickStep.ToString());
                     await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, pickup.Token);
                     await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, pickup.Token);
@@ -515,9 +514,13 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                     _pickStep = PickStep.Pcb1;
                     EnterStep(PcbSupplyState.WaitingForCarrier);
                 }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new MotionInterlockException("Supply rotation must remain confirmed Rotated throughout PCB pickup.");
+                }
                 finally
                 {
-                    Changed -= StopWhenCarrierLeaves;
+                    Changed -= CheckPickupFeedback;
                 }
                 break;
             }
@@ -527,7 +530,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 void CheckHolding()
                 {
                     if (!PcbSecured)
-                        handoff.Cancel();
+                        OperationCancellation.CancelIfNotDisposed(handoff);
                 }
                 Changed += CheckHolding;
                 try
@@ -583,12 +586,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             throw new MotionInterlockException("Supply must be unrotated before moving to the handoff position.");
         var position = _settings.HandoffPosition;
         EnterStep(PcbSupplyState.MovingToHandoff);
-        await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
-        await _motion.MoveToXYAsync(
-            position.X,
-            position.Y,
-            _settings.Motion.HorizontalSpeed,
-            cancellationToken);
+        await MoveUnrotatedAsync(position.X, position.Y, position.Z, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         _handoffPendingDeparture = true;
         _handoffPosition = new() { X = position.X, Y = position.Y, Z = position.Z };
@@ -632,22 +630,43 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
             case TeachMode.Full when point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
+            {
                 if (!point.HasPosition)
                     throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
-                await MoveAxisAsync(MotionAxis.Z, _settings.RotationZ, cancellationToken);
-                await _motion.MoveToXYAsync(
-                    position.X,
-                    position.Y,
-                    _settings.Motion.HorizontalSpeed,
-                    cancellationToken);
-                await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
+                using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                void CheckRotation()
+                {
+                    if (Rotation != PcbSupplyRotationState.Rotated)
+                        OperationCancellation.CancelIfNotDisposed(move);
+                }
+
+                Changed += CheckRotation;
+                try
+                {
+                    CheckRotation();
+                    move.Token.ThrowIfCancellationRequested();
+                    await MoveAxisAsync(MotionAxis.Z, _settings.RotationZ, move.Token);
+                    await _motion.MoveToXYAsync(
+                        position.X,
+                        position.Y,
+                        _settings.Motion.HorizontalSpeed,
+                        move.Token);
+                    await MoveAxisAsync(MotionAxis.Z, position.Z, move.Token);
+                    CheckRotation();
+                    move.Token.ThrowIfCancellationRequested();
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new MotionInterlockException("Supply must remain rotated while moving to a PCB pickup position.");
+                }
+                finally
+                {
+                    Changed -= CheckRotation;
+                }
                 break;
+            }
             case TeachMode.Full or TeachMode.XYOnly:
-                if (Rotation != PcbSupplyRotationState.Unrotated)
-                    throw new MotionInterlockException("Supply must be unrotated before moving to the handoff position.");
-                await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
-                await _motion.MoveToXYAsync(
-                    position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
+                await MoveUnrotatedAsync(position.X, position.Y, position.Z, cancellationToken);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(point));
@@ -661,12 +680,37 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             throw new MotionInterlockException("Supply must remain Unrotated until it leaves the handoff position.");
         if (nextPick.Y is not { } y)
             throw new MotionInterlockException("Teach the selected PCB pickup XYZ before moving Supply.");
-        await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, cancellationToken);
-        await _motion.MoveToXYAsync(
-            nextPick.X,
-            y,
-            _settings.Motion.HorizontalSpeed,
-            cancellationToken);
+        await MoveUnrotatedAsync(nextPick.X, y, _settings.HandoffPosition.Z, cancellationToken);
+    }
+
+    private async Task MoveUnrotatedAsync(double x, double y, double z, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        void CheckRotation()
+        {
+            if (Rotation != PcbSupplyRotationState.Unrotated)
+                OperationCancellation.CancelIfNotDisposed(move);
+        }
+
+        Changed += CheckRotation;
+        try
+        {
+            CheckRotation();
+            move.Token.ThrowIfCancellationRequested();
+            await MoveAxisAsync(MotionAxis.Z, z, move.Token);
+            await _motion.MoveToXYAsync(x, y, _settings.Motion.HorizontalSpeed, move.Token);
+            CheckRotation();
+            move.Token.ThrowIfCancellationRequested();
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new MotionInterlockException("Supply must remain unrotated while travelling to or from the handoff position.");
+        }
+        finally
+        {
+            Changed -= CheckRotation;
+        }
     }
 
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)

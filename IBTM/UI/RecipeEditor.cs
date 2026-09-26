@@ -138,7 +138,7 @@ public partial class RecipeEditor : ObservableObject
     {
         Name = _recipes.Current.Name;
         OnPropertyChanged(nameof(ActiveName));
-        if (!Recipes.Contains(Name))
+        if (!Recipes.Any(name => MachineStore.IsSameRecipeName(name, Name)))
             Recipes = Recipes.Append(Name).Order(StringComparer.Ordinal).ToArray();
     }
 
@@ -199,9 +199,9 @@ public partial class RecipeEditor : ObservableObject
         CancellationToken cancellationToken = default)
     {
         var name = _recipes.Current.Name;
-        var tiles = _recipes.Current.CarrierImages;
-        var bolts = _recipes.Current.Pcb.BoltPoints;
-        if (tiles.Count == 0)
+        var tiles = _recipes.Current.CarrierImages.ToArray();
+        var bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
+        if (tiles.Length == 0)
             return Task.FromResult<CarrierImageTileView[]>([]);
         return Task.Run(
             () => tiles.Select(

@@ -7,6 +7,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.Storage;
+using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -346,13 +347,44 @@ public sealed class LightingTests
         else
         {
             Assert.IsType<MovsLightController>(controller);
-            // AnyWave leaves an empty COM disconnected. No physical port is opened.
-            controller.Initialize();
-            controller.SetLevel(2, 80);
-            controller.TurnOn(2);
-            controller.TurnOff(2);
-            controller.TurnOffAll();
+            // Construction stays available for configuration; use must report the missing port.
+            // Validation stops before opening any physical port.
+            var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
+            Assert.Contains("COM port", error.Message);
         }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10)]
+    public async Task InvalidInspectionLightChannelCannotBeSavedOrSent(int channel)
+    {
+        using var controller = new MovsLightController(new());
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(channel, 80));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOn(channel));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOff(channel));
+
+        var store = VirtualTest.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.Lighting.InspectionChannel = channel;
+        await using var services = new ServiceCollection()
+            .AddSingleton(store)
+            .AddIbtmApplication(settings)
+            .BuildServiceProvider();
+        var editor = services.GetRequiredService<SettingsViewModel>();
+        await editor.SaveSettingsCommand.ExecuteAsync(null);
+
+        Assert.Contains("Inspection light channel", editor.DatabaseMessage);
+        Assert.Equal(2, store.LoadSettings().Get<LightingSettings>().InspectionChannel);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(256)]
+    public void InvalidMovsBrightnessIsRejectedBeforeSending(int level)
+    {
+        using var controller = new MovsLightController(new());
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(2, level));
     }
 
     private sealed class TestCamera : ICamera

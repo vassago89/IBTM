@@ -246,7 +246,13 @@ public class TeachingPoint : ObservableObject
 
     public void Teach(double x, double y, double z)
     {
-        var position = Read();
+        var current = Coordinates;
+        var position = new AxisPosition
+        {
+            X = current?.X ?? 0,
+            Y = current?.Y ?? 0,
+            Z = _definition.Mode == TeachMode.Image ? 0 : current?.Z ?? 0,
+        };
         if (_definition.Mode is TeachMode.Image or TeachMode.XYOnly or TeachMode.Full)
         {
             position.X = x;
@@ -333,15 +339,19 @@ public class TeachingPoint : ObservableObject
         Refresh();
     }
 
-    public AxisPosition Read()
+    public AxisPosition MovePosition
     {
-        var position = Coordinates ?? new();
-        return new()
+        get
         {
-            X = position.X,
-            Y = position.Y,
-            Z = _definition.Mode == TeachMode.Image ? 0 : position.Z,
-        };
+            var position = Coordinates ?? throw new MotionInterlockException(
+                "Record the selected teaching position before moving.");
+            return new()
+            {
+                X = position.X,
+                Y = position.Y,
+                Z = _definition.Mode == TeachMode.Image ? 0 : position.Z,
+            };
+        }
     }
 
     public void Refresh()

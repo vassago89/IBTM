@@ -28,7 +28,7 @@ public sealed class TeachingOutputRow
         get
         {
             return !ViewCancellation.IsCancellationRequested
-                && _machine.IsSetTeachingOutputAllowed(Io, live: false);
+                && _machine.IsSetTeachingOutputAllowed(Io);
         }
     }
 

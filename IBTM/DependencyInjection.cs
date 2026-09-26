@@ -104,8 +104,43 @@ public static class DependencyInjection
                 .AddSingleton<IIoService, PhysicalIoService>();
         }
 
+        var controlDriver = settings.Drivers.Control;
         foreach (var (motionSettings, motionHardware) in motions)
-            AddXyMotion(services, settings.Drivers.Control, motionSettings, motionHardware);
+        {
+            services.AddKeyedSingleton<IXyMotion>(
+                motionHardware.Group,
+                (provider, _) =>
+                {
+                    var x = motionHardware.GetAxis(MotionAxis.X)!;
+                    var y = motionHardware.GetAxis(MotionAxis.Y);
+                    var z = motionHardware.GetAxis(MotionAxis.Z);
+                    var cancellation = provider.GetRequiredService<OperationCancellation>();
+                    if (controlDriver == ControlDriver.Physical)
+                    {
+                        return new AjinMotionService(
+                            provider.GetRequiredService<AjinController>(),
+                            x,
+                            y,
+                            z,
+                            motionSettings,
+                            provider.GetRequiredService<MachineOptions>(),
+                            cancellation,
+                            provider.GetRequiredService<ILogger<AjinMotionService>>());
+                    }
+
+                    var io = provider.GetRequiredService<VirtualIoService>();
+                    return new VirtualMotionService(
+                        motionSettings,
+                        cancellation,
+                        hasY: y is not null,
+                        hasZ: z is not null,
+                        servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn),
+                        axisResolutionMillimeters: (
+                            x.MoveUnit / x.MovePulse / 1000,
+                            (y?.MoveUnit ?? 1) / (y?.MovePulse ?? 1) / 1000,
+                            (z?.MoveUnit ?? 1) / (z?.MovePulse ?? 1) / 1000));
+                });
+        }
 
         services.AddSingleton<IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]>>(provider =>
         {
@@ -349,46 +384,5 @@ public static class DependencyInjection
             .AddSingleton<MainWindow>();
 
         return services;
-    }
-
-    private static void AddXyMotion(
-        IServiceCollection services,
-        ControlDriver driver,
-        MotionSettings settings,
-        MotionHardwareSettings hardware)
-    {
-        services.AddKeyedSingleton<IXyMotion>(
-            hardware.Group,
-            (provider, _) =>
-            {
-                var x = hardware.GetAxis(MotionAxis.X)!;
-                var y = hardware.GetAxis(MotionAxis.Y);
-                var z = hardware.GetAxis(MotionAxis.Z);
-                var cancellation = provider.GetRequiredService<OperationCancellation>();
-                if (driver == ControlDriver.Physical)
-                {
-                    return new AjinMotionService(
-                        provider.GetRequiredService<AjinController>(),
-                        x,
-                        y,
-                        z,
-                        settings,
-                        provider.GetRequiredService<MachineOptions>(),
-                        cancellation,
-                        provider.GetRequiredService<ILogger<AjinMotionService>>());
-                }
-
-                var io = provider.GetRequiredService<VirtualIoService>();
-                return new VirtualMotionService(
-                    settings,
-                    cancellation,
-                    hasY: y is not null,
-                    hasZ: z is not null,
-                    servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn),
-                    axisResolutionMillimeters: (
-                        x.MoveUnit / x.MovePulse / 1000,
-                        (y?.MoveUnit ?? 1) / (y?.MovePulse ?? 1) / 1000,
-                        (z?.MoveUnit ?? 1) / (z?.MovePulse ?? 1) / 1000));
-            });
     }
 }

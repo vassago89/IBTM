@@ -183,7 +183,7 @@ public sealed class MachineState : INotifyPropertyChanged
     // The selector contact is energized in MANUAL, open in AUTO.
     public bool AutoMode => _io.IsReady && !_io.GetInput(InputIo.AutoMode);
 
-    public bool ManualMode => !AutoMode;
+    public bool ManualMode => _io.IsReady && _io.GetInput(InputIo.AutoMode);
 
     public bool DoorInterlockReady => !_options.UseDoorInterlock || ManualMode || DoorClosed;
 
@@ -259,13 +259,13 @@ public sealed class MachineState : INotifyPropertyChanged
 
     public bool ManualControlsEnabled => Available && ManualBlock == ManualControlBlock.None;
 
-    // Editing data does not operate a device or require motion readiness.
+    // Data editing is also available before I/O connects; it does not grant manual operation.
     public bool SetupEditingEnabled
     {
         get
         {
             return !_operations.IsShuttingDown
-                && ManualMode
+                && !AutoMode
                 && !_operations.HasActiveOperations
                 && !AutomaticRunning
                 && !BoltTestRunning
@@ -299,9 +299,9 @@ public sealed class MachineState : INotifyPropertyChanged
         return ServoMainContactorOn && motion.Homed && motion.ServosOn && !motion.Faulted;
     }
 
-    internal bool IsRunningFor(bool? mainRunning = null, bool? ngRunning = null)
+    internal bool IsRunningFor(bool? mainRunning = null, bool? ngRunning = null, bool includeOperations = true)
     {
-        return _operations.HasActiveOperations
+        return includeOperations && _operations.HasActiveOperations
             || AutomaticRunning
             || BoltTestRunning
             || IsHoming

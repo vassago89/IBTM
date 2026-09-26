@@ -218,6 +218,49 @@ public sealed class PcbPlacementStateSafetyTests
     }
 
     [Fact]
+    public async Task ReceiptWaitsForCurrentPcbPresenceBeforeStartingVacuum()
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        await rig.Placer.PrepareHandoffAsync();
+        rig.Supply.Handoff = PcbSupplyHandoff.Holding;
+        await rig.Placer.PrepareReceiptAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var scheduler = new ConcurrentExclusiveSchedulerPair();
+        try
+        {
+            await Task.Factory.StartNew(async () =>
+            {
+                var receiving = rig.Placer.ExecuteStepAsync(
+                    PcbPlacementState.ReceivingPcb, HeatSinkSlot.HeatSink1, stop.Token);
+                try
+                {
+                    rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+                    rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, false);
+                    await Task.Yield();
+                    Assert.False(rig.Io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
+                    Assert.False(receiving.IsCompleted);
+
+                    rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+                    await receiving;
+                    Assert.True(rig.Placer.PcbSecured);
+                }
+                finally
+                {
+                    stop.Cancel();
+                    await ((Task)receiving).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing
+                        | ConfigureAwaitOptions.ContinueOnCapturedContext);
+                }
+            }, CancellationToken.None, TaskCreationOptions.None, scheduler.ExclusiveScheduler).Unwrap();
+        }
+        finally
+        {
+            scheduler.Complete();
+            await scheduler.Completion;
+        }
+    }
+
+    [Fact]
     public async Task ReceiptStopsIfSupplyLosesHoldingDuringReceiveZ()
     {
         using var rig = new PlacementRig();
@@ -326,6 +369,85 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.True(lost);
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementDoesNotPressAfterCarrierChangesDuringIpmRetraction(bool replaceCarrier)
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        await rig.ReceiveAsync();
+        await rig.Placer.ExecuteStepAsync(rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
+        rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+        var retracted = false;
+        var pressed = false;
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.PcbPlacementIpmDown)
+                return;
+            pressed |= on;
+            if (on)
+                return;
+            retracted = true;
+            if (replaceCarrier)
+            {
+                SetCarrier(rig.Io, InputIo.PcbPlacementHeatSink1Present, false);
+                SetCarrier(rig.Io, InputIo.PcbPlacementHeatSink1Present, true);
+            }
+            else
+                rig.Io.SetInput(InputIo.PcbPlacementBackupPlateUp, false);
+        };
+
+        Assert.Equal(PcbPlacementState.PlacingPcb, rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => rig.Placer.ExecuteStepAsync(rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token));
+        Assert.Contains("carrier", failure.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(retracted);
+        Assert.False(pressed);
+        Assert.Empty(rig.Work.Assemblies);
+    }
+
+    [Fact]
+    public async Task UnconfirmedPressDoesNotRecordAnAssembly()
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        await rig.ReceiveAsync();
+        await rig.Placer.ExecuteStepAsync(rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
+        rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var pressing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PcbPlacementIpmDown && on)
+            {
+                rig.Io.AutoResponseEnabled = false;
+                rig.Io.SetInput(InputIo.PcbPlacementIpmUp, false);
+                pressing.SetResult();
+            }
+        };
+
+        var operation = rig.Placer.ExecuteStepAsync(
+            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, stop.Token);
+        try
+        {
+            await pressing.Task.WaitAsync(stop.Token);
+            Assert.False(operation.IsCompleted);
+            Assert.Equal(StationCylinderState.Between, rig.Placer.IpmLift);
+            Assert.Empty(rig.Work.Assemblies);
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);
+            Assert.Empty(rig.Work.Assemblies);
+        }
+        finally
+        {
+            stop.Cancel();
+            await ((Task)operation).ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
     }
 
     private sealed class PlacementRig : IDisposable

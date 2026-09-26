@@ -668,7 +668,7 @@
                                                     Text="{Binding Settings.Lighting.Connection, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                             <StackPanel Margin="4,0,0,0">
-                                                <TextBlock Text="Inspection Channel" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="Inspection Channel (1–9)" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     Text="{Binding Settings.Lighting.InspectionChannel, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>

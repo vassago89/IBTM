@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM.Ajin.Tests;
 
-public sealed partial class AjinControllerTests
+public sealed class AjinControllerTests
 {
     public AjinControllerTests()
     {
@@ -87,6 +87,93 @@ public sealed partial class AjinControllerTests
         Assert.DoesNotContain(AjinSdk.Calls, call =>
             call.Operation.StartsWith("AxmMove", StringComparison.Ordinal)
             || call.Operation.StartsWith("AxmHomeSet", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void UnassignedOutputStaysUnknownWithoutReadingAnInvalidSdkAddress()
+    {
+        Shared.TMCAEDLL.Reset();
+        using var alpha = new IBTM.AlphaMotion.AlphaMotionController(new());
+        using var ajin = new AjinController(new());
+        var hardware = new MachineHardwareSettings();
+        hardware.Inputs.Clear();
+        hardware.Outputs.Clear();
+        hardware.Outputs.Add(OutputIo.TowerLampRed, new() { Number = -1 });
+        hardware.Outputs.Add(OutputIo.TowerLampGreen, new() { Number = 0 });
+        using var io = new PhysicalIoService(
+            alpha, ajin, hardware.Inputs, hardware.Outputs, new());
+        io.Initialize();
+        io.CheckReady();
+        var signals = new IoSignals([hardware], io);
+        signals.RefreshOutputs();
+        var unassigned = signals.Outputs[OutputIo.TowerLampRed];
+        Assert.Null(unassigned.Number);
+        Assert.Equal("—", unassigned.Address);
+        Assert.Null(unassigned.IsOn);
+        Assert.False(unassigned.IsMatched);
+        Assert.False(signals.Outputs[OutputIo.TowerLampGreen].IsOn);
+
+        var calls = Shared.TMCAEDLL.Calls.Count + AjinSdk.Calls.Count;
+        Assert.Throws<IOException>(() => io.GetOutput(OutputIo.TowerLampRed));
+        Assert.Throws<IOException>(() => io.SetOutput(OutputIo.TowerLampRed, false));
+        Assert.Equal(calls, Shared.TMCAEDLL.Calls.Count + AjinSdk.Calls.Count);
+    }
+
+    [Fact]
+    public async Task OppositeOutputCommandsCannotInterleaveTheTwoCoilWrites()
+    {
+        Shared.TMCAEDLL.Reset();
+        using var alpha = new IBTM.AlphaMotion.AlphaMotionController(new());
+        using var ajin = new AjinController(new());
+        using var io = new PhysicalIoService(alpha, ajin,
+            new System.Collections.Generic.Dictionary<InputIo, int>(),
+            new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>
+            {
+                [OutputIo.NgShuttleDown] = new() { Number = 0, OffNumber = 16 },
+            }, new());
+        io.Initialize();
+        using var releaseFirstWrite = new ManualResetEventSlim();
+        using var oppositeWrite = new ManualResetEventSlim();
+        var firstWrite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oppositeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call is { Operation: "AxdoWriteOutportBit", Value: 0 })
+            {
+                firstWrite.TrySetResult();
+                if (!releaseFirstWrite.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("The first coil write was not released.");
+            }
+        };
+        Shared.TMCAEDLL.BeforeCall = operation =>
+        {
+            if (operation == "AIO_PutDOBit")
+                oppositeWrite.Set();
+        };
+        var forward = Task.Run(() => io.SetOutput(OutputIo.NgShuttleDown, true));
+        var backward = Task.CompletedTask;
+        var interleaved = false;
+        try
+        {
+            await firstWrite.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            backward = Task.Run(() =>
+            {
+                oppositeStarted.SetResult();
+                io.SetOutput(OutputIo.NgShuttleDown, false);
+            });
+            await oppositeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            interleaved = oppositeWrite.Wait(TimeSpan.FromMilliseconds(200));
+        }
+        finally
+        {
+            releaseFirstWrite.Set();
+            await Task.WhenAll(forward, backward).WaitAsync(TimeSpan.FromSeconds(5));
+            AjinSdk.BeforeCall = null;
+            Shared.TMCAEDLL.BeforeCall = null;
+        }
+        Assert.False(interleaved);
+        Assert.Equal(0U, Shared.TMCAEDLL.Outputs & 1U);
+        Assert.Equal(1U, AjinSdk.Outputs[2] & 1U);
     }
 
     [Theory]
@@ -563,6 +650,62 @@ public sealed partial class AjinControllerTests
     }
 
 
+
+    [Fact]
+    public async Task CancellationDuringSecondHomeSetupDoesNotStartThatAxis()
+    {
+        using var controller = new AjinController(new());
+        var operations = new OperationCancellation();
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            new(), new(), operations);
+        foreach (var axis in new[] { 9, 10 })
+        {
+            AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+            AjinSdk.HomeMethods[axis] = new(0, 4, 0, 0, 0);
+            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: axis)] = 0;
+            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axis)] = 0;
+            AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: axis)] = 0;
+        }
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmHomeSetVel) && call.Axis == 10)
+                operations.Cancel();
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => motion.HomeHorizontalAsync(15));
+
+        Assert.Equal(9, Assert.Single(AjinSdk.Calls,
+            call => call.Operation == nameof(CAXM.AxmHomeSetStart)).Axis);
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
+            .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop)).Select(call => call.Axis!.Value));
+        Assert.False(operations.HasActiveOperations);
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Fact]
+    public async Task JogCancellationDuringStartNotificationDoesNotStartTheAxis()
+    {
+        using var controller = new AjinController(new());
+        var operations = new OperationCancellation();
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, null, null, new(), new(), operations);
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveVel), Axis: 9)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = 0;
+        motion.MovingChanged += moving =>
+        {
+            if (moving)
+                operations.Cancel();
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => motion.JogAsync(MotionAxis.X, 1));
+
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveVel));
+        Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
+        Assert.False(operations.HasActiveOperations);
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
 
     [Theory]
     [InlineData(nameof(CAXM.AxmHomeSetResult))]
@@ -1400,4 +1543,504 @@ public sealed partial class AjinControllerTests
         Assert.Empty(AjinSdk.Calls);
     }
 
+    [Fact]
+    public async Task AxisMoveAndJogUseConfiguredAccelerationWithAnyWaveUnits()
+    {
+        using var controller = new AjinController(new());
+        var settings = new MotionSettings { AccelerationSeconds = 0.2, DecelerationSeconds = 0.75 };
+        var motion = CreateHorizontalHome(controller, hasY: false, settings: settings);
+        using var cancellation = new CancellationTokenSource();
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 9)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveVel), Axis: 9)] = 0;
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmMoveStartPos))
+                AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = 2500 };
+            if (call.Operation == nameof(CAXM.AxmMoveVel))
+                cancellation.Cancel();
+        };
+
+        await motion.MoveAxisAsync(MotionAxis.X, 2.5, 3);
+        settings.AccelerationSeconds = 0.6;
+        settings.DecelerationSeconds = 0.3;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            motion.JogAsync(MotionAxis.X, -3, cancellation.Token));
+
+        Assert.Equal(2, AjinSdk.Moves.Count);
+        var move = AjinSdk.Moves[0];
+        Assert.Equal(new double[] { 2500 }, move.Positions);
+        Assert.Equal(new double[] { 3000 }, move.Velocities);
+        Assert.Equal(new double[] { 15000 }, move.Accelerations);
+        Assert.Equal(new double[] { 4000 }, move.Decelerations);
+        var jog = AjinSdk.Moves[1];
+        Assert.Null(jog.Positions);
+        Assert.Equal(new double[] { -3000 }, jog.Velocities);
+        Assert.Equal(new double[] { 5000 }, jog.Accelerations);
+        Assert.Equal(new double[] { 10000 }, jog.Decelerations);
+        Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Fact]
+    public async Task HorizontalHomeStartsBothAxesBeforeWaitingAndWaitsForBothResults()
+    {
+        using var controller = new AjinController(new());
+        var motion = CreateHorizontalHome(controller);
+        var bothStarted = false;
+        var yReads = 0;
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmHomeSetStart))
+            {
+                var axis = call.Axis!.Value;
+                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { HomeResult = 2 };
+                if (axis == 10)
+                {
+                    bothStarted = true;
+                    AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { HomeResult = 1 };
+                }
+            }
+            if (call.Operation == nameof(CAXM.AxmHomeGetResult)
+                && AjinSdk.Calls.Any(item => item.Operation == nameof(CAXM.AxmHomeSetStart)))
+            {
+                Assert.True(bothStarted);
+                if (call.Axis == 10 && ++yReads == 2)
+                    AjinSdk.MotionAxes[10] = AjinSdk.MotionAxes[10] with { HomeResult = 1 };
+            }
+        };
+
+        Assert.True(await motion.HomeHorizontalAsync(1).WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.True(yReads >= 3);
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
+            .Where(call => call.Operation == nameof(CAXM.AxmHomeSetStart)).Select(call => call.Axis!.Value));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
+            .Where(call => call.Operation == nameof(CAXM.AxmHomeSetResult)).Select(call => call.Axis!.Value));
+    }
+
+    [Fact]
+    public async Task InvalidAccelerationNeverStartsMotionOrHome()
+    {
+        using var controller = new AjinController(new());
+        var settings = new MotionSettings { AccelerationSeconds = 0 };
+        var motion = CreateHorizontalHome(controller, settings: settings);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => motion.MoveAxisAsync(MotionAxis.X, 2, 1));
+        settings.HorizontalHome.SearchAccelerationSeconds = 0;
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => motion.HomeHorizontalAsync(1));
+
+        Assert.Empty(AjinSdk.Moves);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetStart));
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Theory]
+    [InlineData(9)]
+    [InlineData(10)]
+    public async Task HorizontalHomeFailureStopsBothAxesAndKeepsTheFailedResult(int failedAxis)
+    {
+        using var controller = new AjinController(new());
+        var motion = CreateHorizontalHome(controller);
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmHomeSetStart))
+            {
+                var axis = call.Axis!.Value;
+                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with
+                {
+                    HomeResult = axis == failedAxis ? 0x12U : 2U,
+                };
+            }
+        };
+
+        Assert.False(await motion.HomeHorizontalAsync(1));
+        Assert.Equal(0x12U, AjinSdk.MotionAxes[failedAxis].HomeResult);
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == nameof(CAXM.AxmHomeSetResult)));
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
+            .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop)).Select(call => call.Axis!.Value));
+    }
+
+    [Fact]
+    public async Task SecondHomeStartFailureStopsTheFirstAxisBeforeReturning()
+    {
+        using var controller = new AjinController(new());
+        var motion = CreateHorizontalHome(controller);
+        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: 10)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+
+        Assert.False(await motion.HomeHorizontalAsync(1));
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == nameof(CAXM.AxmHomeSetResult)));
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
+            .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop)).Select(call => call.Axis!.Value));
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Fact]
+    public async Task HorizontalHomeCancellationWaitsForBothAxesToStop()
+    {
+        using var controller = new AjinController(new());
+        var motion = CreateHorizontalHome(controller);
+        using var cancellation = new CancellationTokenSource();
+        var cancelled = false;
+        var stopChecks = 0;
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmHomeSetStart))
+            {
+                var axis = call.Axis!.Value;
+                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { HomeResult = 2, InMotion = 1 };
+                if (axis == 10)
+                {
+                    cancelled = true;
+                    cancellation.Cancel();
+                }
+            }
+            if (cancelled && call.Operation == nameof(CAXM.AxmStatusReadInMotion) && ++stopChecks == 4)
+            {
+                foreach (var axis in new[] { 9, 10 })
+                    AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { InMotion = 0 };
+            }
+            if (call.Operation == nameof(CAXM.AxmMoveSStop))
+            {
+                var axis = call.Axis!.Value;
+                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with
+                {
+                    HomeResult = (uint)AXT_MOTION_HOME_RESULT.HOME_ERR_USER_BREAK,
+                };
+            }
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            motion.HomeHorizontalAsync(1, cancellation.Token).WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.True(stopChecks >= 6);
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == nameof(CAXM.AxmHomeSetResult)));
+        foreach (var axis in new[] { 9, 10 })
+            Assert.Equal((uint)AXT_MOTION_HOME_RESULT.HOME_ERR_USER_BREAK, AjinSdk.MotionAxes[axis].HomeResult);
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
+            .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop))
+            .Select(call => call.Axis!.Value).Distinct());
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Fact]
+    public async Task SingleAxisHorizontalHomeNeverCommandsAMissingYAxis()
+    {
+        using var controller = new AjinController(new());
+        var motion = CreateHorizontalHome(controller, hasY: false);
+        Assert.True(await motion.HomeHorizontalAsync(1));
+        Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetStart));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Axis == 10);
+    }
+
+    private static AjinMotionService CreateHorizontalHome(
+        AjinController controller,
+        bool hasY = true,
+        MotionSettings? settings = null)
+    {
+        foreach (var axis in hasY ? new[] { 9, 10 } : new[] { 9 })
+        {
+            AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+            AjinSdk.HomeMethods[axis] = new(0, 4, 0, 0, 0);
+            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axis)] = 0;
+            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: axis)] = 0;
+            AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: axis)] = 0;
+        }
+        return new AjinMotionService(
+            controller, new() { Number = 9 }, hasY ? new() { Number = 10 } : null,
+            null, settings ?? new(), new(), new());
+    }
+
+    [Fact]
+    public void AxisMappingAndScaleStayFixedUntilDriverIsRecreated()
+    {
+        using var controller = new AjinController(new());
+        var axis = new AxisHardware { Number = 9, MoveUnit = 10, MovePulse = 100 };
+        var motion = new AjinMotionService(controller, axis, null, null, new(), new(), new());
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        motion.Initialize();
+        var unit = AjinSdk.MotionAxes[9];
+        axis.Number = 10;
+        axis.MoveUnit = 2;
+        axis.MovePulse = 200;
+        AjinSdk.Calls.Clear();
+
+        motion.Initialize();
+
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMotSetMoveUnitPerPulse));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Axis == 10);
+        Assert.Equal(unit, AjinSdk.MotionAxes[9]);
+
+        AjinSdk.MotionAxes[10] = new();
+        var restarted = new AjinMotionService(controller, axis, null, null, new(), new(), new());
+        restarted.Initialize();
+        Assert.Equal(2, AjinSdk.MotionAxes[10].Unit);
+        Assert.Equal(200, AjinSdk.MotionAxes[10].Pulse);
+    }
+
+    [Fact]
+    public void ActualPositionUsesSdkUnitsWithoutRescalingFromStoredAxisSettings()
+    {
+        using var controller = new AjinController(new());
+        var axis = new AxisHardware { Number = 9, MoveUnit = 10, MovePulse = 100 };
+        var motion = new AjinMotionService(controller, axis, null, null, new(), new(), new());
+        AjinSdk.MotionAxes[9] = new(Position: 12340, Unit: 10, Pulse: 100);
+        Assert.Equal(12.34, motion.Position.X);
+
+        // Editing configuration must not change a coordinate already scaled by the SDK.
+        axis.MoveUnit = 1;
+        axis.MovePulse = 1000;
+        Assert.Equal(12.34, motion.Position.X);
+        Assert.Equal(12.34, motion.ReadDiagnosticPosition(MotionAxis.X).Position);
+        AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = -5670, Unit = 0.1, Pulse = 1 };
+        Assert.Equal(-5.67, motion.Position.X);
+        Assert.All(AjinSdk.Calls, call => Assert.Equal(nameof(CAXM.AxmStatusGetActPos), call.Operation));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PositionMovesUseAbsoluteTargetsEvenAfterExternalModeChanges(bool xy)
+    {
+        using var controller = new AjinController(new());
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, new() { Number = 10 }, new() { Number = 11 },
+            new(), new(), new());
+        foreach (var axis in new[] { 9, 10, 11 })
+        {
+            AjinSdk.MotionAxes[axis] = new(
+                Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1, Position: -10000, AbsRelMode: 1);
+            AjinSdk.Results[new(nameof(CAXM.AxmMovePos), Axis: axis)] = 0;
+            AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: axis)] = 0;
+            AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: axis)] = 0;
+        }
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveMultiPos))] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveStartMultiPos))] = 0;
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation is not (nameof(CAXM.AxmMovePos) or nameof(CAXM.AxmMoveMultiPos)
+                or nameof(CAXM.AxmMoveStartPos) or nameof(CAXM.AxmMoveStartMultiPos)))
+                return;
+            var move = AjinSdk.Moves.Last();
+            for (var index = 0; index < move.Axes.Length; index++)
+            {
+                var axis = move.Axes[index];
+                var state = AjinSdk.MotionAxes[axis];
+                AjinSdk.MotionAxes[axis] = state with
+                {
+                    Position = move.Positions![index]
+                        + (call.Operation == nameof(CAXM.AxmMoveMultiPos) || state.AbsRelMode == 0 ? 0 : state.Position),
+                };
+            }
+        };
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            // An external motion utility can change this after initialization or any previous move.
+            foreach (var axis in new[] { 9, 10, 11 })
+                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { AbsRelMode = 1 };
+            if (xy)
+                await motion.MoveToXYAsync(20 + attempt, 30 + attempt, 10);
+            else
+                await motion.MoveAxisAsync(MotionAxis.Z, -30 - attempt, 10);
+        }
+
+        Assert.Equal(xy ? (21.0, 31.0, -10.0) : (-10.0, -10.0, -31.0), motion.Position);
+        foreach (var axis in xy ? new[] { 9, 10 } : new[] { 11 })
+            Assert.Equal(0U, AjinSdk.MotionAxes[axis].AbsRelMode);
+    }
+
+    [Theory]
+    [InlineData(nameof(CAXM.AxmMotSetAbsRelMode))]
+    [InlineData(nameof(CAXM.AxmMotGetAbsRelMode))]
+    public async Task FailedAbsoluteModeSetupPreventsPositionCommand(string failedOperation)
+    {
+        using var controller = new AjinController(new());
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            new(), new(), new());
+        foreach (var axis in new[] { 9, 10 })
+        {
+            AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1, AbsRelMode: 1);
+            AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: axis)] = 0;
+        }
+        AjinSdk.Results[new(failedOperation, Axis: 10,
+            Value: failedOperation == nameof(CAXM.AxmMotSetAbsRelMode) ? 0U : null)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+
+        var failure = await Assert.ThrowsAsync<IOException>(() => motion.MoveToXYAsync(20, 30, 10));
+
+        Assert.Contains(failedOperation, failure.Message);
+        Assert.Empty(AjinSdk.Moves);
+        Assert.Equal((0.0, 0.0, 0.0), motion.Position);
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PositionFeedbackFailuresStopAndReportMotionErrors(bool axisFault)
+    {
+        using var controller = new AjinController(new());
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, null, null,
+            new(), new() { TimeoutMilliseconds = 20 }, new());
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 9)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = 0;
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmMoveStartPos))
+                AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Mechanical = axisFault ? 1U << 4 : 0 };
+        };
+
+        var error = await Record.ExceptionAsync(() => motion.MoveAxisAsync(MotionAxis.X, 10, 10));
+
+        if (axisFault)
+            Assert.IsType<MotionInterlockException>(error);
+        else
+            Assert.IsType<TimeoutException>(Assert.IsType<MotionException>(error).InnerException);
+        Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PositionCancellationStopsBeforeNativeMoveCompletion(bool xy)
+    {
+        using var controller = new AjinController(new());
+        var operations = new OperationCancellation();
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, new() { Number = 10 }, new() { Number = 11 },
+            new(), new(), operations);
+        var axes = xy ? new[] { 9, 10 } : new[] { 11 };
+        foreach (var axis in new[] { 9, 10, 11 })
+        {
+            AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+            AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: axis)] = 0;
+        }
+        var blockingCommand = xy ? nameof(CAXM.AxmMoveMultiPos) : nameof(CAXM.AxmMovePos);
+        var startCommand = xy ? nameof(CAXM.AxmMoveStartMultiPos) : nameof(CAXM.AxmMoveStartPos);
+        AjinSdk.Results[new(blockingCommand, Axis: xy ? null : 11)] = 0;
+        AjinSdk.Results[new(startCommand, Axis: xy ? null : 11)] = 0;
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var releaseBlockingCommand = new ManualResetEventSlim();
+        using var cancellation = new CancellationTokenSource();
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == blockingCommand || call.Operation == startCommand)
+            {
+                foreach (var axis in axes)
+                    AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { InMotion = 1, Position = -1000 };
+                started.TrySetResult();
+                // The legacy SDK call does not return until motion ends; the start API returns immediately.
+                if (call.Operation == blockingCommand)
+                    releaseBlockingCommand.Wait(TimeSpan.FromSeconds(5));
+            }
+            if (call.Operation == nameof(CAXM.AxmMoveSStop))
+            {
+                var axis = call.Axis!.Value;
+                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { InMotion = 0 };
+                if (axes.All(number => AjinSdk.MotionAxes[number].InMotion == 0))
+                    stopped.TrySetResult();
+            }
+        };
+
+        var moving = xy
+            ? motion.MoveToXYAsync(-20, -30, 10, cancellation.Token)
+            : motion.MoveAxisAsync(MotionAxis.Z, -30, 10, cancellation.Token);
+        var stoppedBeforeCompletion = false;
+        try
+        {
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            cancellation.Cancel();
+            await Task.WhenAny(stopped.Task, Task.Delay(TimeSpan.FromSeconds(1)));
+            stoppedBeforeCompletion = stopped.Task.IsCompletedSuccessfully;
+        }
+        finally
+        {
+            releaseBlockingCommand.Set();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => moving.WaitAsync(TimeSpan.FromSeconds(2)));
+        }
+
+        Assert.True(stoppedBeforeCompletion, "Cancellation must stop the axes before the native move returns.");
+        Assert.All(axes, axis => Assert.Equal(-1000, AjinSdk.MotionAxes[axis].Position));
+        Assert.Equal(axes, AjinSdk.Calls.Where(call => call.Operation == nameof(CAXM.AxmMoveSStop))
+            .Select(call => call.Axis!.Value));
+        Assert.False(operations.HasActiveOperations);
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Fact]
+    public async Task AlarmResetReleasesOutputsWithoutServoEnableAndPreservesPositionAndHomeFeedback()
+    {
+        using var controller = new AjinController(new());
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 4, HomeResult: 1, Position: 12340);
+        AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 4, HomeResult: 0, Position: -5670);
+        var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
+            null, new(), new(), new());
+
+
+        await motion.ResetAsync();
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmSignalServoOn));
+
+        foreach (var axis in new[] { 9, 10 })
+        {
+            Assert.Contains(new AjinSdk.Call(nameof(CAXM.AxmSignalServoAlarmReset), Value: 1, Axis: axis), AjinSdk.Calls);
+            Assert.Contains(new AjinSdk.Call(nameof(CAXM.AxmSignalServoAlarmReset), Value: 0, Axis: axis), AjinSdk.Calls);
+            Assert.Equal(0U, AjinSdk.MotionAxes[axis].AlarmReset);
+        }
+        Assert.Equal((12.34, -5.67, 0), motion.Position);
+        Assert.True(motion.GetAxisState(MotionAxis.X).Homed);
+        Assert.False(motion.GetAxisState(MotionAxis.Y).Homed);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
+    }
+
+    [Fact]
+    public async Task CancelledAlarmResetReleasesOutputsWithoutTurningServosOn()
+    {
+        using var controller = new AjinController(new());
+        AjinSdk.MotionAxes[9] = new();
+        AjinSdk.MotionAxes[10] = new();
+        var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
+            null, new(), new(), new());
+        using var stop = new CancellationTokenSource();
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call is { Operation: nameof(CAXM.AxmSignalServoAlarmReset), Axis: 10, Value: 1 })
+                stop.Cancel();
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => motion.ResetAsync(stop.Token));
+
+        Assert.All(AjinSdk.MotionAxes.Values, axis => Assert.Equal(0U, axis.AlarmReset));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmSignalServoOn));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AlarmResetReportsFailuresAndAttemptsToReleaseEveryAxis(bool failOnCommand)
+    {
+        using var controller = new AjinController(new());
+        AjinSdk.MotionAxes[9] = new();
+        AjinSdk.MotionAxes[10] = new();
+        var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 },
+            null, new(), new(), new());
+        if (failOnCommand)
+            AjinSdk.Results[new(nameof(CAXM.AxmSignalServoAlarmReset), Value: 1, Axis: 9)] = 1;
+        AjinSdk.Results[new(nameof(CAXM.AxmSignalServoAlarmReset), Value: 0, Axis: 9)] = 1;
+
+        var error = await Assert.ThrowsAsync<AggregateException>(() => motion.ResetAsync());
+
+        Assert.Equal(failOnCommand ? 2 : 1, error.InnerExceptions.Count);
+        Assert.Contains("axis=9, on=0", error.ToString());
+        if (failOnCommand)
+            Assert.Contains("axis=9, on=1", error.ToString());
+        Assert.Contains(new AjinSdk.Call(nameof(CAXM.AxmSignalServoAlarmReset), Value: 0, Axis: 10), AjinSdk.Calls);
+        Assert.Equal(0U, AjinSdk.MotionAxes[10].AlarmReset);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmSignalServoOn));
+    }
 }

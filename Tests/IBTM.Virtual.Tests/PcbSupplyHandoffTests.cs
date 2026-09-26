@@ -13,6 +13,50 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbSupplyHandoffTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PickupStopsWhenRotationFeedbackIsLost(bool duringDescent)
+    {
+        using var rig = new HandoffRig();
+        rig.Io.Initialize();
+        rig.Motion.Initialize();
+        await HomeAsync(rig.Motion, 2_000);
+        rig.Settings.Motion.ZSpeed = 50;
+        rig.Io.SetInput(InputIo.AutoMode, false);
+        rig.Recipes.Current.PcbSupply.Pcb1PickPosition = new() { X = 10, Y = 10, Z = 8 };
+        rig.Recipes.Current.PcbSupply.Pcb2PickPosition = new() { X = 20, Y = 10, Z = 8 };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var rotationLost = false;
+        void LoseRotation()
+        {
+            rotationLost = true;
+            rig.Io.SetInputs((InputIo.PcbSupplyRotated, false), (InputIo.PcbSupplyUnrotated, true));
+        }
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.WaitingForCarrier)
+            {
+                if (!duringDescent && !rotationLost)
+                    LoseRotation();
+                rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+            }
+        };
+        rig.Motion.PositionChanged += (x, y, z) =>
+        {
+            if (duringDescent && !rotationLost && z > rig.Settings.RotationZ + 0.1)
+                LoseRotation();
+            if (rotationLost && z >= 8)
+                stop.Cancel();
+        };
+        var failure = await Assert.ThrowsAsync<MotionInterlockException>(() => rig.Supplier.RunAsync(rig.Placement, stop.Token));
+
+        Assert.Contains("rotation", failure.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(rotationLost);
+        Assert.False(rig.Motion.IsMoving);
+        Assert.True(rig.Motion.Position.Z < 8);
+    }
+
     [Fact]
     public async Task CarrierLeavingDuringSecondPickupResetsTheNextCarrierToPcbOne()
     {
@@ -249,6 +293,37 @@ public sealed class PcbSupplyHandoffTests
         Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
         Assert.True(MotionService.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HandoffTravelStopsWhenUnrotatedFeedbackIsLost(bool leaving)
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        var pickup = new PcbPickPosition { X = 20, Y = 10, Z = 3 };
+        if (!leaving)
+            await rig.Supplier.MoveFromHandoffAsync(pickup);
+        var initialX = rig.Motion.Position.X;
+        var lost = false;
+        rig.Motion.PositionChanged += (x, y, z) =>
+        {
+            if (!lost && rig.Motion.IsMovingHorizontal && Math.Abs(x - initialX) > 0.1)
+            {
+                lost = true;
+                rig.Io.SetInputs((InputIo.PcbSupplyUnrotated, false), (InputIo.PcbSupplyRotated, true));
+            }
+        };
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => leaving
+            ? rig.Supplier.MoveFromHandoffAsync(pickup, timeout.Token)
+            : rig.Supplier.PrepareHandoffAsync(timeout.Token));
+        Assert.True(lost);
+        Assert.False(rig.Motion.IsMoving);
+        Assert.NotEqual(leaving ? pickup.X : rig.Settings.HandoffPosition.X, rig.Motion.Position.X);
+        Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
     }
 
     [Theory]

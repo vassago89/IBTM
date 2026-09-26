@@ -143,7 +143,7 @@ public sealed class MachineSettings
                 Drivers,
                 Units,
                 Options,
-                RecipeSelection,
+                // Recipe selection is committed by RecipeManager with the recipe operation.
                 PcbHistory,
                 Logging,
                 CarrierReference,

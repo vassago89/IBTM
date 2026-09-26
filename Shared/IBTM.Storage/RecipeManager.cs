@@ -42,7 +42,7 @@ public sealed class RecipeManager
             // Publish before allowing another save to snapshot the current recipe.
             lock (InspectionSync)
             {
-                if (Current.Name == snapshot.Name)
+                if (MachineStore.IsSameRecipeName(Current.Name, snapshot.Name))
                 {
                     Current.ApplyInspectionSettings(snapshot);
                     applied = true;

@@ -411,6 +411,37 @@ public sealed class MachineStoreTests
         Assert.Equal(30, loaded.PcbSupply.RotationZ);
     }
 
+    [Fact]
+    public async Task SettingsSaveDoesNotReplaceACommittedRecipeWithItsPreviousSelection()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var settings = new MachineSettings();
+        var recipes = new RecipeManager(store, settings.RecipeSelection);
+        store.SaveRecipe(new Recipe { Name = "First" });
+        await recipes.LoadAsync("First");
+        settings.PcbSupply.RotationZ = 42;
+        // RecipeManager commits on a worker before publishing the selection on its caller.
+        // A settings save must not write the previous in-memory selection in that interval.
+        store.SaveRecipe(new Recipe { Name = "Second" },
+            selection: new RecipeSelectionSettings { LastRecipeName = "Second" });
+        Assert.Equal("First", settings.RecipeSelection.LastRecipeName);
+        await store.SaveSettingsAsync(settings.Sections);
+        var loaded = await MachineSettings.LoadAsync(store);
+        Assert.Equal("Second", loaded.RecipeSelection.LastRecipeName);
+        Assert.Equal(42, loaded.PcbSupply.RotationZ);
+    }
+
+    [Fact]
+    public async Task VirtualDefaultsReopenWithTheirInitialRecipeSelected()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        await DevelopmentProfile.PrepareAsync(store);
+        var loaded = await MachineSettings.LoadAsync(store);
+        Assert.Equal("Virtual Development", loaded.RecipeSelection.LastRecipeName);
+        Assert.Equal(loaded.RecipeSelection.LastRecipeName,
+            store.LoadRecipe(loaded.RecipeSelection.LastRecipeName!).Name);
+    }
+
     private static string CreateDirectory()
     {
         return Directory.CreateDirectory(

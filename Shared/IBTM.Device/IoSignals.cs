@@ -26,7 +26,7 @@ public sealed class IoSignals : INotifyPropertyChanged
                             section.Area,
                             section.GetSection(input.Key),
                             io,
-                            input.Value >= 0 ? input.Value : null)))
+                            input.Value)))
             .ToDictionary(row => row.Signal);
         Outputs = sections.OfType<IoHardwareSettings>()
             .SelectMany(

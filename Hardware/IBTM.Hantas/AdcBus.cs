@@ -45,6 +45,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     public void Open(string portName, int baudRate)
     {
+        var responseTimeoutMilliseconds = _settings.ResponseTimeoutMilliseconds;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeoutMilliseconds);
         if (IsOpen)
         {
             VerifyConnectionSettings(_port!, portName, baudRate);
@@ -55,8 +57,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
         _port = new SerialPort(portName, baudRate, Parity.None, dataBits: 8, StopBits.One)
         {
             Handshake = Handshake.None,
-            ReadTimeout = _settings.ResponseTimeoutMilliseconds,
-            WriteTimeout = _settings.ResponseTimeoutMilliseconds,
+            ReadTimeout = responseTimeoutMilliseconds,
+            WriteTimeout = responseTimeoutMilliseconds,
         };
         try
         {
@@ -178,6 +180,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
         int? captureMilliseconds = null,
         int? expectedByteCount = null)
     {
+        var responseTimeoutMilliseconds = _settings.ResponseTimeoutMilliseconds;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeoutMilliseconds);
         await _exchange.WaitAsync(cancellationToken);
         try
         {
@@ -195,7 +199,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 port.DiscardInBuffer();
             }
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(_settings.ResponseTimeoutMilliseconds);
+            timeout.CancelAfter(responseTimeoutMilliseconds);
             var started = Stopwatch.GetTimestamp();
             var receivedBytes = new List<byte>();
             var receivedChunks = 0;
@@ -241,7 +245,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     throw new InvalidDataException($"{detail} {invalid.Message}", invalid);
                 if (exception is OperationCanceledException)
                     throw new TimeoutException(
-                        $"{detail} Response timed out after {_settings.ResponseTimeoutMilliseconds} ms.", exception);
+                        $"{detail} Response timed out after {responseTimeoutMilliseconds} ms.", exception);
                 throw;
             }
 

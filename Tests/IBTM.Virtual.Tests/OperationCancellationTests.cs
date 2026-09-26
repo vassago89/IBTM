@@ -9,6 +9,39 @@ namespace IBTM.Virtual.Tests;
 public sealed class OperationCancellationTests
 {
     [Fact]
+    public async Task StopCancelsRecoveryWaitingForPreviousCleanup()
+    {
+        var operations = new OperationCancellation();
+        using var previous = operations.TryBegin();
+        Assert.NotNull(previous);
+        previous.Cancel();
+        var waiting = operations.TryBeginAfterIdleAsync();
+        Assert.False(waiting.IsCompleted);
+
+        operations.Cancel();
+        previous.Dispose();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
+        Assert.False(operations.HasActiveOperations);
+        using var next = operations.TryBegin();
+        Assert.NotNull(next);
+        Assert.False(next.IsCancellationRequested);
+    }
+
+    [Fact]
+    public void FeedbackCancellationDoesNotHideACallbackFailure()
+    {
+        using var source = new CancellationTokenSource();
+        var failure = new ObjectDisposedException("device");
+        using var registration = source.Token.Register(() => throw failure);
+
+        var actual = Assert.Throws<AggregateException>(
+            () => OperationCancellation.CancelIfNotDisposed(source));
+        Assert.Same(failure, Assert.Single(actual.InnerExceptions));
+        Assert.True(source.IsCancellationRequested);
+    }
+
+    [Fact]
     public void TopLevelAdmissionWaitsForCancelledOwnerAndChildCleanup()
     {
         var operations = new OperationCancellation();

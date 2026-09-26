@@ -65,7 +65,7 @@ public sealed partial class NgCarrierConveyor
         void CheckPickup()
         {
             if (!IsTransferClear)
-                operation.Cancel();
+                OperationCancellation.CancelIfNotDisposed(operation);
         }
 
         _transfer!.Changed += CheckPickup;
@@ -80,12 +80,13 @@ public sealed partial class NgCarrierConveyor
             if (ShuttleLift != StationCylinderState.Down && !_io.GetInput(InputIo.NgShuttleCarrierDetected))
                 throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
 
-            _movement = Movement.None;
             _ejectionPhase = EjectionPhase.Idle;
             await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false, operation.Token);
+            _movement = Movement.ReturningToShuttle;
             await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, true, operation.Token);
             await SetShuttleDownAsync(false, operation.Token);
             operation.Token.ThrowIfCancellationRequested();
+            _movement = Movement.None;
         }
         catch (Exception exception)
         {

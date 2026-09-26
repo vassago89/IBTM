@@ -624,7 +624,7 @@ public sealed class OutputWindowThreadingTests
 
             var settings = services.GetRequiredService<SettingsViewModel>();
             var lightTest = settings.TestLightCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
+            Assert.True(await VirtualTest.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
             releaseStop.Reset();
             stopEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
             var returning = main.NavigateCommand.ExecuteAsync(AppPage.Teaching);
@@ -638,7 +638,6 @@ public sealed class OutputWindowThreadingTests
             await lightTest;
             Assert.Equal(AppPage.Operation, main.SelectedPage);
             Assert.False(light.IsOn);
-            Assert.False(settings.LightTestOn);
             io.SetInput(InputIo.AutoMode, true);
             await main.NavigateCommand.ExecuteAsync(AppPage.Teaching);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);

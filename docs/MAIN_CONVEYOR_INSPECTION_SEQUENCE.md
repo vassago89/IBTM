@@ -13,9 +13,9 @@ Virtual 검증과 실장비 검증은 구분한다.
   검사·NG 이송 단계 선택·자동 실행과 집기·놓기·촬영.
 - `Stations/IBTM.Inspection/InspectionStation.Repeat.cs`: Repeat 완료 대기와 S3 복귀.
 
-컨베이어 테스트는 `ConveyorTests.cs`의 기동·정지·공통 준비 코드와
-`ConveyorTests.Transfer.cs`, `ConveyorTests.Discharge.cs`, `ConveyorTests.Job.cs`로 나눈다.
-메인·검사 간 순서 검증은 `MachineLifecycleTests.InspectionConveyor.cs`에 둔다.
+컨베이어의 기동·정지·이송·배출·결과 소유권 테스트는 `ConveyorTests.cs`에 모은다.
+메인·검사 간 순서 검증은 `MachineLifecycleTests.cs`에 두고,
+별도의 반복 시험만 `MachineLifecycleTests.Repeat.cs`에 둔다.
 
 ## 확정한 물리 동작
 

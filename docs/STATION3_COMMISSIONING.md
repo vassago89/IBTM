@@ -71,6 +71,8 @@ Repeat 반환 순서는 `MachineController.Repeat.cs`가 조정하고 각 유닛
 - 메인 역송은 별도 도착 타임아웃 없이 **입구 센서 ON에서 즉시 정지**한다.
   다음 전진은 S1 HS2 감지 후 밀착 시간을 적용한 뒤 플레이트를 올린다.
 - NG Shuttle과 NG Conveyor는 별도 Enabled가 없다. 하나의 NG Conveyor 유닛이다.
+- NG 벨트 이송·간격 정리·역송 중 센서 사이에서 정지하면 재시작 시 `Carrier Position Unknown`으로 대기한다.
+  위치가 센서로 확인될 때까지 셔틀을 올리거나 새 캐리어를 받지 않는다. 확인 후에는 이전 목적지를 이어가지 않고 현재 감지 위치로 순서를 다시 판단한다.
 - Supply·Placement의 소재 인계와 왕복은 각 유닛의 [Supply 설계](../Stations/IBTM.PcbSupply/DESIGN.md),
   [Placement 설계](../Stations/IBTM.PcbPlacement/DESIGN.md)를 참고한다.
 

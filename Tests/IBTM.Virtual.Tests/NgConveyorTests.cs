@@ -264,6 +264,51 @@ public sealed class NgConveyorTests
         }
     }
 
+    [Fact]
+    public async Task PickupFeedbackAlreadyBeingPublishedCanFinishAfterReturnIsCancelled()
+    {
+        var system = CreateSystem();
+        await system.Conveyor.SetShuttleDownAsync(true);
+        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false);
+        system.Io.AutoResponseEnabled = false;
+        system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+        using var stop = new CancellationTokenSource();
+        using var releaseFeedback = new ManualResetEventSlim();
+        var feedbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void PauseFeedback()
+        {
+            if (!system.Pickup.IsRaised && feedbackEntered.TrySetResult())
+            {
+                if (!releaseFeedback.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("The test did not release the pickup feedback.");
+            }
+        }
+
+        system.Pickup.Changed += PauseFeedback;
+        var run = system.Conveyor.ReturnFromConveyorAsync(stop.Token);
+        Task? feedback = null;
+        try
+        {
+            await WaitForOutputAsync(system.Io, OutputIo.NgConveyorRun, true);
+            feedback = Task.Run(() => system.Io.SetInput(InputIo.NgCarrierPickupUp, false));
+            await feedbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+            releaseFeedback.Set();
+            await feedback.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            releaseFeedback.Set();
+            system.Pickup.Changed -= PauseFeedback;
+            stop.Cancel();
+            await run.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+            if (feedback is not null)
+                await feedback.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -578,6 +623,95 @@ public sealed class NgConveyorTests
         }
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         Assert.Equal(stopAtDestination ? 1 : 2, motorStarts);
+    }
+
+    [Theory]
+    [InlineData(InputIo.NgConveyorPosition1Occupied, InputIo.NgShuttleCarrierDetected)]
+    [InlineData(InputIo.NgConveyorPosition2Occupied, InputIo.NgShuttleCarrierDetected)]
+    [InlineData(InputIo.NgConveyorPosition1Occupied, InputIo.NgConveyorPosition2Occupied)]
+    public async Task RestartWaitsForCarrierLocationAfterStoppingBetweenSensors(InputIo destination, InputIo source)
+    {
+        var system = CreateSystem();
+        if (destination == InputIo.NgConveyorPosition2Occupied)
+            system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
+        system.Io.SetInput(source, true);
+        using var stop = new CancellationTokenSource();
+        system.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.NgConveyorRun && on)
+            {
+                system.Io.AutoResponseEnabled = false;
+                system.Io.SetInput(source, false);
+                stop.Cancel();
+            }
+        };
+        await system.Conveyor.RunAsync(stop.Token);
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+        Assert.False(system.Io.GetInput(destination));
+        var stoppedShuttleDown = system.Io.GetOutput(OutputIo.NgShuttleDown);
+
+        using var nextStop = new CancellationTokenSource();
+        var restarted = system.Conveyor.RunAsync(nextStop.Token);
+        try
+        {
+            Assert.Equal(NgConveyorState.CarrierPositionUnknown, system.Conveyor.Step);
+            Assert.False(system.Conveyor.IsReceiveAllowed);
+            Assert.Equal(stoppedShuttleDown, system.Io.GetOutput(OutputIo.NgShuttleDown));
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+
+            system.Io.AutoResponseEnabled = true;
+            system.Io.SetInput(destination, true);
+            Assert.True(await WaitUntilAsync(
+                () => system.Conveyor.IsReceiveAllowed, TimeSpan.FromSeconds(2)));
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+        }
+        finally
+        {
+            nextStop.Cancel();
+            await restarted.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
+    public async Task RestartAfterInterruptedReverseWaitsForLocationThenChoosesForwardRoute()
+    {
+        var system = CreateSystem();
+        await system.Conveyor.SetShuttleDownAsync(true);
+        system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+        using var stop = new CancellationTokenSource();
+        system.Io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.NgConveyorRun && on && !stop.IsCancellationRequested)
+            {
+                system.Io.AutoResponseEnabled = false;
+                system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
+                stop.Cancel();
+            }
+        };
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => system.Conveyor.ReturnFromConveyorAsync(stop.Token));
+
+        using var nextStop = new CancellationTokenSource();
+        var restarted = system.Conveyor.RunAsync(nextStop.Token);
+        try
+        {
+            Assert.Equal(NgConveyorState.CarrierPositionUnknown, system.Conveyor.Step);
+            Assert.False(system.Conveyor.IsReceiveAllowed);
+            Assert.True(system.Io.GetOutput(OutputIo.NgShuttleDown));
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+
+            system.Io.AutoResponseEnabled = true;
+            system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
+            await system.Signals.WaitForInputAsync(InputIo.NgConveyorPosition1Occupied, true, nextStop.Token);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorReverse));
+            Assert.False(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
+        }
+        finally
+        {
+            nextStop.Cancel();
+            await restarted.WaitAsync(TimeSpan.FromSeconds(2));
+        }
     }
 
     public class EjectButtonReadProbe : DispatchProxy

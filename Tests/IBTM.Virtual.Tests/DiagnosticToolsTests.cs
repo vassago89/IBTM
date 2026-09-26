@@ -20,6 +20,59 @@ namespace IBTM.Virtual.Tests;
 public sealed class DiagnosticToolsTests
 {
     [Fact]
+    public async Task FinishedImageLoadDoesNotRestoreAPointDeletedBeforeUiPublication()
+    {
+        await using var services = CreateServices(new RecordingLight());
+        var recipes = services.GetRequiredService<RecipeManager>();
+        var bolt = new BoltPoint { Number = 1, X = 10, Y = 20 };
+        recipes.Current.Pcb.BoltPoints.Add(bolt);
+        var editor = services.GetRequiredService<RecipeEditor>();
+        var image = InspectionPreview.CreateBitmap(new ImageFrame(2, 2, 6, new byte[12]));
+        Assert.True(await editor.SaveCarrierImagesAsync([
+            new(new CarrierImageTile { Number = 1, BoltNumber = 1 }, image, bolt),
+            new(new CarrierImageTile { Number = 2, IsBarcode = true }, image),
+        ]));
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var context = new PausedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            teaching.Activate();
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+        try
+        {
+            Assert.True(await VirtualTest.WaitUntilAsync(() => context.HasPending, TimeSpan.FromSeconds(2)));
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == bolt);
+            Assert.True(teaching.RemoveBoltPointCommand.CanExecute(null));
+            teaching.RemoveBoltPointCommand.Execute(null);
+            var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            teaching.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(TeachingViewModel.CarrierImages))
+                    published.TrySetResult();
+            };
+            context.Release();
+            await published.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.True(Assert.Single(teaching.CarrierImages).Metadata.IsBarcode);
+            Assert.True(Assert.Single(recipes.Current.CarrierImages).IsBarcode);
+            Assert.Empty(recipes.Current.Pcb.BoltPoints);
+            Assert.Null(teaching.CameraError);
+        }
+        finally
+        {
+            context.Release();
+            await teaching.ShutdownAsync();
+            await services.GetRequiredService<MachineController>().ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task StationsAndMonitorUseTheRegisteredMotionAndStatusInstances()
     {
         await using var services = CreateServices(new RecordingLight());
@@ -52,16 +105,15 @@ public sealed class DiagnosticToolsTests
             settings.LightTestLevel = 43;
             var test = settings.TestLightCommand.ExecuteAsync(null);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
+                await VirtualTest.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
             Assert.True(state.IsRunning);
             Assert.False(settings.IsSettingsEditAllowed);
             Assert.False(machine.IsStartAllowed);
             state.SetError(MachineAlarm.MotionUnavailable, new IOException("Unrelated motion alarm."));
-            Assert.True(settings.LightTestOn);
+            Assert.Equal(2, settings.PendingLightOffChannel);
             Assert.False(test.IsCompleted);
             await settings.OffTestLightCommand.ExecuteAsync(null);
             await test.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(settings.LightTestOn);
             Assert.Null(settings.PendingLightOffChannel);
             Assert.False(state.IsRunning);
             Assert.Contains("level:2:43", light.Calls);
@@ -69,7 +121,7 @@ public sealed class DiagnosticToolsTests
 
             test = settings.TestLightCommand.ExecuteAsync(null);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
+                await VirtualTest.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
             io.SetInput(InputIo.AutoMode, false);
             await test.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal("off:2", light.Calls.Last());
@@ -101,7 +153,6 @@ public sealed class DiagnosticToolsTests
             Assert.Contains("off:2", light.Calls);
             Assert.Contains("state is unknown", settings.LightTestMessage);
             Assert.False(services.GetRequiredService<MachineState>().IsRunning);
-            Assert.False(settings.LightTestOn);
             Assert.Equal(2, settings.PendingLightOffChannel);
             Assert.True(settings.OffTestLightCommand.CanExecute(null));
             Assert.False(settings.TestLightCommand.CanExecute(null));
@@ -551,6 +602,8 @@ public sealed class DiagnosticToolsTests
         {
             _pending = new();
         }
+
+        public bool HasPending => !_pending.IsEmpty;
 
         public override void Post(SendOrPostCallback callback, object? state)
         {

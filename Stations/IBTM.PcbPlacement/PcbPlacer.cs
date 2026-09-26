@@ -369,7 +369,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             if (!Station.CarrierSeated || !ReferenceEquals(job, Station.CurrentJob)
                 || requiresHolding && !PcbSecured)
-                repeatOperation?.Cancel();
+                OperationCancellation.CancelIfNotDisposed(repeatOperation);
         }
         if (repeatOperation is not null)
         {
@@ -390,7 +390,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     await MoveToXYAsync(pickPosition, cancellationToken);
                     await MoveAxisAsync(MotionAxis.Z, pickPosition.Z, cancellationToken);
                     await SetLiftDownAsync(true, cancellationToken);
-                    await _io.WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, cancellationToken);
+                    await _io.WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, cancellationToken, requireCurrent: true);
                     await SetVacuumAsync(true, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
                     if (!PcbSecured)
@@ -437,7 +437,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     void CheckSupplyHolding()
                     {
                         if (_supply.Handoff != PcbSupplyHandoff.Holding && !PcbSecured)
-                            receipt.Cancel();
+                            OperationCancellation.CancelIfNotDisposed(receipt);
                     }
                     _supply.Changed += CheckSupplyHolding;
                     Changed += CheckSupplyHolding;
@@ -449,7 +449,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         if (IpmLift != (ipmDown ? StationCylinderState.Down : StationCylinderState.Up))
                             await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, ipmDown, receipt.Token);
                         await PrepareReceiptAsync(receipt.Token);
-                        await _io.WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, receipt.Token);
+                        await _io.WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, receipt.Token, requireCurrent: true);
                         await SetVacuumAsync(true, receipt.Token);
                         receipt.Token.ThrowIfCancellationRequested();
                         EnterStep(PcbPlacementState.WaitingForSupplyRelease);
@@ -491,7 +491,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         if (!Station.CarrierSeated || !ReferenceEquals(job, Station.CurrentJob)
                             || carryingPcb && !PcbSecured
                             || checkingPcbPresence && Pcb == PlacementPcbState.None)
-                            operation.Cancel();
+                            OperationCancellation.CancelIfNotDisposed(operation);
                     }
                     Changed += CheckPlacementFeedback;
                     try
@@ -569,7 +569,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         void CheckHolding()
         {
             if (carryingPcb && !PcbSecured)
-                preparation.Cancel();
+                OperationCancellation.CancelIfNotDisposed(preparation);
         }
         Changed += CheckHolding;
         try
@@ -729,7 +729,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.PcbPlacementVacuumEjector, on);
-        await _io.WaitForInputAsync(InputIo.PcbPlacementVacuumDetected, on, cancellationToken);
+        await _io.WaitForInputAsync(InputIo.PcbPlacementVacuumDetected, on, cancellationToken, requireCurrent: true);
     }
 
     private void EnsureHandlerRaised(CancellationToken cancellationToken)

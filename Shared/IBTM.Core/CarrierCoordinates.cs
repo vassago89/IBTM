@@ -8,6 +8,8 @@ public static class CarrierCoordinates
     {
         return first is not null
             && second is not null
+            && double.IsFinite(first.X) && double.IsFinite(first.Y)
+            && double.IsFinite(second.X) && double.IsFinite(second.Y)
             && (first.X != second.X || first.Y != second.Y);
     }
 

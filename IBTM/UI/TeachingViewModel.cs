@@ -84,6 +84,9 @@ public partial class TeachingViewModel : ObservableObject
     private ImageFrame? _pendingLiveFrame;
     private bool _liveImageUpdateQueued;
     private CancellationTokenSource _recipeImageCancellation;
+    private Task _liveImageUpdate;
+    private Task _cameraStop;
+    private Task _recipeImageUpdate;
 
     public TeachingViewModel(
         MachineSettings settings,
@@ -100,6 +103,9 @@ public partial class TeachingViewModel : ObservableObject
         IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]> teachingIoGroups,
         ILogger<TeachingViewModel> logger)
     {
+        _liveImageUpdate = Task.CompletedTask;
+        _cameraStop = Task.CompletedTask;
+        _recipeImageUpdate = Task.CompletedTask;
         _logger = logger;
         _settings = settings;
         _liveImageGate = new();
@@ -178,18 +184,20 @@ public partial class TeachingViewModel : ObservableObject
         inspectionStation.LiveViewChanged += OnLiveViewChanged;
         state.PropertyChanged += OnMachineStateChanged;
         recipes.Changed += OnRecipeChanged;
-        recipeEditor.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(RecipeEditor.IsSaveAllowed) or nameof(RecipeEditor.IsBusy))
-                SaveCommand.NotifyCanExecuteChanged();
-            if (e.PropertyName != nameof(RecipeEditor.IsSaveAllowed))
-                return;
-            TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-            GrabCommand.NotifyCanExecuteChanged();
-        };
+        recipeEditor.PropertyChanged += OnRecipeEditorChanged;
 
         RefreshTeachingPoints();
         ShowRecipeImages();
+    }
+
+    private void OnRecipeEditorChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(RecipeEditor.IsSaveAllowed) or nameof(RecipeEditor.IsBusy))
+            SaveCommand.NotifyCanExecuteChanged();
+        if (e.PropertyName != nameof(RecipeEditor.IsSaveAllowed))
+            return;
+        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
+        GrabCommand.NotifyCanExecuteChanged();
     }
 
     [ObservableProperty]
@@ -756,6 +764,7 @@ public partial class TeachingViewModel : ObservableObject
                 return IsRecordImagePositionAllowed;
             return SelectedPoint is { Position.Mode: not TeachMode.Image } point
                 && State.SetupEditingEnabled
+                && State.ManualMode
                 && IsReadTeachingPositionAllowed(point, live: false);
         }
     }
@@ -794,7 +803,7 @@ public partial class TeachingViewModel : ObservableObject
             if (!IsSaveAllowed)
                 return;
             using var operation = Machine.BeginManualOperation(
-                () => State.ManualMode,
+                () => !State.AutoMode,
                 cancellationToken,
                 viewToken);
             if (operation is null)
@@ -981,8 +990,6 @@ public partial class TeachingViewModel : ObservableObject
         try
         {
             SaveError = null;
-            if (State.IsRunningFor())
-                return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(group),
                 cancellationToken,
@@ -990,6 +997,8 @@ public partial class TeachingViewModel : ObservableObject
             if (operation is null)
                 return;
             activeCancellation = operation.Token;
+            if (State.IsRunningFor(includeOperations: false))
+                return;
             operation.Token.ThrowIfCancellationRequested();
             switch (group)
             {
@@ -1046,8 +1055,6 @@ public partial class TeachingViewModel : ObservableObject
         try
         {
             SaveError = null;
-            if (State.IsRunningFor())
-                return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
                 cancellationToken,
@@ -1055,6 +1062,8 @@ public partial class TeachingViewModel : ObservableObject
             if (operation is null)
                 return;
             activeToken = operation.Token;
+            if (State.IsRunningFor(includeOperations: false))
+                return;
             operation.Token.ThrowIfCancellationRequested();
             switch (commandGroup)
             {
@@ -1145,8 +1154,6 @@ public partial class TeachingViewModel : ObservableObject
         try
         {
             SaveError = null;
-            if (State.IsRunningFor())
-                return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
                 cancellationToken,
@@ -1154,6 +1161,8 @@ public partial class TeachingViewModel : ObservableObject
             if (operation is null)
                 return;
             activeToken = operation.Token;
+            if (State.IsRunningFor(includeOperations: false))
+                return;
             operation.Token.ThrowIfCancellationRequested();
             var current = Motion.Feedback.Position;
             var (axis, sign) = Resolve(direction);
@@ -1209,8 +1218,6 @@ public partial class TeachingViewModel : ObservableObject
         try
         {
             SaveError = null;
-            if (State.IsRunningFor())
-                return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
                 cancellationToken,
@@ -1218,6 +1225,8 @@ public partial class TeachingViewModel : ObservableObject
             if (operation is null)
                 return;
             activeToken = operation.Token;
+            if (State.IsRunningFor(includeOperations: false))
+                return;
             operation.Token.ThrowIfCancellationRequested();
             await _fasteningStation.ReturnFromPickupAsync(operation.Token);
         }
@@ -1258,8 +1267,6 @@ public partial class TeachingViewModel : ObservableObject
         try
         {
             SaveError = null;
-            if (State.IsRunningFor())
-                return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
                 cancellationToken,
@@ -1267,18 +1274,20 @@ public partial class TeachingViewModel : ObservableObject
             if (operation is null)
                 return;
             activeToken = operation.Token;
+            if (State.IsRunningFor(includeOperations: false))
+                return;
             operation.Token.ThrowIfCancellationRequested();
             var position = point.Position;
             switch (position.MotionGroup)
             {
                 case MotionGroup.PcbSupply:
-                    await _pcbSupply.MoveToTeachingPositionAsync(position, point.Read(), operation.Token);
+                    await _pcbSupply.MoveToTeachingPositionAsync(position, point.MovePosition, operation.Token);
                     break;
                 case MotionGroup.PcbPlacementHandler:
-                    await _pcbPlacement.MoveToTeachingPositionAsync(position, point.Read(), operation.Token);
+                    await _pcbPlacement.MoveToTeachingPositionAsync(position, point.MovePosition, operation.Token);
                     break;
                 case MotionGroup.BoltFastening:
-                    await _fasteningStation.MoveToTeachingPositionAsync(position, point.Read(), operation.Token);
+                    await _fasteningStation.MoveToTeachingPositionAsync(position, point.MovePosition, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry when position.Target == TeachingTarget.NgCarrierPickup:
                     await Inspection.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
@@ -1290,7 +1299,7 @@ public partial class TeachingViewModel : ObservableObject
                     await Inspection.MoveToBarcodeAsync(SelectedPcb, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await Inspection.MoveToAsync(point.Read(), cancellationToken: operation.Token);
+                    await Inspection.MoveToAsync(point.MovePosition, cancellationToken: operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(point));
@@ -1352,10 +1361,6 @@ public partial class TeachingViewModel : ObservableObject
             }
         }
     }
-
-    private Task _liveImageUpdate = Task.CompletedTask;
-    private Task _cameraStop = Task.CompletedTask;
-    private Task _recipeImageUpdate = Task.CompletedTask;
 
     [ObservableProperty]
     public partial int LiveLightLevel { get; set; }
@@ -1473,8 +1478,6 @@ public partial class TeachingViewModel : ObservableObject
         try
         {
             CameraError = null;
-            if (State.IsRunningFor())
-                throw new InvalidOperationException("Recording was not started because the machine is busy. Wait for motion to stop, then record again.");
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
                 cancellationToken,
@@ -1482,6 +1485,8 @@ public partial class TeachingViewModel : ObservableObject
             if (operation is null)
                 throw new InvalidOperationException("Recording was not started because another operation is active. Try again after it finishes.");
             activeToken = operation.Token;
+            if (State.IsRunningFor(includeOperations: false))
+                throw new InvalidOperationException("Recording was not started because the machine is busy. Wait for motion to stop, then record again.");
             operation.Token.ThrowIfCancellationRequested();
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
@@ -1613,7 +1618,8 @@ public partial class TeachingViewModel : ObservableObject
                 return;
             var images = await RecipeEditor.LoadCarrierImagesAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            CarrierImages = images;
+            // Point edits may finish while image decoding or its UI continuation is pending.
+            CarrierImages = images.Where(image => Recipes.Current.CarrierImages.Contains(image.Metadata)).ToArray();
         }
         catch (OperationCanceledException)
         {

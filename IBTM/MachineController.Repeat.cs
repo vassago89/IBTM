@@ -149,7 +149,7 @@ public sealed partial class MachineController
         void CheckPath()
         {
             if (MainConveyorReturnBlock != OutputBlockReason.None)
-                operation.Cancel();
+                OperationCancellation.CancelIfNotDisposed(operation);
         }
 
         _state.Changed += CheckPath;

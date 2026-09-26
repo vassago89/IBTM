@@ -165,7 +165,9 @@ COM 포트·Baud Rate·Slave ID는 헤드별로 설정하며, 서로 다른 포�
 기존 `HantasSettings`의 JSON `PortName`·`BaudRate`는 픽업 설정으로 유지한다. 슈팅 COM 포트는 별도로 입력한다.
 ADC 진단창의 헤드 선택은 해당 포트에만 연결·해제·명령을 적용한다. 실행 중에는 선택을 바꿀 수 없고,
 ADC 프레임 로그는 실제 COM 포트와 함께 `Logs/Communication/IBTM-*.log`에 기록한다.
-`BeginAdcProtocol`에서 실행권을 얻은 뒤 ViewModel의 명령 본문이 통신과 헤드 동작을 직접 호출한다.
+`BeginAdcProtocol`은 `BeginManualOperation`으로 실행권과 안전 상태 감시를 확보한다.
+실행 중 I/O 읽기 오류도 이 경로에서 작업 취소·설비 정지·알람으로 처리하며, 진단창은 별도 감시를 두지 않는다.
+ViewModel의 명령 본문은 통신과 헤드 동작을 직접 호출한다.
 체결 테스트의 시작 조건은 `EnsureBoltTestAvailable`에서 확인하고, 실행과 결과 처리는 명령 본문에 둔다.
 ADC는 별도 busy 플래그 없이 현재 작업의 취소 소스로 실행 중 여부를 판단한다.
 STOP과 창 닫기는 현재 작업을 취소하고 완료를 기다리며, 모터 정지는 실제 RUN OFF로 확인한다.
@@ -214,7 +216,7 @@ Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 �
 대기는 Heat Sink 1의 첫 슈팅 볼트 XY·Safe Z다. 백업 플레이트가 상승해 캐리어가 착좌되면 체결 Z로 내려간다.
 모든 Heat Sink의 슈팅 체결이 끝날 때까지 픽업 테이블을 상승 상태로 유지한다.
 슈팅 피더 DO 045는 `Shooting Feeder OFF (Linear)`다. ON은 공급 정지, OFF는 공급 허용이다.
-독립 피더 루프가 볼트 감지 OFF이면 DO 045를 OFF로 공급하고, 감지 ON이면 DO 045를 ON으로 정지한다. 이스케이프 위치와 무관하며 장비 STOP도 ON이다.
+독립 피더 루프가 볼트 감지 OFF이면 DO 045를 OFF로 공급하고, 감지 ON 후 `ShootingRunOnMilliseconds`(기본 3,000ms)가 지나면 DO 045를 ON으로 정지한다. 감지가 다시 OFF되면 공급을 계속한다. 이스케이프 이동 중에도 공급하며, 빈 피더 알람의 시간만 후진 완료부터 계산한다. 장비 STOP은 DO 045를 ON으로 한다.
 슈팅 공급은 이스케이프 후진 확인 → 피더 볼트 준비 확인 → 전진 → 발사 → 튜브 통과(ON → OFF) 확인 → 즉시 후진 순서다.
 이스케이프 후진은 포인트 이동이나 헤드 도착 대기를 기다리지 않는다. 도착 대기는 튜브 ON부터 계산하며 튜브 OFF 확인·후진에 걸린 시간을 포함한다.
 슈팅 포인트 이동(Safe Z → XY → 체결 Z)과 볼트 공급을 병렬로 수행한다. 양쪽 헤드 UP·픽업 테이블 UP 상태에서 시작하고, 이동과 공급(이스케이프 후진·도착 시간 대기)이 모두 끝나면 체결한다.
@@ -227,21 +229,22 @@ Safe Z → 볼트 XY → Pickup Head Fastening Z → 1회 체결을 반복한다
 `BoltFasteningStation.cs`에 공급·I/O·모션·티칭과 캐리어별 볼트 순회·체결·결과 기록을 모은다.
 단독 Repeat도 같은 파일의 실행 루프에서 처리한다.
 자동 루프는 현재 `BoltPoint`의 헤드별 공급·이동을 수행한 뒤 공통 체결·복귀 순서를 실행한다.
-별도의 상태 실행 중계를 두지 않으며, `_activeBolt`는 실행 중인 목적지 표시용이다. STOP 후 START는 다시 첫 볼트부터 시작한다.
+별도의 상태 실행 중계를 두지 않으며, `ActiveBolt`는 이번 Run의 볼트 목록과 현재 인덱스에서 읽는다. STOP 후 START는 다시 첫 볼트부터 시작한다.
 
 | 체결 상태 | 동작 / 완료 기준 |
 | --- | --- |
 | `MovingToStandby` → `Waiting` | 헤드 상승 → Safe Z → 픽업 테이블 상승 확인 → 첫 슈팅 볼트 XY → 착좌 대기 |
 | `FasteningPcb` | 테이블·헤드 상승 확인 → 볼트 위치 이동과 공급 병렬(튜브 통과 직후 이스케이프 후진·남은 도착 시간 대기) → 체결 → 헤드·Safe Z 복귀 |
 | `FasteningPickup` | 양쪽 헤드 UP → Safe Z → 테이블 하강 → Pickup XY → 볼트 준비 확인 → Pickup Z → 볼트 취득 → Safe Z → 체결 위치 → 체결·복귀 |
-| `WaitingForShootingFeeder` / `WaitingForPickupFeeder` | 각 피더의 볼트 감지를 기다린다. 픽업은 Safe Z·헤드 상승 상태에서 기다린다. Repeat·피더 OFF는 공급 대기를 생략한다. |
+| `PreparingCarrier` | 이번 Run의 캐리어와 볼트 목록을 선택하고 첫 포인트부터 시작한다. |
 | `CompletingCarrier` | 모든 결과와 헤드·Z 복귀 확인 후 작업 완료 |
 
+피더 감지 대기는 각 체결 단계 안에서 수행하고 대기 사유를 로그에 표시한다. 픽업은 Safe Z·헤드 상승 상태에서 기다린다. Repeat·피더 OFF는 공급 대기를 생략한다.
 
-`Bolt Pickup`의 Z는 별도 픽업 높이로 유지한다. 볼트 XY는 검사 좌표와 선택 헤드의 기준 핀으로 계산한다.
+`Bolt Pickup`의 Z는 별도 픽업 높이로 유지한다. 볼트 체결 XY는 처음에만 검사 좌표와 선택 헤드의 기준 핀으로 계산하고, 이후에는 각 볼트의 독립된 체결 XY를 티칭한다. 체결 Z는 헤드별 공통 높이와 볼트별 오프셋(초기 0)의 합이다.
 볼트의 Move to Position은 Safe Z → 픽업 테이블 위치 확인(픽업 DOWN·슈팅 UP) → XY → 해당 헤드의 체결 Z 순서다.
 좌표 기록은 Record Position에서만 수행하며, 저장이나 이동 중 다른 포지션값을 덮어쓰지 않는다.
-검사 볼트는 Add Bolt로 생성하고 FOV/ROI를 연결한다. 좌표 없는 안내 항목은 목록에 넣지 않는다.
+검사 볼트는 Add Bolt로 생성하고 FOV/ROI를 연결한다. Grab은 선택한 포인트의 이미지만 갱신하며 새 볼트 포인트를 만들지 않는다.
 검사 순서는 PCB 1의 Data Matrix → PCB 1 볼트 번호순 → PCB 2의 Data Matrix → PCB 2 볼트 번호순이다.
 Data Matrix 미판독과 볼트 검사 NG는 결과로 기록하고 나머지 검사를 계속한다. 미판독 문자열은 null로 유지하며,
 `PcbBarcodeResult`로 미검사(Pending)와 판독 실패(NG)를 구분한다. 최종 NG는 캐리어에 유지하고 화면에는 `NG · Not Read`로 표시한다.
@@ -257,15 +260,15 @@ Data Matrix 미판독과 볼트 검사 NG는 결과로 기록하고 나머지 �
 알람 전체 조건과 개별 동작의 간섭 조건을 섞지 않는다. 임의의 지연·재시도·catch로 원인을 감추지 않는다.
 
 티칭 조그의 순서는 `TeachingViewModel.JogAsync` 한 곳에서 관리한다.
-동작 중 여부 확인 → `BeginManualOperation`으로 실행권 확보와 현재 피드백 확인 →
-유닛의 `JogAsync` 실행 → 실행권 반환 순서다. 시작 직전 같은 피드백을 두 번 확인하지 않는다.
+`BeginManualOperation`으로 실행권 확보와 현재 피드백 확인 → 실제 동작 중 여부와 취소 확인 →
+유닛의 `JogAsync` 실행 → 실행권 반환 순서다. 실행권을 먼저 확보하여 SDK 조회 중 들어온 STOP도 받는다.
 유닛은 해당 장치의 간섭 확인과 장치 제어를 맡는다. 유닛을 건너뛰어 장치를 노출하지 않는다.
 드라이버도 공통 `ValidateJog` 호출이 돌아온 뒤 SDK 시작 → 완료/취소 대기 → 종료를 직접 수행한다.
 오류가 발생하면 티칭 함수에서 `MachineController.ReportManualFailure`를 호출한다.
 전체 STOP·실린더 간섭 감시는 기존 장비 감시에서 유지한다.
 
 버튼의 조그 조건은 티칭 ViewModel에 모으고 유닛별 `CanJog` 전달 함수는 두지 않는다.
-HOME 버튼은 표시 갱신에서 계산한 `HomeableAxes`를 쓰며, 실제 HOME은 실행권 확보 후 현재 조건을 확인한다.
+HOME 버튼은 `IsManualHomeAllowed`에서 수집된 축 상태를 쓰며, 실제 HOME은 실행권 확보 후 현재 조건을 확인한다.
 공통 HOME 조건과 수평축이 공유하는 설정 검증은 축마다 반복하지 않는다.
 테스트는 실제 진입점과 SDK 대역을 사용하고, private 변환 함수의 리플렉션 검사나 같은 분기의 숫자 조합은 반복하지 않는다.
 
@@ -281,7 +284,9 @@ ROI·대상·촬영 좌표의 화면용 복사본을 추가하지 않는다.
 - `OperationCancellation.TryBegin`: 최상위 운전의 실행권을 확보한다. 다른 운전이나 STOP 정리가
   남으면 시작하지 않는다. 내부 축·실린더 작업은 기존 `Link`로 같은 취소 수명에 참여한다.
   START/HOME/수동 이동·컨베이어/ADC/초기화·복구와 설정 저장·조명 테스트가 이 경계를 사용한다.
-- `MachineController.StartAsync.StopWhenOperationBecomesUnavailable`: 정지를 요구하는 DI를 먼저
+- `OperationCancellation.TryBeginAfterIdleAsync`: RESET의 정리 대기와 실행권 확보를 같은 STOP 취소에 연결한다.
+  대기 중이나 대기 직후 STOP되면 새 실행권을 확보하지 않는다.
+- `MachineController.RunAutomaticAsync.StopWhenOperationBecomesUnavailable`: 정지를 요구하는 DI를 먼저
   확인한 뒤 정상 상태에서만 현재 SDK 준비 상태를 읽는다. SDK 대신 캐시로 운전을 허용하지 않는다.
 - `MainConveyor.PrepareEmptyStationsAsync`: START 준비에서 빈 스테이션만 내린다. 루프마다 반복하지 않는다.
   캐리어 또는 NG 픽업의 지지 상태는 유지하고, 실제 이송의 Release 단계가 하강을 소유한다.
@@ -322,6 +327,8 @@ HOME·START 선상승과 HOME 순서(2026-09-19):
   Z HOME이나 높이 이동을 공통 드라이버가 대신 실행하지 않는다.
 - AJIN의 동시 X/Y HOME은 두 축을 시작한 뒤 한 루프에서 결과를 확인한다.
   취소·실패 시 두 축의 정지 확인과 오류 수거를 끝내야 HOME이 반환한다.
+  각 축의 HOME 설정 후 실제 시작 직전에 취소를 다시 확인한다. 준비 중 STOP을 받으면
+  다음 축을 시작하지 않고 이미 시작한 축을 정지한다. 조그도 시작 알림 뒤 구동 명령 전에 취소를 확인한다.
   상위 단계도 한 유닛의 시작 오류 때문에 이미 시작한 다른 유닛을 남겨 두지 않는다.
 - AJIN 디바이스 동작은 `C:\git\AnyWave\AnyWave.Device\Motions\Ajin\AjinService.cs`가 기준이다.
   원본의 HOME 결과 초기화·Z HOME 방식·Task.Run과 시작/대기 순서를 유지한다.
@@ -404,6 +411,8 @@ NG 컨베이어도 `NgCarrierConveyor.Stop`에서 모터·배출 안내·완료 
 모션 오류까지 확인한다. 알람 상세에는 분류 전 원본 예외 전체를 남긴다.
 수동 명령은 유닛 호출 뒤 `ReportManualFailure`로 취소와 장치 정리 실패를 보고한다.
 `BeginManualOperation`은 실행권·상태 감시만 관리하며 실행 콜백을 받지 않는다.
+티칭·개별 HOME·ADC 진단·조명 테스트는 이 감시를 공유한다. 조명 테스트의 기존 수동 모드 조건과
+OFF 정리 순서는 유지하며, 감시 콜백의 I/O 읽기 오류는 작업 취소와 설비 알람으로 보고한다.
 장치 오류가 없는 프로그래밍 예외는 호출부로 전달한다.
 실린더 상승의 `ObserveRaiseAsync`도 STOP 이후 장치 오류를 누락하지 않는다. 먼저 발생한 안전 알람이
 있으면 유지하고, 추가 오류는 `Cylinder raise ... failed while stopping` 로그로 확인한다.
@@ -532,10 +541,10 @@ PCB 1의 볼트 전체 → PCB 2의 데이터 매트릭스·볼트 전체 순서
 저장된 바코드·볼트 결과로 다음 포인트를 선택하지 않는다. 결과와 PCB 번호는 같은 캐리어에 유지하며,
 현재 루프의 표시 대상은 실행 종료 시 버린다. 새 캐리어 입력이 새 작업을 만든다.
 체결은 새 START마다 첫 볼트부터 공급·체결한다. 완료 결과 딕셔너리는 품질 기록이며 실행할 볼트를 고르는 조건으로 쓰지 않는다.
-중단된 볼트 번호·픽업 시도·미수집 결과의 보관과 재수거 API는 없다. ADC 이벤트 번호와 IO FASTEN ON/OFF 이력은 현재 명령 안에서만 사용한다.
+중단된 볼트 번호·픽업 시도·미수집 결과의 보관과 재수거 API는 없다. ADC 이벤트 번호와 RUN ON/OFF 관찰 이력은 현재 명령 안에서만 사용한다.
 픽업 차례에 현재 진공이 ON이면 픽업 위치 방문을 생략하고, OFF이면 픽업하러 간다. 별도 볼트 보유 플래그는 없다.
 각 체결은 현재 위치, 컨트롤러 정지·준비와 프리셋, 새 하강 출력과 새 체결 결과를 확인한다.
-하강 출력에 실패한 이전 결과나 STOP으로 떨어진 FASTEN 신호를 OK로 기록하지 않는다.
+하강 출력 실패나 STOP으로 끝난 명령을 이전 ADC 결과로 OK 처리하지 않는다.
 수거한 품질 결과와 NG 판정은 같은 캐리어에 보존하며, 재시작 위치를 추정하거나 다른 캐리어에 적용하지 않는다.
 STOP이 끝난 뒤에는 중단 이력으로 수동 체결 테스트나 RESET을 차단하지 않는다.
 
@@ -626,6 +635,7 @@ SDK 재조회로 대체하지 않는다. START·HOME 버튼의 표시도 수집�
 RESET도 표시용 정지 값만으로 초기화하지 않고, 실행 직전에 Main/NG 운전 출력을 다시 읽는다.
 알람 정지 후 기존 작업의 정리 중에 RESET을 누르면 부저만 끄고 요청을 버리지 않는다.
 현재 작업과 하위 장치 작업이 모두 끝날 때까지 같은 RESET 요청에서 기다린 뒤 실제 RUN 출력과 안전 조건을 다시 확인한다.
+대기 중 STOP을 다시 누르면 RESET 요청도 취소한다. 상태 확인 중 들어온 STOP도 초기화 전에 확인한다.
 반복 클릭은 같은 리셋 작업을 공유하고, 종료 중이거나 실제 RUN이 남아 있으면 초기화·알람 해제를 수행하지 않는다.
 읽기 실패는 정지·통신 알람으로 처리하며, 이미 연결이 끊긴 I/O의 명시적 초기화는 허용한다.
 수집기는 준비 상태와 읽기 오류를 따로 알린다. 축 변경마다 변경되지 않은 `ReadError`를
@@ -762,8 +772,8 @@ Repeat는 PCB가 이미 안착된 캐리어 하나를 메인 입구(첫 번째) 
 Placement는 기존 PCB를 집어 기존 인계 좌표까지 왕복한 뒤 원래 자리에 재안착·압착한다.
 Supply에서 새 PCB를 받지 않으며, Placement가 켜져 있으면 왕복 완료 후 다음 공정으로 보낸다.
 Repeat에서는 Enabled 설정값을 바꾸지 않고 Pickup/Shooting 피더를 모두 OFF로 취급하며 피더 자체를 실행하지 않는다.
-일반 운전은 각 피더 Enabled 설정을 따른다. Pickup Feeder OFF 또는 Repeat에서도 픽업 차례의 진공이 OFF이면 양쪽 헤드 UP·테이블 DOWN 상태에서 피더 XY 이동·픽업 Z 이동·진공 ON·Safe Z 복귀를 수행한다.
-피더의 볼트 감지와 픽업 진공 ON 확인만 생략한다. 축 위치와 실린더 피드백, 픽업 진공 해제 확인은 유지한다.
+일반 운전은 각 피더 Enabled 설정을 따른다. Pickup Feeder OFF 또는 Repeat에서도 픽업 차례의 진공이 OFF이면 양쪽 헤드 UP·테이블 DOWN 상태에서 피더 XY 이동·픽업 Z 이동·Safe Z 복귀를 수행한다.
+이때 진공 ON 출력과 피더 볼트·픽업 진공 ON 대기를 생략한다. 축 위치와 실린더 피드백, 체결 후 픽업 진공 해제 확인은 유지한다.
 집힘 확인을 생략한 픽업도 해당 호출 안에서 체결까지 진행하며, 다음 START로 픽업 이력을 넘기지 않는다.
 Shooting Bolt Feeder OFF 또는 Repeat는 공급 대기·이스케이프·볼트 발사와 공급 관련 감지 대기를 생략한다.
 슈팅 튜브 ON 감지 후 `BoltFasteningSettings.ShootingArrivalDelaySeconds`만큼 기다린 뒤 발사 출력을 끈다.

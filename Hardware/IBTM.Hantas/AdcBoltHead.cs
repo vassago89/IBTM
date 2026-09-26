@@ -71,20 +71,38 @@ public sealed class AdcBoltHead : IBoltHead
 
     private async Task<AdcControllerStatus> WaitForStatusAsync(CancellationToken cancellationToken)
     {
+        var responseTimeoutMilliseconds = _connection.ResponseTimeoutMilliseconds;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeoutMilliseconds);
         // Wait for the shared acquisition loop, never issue a second status query here.
         var after = Stopwatch.GetTimestamp();
         _bus.Open(_portName, _baudRate);
         Monitor.IntervalMilliseconds = _connection.StatusPollMilliseconds;
         await Monitor.StartAsync(_slaveAddress, cancellationToken);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(_connection.ResponseTimeoutMilliseconds + _connection.StatusPollMilliseconds);
+        timeout.CancelAfter(TimeSpan.FromMilliseconds((long)responseTimeoutMilliseconds + Monitor.IntervalMilliseconds));
+        AdcResponseException? rejection = null;
         try
         {
-            return await Monitor.WaitForSampleAsync(after, timeout.Token);
+            while (true)
+            {
+                timeout.Token.ThrowIfCancellationRequested();
+                try
+                {
+                    return await Monitor.WaitForSampleAsync(after, timeout.Token);
+                }
+                catch (AdcResponseException exception) when (exception.ErrorCode == 0x03)
+                {
+                    // Wait for the next scheduled monitor sample without resending a command
+                    // or extending the deadline. A rejected read is still unknown feedback.
+                    rejection = exception;
+                    after = Stopwatch.GetTimestamp();
+                }
+            }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new TimeoutException($"ADC {_portName}/{_slaveAddress}: no fresh controller status from the monitor.");
+            throw new TimeoutException(
+                $"ADC {_portName}/{_slaveAddress}: no fresh controller status from the monitor.", rejection);
         }
     }
 
@@ -115,14 +133,27 @@ public sealed class AdcBoltHead : IBoltHead
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(_start, false);
         cancellationToken.ThrowIfCancellationRequested();
+        Exception? failure = null;
         try
         {
             _io.SetOutput(_reset, true);
             await Task.Delay(ResetPulseMilliseconds, cancellationToken);
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
-            _io.SetOutput(_reset, false);
+            try
+            {
+                _io.SetOutput(_reset, false);
+            }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException("ADC RESET and output release both failed.", failure, cleanupFailure);
+            }
         }
         await CheckReadyAsync(cancellationToken);
     }
@@ -140,13 +171,14 @@ public sealed class AdcBoltHead : IBoltHead
         void OnIoFaulted(Exception exception)
         {
             ioFailure = exception;
-            operation.Cancel();
+            OperationCancellation.CancelIfNotDisposed(operation);
         }
         _io.Faulted += OnIoFaulted;
         try
         {
             _io.SetOutput(_direction, true);
             await CheckReadyAsync(operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
             _io.SetOutput(_start, true);
             await Task.Delay(Timeout.Infinite, operation.Token);
         }
@@ -174,6 +206,9 @@ public sealed class AdcBoltHead : IBoltHead
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegative(dryRunMilliseconds);
+        var fasteningTimeoutMilliseconds = _connection.FasteningTimeoutMilliseconds;
+        if (dryRunMilliseconds == 0)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fasteningTimeoutMilliseconds);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         (ushort EventCount, ushort Preset)? started = null;
         AdcFasteningResult? completed = null;
@@ -187,7 +222,7 @@ public sealed class AdcBoltHead : IBoltHead
         void OnIoFaulted(Exception exception)
         {
             Interlocked.CompareExchange(ref ioFailure, exception, null);
-            timeout.Cancel();
+            OperationCancellation.CancelIfNotDisposed(timeout);
         }
         void OnStatusSampled(AdcStatusSample sample)
         {
@@ -232,7 +267,7 @@ public sealed class AdcBoltHead : IBoltHead
             _io.SetOutput(_direction, false);
 
             if (dryRunMilliseconds == 0)
-                timeout.CancelAfter(_connection.FasteningTimeoutMilliseconds);
+                timeout.CancelAfter(fasteningTimeoutMilliseconds);
             timeout.Token.ThrowIfCancellationRequested();
             started = fastening;
             if (dryRunMilliseconds == 0)
@@ -298,7 +333,7 @@ public sealed class AdcBoltHead : IBoltHead
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             failure = new TimeoutException(
-                $"ADC {_portName}/{_slaveAddress} fastening timed out after {_connection.FasteningTimeoutMilliseconds} ms; "
+                $"ADC {_portName}/{_slaveAddress} fastening timed out after {fasteningTimeoutMilliseconds} ms; "
                 + $"waiting for RUN ON then OFF / one result read; RUN observed={runObserved}, last RUN={Monitor.Sample?.Status?.Running}; "
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "

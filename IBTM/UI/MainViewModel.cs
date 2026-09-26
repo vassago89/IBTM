@@ -327,7 +327,7 @@ public partial class MainViewModel : ObservableObject
                     && page switch
                     {
                         AppPage.Settings or AppPage.ManualHardware => true,
-                        AppPage.Teaching => _state.ManualMode,
+                        AppPage.Teaching => !_state.AutoMode,
                         _ => false,
                     });
     }
@@ -383,7 +383,7 @@ public partial class MainViewModel : ObservableObject
                     _windows.CloseOutputs();
                 NavigateCommand.NotifyCanExecuteChanged();
                 var showOperation = _state.AutomaticRunning && SelectedPage is not (AppPage.Operation or AppPage.Inspection)
-                    || !_state.ManualMode
+                    || _state.AutoMode
                         && SelectedPage == AppPage.Teaching;
                 if (showOperation
                     && NavigationError is null

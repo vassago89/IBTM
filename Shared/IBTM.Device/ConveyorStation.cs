@@ -188,22 +188,25 @@ public sealed class ConveyorStation
     public async Task WaitForCarrierAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (CarrierPresent)
+            return;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_io.TimeoutMilliseconds);
+        var arrived = new AsyncAutoResetEvent();
         void OnCarrierChanged(bool present)
         {
             if (present)
-                arrived.TrySetResult();
+                arrived.Set();
         }
 
         CarrierChanged += OnCarrierChanged;
         try
         {
-            if (CarrierPresent)
-                return;
-            await arrived.Task.WaitAsync(TimeSpan.FromMilliseconds(_io.TimeoutMilliseconds), cancellationToken);
+            while (!CarrierPresent)
+                await arrived.WaitAsync(timeout.Token);
             cancellationToken.ThrowIfCancellationRequested();
         }
-        catch (TimeoutException exception)
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
             throw new TimeoutException(
                 $"Carrier arrival requires {_heatSink1} or {HeatSink2Input}=ON "

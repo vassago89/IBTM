@@ -367,7 +367,7 @@ public sealed class AdcBoltHeadTests
     [InlineData(true)]
     public async Task FailedOneShotResultReadIsRecordedWithoutRetryingOrRestarting(bool rejected)
     {
-        using var bus = new AdcControllerStub { ResultReadFailure = ResultReplyFailure(rejected) };
+        using var bus = new AdcControllerStub { NextResultReadFailure = ResultReplyFailure(rejected) };
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         var result = await head.TightenAsync();
@@ -434,7 +434,7 @@ public sealed class AdcBoltHeadTests
         var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)0x84, [0x02]);
         using var bus = new AdcControllerStub
         {
-            ResultReadFailure = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
+            NextResultReadFailure = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
                 frame, 1, AdcFunctionCode.ReadInputRegisters, 28)),
         };
         var (io, head) = Create(bus, new());
@@ -564,6 +564,62 @@ public sealed class AdcBoltHeadTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RejectedStopStatusWaitsForFreshFeedbackWithinTheStatusDeadline(bool recovers)
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 100, StatusPollMilliseconds = 10 });
+        await head.SelectPresetAsync(1);
+        var rejection = new AdcResponseException(0x03, "Status read rejected after START OFF");
+        var rejected = false;
+        void RejectAfterStop(OutputIo output, bool on)
+        {
+            if (output == OutputIo.PickupBoltStart && !on)
+                bus.StatusReadFailure = rejection;
+        }
+        void OnSampled(AdcStatusSample sample)
+        {
+            if (!ReferenceEquals(sample.Error, rejection))
+                return;
+            rejected = true;
+            if (recovers)
+                bus.StatusReadFailure = null;
+        }
+        io.OutputChanged += RejectAfterStop;
+        head.Monitor.Sampled += OnSampled;
+        try
+        {
+            if (recovers)
+            {
+                var result = await head.TightenAsync().WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.True(result.Success, result.Error);
+                Assert.NotNull(result.Torque);
+                Assert.NotNull(result.Controller);
+                Assert.Null(head.Monitor.Sample?.Error);
+            }
+            else
+            {
+                var failure = await Assert.ThrowsAsync<TimeoutException>(
+                    () => head.TightenAsync().WaitAsync(TimeSpan.FromSeconds(2)));
+                Assert.Contains("no fresh controller status", failure.Message);
+                Assert.Same(rejection, failure.InnerException);
+                Assert.Same(rejection, head.Monitor.Sample?.Error);
+            }
+            Assert.True(rejected);
+            Assert.Equal(1, bus.ResultReads);
+            Assert.Equal(1, bus.StartWrites);
+            Assert.Equal(1, bus.StopWrites);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        }
+        finally
+        {
+            io.OutputChanged -= RejectAfterStop;
+            head.Monitor.Sampled -= OnSampled;
+        }
+    }
+
     [Fact]
     public async Task MissingResultRecordsNgOnlyAfterIoStop()
     {
@@ -583,6 +639,40 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(2, bus.StatusReads);
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    public async Task InvalidFasteningTimeoutCannotStartMotor(int milliseconds)
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = milliseconds });
+        await head.SelectPresetAsync(1);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => head.TightenAsync(stop.Token));
+
+        Assert.Equal(0, bus.StartWrites);
+        Assert.Equal(0, bus.EventReads);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task InfiniteResponseTimeoutCannotStartStatusAcquisitionOrSerialExchange()
+    {
+        var settings = new HantasSettings { ResponseTimeoutMilliseconds = -1 };
+        using var controller = new AdcControllerStub();
+        var (io, head) = Create(controller, settings);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => head.CheckReadyAsync());
+        Assert.False(controller.IsOpen);
+        Assert.Equal(0, controller.StatusReads);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+
+        // No port is opened: timeout validation must precede any serial access.
+        using var bus = new AdcBus(settings);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => bus.ReadRegistersAsync(
+            1, AdcFunctionCode.ReadInputRegisters, (ushort)AdcStatusRegister.Preset, 7));
+    }
+
     [Fact]
     public async Task TimeoutAndIoOutputFailureAreBothPreserved()
     {
@@ -598,7 +688,7 @@ public sealed class AdcBoltHeadTests
     [Fact]
     public async Task SerialQueryFailureStillTurnsStartOff()
     {
-        using var bus = new AdcControllerStub { ResultReadFailure = new IOException("Serial disconnected") };
+        using var bus = new AdcControllerStub { NextResultReadFailure = new IOException("Serial disconnected") };
         var (io, head) = Create(bus);
         await head.SelectPresetAsync(1);
         await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
@@ -615,6 +705,45 @@ public sealed class AdcBoltHeadTests
         io.IsReady = false;
         await Assert.ThrowsAsync<InvalidOperationException>(() => cycle);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IoFaultAlreadyBeingPublishedCanFinishAfterTheOperationIsDisposed(bool reverse)
+    {
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        var (io, head) = Create(bus);
+        using var publish = new ManualResetEventSlim();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        io.Faulted += exception =>
+        {
+            entered.SetResult();
+            Assert.True(publish.Wait(TimeSpan.FromSeconds(5)));
+        };
+        await head.SelectPresetAsync(1);
+        using var stop = new CancellationTokenSource();
+        var operation = reverse ? head.RunReverseAsync(stop.Token) : head.TightenAsync(stop.Token);
+        Assert.True(await VirtualTest.WaitUntilAsync(
+            () => io.GetOutput(OutputIo.PickupBoltStart), TimeSpan.FromSeconds(2)));
+        var fault = Task.Run(() => io.IsReady = false);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => operation.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            publish.Set();
+            await fault.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            stop.Cancel();
+            publish.Set();
+            await Task.WhenAll(operation, fault).ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
     }
 
     [Fact]
@@ -718,6 +847,30 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(1, bus.ResetWrites);
         Assert.Equal(0, bus.StartWrites);
         Assert.False(io.GetOutput(OutputIo.PickupBoltReset));
+    }
+
+    [Fact]
+    public async Task ResetOnAndOffFailuresAreBothPreserved()
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus);
+        var onFailure = new IOException("RESET ON failed.");
+        var offFailure = new IOException("RESET OFF failed.");
+        var resetAttempts = new List<bool>();
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.PickupBoltReset)
+                return;
+            resetAttempts.Add(on);
+            throw on ? onFailure : offFailure;
+        };
+
+        var error = await Assert.ThrowsAsync<AggregateException>(() => head.ResetAsync());
+
+        Assert.Equal(new[] { true, false }, resetAttempts);
+        Assert.Equal(new Exception[] { onFailure, offFailure }, error.InnerExceptions);
+        Assert.Equal(0, bus.StartWrites);
+        Assert.Equal(0, bus.StatusReads);
     }
 
     [Fact]

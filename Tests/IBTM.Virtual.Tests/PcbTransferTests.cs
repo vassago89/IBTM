@@ -17,6 +17,41 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbTransferTests
 {
     [Fact]
+    public async Task SupplyPickupTeachingStopsWhenRotationFeedbackIsLostDuringDescent()
+    {
+        var settings = new PcbSupplySettings { Motion = FastMotion(), RotationZ = 3 };
+        settings.Motion.ZSpeed = 50;
+        var io = new VirtualIoService(Outputs(new PcbSupplyHardwareSettings()), new MachineOptions());
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        var supplier = CreateSupplier(motion, io, settings);
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 2_000);
+        await supplier.SetRotatedAsync(true, default);
+        var point = CreateTeachingPoint(
+            new(TeachingTarget.SupplyPcb1Pick, MotionGroup.PcbSupply, TeachMode.Full),
+            new() { PcbSupply = settings }, new());
+        point.Teach(10, 20, 8);
+        var rotationLost = false;
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (!rotationLost && z > settings.RotationZ + 0.1)
+            {
+                rotationLost = true;
+                io.SetInputs((InputIo.PcbSupplyRotated, false), (InputIo.PcbSupplyUnrotated, true));
+            }
+        };
+
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await Assert.ThrowsAsync<MotionInterlockException>(() =>
+            supplier.MoveToTeachingPositionAsync(point.Position, point.MovePosition, stop.Token));
+
+        Assert.True(rotationLost);
+        Assert.False(motion.IsMoving);
+        Assert.True(motion.Position.Z < 8);
+    }
+
+    [Fact]
     public async Task SupplyPickupTeachingUsesEachSlotsXyzAndBlocksMissingY()
     {
         var settings = new PcbSupplySettings { Motion = FastMotion(), RotationZ = 3 };
@@ -34,9 +69,10 @@ public sealed class PcbTransferTests
                 new() { PcbSupply = settings }, new() { PcbSupply = recipe })).ToArray();
         Assert.All(picks, point => Assert.False(point.Position.HasPosition));
         Assert.All(picks, point => Assert.False(handler.IsMoveToTeachingPositionAllowed(point.Position)));
+        Assert.All(picks, point => Assert.Throws<MotionInterlockException>(() => point.MovePosition));
         var before = motion.Position;
         await Assert.ThrowsAsync<MotionInterlockException>(() =>
-            handler.MoveToTeachingPositionAsync(picks[0].Position, picks[0].Read()));
+            handler.MoveToTeachingPositionAsync(picks[0].Position, new AxisPosition()));
         Assert.Equal(before, motion.Position);
 
         picks[0].Teach(10, 30, 5);
@@ -46,7 +82,7 @@ public sealed class PcbTransferTests
         {
             var point = picks[index];
             Assert.True(handler.IsMoveToTeachingPositionAllowed(point.Position));
-            await handler.MoveToTeachingPositionAsync(point.Position, point.Read());
+            await handler.MoveToTeachingPositionAsync(point.Position, point.MovePosition);
             var target = positions[index];
             Assert.Equal((target.X, target.Y!.Value, target.Z), motion.Position);
         }

@@ -35,7 +35,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
         HistoryImages = [];
         Records = [];
         RecipeNames = [];
-        HistoryDirectory = history.Directory;
         SelectedRecipeName = recipes.Current.Name;
         LoadRecipeCommand = new AsyncRelayCommand(LoadRecipeAsync);
         RefreshImagesCommand = new AsyncRelayCommand(RefreshImagesAsync);
@@ -52,6 +51,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         _commands = [LoadRecipeCommand, RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
+        HistoryDirectory = history.Directory;
     }
 
     public Recipe Draft { get; }
@@ -109,12 +109,16 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         try
         {
+            var selectedName = SelectedRecipeName;
             RecipeNames = _store.RecipeNames;
+            // ComboBox item matching is case-sensitive even though recipe identity is not.
+            SelectedRecipeName = RecipeNames.FirstOrDefault(name => MachineStore.IsSameRecipeName(name, selectedName))
+                ?? selectedName;
             if (!IsBusy)
             {
                 if (IsLoaded)
                     _ = RefreshImagesCommand.ExecuteAsync(null);
-                else if (RecipeNames.Contains(SelectedRecipeName))
+                else if (RecipeNames.Any(name => MachineStore.IsSameRecipeName(name, SelectedRecipeName)))
                     _ = LoadRecipeCommand.ExecuteAsync(null);
             }
         }
@@ -161,7 +165,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             Recipe? activeRecipe = null;
             lock (_recipes.InspectionSync)
             {
-                if (_recipes.Current.Name == name)
+                if (MachineStore.IsSameRecipeName(_recipes.Current.Name, name))
                 {
                     // Teaching owns the point list, including edits not yet saved to the database.
                     activeRecipe = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(_recipes.Current))!;
@@ -287,7 +291,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
         try
         {
             await _recipes.SaveInspectionAsync(Draft, token);
-            Message = "Inspection settings saved. The active recipe uses them from the next inspection point.";
+            Message = MachineStore.IsSameRecipeName(_recipes.Current.Name, Draft.Name)
+                ? "Inspection settings saved. The active recipe uses them from the next inspection point."
+                : "Inspection settings saved for this recipe. Load it as the active recipe to use them.";
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
@@ -301,6 +307,18 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         Records.Clear();
         await LoadOlderAsync(token);
+    }
+
+    partial void OnHistoryDirectoryChanged(string value)
+    {
+        Records.Clear();
+        SelectedRecord = null;
+        LoadedRecord = null;
+        HistoryImages = [];
+        SelectedHistoryImage = null;
+        HasOlder = true;
+        Error = null;
+        Message = null;
     }
 
     private async Task LoadOlderAsync(CancellationToken token)
@@ -347,7 +365,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsUseHistoryImageAllowed => LoadedRecord?.RecipeName == Draft.Name && SelectedHistoryImage is not null
+    private bool IsUseHistoryImageAllowed => LoadedRecord is not null
+        && MachineStore.IsSameRecipeName(LoadedRecord.RecipeName, Draft.Name)
+        && SelectedHistoryImage is not null
         && Points.Any(point => point.Metadata.HeatSink == LoadedRecord.HeatSink
             && (point.Metadata.IsBarcode ? SelectedHistoryImage.Record.BoltNumber is null
                 : point.Metadata.BoltNumber == SelectedHistoryImage.Record.BoltNumber));

@@ -241,6 +241,55 @@ public sealed class NgHandoffTests
         Assert.True(signals.Inputs[InputIo.NgCarrierDetected].IsOn);
     }
 
+    [Fact]
+    public async Task ReleasedCarrierMustRemainDetectedBeforePickupRises()
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var transfer = system.Inspection;
+        var io = system.Io;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, stop.Token);
+        SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        await transfer.ExecuteTransferAsync(NgTransferDestination.Shuttle,
+            InspectionStationState.PlacingCarrier, stop.Token, holdAtDestination: true);
+        await transfer.SetLiftUpAsync(false, stop.Token);
+        await transfer.SetGripperOpenAsync(true, stop.Token);
+        var scheduler = new ConcurrentExclusiveSchedulerPair();
+        try
+        {
+            await Task.Factory.StartNew(async () =>
+            {
+                var placing = transfer.ExecuteTransferAsync(
+                    NgTransferDestination.Shuttle, InspectionStationState.PlacingCarrier, stop.Token);
+                try
+                {
+                    io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+                    io.SetInput(InputIo.NgShuttleCarrierDetected, false);
+                    await Task.Yield();
+                    Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
+                    Assert.False(placing.IsCompleted);
+
+                    io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+                    await placing;
+                    Assert.True(transfer.IsRaised);
+                }
+                finally
+                {
+                    stop.Cancel();
+                    await ((Task)placing).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing
+                        | ConfigureAwaitOptions.ContinueOnCapturedContext);
+                }
+            }, CancellationToken.None, TaskCreationOptions.None, scheduler.ExclusiveScheduler).Unwrap();
+        }
+        finally
+        {
+            scheduler.Complete();
+            await scheduler.Completion;
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

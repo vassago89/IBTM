@@ -706,7 +706,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     void CheckGrip()
                     {
                         if (!IsTransferPending || Gripper != NgTransferGripperState.Closed)
-                            carrying.Cancel();
+                            OperationCancellation.CancelIfNotDisposed(carrying);
                     }
                     Changed += CheckGrip;
                     try
@@ -752,7 +752,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 if (!allowEmpty)
                 {
                     if (destination == NgTransferDestination.Shuttle)
-                        await _io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true, cancellationToken);
+                        await _io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true, cancellationToken, requireCurrent: true);
                     else
                         await Station.WaitForCarrierAsync(cancellationToken);
                 }

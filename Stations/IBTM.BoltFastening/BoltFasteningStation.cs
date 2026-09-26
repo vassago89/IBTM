@@ -411,7 +411,7 @@ public sealed class BoltFasteningStation : AutoUnit
                             try
                             {
                                 TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: vacuum detection at Safe Z");
-                                await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, true, token);
+                                await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, true, token, requireCurrent: true);
                                 break;
                             }
                             catch (IoTimeoutException) when (retry < retryCount && !token.IsCancellationRequested)
@@ -515,7 +515,8 @@ public sealed class BoltFasteningStation : AutoUnit
             await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false, cancellationToken);
         await WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken);
         await _io.WaitForInputAsync(
-            InputIo.ShootingTubeBoltDetected, false, _settings.ShootingDetectionTimeoutMilliseconds, cancellationToken);
+            InputIo.ShootingTubeBoltDetected, false, _settings.ShootingDetectionTimeoutMilliseconds,
+            cancellationToken, requireCurrent: true);
         using var passage = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task? boltPassed = null;
         Exception? failure = null;
@@ -593,7 +594,7 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             if (bolt.Head == FasteningHead.Shooting
                 && PickupTablePosition != StationCylinderState.Up)
-                fastening.Cancel();
+                OperationCancellation.CancelIfNotDisposed(fastening);
         }
 
         Changed += CheckPickupTable;
@@ -657,12 +658,7 @@ public sealed class BoltFasteningStation : AutoUnit
         var position = _settings.GetBoltPosition(bolt);
         if (atSafeZ)
             position.Z = _settings.SafeZ;
-        var current = _motion.Position;
-        return MotionService.IsSettled(_motion, MotionAxis.X, MotionAxis.Y)
-            && _motion.GetAxisState(MotionAxis.Z).InPosition
-            && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Z - position.Z) <= MotionService.PositionToleranceMillimeters;
+        return MotionService.IsAt(_motion, position);
     }
 
     internal bool IsAtPickupXY
@@ -731,7 +727,7 @@ public sealed class BoltFasteningStation : AutoUnit
             SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken));
     }
 
-    internal async Task WaitForBoltSupplyAsync(FasteningHead head, CancellationToken cancellationToken)
+    internal Task WaitForBoltSupplyAsync(FasteningHead head, CancellationToken cancellationToken)
     {
         var boltDetected = head switch
         {
@@ -739,29 +735,7 @@ public sealed class BoltFasteningStation : AutoUnit
             FasteningHead.Shooting => InputIo.ShootingFeederBoltDetected,
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
-        var changed = new AsyncAutoResetEvent();
-
-        void OnSupplyInputChanged(InputIo input, bool value)
-        {
-            if (input == boltDetected)
-                changed.Set();
-        }
-
-        // Subscribe before checking feedback so newly prepared supply is not missed.
-        _io.InputChanged += OnSupplyInputChanged;
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            while (!_io.GetInput(boltDetected))
-            {
-                await changed.WaitAsync(cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-        }
-        finally
-        {
-            _io.InputChanged -= OnSupplyInputChanged;
-        }
+        return _io.WaitForInputAsync(boltDetected, true, Timeout.Infinite, cancellationToken, requireCurrent: true);
     }
 
     public void StopShooting(Exception? operationFailure = null)
@@ -805,7 +779,7 @@ public sealed class BoltFasteningStation : AutoUnit
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(output, on);
         if (head == FasteningHead.Pickup)
-            await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, on, cancellationToken);
+            await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, on, cancellationToken, requireCurrent: true);
     }
 
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
@@ -871,7 +845,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 void CheckTeachingTable()
                 {
                     if (PickupTablePosition != (tableDown ? StationCylinderState.Down : StationCylinderState.Up))
-                        move.Cancel();
+                        OperationCancellation.CancelIfNotDisposed(move);
                 }
 
                 Changed += CheckTeachingTable;

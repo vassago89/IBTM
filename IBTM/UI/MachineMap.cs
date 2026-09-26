@@ -186,8 +186,9 @@ public sealed class MachineMap
 
     public Point? GetFasteningTargetPosition(BoltPoint bolt)
     {
-        return bolt is { FasteningX: { } x, FasteningY: { } y }
-            ? MapFastening(x, y, bolt.Head, MachinePlan.FasteningContentOrigin)
+        return bolt.IsFasteningPositionDefined
+            ? MapFastening(
+                bolt.FasteningX!.Value, bolt.FasteningY!.Value, bolt.Head, MachinePlan.FasteningContentOrigin)
             : null;
     }
 
@@ -276,21 +277,22 @@ public sealed class MachineMap
         var maxY = Math.Max(first.Y, second.Y);
         foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
         {
-            if (bolt is not { X: { } boltX, Y: { } boltY })
+            if (bolt.InspectionPosition is not { } position)
                 continue;
-            minX = Math.Min(minX, boltX);
-            maxX = Math.Max(maxX, boltX);
-            minY = Math.Min(minY, boltY);
-            maxY = Math.Max(maxY, boltY);
+            minX = Math.Min(minX, position.X);
+            maxX = Math.Max(maxX, position.X);
+            minY = Math.Min(minY, position.Y);
+            maxY = Math.Max(maxY, position.Y);
         }
         foreach (var fov in _recipes.Current.CarrierImages)
         {
-            if (!fov.IsBarcode || fov.Center is null)
+            if (!fov.IsBarcode || fov.Center is not { } position
+                || !double.IsFinite(position.X) || !double.IsFinite(position.Y))
                 continue;
-            minX = Math.Min(minX, fov.Center.X);
-            maxX = Math.Max(maxX, fov.Center.X);
-            minY = Math.Min(minY, fov.Center.Y);
-            maxY = Math.Max(maxY, fov.Center.Y);
+            minX = Math.Min(minX, position.X);
+            maxX = Math.Max(maxX, position.X);
+            minY = Math.Min(minY, position.Y);
+            maxY = Math.Max(maxY, position.Y);
         }
         // Keep the carrier centre fixed so adding an outer bolt does not shift the HS1/HS2 boundary.
         var centerX = (first.X + second.X) / 2;

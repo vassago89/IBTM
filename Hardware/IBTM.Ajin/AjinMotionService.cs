@@ -217,6 +217,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         try
         {
             BeginMotion(axis != MotionAxis.Z, adjustment: true);
+            cancellationToken.ThrowIfCancellationRequested();
             AjinController.Check(
                 CAXM.AxmMoveVel(axisNumber, velocityInUnits, acceleration, deceleration),
                 nameof(CAXM.AxmMoveVel));
@@ -348,7 +349,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                     var value => throw new InvalidOperationException($"Invalid home direction for axis {axisNumber}: {value}."),
                 };
                 
-                if (CAXM.AxmStatusSetActPos(axisNumber, 0)
+                var setupFailed = CAXM.AxmStatusSetActPos(axisNumber, 0)
                         != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
                     || CAXM.AxmHomeSetResult(axisNumber, (uint)AXT_MOTION_HOME_RESULT.HOME_ERR_UNKNOWN)
                         != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
@@ -359,8 +360,13 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                         ToUnits(home.DetectionSpeed), ToUnits(home.ApproachSpeed), ToUnits(home.FineSpeed),
                         velocity / home.SearchAccelerationSeconds,
                         ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds)
-                        != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
-                    || CAXM.AxmHomeSetStart(axisNumber) != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS)
+                        != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS;
+                if (!setupFailed)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    setupFailed = CAXM.AxmHomeSetStart(axisNumber) != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS;
+                }
+                if (setupFailed)
                 {
                     StopAxes(axisNumbers);
                     await WaitForStopAsync(axisNumbers).ConfigureAwait(false);

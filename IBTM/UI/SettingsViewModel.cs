@@ -21,6 +21,7 @@ namespace IBTM.UI;
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly MachineState _state;
+    private readonly MachineController _machine;
     private readonly MachineStore _store;
     private readonly OperationCancellation _operations;
     private readonly VirtualCamera? _virtualCamera;
@@ -31,6 +32,7 @@ public partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(
         MachineSettings settings,
         MachineState state,
+        MachineController machine,
         ICamera camera,
         MachineStore store,
         OperationCancellation operations,
@@ -48,6 +50,7 @@ public partial class SettingsViewModel : ObservableObject
         TestLightCommand = new AsyncRelayCommand(TestLightAsync, () => IsTestLightAllowed);
 
         _state = state;
+        _machine = machine;
         _store = store;
         _operations = operations;
         _light = light;
@@ -208,6 +211,12 @@ public partial class SettingsViewModel : ObservableObject
                 if (section.Settings.GetValidationError(hasZ) is { } error)
                     throw new InvalidOperationException($"{group}: {error}");
             }
+            if (Settings.Lighting.InspectionChannel is < 1 or > 9)
+                throw new InvalidOperationException("Inspection light channel must be from 1 to 9.");
+            if (Settings.Hantas.FasteningTimeoutMilliseconds <= 0)
+                throw new InvalidOperationException("Fastening timeout must be greater than zero milliseconds.");
+            if (Settings.Hantas.ResponseTimeoutMilliseconds <= 0)
+                throw new InvalidOperationException("ADC response timeout must be greater than zero milliseconds.");
             if (string.IsNullOrWhiteSpace(LogDirectory) || !Path.IsPathFullyQualified(LogDirectory))
                 throw new InvalidOperationException("Choose an absolute folder path for logs.");
             _ = Path.GetFullPath(LogDirectory);
@@ -357,9 +366,6 @@ public partial class SettingsViewModel : ObservableObject
     public partial int LightTestLevel { get; set; } = 80;
 
     [ObservableProperty]
-    public partial bool LightTestOn { get; set; }
-
-    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TestLightCommand), nameof(OffTestLightCommand))]
     public partial int? PendingLightOffChannel { get; set; }
 
@@ -373,6 +379,7 @@ public partial class SettingsViewModel : ObservableObject
         get
         {
             return IsSettingsEditAllowed
+                && _state.ManualMode
                 && PendingLightOffChannel is null
                 && !OffTestLightCommand.IsRunning;
         }
@@ -448,10 +455,6 @@ public partial class SettingsViewModel : ObservableObject
             _log.LogError(exception, "Lighting test cleanup failed; light may still be ON.");
             return failure;
         }
-        finally
-        {
-            LightTestOn = false;
-        }
     }
 
     public IAsyncRelayCommand TestLightCommand { get; }
@@ -470,7 +473,9 @@ public partial class SettingsViewModel : ObservableObject
         OperationCancellation.Operation? operation;
         try
         {
-            operation = _operations.TryBegin(cancellationToken);
+            operation = _machine.BeginManualOperation(
+                () => _state.ManualMode && !_operations.IsShuttingDown,
+                cancellationToken);
             if (operation is null)
             {
                 LightTestMessage = "Wait for the current machine operation to finish.";
@@ -483,21 +488,20 @@ public partial class SettingsViewModel : ObservableObject
             RefreshCommands();
             return;
         }
+        catch (Exception exception)
+        {
+            LightTestMessage = exception.Message;
+            _log.LogError(exception, "Lighting test admission failed.");
+            RefreshCommands();
+            return;
+        }
 
         using (operation)
         {
-            void StopWhenUnavailable()
-            {
-                if (!_state.ManualMode || _operations.IsShuttingDown)
-                    operation.Cancel();
-            }
-
-            _state.Changed += StopWhenUnavailable;
             var initialized = false;
             Exception? failure = null;
             try
             {
-                StopWhenUnavailable();
                 LightTestMessage = $"Connecting: {ActiveLightConnection}…";
                 _log.LogInformation(
                     "Lighting test started: driver={Driver}, connection={Connection}, channel={Channel}, level={Level}.",
@@ -516,7 +520,6 @@ public partial class SettingsViewModel : ObservableObject
                     operation.Token);
                 operation.Token.ThrowIfCancellationRequested();
                 PendingLightOffChannel = channel;
-                LightTestOn = true;
                 LightTestMessage = $"ON command sent · channel {channel}, level {level}. Press OFF to finish.";
                 _log.LogInformation("Lighting test ON command sent: channel={Channel}, level={Level}.", channel, level);
                 // Keep the operation owned while illuminated, including OFF cleanup.
@@ -533,7 +536,6 @@ public partial class SettingsViewModel : ObservableObject
             }
             finally
             {
-                _state.Changed -= StopWhenUnavailable;
                 if (initialized)
                 {
                     // Required cleanup and retries target the captured channel, not edited settings.
@@ -541,7 +543,6 @@ public partial class SettingsViewModel : ObservableObject
                     failure = offFailure ?? failure;
                 }
 
-                LightTestOn = false;
                 LightTestMessage = failure?.Message ?? (initialized
                     ? $"OFF command sent · channel {channel}."
                     : "Lighting test cancelled.");

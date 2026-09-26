@@ -82,6 +82,31 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         || !_io.GetInput(InputIo.NgConveyorPosition1Occupied)
             && _io.GetInput(InputIo.NgConveyorPosition2Occupied);
 
+    private bool IsCarrierPositionUnknown
+    {
+        get
+        {
+            switch (_movement)
+            {
+                case Movement.ToPosition1:
+                    return !_io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                        && !_io.GetInput(InputIo.NgShuttleCarrierDetected);
+                case Movement.ToPosition2:
+                    return !_io.GetInput(InputIo.NgConveyorPosition2Occupied)
+                        && !_io.GetInput(InputIo.NgShuttleCarrierDetected);
+                case Movement.Compacting:
+                    return !_io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                        && !_io.GetInput(InputIo.NgConveyorPosition2Occupied);
+                case Movement.ReturningToShuttle:
+                    return !_io.GetInput(InputIo.NgShuttleCarrierDetected)
+                        && !_io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                        && !_io.GetInput(InputIo.NgConveyorPosition2Occupied);
+                default:
+                    return false;
+            }
+        }
+    }
+
     private bool IsAcceptCarrierAllowed(bool? runCommandOn = null)
     {
         return _movement == Movement.None
@@ -130,6 +155,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         ToPosition1,
         ToPosition2,
         Compacting,
+        ReturningToShuttle,
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
@@ -145,6 +171,18 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             }
 
             BeginRun();
+            // Retain an interrupted move only while its carrier location is unknown.
+            // Once feedback returns, select a new route instead of resuming its destination.
+            if (_units.NgConveyor)
+            {
+                while (IsCarrierPositionUnknown)
+                {
+                    await ExecuteStepAsync(NgConveyorState.CarrierPositionUnknown, cancellationToken);
+                    await WaitForChangeAsync(cancellationToken);
+                }
+                _movement = Movement.None;
+            }
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 var step = GetNextStep(_io.GetOutput(OutputIo.NgConveyorRun));
@@ -162,7 +200,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         finally
         {
             _repeat = false;
-            _movement = Movement.None;
             _ejectionPhase = EjectionPhase.Idle;
             EndRun(cancellationToken);
         }
@@ -190,14 +227,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         }
         // A stopped transfer with no presence feedback has no known physical location.
         // The saved destination is work history, not permission to guess and resume.
-        if (!runCommandOn
-            && (_movement switch
-            {
-                Movement.ToPosition1 => !_io.GetInput(InputIo.NgConveyorPosition1Occupied) && !_io.GetInput(InputIo.NgShuttleCarrierDetected),
-                Movement.ToPosition2 => !_io.GetInput(InputIo.NgConveyorPosition2Occupied) && !_io.GetInput(InputIo.NgShuttleCarrierDetected),
-                Movement.Compacting => !_io.GetInput(InputIo.NgConveyorPosition1Occupied) && !_io.GetInput(InputIo.NgConveyorPosition2Occupied),
-                _ => false,
-            }))
+        if (!runCommandOn && IsCarrierPositionUnknown)
         {
             return NgConveyorState.CarrierPositionUnknown;
         }
@@ -356,7 +386,6 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         finally
         {
             _repeat = false;
-            _movement = Movement.None;
             _ejectionPhase = EjectionPhase.Idle;
         }
     }

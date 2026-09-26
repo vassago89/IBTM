@@ -54,6 +54,7 @@ public sealed partial class ManualConveyorRow : ObservableObject
 
     private async Task StopAsync()
     {
+        ActionMessage = null;
         try
         {
             var pending = CommandShutdown.Capture(RunCommand);

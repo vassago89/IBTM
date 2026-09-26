@@ -109,6 +109,27 @@ public sealed class MachineStore
         }
     }
 
+    // Match SQLite NOCASE: fold ASCII letters and preserve all other characters.
+    public static bool IsSameRecipeName(string? first, string? second)
+    {
+        if (first == second)
+            return true;
+        if (first is null || second is null || first.Length != second.Length)
+            return false;
+        for (var index = 0; index < first.Length; index++)
+        {
+            var left = first[index];
+            var right = second[index];
+            if (left is >= 'A' and <= 'Z')
+                left = (char)(left + ('a' - 'A'));
+            if (right is >= 'A' and <= 'Z')
+                right = (char)(right + ('a' - 'A'));
+            if (left != right)
+                return false;
+        }
+        return true;
+    }
+
     public Recipe LoadRecipe(string name)
     {
         using var db = new MachineDb(_options);
@@ -145,7 +166,7 @@ public sealed class MachineStore
         using var transaction = db.Database.BeginTransaction();
         var copyImages = images is null
             && sourceRecipe is not null
-            && !string.Equals(name, sourceRecipe, StringComparison.OrdinalIgnoreCase);
+            && !IsSameRecipeName(name, sourceRecipe);
         if (copyImages)
         {
             var count = db.RecipeImages.Count(

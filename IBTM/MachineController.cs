@@ -41,6 +41,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly BoltFeederUnit _boltFeeder;
     private readonly ILogger<MachineController>? _log;
     private readonly Lock _resetGate;
+    private Task _resetTask;
     // Last handled notification, not the physical lamp/buzzer state.
     private (MachineAlarm Alarm, bool Running, bool NgAlarm)? _lastIndicatorNotification;
 
@@ -80,6 +81,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         ILogger<MachineController>? log = null)
     {
         _resetGate = new();
+        _resetTask = Task.CompletedTask;
 
         _state = state;
         _feedback = feedback;
@@ -667,10 +669,10 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
     }
 
-    private bool IsStartAllowedFor(StartBlockReason block, bool? running = null)
+    private bool IsStartAllowedFor(StartBlockReason block, bool running)
     {
         return !_operations.IsShuttingDown
-            && !(running ?? _state.IsRunningFor())
+            && !running
             && block == StartBlockReason.None;
     }
 
@@ -705,28 +707,37 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        await Task.Run(() => RunAutomaticAsync(cancellationToken), cancellationToken);
+        await Task.Run(async () =>
+        {
+            try
+            {
+                using var operation = _operations.TryBegin(cancellationToken);
+                if (operation is null)
+                    return;
+                cancellationToken = operation.Token;
+                await RunAutomaticAsync(operation);
+            }
+            catch (OperationCanceledException) when (
+                cancellationToken.IsCancellationRequested || _operations.IsShuttingDown)
+            {
+            }
+            catch (Exception exception) when (exception is IOException or MotionException)
+            {
+                StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
+            }
+        });
     }
 
-    private async Task RunAutomaticAsync(CancellationToken cancellationToken)
+    private async Task RunAutomaticAsync(OperationCancellation.Operation operation)
     {
-        try
-        {
-            if (!IsStartAllowedFor(GetStartBlock(_state.MotionReadiness)))
-                return;
-        }
-        catch (Exception exception) when (exception is IOException or MotionException)
-        {
-            StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
+        if (!IsStartAllowedFor(
+            GetStartBlock(_state.MotionReadiness), _state.IsRunningFor(includeOperations: false)))
             return;
-        }
+        operation.Token.ThrowIfCancellationRequested();
 
         var repeat = _state.RepeatEnabled;
         var startedInManual = _state.ManualMode;
         var feedbackStartedAt = Stopwatch.GetTimestamp();
-        using var operation = _operations.TryBegin(cancellationToken);
-        if (operation is null)
-            return;
         void StopWhenOperationBecomesUnavailable()
         {
             if (operation.IsCancellationRequested)
@@ -1002,7 +1013,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         return _state.Available && !_state.IsRunning && IsHomeAxisReady(group, axis, live: false);
     }
 
-    private bool IsHomeAllowedFor(MotionReadiness motion, bool? running = null)
+    private bool IsHomeAllowedFor(MotionReadiness motion, bool running)
     {
         return !_operations.IsShuttingDown
             && _state.SafetyReady
@@ -1010,7 +1021,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             && !motion.Faulted
             && _state.ServoMainContactorOn
             && !_state.IsError
-            && !(running ?? _state.IsRunningFor())
+            && !running
             && HomeBlock == HomeBlockReason.None;
     }
 
@@ -1073,8 +1084,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
             var activeToken = cancellationToken;
             try
             {
-                if (_state.IsRunningFor())
-                    return;
                 var homingAxes = false;
                 using var operation = BeginManualOperation(
                     () => IsHomeAxisReady(group, axis, requireRaised: homingAxes),
@@ -1082,6 +1091,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 if (operation is null)
                     return;
                 activeToken = operation.Token;
+                if (_state.IsRunningFor(includeOperations: false))
+                    return;
                 operation.Token.ThrowIfCancellationRequested();
                 _state.IsHoming = true;
                 try
@@ -1185,26 +1196,33 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     public async Task HomeAsync(CancellationToken cancellationToken)
     {
-        await Task.Run(() => HomeAllAxesAsync(cancellationToken), cancellationToken);
+        await Task.Run(async () =>
+        {
+            try
+            {
+                using var operation = _operations.TryBegin(cancellationToken);
+                if (operation is null)
+                    return;
+                cancellationToken = operation.Token;
+                await HomeAllAxesAsync(operation);
+            }
+            catch (OperationCanceledException) when (
+                cancellationToken.IsCancellationRequested || _operations.IsShuttingDown)
+            {
+            }
+            catch (Exception exception) when (exception is IOException or MotionException)
+            {
+                StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
+            }
+        });
     }
 
-    private async Task HomeAllAxesAsync(CancellationToken cancellationToken)
+    private async Task HomeAllAxesAsync(OperationCancellation.Operation operation)
     {
-        try
-        {
-            if (!IsHomeAllowedFor(_state.MotionReadiness))
-                return;
-        }
-        catch (Exception exception) when (exception is IOException or MotionException)
-        {
-            StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
+        if (!IsHomeAllowedFor(_state.MotionReadiness, _state.IsRunningFor(includeOperations: false)))
             return;
-        }
-
-        using var operation = _operations.TryBegin(cancellationToken);
-        if (operation is null)
-            return;
-        cancellationToken = operation.Token;
+        var cancellationToken = operation.Token;
+        cancellationToken.ThrowIfCancellationRequested();
         var homingAxes = false;
         void StopWhenHomeBecomesUnavailable()
         {
@@ -1356,15 +1374,29 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
         void StopWhenUnavailable()
         {
-            if (!operation.IsCancellationRequested && !available())
-                operation.Cancel();
+            try
+            {
+                if (!operation.IsCancellationRequested && !available())
+                    operation.Cancel();
+            }
+            catch (Exception exception) when (IsDeviceFailure(exception))
+            {
+                // Reporting the alarm publishes another state change. Stop observing first.
+                _state.Changed -= StopWhenUnavailable;
+                StopAndReportFailure(_state.IsError ? _state.Alarm
+                    : IsMotionFailure(exception) ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication,
+                    exception);
+            }
         }
 
         _state.Changed += StopWhenUnavailable;
         operation.Disposed += () => _state.Changed -= StopWhenUnavailable;
         try
         {
-            StopWhenUnavailable();
+            // Admission failures belong to the command caller; later failures arrive on
+            // the feedback publisher and must stop the operation without escaping there.
+            if (!available())
+                operation.Cancel();
             return operation;
         }
         catch
@@ -1395,31 +1427,36 @@ public sealed partial class MachineController : INotifyPropertyChanged
             StopAndReportFailure(alarm, exception);
     }
 
-    internal bool IsSetServoAllowed(MotionGroup group, bool live = true)
+    internal bool IsSetServoAllowed(MotionGroup group)
     {
         return _units.IsMotionEnabled(group)
-            && (live
-                ? _state.ManualMode && _state.SafetyReady && !_state.IsRunningFor()
-                : _state.Available
-                    && !_state.AutoMode
-                    && _state.SafetyReady
-                    && !_state.IsRunning)
-            && (live
-                ? _state.GetMotionStatus(group).Feedback.IsReady
-                : _state.GetMotionStatus(group).Axes.Values.All(axis => axis.State is not null));
+            && _state.Available
+            && _state.ManualMode
+            && _state.SafetyReady
+            && !_state.IsRunning
+            && _state.GetMotionStatus(group).Axes.Values.All(axis => axis.State is not null);
     }
 
     internal void ToggleServo(MotionGroup group, MotionAxis axis)
     {
         try
         {
-            if (!IsSetServoAllowed(group))
-                return;
             using var operation = _operations.TryBegin();
             if (operation is null)
                 return;
+            if (!_units.IsMotionEnabled(group)
+                || !_state.ManualMode
+                || !_state.SafetyReady
+                || _state.IsRunningFor(includeOperations: false)
+                || !_state.GetMotionStatus(group).Feedback.IsReady)
+                return;
             var on = !_state.GetMotionStatus(group).Feedback.GetAxisState(axis).ServoOn;
+            if (operation.IsCancellationRequested)
+                return;
             _motions[group].SetServo(axis, on);
+        }
+        catch (OperationCanceledException) when (_operations.IsShuttingDown)
+        {
         }
         catch (Exception exception)
         {
@@ -1430,15 +1467,22 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     internal OperationCancellation.Operation BeginAdcProtocol(CancellationToken cancellationToken)
     {
-        if (!IsUseAdcProtocolAllowed || _state.IsRunningFor())
-        {
-            throw new InvalidOperationException("ADC diagnostics require an idle machine in manual mode.");
-        }
-
-        var operation = _operations.TryBegin(cancellationToken);
+        var operation = BeginManualOperation(() => AdcProtocolAvailable, cancellationToken);
         if (operation is null)
             throw new InvalidOperationException("Another machine operation acquired control before ADC diagnostics started.");
-        return operation;
+        try
+        {
+            if (!AdcProtocolAvailable || _state.IsRunningFor(includeOperations: false))
+                throw new InvalidOperationException("ADC diagnostics require an idle machine in manual mode.");
+
+            operation.Token.ThrowIfCancellationRequested();
+            return operation;
+        }
+        catch
+        {
+            operation.Dispose();
+            throw;
+        }
     }
 
     internal void EnsureBoltTestAvailable()
@@ -1449,8 +1493,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
 
     }
-
-    private Task _resetTask = Task.CompletedTask;
 
     public bool IsResetAllowed => IsResetAllowedFor(_state.IsRunning);
 
@@ -1472,7 +1514,20 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     public async Task ResetAsync()
     {
-        await Task.Run(AcknowledgeAndResetAsync);
+        try
+        {
+            await Task.Run(AcknowledgeAndResetAsync);
+        }
+        catch (OperationCanceledException exception) when (
+            exception.CancellationToken.IsCancellationRequested || _operations.IsShuttingDown)
+        {
+            _log?.LogInformation("Machine RESET cancelled.");
+        }
+        catch (IOException exception)
+        {
+            // Physical RESET has no awaiting view model to report admission/read failures.
+            StopAndReportFailure(MachineAlarm.IoCommunication, exception);
+        }
     }
 
     private Task AcknowledgeAndResetAsync()
@@ -1483,45 +1538,31 @@ public sealed partial class MachineController : INotifyPropertyChanged
             // Repeated clicks acknowledge the buzzer, but share the current recovery.
             if (!_resetTask.IsCompleted)
                 return _resetTask;
-            if (_state.IsError && _operations.HasActiveOperations
-                && !_operations.IsShuttingDown && _feedback.Failure is null)
-                return _resetTask = ResetHardwareAsync();
-            if (!IsResetAllowed)
-            {
-                _log?.LogInformation("Machine RESET: buzzer silenced; hardware recovery conditions are not satisfied.");
-                return Task.CompletedTask;
-            }
             return _resetTask = ResetHardwareAsync();
         }
     }
 
     private async Task ResetHardwareAsync()
     {
-        if (_state.IsError && _operations.HasActiveOperations)
-        {
+        var waitForCleanup = _state.IsError && _operations.HasActiveOperations
+            && !_operations.IsShuttingDown && _feedback.Failure is null;
+        if (waitForCleanup)
             _log?.LogInformation("Machine RESET: waiting for stopped operation cleanup to finish.");
-            await _operations.WaitForIdleAsync();
-        }
-        try
-        {
-            // Button availability uses acquired feedback; RESET must recheck the run outputs.
-            // Disconnected I/O is initialized below without trying to read it first.
-            if (!IsResetAllowedFor(_state.IsRunningFor()))
-            {
-                _log?.LogInformation("Machine RESET: hardware recovery conditions are not satisfied after the stop check.");
-                return;
-            }
-        }
-        catch (IOException exception)
-        {
-            StopAndReportFailure(MachineAlarm.IoCommunication, exception);
-            return;
-        }
 
-        _log?.LogInformation("Machine RESET started.");
-        using var operation = _operations.TryBegin();
+        using var operation = waitForCleanup
+            ? await _operations.TryBeginAfterIdleAsync()
+            : _operations.TryBegin();
         if (operation is null)
             return;
+        // Button availability uses acquired feedback; RESET must recheck the run outputs.
+        // Disconnected I/O is initialized below without trying to read it first.
+        if (!IsResetAllowedFor(_state.IsRunningFor(includeOperations: false)))
+        {
+            _log?.LogInformation("Machine RESET: hardware recovery conditions are not satisfied after the stop check.");
+            return;
+        }
+        operation.Token.ThrowIfCancellationRequested();
+        _log?.LogInformation("Machine RESET started.");
         var (alarm, error) = await InitializeIoAsync(operation.Token);
         operation.Token.ThrowIfCancellationRequested();
         if (alarm != MachineAlarm.None)
@@ -1682,16 +1723,16 @@ public sealed partial class MachineController : INotifyPropertyChanged
     // it does not start a conveyor sequence, move an axis, or wait for a cylinder.
     internal OutputBlockReason ToggleDiagnosticOutput(OutputIo signal)
     {
-        var block = ManualOutputSafetyBlock;
-        if (block != OutputBlockReason.None)
-        {
-            _log?.LogInformation("Direct output {Signal} ignored: [{Block}] {Description}",
-                signal.ToString(), block.ToString(), block.GetDescription());
-            return block;
-        }
-
         try
         {
+            var block = ManualOutputSafetyBlock;
+            if (block != OutputBlockReason.None)
+            {
+                _log?.LogInformation("Direct output {Signal} ignored: [{Block}] {Description}",
+                    signal.ToString(), block.ToString(), block.GetDescription());
+                return block;
+            }
+
             var value = signal switch
             {
                 OutputIo.MainConveyorNormalSpeed or OutputIo.NgConveyorNormalSpeed => true,
@@ -1757,15 +1798,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
         OperationCancellation.Operation? operation;
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var block = ManualOutputSafetyBlock;
-            if (block != OutputBlockReason.None)
-            {
-                _log?.LogInformation("Manual conveyor {Signal} ignored: [{Block}] {Description}",
-                    signal.ToString(), block.ToString(), block.GetDescription());
-                return block;
-            }
-
             operation = _operations.TryBegin(cancellationToken);
             if (operation is null)
                 return OutputBlockReason.Busy;
@@ -1794,13 +1826,15 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     {
                         stopReason = reason;
                         operation.Cancel();
-                        _log?.LogInformation("Manual conveyor {Signal} stopped: [{Reason}] {Description}",
-                            signal.ToString(), reason.ToString(), reason.GetDescription());
+                        _log?.LogInformation("Manual conveyor {Signal} {Action}: [{Reason}] {Description}",
+                            signal.ToString(), outputStarted ? "stopped" : "ignored",
+                            reason.ToString(), reason.GetDescription());
                     }
                 }
                 catch (Exception exception)
                 {
                     // This callback runs on the I/O worker. Cancel without stopping its scan.
+                    Interlocked.CompareExchange(ref failure, exception, null);
                     _log?.LogError(exception, "Manual conveyor {Signal}: interlock feedback could not be read.", signal.ToString());
                     operation.Cancel();
                 }
@@ -1905,12 +1939,12 @@ public sealed partial class MachineController : INotifyPropertyChanged
             or OutputIo.InspectionStopperUp or OutputIo.InspectionBackupPlateUp;
     }
 
-    internal bool IsSetTeachingOutputAllowed(IoOutputStatus output, bool live = true)
+    internal bool IsSetTeachingOutputAllowed(IoOutputStatus output)
     {
         return IsTeachingOutputSupported(output.Signal)
-            && _state.ManualSetupEnabled && (!live || !_state.IsRunningFor())
+            && _state.ManualSetupEnabled
             && (output.Signal != OutputIo.PcbSupplyRotate
-                || IsManualMotionReady(MotionGroup.PcbSupply, live));
+                || IsManualMotionReady(MotionGroup.PcbSupply, live: false));
     }
 
     internal async Task ToggleTeachingOutputAsync(
@@ -1921,15 +1955,19 @@ public sealed partial class MachineController : INotifyPropertyChanged
         var activeToken = cancellationToken;
         try
         {
-            if (!IsSetTeachingOutputAllowed(output))
+            if (!IsTeachingOutputSupported(output.Signal))
                 return;
             using var operation = BeginManualOperation(
-                () => _io.IsReady && _state.ManualMode && _state.SafetyReady,
+                () => _state.Available && _state.ManualMode && _state.SafetyReady
+                    && (output.Signal != OutputIo.PcbSupplyRotate
+                        || IsManualMotionReady(MotionGroup.PcbSupply)),
                 cancellationToken,
                 viewCancellation);
             if (operation is null)
                 return;
             activeToken = operation.Token;
+            if (_state.IsRunningFor(includeOperations: false))
+                return;
             operation.Token.ThrowIfCancellationRequested();
             var value = !_io.GetOutput(output.Signal);
             switch (output.Signal)

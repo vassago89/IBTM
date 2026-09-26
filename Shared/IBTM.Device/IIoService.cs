@@ -25,18 +25,23 @@ public interface IIoService
     bool GetOutput(OutputIo output);
     OutputFeedback? GetOutputFeedback(OutputIo output);
 
-    Task WaitForInputAsync(InputIo input, bool value, CancellationToken cancellationToken = default)
+    Task WaitForInputAsync(
+        InputIo input,
+        bool value,
+        CancellationToken cancellationToken = default,
+        bool requireCurrent = false)
     {
-        return WaitForInputAsync(input, value, TimeoutMilliseconds, cancellationToken);
+        return WaitForInputAsync(input, value, TimeoutMilliseconds, cancellationToken, requireCurrent);
     }
 
     Task WaitForInputAsync(
         InputIo input,
         bool value,
         int timeoutMilliseconds,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool requireCurrent = false)
     {
-        return WaitForInputsAsync(input, value, null, timeoutMilliseconds, cancellationToken);
+        return WaitForInputsAsync(input, value, null, timeoutMilliseconds, cancellationToken, requireCurrent);
     }
 
     private async Task WaitForInputsAsync(

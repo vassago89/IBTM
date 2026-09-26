@@ -36,7 +36,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
     private volatile Exception? _outputReadError;
     private volatile Exception? _failure;
     private Task? _completion;
-    private Task _firstSamples = Task.CompletedTask;
+    private Task _firstSamples;
 
     static MachineFeedbackMonitor()
     {
@@ -52,6 +52,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         IReadOnlyDictionary<MotionGroup, MotionStatus> motions,
         ILogger<MachineFeedbackMonitor>? log = null)
     {
+        _firstSamples = Task.CompletedTask;
         _lifetime = new();
         _outputsRequested = new();
         _samples = new();

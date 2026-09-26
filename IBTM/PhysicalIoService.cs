@@ -120,7 +120,10 @@ public sealed class PhysicalIoService : IIoService, IDisposable
 
                 foreach (var output in _outputMap.Values)
                 {
-                    _ = ReadOutput(output.Number);
+                    if (output.Number >= 0)
+                    {
+                        _ = ReadOutput(output.Number);
+                    }
                     if (output.OffNumber is >= 0 and var offChannel)
                     {
                         _ = ReadOutput(offChannel);
@@ -150,7 +153,9 @@ public sealed class PhysicalIoService : IIoService, IDisposable
 
     public bool GetOutput(OutputIo output)
     {
-        return ReadOutput(_outputMap[output].Number);
+        if (!_outputMap.TryGetValue(output, out var mapping) || mapping.Number < 0)
+            throw new IOException($"DO {output} is unavailable: no configured output address.");
+        return ReadOutput(mapping.Number);
     }
 
     public OutputFeedback? GetOutputFeedback(OutputIo output)
@@ -168,8 +173,13 @@ public sealed class PhysicalIoService : IIoService, IDisposable
                 throw new IOException($"DO {output} is unavailable: configure both output addresses before operation.");
             if (mapping.OffNumber is { } offChannel)
             {
-                WriteOutput(value ? offChannel : mapping.Number, false);
-                WriteOutput(value ? mapping.Number : offChannel, true);
+                // Keep opposite commands for this valve from interleaving its two writes.
+                // Other outputs and input acquisition retain their independent device locks.
+                lock (mapping)
+                {
+                    WriteOutput(value ? offChannel : mapping.Number, false);
+                    WriteOutput(value ? mapping.Number : offChannel, true);
+                }
             }
             else
             {
@@ -241,7 +251,16 @@ public sealed class PhysicalIoService : IIoService, IDisposable
                 stage = "Input address mapping";
                 foreach (var input in _mappedInputs)
                 {
-                    _inputScan[(int)input] = ReadMonitoredInput(_inputMap[input], alphaInputs);
+                    var channel = _inputMap[input];
+                    if (channel < AlphaMotionController.ChannelCount)
+                    {
+                        _inputScan[(int)input] = ((alphaInputs >> channel) & 1) != 0;
+                    }
+                    else
+                    {
+                        var rtexChannel = channel - AlphaMotionController.ChannelCount;
+                        _inputScan[(int)input] = ((_rtexInputs[rtexChannel / 32] >> (rtexChannel % 32)) & 1) != 0;
+                    }
                 }
 
                 stage = "Input cache update / change notification";
@@ -286,16 +305,5 @@ public sealed class PhysicalIoService : IIoService, IDisposable
                 input.ToString(), _inputMap[input], _inputScan[(int)input] ? "ON" : "OFF");
             InputChanged?.Invoke(input, _inputScan[(int)input]);
         }
-    }
-
-    private bool ReadMonitoredInput(int channel, uint alphaInputs)
-    {
-        if (channel < AlphaMotionController.ChannelCount)
-        {
-            return ((alphaInputs >> channel) & 1) != 0;
-        }
-
-        channel -= AlphaMotionController.ChannelCount;
-        return ((_rtexInputs[channel / 32] >> (channel % 32)) & 1) != 0;
     }
 }

@@ -346,6 +346,15 @@ public sealed class IoTests
         Assert.Equal(2, availabilityChanges);
         signals.RefreshInputs();
         Assert.Equal(2, availabilityChanges);
+
+        io.SetInput(InputIo.NgShuttleUp, false);
+        signals.RefreshOutputs();
+        Assert.True(output.IsMatched);
+        hardware.Inputs[InputIo.NgShuttleUp] = -1;
+        var incompleteSignals = new IoSignals([hardware], io);
+        incompleteSignals.RefreshOutputs();
+        Assert.Null(incompleteSignals.Inputs[InputIo.NgShuttleUp].IsOn);
+        Assert.False(incompleteSignals.Outputs[OutputIo.NgShuttleDown].IsMatched);
     }
 
     [Fact]

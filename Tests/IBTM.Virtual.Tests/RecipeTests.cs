@@ -129,6 +129,15 @@ public sealed class RecipeTests
             CarrierCoordinates.ToMachine(new(), upper, upper, upper, lower));
         Assert.Throws<InvalidOperationException>(() =>
             CarrierCoordinates.ToMachine(new(), upper, lower, lower, lower));
+
+        var invalidSource = new AxisPosition { X = double.NaN, Y = 200 };
+        var invalidTarget = new AxisPosition { X = 200, Y = double.PositiveInfinity };
+        Assert.False(CarrierCoordinates.IsDefined(invalidSource, lower));
+        Assert.False(CarrierCoordinates.IsDefined(upper, invalidTarget));
+        Assert.Throws<InvalidOperationException>(() =>
+            CarrierCoordinates.ToMachine(new(), invalidSource, lower, upper, lower));
+        Assert.Throws<InvalidOperationException>(() =>
+            CarrierCoordinates.ToMachine(new(), upper, lower, upper, invalidTarget));
     }
 
     [Fact]
@@ -318,7 +327,7 @@ public sealed class RecipeTests
         var picks = points.Where(p => p.Storage == TeachingStorage.Recipe).ToArray();
         Assert.All(picks, p => Assert.Equal(TeachMode.Full, p.Position.Mode));
         Assert.Equal(10, handoffs[0].Coordinates!.X);
-        var moveTarget = handoffs[0].Read();
+        var moveTarget = handoffs[0].MovePosition;
         moveTarget.Z = 999;
         handoffs[0].Refresh();
         Assert.Equal(30, supply.HandoffPosition.Z);
@@ -357,7 +366,7 @@ public sealed class RecipeTests
             new() { NgCarrierTransfer = settings });
 
         Assert.Equal((157.283, 456.789), (point.Coordinates!.X, point.Coordinates.Y));
-        var target = point.Read();
+        var target = point.MovePosition;
         target.X = -1;
         target.Y = -2;
         point.Refresh();

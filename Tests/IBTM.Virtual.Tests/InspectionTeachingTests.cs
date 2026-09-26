@@ -65,6 +65,67 @@ public sealed class InspectionTeachingTests
     }
 
     [Fact]
+    public async Task CaseOnlyRecipeNameChangeKeepsActiveInspectionEditsAndOneListEntry()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        await SaveRecipeAsync(store);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        var inspection = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        await inspection.LoadRecipeCommand.ExecuteAsync(null);
+        var editor = new RecipeEditor(recipes, store, new()) { Name = "inspection" };
+        Assert.True(await editor.SaveAsync());
+        Assert.Equal("Inspection", Assert.Single(editor.Recipes));
+        Assert.Single(store.RecipeNames);
+
+        inspection.Draft.BoltInspection.DataMatrix1.BinaryThreshold = 73;
+        await inspection.SaveCommand.ExecuteAsync(null);
+        Assert.Null(inspection.Error);
+        Assert.Equal(73, recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold);
+        Assert.Equal(73, store.LoadRecipe("Inspection").BoltInspection.DataMatrix1.BinaryThreshold);
+
+        // Unsaved point deletion belongs to the same active recipe despite the name casing.
+        recipes.Current.Pcb.BoltPoints.Clear();
+        recipes.Current.CarrierImages.RemoveAll(tile => !tile.IsBarcode);
+        await inspection.RefreshImagesCommand.ExecuteAsync(null);
+        Assert.Null(inspection.Error);
+        Assert.True(Assert.Single(inspection.Points).Metadata.IsBarcode);
+        Assert.Empty(inspection.Draft.Pcb.BoltPoints);
+
+        var reopened = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        reopened.Activate();
+        Assert.Contains(reopened.SelectedRecipeName, reopened.RecipeNames);
+        Assert.NotNull(reopened.LoadRecipeCommand.ExecutionTask);
+        await reopened.LoadRecipeCommand.ExecutionTask;
+        Assert.Null(reopened.Error);
+        Assert.True(Assert.Single(reopened.Points).Metadata.IsBarcode);
+    }
+
+    [Fact]
+    public async Task DistinctNonAsciiRecipeNamesKeepTheirOwnImagesAndInspectionSettings()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var png = await SaveRecipeAsync(store);
+        var recipes = new RecipeManager(store, new());
+        await recipes.LoadAsync("Inspection");
+        await recipes.SaveAsync("검사Ä");
+        var inspection = new InspectionTeachingViewModel(store, recipes, new(), NullLogger<InspectionTeachingViewModel>.Instance);
+        await inspection.LoadRecipeCommand.ExecuteAsync(null);
+        var editor = new RecipeEditor(recipes, store, new()) { Name = "검사ä" };
+        Assert.True(await editor.SaveAsync());
+        Assert.Equal(3, editor.Recipes.Count);
+        Assert.Equal(3, store.RecipeNames.Count);
+        Assert.Equal(png, store.LoadRecipeImage("검사ä", 1));
+        var originalThreshold = recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold;
+        inspection.Draft.BoltInspection.DataMatrix1.BinaryThreshold = 73;
+        await inspection.SaveCommand.ExecuteAsync(null);
+        Assert.Null(inspection.Error);
+        Assert.Equal(73, store.LoadRecipe("검사Ä").BoltInspection.DataMatrix1.BinaryThreshold);
+        Assert.Equal(originalThreshold, recipes.Current.BoltInspection.DataMatrix1.BinaryThreshold);
+        Assert.Equal(originalThreshold, store.LoadRecipe("검사ä").BoltInspection.DataMatrix1.BinaryThreshold);
+    }
+
+    [Fact]
     public async Task CaptureSavePreservesInspectionEditsMadeAfterCaptureStarted()
     {
         var store = VirtualTest.OpenMachineStore();
@@ -359,7 +420,7 @@ public sealed class InspectionTeachingTests
         await recipes.LoadAsync("Inspection");
         var directory = Path.Combine(Path.GetDirectoryName(store.DatabaseFile)!, "Results");
         var databaseFile = Path.Combine(directory, "PCB-2026-09.db");
-        var record = new PcbRecord(7, DateTimeOffset.Now, DateTimeOffset.Now, "Inspection", HeatSinkSlot.HeatSink1,
+        var record = new PcbRecord(7, DateTimeOffset.Now, DateTimeOffset.Now, "INSPECTION", HeatSinkSlot.HeatSink1,
             "ABC", AssemblyResult.Ok, AssemblyResult.Ok, AssemblyResult.Ng, new Dictionary<int, BoltResult>(),
             new Dictionary<int, BoltResult>(), new Dictionary<int, bool> { [1] = false });
         var image = new PcbInspectionImage(1, DateTimeOffset.Now, new(2, 2, 10, 10), false, null, 0, 0.5, png);

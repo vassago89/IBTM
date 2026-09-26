@@ -45,8 +45,6 @@ public sealed class AlarmRecoveryTests
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.True(machine.IsStartAllowed);
             Assert.Equal(MachineAlarm.None, state.Alarm);
-            Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.True(machine.IsStartAllowed);
 
             Assert.True(io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
             var restarted = machine.StartAsync();
@@ -183,19 +181,29 @@ public sealed class AlarmRecoveryTests
             var writes = new System.Collections.Generic.List<(OutputIo Signal, bool On)>();
             io.OutputChanged += (signal, on) => writes.Add((signal, on));
 
-            foreach (var output in Enum.GetValues<OutputIo>())
+            foreach (var signal in signals.Outputs.Values)
             {
+                var output = signal.Signal;
                 io.SetOutput(output, false);
                 writes.Clear();
-                var row = new OutputWindowRow(signals.Outputs[output], machine);
+                var row = new OutputWindowRow(signal, machine);
+                if (output == OutputIo.PcbPlacementHandlerRotate)
+                {
+                    Assert.False(row.ToggleCommand.CanExecute(null));
+                    Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(output));
+                    Assert.False(io.GetOutput(output));
+                    Assert.Empty(writes);
+                    continue;
+                }
                 row.ToggleCommand.Execute(null);
                 Assert.True(io.GetOutput(output));
-                // No feedback wait, no CanExecute gate, no display refresh needed for OFF.
+                // Normal outputs toggle without a feedback wait or display refresh.
                 Assert.True(row.ToggleCommand.CanExecute(null));
                 row.ToggleCommand.Execute(null);
-                Assert.False(io.GetOutput(output));
+                var fixedOn = output is OutputIo.MainConveyorNormalSpeed or OutputIo.NgConveyorNormalSpeed;
+                Assert.Equal(fixedOn, io.GetOutput(output));
                 Assert.Null(row.ActionMessage);
-                Assert.Equal(new[] { (output, true), (output, false) }, writes);
+                Assert.Equal(fixedOn ? [(output, true)] : new[] { (output, true), (output, false) }, writes);
             }
 
             Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
@@ -278,7 +286,7 @@ public sealed class AlarmRecoveryTests
                 signals.RefreshOutputs();
                 Assert.False(row.RunCommand.IsRunning);
                 Assert.True(row.StopCommand.CanExecute(null));
-                row.StopCommand.Execute(null);
+                await row.StopCommand.ExecuteAsync(null);
                 Assert.False(io.GetOutput(output));
             }
         }
@@ -371,14 +379,14 @@ public sealed class AlarmRecoveryTests
             outputRow.ToggleCommand.Execute(null);
             await run.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(io.GetOutput(output));
-            Assert.False(state.IsRunning);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => !state.IsRunning, TimeSpan.FromSeconds(2)));
 
             outputRow.ToggleCommand.Execute(null);
             Assert.True(io.GetOutput(output));
             Assert.True(manualRow.StopCommand.CanExecute(null));
-            manualRow.StopCommand.Execute(null);
+            await manualRow.StopCommand.ExecuteAsync(null);
             Assert.False(io.GetOutput(output));
-            Assert.False(state.IsRunning);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => !state.IsRunning, TimeSpan.FromSeconds(2)));
 
             var ownedRun = manualRow.RunCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(output));
@@ -492,6 +500,27 @@ public sealed class AlarmRecoveryTests
             Assert.True(view.IsSettingsEditAllowed);
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => !state.AutoMode, TimeSpan.FromSeconds(2)));
+
+            io.IsReady = false;
+            Assert.Null(input.IsOn);
+            Assert.False(state.AutoMode);
+            Assert.False(state.ManualMode);
+            Assert.False(state.ManualSetupEnabled);
+            Assert.True(view.IsSettingsEditAllowed);
+            Assert.False(view.TestLightCommand.CanExecute(null));
+            // Even when safety checks are bypassed, missing selector feedback is not MANUAL.
+            var options = services.GetRequiredService<MachineOptions>();
+            options.UseEmergencyStop = false;
+            options.UseAirPressureInterlock = false;
+            Assert.False(machine.IsUseAdcProtocolAllowed);
+            var teaching = services.GetRequiredService<TeachingViewModel>();
+            teaching.RecipeEditor.Name = "Offline recipe";
+            Assert.True(teaching.SaveCommand.CanExecute(null));
+            await teaching.SaveCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            Assert.Contains("Offline recipe", services.GetRequiredService<MachineStore>().RecipeNames);
+            io.IsReady = true;
+            Assert.True(state.ManualMode);
         }
         finally
         {
@@ -561,6 +590,18 @@ public sealed class AlarmRecoveryTests
             Assert.True(view.IsSettingsEditAllowed);
 
             motion.HorizontalSpeed = speed;
+            var fasteningTimeout = view.Settings.Hantas.FasteningTimeoutMilliseconds;
+            view.Settings.Hantas.FasteningTimeoutMilliseconds = -1;
+            await view.SaveSettingsCommand.ExecuteAsync(null);
+            Assert.Contains("Fastening timeout", view.DatabaseMessage);
+            Assert.False(services.GetRequiredService<MachineStore>().HasData);
+            view.Settings.Hantas.FasteningTimeoutMilliseconds = fasteningTimeout;
+            var responseTimeout = view.Settings.Hantas.ResponseTimeoutMilliseconds;
+            view.Settings.Hantas.ResponseTimeoutMilliseconds = -1;
+            await view.SaveSettingsCommand.ExecuteAsync(null);
+            Assert.Contains("ADC response timeout", view.DatabaseMessage);
+            Assert.False(services.GetRequiredService<MachineStore>().HasData);
+            view.Settings.Hantas.ResponseTimeoutMilliseconds = responseTimeout;
             await view.SaveSettingsCommand.ExecuteAsync(null);
             Assert.StartsWith("Settings saved.", view.DatabaseMessage);
             Assert.Equal(

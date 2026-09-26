@@ -63,7 +63,7 @@ public sealed partial class MainConveyor
                 // It also prevents motor setup from turning RUN on after an early arrival.
                 try
                 {
-                    entryStop.Cancel();
+                    OperationCancellation.CancelIfNotDisposed(entryStop);
                     arrived.TrySetResult();
                 }
                 catch (Exception exception)

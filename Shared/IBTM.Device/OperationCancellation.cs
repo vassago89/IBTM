@@ -20,6 +20,19 @@ public sealed class OperationCancellation
 
     public event Action? ActivityChanged;
 
+    public static void CancelIfNotDisposed(CancellationTokenSource? source)
+    {
+        try
+        {
+            source?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // An event already being published can retain its handler after the scope ends.
+            // Exceptions from cancellation callbacks remain AggregateExceptions and propagate.
+        }
+    }
+
     public bool HasActiveOperations
     {
         get
@@ -148,14 +161,23 @@ public sealed class OperationCancellation
         return shutdown.Task;
     }
 
-    public Task WaitForIdleAsync()
+    public async Task<Operation?> TryBeginAfterIdleAsync()
     {
+        Task drained;
+        CancellationToken cancellationToken;
         lock (_gate)
         {
-            return _activeOperations == 0
+            if (_shutdown is not null)
+                throw new OperationCanceledException("The machine is shutting down.");
+            cancellationToken = _source.Token;
+            drained = _activeOperations == 0
                 ? Task.CompletedTask
                 : (_drained ??= new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
         }
+
+        await drained.WaitAsync(cancellationToken).ConfigureAwait(false);
+        // A STOP between cleanup completion and admission must still cancel this request.
+        return TryBegin(cancellationToken);
     }
 
     private static async Task CompleteShutdownAsync(

@@ -338,6 +338,7 @@ public partial class OperationViewModel : ObservableObject
             _pcbHistoryDirectory = _historySettings.Directory;
             PcbRecords.Clear();
             SelectedPcb = null;
+            PcbHistoryError = null;
             HasOlderPcbs = true;
             _pcbHistoryLimit = PcbHistoryPageSize;
             _pcbHistoryLoaded = false;
@@ -1040,7 +1041,8 @@ public partial class OperationViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            PcbHistoryError = $"PCB history could not be loaded: {exception.Message}";
+            if (directory == _pcbHistoryDirectory)
+                PcbHistoryError = $"PCB history could not be loaded: {exception.Message}";
             _log.LogError(exception, "PCB history load failed for {Directory}.", directory);
         }
     }

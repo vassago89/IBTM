@@ -145,8 +145,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     public int[] BaudRates { get; }
     public FasteningHead[] Heads { get; }
 
-    private IAdcBus Bus => SelectedHead == FasteningHead.Pickup ? _pickupBus : _shootingBus;
-    public AdcStatusMonitor Monitor => Bus.Monitor;
+    public IAdcBus Bus => SelectedHead == FasteningHead.Pickup ? _pickupBus : _shootingBus;
     public string ConnectionAction => Bus.IsOpen ? "Disconnect" : "Connect";
 
     public string FrameLogText
@@ -253,7 +252,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             ConnectionStatus = $"{Bus.PortName} | {Bus.BaudRate}";
         }
         OnPropertyChanged(nameof(IsVirtual));
-        OnPropertyChanged(nameof(Monitor));
+        OnPropertyChanged(nameof(Bus));
         RefreshControls();
     }
 
@@ -292,8 +291,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var baudRate = SelectedBaudRate;
             await Task.Run(() => Bus.Open(portName, baudRate), operation.Token);
             _connectedHead = null;
-            Monitor.IntervalMilliseconds = _settings.StatusPollMilliseconds;
-            await Monitor.StartAsync(SlaveAddress, operation.Token);
+            Bus.Monitor.IntervalMilliseconds = _settings.StatusPollMilliseconds;
+            await Bus.Monitor.StartAsync(SlaveAddress, operation.Token);
             ConnectionStatus = $"{portName} | {baudRate}";
             AppendLog($"CONNECT  {Bus.PortName} | {Bus.BaudRate}");
         }
@@ -707,10 +706,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         var operation = _machine.BeginAdcProtocol(cancellationToken);
         _operationCancellation = operation;
         _operationCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        _state.Changed += StopWhenUnavailable;
         try
         {
-            StopWhenUnavailable();
             operation.Token.ThrowIfCancellationRequested();
             RefreshControls();
             return operation;
@@ -722,15 +719,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void StopWhenUnavailable()
-    {
-        if (!_machine.AdcProtocolAvailable)
-            _operationCancellation?.Cancel();
-    }
-
     private void EndCommand(OperationCancellation.Operation operation, Exception? failure)
     {
-        _state.Changed -= StopWhenUnavailable;
         try
         {
             operation.Dispose();

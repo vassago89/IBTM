@@ -56,7 +56,7 @@ public sealed class MotionMonitorAxis : ObservableObject
         get
         {
             return Diagnostics.Snapshot.State is not null
-                && _machine.IsSetServoAllowed(Group, live: false);
+                && _machine.IsSetServoAllowed(Group);
         }
     }
 

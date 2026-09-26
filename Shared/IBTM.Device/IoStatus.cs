@@ -16,7 +16,7 @@ public abstract class IoSignal<T> : INotifyPropertyChanged
         Signal = signal;
         Area = area;
         Section = section;
-        Number = number;
+        Number = number is >= 0 ? number : null;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -81,7 +81,12 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
                 : [inputs[feedback.OnInput]]
             : [];
         foreach (var input in Feedback)
-            input.PropertyChanged += (_, _) => RefreshFeedback();
+            input.PropertyChanged += OnInputChanged;
+    }
+
+    private void OnInputChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        RefreshFeedback();
     }
 
     public IoInputStatus[] Feedback { get; }
@@ -111,13 +116,14 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
                 return false;
             return Feedback.Length == 1
                 ? Feedback[0].IsOn == on
-                : Feedback[on ? 0 : 1].IsOn == true;
+                : Feedback[on ? 0 : 1].IsOn == true
+                    && Feedback[on ? 1 : 0].IsOn == false;
         }
     }
 
     internal override void Refresh()
     {
-        Update(_io.GetOutput(Signal));
+        Update(Number is not null ? _io.GetOutput(Signal) : null);
     }
 
     internal void Update(bool? value)
