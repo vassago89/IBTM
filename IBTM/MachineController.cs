@@ -120,11 +120,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     public PcbHistory PcbHistory { get; }
 
-    internal bool IsHomeAxisAllowed(MotionGroup group, MotionAxis axis)
-    {
-        return _state.Available && !_state.IsRunning && IsHomeAxisReady(group, axis, live: false);
-    }
-
     private void OnRecipeChanged()
     {
         PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
@@ -1001,6 +996,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
     public bool IsHomeAllowed => _state.Available && IsHomeAllowedFor(_state.FeedbackReadiness, _state.IsRunning);
 
     public HomeBlockReason HomeBlock => GetHomeBlock();
+
+    internal bool IsManualHomeAllowed(MotionGroup group, MotionAxis? axis = null)
+    {
+        return _state.Available && !_state.IsRunning && IsHomeAxisReady(group, axis, live: false);
+    }
 
     private bool IsHomeAllowedFor(MotionReadiness motion, bool? running = null)
     {

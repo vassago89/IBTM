@@ -126,6 +126,11 @@ public partial class TeachingViewModel : ObservableObject
         FasteningHeads = Enum.GetValues<FasteningHead>();
         HeatSinkSlots = Enum.GetValues<HeatSinkSlot>();
 
+        State = state;
+        Machine = machine;
+        Operations = operations;
+        _store = store;
+
         TeachCurrentPositionCommand = new AsyncRelayCommand(TeachCurrentPositionAsync, () => IsTeachCurrentPositionAllowed);
         MoveToPointCommand = new AsyncRelayCommand(MoveToPointAsync, () => IsMoveToPointAllowed);
         SelectPreviousPointCommand = new RelayCommand(SelectPreviousPoint, () => IsSelectPreviousPointAllowed);
@@ -133,13 +138,8 @@ public partial class TeachingViewModel : ObservableObject
         JogCommand = new AsyncRelayCommand<TeachingDirection>(JogAsync, IsMoveDirectionAllowed);
         StepCommand = new AsyncRelayCommand<TeachingDirection>(StepAsync, IsStepAllowed);
         JogStopCommand = new RelayCommand(JogStop);
-        HomeCommand = new AsyncRelayCommand(HomeAsync, () => IsHomeAllowed);
+        HomeCommand = new AsyncRelayCommand(HomeAsync, () => Machine.IsManualHomeAllowed(ActiveMotionGroup));
         MoveToHorizontalZCommand = new AsyncRelayCommand(MoveToHorizontalZAsync, () => IsMoveToHorizontalZAllowed);
-
-        State = state;
-        Machine = machine;
-        Operations = operations;
-        _store = store;
 
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, () => IsToggleLiveViewAllowed);
         GrabCommand = new AsyncRelayCommand(GrabAsync, () => IsGrabAllowed);
@@ -953,8 +953,6 @@ public partial class TeachingViewModel : ObservableObject
         var group = ActiveMotionGroup;
         await Machine.HomeAsync(group, cancellation.Token);
     }
-
-    private bool IsHomeAllowed => Motion.Feedback.Axes.All(axis => Machine.IsHomeAxisAllowed(ActiveMotionGroup, axis));
 
     private bool IsJogAllowed(MotionAxis axis)
     {

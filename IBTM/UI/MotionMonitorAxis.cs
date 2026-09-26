@@ -22,10 +22,11 @@ public sealed class MotionMonitorAxis : ObservableObject
         MachineState state,
         UnitSettings units)
     {
-        ToggleServoCommand = new RelayCommand(ToggleServo, () => IsToggleServoAllowed);
-        HomeCommand = new AsyncRelayCommand(HomeAsync, () => IsHomeAllowed);
-
         _machine = machine;
+
+        ToggleServoCommand = new RelayCommand(ToggleServo, () => IsToggleServoAllowed);
+        HomeCommand = new AsyncRelayCommand(HomeAsync, () => _machine.IsManualHomeAllowed(Group, Axis));
+
         _units = units;
         _lastEnabled = _units.IsMotionEnabled(group);
         Group = group;
@@ -65,8 +66,6 @@ public sealed class MotionMonitorAxis : ObservableObject
     {
         await _machine.HomeAsync(Group, cancellationToken, Axis);
     }
-
-    private bool IsHomeAllowed => _machine.IsHomeAxisAllowed(Group, Axis);
 
     internal bool Refresh()
     {
