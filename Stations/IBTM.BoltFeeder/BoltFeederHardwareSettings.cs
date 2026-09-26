@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using IBTM.Device;
 
 namespace IBTM.BoltFeeder;
@@ -17,5 +18,6 @@ public sealed class BoltFeederHardwareSettings : IoHardwareSettings
         };
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.BoltFeeder;
 }

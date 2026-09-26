@@ -93,57 +93,57 @@ public static class MachinePlan
         SupplySlotGapWidth = new(SupplySlotGap);
         SupplyCarrierMargin = new(SupplyCarrierPadding);
         PlacementToolMargin = new(0, 0, 0, PlacementBottomMargin);
-        HandoffCenter = (334, 278);
-        SupplyToolCenter = (SupplyWidth / 2, SupplyHeight - 1 - PcbHeight / 2);
-        SupplyPcb1Center = (
+        HandoffCenter = new Point(334, 278);
+        SupplyToolCenter = new Point(SupplyWidth / 2, SupplyHeight - 1 - PcbHeight / 2);
+        SupplyPcb1Center = new Point(
             SupplyRailLeft
                 + (SupplyRailWidth - SupplyCarrierFrameWidth) / 2
                 + CarrierBorder
                 + SupplyCarrierPadding
                 + (SupplyCarrierWidth - (CarrierBorder + SupplyCarrierPadding) * 2 - SupplySlotGap) / 4,
             SupplyRailTop + SupplyRailHeight / 2);
-        PlacementToolCenter = (
+        PlacementToolCenter = new Point(
             PlacementWidth / 2,
             PlacementHeight - PlacementBottomMargin - PcbHeight / 2);
-        PlacementHeatSink1 = (
+        PlacementHeatSink1 = new Point(
             PlacementCarrierLeft + CarrierContentInset + (CarrierWidth - CarrierContentInset * 2 - HeatSinkGap) / 4,
             MainTop + CarrierTop + CarrierHeight / 2);
-        PickupToolCenter = (PickupHeadCenterX, HeadCenterY);
-        ShootingToolCenter = (ShootingHeadLeft + HeadSize / 2, HeadCenterY);
-        FasteningUpperLeft = (
+        PickupToolCenter = new Point(PickupHeadCenterX, HeadCenterY);
+        ShootingToolCenter = new Point(ShootingHeadLeft + HeadSize / 2, HeadCenterY);
+        FasteningUpperLeft = new Point(
             MainLeft + FasteningCarrierLeft - FasteningLeft + CarrierWorkInset,
             MainTop + CarrierTop + CarrierWorkInset);
-        FasteningContentOrigin = (
+        FasteningContentOrigin = new Point(
             MainLeft + FasteningCarrierLeft - FasteningLeft + CarrierContentInset,
             MainTop + CarrierTop + CarrierContentInset);
-        InspectionCarrierCenter = (
+        InspectionCarrierCenter = new Point(
             HeaderInset + PlateWidth / 2,
             MainTop + PlateTop + PlateHeight / 2);
-        NgPickerCenter = (CarrierWidth / 2, CarrierHeight / 2);
-        CameraCenter = (
+        NgPickerCenter = new Point(CarrierWidth / 2, CarrierHeight / 2);
+        CameraCenter = new Point(
             CarrierWidth / 2,
             CarrierHeight + CameraGap + CameraSize / 2);
-        SupplyPcb2Center = (
+        SupplyPcb2Center = new Point(
             SupplyPcb1Center.X
                 + (SupplyCarrierWidth - (CarrierBorder + SupplyCarrierPadding) * 2 + SupplySlotGap) / 2,
             SupplyPcb1Center.Y);
-        PlacementHeatSink2 = (
+        PlacementHeatSink2 = new Point(
             PlacementCarrierLeft + CarrierWidth - (PlacementHeatSink1.X - PlacementCarrierLeft),
             PlacementHeatSink1.Y);
-        FasteningLowerRight = (
+        FasteningLowerRight = new Point(
             FasteningUpperLeft.X + CarrierWidth - CarrierWorkInset * 2,
             FasteningUpperLeft.Y + CarrierHeight - CarrierWorkInset * 2);
-        InspectionContentOrigin = (
+        InspectionContentOrigin = new Point(
             InspectionCarrierCenter.X - CarrierWidth / 2 + CarrierContentInset,
             MainTop + CarrierTop + CarrierContentInset);
         NgConveyorLeft = InspectionCarrierCenter.X - NgConveyorWidth / 2;
-        NgShuttleCenter = (
+        NgShuttleCenter = new Point(
             InspectionCarrierCenter.X,
             NgConveyorTop + PlatePadding + NgPositionHeight / 2);
-        InspectionUpperLeft = (
+        InspectionUpperLeft = new Point(
             InspectionCarrierCenter.X - CarrierWidth / 2 + CarrierWorkInset,
             InspectionCarrierCenter.Y - CarrierHeight / 2 + CarrierWorkInset);
-        InspectionLowerRight = (
+        InspectionLowerRight = new Point(
             InspectionCarrierCenter.X + CarrierWidth / 2 - CarrierWorkInset,
             InspectionCarrierCenter.Y + CarrierHeight / 2 - CarrierWorkInset);
         NgStatusLeft = NgConveyorLeft + NgConveyorWidth + PositionLabelGap;
@@ -161,57 +161,57 @@ public static class MachinePlan
 
     public static Thickness PlacementToolMargin { get; }
 
-    public static (double X, double Y) HandoffCenter { get; }
+    public static Point HandoffCenter { get; }
 
-    public static (double X, double Y) SupplyToolCenter { get; }
+    public static Point SupplyToolCenter { get; }
 
-    public static (double X, double Y) SupplyPcb1Center { get; }
+    public static Point SupplyPcb1Center { get; }
 
-    public static (double X, double Y) PlacementToolCenter { get; }
+    public static Point PlacementToolCenter { get; }
 
-    public static (double X, double Y) PlacementHeatSink1 { get; }
+    public static Point PlacementHeatSink1 { get; }
 
-    public static (double X, double Y) PickupToolCenter { get; }
+    public static Point PickupToolCenter { get; }
 
-    public static (double X, double Y) ShootingToolCenter { get; }
+    public static Point ShootingToolCenter { get; }
 
-    public static (double X, double Y) FasteningUpperLeft { get; }
+    public static Point FasteningUpperLeft { get; }
 
-    public static (double X, double Y) FasteningContentOrigin { get; }
+    public static Point FasteningContentOrigin { get; }
 
-    public static (double X, double Y) InspectionCarrierCenter { get; }
+    public static Point InspectionCarrierCenter { get; }
 
-    public static (double X, double Y) NgPickerCenter { get; }
+    public static Point NgPickerCenter { get; }
 
-    public static (double X, double Y) CameraCenter { get; }
+    public static Point CameraCenter { get; }
 
-    public static (double X, double Y) SupplyPcb2Center { get; }
+    public static Point SupplyPcb2Center { get; }
 
-    public static (double X, double Y) PlacementHeatSink2 { get; }
+    public static Point PlacementHeatSink2 { get; }
 
-    public static (double X, double Y) FasteningLowerRight { get; }
+    public static Point FasteningLowerRight { get; }
 
-    public static (double X, double Y) InspectionContentOrigin { get; }
+    public static Point InspectionContentOrigin { get; }
 
     public static double NgConveyorLeft { get; }
 
-    public static (double X, double Y) NgShuttleCenter { get; }
+    public static Point NgShuttleCenter { get; }
 
-    public static (double X, double Y) InspectionUpperLeft { get; }
+    public static Point InspectionUpperLeft { get; }
 
-    public static (double X, double Y) InspectionLowerRight { get; }
+    public static Point InspectionLowerRight { get; }
 
     public static double NgStatusLeft { get; }
 
-    public static (double X, double Y) Offset((double X, double Y) point, (double X, double Y) origin)
+    public static Point Offset(Point point, Point origin)
     {
-        return (point.X - origin.X, point.Y - origin.Y);
+        return new Point(point.X - origin.X, point.Y - origin.Y);
     }
 
     public static double GetSide(
-        (double X, double Y) point,
-        (double X, double Y) first,
-        (double X, double Y) second)
+        Point point,
+        Point first,
+        Point second)
     {
         return (second.X - first.X) * (point.Y - first.Y) - (second.Y - first.Y) * (point.X - first.X);
     }

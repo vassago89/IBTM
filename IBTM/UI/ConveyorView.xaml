@@ -160,7 +160,7 @@
             <Border Canvas.Left="{x:Static ui:MachinePlan.InspectionPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.PlateTop}"
                 Tag="{Binding Inspection.Station.BackupPlate}"
                 ToolTip="Inspection backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
-            <ui:CarrierView x:Name="InspectionCarrier" Canvas.Left="{x:Static ui:MachinePlan.InspectionCarrierLeft}"
+            <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.InspectionCarrierLeft}"
                 Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}" Panel.ZIndex="2"
                 HeatSink1Present="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn}"
                 HeatSink2Present="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn}"

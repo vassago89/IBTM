@@ -150,8 +150,8 @@ the belt continues for `RearSmemaOffDelaySeconds` (default 0.3 s), then stops al
 with `Available To Rear`. The exit carrier sensor is no longer used or displayed.
 
 Placement, Bolt Fastening, and Inspection report work complete only after every
-detected heat sink finishes. A disabled station process is bypassed by the WPF host so
-Main Conveyor can be validated independently. Inspection moves the camera to every
+detected heat sink finishes. Each disabled station loop records completion without
+running its process devices, so Main Conveyor can run independently. Inspection moves the camera to every
 recipe Bolt Point belonging to a detected heat sink and records bolt presence without
 stopping at the first missing bolt.
 S1/S2 work starts with carrier presence, Backup Plate Up and Stopper Down.
@@ -163,9 +163,10 @@ continue working.
 
 S3 inspects with Backup Plate Down, Stopper Up and the belt stopped. Before inspection,
 runnable transfers (including infeed) take priority: raise S3, finish those transfers,
-then lower S3 for inspection. After inspection the gantry returns to NG pickup.
-An OK carrier discharges immediately if rear ready; otherwise S3 raises for waiting
-or NG pickup. `GetNextTransfer` selects transfers; `GetState` applies these S3 conditions.
+then lower S3 for inspection. After inspection the gantry returns to its separately taught
+waiting position. An OK carrier discharges immediately if rear ready. Otherwise Inspection
+moves to the S3 pickup position and raises S3 for waiting or NG pickup.
+`GetNextTransfer` selects transfers; `GetNextStep` applies these S3 conditions.
 
 Only the backup plates participating in a future transfer are lowered. Before
 lowering the source carrier onto the belt, the destination must have confirmed
@@ -375,20 +376,19 @@ The controlled camera assembly is:
 `IBTM.Inspection` owns the shared Inspection Gantry axes, inspection coordinates,
 and NG carrier transfer pneumatics and teaching coordinates. `InspectionStation`
 runs inspection and NG transfer in one loop because they share the gantry.
-`IBTM.NgConveyor` owns the independent NG Shuttle and NG Conveyor. Inspection
+`NgCarrierConveyor` owns the NG shuttle and belt in one execution loop. Inspection
 observes shuttle readiness through a one-way project reference. The shuttle reads
 transfer clearance through `INgCarrierTransferFeedback` in `IBTM.Device`; it does
 not reference the Inspection project. A detected carrier does not prove release:
-the shuttle waits for Carrier Pickup Up before lowering, including when the
-transfer's automatic operation is disabled. Reading this feedback does not enable
+the shuttle waits for Carrier Pickup Up, confirmed gripper Open and no pending
+transfer before lowering, including when Inspection is disabled. Reading this feedback does not enable
 the transfer axes or its automatic operation.
 
-Station 3 uses two machine teaching positions for the carrier scan bounds. Scan
-overlap belongs to the Inspection Gantry settings. The two locating-pin positions
-belong to the shared Carrier Reference because Station 2 and Station 3 use the same
-datum without referencing each other's projects. NG pickup and NG shuttle placement
-coordinates belong to the NG Carrier Transfer settings. The tile centres, millimetres per
-pixel, and original images belong to the recipe image set.
+The two locating-pin positions belong to the shared Carrier Reference because
+Station 2 and Station 3 use the same datum without referencing each other's projects.
+Inspection waiting, S3 pickup and NG shuttle placement are separately taught positions
+in the NG Carrier Transfer settings. Bolt inspection XY belongs to each recipe bolt;
+Data Matrix XY, ROI and image metadata belong to the recipe image tiles.
 
 Automatic inspection moves to each taught FOV centre and checks its saved rectangular
 ROI at original resolution. BGR luminance at or above the recipe brightness threshold

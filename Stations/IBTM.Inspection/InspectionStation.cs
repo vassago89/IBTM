@@ -263,10 +263,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         if (input is InputIo.NgCarrierPickupUp
             or InputIo.NgCarrierPickupDown
             or InputIo.NgCarrierGripperOpen
-            or InputIo.NgCarrierGripperClosed
-            or InputIo.NgShuttleUp
-            or InputIo.NgShuttleDown
-            or InputIo.NgShuttleCarrierDetected)
+            or InputIo.NgCarrierGripperClosed)
         {
             NotifyChanged();
         }

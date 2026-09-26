@@ -43,7 +43,6 @@ public partial class MainViewModel : ObservableObject
     private readonly DiagnosticWindows _windows;
     private readonly ILogger<MainViewModel> _log;
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ControlsEnabled), nameof(OutputsWindowEnabled))]
     [NotifyCanExecuteChangedFor(nameof(OpenOutputsCommand))]
     public partial bool IsClosing { get; set; }
     [ObservableProperty]
@@ -70,9 +69,9 @@ public partial class MainViewModel : ObservableObject
         ILogger<MainViewModel> log)
     {
         OpenInputsCommand = new RelayCommand(OpenInputs, () => IsOpenDiagnosticAllowed);
-        OpenOutputsCommand = new RelayCommand(OpenOutputs, () => OutputsWindowEnabled);
+        OpenOutputsCommand = new RelayCommand(OpenOutputs, () => IsOpenOutputsAllowed);
         OpenMotionCommand = new RelayCommand(OpenMotion, () => IsOpenDiagnosticAllowed);
-        OpenAdcProtocolCommand = new RelayCommand(OpenAdcProtocol, () => AdcProtocolEnabled);
+        OpenAdcProtocolCommand = new RelayCommand(OpenAdcProtocol, () => IsOpenAdcProtocolAllowed);
         OpenLogsCommand = new RelayCommand(OpenLogs, () => IsOpenDiagnosticAllowed);
         ResetCommand = new AsyncRelayCommand(
             ResetAsync, () => IsResetAllowed, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -101,7 +100,6 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage), nameof(CurrentPageEnabled))]
-    [NotifyPropertyChangedFor(nameof(OperationPageSelected))]
     public partial AppPage SelectedPage { get; private set; } = AppPage.Operation;
 
     public bool RecipeEditingEnabled
@@ -116,8 +114,6 @@ public partial class MainViewModel : ObservableObject
                 && !_teachingViewModel.IsBusy;
         }
     }
-
-    public bool OperationPageSelected => SelectedPage == AppPage.Operation;
 
     public ObservableObject CurrentPage
     {
@@ -142,9 +138,9 @@ public partial class MainViewModel : ObservableObject
     }
 
     // Window access follows selector mode only, not alarm/busy output admission.
-    public bool OutputsWindowEnabled => !_shuttingDown && !IsClosing && !_state.AutoMode;
+    private bool IsOpenOutputsAllowed => !_shuttingDown && !IsClosing && !_state.AutoMode;
 
-    public bool AdcProtocolEnabled => !_shuttingDown;
+    private bool IsOpenAdcProtocolAllowed => !_shuttingDown;
 
     public bool CurrentPageEnabled
     {
@@ -155,8 +151,6 @@ public partial class MainViewModel : ObservableObject
                     || !RecipeEditor.IsBusy);
         }
     }
-
-    public bool ControlsEnabled => !IsClosing;
 
     partial void OnSelectedRecipeFileChanged(string? value)
     {
@@ -382,12 +376,10 @@ public partial class MainViewModel : ObservableObject
                     return;
                 }
 
-                OnPropertyChanged(nameof(OutputsWindowEnabled));
-                OnPropertyChanged(nameof(AdcProtocolEnabled));
                 OnPropertyChanged(nameof(CurrentPageEnabled));
                 OnPropertyChanged(nameof(RecipeEditingEnabled));
                 OpenOutputsCommand.NotifyCanExecuteChanged();
-                if (!OutputsWindowEnabled)
+                if (!IsOpenOutputsAllowed)
                     _windows.CloseOutputs();
                 NavigateCommand.NotifyCanExecuteChanged();
                 var showOperation = _state.AutomaticRunning && SelectedPage is not (AppPage.Operation or AppPage.Inspection)

@@ -13,8 +13,9 @@ The .NET SDK includes these files directly in `IBTM.Ajin`. Application code call
 Do not introduce duplicate P/Invoke declarations or edit the vendor files; replace
 them together from the manufacturer when updating the SDK.
 
-The corresponding native `AXL.dll` must still be available on the machine.
-Copying these declarations does not install or initialize the native driver.
+The native `AXL.dll` and `EzBasicAxl.dll` are copied to the output directory.
+`AXL.lib` is retained as an SDK file but is not copied for this C# application.
+Copying these files does not install or initialize the native driver.
 IBTM retains its configured interrupt number, axis scaling and RTEX module mappings.
 No motion-parameter file path or .mot file is required by this application.
 
@@ -46,26 +47,28 @@ communication error is converted to an OFF input or successful machine readiness
 
 ## Motion implementation
 
-`AjinMotionService` follows `C:/git/AnyWave/AnyWave.Device/Motions/Ajin/AjinService.cs`.
-The native HOME startup, velocity ratios, Z method, move acceleration and Task.Run
-calls are restored from that source. IBTM keeps its axis mapping, shared controller
-initialization, cancellation and completion feedback at the integration boundary.
+`AjinMotionService` uses `C:/git/AnyWave/AnyWave.Device/Motions/Ajin/AjinService.cs`
+as its reference. IBTM adds configured axis mappings, HOME direction and stage speeds,
+acceleration times, shared initialization, cancellation and completion feedback.
 The AnyWave static initializer that closes AXL and loads `Settings/Default.mot`
 is not called by each IBTM motion group; `AjinController` owns that shared connection.
 
-- HOME sets `HOME_ERR_UNKNOWN`, then velocities, then starts the requested axes.
-- X/Y retain the SDK home method. Z uses `AxmHomeSetMethod(axis, 0, 4, 0, 1000, 0)`.
-- HOME velocities are search speed × `1, 1/5, 1/10, 1/100`; accelerations are × `1, 1/10`.
+- HOME reads each axis's SDK method and replaces its direction with `AxisHardware.HomeDirection`.
+  The SDK signal, Z-phase, clear time and offset are retained for all axes, including Z.
+- Before HOME starts, the code sets actual position to zero, sets `HOME_ERR_UNKNOWN`,
+  and applies the method and velocities.
+- Search velocity comes from the caller; the other stage velocities and acceleration
+  times come from that axis group's `HomeSettings`. Acceleration is stage speed divided by its configured time.
 - HOME polls at 100 ms and returns false for a failed startup or result.
-- Position moves use velocity × 2 for acceleration and deceleration.
+- Position moves use velocity divided by `AccelerationSeconds` / `DecelerationSeconds`.
+  The default 0.5-second settings produce velocity × 2.
   XY speed is distributed by `distanceX / (distanceX + distanceY)` and the Y equivalent.
 - Native command return values and position/stop feedback are checked by IBTM.
   Cancellation stops the commanded axes and waits for feedback before releasing the operation.
   There is no additional STOP callback that duplicates cancellation cleanup.
 
-Search speed remains editable. The former separate HOME stage speeds, acceleration
-times and software home-direction override are removed from settings and the UI.
-The driver's mm conversion and configured SDK move units remain unchanged.
+HOME stage speeds, acceleration times and axis direction are editable in Settings.
+The driver retains its mm conversion and configured SDK move units.
 
 `AxlOpen` initializes the library and hardware; it does not promise to preserve
 previous hardware settings. `AjinMotionService` applies configured move units and

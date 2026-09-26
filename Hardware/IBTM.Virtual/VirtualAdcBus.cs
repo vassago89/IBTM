@@ -149,7 +149,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
                 case AdcRemoteRegister.RemoteStart:
                     var version = ++controller.FasteningVersion;
                     controller.Running = value != 0 && controller.Status != AdcEventStatus.Error;
-                    if (value != 0 && controller.Status != AdcEventStatus.Error)
+                    if (controller.Running)
                     {
                         controller.Status = AdcEventStatus.None;
                         if (controller.Direction == AdcDirection.Fastening)

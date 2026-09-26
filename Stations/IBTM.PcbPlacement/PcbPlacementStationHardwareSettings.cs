@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using IBTM.Device;
 
 namespace IBTM.PcbPlacement;
@@ -13,5 +14,6 @@ public sealed class PcbPlacementStationHardwareSettings : InputHardwareSettings
         };
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.PcbPlacementStation;
 }

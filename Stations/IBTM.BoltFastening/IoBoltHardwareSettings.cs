@@ -34,6 +34,7 @@ public sealed class IoBoltHardwareSettings : IoHardwareSettings
     [JsonIgnore]
     public override Dictionary<InputIo, int> Inputs { get; set; }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.BoltFastening;
 
     public override IoSection? GetSection(Enum signal)

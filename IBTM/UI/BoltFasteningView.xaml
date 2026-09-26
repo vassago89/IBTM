@@ -55,11 +55,18 @@
                                             Converter={StaticResource BoolToVis}}"/>
 
             <Grid Width="100" Height="86"
-                Tag="{Binding Units.PickupBoltFeeder}"
-                Style="{StaticResource FeederDeviceStyle}"
-                Visibility="{Binding BoltFeederPositionKnown, Converter={StaticResource BoolToVis}}">
+                Tag="{Binding Units.PickupBoltFeeder}">
+                <Grid.Style>
+                    <Style TargetType="Grid" BasedOn="{StaticResource FeederDeviceStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding BoltPickupFeederMapPosition}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
                 <Grid.RenderTransform>
-                    <TranslateTransform X="{Binding BoltPickupFeederMapLeft, TargetNullValue=0}" Y="{Binding BoltPickupFeederMapTop, TargetNullValue=0}"/>
+                    <TranslateTransform X="{Binding BoltPickupFeederMapPosition.X, TargetNullValue=0, FallbackValue=0}" Y="{Binding BoltPickupFeederMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                 </Grid.RenderTransform>
                 <Border Width="{x:Static ui:MachinePlan.PickupFeederWidth}" Height="{x:Static ui:MachinePlan.PickupFeederHeight}"
                     VerticalAlignment="Top" Style="{StaticResource DeviceBodyStyle}">
@@ -81,15 +88,15 @@
                     <Grid.Style>
                         <Style TargetType="Grid">
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding PickupHeadMapLeft}" Value="{x:Null}">
+                                <DataTrigger Binding="{Binding PickupHeadMapPosition}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Grid.Style>
                     <Grid.RenderTransform>
-                        <TranslateTransform X="{Binding PickupHeadMapLeft, TargetNullValue=0}"
-                            Y="{Binding PickupHeadMapTop, TargetNullValue=0}"/>
+                        <TranslateTransform X="{Binding PickupHeadMapPosition.X, TargetNullValue=0, FallbackValue=0}"
+                            Y="{Binding PickupHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                     </Grid.RenderTransform>
                     <Canvas>
                         <TextBlock Canvas.Left="{x:Static ui:MachinePlan.PickupHeadLeft}" Canvas.Top="65"
@@ -120,15 +127,15 @@
                     <Grid.Style>
                         <Style TargetType="Grid">
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShootingHeadMapLeft}" Value="{x:Null}">
+                                <DataTrigger Binding="{Binding ShootingHeadMapPosition}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Grid.Style>
                     <Grid.RenderTransform>
-                        <TranslateTransform X="{Binding ShootingHeadMapLeft, TargetNullValue=0}"
-                            Y="{Binding ShootingHeadMapTop, TargetNullValue=0}"/>
+                        <TranslateTransform X="{Binding ShootingHeadMapPosition.X, TargetNullValue=0, FallbackValue=0}"
+                            Y="{Binding ShootingHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                     </Grid.RenderTransform>
                     <Canvas>
                         <TextBlock Canvas.Left="{x:Static ui:MachinePlan.ShootingHeadLeft}" Canvas.Top="65" Text="Shoot"

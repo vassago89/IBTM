@@ -32,6 +32,7 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings, IJsonOnDese
         };
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.NgConveyor;
 
     void IJsonOnDeserialized.OnDeserialized()

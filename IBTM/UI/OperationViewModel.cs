@@ -155,33 +155,19 @@ public partial class OperationViewModel : ObservableObject
 
     public BoltFasteningStation Fastening { get; }
 
-    public double? PcbSupplyMapLeft => _map.GetSupplyPosition(Supply.Motion.Position)?.X;
+    public Point? PcbSupplyMapPosition => _map.GetSupplyPosition(Supply.Motion.Position);
 
-    public double? PcbSupplyMapTop => _map.GetSupplyPosition(Supply.Motion.Position)?.Y;
+    public Point? PcbPlacementMapPosition => _map.GetPlacementPosition(Placement.Motion.Position);
 
-    public double? PcbPlacementMapLeft => _map.GetPlacementPosition(Placement.Motion.Position)?.X;
+    public Point? ShootingHeadMapPosition => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Shooting);
 
-    public double? PcbPlacementMapTop => _map.GetPlacementPosition(Placement.Motion.Position)?.Y;
+    public Point? PickupHeadMapPosition => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Pickup);
 
-    public double? ShootingHeadMapLeft => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Shooting)?.X;
+    public Point? BoltPickupFeederMapPosition => _map.PickupFeederPosition;
 
-    public double? ShootingHeadMapTop => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Shooting)?.Y;
+    public Point? InspectionGantryMapPosition => _map.GetInspectionPosition(Inspection.Motion.Position);
 
-    public double? PickupHeadMapLeft => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Pickup)?.X;
-
-    public double? PickupHeadMapTop => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Pickup)?.Y;
-
-    public double? BoltPickupFeederMapLeft => _map.PickupFeederPosition?.X;
-
-    public double? BoltPickupFeederMapTop => _map.PickupFeederPosition?.Y;
-
-    public double? InspectionGantryMapLeft => _map.GetInspectionPosition(Inspection.Motion.Position)?.X;
-
-    public double? InspectionGantryMapTop => _map.GetInspectionPosition(Inspection.Motion.Position)?.Y;
-
-    public double? NgPickupMapLeft => _map.GetNgPickupPosition(Inspection.Motion.Position)?.X;
-
-    public double? NgPickupMapTop => _map.GetNgPickupPosition(Inspection.Motion.Position)?.Y;
+    public Point? NgPickupMapPosition => _map.GetNgPickupPosition(Inspection.Motion.Position);
 
     public bool PcbPlacementHeatSink1Completed
     {
@@ -439,8 +425,7 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
-            OnPropertyChanged(nameof(PcbSupplyMapLeft));
-            OnPropertyChanged(nameof(PcbSupplyMapTop));
+            OnPropertyChanged(nameof(PcbSupplyMapPosition));
         }
     }
 
@@ -454,8 +439,7 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
-            OnPropertyChanged(nameof(PcbPlacementMapLeft));
-            OnPropertyChanged(nameof(PcbPlacementMapTop));
+            OnPropertyChanged(nameof(PcbPlacementMapPosition));
         }
     }
 
@@ -469,10 +453,8 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
-            OnPropertyChanged(nameof(ShootingHeadMapLeft));
-            OnPropertyChanged(nameof(ShootingHeadMapTop));
-            OnPropertyChanged(nameof(PickupHeadMapLeft));
-            OnPropertyChanged(nameof(PickupHeadMapTop));
+            OnPropertyChanged(nameof(ShootingHeadMapPosition));
+            OnPropertyChanged(nameof(PickupHeadMapPosition));
         }
     }
 
@@ -489,10 +471,8 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
-            OnPropertyChanged(nameof(InspectionGantryMapLeft));
-            OnPropertyChanged(nameof(InspectionGantryMapTop));
-            OnPropertyChanged(nameof(NgPickupMapLeft));
-            OnPropertyChanged(nameof(NgPickupMapTop));
+            OnPropertyChanged(nameof(InspectionGantryMapPosition));
+            OnPropertyChanged(nameof(NgPickupMapPosition));
         }
     }
 
@@ -560,25 +540,17 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnRecipeChanged()
     {
-        OnPropertyChanged(nameof(PcbSupplyMapLeft));
-        OnPropertyChanged(nameof(PcbSupplyMapTop));
-        OnPropertyChanged(nameof(PcbPlacementMapLeft));
-        OnPropertyChanged(nameof(PcbPlacementMapTop));
-        OnPropertyChanged(nameof(ShootingHeadMapLeft));
-        OnPropertyChanged(nameof(ShootingHeadMapTop));
-        OnPropertyChanged(nameof(PickupHeadMapLeft));
-        OnPropertyChanged(nameof(PickupHeadMapTop));
-        OnPropertyChanged(nameof(InspectionGantryMapLeft));
-        OnPropertyChanged(nameof(InspectionGantryMapTop));
-        OnPropertyChanged(nameof(NgPickupMapLeft));
-        OnPropertyChanged(nameof(NgPickupMapTop));
-        OnPropertyChanged(nameof(BoltPickupFeederMapLeft));
-        OnPropertyChanged(nameof(BoltPickupFeederMapTop));
+        OnPropertyChanged(nameof(PcbSupplyMapPosition));
+        OnPropertyChanged(nameof(PcbPlacementMapPosition));
+        OnPropertyChanged(nameof(ShootingHeadMapPosition));
+        OnPropertyChanged(nameof(PickupHeadMapPosition));
+        OnPropertyChanged(nameof(InspectionGantryMapPosition));
+        OnPropertyChanged(nameof(NgPickupMapPosition));
+        OnPropertyChanged(nameof(BoltPickupFeederMapPosition));
         OnPcbSupplyChanged();
         OnPcbPlacementChanged();
         OnBoltFasteningChanged();
         OnInspectionChanged();
-        OnPropertyChanged(nameof(BoltFeederPositionKnown));
     }
 
     // Devices expose Changed events; notifying their property also refreshes nested XAML bindings.
@@ -764,8 +736,6 @@ public partial class OperationViewModel : ObservableObject
                 && Inspection.Motion.Position is { X: not null, Y: not null };
         }
     }
-
-    public bool BoltFeederPositionKnown => _map.PickupFeederPosition is not null;
 
     public Enum SupplyStatus
     {

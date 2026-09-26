@@ -442,11 +442,6 @@ public sealed class InspectionTests
         var io = new VirtualIoService(
             new NgCarrierTransferHardwareSettings().Outputs,
             new MachineOptions());
-        var carrierReference = new CarrierReferenceSettings
-        {
-            UpperLeftLocatingPin = new AxisPosition { X = 2, Y = 2 },
-            LowerRightLocatingPin = new AxisPosition { X = 38, Y = 28 },
-        };
         var gantrySettings = new InspectionGantrySettings
         {
             Motion = new MotionSettings { HorizontalSpeed = 200 },

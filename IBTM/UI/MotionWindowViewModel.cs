@@ -21,7 +21,7 @@ public partial class MotionWindowViewModel : ObservableObject
     private Dispatcher? _dispatcher;
     private bool _active;
     private int _refreshQueued;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(ControlsEnabled))]
+    [ObservableProperty]
     public partial bool IsClosing { get; set; }
     [ObservableProperty]
     public partial string? CloseError { get; set; }
@@ -62,8 +62,6 @@ public partial class MotionWindowViewModel : ObservableObject
                         Search.Trim(),
                         StringComparison.OrdinalIgnoreCase));
     }
-
-    public bool ControlsEnabled => !IsClosing;
 
     public MotionMonitorAxis[] Axes { get; }
     public ICollectionView View { get; }

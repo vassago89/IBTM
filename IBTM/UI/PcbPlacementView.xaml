@@ -84,7 +84,7 @@
                 Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
                 Panel.ZIndex="20">
                 <Grid.RenderTransform>
-                    <TranslateTransform X="{Binding PcbSupplyMapLeft, TargetNullValue=0}" Y="{Binding PcbSupplyMapTop, TargetNullValue=0}"/>
+                    <TranslateTransform X="{Binding PcbSupplyMapPosition.X, TargetNullValue=0, FallbackValue=0}" Y="{Binding PcbSupplyMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                 </Grid.RenderTransform>
                 <Grid Width="92" Height="72" HorizontalAlignment="Center" VerticalAlignment="Bottom">
                     <Border Tag="{Binding Supply.Motion.IsMoving}" Style="{StaticResource OverheadBodyStyle}"/>
@@ -138,8 +138,8 @@
                 Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
                 Panel.ZIndex="21">
                 <Grid.RenderTransform>
-                    <TranslateTransform X="{Binding PcbPlacementMapLeft, TargetNullValue=0}"
-                        Y="{Binding PcbPlacementMapTop, TargetNullValue=0}"/>
+                    <TranslateTransform X="{Binding PcbPlacementMapPosition.X, TargetNullValue=0, FallbackValue=0}"
+                        Y="{Binding PcbPlacementMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                 </Grid.RenderTransform>
                 <Grid Width="92" Height="72" HorizontalAlignment="Center" VerticalAlignment="Bottom"
                     Margin="{x:Static ui:MachinePlan.PlacementToolMargin}">

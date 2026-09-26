@@ -1450,7 +1450,6 @@ public sealed class IoStartupTests
     {
         await using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<StartupIo>();
         var signals = services.GetRequiredService<IoSignals>();
         var feedback = services.GetRequiredService<MachineFeedbackMonitor>();

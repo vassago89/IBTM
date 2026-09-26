@@ -361,8 +361,13 @@ public sealed class MachineStoreTests
         var loaded = await MachineSettings.LoadAsync(reopened);
         foreach (var (expected, actual) in settings.Sections.Zip(loaded.Sections))
         {
+            var expectedJson = JsonSerializer.Serialize(expected, expected.GetType());
+            if (expected is HardwareSettings)
+                Assert.DoesNotContain("\"Area\":", expectedJson);
+            if (expected is UnitSettings)
+                Assert.DoesNotContain("\"IsAnyUnitEnabled\":", expectedJson);
             Assert.Equal(
-                JsonSerializer.Serialize(expected, expected.GetType()),
+                expectedJson,
                 JsonSerializer.Serialize(actual, actual.GetType()));
         }
         Assert.Equal(

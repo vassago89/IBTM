@@ -257,7 +257,7 @@
             Foreground="{StaticResource TextMutedBrush}"/>
         <TextBlock Text="{Binding SaveBehavior, Converter={StaticResource EnumDescriptionConverter}}"
             TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0"/>
-        <TextBlock x:Name="TeachingSaveError"
+        <TextBlock
             Text="{Binding SaveError}"
             TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="0,4,0,0"/>
         <TextBlock Text="{Binding ManualBlock, Converter={StaticResource EnumDescriptionConverter}}"

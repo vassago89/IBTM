@@ -66,6 +66,7 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings, IJsonOnDeseri
         };
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.MainConveyor;
 
     void IJsonOnDeserialized.OnDeserialized()

@@ -10,7 +10,7 @@ public class OutputWindowViewModel
     {
         RefreshCommand = new RelayCommand(Refresh);
 
-        Rows = signals.Outputs.Values.OrderBy(row => row.Signal)
+        Rows = signals.Outputs.Values
             .Select(row => new OutputWindowRow(row, machine))
             .ToArray();
         Filter = new(Rows, row => row.Io);

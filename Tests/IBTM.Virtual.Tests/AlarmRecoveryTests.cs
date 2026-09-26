@@ -527,13 +527,14 @@ public sealed class AlarmRecoveryTests
             Assert.False(machine.IsStartAllowed);
             Assert.False(machine.IsHomeAllowed);
 
-            var input = view.InputMappings.Single(row => row.Signal.Equals(InputIo.PcbPlacementStopperUp));
+            var input = view.InputMappingView.Cast<HardwareMappingRow>()
+                .Single(row => row.Signal.Equals(InputIo.PcbPlacementStopperUp));
             var runningInputs = services.GetRequiredService<IReadOnlyDictionary<InputIo, int>>();
             var originalInput = runningInputs[InputIo.PcbPlacementStopperUp];
             input.Number = 63;
             Assert.Equal(63, view.Settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
             Assert.Equal(originalInput, runningInputs[InputIo.PcbPlacementStopperUp]);
-            var output = view.OutputMappings.Single(
+            var output = view.OutputMappingView.Cast<HardwareMappingRow>().Single(
                 row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
             var axis = view.AxisMappings.Single(
                 row => row.Signal.Equals(MachineAxis.InspectionGantryX)).Axis!;
@@ -599,9 +600,11 @@ public sealed class AlarmRecoveryTests
         await machine.InitializeAsync();
         try
         {
-            view.InputMappings.Single(row => row.Signal.Equals(InputIo.PcbPlacementStopperUp)).Number = 57;
-            view.InputMappings.Single(row => row.Signal.Equals(InputIo.PcbPlacementStopperDown)).Number = 58;
-            var output = view.OutputMappings.Single(row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
+            var inputs = view.InputMappingView.Cast<HardwareMappingRow>();
+            inputs.Single(row => row.Signal.Equals(InputIo.PcbPlacementStopperUp)).Number = 57;
+            inputs.Single(row => row.Signal.Equals(InputIo.PcbPlacementStopperDown)).Number = 58;
+            var output = view.OutputMappingView.Cast<HardwareMappingRow>()
+                .Single(row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
             output.Number = 96;
             output.OffNumber = 97;
             view.Settings.Drivers.Light = LightDriver.Movs;

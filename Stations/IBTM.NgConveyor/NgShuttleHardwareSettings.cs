@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using IBTM.Device;
 
 namespace IBTM.NgConveyor;
@@ -18,5 +19,6 @@ public sealed class NgShuttleHardwareSettings : IoHardwareSettings
         };
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.NgShuttle;
 }

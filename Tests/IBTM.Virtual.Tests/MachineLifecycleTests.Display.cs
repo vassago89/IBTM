@@ -67,7 +67,6 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
         var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
         var view = services.GetRequiredService<OperationViewModel>();
         var io = services.GetRequiredService<VirtualIoService>();

@@ -73,7 +73,7 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <Grid x:Name="Pcb1Barcode" Margin="0,0,0,8"
+                    <Grid Margin="0,0,0,8"
                         Visibility="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn, Converter={StaticResource BoolToVis}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="64"/>
@@ -85,7 +85,7 @@
                             Text="{Binding InspectionPcb1Barcode, TargetNullValue='Not Read'}"
                             ToolTip="{Binding InspectionPcb1Barcode}"/>
                     </Grid>
-                    <Grid x:Name="Pcb2Barcode" Margin="0,0,0,8"
+                    <Grid Margin="0,0,0,8"
                         Visibility="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn, Converter={StaticResource BoolToVis}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="64"/>
@@ -98,7 +98,7 @@
                             ToolTip="{Binding InspectionPcb2Barcode}"/>
                     </Grid>
                 </StackPanel>
-                <TextBlock x:Name="InspectionAlarmDetail"
+                <TextBlock
                     Text="{Binding AlarmMessage}"
                     ToolTip="{Binding AlarmDetail}"
                     TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource AccentRedBrush}">
@@ -119,14 +119,14 @@
                 Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}"
                 Panel.ZIndex="20">
                 <StackPanel.RenderTransform>
-                    <TranslateTransform X="{Binding NgPickupMapLeft, TargetNullValue=0}"
-                        Y="{Binding NgPickupMapTop, TargetNullValue=0}"/>
+                    <TranslateTransform X="{Binding NgPickupMapPosition.X, TargetNullValue=0, FallbackValue=0}"
+                        Y="{Binding NgPickupMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                 </StackPanel.RenderTransform>
                 <Grid Width="{StaticResource CarrierWidth}" Height="{StaticResource CarrierHeight}"
                     VerticalAlignment="Top">
                     <ui:CarrierView Visibility="{Binding Signals.Inputs[NgCarrierDetected].IsOn, Converter={StaticResource BoolToVis}}"
                         ToolTip="Carrier detected near NG pickup. This does not confirm grip." Opacity="0.5"/>
-                    <Grid x:Name="CarrierPicker" Width="{x:Static ui:MachinePlan.NgPickerWidth}" HorizontalAlignment="Center">
+                    <Grid Width="{x:Static ui:MachinePlan.NgPickerWidth}" HorizontalAlignment="Center">
                         <Border Margin="-8,-6" Background="{StaticResource MachineGhostBrush}"
                             Tag="{Binding Inspection.Motion.IsMoving}"
                             Style="{StaticResource OverheadBodyStyle}"/>
@@ -139,8 +139,8 @@
             </StackPanel>
             <Canvas Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
                 <Canvas.RenderTransform>
-                    <TranslateTransform X="{Binding InspectionGantryMapLeft, TargetNullValue=0}"
-                        Y="{Binding InspectionGantryMapTop, TargetNullValue=0}"/>
+                    <TranslateTransform X="{Binding InspectionGantryMapPosition.X, TargetNullValue=0, FallbackValue=0}"
+                        Y="{Binding InspectionGantryMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                 </Canvas.RenderTransform>
                 <StackPanel Canvas.Left="{x:Static ui:MachinePlan.CameraLeft}" Canvas.Top="{x:Static ui:MachinePlan.CameraTop}">
                     <Grid x:Name="InspectionCamera" Width="{x:Static ui:MachinePlan.CameraSize}" Height="{x:Static ui:MachinePlan.CameraSize}">

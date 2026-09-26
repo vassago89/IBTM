@@ -117,7 +117,7 @@ public sealed class PcbPlacementRepeatTests
         await rig.Motion.MoveToXYAsync(50, 10, 2_000);
         await rig.Motion.MoveAxisAsync(MotionAxis.Z, 12, 2_000);
         rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
-        await rig.Handler.SetVacuumAsync(true);
+        await rig.Placer.SetVacuumAsync(true);
         Assert.Equal(PcbPlacementState.MovingToHandoff, rig.Placer.Phase);
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
 
@@ -143,7 +143,7 @@ public sealed class PcbPlacementRepeatTests
         var reachedHandoff = false;
         rig.Motion.PositionChanged += (x, y, z) =>
         {
-            if (!rig.Handler.PcbSecured || !rig.Motion.IsMovingHorizontal)
+            if (!rig.Placer.PcbSecured || !rig.Motion.IsMovingHorizontal)
                 return;
             positions.Add((x, y, z));
             if (x == 50 && y == 20)
@@ -172,7 +172,7 @@ public sealed class PcbPlacementRepeatTests
         });
         Assert.Equal((50.0, stopAfterX ? 20.0 : 10.0, 8.0), rig.Motion.Position);
         Assert.False(rig.Motion.IsMoving);
-        Assert.True(rig.Handler.PcbSecured);
+        Assert.True(rig.Placer.PcbSecured);
         Assert.Null(rig.Placer.ReturningPcb);
         Assert.Empty(rig.Work.Assemblies);
     }
@@ -184,7 +184,7 @@ public sealed class PcbPlacementRepeatTests
         await rig.InitializeAsync();
         rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
-        Assert.False(rig.Handler.PcbSecured);
+        Assert.False(rig.Placer.PcbSecured);
         var descendedAtPickup = false;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
         rig.Io.OutputChanged += (output, on) =>
@@ -192,7 +192,7 @@ public sealed class PcbPlacementRepeatTests
             if (output != OutputIo.PcbPlacementHandlerDown || !on)
                 return;
             var position = rig.Recipe.HeatSink1PcbPlacementPosition;
-            descendedAtPickup = MotionService.IsAt(rig.Handler.Motion.Feedback, position);
+            descendedAtPickup = MotionService.IsAt(rig.Placer.Motion.Feedback, position);
             stop.Cancel();
         };
         await rig.Placer.RunAsync(stop.Token, repeat: true);
@@ -222,10 +222,10 @@ public sealed class PcbPlacementRepeatTests
         };
         rig.Motion.PositionChanged += (x, y, z) =>
         {
-            movedUnsafely |= (rig.Motion.IsMoving && rig.Handler.Lift != StationCylinderState.Up)
+            movedUnsafely |= (rig.Motion.IsMoving && rig.Placer.Lift != StationCylinderState.Up)
                 || (rig.Motion.IsMovingHorizontal && Math.Abs(z - 8) > 0.05);
             var atHandoff = Math.Abs(x - 50) < 0.05 && Math.Abs(y - 10) < 0.05 && Math.Abs(z - 8) < 0.05;
-            if (atHandoff && !insideHandoff && rig.Handler.PcbSecured)
+            if (atHandoff && !insideHandoff && rig.Placer.PcbSecured)
                 handoffVisits++;
             insideHandoff = atHandoff;
         };
@@ -241,20 +241,20 @@ public sealed class PcbPlacementRepeatTests
         Assert.Equal(2, handoffVisits);
         Assert.False(movedUnsafely);
         Assert.Empty(supplyOutputs);
-        Assert.Equal(StationCylinderState.Up, rig.Handler.Lift);
-        Assert.Equal(StationCylinderState.Up, rig.Handler.IpmLift);
-        Assert.True(rig.Handler.IsAtHorizontalZ);
+        Assert.Equal(StationCylinderState.Up, rig.Placer.Lift);
+        Assert.Equal(StationCylinderState.Up, rig.Placer.IpmLift);
+        Assert.True(rig.Placer.IsAtHorizontalZ);
         Assert.False(rig.Io.GetInput(InputIo.PcbPlacementVacuumDetected));
 
         // The material remains on both original heat sinks after the repeat.
         foreach (var position in rig.Positions)
         {
-            await rig.Handler.MoveToXYAsync(position);
-            await rig.Handler.MoveAxisAsync(MotionAxis.Z, position.Z);
-            await rig.Handler.SetLiftDownAsync(true);
-            Assert.Equal(PlacementPcbState.Detected, rig.Handler.Pcb);
-            await rig.Handler.SetLiftDownAsync(false);
-            await rig.Handler.MoveAxisAsync(MotionAxis.Z, rig.Settings.HandoffPosition.Z);
+            await rig.Placer.MoveToXYAsync(position);
+            await rig.Placer.MoveAxisAsync(MotionAxis.Z, position.Z);
+            await rig.Placer.SetLiftDownAsync(true);
+            Assert.Equal(PlacementPcbState.Detected, rig.Placer.Pcb);
+            await rig.Placer.SetLiftDownAsync(false);
+            await rig.Placer.MoveAxisAsync(MotionAxis.Z, rig.Settings.HandoffPosition.Z);
         }
     }
 
@@ -268,7 +268,7 @@ public sealed class PcbPlacementRepeatTests
         var interrupted = false;
         rig.Motion.PositionChanged += (x, _, _) =>
         {
-            if (interrupted || !rig.Handler.PcbSecured || !rig.Motion.IsMovingHorizontal || x >= 69)
+            if (interrupted || !rig.Placer.PcbSecured || !rig.Motion.IsMovingHorizontal || x >= 69)
                 return;
             interrupted = true;
             if (changeCarrier)
@@ -315,7 +315,7 @@ public sealed class PcbPlacementRepeatTests
         Assert.True(lost);
         Assert.False(raisedAfterLoss);
         Assert.True(rig.Io.GetInput(InputIo.PcbPlacementVacuumDetected));
-        Assert.Equal(StationCylinderState.Down, rig.Handler.Lift);
+        Assert.Equal(StationCylinderState.Down, rig.Placer.Lift);
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
     }
@@ -335,7 +335,7 @@ public sealed class PcbPlacementRepeatTests
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         void StopWhileHolding(double x, double y, double z)
         {
-            if (!stopDuringPickup && rig.Handler.PcbSecured && rig.Motion.IsMovingHorizontal && x < 69)
+            if (!stopDuringPickup && rig.Placer.PcbSecured && rig.Motion.IsMovingHorizontal && x < 69)
                 stop.Cancel();
         }
         void StopOnVacuum(InputIo input, bool on)
@@ -348,7 +348,7 @@ public sealed class PcbPlacementRepeatTests
         await rig.Placer.RunAsync(stop.Token, repeat: true);
         rig.Motion.PositionChanged -= StopWhileHolding;
         rig.Io.InputChanged -= StopOnVacuum;
-        Assert.True(rig.Handler.PcbSecured);
+        Assert.True(rig.Placer.PcbSecured);
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
         Assert.False(rig.Motion.IsMoving);
@@ -512,16 +512,14 @@ public sealed class PcbPlacementRepeatTests
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
         Assert.False(rig.Io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
-        Assert.True(MotionService.IsSettled(rig.Handler.Motion.Feedback, MotionAxis.X, MotionAxis.Y));
-        var position = rig.Handler.Motion.Feedback.Position;
+        Assert.True(MotionService.IsSettled(rig.Placer.Motion.Feedback, MotionAxis.X, MotionAxis.Y));
+        var position = rig.Placer.Motion.Feedback.Position;
         Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.X, position.X);
         Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.Y, position.Y);
     }
 
     private sealed class RepeatRig : IDisposable
     {
-        private readonly VirtualMotionService _supplyMotion;
-
         public RepeatRig(bool loadPcbs, bool enableSupply = false)
         {
             Recipe = new()
@@ -552,18 +550,18 @@ public sealed class PcbPlacementRepeatTests
                 Outputs(new PcbPlacementHandlerHardwareSettings(), new PcbSupplyHardwareSettings(), new ConveyorHardwareSettings()),
                 new MachineOptions { TimeoutMilliseconds = 1_000 });
             Motion = new(motion, new OperationCancellation());
-            _supplyMotion = new(motion, new());
+            SupplyMotion = new(motion, new());
             var simulation = new VirtualMachine(Io, [], incomingCarrierHasPcbs: () => loadPcbs);
             Motion.PositionChanged += (x, y, z) => simulation.UpdatePlacementPosition(
                 x, y, z, Settings.HandoffPosition, Settings.ReceiveZ,
                 Recipe.HeatSink1PcbPlacementPosition, Recipe.HeatSink2PcbPlacementPosition);
-            _supplyMotion.PositionChanged += (x, y, z) => simulation.UpdateSupplyPosition(
+            SupplyMotion.PositionChanged += (x, y, z) => simulation.UpdateSupplyPosition(
                 x, y, z, (10, 30, 5), (20, 30, 5), supplySettings.HandoffPosition);
 
             Units = new() { PcbSupply = enableSupply };
             var recipes = new RecipeManager(OpenMachineStore(), new());
             recipes.Current.PcbSupply = SupplyRecipe;
-            Supply = new PcbSupplier(_supplyMotion, new MotionStatus(_supplyMotion), Io, supplySettings, recipes, Units);
+            Supply = new PcbSupplier(SupplyMotion, new MotionStatus(SupplyMotion), Io, supplySettings, recipes, Units);
             Work = ConveyorStation.CreatePcbPlacement(Io);
             recipes.Current.PcbPlacement = Recipe;
             Placer = new PcbPlacer(Motion, new MotionStatus(Motion),
@@ -573,15 +571,13 @@ public sealed class PcbPlacementRepeatTests
                 Work,
                 recipes,
                 Units);
-            Handler = Placer;
         }
 
         public PcbPlacementHandlerSettings Settings { get; }
         public VirtualIoService Io { get; }
         public UnitSettings Units { get; }
         public VirtualMotionService Motion { get; }
-        public VirtualMotionService SupplyMotion => _supplyMotion;
-        public PcbPlacer Handler { get; }
+        public VirtualMotionService SupplyMotion { get; }
         public ConveyorStation Work { get; }
         public PcbPlacer Placer { get; }
         public PcbPlacementRecipe Recipe { get; }
@@ -594,8 +590,8 @@ public sealed class PcbPlacementRepeatTests
         {
             Io.Initialize();
             Motion.Initialize();
-            _supplyMotion.Initialize();
-            await Task.WhenAll(HomeAsync(Motion, 2_000), HomeAsync(_supplyMotion, 2_000));
+            SupplyMotion.Initialize();
+            await Task.WhenAll(HomeAsync(Motion, 2_000), HomeAsync(SupplyMotion, 2_000));
             // Receive the simulator's material instead of overwriting its PCB detection inputs.
             Io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
             Io.SetOutput(OutputIo.MainConveyorForward, true);
@@ -604,13 +600,13 @@ public sealed class PcbPlacementRepeatTests
             await ((IIoService)Io).WaitForInputAsync(InputIo.PcbPlacementHeatSink2Present, true);
             Io.SetOutput(OutputIo.MainConveyorRun, false);
             await Work.SeatAsync(CancellationToken.None);
-            await Handler.MoveAxisAsync(MotionAxis.Z, Settings.HandoffPosition.Z);
+            await Placer.MoveAxisAsync(MotionAxis.Z, Settings.HandoffPosition.Z);
         }
 
         public void Dispose()
         {
             Motion.Dispose();
-            _supplyMotion.Dispose();
+            SupplyMotion.Dispose();
         }
     }
 }

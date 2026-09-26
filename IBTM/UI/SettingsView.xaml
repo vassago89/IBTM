@@ -526,7 +526,6 @@
                                         <TextBlock Text="AlphaMotion · TMC-AE16DIOe" Style="{StaticResource SettingSectionTitle}"/>
                                         <TextBlock Text="Card No." Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            x:Name="AlphaMotionCardNumberInput"
                                             Text="{Binding Settings.AlphaMotion.ControllerNumber, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                     </StackPanel>
                                 </Border>

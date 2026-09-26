@@ -203,7 +203,6 @@ public sealed class RecipeTests
             UpperLeftLocatingPin = new() { X = 100, Y = 200 },
             LowerRightLocatingPin = new() { X = 200, Y = 300 },
         };
-        var inspection = new InspectionGantrySettings();
         var fastening = new BoltFasteningSettings
         {
             ShootingHead = new()
@@ -230,7 +229,6 @@ public sealed class RecipeTests
         await editor.SaveAsync();
         var loaded = database.LoadRecipe(recipe.Name);
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count);
-        Assert.Equal(2, loaded.Pcb.BoltPoints.Count());
         Assert.Equal(13d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().X);
         Assert.Equal(175d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().X);
         Assert.Equal(140, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().BrightnessThreshold);
@@ -401,7 +399,6 @@ public sealed class RecipeTests
             UpperLeftLocatingPin = new() { X = 100, Y = 200 },
             LowerRightLocatingPin = new() { X = 200, Y = 300 },
         };
-        var inspection = new InspectionGantrySettings();
         var fastening = new BoltFasteningSettings
         {
             SafeZ = 5,

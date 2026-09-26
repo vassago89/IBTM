@@ -57,7 +57,6 @@ public sealed class OutputWindowThreadingTests
                             try
                             {
                                 await VerifyWindowsAsync(app);
-                                var lifecycle = new MachineLifecycleTests();
                             }
                             catch (Exception error)
                             {
@@ -236,11 +235,7 @@ public sealed class OutputWindowThreadingTests
         var log = services.GetRequiredService<ApplicationLog>();
         var notifications = new List<int>();
         var uiThread = Environment.CurrentManagedThreadId;
-        var openButton = new Button();
-        openButton.SetBinding(
-            UIElement.IsEnabledProperty,
-            new Binding(nameof(MainViewModel.OutputsWindowEnabled))
-            { Source = main });
+        var openButton = new Button { Command = main.OpenOutputsCommand };
         OutputWindow? window = null;
         try
         {

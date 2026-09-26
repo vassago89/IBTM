@@ -174,8 +174,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     public bool ProtocolEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && Bus.IsOpen;
 
-    public bool VirtualResultEnabled => !IsClosing;
-
     private byte SlaveAddress => byte.Parse(SlaveText);
 
     public IRelayCommand QueueResultCommand { get; }
@@ -797,7 +795,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(PortSelectionEnabled));
         OnPropertyChanged(nameof(SlaveSelectionEnabled));
         OnPropertyChanged(nameof(ProtocolEnabled));
-        OnPropertyChanged(nameof(VirtualResultEnabled));
         RefreshPortsCommand.NotifyCanExecuteChanged();
         ToggleConnectionCommand.NotifyCanExecuteChanged();
         SelectPresetCommand.NotifyCanExecuteChanged();

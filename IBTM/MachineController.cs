@@ -1930,13 +1930,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
             var value = !_io.GetOutput(output.Signal);
-            if (output.Signal == OutputIo.ShootBolt)
-            {
-                _io.SetOutput(output.Signal, value);
-                return;
-            }
             switch (output.Signal)
             {
+                case OutputIo.ShootBolt:
+                    _io.SetOutput(output.Signal, value);
+                    break;
                 case OutputIo.PcbSupplyRotate:
                     await _pcbSupply.SetRotatedAsync(value, operation.Token);
                     break;
@@ -1967,14 +1965,10 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 case OutputIo.NgShuttleDown:
                     await _ngConveyor.SetShuttleDownAsync(value, operation.Token);
                     break;
-                case OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward or OutputIo.PcbPlacementIpmDown:
-                case OutputIo.PickupTableDown:
-                case OutputIo.PcbPlacementBackupPlateUp:
-                case OutputIo.BoltFasteningBackupPlateUp:
-                case OutputIo.InspectionBackupPlateUp:
-                case OutputIo.PcbPlacementStopperUp:
-                case OutputIo.BoltFasteningStopperUp:
-                case OutputIo.InspectionStopperUp:
+                case OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward or OutputIo.PcbPlacementIpmDown
+                    or OutputIo.PickupTableDown or OutputIo.PcbPlacementBackupPlateUp or OutputIo.BoltFasteningBackupPlateUp
+                    or OutputIo.InspectionBackupPlateUp or OutputIo.PcbPlacementStopperUp or OutputIo.BoltFasteningStopperUp
+                    or OutputIo.InspectionStopperUp:
                     await _io.SetOutputAndWaitAsync(output.Signal, value, operation.Token);
                     break;
                 default:

@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using IBTM.Core;
 
 namespace IBTM;
@@ -45,6 +46,7 @@ public sealed class UnitSettings : Setting
         }
     }
 
+    [JsonIgnore]
     public bool IsAnyUnitEnabled
     {
         get

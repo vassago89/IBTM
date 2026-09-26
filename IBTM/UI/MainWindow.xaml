@@ -1,5 +1,4 @@
 <Window x:Class="IBTM.UI.MainWindow"
-    x:Name="MainView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -8,7 +7,6 @@
     xmlns:machine="clr-namespace:IBTM"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
-    IsEnabled="{Binding ControlsEnabled}"
     Width="1920"
     Height="1080"
     Icon="{StaticResource AppIcon}"
@@ -22,6 +20,15 @@
     FontFamily="Segoe UI Variable Text, Segoe UI"
     Background="{StaticResource AppBgBrush}"
     Validation.ErrorTemplate="{x:Null}">
+    <Window.Style>
+        <Style TargetType="Window">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsClosing}" Value="True">
+                    <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Style>
     <Window.Resources>
         <DataTemplate DataType="{x:Type ui:OperationViewModel}">
             <ui:OperationView/>
@@ -148,7 +155,6 @@
                     <Button Content="INPUTS" Margin="8,8,8,0" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenInputsCommand}"/>
 
                     <Button Content="OUTPUTS" Style="{StaticResource SidebarToolButtonStyle}"
-        IsEnabled="{Binding OutputsWindowEnabled}"
         ToolTip="Open in MANUAL only. Individual controls remain safety-interlocked." ToolTipService.ShowOnDisabled="True"
         Command="{Binding OpenOutputsCommand}"/>
 
@@ -156,7 +162,6 @@
         ToolTip="Axis numbers, positions and feedback. Controls remain safety-interlocked." Command="{Binding OpenMotionCommand}"/>
 
                     <Button Content="ADC TEST" Style="{StaticResource SidebarToolButtonStyle}"
-        IsEnabled="{Binding AdcProtocolEnabled}"
         Command="{Binding OpenAdcProtocolCommand}"/>
                     <Button Content="LOGS" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenLogsCommand}"/>
                 </StackPanel>
@@ -201,7 +206,7 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border x:Name="ModeBadge" Width="90" Margin="0,0,8,0">
+                        <Border Width="90" Margin="0,0,8,0">
                             <Border.Style>
                                 <Style TargetType="Border" BasedOn="{StaticResource StateBadgeStyle}">
                                     <Setter Property="BorderThickness" Value="1"/>
@@ -358,7 +363,7 @@
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                             <TextBlock Text="{Binding NavigationError}"
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                            <TextBlock x:Name="RecipeError" Text="{Binding RecipeEditor.Error}"
+                            <TextBlock Text="{Binding RecipeEditor.Error}"
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"
                                 ToolTip="Your edits remain in memory. Resolve the storage problem, then retry the recipe operation."/>
                         </StackPanel>
@@ -376,7 +381,7 @@
                                 <Style.Triggers>
                                     <MultiDataTrigger>
                                         <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding OperationPageSelected}" Value="True"/>
+                                            <Condition Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.Operation}"/>
                                             <Condition Binding="{Binding Operation.StartBlocked}" Value="True"/>
                                         </MultiDataTrigger.Conditions>
                                         <Setter Property="Visibility" Value="Visible"/>
@@ -392,10 +397,18 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal"
-                            Visibility="{Binding OperationPageSelected,
-                                                         Converter={StaticResource BoolToVis}}">
-                            <CheckBox x:Name="RepeatMode" Content="REPEAT" Margin="0,0,18,0" VerticalAlignment="Center"
+                        <StackPanel Orientation="Horizontal">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.Operation}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <CheckBox Content="REPEAT" Margin="0,0,18,0" VerticalAlignment="Center"
                                 ToolTip="Run Repeat in TEACHING (MANUAL) mode. Both bolt feeders are ignored; pickup travel remains active without vacuum ON, and both motors use the dry-run duration. Inspection carries the gripped carrier to the shuttle position without lowering, then returns to Carrier Pickup (S3) to place it."
                                 IsChecked="{Binding Operation.State.RepeatEnabled, BindingGroupName={x:Null}}"
                                 IsEnabled="{Binding Operation.State.SetupEditingEnabled}"/>
@@ -441,7 +454,7 @@
                                 </Button.Style>
                             </Button>
                         </StackPanel>
-                        <Button x:Name="AlarmResetButton"
+                        <Button
                             Command="{Binding ResetCommand}"
                             ToolTip="Silences the buzzer even while an alarm remains. Hardware recovery runs only when stopped and safety conditions allow; it may enable servos but does not home axes or start automatic operation."
                             ToolTipService.ShowOnDisabled="True" MinWidth="120" Height="48" Margin="0,0,8,0">

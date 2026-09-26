@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Windows;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
@@ -18,13 +19,13 @@ public sealed class MachineMap
     private readonly BoltFasteningSettings _fastening;
     private readonly CarrierReferenceSettings _carrier;
     private readonly NgCarrierTransferSettings _transfer;
-    private static readonly (double X, double Y) s_supplyPcb1;
-    private static readonly (double X, double Y) s_supplyPcb2;
-    private static readonly (double X, double Y) s_supplyHandoff;
-    private static readonly (double X, double Y) s_placementHandoff;
-    private static readonly (double X, double Y) s_placementHeatSink1;
-    private static readonly (double X, double Y) s_placementHeatSink2;
-    private static readonly (double X, double Y) s_pickupFeederOffset;
+    private static readonly Point s_supplyPcb1;
+    private static readonly Point s_supplyPcb2;
+    private static readonly Point s_supplyHandoff;
+    private static readonly Point s_placementHandoff;
+    private static readonly Point s_placementHeatSink1;
+    private static readonly Point s_placementHeatSink2;
+    private static readonly Point s_pickupFeederOffset;
 
     static MachineMap()
     {
@@ -46,7 +47,7 @@ public sealed class MachineMap
         s_placementHeatSink2 = MachinePlan.Offset(
             MachinePlan.PlacementHeatSink2,
             MachinePlan.PlacementToolCenter);
-        s_pickupFeederOffset = (
+        s_pickupFeederOffset = new Point(
             -MachinePlan.PickupFeederWidth / 2,
             -MachinePlan.PickupFeederHeight / 2);
     }
@@ -75,11 +76,11 @@ public sealed class MachineMap
                 || _recipes.Current.PcbSupply.Pcb2PickPosition.Y is not { } pcb2Y)
                 return false;
             return MachinePlan.GetSide(
-                (_supply.HandoffPosition.X, _supply.HandoffPosition.Y),
-                (
+                new Point(_supply.HandoffPosition.X, _supply.HandoffPosition.Y),
+                new Point(
                     _recipes.Current.PcbSupply.Pcb1PickPosition.X,
                     pcb1Y),
-                (
+                new Point(
                     _recipes.Current.PcbSupply.Pcb2PickPosition.X,
                     pcb2Y)) != 0;
         }
@@ -90,13 +91,13 @@ public sealed class MachineMap
         get
         {
             return MachinePlan.GetSide(
-                (
+                new Point(
                     _placement.HandoffPosition.X,
                     _placement.HandoffPosition.Y),
-                (
+                new Point(
                     _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.X,
                     _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
-                (
+                new Point(
                     _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.X,
                     _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.Y)) != 0;
         }
@@ -118,7 +119,7 @@ public sealed class MachineMap
         return CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin);
     }
 
-    public (double X, double Y)? GetSupplyPosition(MotionPosition current)
+    public Point? GetSupplyPosition(MotionPosition current)
     {
         if (current is not { X: { } x, Y: { } y }
             || _recipes.Current.PcbSupply.Pcb1PickPosition.Y is not { } pcb1Y
@@ -127,13 +128,13 @@ public sealed class MachineMap
         return FromThreePoints(
             x,
             y,
-            (
+            new Point(
                 _recipes.Current.PcbSupply.Pcb1PickPosition.X,
                 pcb1Y),
-            (
+            new Point(
                 _recipes.Current.PcbSupply.Pcb2PickPosition.X,
                 pcb2Y),
-            (
+            new Point(
                 _supply.HandoffPosition.X,
                 _supply.HandoffPosition.Y),
             s_supplyPcb1,
@@ -141,20 +142,20 @@ public sealed class MachineMap
             s_supplyHandoff);
     }
 
-    public (double X, double Y)? GetPlacementPosition(MotionPosition current)
+    public Point? GetPlacementPosition(MotionPosition current)
     {
         if (current is not { X: { } x, Y: { } y })
             return null;
         return FromThreePoints(
             x,
             y,
-            (
+            new Point(
                 _placement.HandoffPosition.X,
                 _placement.HandoffPosition.Y),
-            (
+            new Point(
                 _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.X,
                 _recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
-            (
+            new Point(
                 _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.X,
                 _recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition.Y),
             s_placementHandoff,
@@ -162,7 +163,7 @@ public sealed class MachineMap
             s_placementHeatSink2);
     }
 
-    public (double X, double Y)? GetFasteningPosition(MotionPosition current, FasteningHead head)
+    public Point? GetFasteningPosition(MotionPosition current, FasteningHead head)
     {
         return current is { X: { } x, Y: { } y }
             ? MapFastening(x, y, head, head == FasteningHead.Pickup
@@ -170,27 +171,27 @@ public sealed class MachineMap
             : null;
     }
 
-    public (double X, double Y)? PickupFeederPosition
+    public Point? PickupFeederPosition
     {
         get
         {
             var point = _fastening.PickupPosition;
             if (MapFastening(point.X, point.Y, FasteningHead.Pickup, MachinePlan.PickupToolCenter) is not { } mapped)
                 return null;
-            return (
+            return new Point(
                 mapped.X + MachinePlan.PickupToolCenter.X + s_pickupFeederOffset.X,
                 mapped.Y + MachinePlan.PickupToolCenter.Y + s_pickupFeederOffset.Y);
         }
     }
 
-    public (double X, double Y)? GetFasteningTargetPosition(BoltPoint bolt)
+    public Point? GetFasteningTargetPosition(BoltPoint bolt)
     {
         return bolt is { FasteningX: { } x, FasteningY: { } y }
             ? MapFastening(x, y, bolt.Head, MachinePlan.FasteningContentOrigin)
             : null;
     }
 
-    public (double X, double Y)? GetInspectionPosition(MotionPosition current)
+    public Point? GetInspectionPosition(MotionPosition current)
     {
         return InspectionDefined && current is { X: { } x, Y: { } y }
             ? MachinePlan.Offset(MapCarrier(x, y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight),
@@ -198,18 +199,18 @@ public sealed class MachineMap
             : null;
     }
 
-    public (double X, double Y)? GetNgPickupPosition(MotionPosition current)
+    public Point? GetNgPickupPosition(MotionPosition current)
     {
         if (!InspectionDefined || current is not { X: { } x, Y: { } y })
             return null;
         var upperLeft = _carrier.UpperLeftLocatingPin!;
         var lowerRight = _carrier.LowerRightLocatingPin!;
-        var first = (upperLeft.X, upperLeft.Y);
-        var second = (lowerRight.X, lowerRight.Y);
+        var first = new Point(upperLeft.X, upperLeft.Y);
+        var second = new Point(lowerRight.X, lowerRight.Y);
         var pickup = _transfer.CarrierPickupPosition;
         var shuttle = _transfer.ShuttlePlacePosition;
-        var pickupSide = pickup is null ? 0 : MachinePlan.GetSide((pickup.X, pickup.Y), first, second);
-        var shuttleSide = MachinePlan.GetSide((shuttle.X, shuttle.Y), first, second);
+        var pickupSide = pickup is null ? 0 : MachinePlan.GetSide(new Point(pickup.X, pickup.Y), first, second);
+        var shuttleSide = MachinePlan.GetSide(new Point(shuttle.X, shuttle.Y), first, second);
         var cameraUpperLeft = MachinePlan.Offset(
             MapCarrier(first.X, first.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight),
             MachinePlan.CameraCenter);
@@ -219,13 +220,13 @@ public sealed class MachineMap
 
         if (pickup is not null && pickupSide * shuttleSide < 0)
         {
-            var towardPickup = MachinePlan.GetSide((x, y), first, second) * pickupSide >= 0;
+            var towardPickup = MachinePlan.GetSide(new Point(x, y), first, second) * pickupSide >= 0;
             return FromThreePoints(
                 x,
                 y,
                 first,
                 second,
-                towardPickup ? (pickup.X, pickup.Y) : (
+                towardPickup ? new Point(pickup.X, pickup.Y) : new Point(
                     shuttle.X,
                     shuttle.Y),
                 cameraUpperLeft,
@@ -238,7 +239,7 @@ public sealed class MachineMap
         return FromTwoPoints(x, y, first, second, cameraUpperLeft, cameraLowerRight);
     }
 
-    public (double X, double Y)? GetInspectionTargetPosition(BoltPoint bolt)
+    public Point? GetInspectionTargetPosition(BoltPoint bolt)
     {
         var fovCount = _recipes.Current.CarrierImages.Count(fov => !fov.IsBarcode
             && fov.HeatSink == bolt.HeatSink && fov.BoltNumber == bolt.Number);
@@ -248,8 +249,8 @@ public sealed class MachineMap
         return MachinePlan.Offset(mapped, MachinePlan.InspectionContentOrigin);
     }
 
-    private (double X, double Y)? MapFastening(
-        double x, double y, FasteningHead head, (double X, double Y) origin)
+    private Point? MapFastening(
+        double x, double y, FasteningHead head, Point origin)
     {
         var settings = _fastening.GetHead(head);
         if (!_carrier.IsDefined || !HasPins(settings))
@@ -262,8 +263,8 @@ public sealed class MachineMap
         return MachinePlan.Offset(mapped, origin);
     }
 
-    private (double X, double Y) MapCarrier(double x, double y,
-        (double X, double Y) upperLeft, (double X, double Y) lowerRight)
+    private Point MapCarrier(double x, double y,
+        Point upperLeft, Point lowerRight)
     {
         var first = _carrier.UpperLeftLocatingPin!;
         var second = _carrier.LowerRightLocatingPin!;
@@ -296,20 +297,20 @@ public sealed class MachineMap
         var centerY = (first.Y + second.Y) / 2;
         var halfWidth = Math.Max(centerX - minX, maxX - centerX);
         var halfHeight = Math.Max(centerY - minY, maxY - centerY);
-        var sourceFirst = (centerX + (first.X <= second.X ? -halfWidth : halfWidth),
+        var sourceFirst = new Point(centerX + (first.X <= second.X ? -halfWidth : halfWidth),
             centerY + (first.Y <= second.Y ? -halfHeight : halfHeight));
-        var sourceSecond = (centerX + (first.X <= second.X ? halfWidth : -halfWidth),
+        var sourceSecond = new Point(centerX + (first.X <= second.X ? halfWidth : -halfWidth),
             centerY + (first.Y <= second.Y ? halfHeight : -halfHeight));
         return FromTwoPoints(x, y, sourceFirst, sourceSecond, upperLeft, lowerRight);
     }
 
-    private static (double X, double Y) FromTwoPoints(
+    private static Point FromTwoPoints(
         double x,
         double y,
-        (double X, double Y) first,
-        (double X, double Y) second,
-        (double X, double Y) targetFirst,
-        (double X, double Y) targetSecond)
+        Point first,
+        Point second,
+        Point targetFirst,
+        Point targetSecond)
     {
         var dx = second.X - first.X;
         var dy = second.Y - first.Y;
@@ -317,36 +318,36 @@ public sealed class MachineMap
         var ty = targetSecond.Y - targetFirst.Y;
         // Diagonal pins define separate X/Y scales. An axis-aligned pair uses a similarity transform.
         if (dx != 0 && dy != 0)
-            return (targetFirst.X + (x - first.X) * tx / dx, targetFirst.Y + (y - first.Y) * ty / dy);
+            return new Point(targetFirst.X + (x - first.X) * tx / dx, targetFirst.Y + (y - first.Y) * ty / dy);
 
         var lengthSquared = dx * dx + dy * dy;
         if (lengthSquared == 0)
             return default;
         var a = (tx * dx + ty * dy) / lengthSquared;
         var b = (ty * dx - tx * dy) / lengthSquared;
-        return (
+        return new Point(
             targetFirst.X + a * (x - first.X) - b * (y - first.Y),
             targetFirst.Y + b * (x - first.X) + a * (y - first.Y));
     }
 
-    private static (double X, double Y) FromThreePoints(
+    private static Point FromThreePoints(
         double x,
         double y,
-        (double X, double Y) source1,
-        (double X, double Y) source2,
-        (double X, double Y) source3,
-        (double X, double Y) target1,
-        (double X, double Y) target2,
-        (double X, double Y) target3)
+        Point source1,
+        Point source2,
+        Point source3,
+        Point target1,
+        Point target2,
+        Point target3)
     {
         var area = MachinePlan.GetSide(source1, source2, source3);
         if (area == 0)
             return default;
 
-        var first = MachinePlan.GetSide((x, y), source2, source3) / area;
-        var second = MachinePlan.GetSide((x, y), source3, source1) / area;
+        var first = MachinePlan.GetSide(new Point(x, y), source2, source3) / area;
+        var second = MachinePlan.GetSide(new Point(x, y), source3, source1) / area;
         var third = 1 - first - second;
-        return (
+        return new Point(
             (first * target1.X) + (second * target2.X) + (third * target3.X),
             (first * target1.Y) + (second * target2.Y) + (third * target3.Y));
     }

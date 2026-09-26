@@ -71,12 +71,12 @@ public partial class SettingsViewModel : ObservableObject
         CameraDrivers = Enum.GetValues<CameraDriver>();
         BoltDrivers = [BoltDriver.Virtual, BoltDriver.HantasAdc];
         var hardware = settings.HardwareSections;
-        InputMappings = hardware.OfType<InputHardwareSettings>()
+        var inputMappings = hardware.OfType<InputHardwareSettings>()
             .SelectMany(
                 section => section.Inputs.Select(
                     mapping => new HardwareMappingRow(section, mapping.Key)))
             .ToArray();
-        OutputMappings = hardware.OfType<IoHardwareSettings>()
+        var outputMappings = hardware.OfType<IoHardwareSettings>()
             .SelectMany(
                 section =>
                     section.Outputs.Select(
@@ -90,8 +90,8 @@ public partial class SettingsViewModel : ObservableObject
                         mapping =>
                             new HardwareMappingRow(section, mapping.Key) { Axis = mapping.Value }))
             .ToArray();
-        InputMappingView = GroupMappings(InputMappings);
-        OutputMappingView = GroupMappings(OutputMappings);
+        InputMappingView = GroupMappings(inputMappings);
+        OutputMappingView = GroupMappings(outputMappings);
     }
 
     [ObservableProperty]
@@ -134,10 +134,6 @@ public partial class SettingsViewModel : ObservableObject
     public LightDriver[] LightDrivers { get; }
 
     public bool IsVirtualCamera => _virtualCamera is not null;
-
-    public HardwareMappingRow[] InputMappings { get; }
-
-    public HardwareMappingRow[] OutputMappings { get; }
 
     public HardwareMappingRow[] AxisMappings { get; }
 

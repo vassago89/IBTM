@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -18,5 +19,6 @@ public sealed class InspectionGantryHardwareSettings : MotionHardwareSettings
     {
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.InspectionGantry;
 }

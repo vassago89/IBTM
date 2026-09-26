@@ -28,7 +28,7 @@
             <StackPanel>
                 <TextBlock Text="HANTAS ADC Protocol" Style="{StaticResource TitleStyle}"/>
                 <TextBlock Text="Separate serial connection for each fastening head" Style="{StaticResource PageSubtitleStyle}"/>
-                <ComboBox x:Name="HeadBox" Margin="0,10,0,0" Width="220" HorizontalAlignment="Left"
+                <ComboBox Margin="0,10,0,0" Width="220" HorizontalAlignment="Left"
                     ItemsSource="{Binding Heads}" SelectedItem="{Binding SelectedHead, Mode=TwoWay}"
                     IsEnabled="{Binding ConnectionControlsEnabled}">
                     <ComboBox.ItemTemplate>
@@ -38,10 +38,19 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
             </StackPanel>
-            <StackPanel x:Name="VirtualResultPanel" IsEnabled="{Binding VirtualResultEnabled}" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal"
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal"
                 Visibility="{Binding IsVirtual, Converter={StaticResource BoolToVis}}">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsClosing}" Value="True">
+                                <Setter Property="IsEnabled" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
                 <TextBlock Text="Next Virtual Result" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
-                <ComboBox x:Name="NextResultBox" SelectedItem="{Binding NextResult, Mode=TwoWay}" Width="155" Margin="10,0" ItemsSource="{Binding FasteningResults}">
+                <ComboBox SelectedItem="{Binding NextResult, Mode=TwoWay}" Width="155" Margin="10,0" ItemsSource="{Binding FasteningResults}">
                     <ComboBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type device:AdcEventStatus}">
                             <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
@@ -53,7 +62,7 @@
         </Grid>
 
         <Border Grid.Row="1" Margin="0,18,0,12" Padding="16,14" Style="{StaticResource CardStyle}">
-            <Grid x:Name="ConnectionControls" IsEnabled="{Binding ConnectionControlsEnabled}">
+            <Grid IsEnabled="{Binding ConnectionControlsEnabled}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="150"/>
@@ -66,17 +75,17 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Text="PORT" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
-                <ComboBox x:Name="PortBox" Grid.Column="1" Margin="10,0,8,0"
+                <ComboBox Grid.Column="1" Margin="10,0,8,0"
                     ItemsSource="{Binding PortNames}"
                     SelectedItem="{Binding SelectedPort, Mode=TwoWay}" IsEnabled="{Binding PortSelectionEnabled}"/>
-                <Button x:Name="RefreshPortsButton" Grid.Column="2" Content="Refresh" Padding="12,5"
+                <Button Grid.Column="2" Content="Refresh" Padding="12,5"
                     Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshPortsCommand}"/>
 
-                <ComboBox IsEnabled="{Binding PortSelectionEnabled}" x:Name="BaudBox" SelectedItem="{Binding SelectedBaudRate, Mode=TwoWay}" Grid.Column="3" Margin="16,0,0,0" ItemsSource="{Binding BaudRates}"/>
+                <ComboBox IsEnabled="{Binding PortSelectionEnabled}" SelectedItem="{Binding SelectedBaudRate, Mode=TwoWay}" Grid.Column="3" Margin="16,0,0,0" ItemsSource="{Binding BaudRates}"/>
 
                 <TextBlock Grid.Column="4" Margin="16,0,0,0" Text="SLAVE" VerticalAlignment="Center"
                     Style="{StaticResource SectionHeaderStyle}"/>
-                <TextBox IsEnabled="{Binding SlaveSelectionEnabled}" x:Name="SlaveBox" Grid.Column="5" Margin="10,0,0,0" Text="{Binding SlaveText, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBox IsEnabled="{Binding SlaveSelectionEnabled}" Grid.Column="5" Margin="10,0,0,0" Text="{Binding SlaveText, UpdateSourceTrigger=PropertyChanged}"/>
 
                 <Button x:Name="ConnectButton" Grid.Column="6" Margin="16,0,0,0"
                     Content="{Binding ConnectionAction}"
@@ -99,23 +108,23 @@
                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
                         <TextBlock Text="CONTROLLER" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <ui:HoldButton x:Name="ReverseButton" Content="Reverse (Hold)" Margin="0,0,8,0"
+                            <ui:HoldButton Content="Reverse (Hold)" Margin="0,0,8,0"
                                 PressCommand="{Binding ReverseCommand}"
                                 ReleaseCommand="{Binding ReleaseReverseCommand}"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 ToolTipService.ShowOnDisabled="True"
                                 ToolTip="Loosen while held. Release or Stop ends rotation; no automatic loose-complete judgement. Clear interrupted work manually and press RESET first."/>
-                            <Button x:Name="StopButton" Content="Stop" Style="{StaticResource DangerButtonStyle}" Command="{Binding StopCommand}"/>
+                            <Button Content="Stop" Style="{StaticResource DangerButtonStyle}" Command="{Binding StopCommand}"/>
                         </StackPanel>
                     </Grid>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="OperationPanel" IsEnabled="{Binding ProtocolEnabled}">
-                            <Button x:Name="SelectPresetButton" Content="Select Preset 1"
+                        <StackPanel IsEnabled="{Binding ProtocolEnabled}">
+                            <Button Content="Select Preset 1"
                                 Margin="0,14,0,12" HorizontalAlignment="Left" Padding="14,5"
                                 Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SelectPresetCommand}"/>
 
                             <WrapPanel Margin="0,0,0,14">
-                                <Button x:Name="StartButton" Content="Start Fastening" Margin="0,0,8,8"
+                                <Button Content="Start Fastening" Margin="0,0,8,8"
                                     ToolTipService.ShowOnDisabled="True"
                                     ToolTip="Clear interrupted work manually and press RESET before starting a manual test."
                                     Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartCommand}"/>
@@ -148,10 +157,10 @@
 
             <Border Grid.Column="2" Padding="18,16" Style="{StaticResource CardStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel x:Name="RegisterPanel" IsEnabled="{Binding ProtocolEnabled}">
+                    <StackPanel IsEnabled="{Binding ProtocolEnabled}">
                         <TextBlock Text="REGISTER ACCESS" Style="{StaticResource SectionHeaderStyle}"/>
 
-                        <ComboBox x:Name="AccessBox" SelectedItem="{Binding RegisterAccess, Mode=TwoWay}" Margin="0,14,0,12" ItemsSource="{Binding RegisterAccesses}"/>
+                        <ComboBox SelectedItem="{Binding RegisterAccess, Mode=TwoWay}" Margin="0,14,0,12" ItemsSource="{Binding RegisterAccesses}"/>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -163,15 +172,15 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="ADDRESS" Style="{StaticResource SectionHeaderStyle}"/>
-                                <TextBox x:Name="AddressBox" Margin="0,6,0,0" Text="{Binding AddressText, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBox Margin="0,6,0,0" Text="{Binding AddressText, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="COUNT" Style="{StaticResource SectionHeaderStyle}"/>
-                                <TextBox x:Name="CountBox" Margin="0,6,0,0" Text="{Binding CountText, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBox Margin="0,6,0,0" Text="{Binding CountText, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="4">
                                 <TextBlock Text="VALUE" Style="{StaticResource SectionHeaderStyle}"/>
-                                <TextBox x:Name="ValueBox" Margin="0,6,0,0" Text="{Binding ValueText, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBox Margin="0,6,0,0" Text="{Binding ValueText, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                         </Grid>
 

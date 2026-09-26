@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace IBTM.Device;
 
 public sealed class MachineHardwareSettings : IoHardwareSettings
@@ -29,6 +31,7 @@ public sealed class MachineHardwareSettings : IoHardwareSettings
         };
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.Machine;
 
     public override IoSection? GetSection(System.Enum signal)

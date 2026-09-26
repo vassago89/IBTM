@@ -159,9 +159,9 @@ public sealed class PcbPlacementStateSafetyTests
     {
         using var rig = new PlacementRig();
         await rig.InitializeAsync();
-        await rig.Handler.MoveToXYAsync(new() { X = 30, Y = 20, Z = 8 });
-        await rig.Handler.SetVacuumAsync(true);
-        Assert.Equal(PlacementPcbState.None, rig.Handler.Pcb);
+        await rig.Placer.MoveToXYAsync(new() { X = 30, Y = 20, Z = 8 });
+        await rig.Placer.SetVacuumAsync(true);
+        Assert.Equal(PlacementPcbState.None, rig.Placer.Pcb);
         var commanded = false;
         rig.Motion.MovingChanged += moving => commanded |= moving;
         rig.Io.OutputChanged += (output, on) => commanded = true;
@@ -222,7 +222,7 @@ public sealed class PcbPlacementStateSafetyTests
     {
         using var rig = new PlacementRig();
         await rig.InitializeAsync();
-        await rig.Handler.PrepareHandoffAsync();
+        await rig.Placer.PrepareHandoffAsync();
         rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         rig.Supply.Handoff = PcbSupplyHandoff.Holding;
         var lost = false;
@@ -261,12 +261,12 @@ public sealed class PcbPlacementStateSafetyTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         Assert.True(await rig.Placer.ExecuteStepAsync(
             rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token));
-        Assert.True(rig.Handler.IsAtHorizontalZ);
-        Assert.True(MotionService.IsSettled(rig.Handler.Motion.Feedback, MotionAxis.Y));
+        Assert.True(rig.Placer.IsAtHorizontalZ);
+        Assert.True(MotionService.IsSettled(rig.Placer.Motion.Feedback, MotionAxis.Y));
         Assert.Equal(rig.Position.Y, rig.Motion.Position.Y);
         Assert.Equal(50, rig.Motion.Position.X);
-        Assert.True(rig.Handler.PcbSecured);
-        Assert.Equal(StationCylinderState.Down, rig.Handler.IpmLift);
+        Assert.True(rig.Placer.PcbSecured);
+        Assert.Equal(StationCylinderState.Down, rig.Placer.IpmLift);
         Assert.Equal(PcbPlacementHandoff.Clear, rig.Placer.Handoff);
     }
 
@@ -297,7 +297,7 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.True(interrupted);
         Assert.Null(rig.Placer.ActivePcb);
         Assert.Single(rig.Work.Assemblies);
-        Assert.Equal(PlacementPcbState.Detected, rig.Handler.Pcb);
+        Assert.Equal(PlacementPcbState.Detected, rig.Placer.Pcb);
         Assert.False(rig.Work.Completed);
         Assert.False(rig.Motion.IsMoving);
     }
@@ -362,7 +362,6 @@ public sealed class PcbPlacementStateSafetyTests
                 Work,
                 recipes,
                 Units);
-            Handler = Placer;
             Io.OutputChanged += OnOutputChanged;
         }
 
@@ -371,7 +370,6 @@ public sealed class PcbPlacementStateSafetyTests
         public PcbPlacementHandlerSettings Settings { get; }
         public VirtualIoService Io { get; }
         public VirtualMotionService Motion { get; }
-        public PcbPlacer Handler { get; }
         public ConveyorStation Work { get; }
         public PcbPlacer Placer { get; }
         public MachineLifecycleTests.ScopedMotionProbe? FeedbackProbe { get; }
@@ -379,7 +377,7 @@ public sealed class PcbPlacementStateSafetyTests
 
         public async Task ReceiveAsync()
         {
-            await Handler.PrepareHandoffAsync();
+            await Placer.PrepareHandoffAsync();
             Supply.Handoff = PcbSupplyHandoff.Holding;
             Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
             await Placer.ExecuteStepAsync(Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
@@ -393,9 +391,9 @@ public sealed class PcbPlacementStateSafetyTests
             await HomeAsync(Motion, 2_000);
             Io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
             await Work.SeatAsync(CancellationToken.None);
-            await Handler.SetLiftDownAsync(false);
+            await Placer.SetLiftDownAsync(false);
             await ((IIoService)Io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
-            await Handler.MoveAxisAsync(MotionAxis.Z, Settings.HandoffPosition.Z);
+            await Placer.MoveAxisAsync(MotionAxis.Z, Settings.HandoffPosition.Z);
         }
 
         private void OnOutputChanged(OutputIo output, bool on)

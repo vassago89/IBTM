@@ -5,6 +5,8 @@
 | 데이터 | 위치 | 구현 |
 | --- | --- | --- |
 | 장비 설정, 레시피, 촬영 이미지 | 실행 폴더의 `Data/Machine.db` | `Shared/IBTM.Storage/MachineStore.cs` |
+| PCB 번호 | `Data/Machine.db`의 `PcbCounter` | 월별 결과 파일과 무관하게 계속 증가 |
+| PCB 결과·검사 이미지 | `PcbHistorySettings.Directory`의 `PCB-yyyy-MM.db` | `IBTM/PcbHistory.cs`가 작업 결과를 큐에 받아 저장 |
 | 현재 레시피·불러오기·저장·이미지 교체 | 레시피 관리 | `Shared/IBTM.Storage/RecipeManager.cs` |
 | 화면 명령·오류 표시·BitmapSource ↔ PNG | UI와 이미지 경계 | `IBTM/UI/RecipeEditor.cs` |
 
@@ -20,7 +22,7 @@
 - `Settings → Operation & Timing` 첫 항목의 **센서 감지 후 추가 구동 시간**은
   `Conveyor.CarrierStopDelaySeconds`다. 단위는 초이며, 0이면 추가 구동을 하지 않는다.
   정방향 이송 중 목적지 Heat Sink 2 감지 후 적용하며 Station 1·2·3이 같은 값을 쓴다.
-  Heat Sink 2만 감지된 상태에서는 이 타이머를 시작하지 않는다.
+  Heat Sink 1만 감지된 상태에서는 이 타이머를 시작하지 않는다.
 - 같은 탭에 공통 피드백·정지 확인, 볼트 공급, 체결 완료 대기 시간을 모았다.
   이 항목들은 최대 대기 시간이며 단위는 ms다. 1,000 ms = 1초.
 - `Bolt Shooting · Arrival Timing → Head Arrival Delay (s)`는 튜브 통과 감지 후
@@ -91,13 +93,14 @@ Teaching의 저장 버튼은 `Save` 하나다. 기록된 양쪽 인계값과 현
 ## 저장과 반영
 
 Settings에서 Save하고, 하드웨어 매핑·드라이버 설정 변경 후에는 재시작한다.
-체결기 타입은 `DriverSettings.Bolt`에 저장하며 기존 `HantasAdc` 값은 그대로 유지한다.
-`Io` 선택 시 `IoBoltHardwareSettings`의 전용 DI/DO를 사용하고 ADC 통신을 생성하지 않는다.
-IO형 주소는 별도 설정 객체로 저장하므로 ADC형으로 전환해도 편집한 주소는 유지한다.
-체결기 DI/DO는 타입과 관계없이 일반 IO로 등록하며 Input·Output 창에서 항상 표시·조작한다.
+체결기 타입은 `DriverSettings.Bolt`에 저장하며 선택지는 `Virtual`과 `HantasAdc`다.
+기존 `Io` 값은 로드할 때 `HantasAdc`로 정규화한다. 실장비는 START·방향·프리셋·리셋을 I/O로,
+상태·결과를 ADC로 처리한다. `IoBoltHardwareSettings`에는 공통 제어 출력 주소가 남아 있으며,
+삭제한 Ready·Alarm·FASTEN 입력 6개를 다시 등록하지 않는다.
 코드의 기본값 수정은 이미 저장된 DB 값을 변경하지 않는다.
 Settings 저장은 설비 STOP 신호로 취소하지 않으며, 실제 저장 실패는 화면과 로그에 표시한다.
-티칭의 저장 메시지와 오류를 확인하고, 검사 기준·조명 밝기 변경은 Teaching의 Save로 남긴다.
+좌표·촬영 조명·기준 이미지는 Inspection Gantry Teaching에서 저장한다.
+ROI·판독 설정은 별도 Inspection Teaching에서 저장하며 다음 검사 포인트부터 적용한다.
 티칭값 적용 후 저장 중 STOP으로 취소되면 미저장 안내를 표시한다. 편집값은 메모리에 남지만
 DB에는 이전 값이 유지되므로, 같은 값을 다시 저장해야 재시작 후에도 유지된다.
 FOV/ROI는 Heat Sink별로 독립적이며 캐리어 전체 맵/공유 PCB 영역은 사용하지 않는다.

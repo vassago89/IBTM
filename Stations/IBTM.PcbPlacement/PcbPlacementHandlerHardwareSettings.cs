@@ -53,6 +53,7 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
         };
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.PcbPlacementHandler;
 
     void IJsonOnDeserialized.OnDeserialized()

@@ -54,6 +54,7 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings, IJso
         };
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.BoltFastening;
 
     void IJsonOnDeserialized.OnDeserialized()

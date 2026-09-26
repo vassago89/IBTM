@@ -196,10 +196,6 @@ public partial class TeachingViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
     [NotifyPropertyChangedFor(nameof(ActiveMotionGroup))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
-    [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(AddBoltPointCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ReturnFromPickupCommand))]
     public partial HardwareArea SelectedTeachingUnit { get; set; } = HardwareArea.InspectionGantry;
 
     public bool IsBusy => Array.Exists(_commands, static command => command.IsRunning);
@@ -456,9 +452,6 @@ public partial class TeachingViewModel : ObservableObject
     public partial IReadOnlyList<TeachingPoint> FilteredPoints { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
-    [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
     public partial TeachingPoint? SelectedPoint { get; set; }
 
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
@@ -477,8 +470,6 @@ public partial class TeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedBarcode));
         OnPropertyChanged(nameof(IsDataMatrixSelected));
         OnPropertyChanged(nameof(IsBoltSelected));
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        RemoveBoltPointCommand.NotifyCanExecuteChanged();
     }
 
     [ObservableProperty]

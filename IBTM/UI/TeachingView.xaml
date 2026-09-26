@@ -13,7 +13,7 @@
     Background="{StaticResource AppBgBrush}"
     Validation.ErrorTemplate="{x:Null}">
     <UserControl.BindingGroup>
-        <BindingGroup Name="RecipeInputs"/>
+        <BindingGroup/>
     </UserControl.BindingGroup>
     <UserControl.Resources>
         <CollectionViewSource x:Key="TeachingPoints" Source="{Binding FilteredPoints}">
@@ -84,7 +84,7 @@
                             Margin="0,6,0,0"
                             Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
-                    <ui:TeachingPointList x:Name="TeachingPointsList" Grid.Row="1"
+                    <ui:TeachingPointList Grid.Row="1"
                         ItemsSource="{Binding Source={StaticResource TeachingPoints}}"
                         SelectedItem="{Binding SelectedPoint, UpdateSourceTrigger=PropertyChanged}"
                         Background="{StaticResource EquipBgBrush}" BorderThickness="1" BorderBrush="{StaticResource DividerBrush}"
@@ -117,7 +117,7 @@
                         <ComboBox ItemsSource="{Binding FasteningHeads}"
                             SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
                         <UniformGrid Columns="2">
-                            <Button x:Name="AddBoltButton" Content="Add Bolt"
+                            <Button Content="Add Bolt"
                                 Command="{Binding AddBoltPointCommand}"
                                 Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,3,0"/>
                             <Button Content="Remove Bolt"

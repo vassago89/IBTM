@@ -7,7 +7,6 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MotionWindowViewModel, IsDesignTimeCreatable=False}"
-    IsEnabled="{Binding ControlsEnabled}"
     Title="Motion Monitor"
     Width="1240"
     Height="720"
@@ -15,6 +14,15 @@
     MinHeight="480"
     WindowStartupLocation="CenterOwner"
     Background="{StaticResource AppBgBrush}">
+    <Window.Style>
+        <Style TargetType="Window">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsClosing}" Value="True">
+                    <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Style>
     <Window.Resources>
         <Style x:Key="MotionBit" TargetType="TextBlock" BasedOn="{StaticResource IoInputStateStyle}">
             <Setter Property="Margin" Value="3,0"/>

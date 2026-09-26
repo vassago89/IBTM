@@ -749,7 +749,6 @@ public sealed class BoltFasteningTests
             (InputIo.ShootingEscapeBackward, true));
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         var results = selectedHead == FasteningHead.Shooting ? assembly.PcbBoltResults : assembly.PickupBoltResults;
-        var selected = selectedHead == FasteningHead.Pickup ? pickup : shooting;
         var (start, cylinder, up, down) = selectedHead == FasteningHead.Pickup
             ? (OutputIo.PickupBoltStart, OutputIo.PickupHeadDown,
                 InputIo.PickupHeadUp, InputIo.PickupHeadDown)
@@ -1886,7 +1885,6 @@ public sealed class BoltFasteningTests
             LowerRightLocatingPin = new() { X = 100, Y = 100 },
         };
         var bolt = Bolt(1, head, 20, 30);
-        var layout = new PcbLayout { BoltPoints = [bolt] };
         bolt.FasteningZOffset = 0.75;
         var point = new TeachingPosition(TeachingTarget.BoltPosition, MotionGroup.BoltFastening,
             TeachMode.XYOnly, bolt.IsFasteningPositionDefined) { Bolt = bolt };

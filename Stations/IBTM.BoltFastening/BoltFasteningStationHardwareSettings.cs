@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using IBTM.Device;
 
 namespace IBTM.BoltFastening;
@@ -13,5 +14,6 @@ public sealed class BoltFasteningStationHardwareSettings : InputHardwareSettings
         };
     }
 
+    [JsonIgnore]
     public override HardwareArea Area => HardwareArea.BoltFasteningStation;
 }
