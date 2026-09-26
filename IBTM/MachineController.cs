@@ -1246,11 +1246,16 @@ public sealed partial class MachineController : INotifyPropertyChanged
             homingAxes = true;
             StopWhenHomeBecomesUnavailable();
             cancellationToken.ThrowIfCancellationRequested();
+            if (_units.PcbPlacement)
+            {
+                // Placement must finish homing before any other unit starts.
+                await CheckHomeAsync(
+                    _pcbPlacement.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                await CheckHomeAsync(_pcbPlacement.HomeHorizontalAsync(cancellationToken), cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
             await Task.WhenAll(
-                _units.PcbPlacement
-                    ? CheckHomeAsync(
-                        _pcbPlacement.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
-                    : Task.CompletedTask,
                 _units.PcbSupply
                     ? CheckHomeAsync(
                         _pcbSupply.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
@@ -1261,9 +1266,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     : Task.CompletedTask);
             cancellationToken.ThrowIfCancellationRequested();
             await Task.WhenAll(
-                _units.PcbPlacement
-                    ? CheckHomeAsync(_pcbPlacement.HomeHorizontalAsync(cancellationToken), cancellationToken)
-                    : Task.CompletedTask,
                 _units.PcbSupply
                     ? CheckHomeAsync(_pcbSupply.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask,

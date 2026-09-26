@@ -25,11 +25,14 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
-    [Fact]
-    public async Task PlacementTeachingHomeReportsHorizontalFailureAfterZHome()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementHomeReportsHorizontalFailureAfterZHome(bool allUnits)
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        if (!allUnits)
+            settings.Units = EnableOnly(MachineUnit.PcbPlacement);
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -42,11 +45,22 @@ public sealed partial class MachineLifecycleTests
             settings.PcbPlacementHandler.Motion.HorizontalHome.SearchSpeed = 0;
             await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
 
-            await teaching.HomeCommand.ExecuteAsync(null);
+            if (allUnits)
+                await machine.HomeAsync(CancellationToken.None);
+            else
+                await teaching.HomeCommand.ExecuteAsync(null);
 
             Assert.True(motion.GetAxisState(MotionAxis.Z).Homed);
             Assert.False(motion.GetAxisState(MotionAxis.X).Homed);
             Assert.False(motion.GetAxisState(MotionAxis.Y).Homed);
+            if (allUnits)
+            {
+                foreach (var (group, other) in services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>())
+                {
+                    if (group != MotionGroup.PcbPlacementHandler)
+                        Assert.All(other.Axes, axis => Assert.False(other.GetAxisState(axis).Homed));
+                }
+            }
             Assert.Equal(MachineAlarm.HomeFailed, state.Alarm);
             Assert.Contains(nameof(ArgumentOutOfRangeException), state.AlarmDetail);
             Assert.False(state.IsHoming);
@@ -85,7 +99,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task AllUnitsHomeEndsAtHomeWithoutMovingToWorkHeights()
+    public async Task AllUnitsHomeFinishesPlacementFirstAndEndsWithoutMovingToWorkHeights()
     {
         var settings = FlowSettings();
         settings.PcbPlacementHandler.HandoffPosition.Z = 8;
@@ -97,19 +111,27 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         var outputs = new ConcurrentQueue<OutputIo>();
         services.GetRequiredService<VirtualIoService>().OutputChanged += (output, _) => outputs.Enqueue(output);
+        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+        var placement = motions[MotionGroup.PcbPlacementHandler];
+        var starts = new ConcurrentQueue<(MotionGroup Group, bool PlacementHomed)>();
+        foreach (var (group, motion) in motions)
+        {
+            if (group != MotionGroup.PcbPlacementHandler)
+                motion.MovingChanged += moving =>
+                {
+                    if (moving)
+                        starts.Enqueue((group, placement.Axes.All(axis => placement.GetAxisState(axis).Homed)));
+                };
+        }
         try
         {
             await machine.HomeAsync(default);
 
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.Empty(outputs);
-            var motions = new[]
-            {
-                services.GetRequiredService<PcbPlacer>().Motion.Feedback,
-                services.GetRequiredService<BoltFasteningStation>().Motion.Feedback,
-                services.GetRequiredService<PcbSupplier>().Motion.Feedback,
-            };
-            foreach (var motion in motions)
+            Assert.Equal(motions.Count - 1, starts.Select(start => start.Group).Distinct().Count());
+            Assert.All(starts, start => Assert.True(start.PlacementHomed, $"{start.Group} started before Placement HOME completed."));
+            foreach (var motion in motions.Values)
             {
                 Assert.Equal((0, 0, 0), motion.Position);
                 Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).Homed));
@@ -124,10 +146,64 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task StopAtPlacementHomeCompletionPreventsRemainingHomeAndAllowsRestart()
+    {
+        await using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+        var placement = motions[MotionGroup.PcbPlacementHandler];
+        await machine.InitializeAsync();
+        var starts = new ConcurrentQueue<MotionGroup>();
+        foreach (var (group, motion) in motions)
+            motion.MovingChanged += moving =>
+            {
+                if (moving)
+                    starts.Enqueue(group);
+            };
+
+        void StopAfterPlacementHome()
+        {
+            if (!placement.Axes.All(axis => placement.GetAxisState(axis).Homed))
+                return;
+            placement.StateChanged -= StopAfterPlacementHome;
+            machine.Stop();
+        }
+
+        placement.StateChanged += StopAfterPlacementHome;
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
+
+            Assert.Equal(new[] { MotionGroup.PcbPlacementHandler, MotionGroup.PcbPlacementHandler }, starts);
+            Assert.False(state.IsHoming);
+            Assert.False(operations.HasActiveOperations);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+
+            starts.Clear();
+            await WaitUntilAsync(() => machine.IsHomeAllowed);
+            await machine.HomeAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3));
+
+            Assert.Equal(new[] { MotionGroup.PcbPlacementHandler, MotionGroup.PcbPlacementHandler }, starts.Take(2));
+            foreach (var motion in motions.Values)
+                Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).Homed));
+            Assert.False(state.IsHoming);
+            Assert.False(operations.HasActiveOperations);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            placement.StateChanged -= StopAfterPlacementHome;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task SynchronousHomeStartFailureWaitsForAlreadyStartedAxes()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
         settings.Units.BoltFastening = true;
         var failure = new MotionException("Start fastening HOME", new InvalidOperationException("SDK start failed."));
         var results = new Dictionary<MotionGroup, HomeResultMotion>();
@@ -147,23 +223,23 @@ public sealed partial class MachineLifecycleTests
             .AddIbtmApplication(settings)
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(group => group,
-                    group => group is MotionGroup.PcbPlacementHandler or MotionGroup.BoltFastening
+                    group => group is MotionGroup.PcbSupply or MotionGroup.BoltFastening
                         ? Wrap(provider, group) : provider.GetRequiredKeyedService<IXyMotion>(group)))
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         var homing = machine.HomeAsync(default);
-        var placement = results[MotionGroup.PcbPlacementHandler];
+        var supply = results[MotionGroup.PcbSupply];
         try
         {
             await results[MotionGroup.BoltFastening].Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            await WaitUntilAsync(() => placement.HomeCancellation.IsCancellationRequested);
+            await WaitUntilAsync(() => supply.HomeCancellation.IsCancellationRequested);
             Assert.False(homing.IsCompleted);
             Assert.True(state.IsHoming);
             Assert.True(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
 
-            placement.Result.SetCanceled();
+            supply.Result.SetCanceled();
             await homing.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Contains("SDK start failed.", state.AlarmDetail);
             Assert.False(state.IsHoming);
@@ -172,7 +248,7 @@ public sealed partial class MachineLifecycleTests
         }
         finally
         {
-            placement.Result.TrySetCanceled();
+            supply.Result.TrySetCanceled();
             machine.Stop();
             await homing;
             await machine.ShutdownAsync();
