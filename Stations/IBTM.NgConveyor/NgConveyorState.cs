@@ -56,15 +56,3 @@ public enum NgConveyorState
     ReturningToShuttle,
 
 }
-
-public enum NgShuttleLiftState
-{
-    [Description("Up")]
-    Up,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Down")]
-    Down,
-}

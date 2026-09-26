@@ -28,20 +28,21 @@ public sealed class MotionDiagnostics : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public MotionDiagnosticSnapshot Snapshot => System.Threading.Volatile.Read(ref _snapshot);
+    public MotionDiagnosticSnapshot Snapshot
+    {
+        get => System.Threading.Volatile.Read(ref _snapshot);
+        private set
+        {
+            if (Snapshot == value)
+                return;
+            System.Threading.Volatile.Write(ref _snapshot, value);
+            PropertyChanged?.Invoke(this, new(nameof(Snapshot)));
+        }
+    }
 
     internal void Invalidate(Exception error)
     {
-        Update(new(null, null, error));
-    }
-
-    private void Update(MotionDiagnosticSnapshot snapshot)
-    {
-        var previous = Snapshot;
-        if (previous == snapshot)
-            return;
-        System.Threading.Volatile.Write(ref _snapshot, snapshot);
-        PropertyChanged?.Invoke(this, new(nameof(Snapshot)));
+        Snapshot = new(null, null, error);
     }
 
     public void Refresh(IMotionDiagnostics feedback, MotionAxis axis)
@@ -73,7 +74,7 @@ public sealed class MotionDiagnostics : INotifyPropertyChanged
                 : new AggregateException(error, exception);
         }
 
-        Update(new(state, position, error));
+        Snapshot = new(state, position, error);
     }
 
     private static bool IsReadFailure(Exception error)

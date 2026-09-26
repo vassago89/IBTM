@@ -344,7 +344,7 @@ public sealed partial class ConveyorTests
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
         var originalJob = source.CurrentJob;
         var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordPcbBolt(1, new BoltResult(false, 1.25));
+        assembly.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
         source.Complete(originalJob);
         var pushing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         conveyor.Trace += message =>
@@ -407,7 +407,7 @@ public sealed partial class ConveyorTests
         var originalJob = source.CurrentJob;
         var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
         var result = new BoltResult(false, 1.25);
-        assembly.RecordPcbBolt(1, result);
+        assembly.RecordBolt(FasteningHead.Shooting, 1, result);
         source.Complete(originalJob);
         var runningWhenTransferred = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         destination.Station.Changed += () =>
@@ -673,7 +673,7 @@ public sealed partial class ConveyorTests
         await SetSeatedCarrierAsync(io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
         var job = source.CurrentJob;
         var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordPcbBolt(1, new BoltResult(false, 1.25));
+        assembly.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
         source.Complete(job);
         var run = conveyor.RunAsync();
         try

@@ -20,7 +20,12 @@ public sealed class HardwareMappingRow
 
     public int Order => Convert.ToInt32(Signal);
 
-    public int Number { get; set; }
+    public int Number
+    {
+        get => ((InputHardwareSettings)Hardware).Inputs[(InputIo)Signal];
+        set => ((InputHardwareSettings)Hardware).Inputs[(InputIo)Signal] = value;
+    }
+
     public OutputHardware? Output { get; init; }
     public AxisHardware? Axis { get; init; }
 }

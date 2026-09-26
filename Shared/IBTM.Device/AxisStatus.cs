@@ -31,7 +31,18 @@ public sealed class AxisStatus : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public AxisState? State { get; private set; }
+    public AxisState? State
+    {
+        get;
+        internal set
+        {
+            if (field == value)
+                return;
+            field = value;
+            PropertyChanged?.Invoke(this, new(nameof(State)));
+            PropertyChanged?.Invoke(this, new(nameof(Condition)));
+        }
+    }
 
     public AxisCondition Condition => GetCondition(State);
 
@@ -60,14 +71,5 @@ public sealed class AxisStatus : INotifyPropertyChanged
             default:
                 return AxisCondition.Ready;
         }
-    }
-
-    internal void Update(AxisState? state)
-    {
-        if (State == state)
-            return;
-        State = state;
-        PropertyChanged?.Invoke(this, new(nameof(State)));
-        PropertyChanged?.Invoke(this, new(nameof(Condition)));
     }
 }

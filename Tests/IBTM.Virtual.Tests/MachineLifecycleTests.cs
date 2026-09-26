@@ -501,10 +501,10 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(NgTransferLiftState.Down)]
-    [InlineData(NgTransferLiftState.Between)]
-    [InlineData(NgTransferLiftState.Up)]
-    public async Task ReleasedNgCarrierIsNotGrippedAgainOnRestart(NgTransferLiftState lift)
+    [InlineData(StationCylinderState.Down)]
+    [InlineData(StationCylinderState.Between)]
+    [InlineData(StationCylinderState.Up)]
+    public async Task ReleasedNgCarrierIsNotGrippedAgainOnRestart(StationCylinderState lift)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -519,11 +519,11 @@ public sealed partial class MachineLifecycleTests
         io.AutoResponseEnabled = false;
         io.SetInput(InputIo.NgCarrierDetected, true);
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        io.SetInput(InputIo.NgCarrierPickupDown, lift == NgTransferLiftState.Down);
-        io.SetInput(InputIo.NgCarrierPickupUp, lift == NgTransferLiftState.Up);
+        io.SetInput(InputIo.NgCarrierPickupDown, lift == StationCylinderState.Down);
+        io.SetInput(InputIo.NgCarrierPickupUp, lift == StationCylinderState.Up);
 
         Assert.Equal(
-            lift == NgTransferLiftState.Up
+            lift == StationCylinderState.Up
                 ? InspectionStationState.ReturningToWaitingPosition
                 : InspectionStationState.PlacingCarrier,
             station.GetNextStep());
@@ -534,7 +534,7 @@ public sealed partial class MachineLifecycleTests
         stop.Cancel();
         await run;
 
-        if (lift != NgTransferLiftState.Up)
+        if (lift != StationCylinderState.Up)
             await VerifyTransferReleaseAsync();
         // The carrier may leave the pickup sensor before the gripper reaches Open.
         io.SetInput(InputIo.NgCarrierDetected, false);
@@ -772,7 +772,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(pickup.IsOpen);
             Assert.False(shooting.IsOpen);
             Assert.Equal(19200, pickup.BaudRate);
-            await pickup.SelectPresetAsync(1, 7);
+            await pickup.WriteRegisterAsync(1, (ushort)AdcRemoteRegister.Preset, 7);
             diagnostics.SelectedHead = FasteningHead.Shooting;
             Assert.Equal("Connect", diagnostics.ConnectionAction);
             Assert.Equal(38400, diagnostics.SelectedBaudRate);

@@ -254,7 +254,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     private Controller GetController(byte slaveAddress)
     {
-        return _controllers.GetOrAdd(slaveAddress, static address => new Controller(address));
+        return _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
     }
 
     private async Task CompleteFasteningAsync(
@@ -336,14 +336,12 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     private sealed class Controller
     {
-        public Controller(byte slaveAddress)
+        public Controller()
         {
-            SlaveAddress = slaveAddress;
             Registers = [];
         }
 
         public FasteningHead? Head { get; set; }
-        public byte SlaveAddress { get; }
         public Dictionary<ushort, ushort> Registers { get; }
         public ushort EventCount { get; set; }
         public ushort Preset { get; set; } = 1;

@@ -20,7 +20,7 @@ public sealed partial class NgCarrierConveyor
         {
             while (Step is not NgConveyorState.ReadyToEject || _io.GetOutput(OutputIo.NgConveyorRun)
                 || !_io.GetInput(InputIo.NgConveyorPosition1Occupied) || _io.GetInput(InputIo.NgShuttleCarrierDetected)
-                || ShuttleLift != NgShuttleLiftState.Up || !IsTransferClear)
+                || ShuttleLift != StationCylinderState.Up || !IsTransferClear)
                 await changed.WaitAsync(cancellationToken);
         }
         finally
@@ -77,7 +77,7 @@ public sealed partial class NgCarrierConveyor
             operation.Token.ThrowIfCancellationRequested();
             if (!_io.GetInput(InputIo.NgShuttleCarrierDetected))
                 await SetShuttleDownAsync(true, operation.Token);
-            if (ShuttleLift != NgShuttleLiftState.Down && !_io.GetInput(InputIo.NgShuttleCarrierDetected))
+            if (ShuttleLift != StationCylinderState.Down && !_io.GetInput(InputIo.NgShuttleCarrierDetected))
                 throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
 
             _movement = Movement.None;

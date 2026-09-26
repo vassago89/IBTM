@@ -70,18 +70,6 @@ public enum NgTransferDestination
     Shuttle,
 }
 
-public enum NgTransferLiftState
-{
-    [Description("Up")]
-    Up,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Down")]
-    Down,
-}
-
 public enum NgTransferGripperState
 {
     [Description("Open")]

@@ -253,7 +253,7 @@ public sealed class ConveyorStation
 
     public bool Completed => CarrierPresent && _job.Completed;
 
-    public IEnumerable<HeatSinkAssembly> Assemblies => _job.Assemblies.Values.ToArray();
+    public IEnumerable<HeatSinkAssembly> Assemblies => _job.Assemblies.Values;
 
     public bool HasNg => Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
 

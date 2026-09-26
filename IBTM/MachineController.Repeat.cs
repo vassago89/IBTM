@@ -119,7 +119,7 @@ public sealed partial class MachineController
         {
             if (_units.PcbPlacement)
             {
-                if (_pcbPlacement.Lift != PlacementCylinderState.Up)
+                if (_pcbPlacement.Lift != StationCylinderState.Up)
                     return OutputBlockReason.PlacementNotRaised;
                 if (!_pcbPlacement.IsAtHorizontalZ)
                     return OutputBlockReason.PlacementNotAtSafeZ;

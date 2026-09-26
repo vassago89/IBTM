@@ -642,12 +642,6 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         cancellationToken.ThrowIfCancellationRequested();
         switch (point.Mode)
         {
-            case TeachMode.XOnly:
-                await MoveAxisAsync(MotionAxis.X, position.X, cancellationToken);
-                break;
-            case TeachMode.YOnly:
-                await MoveAxisAsync(MotionAxis.Y, position.Y, cancellationToken);
-                break;
             case TeachMode.ZOnly:
                 await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;

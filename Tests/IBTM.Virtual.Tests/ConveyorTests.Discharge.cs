@@ -42,7 +42,7 @@ public sealed partial class ConveyorTests
             OutputIo.BoltFasteningBackupPlateUp);
         virtualIo.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
         var assembly = boltWork.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordPcbBolt(1, new BoltResult(false, 0));
+        assembly.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 0));
         boltWork.Complete(boltWork.CurrentJob);
         virtualIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
         var frontReadyBeforeTransfer = false;

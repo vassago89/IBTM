@@ -8,8 +8,6 @@ public enum OutputBlockReason
     [Description("")]
     None = 0,
 
-    [Description("Read only: machine status is unavailable.")]
-    StateUnavailable,
     [Description("Read only: the machine is shutting down.")]
     ShuttingDown,
     [Description("Read only: control I/O is unavailable.")]

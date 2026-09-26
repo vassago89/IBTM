@@ -240,9 +240,9 @@ public sealed class MachineMap
 
     public (double X, double Y)? GetInspectionTargetPosition(BoltPoint bolt)
     {
-        var fovs = _recipes.Current.CarrierImages.Where(fov => !fov.IsBarcode
-            && fov.HeatSink == bolt.HeatSink && fov.BoltNumber == bolt.Number).ToArray();
-        if (!InspectionDefined || fovs.Length != 1 || bolt.InspectionPosition is not { } center)
+        var fovCount = _recipes.Current.CarrierImages.Count(fov => !fov.IsBarcode
+            && fov.HeatSink == bolt.HeatSink && fov.BoltNumber == bolt.Number);
+        if (!InspectionDefined || fovCount != 1 || bolt.InspectionPosition is not { } center)
             return null;
         var mapped = MapCarrier(center.X, center.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight);
         return MachinePlan.Offset(mapped, MachinePlan.InspectionContentOrigin);

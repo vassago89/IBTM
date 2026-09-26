@@ -67,7 +67,7 @@ public sealed partial class MachineLifecycleTests
     private static Dictionary<OutputIo, TeachingOutputRow> TeachingRows(TeachingViewModel teaching)
     {
         return teaching.TeachingIoGroups.SelectMany(group => group.Outputs)
-            .Where(row => row.Output is not null)
+            .Where(row => row.IsSupported)
             .ToDictionary(row => row.Io.Signal);
     }
 

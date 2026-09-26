@@ -173,7 +173,7 @@ public sealed partial class MainConveyor : AutoUnit
                     ? MainConveyorState.DischargingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
             return _inspection.IsClear
-                && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
+                && _units.Inspection
                 ? MainConveyorState.RaisingInspectionCarrier
                 : MainConveyorState.WaitingForInspectionTransfer;
         }
@@ -187,7 +187,7 @@ public sealed partial class MainConveyor : AutoUnit
             if (_inspection.Station.CarrierSeated)
                 return transfer;
             return _inspection.IsClear
-                && _units.IsMotionEnabled(MotionGroup.InspectionGantry)
+                && _units.Inspection
                 ? MainConveyorState.RaisingInspectionCarrier
                 : MainConveyorState.WaitingForInspectionTransfer;
         }

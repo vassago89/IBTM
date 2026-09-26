@@ -56,9 +56,7 @@ public static class DependencyInjection
                             {
                                 Number = mapping.Value.Number,
                                 OffNumber = mapping.Value.OffNumber,
-                                Feedback = mapping.Value.Feedback is null
-                                    ? null
-                                    : new(mapping.Value.Feedback.OnInput, mapping.Value.Feedback.OffInput),
+                                Feedback = mapping.Value.Feedback,
                             }));
 
         services
@@ -138,62 +136,38 @@ public static class DependencyInjection
         {
             var io = provider.GetRequiredService<IoSignals>();
             var machine = provider.GetRequiredService<MachineController>();
-            TeachingOutput[] outputs = [
-                new(OutputIo.PcbSupplyGripperClosed, HardwareArea.PcbSupply),
-                new(OutputIo.PcbSupplyIpmFixerForward, HardwareArea.PcbSupply),
-                new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply),
-                new(OutputIo.PcbPlacementHandlerDown, HardwareArea.PcbPlacementHandler),
-                new(OutputIo.PcbPlacementIpmDown, HardwareArea.PcbPlacementHandler),
-                new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler),
-                new(OutputIo.PcbPlacementStopperUp, HardwareArea.MainConveyor),
-                new(OutputIo.PcbPlacementBackupPlateUp, HardwareArea.MainConveyor),
-                new(OutputIo.PickupHeadDown, HardwareArea.BoltFastening),
-                new(OutputIo.PickupTableDown, HardwareArea.BoltFastening),
-                new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening),
-                new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening),
-                new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening),
-                new(OutputIo.ShootBolt, HardwareArea.BoltFastening),
-                new(OutputIo.BoltFasteningStopperUp, HardwareArea.MainConveyor),
-                new(OutputIo.BoltFasteningBackupPlateUp, HardwareArea.MainConveyor),
-                new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer),
-                new(OutputIo.NgCarrierGripperClose, HardwareArea.NgCarrierTransfer),
-                new(OutputIo.NgShuttleDown, HardwareArea.NgShuttle),
-                new(OutputIo.InspectionStopperUp, HardwareArea.MainConveyor),
-                new(OutputIo.InspectionBackupPlateUp, HardwareArea.MainConveyor),
-            ];
-            var commands = outputs.ToDictionary(output => output.Signal);
             return new Dictionary<HardwareArea, TeachingIoGroup[]>
             {
                 [HardwareArea.PcbSupply] = [
                     new(settings.PcbSupplyHardware, settings.PcbSupplyHardware.Outputs.Keys,
-                        io, commands, machine),
+                        io, machine),
                 ],
                 [HardwareArea.PcbPlacementHandler] = [
                     new(settings.PcbPlacementStationHardware,
                         [OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp],
-                        io, commands, machine),
+                        io, machine),
                     new(settings.PcbPlacementHandlerHardware, settings.PcbPlacementHandlerHardware.Outputs.Keys,
-                        io, commands, machine),
+                        io, machine),
                 ],
                 [HardwareArea.BoltFastening] = [
                     new(settings.BoltFasteningStationHardware,
                         [OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp],
-                        io, commands, machine),
+                        io, machine),
                     new(settings.BoltFasteningHardware, settings.BoltFasteningHardware.Outputs.Keys,
-                        io, commands, machine),
+                        io, machine),
                     new(settings.IoBoltHardware, settings.IoBoltHardware.Outputs.Keys,
-                        io, commands, machine),
+                        io, machine),
                     new(settings.BoltFeederHardware, settings.BoltFeederHardware.Outputs.Keys,
-                        io, commands, machine),
+                        io, machine),
                 ],
                 [HardwareArea.InspectionGantry] = [
                     new(settings.InspectionStationHardware,
                         [OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp],
-                        io, commands, machine),
+                        io, machine),
                     new(settings.NgCarrierTransferHardware, settings.NgCarrierTransferHardware.Outputs.Keys,
-                        io, commands, machine),
+                        io, machine),
                     new(settings.NgShuttleHardware, settings.NgShuttleHardware.Outputs.Keys,
-                        io, commands, machine),
+                        io, machine),
                 ],
             };
         });

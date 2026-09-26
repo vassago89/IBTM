@@ -249,7 +249,7 @@
             <DataTrigger Binding="{Binding Io.HasFeedback}" Value="False">
                 <Setter TargetName="Feedback" Property="Visibility" Value="Collapsed"/>
             </DataTrigger>
-            <DataTrigger Binding="{Binding Output}" Value="{x:Null}">
+            <DataTrigger Binding="{Binding IsSupported}" Value="False">
                 <Setter TargetName="ToggleOutput" Property="Visibility" Value="Collapsed"/>
                 <Setter TargetName="ReadOnlyOutput" Property="Visibility" Value="Visible"/>
             </DataTrigger>

@@ -11,18 +11,16 @@ public sealed class TeachingOutputRow
 
     public TeachingOutputRow(
         IoOutputStatus io,
-        TeachingOutput? output,
         MachineController machine)
     {
         ToggleOutputCommand = new AsyncRelayCommand(ToggleOutputAsync, () => IsToggleOutputAllowed);
 
         _machine = machine;
         Io = io;
-        Output = output;
     }
 
     public IoOutputStatus Io { get; }
-    public TeachingOutput? Output { get; }
+    public bool IsSupported => MachineController.IsTeachingOutputSupported(Io.Signal);
     internal CancellationToken ViewCancellation { get; set; }
 
     private bool IsToggleOutputAllowed
@@ -30,8 +28,7 @@ public sealed class TeachingOutputRow
         get
         {
             return !ViewCancellation.IsCancellationRequested
-                && Output is not null
-                && _machine.IsSetTeachingOutputAllowed(Output, live: false);
+                && _machine.IsSetTeachingOutputAllowed(Io, live: false);
         }
     }
 
@@ -39,8 +36,6 @@ public sealed class TeachingOutputRow
 
     private Task ToggleOutputAsync(CancellationToken cancellationToken)
     {
-        if (Output is null)
-            return Task.CompletedTask;
-        return _machine.ToggleTeachingOutputAsync(Output, cancellationToken, ViewCancellation);
+        return _machine.ToggleTeachingOutputAsync(Io, cancellationToken, ViewCancellation);
     }
 }

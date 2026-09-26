@@ -30,8 +30,7 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
         _options = options;
         _inputs = CreateInitialInputs();
         _outputs = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
-        _feedbackVersions = new int[Enum.GetValues<OutputIo>().Max(
-            output => (int)output) + 1];
+        _feedbackVersions = new int[_outputs.Length];
         _responseGate = new();
         _autoResponseEnabled = true;
         _connected = true;

@@ -2,18 +2,6 @@ using System.ComponentModel;
 
 namespace IBTM.PcbPlacement;
 
-public enum PlacementCylinderState
-{
-    [Description("Up")]
-    Up,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Down")]
-    Down,
-}
-
 public enum PlacementPcbState
 {
     [Description("No PCB")]

@@ -200,7 +200,7 @@ public sealed partial class MachineLifecycleTests
         void CheckPickup()
         {
             if (MotionService.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition)
-                && pickup.Lift == NgTransferLiftState.Down
+                && pickup.Lift == StationCylinderState.Down
                 && pickup.Gripper == NgTransferGripperState.Closed
                 && io.GetInput(InputIo.NgCarrierDetected))
             {

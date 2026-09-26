@@ -26,18 +26,6 @@ public enum BoltFasteningState
     Disabled,
 }
 
-public enum BoltCylinderState
-{
-    [Description("Up")]
-    Up,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Down")]
-    Down,
-}
-
 internal enum BoltEscapeState
 {
     [Description("Forward")]

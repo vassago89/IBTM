@@ -161,7 +161,7 @@ public sealed partial class MachineLifecycleTests
         await work.Station.PrepareToReceiveAsync(CancellationToken.None);
         io.SetInput(InputIo.AutoMode, false);
         var assembly = work.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordPcbBolt(1, new(false, 0.5, Error: "Existing fastening NG"));
+        assembly.RecordBolt(FasteningHead.Shooting, 1, new(false, 0.5, Error: "Existing fastening NG"));
         await machine.PcbHistory.FlushAsync();
         var number = assembly.PcbNumber;
         var captures = new ConcurrentQueue<(HeatSinkSlot Pcb, int? Bolt)>();

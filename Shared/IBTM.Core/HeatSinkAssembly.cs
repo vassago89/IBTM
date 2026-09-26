@@ -63,18 +63,14 @@ public sealed class HeatSinkAssembly
 
     public AssemblyResult Result => FasteningResult == AssemblyResult.Ng ? AssemblyResult.Ng : InspectionResult;
 
-    public void RecordPcbBolt(int number, BoltResult result)
+    public void RecordBolt(FasteningHead head, int number, BoltResult result)
     {
-        Record(_pcbBoltResults, number, result);
-    }
-
-    public void RecordPickupBolt(int number, BoltResult result)
-    {
-        Record(_pickupBoltResults, number, result);
-    }
-
-    private void Record(ConcurrentDictionary<int, BoltResult> results, int number, BoltResult result)
-    {
+        var results = head switch
+        {
+            FasteningHead.Shooting => _pcbBoltResults,
+            FasteningHead.Pickup => _pickupBoltResults,
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
         results[number] = result;
         if (!result.Success)
         {

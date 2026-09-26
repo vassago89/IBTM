@@ -194,7 +194,7 @@ public sealed partial class AjinControllerTests
         io.Initialize();
         Assert.Equal(0, presentNotifications); // Initial levels are not new input edges.
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordPcbBolt(1, new BoltResult(false, 1.25));
+        assembly.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
         work.Complete(work.CurrentJob);
         Assert.True(work.Completed);
         var job = work.CurrentJob;
@@ -1005,12 +1005,12 @@ public sealed partial class AjinControllerTests
         status.RefreshControlFeedback();
         Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
         AjinSdk.Results.Remove(reset);
-        await motion.ResetAsync(); // Explicit RESET can now reach alarm reset before requesting Servo ON.
+        await motion.ResetAsync(); // Reset clears the drive alarm; the machine sequence owns Servo ON.
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         Assert.False(status.Axes[MotionAxis.X].State!.Value.Alarm);
-        Assert.True(status.Axes[MotionAxis.X].ServoOn);
-        Assert.True(status.Axes[MotionAxis.Y].ServoOn);
+        Assert.False(status.Axes[MotionAxis.X].State?.ServoOn);
+        Assert.False(status.Axes[MotionAxis.Y].State?.ServoOn);
     }
 
     [Fact]

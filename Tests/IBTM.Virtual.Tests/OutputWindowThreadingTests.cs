@@ -547,7 +547,7 @@ public sealed class OutputWindowThreadingTests
         await main.NavigateCommand.ExecuteAsync(AppPage.Teaching);
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         var teachingOutput = teaching.TeachingIoGroups.SelectMany(group => group.Outputs)
-            .First(row => row.Output is not null);
+            .First(row => row.IsSupported);
         var outputTemplate = (DataTemplate)Application.Current.FindResource("TeachingOutputTemplate");
         var outputPresenter = new ContentPresenter { Content = teachingOutput, ContentTemplate = outputTemplate };
         outputPresenter.ApplyTemplate();

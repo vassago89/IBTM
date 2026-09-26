@@ -81,7 +81,7 @@ public abstract class MotionService : IXyMotion
     public const double PositionToleranceMillimeters = 0.05;
 
     // Sequence checks always use current device feedback, never display snapshots.
-    public static bool IsSettled(IMotionFeedback motion, params MotionAxis[] axes)
+    public static bool IsSettled(IMotionFeedback motion, params IReadOnlyList<MotionAxis> axes)
     {
         return !motion.IsMoving && axes.All(axis => motion.GetAxisState(axis).InPosition);
     }
@@ -90,7 +90,7 @@ public abstract class MotionService : IXyMotion
     {
         if (!motion.IsReady
             || motion.Axes.Any(axis => !motion.GetAxisState(axis).Homed)
-            || !IsSettled(motion, motion.Axes.ToArray()))
+            || !IsSettled(motion, motion.Axes))
             return false;
         var current = motion.Position;
         return Math.Abs(current.X - target.X) <= PositionToleranceMillimeters

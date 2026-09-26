@@ -69,57 +69,6 @@ public interface IAdcBus
             cancellationToken);
         return AdcControllerStatus.FromRegisters(values);
     }
-
-    Task ResetAlarmAsync(byte slaveAddress, CancellationToken cancellationToken = default)
-    {
-        return WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.AlarmReset,
-            1,
-            cancellationToken);
-    }
-
-    Task SelectPresetAsync(
-        byte slaveAddress,
-        ushort preset,
-        CancellationToken cancellationToken = default)
-    {
-        return WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.Preset,
-            preset,
-            cancellationToken);
-    }
-
-    Task SetDirectionAsync(
-        byte slaveAddress,
-        AdcDirection direction,
-        CancellationToken cancellationToken = default)
-    {
-        return WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.Direction,
-            (ushort)direction,
-            cancellationToken);
-    }
-
-    Task StartAsync(byte slaveAddress, CancellationToken cancellationToken = default)
-    {
-        return WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.RemoteStart,
-            1,
-            cancellationToken);
-    }
-
-    Task StopAsync(byte slaveAddress, CancellationToken cancellationToken = default)
-    {
-        return WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.RemoteStart,
-            0,
-            cancellationToken);
-    }
 }
 
 public enum AdcFunctionCode : byte

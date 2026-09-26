@@ -74,7 +74,7 @@ public partial class SettingsViewModel : ObservableObject
         InputMappings = hardware.OfType<InputHardwareSettings>()
             .SelectMany(
                 section => section.Inputs.Select(
-                    mapping => new HardwareMappingRow(section, mapping.Key) { Number = mapping.Value }))
+                    mapping => new HardwareMappingRow(section, mapping.Key)))
             .ToArray();
         OutputMappings = hardware.OfType<IoHardwareSettings>()
             .SelectMany(
@@ -120,18 +120,6 @@ public partial class SettingsViewModel : ObservableObject
     public BoltDriver ActiveBoltDriver { get; }
 
     public LightDriver ActiveLightDriver { get; }
-
-    public BoltDriver SelectedBoltDriver
-    {
-        get => Settings.Drivers.Bolt;
-        set
-        {
-            if (Settings.Drivers.Bolt == value)
-                return;
-            Settings.Drivers.Bolt = value;
-            OnPropertyChanged();
-        }
-    }
 
     public bool IsVirtualDevelopment => DevelopmentProfile.IsEnabled;
 
@@ -230,12 +218,6 @@ public partial class SettingsViewModel : ObservableObject
             if (string.IsNullOrWhiteSpace(PcbResultsDirectory) || !Path.IsPathFullyQualified(PcbResultsDirectory))
                 throw new InvalidOperationException("Choose an absolute folder path for PCB results.");
             Directory.CreateDirectory(PcbResultsDirectory);
-            foreach (var row in InputMappings)
-            {
-                var hardware = (InputHardwareSettings)row.Hardware;
-                hardware.Inputs[(InputIo)row.Signal] = row.Number;
-            }
-
             await _store.SaveSettingsAsync(Settings.Sections);
             DatabaseMessage = "Settings saved. Restart to apply hardware and logging changes.";
             _log.LogInformation(

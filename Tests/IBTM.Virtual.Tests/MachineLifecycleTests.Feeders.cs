@@ -126,9 +126,9 @@ public sealed partial class MachineLifecycleTests
             if (on && output == OutputIo.PickupHeadVacuumPump)
             {
                 Assert.True(MotionService.IsAt(gantry.Motion.Feedback, settings.BoltFastening.PickupPosition));
-                Assert.Equal(BoltCylinderState.Up, gantry.PickupHeadPosition);
-                Assert.Equal(BoltCylinderState.Up, gantry.ShootingHeadPosition);
-                Assert.Equal(BoltCylinderState.Down, gantry.PickupTablePosition);
+                Assert.Equal(StationCylinderState.Up, gantry.PickupHeadPosition);
+                Assert.Equal(StationCylinderState.Up, gantry.ShootingHeadPosition);
+                Assert.Equal(StationCylinderState.Down, gantry.PickupTablePosition);
                 var position = gantry.Motion.Feedback.Position;
                 pickups.Enqueue((position.X, position.Y, position.Z));
             }
@@ -347,7 +347,7 @@ public sealed partial class MachineLifecycleTests
             atPickup = MotionService.IsAt(station.Motion.Feedback, settings.BoltFastening.PickupPosition);
             if (atPickup && !wasAtPickup)
             {
-                Assert.Equal(BoltCylinderState.Up, station.PickupHeadPosition);
+                Assert.Equal(StationCylinderState.Up, station.PickupHeadPosition);
                 pickups++;
                 if (pickups == 1)
                 {
@@ -367,7 +367,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(vacuumRequested);
             Assert.True(station.IsAtPickupXY);
             Assert.True(station.IsAtSafeZ);
-            Assert.Equal(BoltCylinderState.Down, station.PickupHeadPosition);
+            Assert.Equal(StationCylinderState.Down, station.PickupHeadPosition);
             Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
             Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults);
 

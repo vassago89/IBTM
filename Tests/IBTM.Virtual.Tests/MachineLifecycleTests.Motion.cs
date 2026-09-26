@@ -848,8 +848,8 @@ public sealed partial class MachineLifecycleTests
             if (!state.AutomaticRunning || started)
                 return;
             started = true;
-            readyBeforeStarting = placement.Lift == PlacementCylinderState.Up
-                && placement.IpmLift == (holdingPcb ? PlacementCylinderState.Down : PlacementCylinderState.Up);
+            readyBeforeStarting = placement.Lift == StationCylinderState.Up
+                && placement.IpmLift == (holdingPcb ? StationCylinderState.Down : StationCylinderState.Up);
             machine.Stop();
         }
 
@@ -1150,7 +1150,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.False(machine.IsHomeAllowed);
         Assert.Equal(HomeBlockReason.PlacementHoldingPcb, machine.HomeBlock);
-        Assert.Equal(PlacementCylinderState.Up, placement.Lift);
+        Assert.Equal(StationCylinderState.Up, placement.Lift);
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmDown));
 
         var move = placement.MoveToXYAsync(new() { X = 20, Y = 20 });
@@ -1229,8 +1229,8 @@ public sealed partial class MachineLifecycleTests
         io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, true));
         await retry.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal((40, 30, 12), gantry.Motion.Feedback.Position);
-        Assert.Equal(BoltCylinderState.Up, gantry.PickupHeadPosition);
-        Assert.Equal(BoltCylinderState.Up, gantry.ShootingHeadPosition);
+        Assert.Equal(StationCylinderState.Up, gantry.PickupHeadPosition);
+        Assert.Equal(StationCylinderState.Up, gantry.ShootingHeadPosition);
         await WaitUntilAsync(() => teaching.ReturnFromPickupCommand.CanExecute(null));
         var stopAtSafeZ = true;
         gantry.Motion.Feedback.PositionChanged += (_, _, z) =>

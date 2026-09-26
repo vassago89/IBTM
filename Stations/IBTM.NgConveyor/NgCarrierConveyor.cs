@@ -39,18 +39,18 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         transfer.Changed += WakeRun;
     }
 
-    public NgShuttleLiftState ShuttleLift
+    public StationCylinderState ShuttleLift
     {
         get
         {
             switch ((_io.GetInput(InputIo.NgShuttleUp), _io.GetInput(InputIo.NgShuttleDown)))
             {
                 case (true, false):
-                    return NgShuttleLiftState.Up;
+                    return StationCylinderState.Up;
                 case (false, true):
-                    return NgShuttleLiftState.Down;
+                    return StationCylinderState.Down;
                 default:
-                    return NgShuttleLiftState.Between;
+                    return StationCylinderState.Between;
             }
         }
     }
@@ -72,7 +72,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
     {
         get
         {
-            return ShuttleLift == NgShuttleLiftState.Up
+            return ShuttleLift == StationCylinderState.Up
                 && !_io.GetInput(InputIo.NgShuttleCarrierDetected)
                 && IsAcceptCarrierAllowed();
         }
@@ -172,7 +172,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
     {
         if (!_units.NgConveyor)
             return NgConveyorState.WaitingForCarrier;
-        if (ShuttleLift != NgShuttleLiftState.Up
+        if (ShuttleLift != StationCylinderState.Up
             && !runCommandOn
             && ((!_io.GetInput(InputIo.NgShuttleCarrierDetected)
                     && (_movement == Movement.None
@@ -185,7 +185,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         {
             if (!IsTransferClear)
                 return NgConveyorState.WaitingForTransferRelease;
-            if (ShuttleLift != NgShuttleLiftState.Down)
+            if (ShuttleLift != StationCylinderState.Down)
                 return NgConveyorState.LoweringShuttle;
         }
         // A stopped transfer with no presence feedback has no known physical location.
@@ -220,7 +220,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         if (_io.GetInput(InputIo.NgConveyorPosition1Occupied)
             && !_repeat
             && _io.GetInput(InputIo.NgCarrierEjectButton)
-            && ShuttleLift == NgShuttleLiftState.Up)
+            && ShuttleLift == StationCylinderState.Up)
         {
             return NgConveyorState.EjectingCarrier;
         }
@@ -245,7 +245,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
             return _io.GetInput(InputIo.NgConveyorPosition1Occupied) ? NgConveyorState.ReadyToEject : NgConveyorState.WaitingForCarrier;
         if (Full)
             return NgConveyorState.Full;
-        if (ShuttleLift != NgShuttleLiftState.Down)
+        if (ShuttleLift != StationCylinderState.Down)
             return NgConveyorState.WaitingForShuttleDown;
         if (!_io.GetInput(InputIo.NgConveyorPosition1Occupied))
             return NgConveyorState.MovingToPosition1;
@@ -288,7 +288,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                 NotifyChanged();
                 break;
             case NgConveyorState.WaitingForShuttleUp:
-                if (ShuttleLift != NgShuttleLiftState.Up)
+                if (ShuttleLift != StationCylinderState.Up)
                     return false;
 
                 _movement = Movement.None;

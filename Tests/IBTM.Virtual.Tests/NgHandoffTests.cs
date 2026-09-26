@@ -156,7 +156,7 @@ public sealed class NgHandoffTests
         {
             if (output == OutputIo.NgCarrierGripperClose && on)
             {
-                Assert.Equal(NgShuttleLiftState.Up, system.Conveyor.ShuttleLift);
+                Assert.Equal(StationCylinderState.Up, system.Conveyor.ShuttleLift);
                 picked.TrySetResult();
             }
             if (output == OutputIo.NgShuttleDown && !on)
@@ -266,7 +266,7 @@ public sealed class NgHandoffTests
         io.AutoResponseEnabled = false;
         var movedBeforeDown = false;
         motion.PositionChanged += (x, y, z) =>
-            movedBeforeDown |= system.Conveyor.ShuttleLift != NgShuttleLiftState.Down;
+            movedBeforeDown |= system.Conveyor.ShuttleLift != StationCylinderState.Down;
         using var firstRun = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
         var inspection = transfer.RunAsync(firstRun.Token);
         if (restartWhileWaiting)

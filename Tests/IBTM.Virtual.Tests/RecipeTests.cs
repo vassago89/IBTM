@@ -427,7 +427,6 @@ public sealed class RecipeTests
             new(TeachingTarget.BoltPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = bolt }, settings);
         Assert.False(position.Position.HasPosition);
         Assert.Null(position.Coordinates);
-        Assert.True(position.Position.IsTeachAllowed);
         Assert.Equal(TeachMode.XYOnly, position.Position.Mode);
         bolt.X = 110;
         bolt.Y = 220;

@@ -88,25 +88,23 @@ public abstract class InputHardwareSettings : HardwareSettings
 
 public abstract class IoHardwareSettings : InputHardwareSettings
 {
-    private Dictionary<OutputIo, OutputHardware> _outputs;
-
     protected IoHardwareSettings()
     {
-        _outputs = [];
+        Outputs = [];
     }
 
     public Dictionary<OutputIo, OutputHardware> Outputs
     {
-        get => _outputs;
+        get;
         set
         {
             // Loading addresses must retain the station's completion-sensor definition.
             foreach (var (signal, output) in value)
             {
-                if (_outputs.TryGetValue(signal, out var definition))
+                if (field.TryGetValue(signal, out var definition))
                     output.Feedback = definition.Feedback;
             }
-            _outputs = value;
+            field = value;
         }
     }
 

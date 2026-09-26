@@ -527,6 +527,12 @@ public sealed class AlarmRecoveryTests
             Assert.False(machine.IsStartAllowed);
             Assert.False(machine.IsHomeAllowed);
 
+            var input = view.InputMappings.Single(row => row.Signal.Equals(InputIo.PcbPlacementStopperUp));
+            var runningInputs = services.GetRequiredService<IReadOnlyDictionary<InputIo, int>>();
+            var originalInput = runningInputs[InputIo.PcbPlacementStopperUp];
+            input.Number = 63;
+            Assert.Equal(63, view.Settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
+            Assert.Equal(originalInput, runningInputs[InputIo.PcbPlacementStopperUp]);
             var output = view.OutputMappings.Single(
                 row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
             var axis = view.AxisMappings.Single(
@@ -563,6 +569,8 @@ public sealed class AlarmRecoveryTests
                     .Get<AlphaMotionSettings>()
                     .ControllerNumber);
             var saved = services.GetRequiredService<MachineStore>().LoadSettings();
+            Assert.Equal(63, saved.Get<ConveyorHardwareSettings>().Inputs[InputIo.PcbPlacementStopperUp]);
+            Assert.Equal(originalInput, runningInputs[InputIo.PcbPlacementStopperUp]);
             var savedOutput = saved.Get<ConveyorHardwareSettings>().Outputs[OutputIo.PcbPlacementStopperUp];
             var savedAxis = saved.Get<InspectionGantryHardwareSettings>().Axes[MachineAxis.InspectionGantryX];
             Assert.Equal((80, (int?)81, InputIo.PcbPlacementStopperUp),

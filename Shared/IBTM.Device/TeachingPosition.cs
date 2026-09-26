@@ -14,12 +14,6 @@ public enum TeachMode
     [Description("XY")]
     XYOnly,
 
-    [Description("X")]
-    XOnly,
-
-    [Description("Y")]
-    YOnly,
-
     [Description("Z")]
     ZOnly,
 }
@@ -116,5 +110,4 @@ public sealed record TeachingPosition(
     bool HasPosition = true)
 {
     public BoltPoint? Bolt { get; init; }
-    public bool IsTeachAllowed => Mode != TeachMode.Image;
 }

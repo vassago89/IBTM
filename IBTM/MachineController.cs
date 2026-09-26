@@ -133,8 +133,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     private bool PcbHandlersEnabled => _units.PcbSupply || _units.PcbPlacement;
 
-    private bool InspectionGantryEnabled => _units.IsMotionEnabled(MotionGroup.InspectionGantry);
-
     public async Task StopAsync()
     {
         await Task.Run(Stop);
@@ -359,7 +357,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         var alarm = MachineAlarm.None;
         string? interlockDetail = null;
         if (_units.PcbPlacement
-            && _pcbPlacement.Lift != PlacementCylinderState.Up
+            && _pcbPlacement.Lift != StationCylinderState.Up
             && _pcbPlacement.Motion.Feedback.IsMoving
             && (_pcbPlacement.Motion.Feedback.Command != MotionCommand.Adjustment
                 || _pcbPlacement.Motion.Feedback.IsMovingHorizontal
@@ -378,7 +376,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 + $"Current pickup head: {_fasteningStation.PickupHeadPosition}; "
                 + $"shooting head: {_fasteningStation.ShootingHeadPosition}.";
         }
-        else if (InspectionGantryEnabled
+        else if (_units.Inspection
             && _inspectionStation.Motion.Feedback.IsMoving
             && !_inspectionStation.IsRaised)
         {
@@ -591,7 +589,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            if (InspectionGantryEnabled)
+            if (_units.Inspection)
             {
                 stage = "Inspection motion initialization";
                 _log?.LogInformation("{Message}", stage + " started.");
@@ -1025,20 +1023,20 @@ public sealed partial class MachineController : INotifyPropertyChanged
         if ((group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
             || group is null && PcbHandlersEnabled)
             && _io.GetInput(InputIo.PcbPlacementPcbDetected)
-            && _pcbPlacement.IpmLift != PlacementCylinderState.Up)
+            && _pcbPlacement.IpmLift != StationCylinderState.Up)
             return HomeBlockReason.PlacementHoldingPcb;
         if (requireRaised
             && (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
                 || group is null && PcbHandlersEnabled)
-            && (_pcbPlacement.Lift != PlacementCylinderState.Up
-                || _pcbPlacement.IpmLift != PlacementCylinderState.Up))
+            && (_pcbPlacement.Lift != StationCylinderState.Up
+                || _pcbPlacement.IpmLift != StationCylinderState.Up))
             return HomeBlockReason.PlacementNotRaised;
         if (requireRaised
             && (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
             && !_fasteningStation.IsHorizontalMoveAllowed)
             return HomeBlockReason.FasteningNotRaised;
         if (requireRaised
-            && (group == MotionGroup.InspectionGantry || group is null && InspectionGantryEnabled)
+            && (group == MotionGroup.InspectionGantry || group is null && _units.Inspection)
             && !_inspectionStation.IsRaised)
             return HomeBlockReason.NgPickupNotRaised;
         return HomeBlockReason.None;
@@ -1175,7 +1173,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
         if (group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
             await ObserveRaiseAsync(_fasteningStation.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening);
-        if (group == MotionGroup.InspectionGantry || group is null && InspectionGantryEnabled)
+        if (group == MotionGroup.InspectionGantry || group is null && _units.Inspection)
             await ObserveRaiseAsync(
                 _inspectionStation.SetLiftUpAsync(true, operation.Token), MachineAlarm.NgCarrierTransfer);
         operation.Token.ThrowIfCancellationRequested();
@@ -1268,7 +1266,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 _units.BoltFastening
                     ? CheckHomeAsync(_fasteningStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask,
-                InspectionGantryEnabled
+                _units.Inspection
                     ? CheckHomeAsync(_inspectionStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask);
         }
@@ -1884,20 +1882,32 @@ public sealed partial class MachineController : INotifyPropertyChanged
     }
 
     // Teaching may coordinate a handler as well as its cylinder output.
-    internal bool IsSetTeachingOutputAllowed(TeachingOutput output, bool live = true)
+    internal static bool IsTeachingOutputSupported(OutputIo output)
     {
-        return (_state.ManualSetupEnabled && (!live || !_state.IsRunningFor()))
-            && output.Signal != OutputIo.PcbPlacementHandlerRotate
+        return output is OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward
+            or OutputIo.PcbSupplyRotate or OutputIo.PcbPlacementHandlerDown
+            or OutputIo.PcbPlacementIpmDown or OutputIo.PcbPlacementVacuumEjector
+            or OutputIo.PcbPlacementStopperUp or OutputIo.PcbPlacementBackupPlateUp
+            or OutputIo.PickupHeadDown or OutputIo.PickupTableDown or OutputIo.ShootingHeadDown
+            or OutputIo.PickupHeadVacuumPump or OutputIo.ShootingHeadVacuumPump or OutputIo.ShootBolt
+            or OutputIo.BoltFasteningStopperUp or OutputIo.BoltFasteningBackupPlateUp
+            or OutputIo.NgCarrierPickupDown or OutputIo.NgCarrierGripperClose or OutputIo.NgShuttleDown
+            or OutputIo.InspectionStopperUp or OutputIo.InspectionBackupPlateUp;
+    }
+
+    internal bool IsSetTeachingOutputAllowed(IoOutputStatus output, bool live = true)
+    {
+        return IsTeachingOutputSupported(output.Signal)
+            && _state.ManualSetupEnabled && (!live || !_state.IsRunningFor())
             && (output.Signal != OutputIo.PcbSupplyRotate
                 || IsManualMotionReady(MotionGroup.PcbSupply, live));
     }
 
     internal async Task ToggleTeachingOutputAsync(
-        TeachingOutput output,
+        IoOutputStatus output,
         CancellationToken cancellationToken,
         CancellationToken viewCancellation)
     {
-        var viewToken = viewCancellation;
         var activeToken = cancellationToken;
         try
         {
@@ -1906,7 +1916,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             using var operation = BeginManualOperation(
                 () => _io.IsReady && _state.ManualMode && _state.SafetyReady,
                 cancellationToken,
-                viewToken);
+                viewCancellation);
             if (operation is null)
                 return;
             activeToken = operation.Token;
@@ -1964,13 +1974,13 @@ public sealed partial class MachineController : INotifyPropertyChanged
             }
         }
         catch (OperationCanceledException) when (activeToken.IsCancellationRequested
-            || viewToken.IsCancellationRequested
+            || viewCancellation.IsCancellationRequested
             || _operations.IsShuttingDown)
         {
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
         {
-            ReportManualFailure(output.Owner switch
+            ReportManualFailure(output.Area switch
             {
                 HardwareArea.MainConveyor => MachineAlarm.MainConveyor,
                 HardwareArea.PcbSupply => MachineAlarm.PcbSupply,

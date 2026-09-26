@@ -113,13 +113,13 @@ public sealed class MotionStatus : INotifyPropertyChanged
                         : Feedback.GetAxisState(axis);
                 }
 
-                status.Update(state);
+                status.State = state;
             }
         }
         catch (IOException)
         {
             foreach (var status in Axes.Values)
-                status.Update(null);
+                status.State = null;
             throw;
         }
         finally

@@ -20,7 +20,6 @@ public sealed class BoltFasteningStation : AutoUnit
     private readonly RecipeManager _recipes;
     private readonly UnitSettings _units;
     private readonly ILogger<BoltFasteningStation>? _log;
-    private bool _repeat;
     private HeatSinkSlot[]? _runTargets;
     // Selected work belongs only to this run; STOP discards it.
     private BoltPoint[]? _runBolts;
@@ -75,50 +74,50 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public MotionStatus Motion { get; }
 
-    public BoltCylinderState PickupHeadPosition
+    public StationCylinderState PickupHeadPosition
     {
         get
         {
             switch ((_io.GetInput(InputIo.PickupHeadUp), _io.GetInput(InputIo.PickupHeadDown)))
             {
                 case (true, false):
-                    return BoltCylinderState.Up;
+                    return StationCylinderState.Up;
                 case (false, true):
-                    return BoltCylinderState.Down;
+                    return StationCylinderState.Down;
                 default:
-                    return BoltCylinderState.Between;
+                    return StationCylinderState.Between;
             }
         }
     }
 
-    public BoltCylinderState ShootingHeadPosition
+    public StationCylinderState ShootingHeadPosition
     {
         get
         {
             switch ((_io.GetInput(InputIo.ShootingHeadUp), _io.GetInput(InputIo.ShootingHeadDown)))
             {
                 case (true, false):
-                    return BoltCylinderState.Up;
+                    return StationCylinderState.Up;
                 case (false, true):
-                    return BoltCylinderState.Down;
+                    return StationCylinderState.Down;
                 default:
-                    return BoltCylinderState.Between;
+                    return StationCylinderState.Between;
             }
         }
     }
 
-    public BoltCylinderState PickupTablePosition
+    public StationCylinderState PickupTablePosition
     {
         get
         {
             switch ((_io.GetInput(InputIo.PickupTableUp), _io.GetInput(InputIo.PickupTableDown)))
             {
                 case (true, false):
-                    return BoltCylinderState.Up;
+                    return StationCylinderState.Up;
                 case (false, true):
-                    return BoltCylinderState.Down;
+                    return StationCylinderState.Down;
                 default:
-                    return BoltCylinderState.Between;
+                    return StationCylinderState.Between;
             }
         }
     }
@@ -127,8 +126,8 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         get
         {
-            return PickupHeadPosition == BoltCylinderState.Up
-                && ShootingHeadPosition == BoltCylinderState.Up;
+            return PickupHeadPosition == StationCylinderState.Up
+                && ShootingHeadPosition == StationCylinderState.Up;
         }
     }
 
@@ -147,19 +146,6 @@ public sealed class BoltFasteningStation : AutoUnit
                 default:
                     return BoltEscapeState.Between;
             }
-        }
-    }
-
-    internal IBoltHead GetHead(FasteningHead head)
-    {
-        switch (head)
-        {
-            case FasteningHead.Shooting:
-                return ShootingHead;
-            case FasteningHead.Pickup:
-                return PickupHead;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(head));
         }
     }
 
@@ -204,7 +190,6 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         if (cancellationToken.IsCancellationRequested)
             return;
-        _repeat = repeat;
         Exception? failure = null;
         try
         {
@@ -220,7 +205,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     Station.StartRepeat(Station.CurrentJob);
                 }
                 var step = GetNextStep();
-                if (!await ExecuteStepAsync(step, cancellationToken))
+                if (!await ExecuteStepAsync(step, repeat, cancellationToken))
                     await WaitForChangeAsync(cancellationToken);
             }
         }
@@ -234,7 +219,6 @@ public sealed class BoltFasteningStation : AutoUnit
         }
         finally
         {
-            _repeat = false;
             ClearCarrierOperation();
             try
             {
@@ -257,7 +241,7 @@ public sealed class BoltFasteningStation : AutoUnit
             var standby = StandbyBolt;
             return standby is not null && standby.IsFasteningPositionDefined
                 && (!IsHorizontalMoveAllowed || !IsAt(standby, atSafeZ: true)
-                    || PickupTablePosition != BoltCylinderState.Up)
+                    || PickupTablePosition != StationCylinderState.Up)
                 ? BoltFasteningState.MovingToStandby
                 : BoltFasteningState.Waiting;
         }
@@ -277,7 +261,8 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    private async Task<bool> ExecuteStepAsync(BoltFasteningState step, CancellationToken cancellationToken)
+    private async Task<bool> ExecuteStepAsync(
+        BoltFasteningState step, bool repeat, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var selectedBolt = step == BoltFasteningState.MovingToStandby ? StandbyBolt : ActiveBolt;
@@ -350,19 +335,19 @@ public sealed class BoltFasteningStation : AutoUnit
             }
 
             var bolt = ActiveBolt ?? throw new InvalidOperationException("No bolt is selected.");
-            var feeding = !_repeat && _units.IsBoltFeederEnabled(bolt.Head);
+            var feeding = !repeat && _units.IsBoltFeederEnabled(bolt.Head);
             switch (bolt.Head)
             {
                 case FasteningHead.Shooting:
                 {
                     TraceStep(step, target, job.Id, "head/table clearance, shooting feed and point movement");
-                    if (PickupTablePosition != BoltCylinderState.Up)
+                    if (PickupTablePosition != StationCylinderState.Up)
                     {
                         await RaiseCylindersAsync(token);
                         await MoveZAsync(_settings.SafeZ, token);
                         await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
                     }
-                    if (ShootingHeadPosition != BoltCylinderState.Up
+                    if (ShootingHeadPosition != StationCylinderState.Up
                         && (!IsAt(bolt) || feeding))
                         await ClearHeadAsync(FasteningHead.Shooting, token);
                     var moveRequired = !IsAt(bolt);
@@ -390,9 +375,9 @@ public sealed class BoltFasteningStation : AutoUnit
                 }
                 case FasteningHead.Pickup:
                 {
-                    if (ShootingHeadPosition != BoltCylinderState.Up)
+                    if (ShootingHeadPosition != StationCylinderState.Up)
                         await ClearHeadAsync(FasteningHead.Shooting, token);
-                    if (PickupTablePosition != BoltCylinderState.Down)
+                    if (PickupTablePosition != StationCylinderState.Down)
                     {
                         await RaiseCylindersAsync(token);
                         await MoveZAsync(_settings.SafeZ, token);
@@ -415,7 +400,10 @@ public sealed class BoltFasteningStation : AutoUnit
                                 await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
                             await MoveToPickupZAsync(token);
                             if (feeding)
-                                await SetVacuumAsync(FasteningHead.Pickup, true, token, waitForFeedback: false);
+                            {
+                                token.ThrowIfCancellationRequested();
+                                _io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
+                            }
                             TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: return to Safe Z");
                             await ReturnFromPickupAsync(token);
                             if (!feeding)
@@ -451,7 +439,7 @@ public sealed class BoltFasteningStation : AutoUnit
             }
             var assembly = Station.GetAssembly(job, bolt.HeatSink);
             TraceStep(step, target, job.Id, "fastening controller result");
-            var result = await FastenAsync(bolt, token);
+            var result = await FastenAsync(bolt, repeat, token);
             Exception? clearFailure = null;
             try
             {
@@ -470,15 +458,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 // is cancelled or fails. A storage failure must not hide a motion failure.
                 try
                 {
-                    switch (bolt.Head)
-                    {
-                        case FasteningHead.Shooting:
-                            assembly.RecordPcbBolt(bolt.Number, result);
-                            break;
-                        case FasteningHead.Pickup:
-                            assembly.RecordPickupBolt(bolt.Number, result);
-                            break;
-                    }
+                    assembly.RecordBolt(bolt.Head, bolt.Number, result);
                 }
                 catch (Exception recordFailure) when (clearFailure is not null)
                 {
@@ -590,10 +570,16 @@ public sealed class BoltFasteningStation : AutoUnit
 
     private async Task<BoltResult> FastenAsync(
         BoltPoint bolt,
+        bool repeat,
         CancellationToken cancellationToken)
     {
         var job = Station.CurrentJob;
-        var head = GetHead(bolt.Head);
+        var head = bolt.Head switch
+        {
+            FasteningHead.Shooting => ShootingHead,
+            FasteningHead.Pickup => PickupHead,
+            _ => throw new ArgumentOutOfRangeException(nameof(bolt.Head)),
+        };
         await head.SelectPresetAsync(1, cancellationToken);
         // The motor rotates only; the cylinder supplies the forward feed.
         // Raise before a new start, including a retry at the same XY.
@@ -606,7 +592,7 @@ public sealed class BoltFasteningStation : AutoUnit
         void CheckPickupTable()
         {
             if (bolt.Head == FasteningHead.Shooting
-                && PickupTablePosition != BoltCylinderState.Up)
+                && PickupTablePosition != StationCylinderState.Up)
                 fastening.Cancel();
         }
 
@@ -614,7 +600,7 @@ public sealed class BoltFasteningStation : AutoUnit
         try
         {
             CheckPickupTable();
-            var dryRunMilliseconds = _repeat || !_units.IsBoltFeederEnabled(bolt.Head)
+            var dryRunMilliseconds = repeat || !_units.IsBoltFeederEnabled(bolt.Head)
                 ? _settings.DryRunMilliseconds : 0;
             _log?.LogInformation(
                 "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
@@ -811,15 +797,14 @@ public sealed class BoltFasteningStation : AutoUnit
     public async Task SetVacuumAsync(
         FasteningHead head,
         bool on,
-        CancellationToken cancellationToken,
-        bool waitForFeedback = true)
+        CancellationToken cancellationToken)
     {
         var output = head == FasteningHead.Pickup
             ? OutputIo.PickupHeadVacuumPump
             : OutputIo.ShootingHeadVacuumPump;
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(output, on);
-        if (waitForFeedback && head == FasteningHead.Pickup)
+        if (head == FasteningHead.Pickup)
             await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, on, cancellationToken);
     }
 
@@ -885,7 +870,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 void CheckTeachingTable()
                 {
-                    if (PickupTablePosition != (tableDown ? BoltCylinderState.Down : BoltCylinderState.Up))
+                    if (PickupTablePosition != (tableDown ? StationCylinderState.Down : StationCylinderState.Up))
                         move.Cancel();
                 }
 
@@ -960,7 +945,7 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         await RaiseCylindersAsync(cancellationToken);
         await MoveZAsync(_settings.SafeZ, cancellationToken);
-        if (PickupTablePosition != BoltCylinderState.Down)
+        if (PickupTablePosition != StationCylinderState.Down)
             await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, cancellationToken);
         EnsureCanMoveHorizontal(cancellationToken);
         await _motion.MoveToXYAsync(

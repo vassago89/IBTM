@@ -10,7 +10,6 @@ public sealed class TeachingIoGroup
         InputHardwareSettings hardware,
         IEnumerable<OutputIo> outputs,
         IoSignals io,
-        IReadOnlyDictionary<OutputIo, TeachingOutput> commands,
         MachineController machine)
     {
         Area = hardware.Area;
@@ -21,12 +20,7 @@ public sealed class TeachingIoGroup
             .ToArray();
         Outputs = signals
             .Where(signal => signal.Signal != OutputIo.PcbPlacementHandlerRotate)
-            .Select(
-                signal =>
-                    new TeachingOutputRow(
-                        signal,
-                        commands.GetValueOrDefault(signal.Signal),
-                        machine))
+            .Select(signal => new TeachingOutputRow(signal, machine))
             .ToArray();
     }
 

@@ -38,8 +38,8 @@ public sealed class PcbHistoryTests
         var collect = Task.Run(() =>
         {
             var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-            assembly.RecordPickupBolt(1, new(false, null, Error: "First result"));
-            assembly.RecordPickupBolt(1, new(true, 8));
+            assembly.RecordBolt(FasteningHead.Pickup, 1, new(false, null, Error: "First result"));
+            assembly.RecordBolt(FasteningHead.Pickup, 1, new(true, 8));
             return assembly;
         });
         try
@@ -79,7 +79,7 @@ public sealed class PcbHistoryTests
         connection.Open();
         using var transaction = connection.BeginTransaction();
         var assembly = services.GetRequiredService<BoltFasteningStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordPickupBolt(1, new(true, 8.2));
+        assembly.RecordBolt(FasteningHead.Pickup, 1, new(true, 8.2));
         var closing = services.DisposeAsync().AsTask();
         try
         {
@@ -116,7 +116,7 @@ public sealed class PcbHistoryTests
         await Assert.ThrowsAsync<IOException>(history.FlushAsync);
         Assert.NotNull(history.SaveError);
         Assert.Null(assembly.PcbNumber);
-        assembly.RecordPickupBolt(2, new(true, 8.1));
+        assembly.RecordBolt(FasteningHead.Pickup, 2, new(true, 8.1));
         Assert.Same(assembly, work.GetAssembly(HeatSinkSlot.HeatSink1));
         Assert.Equal(2, history.PendingCount);
 
@@ -290,8 +290,8 @@ public sealed class PcbHistoryTests
         Assert.Equal(new long[] { 3, 2, 1 }, view.PcbRecords.Select(record => record.Number));
         Assert.Same(first, fastening.GetAssembly(HeatSinkSlot.HeatSink1));
         view.SelectedPcb = view.PcbRecords.Single(record => record.Number == first.PcbNumber);
-        first.RecordPcbBolt(1, new(false, 0.5, Error: "NG torque"));
-        first.RecordPickupBolt(2, new(true, 1.1));
+        first.RecordBolt(FasteningHead.Shooting, 1, new(false, 0.5, Error: "NG torque"));
+        first.RecordBolt(FasteningHead.Pickup, 2, new(true, 1.1));
         first.CompleteFastening();
         fastening.TransferAssembliesTo(inspection.Station, fastening.CurrentJob, inspection.Station.CurrentJob);
         Assert.Same(first, inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1));
@@ -360,7 +360,7 @@ public sealed class PcbHistoryTests
         var work = services.GetRequiredService<BoltFasteningStation>().Station;
         services.GetRequiredService<VirtualIoService>().SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         var first = work.GetAssembly(HeatSinkSlot.HeatSink1);
-        first.RecordPcbBolt(1, new(false, null, Error: "Timeout"));
+        first.RecordBolt(FasteningHead.Shooting, 1, new(false, null, Error: "Timeout"));
         work.Restart(work.CurrentJob);
         Assert.Same(first, work.GetAssembly(HeatSinkSlot.HeatSink1));
         work.Complete(work.CurrentJob);

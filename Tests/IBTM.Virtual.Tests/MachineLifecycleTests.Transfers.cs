@@ -647,13 +647,13 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.Phase);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, preparing.Token)!);
-        Assert.Equal(PlacementCylinderState.Up, handler.IpmLift);
+        Assert.Equal(StationCylinderState.Up, handler.IpmLift);
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.Phase);
         Assert.Empty(work.Assemblies);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, pressing.Token)!);
-        Assert.Equal(PlacementCylinderState.Between, handler.IpmLift);
+        Assert.Equal(StationCylinderState.Between, handler.IpmLift);
         Assert.Equal(PcbPlacementState.PlacingPcb, placer.Phase);
         Assert.Empty(work.Assemblies);
         io.SetInput(InputIo.PcbPlacementIpmDown, true);
@@ -681,7 +681,7 @@ public sealed partial class MachineLifecycleTests
         if (!replaceCarrier)
         {
             expected.Add((OutputIo.PcbPlacementIpmDown, false));
-            Assert.Equal(PlacementCylinderState.Up, handler.Lift);
+            Assert.Equal(StationCylinderState.Up, handler.Lift);
             Assert.True(handler.IsAtHorizontalZ);
         }
         Assert.Equal(expected, outputs);

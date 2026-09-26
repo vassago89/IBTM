@@ -65,34 +65,34 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public MotionStatus Motion { get; }
 
-    public PlacementCylinderState Lift
+    public StationCylinderState Lift
     {
         get
         {
             switch ((_io.GetInput(InputIo.PcbPlacementHandlerUp), _io.GetInput(InputIo.PcbPlacementHandlerDown)))
             {
                 case (true, false):
-                    return PlacementCylinderState.Up;
+                    return StationCylinderState.Up;
                 case (false, true):
-                    return PlacementCylinderState.Down;
+                    return StationCylinderState.Down;
                 default:
-                    return PlacementCylinderState.Between;
+                    return StationCylinderState.Between;
             }
         }
     }
 
-    public PlacementCylinderState IpmLift
+    public StationCylinderState IpmLift
     {
         get
         {
             switch ((_io.GetInput(InputIo.PcbPlacementIpmUp), _io.GetInput(InputIo.PcbPlacementIpmDown)))
             {
                 case (true, false):
-                    return PlacementCylinderState.Up;
+                    return StationCylinderState.Up;
                 case (false, true):
-                    return PlacementCylinderState.Down;
+                    return StationCylinderState.Down;
                 default:
-                    return PlacementCylinderState.Between;
+                    return StationCylinderState.Between;
             }
         }
     }
@@ -161,8 +161,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             if (position is null || !MotionService.IsHoldingPosition(_motion, position))
                 return PcbPlacementHandoff.Unavailable;
             if (!_units.PcbPlacement
-                || Lift != PlacementCylinderState.Up
-                || IpmLift == PlacementCylinderState.Between)
+                || Lift != StationCylinderState.Up
+                || IpmLift == StationCylinderState.Between)
                 return PcbPlacementHandoff.Unavailable;
             switch (Phase)
             {
@@ -446,7 +446,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                         CheckSupplyHolding();
                         receipt.Token.ThrowIfCancellationRequested();
                         var ipmDown = !repeat;
-                        if (IpmLift != (ipmDown ? PlacementCylinderState.Down : PlacementCylinderState.Up))
+                        if (IpmLift != (ipmDown ? StationCylinderState.Down : StationCylinderState.Up))
                             await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, ipmDown, receipt.Token);
                         await PrepareReceiptAsync(receipt.Token);
                         await _io.WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, receipt.Token);
@@ -735,7 +735,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private void EnsureHandlerRaised(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (Lift != PlacementCylinderState.Up)
+        if (Lift != StationCylinderState.Up)
         {
             throw new MotionInterlockException("Raise the placement handler before moving any axis.");
         }

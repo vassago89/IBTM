@@ -101,18 +101,18 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public bool IsEmptyRepeatAllowed => !_units.MainConveyor && !_units.NgConveyor;
 
-    public NgTransferLiftState Lift
+    public StationCylinderState Lift
     {
         get
         {
             switch ((_io.GetInput(InputIo.NgCarrierPickupUp), _io.GetInput(InputIo.NgCarrierPickupDown)))
             {
                 case (true, false):
-                    return NgTransferLiftState.Up;
+                    return StationCylinderState.Up;
                 case (false, true):
-                    return NgTransferLiftState.Down;
+                    return StationCylinderState.Down;
                 default:
-                    return NgTransferLiftState.Between;
+                    return StationCylinderState.Between;
             }
         }
     }
@@ -220,7 +220,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         {
             if (!IsClear)
                 return false;
-            if (!_units.IsMotionEnabled(MotionGroup.InspectionGantry))
+            if (!_units.Inspection)
                 return true;
             return _settings.WaitingPosition is { } position
                 && MotionService.IsAt(_motion, position);
@@ -312,7 +312,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     internal InspectionStationState GetNextStep(bool repeat = false)
     {
         if (_waitingForShuttleDown && IsClear && Gripper == NgTransferGripperState.Open)
-            return _ngConveyor.ShuttleLift == NgShuttleLiftState.Down
+            return _ngConveyor.ShuttleLift == StationCylinderState.Down
                 ? InspectionStationState.ReturningToWaitingPosition
                 : InspectionStationState.WaitingForShuttleDown;
         if (CarrierSeatingRequested)
@@ -566,8 +566,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         var lift = Lift;
         var gripper = Gripper;
         var pending = IsTransferPending;
-        var raised = lift == NgTransferLiftState.Up;
-        var down = lift == NgTransferLiftState.Down;
+        var raised = lift == StationCylinderState.Up;
+        var down = lift == StationCylinderState.Down;
         var open = gripper == NgTransferGripperState.Open;
         var destinationReady = holdAtShuttle || IsSupportReady(destination);
         // S3 support can be prepared after XY travel, with the pickup still raised.
@@ -679,7 +679,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 if (IsTransferPending
                     && (!IsSupportReady(source)
                         || !allowEmpty && !IsCarrierPresent(source)
-                        || Lift != NgTransferLiftState.Down
+                        || Lift != StationCylinderState.Down
                         || GetTransferPosition(source) is not { } gripPosition
                         || !MotionService.IsAt(_motion, gripPosition)))
                 {
@@ -688,7 +688,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 await MoveToCarrierAsync(source, cancellationToken);
                 if (!IsSupportReady(source) || !allowEmpty && !IsCarrierPresent(source))
                     return false;
-                if (Lift != NgTransferLiftState.Down)
+                if (Lift != StationCylinderState.Down)
                     await SetLiftUpAsync(false, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 // Descent can outlive the source's support or carrier feedback.
@@ -702,7 +702,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             {
                 var position = GetTransferPosition(destination)
                     ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before returning to Station 3.");
-                var supported = MotionService.IsAt(_motion, position) && Lift == NgTransferLiftState.Down
+                var supported = MotionService.IsAt(_motion, position) && Lift == StationCylinderState.Down
                     && IsSupportReady(destination) && (allowEmpty || IsCarrierPresent(destination));
                 if (IsTransferPending && (!supported || holdAtDestination))
                 {
@@ -728,7 +728,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         // Recheck the support after XY travel before lowering.
                         if (!IsSupportReady(destination))
                             return false;
-                        if (Lift != NgTransferLiftState.Down)
+                        if (Lift != StationCylinderState.Down)
                             await SetLiftUpAsync(false, carrying.Token);
                     }
                     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -747,7 +747,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     return false;
                 if (IsTransferPending || Gripper != NgTransferGripperState.Open)
                 {
-                    if (Lift != NgTransferLiftState.Down || !allowEmpty && !IsCarrierPresent(destination))
+                    if (Lift != StationCylinderState.Down || !allowEmpty && !IsCarrierPresent(destination))
                         throw new InvalidOperationException("Confirm the destination supports the pending NG carrier before releasing it.");
                     if (destination == NgTransferDestination.Shuttle)
                         _waitingForShuttleDown = true;
@@ -876,7 +876,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         {
             throw new MotionInterlockException("NG carrier pickup must be raised before inspection XY movement.");
         }
-        if (_waitingForShuttleDown && _ngConveyor.ShuttleLift != NgShuttleLiftState.Down)
+        if (_waitingForShuttleDown && _ngConveyor.ShuttleLift != StationCylinderState.Down)
         {
             throw new MotionInterlockException("Wait for the NG shuttle to finish lowering after carrier release before inspection XY movement.");
         }
@@ -1045,16 +1045,12 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     private async Task<ImageFrame> CaptureWithLightAsync(
         int? lightLevel, CancellationToken cancellationToken, bool keepLiveView = false)
     {
-        if (keepLiveView && _camera.IsLiveView)
-        {
-            var liveChannel = _lightChannel ?? _lightingSettings.InspectionChannel;
-            await Task.Run(() => TurnLightOn(liveChannel, lightLevel), cancellationToken).ConfigureAwait(false);
-            await Task.Delay(_lightingSettings.StabilizationDelayMilliseconds, cancellationToken).ConfigureAwait(false);
-            return await _camera.CaptureAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        await Task.Run(StopLiveView, cancellationToken).ConfigureAwait(false);
-        var channel = _lightingSettings.InspectionChannel;
+        keepLiveView = keepLiveView && _camera.IsLiveView;
+        if (!keepLiveView)
+            await Task.Run(StopLiveView, cancellationToken).ConfigureAwait(false);
+        var channel = keepLiveView
+            ? _lightChannel ?? _lightingSettings.InspectionChannel
+            : _lightingSettings.InspectionChannel;
         Exception? failure = null;
         try
         {
@@ -1069,7 +1065,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
         finally
         {
-            await Task.Run(() => TurnLightOff(channel, failure)).ConfigureAwait(false);
+            if (!keepLiveView)
+                await Task.Run(() => TurnLightOff(channel, failure)).ConfigureAwait(false);
         }
     }
 

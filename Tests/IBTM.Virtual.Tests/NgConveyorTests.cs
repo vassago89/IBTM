@@ -182,7 +182,7 @@ public sealed class NgConveyorTests
         {
             if (output == OutputIo.NgConveyorRun && on)
             {
-                Assert.Equal(NgShuttleLiftState.Down, system.Conveyor.ShuttleLift);
+                Assert.Equal(StationCylinderState.Down, system.Conveyor.ShuttleLift);
                 beltStarted = true;
             }
         };
@@ -192,7 +192,7 @@ public sealed class NgConveyorTests
         Assert.True(beltStarted);
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         Assert.True(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
-        Assert.Equal(NgShuttleLiftState.Up, system.Conveyor.ShuttleLift);
+        Assert.Equal(StationCylinderState.Up, system.Conveyor.ShuttleLift);
     }
 
     [Theory]
@@ -309,10 +309,10 @@ public sealed class NgConveyorTests
 
         await pickup.SetLiftUpAsync(false);
         Assert.True(system.Io.GetOutput(OutputIo.NgCarrierPickupDown));
-        Assert.Equal(NgTransferLiftState.Down, pickup.Lift);
+        Assert.Equal(StationCylinderState.Down, pickup.Lift);
         await pickup.SetLiftUpAsync(true);
         Assert.False(system.Io.GetOutput(OutputIo.NgCarrierPickupDown));
-        Assert.Equal(NgTransferLiftState.Up, pickup.Lift);
+        Assert.Equal(StationCylinderState.Up, pickup.Lift);
 
         await pickup.SetGripperOpenAsync(false);
         Assert.True(system.Io.GetOutput(OutputIo.NgCarrierGripperClose));

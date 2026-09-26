@@ -537,7 +537,7 @@
                                         <TextBlock Text="Bolt Driver" Style="{StaticResource SettingSectionTitle}"/>
                                         <ComboBox ItemsSource="{Binding BoltDrivers}"
                                             IsEnabled="{Binding IsDriverChangeAllowed}"
-                                            SelectedItem="{Binding SelectedBoltDriver, Mode=TwoWay}"/>
+                                            SelectedItem="{Binding Settings.Drivers.Bolt, Mode=TwoWay}"/>
                                         <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
                                             <Run Text="Active: "/><Run Text="{Binding ActiveBoltDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
                                         </TextBlock>

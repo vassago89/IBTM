@@ -123,10 +123,10 @@
                             <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                             <Setter Property="BorderThickness" Value="2"/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static ng:NgShuttleLiftState.Up}">
+                                <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static device:StationCylinderState.Up}">
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static ng:NgShuttleLiftState.Down}">
+                                <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static device:StationCylinderState.Down}">
                                     <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>
@@ -175,20 +175,7 @@
             <Viewbox Width="150">
                 <Canvas Width="284" Height="48">
                     <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
-                    <Path>
-                        <Path.Style>
-                            <Style TargetType="Path" BasedOn="{StaticResource PlateElevationStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static ng:NgShuttleLiftState.Up}">
-                                        <Setter Property="Tag" Value="{x:Static device:StationCylinderState.Up}"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding NgConveyor.ShuttleLift}" Value="{x:Static ng:NgShuttleLiftState.Down}">
-                                        <Setter Property="Tag" Value="{x:Static device:StationCylinderState.Down}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Path.Style>
-                    </Path>
+                    <Path Tag="{Binding NgConveyor.ShuttleLift}" Style="{StaticResource PlateElevationStyle}"/>
                 </Canvas>
             </Viewbox>
         </StackPanel>

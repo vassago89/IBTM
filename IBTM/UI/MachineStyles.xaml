@@ -2,8 +2,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
-    xmlns:placement="clr-namespace:IBTM.PcbPlacement;assembly=IBTM.PcbPlacement"
-    xmlns:fastening="clr-namespace:IBTM.BoltFastening;assembly=IBTM.BoltFastening"
     xmlns:inspection="clr-namespace:IBTM.Inspection;assembly=IBTM.Inspection"
     xmlns:ui="clr-namespace:IBTM.UI"
     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core">
@@ -250,7 +248,7 @@
         <Setter Property="BorderThickness" Value="3"/>
         <Setter Property="CornerRadius" Value="17"/>
         <Style.Triggers>
-            <Trigger Property="Tag" Value="{x:Static fastening:BoltCylinderState.Down}">
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Down}">
                 <Setter Property="Background" Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="4"/>
@@ -313,7 +311,7 @@
         <Setter Property="BorderThickness" Value="2"/>
         <Setter Property="CornerRadius" Value="2"/>
         <Style.Triggers>
-            <Trigger Property="Tag" Value="{x:Static inspection:NgTransferLiftState.Down}">
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Down}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
             </Trigger>
         </Style.Triggers>
@@ -321,7 +319,7 @@
 
     <Style x:Key="PlacementBodyStyle" TargetType="Border" BasedOn="{StaticResource OverheadBodyStyle}">
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Placement.Lift}" Value="{x:Static placement:PlacementCylinderState.Down}">
+            <DataTrigger Binding="{Binding Placement.Lift}" Value="{x:Static device:StationCylinderState.Down}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
             </DataTrigger>

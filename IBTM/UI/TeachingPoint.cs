@@ -243,10 +243,6 @@ public class TeachingPoint : ObservableObject
             {
                 case TeachMode.Image or TeachMode.XYOnly:
                     return $"X {position.X:F3}  Y {position.Y:F3}";
-                case TeachMode.XOnly:
-                    return $"X {position.X:F3}";
-                case TeachMode.YOnly:
-                    return $"Y {position.Y:F3}";
                 case TeachMode.ZOnly:
                     return $"Z {position.Z:F3}";
                 default:
@@ -258,16 +254,9 @@ public class TeachingPoint : ObservableObject
     public void Teach(double x, double y, double z)
     {
         var position = Read();
-        if (_definition.Mode is TeachMode.Image
-            or TeachMode.XYOnly
-            or TeachMode.Full
-            or TeachMode.XOnly)
+        if (_definition.Mode is TeachMode.Image or TeachMode.XYOnly or TeachMode.Full)
         {
             position.X = x;
-        }
-
-        if (_definition.Mode is TeachMode.Image or TeachMode.XYOnly or TeachMode.Full or TeachMode.YOnly)
-        {
             position.Y = y;
         }
 

@@ -94,7 +94,7 @@ public sealed partial class MachineLifecycleTests
         {
             await placement.SetLiftDownAsync(true);
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
-            Assert.Equal(PlacementCylinderState.Down, placement.Lift);
+            Assert.Equal(StationCylinderState.Down, placement.Lift);
             foreach (var direction in new[] { TeachingDirection.XPlus, TeachingDirection.YPlus })
             {
                 Assert.False(teaching.JogCommand.CanExecute(direction));
@@ -120,7 +120,7 @@ public sealed partial class MachineLifecycleTests
             {
                 await WaitUntilAsync(() => placement.Motion.Feedback.Position.Z > before.Z);
                 Assert.Equal(MotionCommand.Adjustment, placement.Motion.Feedback.Command);
-                Assert.Equal(PlacementCylinderState.Down, placement.Lift);
+                Assert.Equal(StationCylinderState.Down, placement.Lift);
                 Assert.Equal(MachineAlarm.None, state.Alarm);
             }
             finally
@@ -132,7 +132,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(placement.Motion.Feedback.IsMoving);
             Assert.Equal(before.X, placement.Motion.Feedback.Position.X);
             Assert.Equal(before.Y, placement.Motion.Feedback.Position.Y);
-            Assert.Equal(PlacementCylinderState.Down, placement.Lift);
+            Assert.Equal(StationCylinderState.Down, placement.Lift);
             Assert.Equal(MachineAlarm.None, state.Alarm);
             await Assert.ThrowsAsync<MotionInterlockException>(
                 () => placement.PrepareReceiptAsync());
@@ -666,7 +666,6 @@ public sealed partial class MachineLifecycleTests
         Assert.Same(bolt, position.Position.Bolt);
         Assert.True(position.Position.HasPosition);
         Assert.Equal((expectedX, expectedY, expectedZ), (position.Coordinates!.X, position.Coordinates.Y, position.Coordinates.Z));
-        Assert.True(position.Position.IsTeachAllowed);
         Assert.False(teaching.AddBoltPointCommand.CanExecute(null));
         Assert.False(teaching.RemoveBoltPointCommand.CanExecute(null));
 
@@ -699,7 +698,6 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == (head == FasteningHead.Shooting
                 ? TeachingTarget.ShootingHeadUpperLeftLocatingPin : TeachingTarget.PickupHeadUpperLeftLocatingPin));
-        Assert.True(teaching.SelectedPoint.Position.IsTeachAllowed);
         teaching.SelectedPoint = position;
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         Assert.Same(bolt, teaching.SelectedPoint!.Position.Bolt);
@@ -1255,7 +1253,7 @@ public sealed partial class MachineLifecycleTests
                 row => row.Io.Signal == OutputIo.PcbPlacementHandlerRotate);
             Assert.DoesNotContain(teaching.TeachingIoGroups.SelectMany(group => group.Sensors),
                 row => row.Signal is InputIo.PcbPlacementHandlerRotated or InputIo.PcbPlacementHandlerUnrotated);
-            var rotation = new TeachingOutput(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler);
+            var rotation = services.GetRequiredService<IoSignals>().Outputs[OutputIo.PcbPlacementHandlerRotate];
             Assert.False(machine.IsSetTeachingOutputAllowed(rotation));
             await machine.ToggleTeachingOutputAsync(rotation, CancellationToken.None, CancellationToken.None);
             Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
@@ -1290,7 +1288,6 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         var table = Assert.Single(teaching.TeachingIoGroups.SelectMany(group => group.Outputs),
             row => row.Io.Signal == OutputIo.PickupTableDown);
-        Assert.NotNull(table.Output);
         var position = station.Motion.Feedback.Position;
         try
         {
@@ -1298,7 +1295,7 @@ public sealed partial class MachineLifecycleTests
             await WaitUntilAsync(() => table.ToggleOutputCommand.CanExecute(null));
             await table.ToggleOutputCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(OutputIo.PickupTableDown));
-            Assert.Equal(BoltCylinderState.Down, station.PickupTablePosition);
+            Assert.Equal(StationCylinderState.Down, station.PickupTablePosition);
 
             io.AutoResponseEnabled = false;
             await WaitUntilAsync(() => table.ToggleOutputCommand.CanExecute(null));
@@ -1310,7 +1307,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(raising.IsCompleted);
             io.SetInput(InputIo.PickupTableDown, false);
             await raising.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.Equal(BoltCylinderState.Up, station.PickupTablePosition);
+            Assert.Equal(StationCylinderState.Up, station.PickupTablePosition);
 
             await WaitUntilAsync(() => table.ToggleOutputCommand.CanExecute(null));
             var lowering = table.ToggleOutputCommand.ExecuteAsync(null);
@@ -1358,6 +1355,12 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         Assert.Contains(OutputIo.ShootBolt, TeachingRows(teaching).Keys);
         Assert.DoesNotContain(OutputIo.ShootingEscapeForward, TeachingRows(teaching).Keys);
+        var directStart = teaching.TeachingIoGroups.SelectMany(group => group.Outputs)
+            .Single(row => row.Io.Signal == OutputIo.PickupBoltStart);
+        Assert.False(directStart.IsSupported);
+        Assert.False(directStart.ToggleOutputCommand.CanExecute(null));
+        await directStart.ToggleOutputCommand.ExecuteAsync(null);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         foreach (var output in new[] { OutputIo.PickupHeadDown, OutputIo.ShootingHeadDown })
         {
             var head = TeachingRows(teaching)[output];

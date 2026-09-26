@@ -725,7 +725,7 @@ public partial class TeachingViewModel : ObservableObject
             operation.Token.ThrowIfCancellationRequested();
             switch (SelectedPoint)
             {
-                case { Position.Mode: not TeachMode.Image, Position.IsTeachAllowed: true } point
+                case { Position.Mode: not TeachMode.Image } point
                     when Motion.Feedback.IsReady && IsReadTeachingPositionAllowed(point, live: true):
                     SaveError = null;
                     var current = Motion.Feedback.Position;
@@ -738,7 +738,7 @@ public partial class TeachingViewModel : ObservableObject
                     OnPointTaught(point);
                     NotifyManualTeachingCommands();
                     break;
-                case { Position.Mode: not TeachMode.Image, Position.IsTeachAllowed: true }:
+                case { Position.Mode: not TeachMode.Image }:
                     SaveError = "Home the axes used by this teaching position and wait for them to stop before teaching.";
                     break;
             }
@@ -760,7 +760,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             if (SelectedPoint?.Position.Mode == TeachMode.Image)
                 return IsRecordImagePositionAllowed;
-            return SelectedPoint is { Position.Mode: not TeachMode.Image, Position.IsTeachAllowed: true } point
+            return SelectedPoint is { Position.Mode: not TeachMode.Image } point
                 && State.SetupEditingEnabled
                 && IsReadTeachingPositionAllowed(point, live: false);
         }
@@ -772,8 +772,6 @@ public partial class TeachingViewModel : ObservableObject
         {
             TeachMode.Full => [MotionAxis.X, MotionAxis.Y, MotionAxis.Z],
             TeachMode.XYOnly => [MotionAxis.X, MotionAxis.Y],
-            TeachMode.XOnly => [MotionAxis.X],
-            TeachMode.YOnly => [MotionAxis.Y],
             TeachMode.ZOnly => [MotionAxis.Z],
             _ => [],
         };
@@ -917,7 +915,7 @@ public partial class TeachingViewModel : ObservableObject
                 return TeachingMotionHint.NgPickupPositionRequired;
             switch (ActiveMotionGroup)
             {
-                case MotionGroup.PcbPlacementHandler when _pcbPlacement.Lift != PlacementCylinderState.Up:
+                case MotionGroup.PcbPlacementHandler when _pcbPlacement.Lift != StationCylinderState.Up:
                     return TeachingMotionHint.RaisePlacementCylinders;
                 case MotionGroup.BoltFastening:
                     return TeachingMotionHint.BoltAdjustment;
@@ -973,7 +971,7 @@ public partial class TeachingViewModel : ObservableObject
             {
                 MotionGroup.PcbSupply or MotionGroup.BoltFastening => true,
                 MotionGroup.PcbPlacementHandler => axis == MotionAxis.Z
-                    || _pcbPlacement.Lift == PlacementCylinderState.Up,
+                    || _pcbPlacement.Lift == StationCylinderState.Up,
                 MotionGroup.InspectionGantry => Inspection.IsRaised,
                 _ => false,
             };
@@ -1044,7 +1042,7 @@ public partial class TeachingViewModel : ObservableObject
 
     private bool IsMoveToHorizontalZAllowed => IsJogAllowed(MotionAxis.Z)
         && (ActiveMotionGroup != MotionGroup.PcbPlacementHandler
-            || _pcbPlacement.Lift == PlacementCylinderState.Up);
+            || _pcbPlacement.Lift == StationCylinderState.Up);
 
     public IAsyncRelayCommand MoveToHorizontalZCommand { get; }
 
@@ -1333,7 +1331,7 @@ public partial class TeachingViewModel : ObservableObject
                     || !Machine.IsManualMotionReady(ActiveMotionGroup, live: false):
                     return false;
                 case { } when ActiveMotionGroup == MotionGroup.PcbPlacementHandler
-                    && _pcbPlacement.Lift != PlacementCylinderState.Up:
+                    && _pcbPlacement.Lift != StationCylinderState.Up:
                     return false;
                 case { } point when ActiveMotionGroup == MotionGroup.PcbSupply:
                     return _pcbSupply.IsMoveToTeachingPositionAllowed(point.Position);
@@ -1351,7 +1349,7 @@ public partial class TeachingViewModel : ObservableObject
             switch (ActiveMotionGroup)
             {
                 case MotionGroup.PcbPlacementHandler:
-                    return _pcbPlacement.Lift == PlacementCylinderState.Up;
+                    return _pcbPlacement.Lift == StationCylinderState.Up;
                 case MotionGroup.BoltFastening:
                     return _fasteningStation.IsHorizontalMoveAllowed;
                 case MotionGroup.InspectionGantry:

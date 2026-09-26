@@ -29,7 +29,7 @@ public sealed class PcbPlacementStateSafetyTests
             PcbPlacementState.MovingToHandoff, HeatSinkSlot.HeatSink1, default, repeat: true);
 
         Assert.False(pressed);
-        Assert.Equal(PlacementCylinderState.Up, rig.Placer.IpmLift);
+        Assert.Equal(StationCylinderState.Up, rig.Placer.IpmLift);
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.Equal(rig.Position.Y, rig.Motion.Position.Y);
         Assert.Equal(50, rig.Motion.Position.X);
         Assert.True(rig.Handler.PcbSecured);
-        Assert.Equal(PlacementCylinderState.Down, rig.Handler.IpmLift);
+        Assert.Equal(StationCylinderState.Down, rig.Handler.IpmLift);
         Assert.Equal(PcbPlacementHandoff.Clear, rig.Placer.Handoff);
     }
 

@@ -76,7 +76,7 @@ public sealed partial class ConveyorTests
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         var departing = source.CurrentJob;
         var original = source.GetAssembly(departing, HeatSinkSlot.HeatSink1);
-        original.RecordPcbBolt(1, new(false, 1.25));
+        original.RecordBolt(FasteningHead.Shooting, 1, new(false, 1.25));
         SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         var arrived = destination.CurrentJob;
 
@@ -147,7 +147,7 @@ public sealed partial class ConveyorTests
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         var departing = source.CurrentJob;
         var original = source.GetAssembly(departing, HeatSinkSlot.HeatSink1);
-        original.RecordPcbBolt(1, new BoltResult(false, 1.25));
+        original.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
         source.Complete(departing);
 
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
@@ -178,7 +178,7 @@ public sealed partial class ConveyorTests
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
         var result = new BoltResult(false, 1.25);
-        assembly.RecordPcbBolt(1, result);
+        assembly.RecordBolt(FasteningHead.Shooting, 1, result);
         source.Complete(source.CurrentJob);
         var changes = 0;
         source.Changed += () => changes++;
@@ -285,7 +285,7 @@ public sealed partial class ConveyorTests
         Assert.True(work.IsTransferAllowed);
         Assert.True(work.RouteToNg);
         Assert.False(work.HasNg);
-        work.Station.GetAssembly(HeatSinkSlot.HeatSink1).RecordPcbBolt(1, new BoltResult(false, 1.25));
+        work.Station.GetAssembly(HeatSinkSlot.HeatSink1).RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
         Assert.True(work.HasNg);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);

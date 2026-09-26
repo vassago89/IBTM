@@ -222,7 +222,7 @@ public sealed class PcbPlacementRepeatTests
         };
         rig.Motion.PositionChanged += (x, y, z) =>
         {
-            movedUnsafely |= (rig.Motion.IsMoving && rig.Handler.Lift != PlacementCylinderState.Up)
+            movedUnsafely |= (rig.Motion.IsMoving && rig.Handler.Lift != StationCylinderState.Up)
                 || (rig.Motion.IsMovingHorizontal && Math.Abs(z - 8) > 0.05);
             var atHandoff = Math.Abs(x - 50) < 0.05 && Math.Abs(y - 10) < 0.05 && Math.Abs(z - 8) < 0.05;
             if (atHandoff && !insideHandoff && rig.Handler.PcbSecured)
@@ -241,8 +241,8 @@ public sealed class PcbPlacementRepeatTests
         Assert.Equal(2, handoffVisits);
         Assert.False(movedUnsafely);
         Assert.Empty(supplyOutputs);
-        Assert.Equal(PlacementCylinderState.Up, rig.Handler.Lift);
-        Assert.Equal(PlacementCylinderState.Up, rig.Handler.IpmLift);
+        Assert.Equal(StationCylinderState.Up, rig.Handler.Lift);
+        Assert.Equal(StationCylinderState.Up, rig.Handler.IpmLift);
         Assert.True(rig.Handler.IsAtHorizontalZ);
         Assert.False(rig.Io.GetInput(InputIo.PcbPlacementVacuumDetected));
 
@@ -315,7 +315,7 @@ public sealed class PcbPlacementRepeatTests
         Assert.True(lost);
         Assert.False(raisedAfterLoss);
         Assert.True(rig.Io.GetInput(InputIo.PcbPlacementVacuumDetected));
-        Assert.Equal(PlacementCylinderState.Down, rig.Handler.Lift);
+        Assert.Equal(StationCylinderState.Down, rig.Handler.Lift);
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
     }
