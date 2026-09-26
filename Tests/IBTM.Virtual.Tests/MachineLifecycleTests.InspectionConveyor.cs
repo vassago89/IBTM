@@ -149,7 +149,7 @@ public sealed partial class MachineLifecycleTests
             new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 10 },
             new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 10, Y = 10 },
         ];
-        TeachInspectionFovs(settings, recipe);
+        TeachInspectionFovs(recipe);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();

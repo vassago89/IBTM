@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.TryAddSingleton<MachineStore>();
         services.TryAddSingleton<RecipeManager>();
         var hardware = settings.HardwareSections;
+        var motions = settings.MotionSections;
 
         services
             .AddSingleton(settings)
@@ -87,16 +88,8 @@ public static class DependencyInjection
                     provider =>
                         new VirtualMachine(
                             provider.GetRequiredService<VirtualIoService>(),
-                            [
-                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                                    MotionGroup.PcbSupply),
-                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                                    MotionGroup.PcbPlacementHandler),
-                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                                    MotionGroup.BoltFastening),
-                                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
-                                    MotionGroup.InspectionGantry),
-                            ],
+                            motions.Select(section => (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
+                                section.Hardware.Group)).ToArray(),
                             () => provider.GetRequiredService<MachineState>().RepeatEnabled))
                 .AddSingleton<IIoService>(
                     provider => provider.GetRequiredService<VirtualIoService>());
@@ -111,7 +104,7 @@ public static class DependencyInjection
                 .AddSingleton<IIoService, PhysicalIoService>();
         }
 
-        foreach (var (motionSettings, motionHardware) in settings.MotionSections)
+        foreach (var (motionSettings, motionHardware) in motions)
             AddXyMotion(services, settings.Drivers.Control, motionSettings, motionHardware);
 
         services.AddSingleton<IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]>>(provider =>

@@ -15,7 +15,6 @@ public sealed class HikCamera : ICamera, IDisposable
 {
     private readonly ILogger<HikCamera>? _log;
     private readonly InspectionCameraSettings _settings;
-    private static readonly MvGvspPixelType s_conversionPixelType = MvGvspPixelType.PixelType_Gvsp_RGB8_Packed;
 
     // Device selection changes apply after restart, not during connection recovery.
     private readonly string _deviceId;
@@ -77,7 +76,12 @@ public sealed class HikCamera : ICamera, IDisposable
                 _sdkInitialized = true;
             }
 
-            var deviceInfo = EnumerateDevices()
+            Check(
+                DeviceEnumerator.EnumDevices(
+                    DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice,
+                    out List<IDeviceInfo> devices),
+                "Enumerate Hik cameras");
+            var deviceInfo = devices
                 .SingleOrDefault(
                     device => string.Equals(
                         device.SerialNumber,
@@ -89,9 +93,21 @@ public sealed class HikCamera : ICamera, IDisposable
             try
             {
                 Check(_device.Open(), "Open Hik camera");
-                ConfigureAreaCamera(_device);
-                Check(_device.Parameters.GetIntValue("Width", out var width), "Read Hik frame width");
-                Check(_device.Parameters.GetIntValue("Height", out var height), "Read Hik frame height");
+                var parameters = _device.Parameters;
+                if (_device is IGigEDevice gigEDevice)
+                {
+                    var result = gigEDevice.GetOptimalPacketSize(out var packetSize);
+                    if (result == MvError.MV_OK)
+                        result = parameters.SetIntValue("GevSCPSPacketSize", packetSize);
+                    if (result != MvError.MV_OK)
+                        _log?.LogWarning("Hik GigE packet size setup failed. MVS error code: 0x{Code:X8}", result);
+                }
+
+                Check(parameters.SetEnumValueByString("AcquisitionMode", "Continuous"), "Set AcquisitionMode");
+                // MVS BasicDemo: select continuous acquisition once, while grabbing is stopped.
+                Check(parameters.SetEnumValueByString("TriggerMode", "Off"), "Set continuous acquisition");
+                Check(parameters.GetIntValue("Width", out var width), "Read Hik frame width");
+                Check(parameters.GetIntValue("Height", out var height), "Read Hik frame height");
                 FrameSize = (checked((int)width.CurValue), checked((int)height.CurValue));
                 _streamGrabber = _device.StreamGrabber;
             }
@@ -339,39 +355,6 @@ public sealed class HikCamera : ICamera, IDisposable
         }
     }
 
-    private static List<IDeviceInfo> EnumerateDevices()
-    {
-        var deviceTypes = DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice;
-        Check(
-            DeviceEnumerator.EnumDevices(deviceTypes, out List<IDeviceInfo> devices),
-            "Enumerate Hik cameras");
-        return devices;
-    }
-
-    private void ConfigureAreaCamera(IDevice device)
-    {
-        ConfigureGigE(device);
-
-        var parameters = device.Parameters;
-        Check(parameters.SetEnumValueByString("AcquisitionMode", "Continuous"), "Set AcquisitionMode");
-        // MVS BasicDemo: select continuous acquisition once, while grabbing is stopped.
-        Check(parameters.SetEnumValueByString("TriggerMode", "Off"), "Set continuous acquisition");
-    }
-
-    private void ConfigureGigE(IDevice device)
-    {
-        if (device is not IGigEDevice gigEDevice)
-        {
-            return;
-        }
-
-        var result = gigEDevice.GetOptimalPacketSize(out var packetSize);
-        if (result == MvError.MV_OK)
-            result = device.Parameters.SetIntValue("GevSCPSPacketSize", packetSize);
-        if (result != MvError.MV_OK)
-            _log?.LogWarning("Hik GigE packet size setup failed. MVS error code: 0x{Code:X8}", result);
-    }
-
     private static ImageFrame? CopyAndReleaseFrame(
         IDevice device,
         IStreamGrabber stream,
@@ -398,7 +381,7 @@ public sealed class HikCamera : ICamera, IDisposable
                     image,
                     pixels,
                     out var convertedSize,
-                    s_conversionPixelType),
+                    MvGvspPixelType.PixelType_Gvsp_RGB8_Packed),
                 "Convert Hik frame to RGB8");
 
             if (convertedSize != checked((ulong)pixels.Length))

@@ -1,6 +1,6 @@
 # 직접 개발할 때 보는 안내
 
-기준: 2026-09-20 소스. 목적은 **수정 → 현장 확인 → 원인 확인** 사이클을 짧게 하는 것이다.
+목적은 **수정 → 현장 확인 → 원인 확인** 사이클을 짧게 하는 것이다.
 새 계층보다 실제 호출과 조건이 한눈에 보이는 코드를 우선한다. 상세 작업 규칙은 루트 `AGENTS.md`.
 
 ## 코드 표기와 디버깅 진입점
@@ -30,7 +30,7 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 촬영·Live 점등 직전에 원본과 같이 Connect → Set → On 순서로 호출한다.
 단일 촬영은 조명 ON 완료 후 `LightingSettings.StabilizationDelayMilliseconds`만큼 안정화 대기를 거친다(기본 100ms, 0이면 대기 없음).
 Settings → Camera & Lighting → Lighting → Stabilization Delay (ms)에서 조정하고 Save Settings로 저장한다. 자동 검사·티칭 Grab에 적용한다. Live 중 Grab도 선택한 항목의 밝기를 적용한 후 안정화 시간을 기다리며, Live 스트림은 유지한다.
-Teaching의 Inspection Gantry는 Live·좌표 기록 전용이다. 별도 Inspection Teaching 메뉴에서 저장 이미지로 ROI·볼트 판정·Data Matrix 옵션·포인트별 조명 밝기(0–255)를 편집한다. 빈 밝기는 `BoltInspection.LightLevel`을 사용한다. Save Inspection 성공 후 활성 레시피의 다음 검사 포인트부터 적용하며 현재 검사 중인 포인트는 시작 시 설정을 유지한다. 운전 중에도 편집·재검사할 수 있고, 좌표나 저장된 생산 결과는 변경하지 않는다. 카메라 노출·게인 설정은 변경하지 않는다.
+Teaching의 Inspection Gantry는 포인트 추가·삭제, Live·좌표 기록·Grab과 촬영 조명을 담당한다. 별도 Inspection Teaching 메뉴는 저장 이미지로 ROI·볼트 판정·Data Matrix 옵션을 편집한다. Save 성공 후 활성 레시피의 다음 검사 포인트부터 적용하며 현재 검사 중인 포인트는 시작 시 설정을 유지한다. 운전 중에도 편집·재검사할 수 있고, 좌표·촬영 조명·저장된 생산 결과는 변경하지 않는다. 상세 책임은 [검사 안내](../Stations/IBTM.Inspection/README.md)에 둔다.
 Data Matrix 판독 옵션(TryHarder, TryInverted, AutoRotate, PureBarcode, 선택적 BinaryThreshold)은 PCB별로 저장하며 자동 검사·Read Data Matrix·Reinspect가 같은 값을 사용한다. 임계값이 비어 있으면 기존 자동 이진화를 사용한다. 이 설정들은 Record Position 좌표를 변경하지 않는다.
 대기 중 STOP되면 촬영하지 않고 조명을 끈다.
 검사 유닛 Disabled로 시작해 초기화에서 조명 연결을 생략했어도 수동 티칭 점등 시 연결한다.
@@ -40,17 +40,15 @@ Data Matrix 판독 옵션(TryHarder, TryInverted, AutoRotate, PureBarcode, 선�
 
 | 형태 | 의미 | 예 |
 | --- | --- | --- |
-| 명사 프로퍼티 | 현재 값·상태 노출 | `CarrierPresent`, `BackupPlate`, `CurrentJob`, `State` |
-| `Get...()` | 인자와 현재 상태로 값·작업 단계 조회 | `GetState()`, `GetActiveBolt()`, `GetAssembly()` |
-| `Is...()` / `Has...()` | 인자를 받는 조건 확인 | `IsHeatSinkPresent(slot)`, `IsSupportReady(destination)` |
+| 프로퍼티 | 현재 값·상태와 인자 없는 조건 | `CarrierPresent`, `BackupPlate`, `CurrentJob`, `Step`, `ActiveBolt` |
+| `Get...()` | 인자를 받는 조회 또는 다음 작업 선택 | `GetAssembly(job, slot)`, `GetNextStep(...)` |
+| `Is...()` | 인자를 받는 조건 확인 | `IsHeatSinkPresent(slot)`, `IsSupportReady(destination)` |
 | `Create...()` | 객체 생성 | `ConveyorStation.CreateInspection(io)` |
 | 동사 + `Async()` | 장치 동작 또는 비동기 대기 | `RunAsync()`, `MoveToCarrierAsync()`, `WaitForChangeAsync()` |
 
-메인 컨베이어는 `MainConveyor.Sequence.cs`의 `GetState()`에서 상태를 선택하고,
-`RunAsync()` 루프에서 직접 실행한다. 반입·S1→S2·S2→S3는 `MainConveyor.cs`의 `TransferAsync()`에서 따라간다.
-체결·검사·안착도 `GetState()`로 판단을 확인하고 `RunAsync()`와 `ExecuteAsync()`에서 실행을 따라간다.
-PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 두어 F12와 함수 중단점으로 찾을 수 있다.
-NG 컨베이어는 `RunAsync()`의 상태 분기에서 이송·배출·빈자리 채우기를 직접 실행한다.
+각 유닛의 기본 클래스 파일에서 `RunAsync()` → `GetNextStep()` → `ExecuteStepAsync()`를 따라간다.
+현재 실행 단계는 `Step`으로 확인한다. 단계 조회는 장치를 움직이거나 실행 이력을 바꾸지 않는다.
+반입·S1→S2·S2→S3는 `MainConveyor.cs`의 `TransferAsync()`에서 따라간다.
 메인 컨베이어 역복귀는 `ReturnToStartAsync()`에서 위치 확인·지지대 하강·역회전·입구 감지를 이어서 실행한다.
 이 호출의 모터·SMEMA 정리와 취소 중 정지 실패 보존은 하나의 `ConveyorRun`이 맡는다.
 
@@ -60,29 +58,16 @@ NG 컨베이어는 `RunAsync()`의 상태 분기에서 이송·배출·빈자리
 결과 기록 한 번마다 루프로 돌아가지 않는다. 작업 내부의 순서는 각 `switch` 분기에 직접 쓴다.
 다음 상태는 그 작업이 끝난 뒤 현재 피드백으로 판단한다.
 
-현재 enum 멤버 수이며, 있는 경우 `Disabled`도 포함한다.
-
-| 유닛 | 상태 수 | 묶은 동작 |
-| --- | --- | --- |
-| PCB Supply | 8 | 픽업 복귀·회전, PCB 고정·회전·인계 이동·해제 |
-| PCB Placement | 10 | 인계 준비, 수취, 안착·압착·기록·복귀, Repeat 픽업 |
-| Bolt Fastening | 8 | 볼트 하나의 공급·이동·체결·복귀 |
-| Inspection | 12 | 포인트 이동·촬영, 검사 완료 복귀, NG 표시 상태 통합 |
-| NG Transfer | 7 | XY 이동·하강·집기·상승, 목적지 이동·하강·해제·상승 |
-| Main Conveyor | 16 | S1/S2 동시 착좌, 출발지 하강부터 도착까지 이송 |
-| NG Conveyor | 13 | 이송·배출·빈자리 채우기, 작업자 배출 확인 대기 |
-| NG Shuttle | 6 | 하강·상승, 픽업·컨베이어 대기, 위치 불명 |
-| Bolt Feeder | 2 | 볼트 도착 대기·준비 완료 |
-
 다른 유닛·설비·작업자를 기다리는 경계는 남긴다. 메인 컨베이어의 이송 상태는
 출발지 하강부터 도착까지 이미 한 동작이므로 목적지와 우선순위를 합치지 않는다.
-NG 셔틀의 6개 상태는 픽업 상승·컨베이어 종료·위치 불명 등 실제 다른 대기 조건이다.
-볼트 피더의 2개 상태와 실린더의 Up/Down/Between 같은 물리 피드백은 유지한다.
+검사·NG 이송은 `InspectionStation`, 셔틀·NG 벨트는 `NgCarrierConveyor`의 한 실행 루프에 둔다.
+픽업·슈팅 피더는 `BoltFeederUnit` 하나에서 센서 변화와 보충·미감지 시간을 처리하며 별도 단계 enum이 없다.
+공통 실행 구조와 각 유닛이 보관할 이력은 [스테이션 구조](../Stations/README.md)에 둔다.
 
 작업 결과 소유자(`CurrentJob`), 반복 운전의 현재 목적지,
 압착 전후처럼 센서만으로 구분되지 않는 실행 이력도 유지한다. 연속 동작 중 정지·캐리어
 교체·착좌 이탈을 확인하며, 완료 피드백 없이 다음 명령이나 완료 기록으로 넘어가지 않는다.
-`PlaceAsync`와 NG `ExecuteAsync`의 `false`는 외부 조건 대기를 뜻한다.
+`ExecuteStepAsync`와 `ExecuteTransferAsync`의 `false`는 외부 조건 대기를 뜻한다.
 NG 픽업은 XY 도착 뒤뿐 아니라 하강 완료 뒤에도 출발 지지대와 캐리어를 확인한다.
 조건이 사라지면 그리퍼를 닫거나 이송 이력을 만들지 않고 대기한다.
 단독 빈 Repeat는 캐리어 감지만 생략하며 지지대 확인은 유지한다.
@@ -444,7 +429,7 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 `ObserveAutomaticUnitAsync`는 이미 시작한 작업의 종료·오류를 확인한다.
 검사와 NG 이송은 갠트리를 공유하므로 `InspectionStation.RunAsync` 한 경로에서 실행한다.
 `InspectionStation.cs`가 이동·촬영·판정도 직접 실행한다.
-피더는 `BoltFeederUnit` 하나를 픽업·슈팅별로 생성한다. NG 셔틀과 벨트는 `NgCarrierConveyor`에서 동작과 현재 입력을 함께 읽는다.
+피더는 `BoltFeederUnit` 하나가 픽업·슈팅을 함께 감시한다. NG 셔틀과 벨트는 `NgCarrierConveyor`에서 동작과 현재 입력을 함께 읽는다.
 캐리어별 Job·결과·완료 정보는 각 스테이션의 `ConveyorStation`에 보관한다. 별도의 Work 클래스는 없고, 공정 조건·검사 요청·NG 인계 인터록은 해당 실행 스테이션이 관리한다.
 Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고, Placement 확보 확인과 이탈 대기는 유지한다.
 공급·안착 유닛은 자기 피드백만으로 상태를 계산하며 전체 시퀀스 enum은 각 프로젝트에 둔다. 두 루프는 Core의 `IPcbSupplyHandoff` / `IPcbPlacementHandoff`를 통해 `Handoff`와 변경 알림만 공유한다. 공급은 `Holding`/`Released`, 안착은 `Holding`/`Clear`를 내보내며 그 외에는 `Unavailable`이다. 상대 내부 작업 단계나 핸들러를 참조하지 않는다. Placement는 Supply 인계를 DI로 받고, MachineController는 Supply 실행 시 Placement 인계를 전달한다. 상대 변경은 대기를 깨우기만 하고 다시 전달하지 않는다.
@@ -456,25 +441,25 @@ Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고,
 | 특정 유닛이 시작하지 않음 | `RunAutomaticUnitsAsync`의 해당 유닛 `if`, `ObserveAutomaticUnitAsync`의 종료·취소 조건 | `_units`, `repeat`, `alarm`, `cycle.IsCancellationRequested` |
 | 자동운전 중 알람 발생 | `ObserveAutomaticUnitAsync`의 `catch (Exception exception)` | `alarm`은 발생 유닛, `exception`은 원본 오류, `_state.Alarm`은 먼저 발생한 알람 |
 | Repeat 메인 복귀가 취소됨 | `MachineController.Repeat.cs`의 `MainConveyorReturnBlock`, `ReturnMainCarrierAsync`의 `CheckPath` | 핸들러 상승·안전 Z, NG 픽업 상승·캐리어 센서; 현재 피드백으로 차단 이유를 반환 |
-| 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.RunAsync`, `GetState`, `TransferAsync` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
-| PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
-| PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceAsync`의 `switch (state)` | `heatSink`, `state`; 반환값 `false`이면 피드백 대기 |
-| 공급 진입 또는 안착 인수 Z 이동이 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `HandingOff`이면 수취 Z로 이동, Placement `WaitingForSupplyRelease`이면 해제; 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
-| 인수 후 Z/Y 이탈 또는 Supply 복귀가 대기함 | `PcbPlacer.PlaceAsync`, `PcbSupplier.ExecuteAsync` | Supply `WaitingForPlacementClear`이면 Placement가 대기 Z → 히트싱크 Y로 이동; Y 도착 후 `Clear` 확인하고 Supply 복귀 |
-| 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeederUnit.RunAsync` | `state`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `BoltFeederUnit.SetFeeding` |
-| 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `_pendingFastening`의 볼트·캐리어 |
-| Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync` | `transferState`, `inspectionState`, `bolt`; 이송 또는 검사가 준비되지 않으면 피드백 대기 |
-| NG 이송의 정방향·복귀 순서가 예상과 다름 | `NgCarrierTransfer.GetState`, `ExecuteAsync`, `MoveToCarrierAsync` | `destination`, `state`, 현재 픽업 상승·그립·캐리어 감지, 목적지 XY |
-| NG 셔틀이 대기하거나 Repeat 상승하지 않음 | `NgShuttle.RunAsync`, `CycleAsync` | `state`, 실제 Up/Down·캐리어·픽업 상승 피드백 |
-| NG 컨베이어 적재·배출이 막힘 | `NgCarrierConveyor.RunAsync`의 `switch (state)`, `RunUntilAsync`, `GetState` | `state`, `destination` 입력, `_movement`, `_ejectionPhase`, 현재 위치 센서 |
+| 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.GetNextStep`, `ExecuteStepAsync`, `TransferAsync` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
+| PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.GetNextStep`, `ExecuteStepAsync` | `step`, `Phase`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
+| PCB 안착이 멈춤 | `PcbPlacer.GetNextStep`, `ExecuteStepAsync` | `heatSink`, `state`, `Phase`; 반환값 `false`이면 피드백 대기 |
+| 공급 진입 또는 안착 인수 Z 이동이 대기함 | `PcbPlacer.ExecuteStepAsync`, `PcbSupplier.ExecuteStepAsync` | 양쪽 `Handoff`; 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
+| 인수 후 Z/Y 이탈 또는 Supply 복귀가 대기함 | `PcbPlacer.ExecuteStepAsync`, `PcbSupplier.ExecuteStepAsync` | Supply `WaitingForPlacementClear`, Placement `Clear`와 `WaitingForSupplyClear` |
+| 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | `BoltFeederUnit.RunAsync`, `CheckEmptyTimeout` | 피더별 감지와 설정 제한시간, 슈팅 `runOnRemaining`, 이스케이프 후진 피드백 |
+| 볼트 체결이 멈춤 | `BoltFasteningStation.ExecuteStepAsync`, `FastenAsync` | `Step`, `selectedBolt`, `_runJob`; 컨트롤러는 `AdcBoltHead.TightenAsync` |
+| Station 3 검사/NG 이송이 대기 | `InspectionStation.GetNextStep`, `ExecuteStepAsync` | `Step`, `InspectionTarget`, `_runJob`; 이송 또는 검사가 준비되지 않으면 피드백 대기 |
+| NG 이송의 정방향·복귀 순서가 예상과 다름 | `InspectionStation.GetNextTransferStep`, `ExecuteTransferAsync`, `MoveToCarrierAsync` | `destination`, `state`, 현재 픽업 상승·그립·지지대 피드백, 인계 소유권; `NgCarrierDetected`는 표시용 |
+| NG 셔틀이 대기하거나 Repeat 상승하지 않음 | `NgCarrierConveyor.GetNextStep`, `ExecuteStepAsync` | `Step`, 실제 Up/Down·캐리어·픽업 상승과 인계 해제 조건 |
+| NG 컨베이어 적재·배출이 막힘 | `NgCarrierConveyor.GetNextStep`, `ExecuteStepAsync`, `RunUntilAsync` | `Step`, `destination` 입력, `_movement`, `_ejectionPhase`, 현재 위치 센서 |
 | 실린더 타임아웃 | `IIoService.SetOutputAndWaitAsync`, `WaitForInputAsync` | 출력 `output`/`value`, 기다리는 입력 `input`/`value`, 제한시간 |
 
-예를 들어 공급의 `switch (state)`에 조건부 중단점
-`state == PcbSupplyState.HandingOff`를 걸면 해당 대기로 들어가는 판단을 볼 수 있다.
-이벤트 대기 중에는 새 피드백이 와야 다음 판단으로 들어간다. `state`, `transferState`,
-`inspectionState`는 그 회차에 선택한 분기이며, 장비 위치를 저장하는 별도 상태가 아니다.
+예를 들어 공급의 `switch (step)`에 조건부 중단점
+`step == PcbSupplyState.HandingOff`를 걸면 해당 대기로 들어가는 판단을 볼 수 있다.
+이벤트 대기 중에는 새 피드백이 와야 다음 판단으로 들어간다. 다음 단계 선택값과
+`Step`은 실행·대기 중인 분기이며, 장비 위치를 저장하는 별도 상태가 아니다.
 
-PCB 공급의 그립·해제 출력 순서는 `ExecuteAsync`의 해당 `case`에서 바로 확인한다.
+PCB 공급의 그립·해제 출력 순서는 `ExecuteStepAsync`의 해당 `case`에서 바로 확인한다.
 `_pickStep`은 현재 실행에서 확인한 PCB 슬롯 이력이며 실행 종료 시 PCB1로 초기화한다.
 `OnHandlerChanged`는 전단 캐리어 이탈 시 PCB1을 선택한다.
 Front 1 Ready는 캐리어 도착 후에도 유지하고, PCB2까지 확인/확보하여 운반 높이로 복귀한 뒤 OFF한다.
@@ -525,7 +510,7 @@ Y 도착 후 기존 상태를 전환하고 Supply에 `Clear`를 전달한다. �
 상세 순서는 [Placement 동작](../Stations/IBTM.PcbPlacement/DESIGN.md)을 따른다.
 
 PCB 안착의 XY 이동은 `PcbPlacer.MoveToXYAsync`, Z 이동은 `MoveAxisAsync`에서
-장치 호출로 이어진다. 안착·일반 운전의 압입·상승은 `PlaceAsync` 한 호출 안에서 실행한다.
+장치 호출로 이어진다. 안착·일반 운전의 압입·상승은 `ExecuteStepAsync`의 안착 분기에서 실행한다.
 PCB 존재 확인은 완료 기록 전까지 해당 호출의 지역 변수로 관리하며, 별도 압입 대상·단계는 저장하지 않는다.
 현재 캐리어 작업과 착좌·PCB·진공 피드백은 계속 확인한다. `RunAsync` 종료 시 Repeat PCB 왕복 단계와
 실행 대상을 버린다. 별도의 재시작 단계 선택은 없다.
@@ -557,20 +542,20 @@ NG 컨베이어의 목적지와 배출 버튼 확인 단계는 현재 실행에�
 이송·배출 중 중단되면 실행 단계를 버린다. 새 START는 현재 센서로 동작을 선택한다.
 정상 이송의 도착 센서 확인, 셔틀 지지, 배출 확인 버튼 및 모터 OFF 정리는 유지한다.
 메인 컨베이어는 중단 단계의 자동 재개를 하지 않는다. `ConveyorTransfer`와 장기 보관 도착 이력은 없다.
-`RunAsync` 루프는 `GetState`가 선택한 동작을 끝까지 기다린 뒤 현재 피드백을 다시 읽는다.
+`RunAsync` 루프는 `GetNextStep`이 선택한 동작을 끝까지 기다린 뒤 현재 피드백을 다시 읽는다.
 반입·S1→S2·S2→S3는 `TransferAsync` 하나에서 목적지 준비 → 출발지 하강 → 구동 →
-HS2 감지·추가 밀착 → 결과 전달 → 정지 → S1/S2 착좌 순서로 실행한다. 반입의 출발지는 `null`이다.
-지역 변수 `departingJob`의 결과는 모터 OFF 전에 도착지에 전달한다. 취소 시 이벤트를 해제하므로
+HS2 감지·추가 밀착 → 정지 → 결과 전달 → S1/S2 착좌 순서로 실행한다. 반입의 출발지는 `null`이다.
+지역 변수 `departingJob`의 결과는 모터 OFF 뒤 도착지에 전달한다. 취소 시 이벤트를 해제하므로
 늦게 들어온 도착 신호가 이전 결과를 다른 캐리어에 붙이지 않는다. 지지 출력은 유지한다.
-`_executingTransfer`는 실행 중인 명령만 표시하고 종료·취소·오류 시 지운다. 재개 이력이 아니다.
-`GetNextTransfer`의 우선순위는 출구 잔류 → S3 배출 → S2→S3 → S1→S2 → 신규 반입이다.
+`Step`은 실행 중인 명령만 표시하고 종료·취소·오류 시 지운다. 재개 이력이 아니다.
+`GetNextTransfer`의 우선순위는 S3 배출 → S2→S3 → S1→S2 → 신규 반입이다.
 S1 작업 완료 대기는 `WaitingForPcbPlacement`, S2 작업 완료 대기는 `WaitingForBoltFastening`으로 표시한다.
-정방향 입구 감지·목적지 HS2 도착·출구 감지/해제에는 `ConveyorSettings.TransferTimeoutSeconds`(기본 5초)를 적용한다.
+정방향 입구 감지·목적지 HS2 도착·배출 중 후단 Ready OFF 대기에는 `ConveyorSettings.TransferTimeoutSeconds`를 적용한다.
 Repeat 역송에는 이 시간제한을 적용하지 않는다. 입구 센서 ON 콜백에서 즉시 RUN을 OFF하고 종료하며 추가 밀착 시간은 없다.
 역송 방향 설정 중 입구를 먼저 감지해도 RUN을 다시 켜지 않는다. STOP·안전 인터록 취소도 기존대로 즉시 모터를 끈다.
 각 센서 대기 단계에서 시간을 재며, 초과 시 모터와 해당 SMEMA 출력을 끄고 기다리던 입력을 타임아웃으로 보고한다.
 스테이션 작업 완료·후단 준비 대기는 제한하지 않는다. 실린더 피드백은 기존 공통 I/O 타임아웃을 사용한다.
-HS2 감지 후 추가 밀착 시간과 출구 구멍 통과 여유 시간은 별도이며, Settings → Operation & Timing → Main Conveyor에 모았다.
+HS2 감지 후 추가 밀착 시간과 후단 Ready OFF 뒤 추가 구동 시간은 별도이며, Settings → Operation & Timing → Main Conveyor에 모았다.
 S1/S2는 동시에 착좌하고 각 유닛이 작업한다. S3는 검사 전에 다른 이송이 가능하면 올려서
 기다린다. 가능한 이송이 끝나면 내리고 검사하며, 검사 요청 후에는 벨트를 정지한다.
 착좌 판정은 소재 감지와 백업 플레이트 상승 확인으로 하며 스토퍼 위치는 포함하지 않는다.
@@ -791,7 +776,7 @@ Settings → Operation & Timing → Bolt Fastening · Timing에서 시간을 조
 피더 ON인 실제 체결은 I/O START로 구동하고 ADC 조회 응답의 실제 OK/NG 결과를 기록한다.
 ADC 상태 조회는 연결별 `AdcStatusMonitor`가 소유한다. 최초 연결/준비 확인 때 시작하고 운전·정지·화면 전환 중에도 계속 조회하며 연결 해제 시 취소한다. Operation과 ADC TEST는 같은 모니터의 READY/RUN/ALARM을 바인딩한다. 통신 실패/연결 해제는 null(화면 —)이며 RUN OFF로 대체하지 않는다.
 Settings → Connections → ADC의 RUN Status Poll (ms), 기본 100ms는 상태 응답 후 다음 요청까지의 간격이다. 체결 명령은 별도 상태 조회 루프를 만들지 않는다. 준비·리셋·STOP 확인도 기존 모니터에서 명령 후 시작된 새 샘플을 기다린다.
-시리얼 포트별 기존 `_exchange` 세마포어가 상태/결과/진단 요청 전체를 직렬화하고, 수신은 `SerialPort.DataReceived`에서 프레임을 조립한다. 모니터 시작/종료와 샘플 발행을 동기화하고 불변 샘플을 원자적으로 교체한다. 동일 포트의 생산/진단 헤드가 모니터를 중복 생성하지 않는다.
+`AdcStatusMonitor`의 요청 큐가 상태/결과/진단 요청을 한 경로로 실행한다. `AdcBus`는 `_exchange` 세마포어를 잡은 채 전송과 `ReadResponseAsync` 수신을 끝낸다. 분할 수신은 해당 요청 안에서 조립하며 별도 `DataReceived` 수신 경로는 없다. 모니터 시작/종료와 샘플 발행을 동기화하고 불변 샘플을 원자적으로 교체한다. 동일 포트의 생산/진단 헤드가 모니터를 중복 생성하지 않는다.
 START 전 이벤트 번호(3200)는 한 번 읽어 이전 결과와 구분한다. START 직전에 모니터 이벤트를 구독하고 이번 START 이후의 RUN ON → OFF를 기다린다. START 직후 RUN OFF만으로 완료로 판단하지 않는다. 알람은 즉시 종료 처리하고, RUN OFF면 전체 결과(3200~3213)를 한 번 읽어 실제 OK/NG/Error를 기록한다. RUN 중 알람이면 START부터 끄고 해당 볼트를 NG로 기록한다.
 이벤트 번호는 시작 전과 다른지만 비교하며 +1이나 증가 방향을 가정하지 않는다. 이전 번호·중간 이벤트·방향/프리셋 불일치를 새 체결 성공으로 기록하지 않는다. `84 03`을 자발적 완료 통지로 가정하던 분기는 제거했다.
 RUN ON 또는 OFF를 확인하지 못하면 기존 체결 제한 시간에 따라 START OFF 후 NG를 기록한다. 결과 조회 거절은 재조회하지 않으며 토크를 임의로 만들지 않는다.

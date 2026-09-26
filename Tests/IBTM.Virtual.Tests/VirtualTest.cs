@@ -32,7 +32,8 @@ internal static class VirtualTest
     {
         return teaching.CarrierImages.SingleOrDefault(image => image.Metadata.HeatSink == teaching.SelectedPcb
             && (teaching.SelectedBarcode is not null ? image.Metadata.IsBarcode
-                : !image.Metadata.IsBarcode && image.Metadata.BoltNumber == teaching.SelectedPoint?.BoltNumber));
+                : !image.Metadata.IsBarcode
+                    && image.Metadata.BoltNumber == teaching.SelectedPoint?.Position.Bolt?.Number));
     }
 
     public static AdcBoltHead CreateAdcHead(

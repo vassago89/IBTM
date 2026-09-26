@@ -78,21 +78,18 @@ public sealed partial class MachineLifecycleTests
     {
         var captured = new Dictionary<MotionGroup, ScopedMotionProbe>();
         probes = captured;
-        T Wrap<T>(MotionGroup group, T motion)
-            where T : class, IAxisMotion
-        {
-            var wrapper = DispatchProxy.Create<T, ScopedMotionProbe>();
-            var probe = (ScopedMotionProbe)(object)wrapper;
-            probe.Motion = motion;
-            captured.Add(group, probe);
-            return wrapper;
-        }
-
         var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(group => group,
-                    group => Wrap(group, provider.GetRequiredKeyedService<IXyMotion>(group))));
+                    group =>
+                    {
+                        var motion = DispatchProxy.Create<IXyMotion, ScopedMotionProbe>();
+                        var probe = (ScopedMotionProbe)motion;
+                        probe.Motion = provider.GetRequiredKeyedService<IXyMotion>(group);
+                        captured.Add(group, probe);
+                        return motion;
+                    }));
         configure?.Invoke(services);
         var provider = services.BuildServiceProvider();
         // These tests replace the handler factories that normally initialize virtual feedback.
@@ -204,10 +201,10 @@ public sealed partial class MachineLifecycleTests
             new BoltPoint { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 28, Y = 10 });
         foreach (var bolt in recipe.Pcb.BoltPoints)
             settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
-        TeachInspectionFovs(settings, recipe);
+        TeachInspectionFovs(recipe);
     }
 
-    private static void TeachInspectionFovs(MachineSettings settings, Recipe recipe)
+    private static void TeachInspectionFovs(Recipe recipe)
     {
         recipe.CarrierImages = recipe.Pcb.BoltPoints.Select((bolt, index) => new CarrierImageTile
         {

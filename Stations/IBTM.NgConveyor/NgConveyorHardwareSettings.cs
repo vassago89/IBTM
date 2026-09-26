@@ -43,20 +43,12 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings, IJsonOnDese
     {
         switch (signal)
         {
-            case InputIo.NgConveyorPosition1Occupied:
-            case InputIo.NgConveyorPosition2Occupied:
-            case InputIo.NgConveyorManualMode:
-            case InputIo.NgConveyorStopperUp:
-            case InputIo.NgConveyorStopperDown:
-            case OutputIo.NgConveyorStopperUp:
-            case OutputIo.NgConveyorRun:
-            case OutputIo.NgConveyorReverse:
-            case OutputIo.NgConveyorNormalSpeed:
+            case InputIo.NgConveyorPosition1Occupied or InputIo.NgConveyorPosition2Occupied or InputIo.NgConveyorManualMode
+                or InputIo.NgConveyorStopperUp or InputIo.NgConveyorStopperDown or OutputIo.NgConveyorStopperUp
+                or OutputIo.NgConveyorRun or OutputIo.NgConveyorReverse or OutputIo.NgConveyorNormalSpeed:
                 return IoSection.NgConveyorStorage;
-            case InputIo.NgCarrierEjectButton:
-            case InputIo.NgCarrierEjectCompleteButton:
-            case OutputIo.NgCarrierEjectLamp:
-            case OutputIo.NgCarrierEjectCompleteLamp:
+            case InputIo.NgCarrierEjectButton or InputIo.NgCarrierEjectCompleteButton
+                or OutputIo.NgCarrierEjectLamp or OutputIo.NgCarrierEjectCompleteLamp:
                 return IoSection.NgConveyorOperatorEject;
             default:
                 return null;

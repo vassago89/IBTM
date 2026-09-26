@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
@@ -18,51 +19,46 @@ namespace IBTM;
 
 public sealed class MachineSettings
 {
-    public MachineSettings() : this(null)
+    public MachineSettings() : this(new SavedSettings(new Dictionary<string, string>()))
     {
     }
 
-    private MachineSettings(SavedSettings? values)
+    private MachineSettings(SavedSettings values)
     {
-        Drivers = values?.Get<DriverSettings>() ?? new();
-        Units = values?.Get<UnitSettings>() ?? new();
-        Options = values?.Get<MachineOptions>() ?? new();
-        RecipeSelection = values?.Get<RecipeSelectionSettings>() ?? new();
-        PcbHistory = values?.Get<PcbHistorySettings>() ?? new();
-        Logging = values?.Get<LogSettings>() ?? new();
-        CarrierReference = values?.Get<CarrierReferenceSettings>() ?? new();
-        Ajin = values?.Get<AjinSettings>() ?? new();
-        AlphaMotion = values?.Get<AlphaMotionSettings>() ?? new();
-        Hantas = values?.Get<HantasSettings>() ?? new();
-        InspectionCamera = values?.Get<InspectionCameraSettings>() ?? new();
-        Lighting = values?.Get<LightingSettings>() ?? new();
-        NgCarrierTransfer = values?.Get<NgCarrierTransferSettings>() ?? new();
-        NgConveyor = values?.Get<NgConveyorSettings>() ?? new();
-        Conveyor = values?.Get<ConveyorSettings>() ?? new();
-        PcbSupply = values?.Get<PcbSupplySettings>() ?? new();
-        PcbSupplyHardware = values?.Get<PcbSupplyHardwareSettings>() ?? new();
-        PcbPlacementHandler = values?.Get<PcbPlacementHandlerSettings>() ?? new();
-        PcbPlacementHandlerHardware = values?.Get<PcbPlacementHandlerHardwareSettings>() ?? new();
-        PcbPlacementStationHardware = values?.Get<PcbPlacementStationHardwareSettings>() ?? new();
-        BoltFeeder = values?.Get<BoltFeederSettings>() ?? new();
-        BoltFeederHardware = values?.Get<BoltFeederHardwareSettings>() ?? new();
-        BoltFastening = values?.Get<BoltFasteningSettings>() ?? new();
-        BoltFasteningHardware = values?.Get<BoltFasteningHardwareSettings>() ?? new();
-        IoBoltHardware = values?.Get<IoBoltHardwareSettings>() ?? new();
-        BoltFasteningStationHardware = values?.Get<BoltFasteningStationHardwareSettings>() ?? new();
-        InspectionGantry = values?.Get<InspectionGantrySettings>() ?? new();
-        InspectionGantryHardware = values?.Get<InspectionGantryHardwareSettings>() ?? new();
-        InspectionStationHardware = values?.Get<InspectionStationHardwareSettings>() ?? new();
-        MachineHardware = values?.Get<MachineHardwareSettings>() ?? new();
-        ConveyorHardware = values?.Get<ConveyorHardwareSettings>() ?? new();
-        NgCarrierTransferHardware = values?.Get<NgCarrierTransferHardwareSettings>() ?? new();
-        NgShuttleHardware = values?.Get<NgShuttleHardwareSettings>() ?? new();
-        NgConveyorHardware = values?.Get<NgConveyorHardwareSettings>() ?? new();
-
-        // Older settings used one taught position for both waiting and carrier pickup.
-        if (values is not null && NgCarrierTransfer.WaitingPosition is null
-            && NgCarrierTransfer.CarrierPickupPosition is { } pickup)
-            NgCarrierTransfer.WaitingPosition = new() { X = pickup.X, Y = pickup.Y };
+        Drivers = values.Get<DriverSettings>();
+        Units = values.Get<UnitSettings>();
+        Options = values.Get<MachineOptions>();
+        RecipeSelection = values.Get<RecipeSelectionSettings>();
+        PcbHistory = values.Get<PcbHistorySettings>();
+        Logging = values.Get<LogSettings>();
+        CarrierReference = values.Get<CarrierReferenceSettings>();
+        Ajin = values.Get<AjinSettings>();
+        AlphaMotion = values.Get<AlphaMotionSettings>();
+        Hantas = values.Get<HantasSettings>();
+        InspectionCamera = values.Get<InspectionCameraSettings>();
+        Lighting = values.Get<LightingSettings>();
+        NgCarrierTransfer = values.Get<NgCarrierTransferSettings>();
+        NgConveyor = values.Get<NgConveyorSettings>();
+        Conveyor = values.Get<ConveyorSettings>();
+        PcbSupply = values.Get<PcbSupplySettings>();
+        PcbSupplyHardware = values.Get<PcbSupplyHardwareSettings>();
+        PcbPlacementHandler = values.Get<PcbPlacementHandlerSettings>();
+        PcbPlacementHandlerHardware = values.Get<PcbPlacementHandlerHardwareSettings>();
+        PcbPlacementStationHardware = values.Get<PcbPlacementStationHardwareSettings>();
+        BoltFeeder = values.Get<BoltFeederSettings>();
+        BoltFeederHardware = values.Get<BoltFeederHardwareSettings>();
+        BoltFastening = values.Get<BoltFasteningSettings>();
+        BoltFasteningHardware = values.Get<BoltFasteningHardwareSettings>();
+        IoBoltHardware = values.Get<IoBoltHardwareSettings>();
+        BoltFasteningStationHardware = values.Get<BoltFasteningStationHardwareSettings>();
+        InspectionGantry = values.Get<InspectionGantrySettings>();
+        InspectionGantryHardware = values.Get<InspectionGantryHardwareSettings>();
+        InspectionStationHardware = values.Get<InspectionStationHardwareSettings>();
+        MachineHardware = values.Get<MachineHardwareSettings>();
+        ConveyorHardware = values.Get<ConveyorHardwareSettings>();
+        NgCarrierTransferHardware = values.Get<NgCarrierTransferHardwareSettings>();
+        NgShuttleHardware = values.Get<NgShuttleHardwareSettings>();
+        NgConveyorHardware = values.Get<NgConveyorHardwareSettings>();
     }
 
     public DriverSettings Drivers { get; set; }

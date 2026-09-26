@@ -41,7 +41,7 @@ public sealed partial class MachineLifecycleTests
                 X = 15,
                 Y = 10,
             });
-        TeachInspectionFovs(settings, recipe);
+        TeachInspectionFovs(recipe);
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 12 };
         recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 12 };
         settings.BoltFastening.ShootingHead.FasteningZ = 8;

@@ -206,7 +206,7 @@ public sealed class MachineState : INotifyPropertyChanged
             if (field == value)
                 return;
 
-            _log?.LogInformation("{Message}", $"Automatic operation {(value ? "started" : "stopped")}.");
+            _log?.LogInformation("Automatic operation {State}.", value ? "started" : "stopped");
             field = value;
             PropertyChanged?.Invoke(this, new(nameof(AutomaticRunning)));
             NotifyChanged();
@@ -220,7 +220,7 @@ public sealed class MachineState : INotifyPropertyChanged
         {
             if (field == value)
                 return;
-            _log?.LogInformation("{Message}", $"Bolt test {(value ? "started" : "stopped")}.");
+            _log?.LogInformation("Bolt test {State}.", value ? "started" : "stopped");
             field = value;
             PropertyChanged?.Invoke(this, new(nameof(BoltTestRunning)));
             NotifyChanged();
@@ -234,7 +234,7 @@ public sealed class MachineState : INotifyPropertyChanged
         {
             if (field == value)
                 return;
-            _log?.LogInformation("{Message}", $"Homing {(value ? "started" : "finished")}.");
+            _log?.LogInformation("Homing {State}.", value ? "started" : "finished");
             field = value;
             PropertyChanged?.Invoke(this, new(nameof(IsHoming)));
             NotifyChanged();
@@ -407,7 +407,7 @@ public sealed class MachineState : INotifyPropertyChanged
         {
             if (exception is not null)
             {
-                _log?.LogError(exception, "{Message}", $"Machine alarm remains: {alarm}.");
+                _log?.LogError(exception, "Machine alarm remains: {Alarm}.", alarm.ToString());
             }
 
             return;
@@ -416,7 +416,7 @@ public sealed class MachineState : INotifyPropertyChanged
         Alarm = alarm;
         AlarmDetail = exception?.ToString();
         AlarmMessage = exception?.Message;
-        _log?.LogError(exception, "{Message}", $"Machine alarm: {alarm}.");
+        _log?.LogError(exception, "Machine alarm: {Alarm}.", alarm.ToString());
         PropertyChanged?.Invoke(this, new(nameof(Alarm)));
         PropertyChanged?.Invoke(this, new(nameof(AlarmDetail)));
         PropertyChanged?.Invoke(this, new(nameof(AlarmMessage)));
@@ -428,7 +428,7 @@ public sealed class MachineState : INotifyPropertyChanged
     internal void ClearError()
     {
         if (Alarm != MachineAlarm.None)
-            _log?.LogInformation("{Message}", $"Machine alarm cleared: {Alarm}.");
+            _log?.LogInformation("Machine alarm cleared: {Alarm}.", Alarm.ToString());
         Alarm = MachineAlarm.None;
         AlarmDetail = null;
         AlarmMessage = null;

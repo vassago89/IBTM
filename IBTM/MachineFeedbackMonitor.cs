@@ -179,7 +179,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         {
             _failure = error;
             first.TrySetException(error);
-            _log?.LogError(error, "{Message}", $"{name} monitor stopped by an unexpected error. Restart the application.");
+            _log?.LogError(error, "{Monitor} monitor stopped by an unexpected error. Restart the application.", name);
             failed(error);
             ReadErrorChanged?.Invoke();
             throw;
@@ -272,7 +272,8 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
         try
         {
             // Raw diagnostics remain available for disabled axes as well.
-            motion.RefreshMonitorFeedback((axis, error) => _log?.LogError(error, "{Message}", $"Motion monitor {group}/{axis}: feedback read failed."));
+            motion.RefreshMonitorFeedback((axis, error) => _log?.LogError(
+                error, "Motion monitor {Group}/{Axis}: feedback read failed.", group.ToString(), axis.ToString()));
             ioReady = _io.IsReady;
             motion.RefreshControlFeedback(ioReady && enabled);
             var error = enabled && ioReady

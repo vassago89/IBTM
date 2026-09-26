@@ -30,11 +30,16 @@ public sealed class NgCarrierTransferSettings : Setting, IJsonOnDeserialized
 
     void IJsonOnDeserialized.OnDeserialized()
     {
-        if (!_hasLegacyPickupX)
-            return;
-        CarrierPickupPosition = LegacyPickupX is { } x && CarrierPickupPosition is { } position
-            ? new() { X = x, Y = position.Y } : null;
-        LegacyPickupX = null;
-        _hasLegacyPickupX = false;
+        if (_hasLegacyPickupX)
+        {
+            CarrierPickupPosition = LegacyPickupX is { } x && CarrierPickupPosition is { } position
+                ? new() { X = x, Y = position.Y } : null;
+            LegacyPickupX = null;
+            _hasLegacyPickupX = false;
+        }
+
+        // Older settings used one taught position for both waiting and carrier pickup.
+        if (WaitingPosition is null && CarrierPickupPosition is { } pickup)
+            WaitingPosition = new() { X = pickup.X, Y = pickup.Y };
     }
 }

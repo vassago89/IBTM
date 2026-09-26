@@ -40,21 +40,13 @@ public sealed class IoBoltHardwareSettings : IoHardwareSettings
     {
         switch (signal)
         {
-            case OutputIo.PickupBoltPreset1:
-            case OutputIo.PickupBoltPreset2:
-            case OutputIo.PickupBoltPreset3:
-            case OutputIo.PickupBoltStart:
-            case OutputIo.PickupBoltDirection:
-            case OutputIo.PickupBoltLock:
-            case OutputIo.PickupBoltReset:
+            case OutputIo.PickupBoltPreset1 or OutputIo.PickupBoltPreset2 or OutputIo.PickupBoltPreset3
+                or OutputIo.PickupBoltStart or OutputIo.PickupBoltDirection
+                or OutputIo.PickupBoltLock or OutputIo.PickupBoltReset:
                 return IoSection.BoltPickupController;
-            case OutputIo.ShootingBoltPreset1:
-            case OutputIo.ShootingBoltPreset2:
-            case OutputIo.ShootingBoltPreset3:
-            case OutputIo.ShootingBoltStart:
-            case OutputIo.ShootingBoltDirection:
-            case OutputIo.ShootingBoltLock:
-            case OutputIo.ShootingBoltReset:
+            case OutputIo.ShootingBoltPreset1 or OutputIo.ShootingBoltPreset2 or OutputIo.ShootingBoltPreset3
+                or OutputIo.ShootingBoltStart or OutputIo.ShootingBoltDirection
+                or OutputIo.ShootingBoltLock or OutputIo.ShootingBoltReset:
                 return IoSection.BoltShootingController;
             default:
                 return null;

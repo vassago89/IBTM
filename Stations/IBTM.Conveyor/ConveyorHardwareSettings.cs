@@ -79,36 +79,22 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings, IJsonOnDeseri
     {
         switch (signal)
         {
-            case InputIo.MainConveyorAvailableFromFront2:
-            case InputIo.MainConveyorReadyFromRear:
-            case InputIo.MainConveyorManualMode:
-            case InputIo.MainConveyorEntryCarrierDetected:
-            case OutputIo.MainConveyorReadyToFront2:
-            case OutputIo.MainConveyorAvailableToRear:
-            case OutputIo.MainConveyorRun:
-            case OutputIo.MainConveyorForward:
-            case OutputIo.MainConveyorNormalSpeed:
+            case InputIo.MainConveyorAvailableFromFront2 or InputIo.MainConveyorReadyFromRear
+                or InputIo.MainConveyorManualMode or InputIo.MainConveyorEntryCarrierDetected
+                or OutputIo.MainConveyorReadyToFront2 or OutputIo.MainConveyorAvailableToRear
+                or OutputIo.MainConveyorRun or OutputIo.MainConveyorForward or OutputIo.MainConveyorNormalSpeed:
                 return IoSection.MainConveyorInterfaceDrive;
-            case InputIo.PcbPlacementStopperUp:
-            case InputIo.PcbPlacementStopperDown:
-            case InputIo.PcbPlacementBackupPlateUp:
-            case InputIo.PcbPlacementBackupPlateDown:
-            case OutputIo.PcbPlacementStopperUp:
-            case OutputIo.PcbPlacementBackupPlateUp:
+            case InputIo.PcbPlacementStopperUp or InputIo.PcbPlacementStopperDown
+                or InputIo.PcbPlacementBackupPlateUp or InputIo.PcbPlacementBackupPlateDown
+                or OutputIo.PcbPlacementStopperUp or OutputIo.PcbPlacementBackupPlateUp:
                 return IoSection.MainConveyorStation1;
-            case InputIo.BoltFasteningStopperUp:
-            case InputIo.BoltFasteningStopperDown:
-            case InputIo.BoltFasteningBackupPlateUp:
-            case InputIo.BoltFasteningBackupPlateDown:
-            case OutputIo.BoltFasteningStopperUp:
-            case OutputIo.BoltFasteningBackupPlateUp:
+            case InputIo.BoltFasteningStopperUp or InputIo.BoltFasteningStopperDown
+                or InputIo.BoltFasteningBackupPlateUp or InputIo.BoltFasteningBackupPlateDown
+                or OutputIo.BoltFasteningStopperUp or OutputIo.BoltFasteningBackupPlateUp:
                 return IoSection.MainConveyorStation2;
-            case InputIo.InspectionStopperUp:
-            case InputIo.InspectionStopperDown:
-            case InputIo.InspectionBackupPlateUp:
-            case InputIo.InspectionBackupPlateDown:
-            case OutputIo.InspectionStopperUp:
-            case OutputIo.InspectionBackupPlateUp:
+            case InputIo.InspectionStopperUp or InputIo.InspectionStopperDown
+                or InputIo.InspectionBackupPlateUp or InputIo.InspectionBackupPlateDown
+                or OutputIo.InspectionStopperUp or OutputIo.InspectionBackupPlateUp:
                 return IoSection.MainConveyorStation3;
             default:
                 return null;

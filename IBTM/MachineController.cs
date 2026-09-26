@@ -503,7 +503,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
 
         UpdateMachineIndicators();
-        _log?.LogInformation("{Message}", $"Machine initialization finished. Alarm={_state.Alarm}.");
+        _log?.LogInformation("Machine initialization finished. Alarm={Alarm}.", _state.Alarm.ToString());
     }
 
     private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeIoAsync(
@@ -511,7 +511,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         cancellationToken.ThrowIfCancellationRequested();
         var stage = "Control I/O initialization";
-        _log?.LogInformation("{Message}", stage + " started.");
+        _log?.LogInformation("{Stage} started.", stage);
         try
         {
             // Keep SDK initialization off the input notification thread.
@@ -543,7 +543,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
-            _log?.LogError("{Message}", $"{stage} failed. {exception.Message}");
+            _log?.LogError("{Stage} failed. {Error}", stage, exception.Message);
             return (MachineAlarm.IoCommunication, exception);
         }
 
@@ -568,7 +568,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             if (_units.PcbSupply)
             {
                 stage = "PCB supply motion initialization";
-                _log?.LogInformation("{Message}", stage + " started.");
+                _log?.LogInformation("{Stage} started.", stage);
                 _motions[MotionGroup.PcbSupply].Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -576,7 +576,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             if (_units.PcbPlacement)
             {
                 stage = "PCB placement motion initialization";
-                _log?.LogInformation("{Message}", stage + " started.");
+                _log?.LogInformation("{Stage} started.", stage);
                 _motions[MotionGroup.PcbPlacementHandler].Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -584,7 +584,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             if (_units.BoltFastening)
             {
                 stage = "Bolt fastening motion initialization";
-                _log?.LogInformation("{Message}", stage + " started.");
+                _log?.LogInformation("{Stage} started.", stage);
                 _motions[MotionGroup.BoltFastening].Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -592,7 +592,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             if (_units.Inspection)
             {
                 stage = "Inspection motion initialization";
-                _log?.LogInformation("{Message}", stage + " started.");
+                _log?.LogInformation("{Stage} started.", stage);
                 _motions[MotionGroup.InspectionGantry].Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -605,7 +605,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
-            _log?.LogError("{Message}", $"{stage} failed. {exception.Message}");
+            _log?.LogError("{Stage} failed. {Error}", stage, exception.Message);
             return (MachineAlarm.MotionUnavailable, exception);
         }
 
@@ -624,7 +624,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             }
             catch (Exception exception)
             {
-                _log?.LogError("{Message}", $"Vision / lighting initialization failed. {exception.Message}");
+                _log?.LogError("Vision / lighting initialization failed. {Error}", exception.Message);
                 return (MachineAlarm.Inspection, exception);
             }
         }
@@ -644,7 +644,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             }
             catch (Exception exception)
             {
-                _log?.LogError("{Message}", $"Bolt controller readiness check failed. {exception.Message}");
+                _log?.LogError("Bolt controller readiness check failed. {Error}", exception.Message);
                 return (MachineAlarm.BoltFastening, exception);
             }
         }
@@ -980,14 +980,16 @@ public sealed partial class MachineController : INotifyPropertyChanged
             {
                 // Keep the unit name even when the alarm is classified as MotionUnavailable.
                 // SetError records the original exception and its full stack trace.
-                _log?.LogError("{Message}", $"Automatic unit {alarm} failed. {exception.Message}");
+                _log?.LogError("Automatic unit {Alarm} failed. {Error}", alarm.ToString(), exception.Message);
                 _state.SetError(
                     IsMotionFailure(exception) ? MachineAlarm.MotionUnavailable : alarm,
                     exception);
             }
             else
             {
-                _log?.LogError(exception, "{Message}", $"Automatic unit {alarm} failed while stopping; existing alarm={_state.Alarm}.");
+                _log?.LogError(exception,
+                    "Automatic unit {UnitAlarm} failed while stopping; existing alarm={Alarm}.",
+                    alarm.ToString(), _state.Alarm.ToString());
             }
         }
         finally
@@ -1152,7 +1154,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 if (!_state.IsError)
                     _state.SetError(alarm, exception);
                 else
-                    _log?.LogError(exception, "{Message}", $"Cylinder raise {alarm} failed while stopping; existing alarm={_state.Alarm}.");
+                    _log?.LogError(exception,
+                        "Cylinder raise {UnitAlarm} failed while stopping; existing alarm={Alarm}.",
+                        alarm.ToString(), _state.Alarm.ToString());
                 operation.Cancel();
             }
             operation.Token.ThrowIfCancellationRequested();
@@ -1529,7 +1533,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         var failures = new List<Exception>();
         void RecordFailure(MachineAlarm deviceAlarm, string device, Exception exception)
         {
-            _log?.LogError(exception, "{Message}", $"{device} reset failed.");
+            _log?.LogError(exception, "{Device} reset failed.", device);
             if (alarm == MachineAlarm.None)
             {
                 alarm = deviceAlarm;
@@ -1679,7 +1683,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
         var block = ManualOutputSafetyBlock;
         if (block != OutputBlockReason.None)
         {
-            _log?.LogInformation("{Message}", $"Direct output {signal} ignored: [{block}] {block.GetDescription()}");
+            _log?.LogInformation("Direct output {Signal} ignored: [{Block}] {Description}",
+                signal.ToString(), block.ToString(), block.GetDescription());
             return block;
         }
 
@@ -1692,7 +1697,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 _ => !_io.GetOutput(signal),
             };
             _io.SetOutput(signal, value);
-            _log?.LogInformation("{Message}", $"Direct output {signal}: {(value ? "ON" : "OFF")}; alarm={_state.Alarm}.");
+            _log?.LogInformation("Direct output {Signal}: {Value}; alarm={Alarm}.",
+                signal.ToString(), value ? "ON" : "OFF", _state.Alarm.ToString());
             _state.Refresh();
             return OutputBlockReason.None;
         }
@@ -1753,7 +1759,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
             var block = ManualOutputSafetyBlock;
             if (block != OutputBlockReason.None)
             {
-                _log?.LogInformation("{Message}", $"Manual conveyor {signal} ignored: [{block}] {block.GetDescription()}");
+                _log?.LogInformation("Manual conveyor {Signal} ignored: [{Block}] {Description}",
+                    signal.ToString(), block.ToString(), block.GetDescription());
                 return block;
             }
 
@@ -1785,13 +1792,14 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     {
                         stopReason = reason;
                         operation.Cancel();
-                        _log?.LogInformation("{Message}", $"Manual conveyor {signal} stopped: [{reason}] {reason.GetDescription()}");
+                        _log?.LogInformation("Manual conveyor {Signal} stopped: [{Reason}] {Description}",
+                            signal.ToString(), reason.ToString(), reason.GetDescription());
                     }
                 }
                 catch (Exception exception)
                 {
                     // This callback runs on the I/O worker. Cancel without stopping its scan.
-                    _log?.LogError(exception, "{Message}", $"Manual conveyor {signal}: interlock feedback could not be read.");
+                    _log?.LogError(exception, "Manual conveyor {Signal}: interlock feedback could not be read.", signal.ToString());
                     operation.Cancel();
                 }
             }
@@ -1810,7 +1818,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             {
                 StopWhenUnavailable();
                 operation.Token.ThrowIfCancellationRequested();
-                _log?.LogInformation("{Message}", $"Manual conveyor {signal}: ON, forward; alarm={_state.Alarm}.");
+                _log?.LogInformation("Manual conveyor {Signal}: ON, forward; alarm={Alarm}.", signal.ToString(), _state.Alarm.ToString());
                 if (signal == OutputIo.MainConveyorRun)
                 {
                     motorRun = _conveyor.RunMotorAsync(operation.Token);
@@ -1865,7 +1873,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
             }
 
             if (failure is null && outputStarted)
-                _log?.LogInformation("{Message}", $"Manual conveyor {signal}: OFF.");
+                _log?.LogInformation("Manual conveyor {Signal}: OFF.", signal.ToString());
         }
 
         if (failure is not null)

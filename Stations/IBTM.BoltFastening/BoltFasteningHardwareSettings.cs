@@ -69,25 +69,14 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings, IJso
     {
         switch (signal)
         {
-            case InputIo.PickupTableDown:
-            case InputIo.PickupTableUp:
-            case OutputIo.PickupTableDown:
-            case InputIo.PickupHeadDown:
-            case InputIo.PickupHeadUp:
-            case InputIo.PickupHeadVacuumDetected:
-            case OutputIo.PickupHeadDown:
-            case OutputIo.PickupHeadVacuumPump:
+            case InputIo.PickupTableDown or InputIo.PickupTableUp or OutputIo.PickupTableDown
+                or InputIo.PickupHeadDown or InputIo.PickupHeadUp or InputIo.PickupHeadVacuumDetected
+                or OutputIo.PickupHeadDown or OutputIo.PickupHeadVacuumPump:
                 return IoSection.BoltFasteningPickupHead;
-            case InputIo.ShootingHeadDown:
-            case InputIo.ShootingHeadUp:
-            case InputIo.ShootingHeadVacuumDetected:
-            case InputIo.ShootingTubeBoltDetected:
-            case InputIo.ShootingEscapeForward:
-            case InputIo.ShootingEscapeBackward:
-            case OutputIo.ShootingHeadDown:
-            case OutputIo.ShootingHeadVacuumPump:
-            case OutputIo.ShootingEscapeForward:
-            case OutputIo.ShootBolt:
+            case InputIo.ShootingHeadDown or InputIo.ShootingHeadUp or InputIo.ShootingHeadVacuumDetected
+                or InputIo.ShootingTubeBoltDetected or InputIo.ShootingEscapeForward or InputIo.ShootingEscapeBackward
+                or OutputIo.ShootingHeadDown or OutputIo.ShootingHeadVacuumPump
+                or OutputIo.ShootingEscapeForward or OutputIo.ShootBolt:
                 return IoSection.BoltFasteningShootingHead;
             default:
                 return null;

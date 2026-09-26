@@ -74,19 +74,19 @@ public sealed class PhysicalIoService : IIoService, IDisposable
             var stage = "AlphaMotion initialization";
             try
             {
-                _log?.LogInformation("{Message}", stage + " started.");
+                _log?.LogInformation("{Stage} started.", stage);
                 _alphaMotion.Initialize();
-                _log?.LogInformation("{Message}", stage + " completed.");
+                _log?.LogInformation("{Stage} completed.", stage);
                 stage = "AJIN AxlOpen initialization / DIO module validation";
-                _log?.LogInformation("{Message}", stage + " started.");
+                _log?.LogInformation("{Stage} started.", stage);
                 _ajin.Initialize();
-                _log?.LogInformation("{Message}", stage + " completed.");
+                _log?.LogInformation("{Stage} completed.", stage);
                 foreach (var input in _mappedInputs)
                 {
                     stage = $"Initial DI read: {input}, channel={_inputMap[input]}";
                     var value = ReadInput(_inputMap[input]);
                     _inputScan[(int)input] = value;
-                    _log?.LogInformation("{Message}", $"{stage}: {(value ? "ON" : "OFF")}");
+                    _log?.LogInformation("{Stage}: {Value}", stage, value ? "ON" : "OFF");
                 }
 
                 stage = "Initial DI cache update / change notification";
@@ -95,7 +95,7 @@ public sealed class PhysicalIoService : IIoService, IDisposable
             catch (Exception exception)
             {
                 _ready = false;
-                _log?.LogError("{Message}", $"{stage} failed. Input feedback is unavailable. {exception.Message}");
+                _log?.LogError("{Stage} failed. Input feedback is unavailable. {Error}", stage, exception.Message);
                 throw;
             }
         }
@@ -130,7 +130,7 @@ public sealed class PhysicalIoService : IIoService, IDisposable
             catch (Exception exception)
             {
                 _ready = false;
-                _log?.LogError("{Message}", $"Control I/O readiness check failed. {exception.Message}");
+                _log?.LogError("Control I/O readiness check failed. {Error}", exception.Message);
                 throw;
             }
         }
@@ -180,12 +180,12 @@ public sealed class PhysicalIoService : IIoService, IDisposable
         {
             _log?.LogError(
                 exception,
-                "{Message}",
-                $"DO {output}, channel={mapping.Number}, paired OFF={mapping.OffNumber}: write {(value ? "ON" : "OFF")} failed.");
+                "DO {Output}, channel={Channel}, paired OFF={OffChannel}: write {Value} failed.",
+                output.ToString(), mapping.Number, mapping.OffNumber?.ToString() ?? "", value ? "ON" : "OFF");
             throw;
         }
 
-        _log?.LogInformation("{Message}", $"DO {output}, channel={mapping.Number}: {(value ? "ON" : "OFF")}");
+        _log?.LogInformation("DO {Output}, channel={Channel}: {Value}", output.ToString(), mapping.Number, value ? "ON" : "OFF");
         OutputChanged?.Invoke(output, value);
     }
 
@@ -250,7 +250,8 @@ public sealed class PhysicalIoService : IIoService, IDisposable
             catch (Exception exception)
             {
                 _ready = false;
-                _log?.LogError(exception, "{Message}", $"Input scan failed during {stage}. Inputs remain unavailable until initialization succeeds.");
+                _log?.LogError(exception,
+                    "Input scan failed during {Stage}. Inputs remain unavailable until initialization succeeds.", stage);
                 Faulted?.Invoke(exception);
                 throw;
             }
@@ -281,7 +282,8 @@ public sealed class PhysicalIoService : IIoService, IDisposable
         for (var index = 0; index < changedCount; index++)
         {
             var input = _changedInputs[index];
-            _log?.LogInformation("{Message}", $"DI {input}, channel={_inputMap[input]}: {(_inputScan[(int)input] ? "ON" : "OFF")}");
+            _log?.LogInformation("DI {Input}, channel={Channel}: {Value}",
+                input.ToString(), _inputMap[input], _inputScan[(int)input] ? "ON" : "OFF");
             InputChanged?.Invoke(input, _inputScan[(int)input]);
         }
     }

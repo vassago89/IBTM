@@ -118,8 +118,6 @@ public class TeachingPoint : ObservableObject
         }
     }
 
-    public int BoltNumber => _definition.Bolt?.Number ?? 0;
-
     public string Name
     {
         get
@@ -151,15 +149,10 @@ public class TeachingPoint : ObservableObject
                     return TeachingPointGroup.Fastening;
                 case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
                     return TeachingPointGroup.CarrierTransfer;
-                case TeachingTarget.SafeZ:
-                case TeachingTarget.ShootingHeadFasteningZ:
-                case TeachingTarget.PickupHeadFasteningZ:
-                case TeachingTarget.CarrierUpperLeftLocatingPin:
-                case TeachingTarget.CarrierLowerRightLocatingPin:
-                case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
-                case TeachingTarget.ShootingHeadLowerRightLocatingPin:
-                case TeachingTarget.PickupHeadUpperLeftLocatingPin:
-                case TeachingTarget.PickupHeadLowerRightLocatingPin:
+                case TeachingTarget.SafeZ or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
+                    or TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin
+                    or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
+                    or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin:
                     return TeachingPointGroup.MachineReference;
                 default:
                     return TeachingPointGroup.Work;

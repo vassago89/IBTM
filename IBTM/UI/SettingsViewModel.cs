@@ -440,7 +440,7 @@ public partial class SettingsViewModel : ObservableObject
                     _light.Initialize();
                     _light.TurnOff(channel);
                 });
-            _log.LogInformation("{Message}", $"Lighting test OFF command sent: channel={channel}.");
+            _log.LogInformation("Lighting test OFF command sent: channel={Channel}.", channel);
             PendingLightOffChannel = null;
             return null;
         }
@@ -504,8 +504,8 @@ public partial class SettingsViewModel : ObservableObject
                 StopWhenUnavailable();
                 LightTestMessage = $"Connecting: {ActiveLightConnection}…";
                 _log.LogInformation(
-                    "{Message}",
-                    $"Lighting test started: driver={ActiveLightDriver}, connection={ActiveLightConnection}, channel={channel}, level={level}.");
+                    "Lighting test started: driver={Driver}, connection={Connection}, channel={Channel}, level={Level}.",
+                    ActiveLightDriver.ToString(), ActiveLightConnection, channel, level);
                 await Task.Run(
                     () =>
                     {
@@ -522,7 +522,7 @@ public partial class SettingsViewModel : ObservableObject
                 PendingLightOffChannel = channel;
                 LightTestOn = true;
                 LightTestMessage = $"ON command sent · channel {channel}, level {level}. Press OFF to finish.";
-                _log.LogInformation("{Message}", $"Lighting test ON command sent: channel={channel}, level={level}.");
+                _log.LogInformation("Lighting test ON command sent: channel={Channel}, level={Level}.", channel, level);
                 // Keep the operation owned while illuminated, including OFF cleanup.
                 // This blocks automatic/motion admission and lets STOP cancel the test.
                 await Task.Delay(Timeout.Infinite, operation.Token);

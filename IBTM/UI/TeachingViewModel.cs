@@ -653,7 +653,8 @@ public partial class TeachingViewModel : ObservableObject
         Recipes.Current.Pcb.BoltPoints.Add(bolt);
         RefreshTeachingPoints();
         SelectedPoint = FilteredPoints.First(
-            point => point.BoltNumber == number && point.Position.Target == TeachingTarget.BoltReference);
+            point => point.Position.Target == TeachingTarget.BoltReference
+                && ReferenceEquals(point.Position.Bolt, bolt));
     }
 
     private bool IsAddBoltPointAllowed => State.SetupEditingEnabled && IsInspectionSelected;
@@ -662,7 +663,9 @@ public partial class TeachingViewModel : ObservableObject
 
     private void RemoveBoltPoint()
     {
-        var number = SelectedPoint!.BoltNumber;
+        if (SelectedPoint?.Position.Bolt is not { } selectedBolt)
+            return;
+        var number = selectedBolt.Number;
         Recipes.Current.Pcb.BoltPoints.RemoveAll(bolt => bolt.Number == number && bolt.HeatSink == SelectedPcb);
         Recipes.Current.CarrierImages.RemoveAll(fov =>
             !fov.IsBarcode && fov.BoltNumber == number && fov.HeatSink == SelectedPcb);
@@ -1276,24 +1279,25 @@ public partial class TeachingViewModel : ObservableObject
                 return;
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
-            switch (point.Position.MotionGroup)
+            var position = point.Position;
+            switch (position.MotionGroup)
             {
                 case MotionGroup.PcbSupply:
-                    await _pcbSupply.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
+                    await _pcbSupply.MoveToTeachingPositionAsync(position, point.Read(), operation.Token);
                     break;
                 case MotionGroup.PcbPlacementHandler:
-                    await _pcbPlacement.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
+                    await _pcbPlacement.MoveToTeachingPositionAsync(position, point.Read(), operation.Token);
                     break;
                 case MotionGroup.BoltFastening:
-                    await _fasteningStation.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token);
+                    await _fasteningStation.MoveToTeachingPositionAsync(position, point.Read(), operation.Token);
                     break;
-                case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup:
+                case MotionGroup.InspectionGantry when position.Target == TeachingTarget.NgCarrierPickup:
                     await Inspection.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
                     break;
-                case MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt:
+                case MotionGroup.InspectionGantry when position.Bolt is { } bolt:
                     await Inspection.MoveToBoltAsync(bolt, operation.Token);
                     break;
-                case MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.DataMatrix:
+                case MotionGroup.InspectionGantry when position.Target == TeachingTarget.DataMatrix:
                     await Inspection.MoveToBarcodeAsync(SelectedPcb, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
@@ -1391,7 +1395,8 @@ public partial class TeachingViewModel : ObservableObject
     public BitmapSource? CameraImage => Inspection.IsLiveView ? LiveImage : CarrierImages.FirstOrDefault(tile =>
         tile.Metadata.HeatSink == SelectedPcb
         && (IsDataMatrixSelected ? tile.Metadata.IsBarcode
-            : IsBoltSelected && !tile.Metadata.IsBarcode && tile.Metadata.BoltNumber == SelectedPoint!.BoltNumber))?.Image;
+            : IsBoltSelected && !tile.Metadata.IsBarcode
+                && tile.Metadata.BoltNumber == SelectedPoint!.Position.Bolt!.Number))?.Image;
 
     public IAsyncRelayCommand GrabCommand { get; }
 

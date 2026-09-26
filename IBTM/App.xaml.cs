@@ -86,15 +86,15 @@ public partial class App : System.Windows.Application
             if (settings.RecipeSelection.LastRecipeName is { } recipeName)
                 await recipes.LoadAsync(recipeName);
             _log.LogInformation(
-                "{Message}",
-                $"Settings loaded: {database.DatabaseFile}. Control={settings.Drivers.Control}, Camera={settings.Drivers.Camera}, Light={settings.Drivers.Light}, Bolt={settings.Drivers.Bolt}.");
+                "Settings loaded: {Database}. Control={Control}, Camera={Camera}, Light={Light}, Bolt={Bolt}.",
+                database.DatabaseFile, settings.Drivers.Control.ToString(), settings.Drivers.Camera.ToString(),
+                settings.Drivers.Light.ToString(), settings.Drivers.Bolt.ToString());
             _log.LogInformation(
-                "{Message}",
-                $"Connections: AlphaMotion card={settings.AlphaMotion.ControllerNumber}, DI/DO counts detected during initialization; AJIN AxlOpen, interrupt={settings.Ajin.InterruptNumber}, input modules=[{string.Join(
-                        ",",
-                        settings.Ajin.RtexInputModules ?? [])}], output modules=[{string.Join(
-                            ",",
-                            settings.Ajin.RtexOutputModules ?? [])}], no .mot file loaded.");
+                "Connections: AlphaMotion card={Card}, DI/DO counts detected during initialization; "
+                    + "AJIN AxlOpen, interrupt={Interrupt}, input modules=[{InputModules}], output modules=[{OutputModules}], no .mot file loaded.",
+                settings.AlphaMotion.ControllerNumber, settings.Ajin.InterruptNumber,
+                string.Join(",", settings.Ajin.RtexInputModules ?? []),
+                string.Join(",", settings.Ajin.RtexOutputModules ?? []));
 
             services
                 .AddSingleton(database)
@@ -247,7 +247,7 @@ public partial class App : System.Windows.Application
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
-        _log?.LogError(e.ExceptionObject as Exception, "{Message}", $"Unhandled exception. Terminating={e.IsTerminating}.");
+        _log?.LogError(e.ExceptionObject as Exception, "Unhandled exception. Terminating={Terminating}.", e.IsTerminating.ToString());
         ShowError(
             e.IsTerminating
                 ? "An unhandled error occurred. The application will close."

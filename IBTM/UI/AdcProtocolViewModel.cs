@@ -860,7 +860,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private void AppendLog(string text, bool record = true)
     {
         if (record)
-            _log?.LogInformation("{Message}", $"ADC {text}");
+            _log?.LogInformation("ADC {Message}", text);
         lock (_frameLogGate)
         {
             _frameLog.Insert(0, $"{DateTime.Now:HH:mm:ss.fff}  {text}");

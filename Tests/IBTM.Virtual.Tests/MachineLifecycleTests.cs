@@ -105,12 +105,12 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
-        TeachInspectionFovs(settings, recipe);
+        TeachInspectionFovs(recipe);
         var machine = services.GetRequiredService<MachineController>();
         Assert.False(machine.TeachingReady);
 
         recipe.Pcb.BoltPoints.Add(new() { Number = 1, X = 10, Y = 10 });
-        TeachInspectionFovs(settings, recipe);
+        TeachInspectionFovs(recipe);
         Assert.True(machine.TeachingReady);
         settings.Units.Inspection = false;
         recipe.Pcb.BoltPoints.Clear();
@@ -268,7 +268,7 @@ public sealed partial class MachineLifecycleTests
             new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, X = 30, Y = 10 },
             new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 10, Y = 10 },
         ];
-        TeachInspectionFovs(settings, recipe);
+        TeachInspectionFovs(recipe);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var work = services.GetRequiredService<InspectionStation>();
@@ -577,7 +577,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         services.GetRequiredService<RecipeManager>().Current
             .Pcb.BoltPoints.Add(new BoltPoint { Number = 1, X = 10, Y = 10 });
-        TeachInspectionFovs(settings, services.GetRequiredService<RecipeManager>().Current);
+        TeachInspectionFovs(services.GetRequiredService<RecipeManager>().Current);
 
         await machine.InitializeAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
