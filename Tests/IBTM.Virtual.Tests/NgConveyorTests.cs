@@ -76,8 +76,7 @@ public sealed class NgConveyorTests
         {
             stop.Cancel();
             Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
-            // Output stops immediately; drain the existing five-second settling delay.
-            await run.WaitAsync(TimeSpan.FromSeconds(6));
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
         Assert.Null(system.Conveyor.Step);
     }
@@ -207,7 +206,7 @@ public sealed class NgConveyorTests
         system.Io.SetInputs(
             (InputIo.NgConveyorPosition1Occupied, severalOccupiedSensors),
             (InputIo.NgConveyorPosition2Occupied, severalOccupiedSensors));
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var run = system.Conveyor.ReturnFromConveyorAsync(stop.Token);
         try
         {
@@ -215,7 +214,8 @@ public sealed class NgConveyorTests
             Assert.True(system.Io.GetOutput(OutputIo.NgConveyorReverse));
             Assert.False(run.IsCompleted);
             system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-            await WaitForOutputAsync(system.Io, OutputIo.NgShuttleDown, false);
+            Assert.True(await WaitUntilAsync(
+                () => !system.Io.GetOutput(OutputIo.NgShuttleDown), TimeSpan.FromSeconds(7)));
             Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
             system.Io.SetInputs((InputIo.NgShuttleDown, false), (InputIo.NgShuttleUp, true));
             await run.WaitAsync(TimeSpan.FromSeconds(1));
@@ -245,7 +245,7 @@ public sealed class NgConveyorTests
         {
             await WaitForOutputAsync(system.Io, OutputIo.NgConveyorRun, true);
             system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-            // Arrival starts the existing non-cancellable settling delay.
+            // Cancel after arrival, while the existing settling delay is still active.
             await Task.Delay(100);
             Assert.False(run.IsCompleted);
             Assert.True(system.Io.GetOutput(OutputIo.NgConveyorRun));
@@ -260,7 +260,7 @@ public sealed class NgConveyorTests
         {
             stop.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                () => run.WaitAsync(TimeSpan.FromSeconds(6)));
+                () => run.WaitAsync(TimeSpan.FromSeconds(2)));
         }
     }
 

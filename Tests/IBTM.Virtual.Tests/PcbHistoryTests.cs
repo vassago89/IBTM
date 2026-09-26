@@ -317,6 +317,12 @@ public sealed class PcbHistoryTests
         Assert.Equal(0.1, image.Record.BrightRatio);
         Assert.Equal(2, image.Image.PixelWidth);
         Assert.False(image.Record.Success);
+        view.PcbDetails.SelectedBolt = view.PcbDetails.BoltResults.Single(bolt => bolt.Number == 2);
+        Assert.Null(view.PcbDetails.SelectedImage);
+        await view.PcbDetails.LoadImagesCommand.ExecuteAsync(null);
+        Assert.Null(view.PcbDetails.SelectedImage);
+        view.PcbDetails.SelectedBolt = view.PcbDetails.BoltResults.Single(bolt => bolt.Number == 1);
+        Assert.Equal(1, view.PcbDetails.SelectedImage!.Record.BoltNumber);
         Assert.Equal(3, store.LoadPcbs(settings.PcbHistory.Directory).Count);
 
         var originalFolder = settings.PcbHistory.Directory;

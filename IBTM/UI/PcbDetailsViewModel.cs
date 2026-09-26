@@ -101,10 +101,13 @@ public partial class PcbDetailsViewModel : ObservableObject
             cancellationToken.ThrowIfCancellationRequested();
             if (request != _imageRequest)
                 return;
-            var selectedNumber = SelectedImage?.Record.BoltNumber;
+            var hasSelection = SelectedImage is not null || SelectedBolt is not null;
+            var selectedNumber = SelectedImage is { } selected
+                ? selected.Record.BoltNumber : SelectedBolt?.Number;
             Images = images;
-            SelectedImage = images.FirstOrDefault(image => image.Record.BoltNumber == selectedNumber)
-                ?? images.FirstOrDefault();
+            SelectedImage = hasSelection
+                ? images.FirstOrDefault(image => image.Record.BoltNumber == selectedNumber)
+                : images.FirstOrDefault();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

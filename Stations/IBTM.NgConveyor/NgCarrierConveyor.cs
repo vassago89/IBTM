@@ -403,8 +403,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         {
             StartConveyor(cancellationToken, reverse);
             await _io.WaitForInputAsync(destination, occupied, cancellationToken);
-            await Task.Delay(5000);
-
+            await Task.Delay(5000, cancellationToken);
         }
         catch (Exception exception)
         {
