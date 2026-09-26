@@ -40,10 +40,10 @@ public sealed class MachineStoreTests
             new(TeachingTarget.NgCarrierPickup, MotionGroup.InspectionGantry, TeachMode.XYOnly), settings);
 
         pickup.Teach(160, 460, 0);
-        Assert.Equal((157.283, 456.789), (waiting.X, waiting.Y));
+        Assert.Equal((157.283, 456.789), (waiting.Coordinates!.X, waiting.Coordinates!.Y));
         waiting.Teach(120, 400, 0);
-        Assert.Equal((160, 460), (pickup.X, pickup.Y));
-        await settings.SaveAsync(store);
+        Assert.Equal((160, 460), (pickup.Coordinates!.X, pickup.Coordinates!.Y));
+        await store.SaveSettingsAsync(settings.Sections);
 
         var reloaded = (await MachineSettings.LoadAsync(store)).NgCarrierTransfer;
         Assert.Equal((120, 400), (reloaded.WaitingPosition!.X, reloaded.WaitingPosition.Y));
@@ -192,7 +192,7 @@ public sealed class MachineStoreTests
         command.Parameters.Clear();
         command.CommandText = "SELECT Value FROM Settings WHERE Key = 'NgCarrierTransferHardwareSettings'";
         Assert.Equal(json, command.ExecuteScalar()); // Loading never rewrites the database.
-        await loaded.SaveAsync(store);
+        await store.SaveSettingsAsync(loaded.Sections);
         using var saved = JsonDocument.Parse((string)command.ExecuteScalar()!);
         var outputs = saved.RootElement.GetProperty("Outputs");
         Assert.Equal(101, outputs.GetProperty("20").GetProperty("Number").GetInt32());
@@ -351,7 +351,7 @@ public sealed class MachineStoreTests
         settings.Lighting.StabilizationDelayMilliseconds = 375;
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.IoBoltHardware.Outputs[OutputIo.ShootingBoltStart].Number = 115;
-        await settings.SaveAsync(store);
+        await store.SaveSettingsAsync(settings.Sections);
         var recipe = new Recipe { Name = "Part", CarrierImages = [new() { Number = 1 }] };
         recipe.BoltInspection.LightLevel = 90;
         store.SaveRecipe(recipe, images: [new(1, [1, 2, 3])]);
@@ -379,7 +379,7 @@ public sealed class MachineStoreTests
         settings.PcbSupply.RotationZ = 12;
         settings.Conveyor.CarrierStopDelaySeconds = 45;
         settings.Conveyor.TransferTimeoutSeconds = 7;
-        await settings.SaveAsync(store);
+        await store.SaveSettingsAsync(settings.Sections);
 
         using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
         {
@@ -390,7 +390,7 @@ public sealed class MachineStoreTests
             settings.Conveyor.CarrierStopDelaySeconds = 100;
             settings.Conveyor.TransferTimeoutSeconds = 9;
             settings.PcbSupply.RotationZ = 30;
-            await Assert.ThrowsAsync<DbUpdateException>(() => settings.SaveAsync(store));
+            await Assert.ThrowsAsync<DbUpdateException>(() => store.SaveSettingsAsync(settings.Sections));
             command.CommandText = "DROP TRIGGER FailSetting";
             command.ExecuteNonQuery();
         }
@@ -399,7 +399,7 @@ public sealed class MachineStoreTests
         Assert.Equal(45, loaded.Conveyor.CarrierStopDelaySeconds);
         Assert.Equal(7, loaded.Conveyor.TransferTimeoutSeconds);
         Assert.Equal(12, loaded.PcbSupply.RotationZ);
-        await settings.SaveAsync(store);
+        await store.SaveSettingsAsync(settings.Sections);
         loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
         Assert.Equal(100, loaded.Conveyor.CarrierStopDelaySeconds);
         Assert.Equal(9, loaded.Conveyor.TransferTimeoutSeconds);

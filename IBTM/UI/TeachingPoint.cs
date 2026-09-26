@@ -15,10 +15,6 @@ public class TeachingPoint : ObservableObject
     private readonly HeatSinkSlot _pcb;
     private readonly TeachingPosition _definition;
 
-    public double X => Coordinates?.X ?? 0;
-    public double Y => Coordinates?.Y ?? 0;
-    public double? Z => Coordinates?.Z;
-
     public double FasteningZOffset
     {
         get => _definition.Bolt?.FasteningZOffset ?? 0;
@@ -60,7 +56,7 @@ public class TeachingPoint : ObservableObject
         _ => null,
     };
 
-    private AxisPosition? Coordinates
+    public AxisPosition? Coordinates
     {
         get
         {
@@ -368,9 +364,7 @@ public class TeachingPoint : ObservableObject
 
     public void Refresh()
     {
-        OnPropertyChanged(nameof(X));
-        OnPropertyChanged(nameof(Y));
-        OnPropertyChanged(nameof(Z));
+        OnPropertyChanged(nameof(Coordinates));
         OnPropertyChanged(nameof(PositionLabel));
     }
 }

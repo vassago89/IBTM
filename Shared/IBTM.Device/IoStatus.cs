@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 
 namespace IBTM.Device;
 
@@ -135,24 +134,4 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
         Notify(nameof(HasConflict));
         Notify(nameof(IsMatched));
     }
-}
-
-public sealed class IoStatus
-{
-    public IoStatus(
-        HardwareArea area,
-        IEnumerable<IoInputStatus> inputs,
-        IEnumerable<IoOutputStatus> outputs)
-    {
-        Area = area;
-        Outputs = outputs.OrderBy(row => row.Signal).ToArray();
-        var feedback = Outputs.SelectMany(row => row.Feedback).ToHashSet();
-        Inputs = inputs.Concat(feedback).Distinct().OrderBy(row => row.Signal).ToArray();
-        Sensors = Inputs.Where(row => !feedback.Contains(row)).ToArray();
-    }
-
-    public HardwareArea Area { get; }
-    public IReadOnlyList<IoInputStatus> Inputs { get; }
-    public IReadOnlyList<IoInputStatus> Sensors { get; }
-    public IReadOnlyList<IoOutputStatus> Outputs { get; }
 }

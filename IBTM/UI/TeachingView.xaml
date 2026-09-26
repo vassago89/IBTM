@@ -146,7 +146,7 @@
                                     <TextBlock Text="Bolt Z offset (mm)" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBox Width="90" Text="{Binding SelectedPoint.FasteningZOffset, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                 </WrapPanel>
-                                <TextBlock Text="{Binding SelectedPoint.Z, StringFormat=Target Z: {0:F3} mm}"
+                                <TextBlock Text="{Binding SelectedPoint.Coordinates.Z, StringFormat=Target Z: {0:F3} mm}"
                                     Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                             <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"

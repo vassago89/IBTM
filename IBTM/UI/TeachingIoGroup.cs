@@ -7,19 +7,25 @@ namespace IBTM.UI;
 public sealed class TeachingIoGroup
 {
     public TeachingIoGroup(
-        IoStatus io,
-        IReadOnlyDictionary<OutputIo, TeachingOutput> outputs,
+        InputHardwareSettings hardware,
+        IEnumerable<OutputIo> outputs,
+        IoSignals io,
+        IReadOnlyDictionary<OutputIo, TeachingOutput> commands,
         MachineController machine)
     {
-        Area = io.Area;
-        Sensors = io.Sensors;
-        Outputs = io.Outputs
+        Area = hardware.Area;
+        var signals = outputs.Select(output => io.Outputs[output]).OrderBy(row => row.Signal).ToArray();
+        Sensors = hardware.Inputs.Keys.Select(input => io.Inputs[input])
+            .Except(signals.SelectMany(row => row.Feedback))
+            .OrderBy(row => row.Signal)
+            .ToArray();
+        Outputs = signals
             .Where(signal => signal.Signal != OutputIo.PcbPlacementHandlerRotate)
             .Select(
                 signal =>
                     new TeachingOutputRow(
                         signal,
-                        outputs.GetValueOrDefault(signal.Signal),
+                        commands.GetValueOrDefault(signal.Signal),
                         machine))
             .ToArray();
     }

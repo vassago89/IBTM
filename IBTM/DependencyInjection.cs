@@ -134,82 +134,69 @@ public static class DependencyInjection
             settings.InspectionGantry.Motion,
             settings.InspectionGantryHardware);
 
-        services
-            .AddSingleton<IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>>>(
-                new Dictionary<HardwareArea, TeachingOutput[]>
-                {
-                    [HardwareArea.PcbSupply] = [
-                        new(OutputIo.PcbSupplyGripperClosed, HardwareArea.PcbSupply),
-                        new(OutputIo.PcbSupplyIpmFixerForward, HardwareArea.PcbSupply),
-                        new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply),
-                    ],
-                    [HardwareArea.PcbPlacementHandler] = [
-                        new(OutputIo.PcbPlacementHandlerDown, HardwareArea.PcbPlacementHandler),
-                        new(OutputIo.PcbPlacementIpmDown, HardwareArea.PcbPlacementHandler),
-                        new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler),
-                        new(OutputIo.PcbPlacementStopperUp, HardwareArea.MainConveyor),
-                        new(OutputIo.PcbPlacementBackupPlateUp, HardwareArea.MainConveyor),
-                    ],
-                    [HardwareArea.BoltFastening] = [
-                        new(OutputIo.PickupHeadDown, HardwareArea.BoltFastening),
-                        new(OutputIo.PickupTableDown, HardwareArea.BoltFastening),
-                        new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening),
-                        new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening),
-                        new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening),
-                        new(OutputIo.ShootBolt, HardwareArea.BoltFastening),
-                        new(OutputIo.BoltFasteningStopperUp, HardwareArea.MainConveyor),
-                        new(OutputIo.BoltFasteningBackupPlateUp, HardwareArea.MainConveyor),
-                    ],
-                    [HardwareArea.InspectionGantry] = [
-                        new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer),
-                        new(OutputIo.NgCarrierGripperClose, HardwareArea.NgCarrierTransfer),
-                        new(OutputIo.NgShuttleDown, HardwareArea.NgShuttle),
-                        new(OutputIo.InspectionStopperUp, HardwareArea.MainConveyor),
-                        new(OutputIo.InspectionBackupPlateUp, HardwareArea.MainConveyor),
-                    ],
-                }.ToDictionary(
-                    pair => pair.Key,
-                    pair => (IReadOnlyDictionary<OutputIo, TeachingOutput>)pair.Value.ToDictionary(
-                        output => output.Signal)))
-            .AddSingleton<IReadOnlyDictionary<HardwareArea, IoStatus[]>>(
-                provider =>
-                {
-                    var io = provider.GetRequiredService<IoSignals>();
-                    return new Dictionary<HardwareArea, IoStatus[]>
-                    {
-                        [HardwareArea.PcbSupply] = [
-                            io.Select(settings.PcbSupplyHardware.Area,
-                                settings.PcbSupplyHardware.Inputs.Keys, settings.PcbSupplyHardware.Outputs.Keys),
-                        ],
-                        [HardwareArea.PcbPlacementHandler] = [
-                            io.Select(HardwareArea.PcbPlacementStation,
-                                settings.PcbPlacementStationHardware.Inputs.Keys,
-                                [OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp]),
-                            io.Select(settings.PcbPlacementHandlerHardware.Area,
-                                settings.PcbPlacementHandlerHardware.Inputs.Keys, settings.PcbPlacementHandlerHardware.Outputs.Keys),
-                        ],
-                        [HardwareArea.BoltFastening] = [
-                            io.Select(HardwareArea.BoltFasteningStation,
-                                settings.BoltFasteningStationHardware.Inputs.Keys,
-                                [OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp]),
-                            io.Select(settings.BoltFasteningHardware.Area,
-                                settings.BoltFasteningHardware.Inputs.Keys, settings.BoltFasteningHardware.Outputs.Keys),
-                            io.Select(settings.IoBoltHardware.Area,
-                                settings.IoBoltHardware.Inputs.Keys, settings.IoBoltHardware.Outputs.Keys),
-                            io.Select(settings.BoltFeederHardware.Area,
-                                settings.BoltFeederHardware.Inputs.Keys, settings.BoltFeederHardware.Outputs.Keys),
-                        ],
-                        [HardwareArea.InspectionGantry] = [
-                            io.Select(HardwareArea.InspectionStation,
-                                settings.InspectionStationHardware.Inputs.Keys,
-                                [OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp]),
-                            io.Select(settings.NgCarrierTransferHardware.Area,
-                                settings.NgCarrierTransferHardware.Inputs.Keys, settings.NgCarrierTransferHardware.Outputs.Keys),
-                            io.Select(settings.NgShuttleHardware.Area,
-                                settings.NgShuttleHardware.Inputs.Keys, settings.NgShuttleHardware.Outputs.Keys),
-                        ],
-                    };
-                });
+        services.AddSingleton<IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]>>(provider =>
+        {
+            var io = provider.GetRequiredService<IoSignals>();
+            var machine = provider.GetRequiredService<MachineController>();
+            TeachingOutput[] outputs = [
+                new(OutputIo.PcbSupplyGripperClosed, HardwareArea.PcbSupply),
+                new(OutputIo.PcbSupplyIpmFixerForward, HardwareArea.PcbSupply),
+                new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply),
+                new(OutputIo.PcbPlacementHandlerDown, HardwareArea.PcbPlacementHandler),
+                new(OutputIo.PcbPlacementIpmDown, HardwareArea.PcbPlacementHandler),
+                new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler),
+                new(OutputIo.PcbPlacementStopperUp, HardwareArea.MainConveyor),
+                new(OutputIo.PcbPlacementBackupPlateUp, HardwareArea.MainConveyor),
+                new(OutputIo.PickupHeadDown, HardwareArea.BoltFastening),
+                new(OutputIo.PickupTableDown, HardwareArea.BoltFastening),
+                new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening),
+                new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening),
+                new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening),
+                new(OutputIo.ShootBolt, HardwareArea.BoltFastening),
+                new(OutputIo.BoltFasteningStopperUp, HardwareArea.MainConveyor),
+                new(OutputIo.BoltFasteningBackupPlateUp, HardwareArea.MainConveyor),
+                new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer),
+                new(OutputIo.NgCarrierGripperClose, HardwareArea.NgCarrierTransfer),
+                new(OutputIo.NgShuttleDown, HardwareArea.NgShuttle),
+                new(OutputIo.InspectionStopperUp, HardwareArea.MainConveyor),
+                new(OutputIo.InspectionBackupPlateUp, HardwareArea.MainConveyor),
+            ];
+            var commands = outputs.ToDictionary(output => output.Signal);
+            return new Dictionary<HardwareArea, TeachingIoGroup[]>
+            {
+                [HardwareArea.PcbSupply] = [
+                    new(settings.PcbSupplyHardware, settings.PcbSupplyHardware.Outputs.Keys,
+                        io, commands, machine),
+                ],
+                [HardwareArea.PcbPlacementHandler] = [
+                    new(settings.PcbPlacementStationHardware,
+                        [OutputIo.PcbPlacementBackupPlateUp, OutputIo.PcbPlacementStopperUp],
+                        io, commands, machine),
+                    new(settings.PcbPlacementHandlerHardware, settings.PcbPlacementHandlerHardware.Outputs.Keys,
+                        io, commands, machine),
+                ],
+                [HardwareArea.BoltFastening] = [
+                    new(settings.BoltFasteningStationHardware,
+                        [OutputIo.BoltFasteningBackupPlateUp, OutputIo.BoltFasteningStopperUp],
+                        io, commands, machine),
+                    new(settings.BoltFasteningHardware, settings.BoltFasteningHardware.Outputs.Keys,
+                        io, commands, machine),
+                    new(settings.IoBoltHardware, settings.IoBoltHardware.Outputs.Keys,
+                        io, commands, machine),
+                    new(settings.BoltFeederHardware, settings.BoltFeederHardware.Outputs.Keys,
+                        io, commands, machine),
+                ],
+                [HardwareArea.InspectionGantry] = [
+                    new(settings.InspectionStationHardware,
+                        [OutputIo.InspectionBackupPlateUp, OutputIo.InspectionStopperUp],
+                        io, commands, machine),
+                    new(settings.NgCarrierTransferHardware, settings.NgCarrierTransferHardware.Outputs.Keys,
+                        io, commands, machine),
+                    new(settings.NgShuttleHardware, settings.NgShuttleHardware.Outputs.Keys,
+                        io, commands, machine),
+                ],
+            };
+        });
 
         services.AddSingleton(provider => new MainConveyor(
             provider.GetRequiredService<IIoService>(),

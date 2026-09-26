@@ -102,12 +102,4 @@ public sealed class IoSignals : INotifyPropertyChanged
         RefreshInputs();
         InvalidateOutputs();
     }
-
-    public IoStatus Select(HardwareArea area, IEnumerable<InputIo> inputs, IEnumerable<OutputIo> outputs)
-    {
-        return new(
-            area,
-            inputs.Select(input => Inputs[input]),
-            outputs.Select(output => Outputs[output]));
-    }
 }

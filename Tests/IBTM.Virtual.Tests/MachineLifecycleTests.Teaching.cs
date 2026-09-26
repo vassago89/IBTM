@@ -303,8 +303,8 @@ public sealed partial class MachineLifecycleTests
             var point = teaching.FilteredPoints.Single(point => point.Position.Target == target);
             teaching.SelectedPoint = point;
             Assert.Equal(TeachMode.XYOnly, point.Position.Mode);
-            var x = point.X + 1;
-            var y = point.Y + 2;
+            var x = (point.Coordinates?.X ?? 0) + 1;
+            var y = (point.Coordinates?.Y ?? 0) + 2;
             await gantry.MoveToAsync(new() { X = x, Y = y }, 10_000);
             await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
@@ -366,7 +366,7 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
         var point = teaching.SelectedPoint;
         Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-        var before = (point.X, point.Y, point.Z);
+        var before = (point.Coordinates?.X, point.Coordinates?.Y, point.Coordinates?.Z);
         if (savePosition)
             feedback.BeforePositionRead = () => throw new IOException("Teaching feedback read failed.");
         else
@@ -381,7 +381,7 @@ public sealed partial class MachineLifecycleTests
             savePosition ? MachineAlarm.IoCommunication : MachineAlarm.Inspection,
             state.Alarm);
         Assert.Contains("Teaching feedback read failed.", state.AlarmDetail);
-        Assert.Equal(before, (point.X, point.Y, point.Z));
+        Assert.Equal(before, (point.Coordinates?.X, point.Coordinates?.Y, point.Coordinates?.Z));
         Assert.False(teaching.Motion.IsMoving);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
     }
@@ -665,7 +665,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(TeachingTarget.BoltPosition, position.Position.Target);
         Assert.Same(bolt, position.Position.Bolt);
         Assert.True(position.Position.HasPosition);
-        Assert.Equal((expectedX, expectedY, (double?)expectedZ), (position.X, position.Y, position.Z));
+        Assert.Equal((expectedX, expectedY, expectedZ), (position.Coordinates!.X, position.Coordinates.Y, position.Coordinates.Z));
         Assert.True(position.Position.IsTeachAllowed);
         Assert.False(teaching.AddBoltPointCommand.CanExecute(null));
         Assert.False(teaching.RemoveBoltPointCommand.CanExecute(null));
@@ -684,7 +684,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
         Assert.Equal(expectedZ, settings.BoltFastening.GetHead(head).FasteningZ);
         expectedZ -= 0.75;
-        Assert.Equal((expectedX, expectedY, (double?)expectedZ), (position.X, position.Y, position.Z));
+        Assert.Equal((expectedX, expectedY, expectedZ), (position.Coordinates!.X, position.Coordinates.Y, position.Coordinates.Z));
         await teaching.SaveCommand.ExecuteAsync(null);
         Assert.Null(teaching.SaveError);
         Assert.Null(teaching.RecipeEditor.Error);
@@ -704,7 +704,7 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         Assert.Same(bolt, teaching.SelectedPoint!.Position.Bolt);
         Assert.Equal(TeachingTarget.BoltReference, teaching.SelectedPoint.Position.Target);
-        Assert.Equal((110d, 220d), (teaching.SelectedPoint.X, teaching.SelectedPoint.Y));
+        Assert.Equal((110d, 220d), (teaching.SelectedPoint.Coordinates!.X, teaching.SelectedPoint.Coordinates!.Y));
 
         var recipes = services.GetRequiredService<RecipeManager>();
         await recipes.LoadAsync(teaching.RecipeEditor.ActiveName);
@@ -713,7 +713,7 @@ public sealed partial class MachineLifecycleTests
         var loaded = teaching.SelectedPoint!;
         Assert.Equal(TeachingTarget.BoltPosition, loaded.Position.Target);
         Assert.Equal(head, loaded.Position.Bolt!.Head);
-        Assert.Equal((expectedX, expectedY, (double?)expectedZ), (loaded.X, loaded.Y, loaded.Z));
+        Assert.Equal((expectedX, expectedY, expectedZ), (loaded.Coordinates!.X, loaded.Coordinates.Y, loaded.Coordinates.Z));
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipes.Current));
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
@@ -734,7 +734,7 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedPcb = heatSink;
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         var independent = teaching.SelectedPoint!;
-        Assert.Equal((expectedX, expectedY, (double?)expectedZ), (independent.X, independent.Y, independent.Z));
+        Assert.Equal((expectedX, expectedY, expectedZ), (independent.Coordinates!.X, independent.Coordinates.Y, independent.Coordinates.Z));
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
         await teaching.MoveToPointCommand.ExecuteAsync(null);
         Assert.Equal((expectedX, expectedY, expectedZ), fastening.Motion.Feedback.Position);
@@ -955,7 +955,7 @@ public sealed partial class MachineLifecycleTests
                 var recipeBefore = JsonSerializer.Serialize(recipe);
                 await gantry.MoveToAsync(new() { X = 1, Y = 2 });
                 await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
-                Assert.Equal((recipe.GetInspectionPosition(fov).X, recipe.GetInspectionPosition(fov).Y), (teaching.SelectedPoint.X, teaching.SelectedPoint.Y));
+                Assert.Equal((recipe.GetInspectionPosition(fov).X, recipe.GetInspectionPosition(fov).Y), (teaching.SelectedPoint.Coordinates!.X, teaching.SelectedPoint.Coordinates!.Y));
                 Assert.DoesNotContain("Not taught", teaching.SelectedPoint.PositionLabel);
                 Assert.False(machine.TeachingReady);
 
@@ -1120,7 +1120,7 @@ public sealed partial class MachineLifecycleTests
             await placement.MoveAxisAsync(MotionAxis.Z, 7);
             Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-            Assert.Equal(originalZ, handoff.Z);
+            Assert.Equal(originalZ, handoff.Coordinates!.Z);
 
             var receive = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementReceiveZ);
             teaching.SelectedPoint = receive;
@@ -1138,7 +1138,7 @@ public sealed partial class MachineLifecycleTests
             await placement.MoveAxisAsync(MotionAxis.Z, 7);
             await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-            Assert.Equal(7, handoff.Z);
+            Assert.Equal(7, handoff.Coordinates!.Z);
             Assert.Equal(7, settings.PcbPlacementHandler.HandoffPosition.Z);
             Assert.Equal(originalZ, services.GetRequiredService<MachineStore>().LoadSettings()
                 .Get<PcbPlacementHandlerSettings>().HandoffPosition.Z);
@@ -1152,7 +1152,7 @@ public sealed partial class MachineLifecycleTests
             probe.OverrideState = state => state with { Homed = false };
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
 
-            Assert.Equal(7, handoff.Z);
+            Assert.Equal(7, handoff.Coordinates!.Z);
             Assert.Equal(7, settings.PcbPlacementHandler.HandoffPosition.Z);
             Assert.Equal(7, services.GetRequiredService<MachineStore>().LoadSettings()
                 .Get<PcbPlacementHandlerSettings>().HandoffPosition.Z);
@@ -1175,6 +1175,12 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var state = services.GetRequiredService<MachineState>();
         var gripper = TeachingRows(teaching)[OutputIo.PcbSupplyGripperClosed];
+        var signals = services.GetRequiredService<IoSignals>();
+        var group = Assert.Single(teaching.TeachingIoGroups);
+        Assert.All(group.Outputs, row => Assert.Same(signals.Outputs[row.Io.Signal], row.Io));
+        Assert.All(group.Sensors, row => Assert.Same(signals.Inputs[row.Signal], row));
+        Assert.All(group.Outputs.SelectMany(row => row.Io.Feedback),
+            row => Assert.DoesNotContain(row, group.Sensors));
         await WaitUntilAsync(() => !gripper.ToggleOutputCommand.CanExecute(null));
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -1219,6 +1225,10 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         await WaitUntilAsync(() => !gripper.ToggleOutputCommand.CanExecute(null));
 
+        teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
+        Assert.Same(gripper, TeachingRows(teaching)[OutputIo.PcbSupplyGripperClosed]);
+        await WaitUntilAsync(() => gripper.ToggleOutputCommand.CanExecute(null));
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         var lift = TeachingRows(teaching)[OutputIo.PcbPlacementHandlerDown];
         var lowering = lift.ToggleOutputCommand.ExecuteAsync(null);
         await teaching.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(2));
@@ -1243,6 +1253,8 @@ public sealed partial class MachineLifecycleTests
             teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
             Assert.DoesNotContain(teaching.TeachingIoGroups.SelectMany(group => group.Outputs),
                 row => row.Io.Signal == OutputIo.PcbPlacementHandlerRotate);
+            Assert.DoesNotContain(teaching.TeachingIoGroups.SelectMany(group => group.Sensors),
+                row => row.Signal is InputIo.PcbPlacementHandlerRotated or InputIo.PcbPlacementHandlerUnrotated);
             var rotation = new TeachingOutput(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler);
             Assert.False(machine.IsSetTeachingOutputAllowed(rotation));
             await machine.ToggleTeachingOutputAsync(rotation, CancellationToken.None, CancellationToken.None);
@@ -1631,10 +1643,10 @@ public sealed partial class MachineLifecycleTests
         teaching.Deactivate(); // This test verifies data without a WPF display dispatcher.
         Assert.Equal("Unsaved product name", teaching.RecipeEditor.Name);
         Assert.Equal((75, 25, 7), (
-            teaching.SelectedPoint!.X, teaching.SelectedPoint.Y, teaching.SelectedPoint.Z!.Value));
+            teaching.SelectedPoint!.Coordinates!.X, teaching.SelectedPoint.Coordinates!.Y, teaching.SelectedPoint.Coordinates!.Z));
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         var recordedHandoff = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff);
-        Assert.Equal((70, 20, 4), (recordedHandoff.X, recordedHandoff.Y, recordedHandoff.Z!.Value));
+        Assert.Equal((70, 20, 4), (recordedHandoff.Coordinates!.X, recordedHandoff.Coordinates!.Y, recordedHandoff.Coordinates!.Z));
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.BoltInspection.LightLevel = 123;
         teaching.RecipeEditor.Name = " ";
@@ -1647,10 +1659,10 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
         Assert.Equal(70, teaching.FilteredPoints.Single(
-            point => point.Position.Target == TeachingTarget.SupplyHandoff).X);
+            point => point.Position.Target == TeachingTarget.SupplyHandoff).Coordinates!.X);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         Assert.Equal(75, teaching.FilteredPoints.Single(
-            point => point.Position.Target == TeachingTarget.PlacementHandoff).X);
+            point => point.Position.Target == TeachingTarget.PlacementHandoff).Coordinates!.X);
         Assert.Equal(70, settings.PcbSupply.HandoffPosition.X);
         recipe.PcbSupply.Pcb1PickPosition = new() { X = 12, Y = 34, Z = 56 };
 
@@ -1694,7 +1706,7 @@ public sealed partial class MachineLifecycleTests
         teaching.Activate();
         teaching.Deactivate();
         Assert.Equal((75, 25, 7), (
-            teaching.SelectedPoint!.X, teaching.SelectedPoint.Y, teaching.SelectedPoint.Z!.Value));
+            teaching.SelectedPoint!.Coordinates!.X, teaching.SelectedPoint.Coordinates!.Y, teaching.SelectedPoint.Coordinates!.Z));
 
         teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff)
@@ -1760,7 +1772,7 @@ public sealed partial class MachineLifecycleTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var store = services.GetRequiredService<MachineStore>();
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
-        await settings.SaveAsync(store);
+        await store.SaveSettingsAsync(settings.Sections);
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
@@ -1790,7 +1802,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(8, store.LoadSettings().Get<BoltFasteningSettings>().SafeZ);
         Assert.Equal(12, motion.Position.Z);
         teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
-        Assert.Equal(8, teaching.SelectedPoint!.Z);
+        Assert.Equal(8, teaching.SelectedPoint!.Coordinates!.Z);
     }
 
     [Theory]

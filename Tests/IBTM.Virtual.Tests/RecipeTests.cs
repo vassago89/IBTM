@@ -319,12 +319,12 @@ public sealed class RecipeTests
 
         var picks = points.Where(p => p.Storage == TeachingStorage.Recipe).ToArray();
         Assert.All(picks, p => Assert.Equal(TeachMode.Full, p.Position.Mode));
-        Assert.Equal(10, handoffs[0].X);
+        Assert.Equal(10, handoffs[0].Coordinates!.X);
         var moveTarget = handoffs[0].Read();
         moveTarget.Z = 999;
         handoffs[0].Refresh();
         Assert.Equal(30, supply.HandoffPosition.Z);
-        Assert.Equal(30, handoffs[0].Z);
+        Assert.Equal(30, handoffs[0].Coordinates!.Z);
 
         picks[0].Teach(12, 45, 34);
         picks[1].Teach(22, 65, 44);
@@ -358,7 +358,7 @@ public sealed class RecipeTests
             new(TeachingTarget.NgCarrierPickup, MotionGroup.InspectionGantry, TeachMode.XYOnly),
             new() { NgCarrierTransfer = settings });
 
-        Assert.Equal((157.283, 456.789), (point.X, point.Y));
+        Assert.Equal((157.283, 456.789), (point.Coordinates!.X, point.Coordinates.Y));
         var target = point.Read();
         target.X = -1;
         target.Y = -2;
@@ -426,6 +426,7 @@ public sealed class RecipeTests
         var position = VirtualTest.CreateTeachingPoint(
             new(TeachingTarget.BoltPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = bolt }, settings);
         Assert.False(position.Position.HasPosition);
+        Assert.Null(position.Coordinates);
         Assert.True(position.Position.IsTeachAllowed);
         Assert.Equal(TeachMode.XYOnly, position.Position.Mode);
         bolt.X = 110;
@@ -433,12 +434,12 @@ public sealed class RecipeTests
         fastening.InitializeBoltPosition(bolt, reference);
         position.Refresh();
         Assert.True(position.Position.HasPosition);
-        Assert.Equal(310, position.X, 6);
-        Assert.Equal(420, position.Y, 6);
-        Assert.Equal(fastening.ShootingHead.FasteningZ, position.Z);
+        Assert.Equal(310, position.Coordinates!.X, 6);
+        Assert.Equal(420, position.Coordinates!.Y, 6);
+        Assert.Equal(fastening.ShootingHead.FasteningZ, position.Coordinates!.Z);
         fastening.SafeZ = 7;
         position.Refresh();
-        Assert.Equal(12, position.Z);
+        Assert.Equal(12, position.Coordinates!.Z);
         var shootingZ = VirtualTest.CreateTeachingPoint(
             new(TeachingTarget.ShootingHeadFasteningZ, MotionGroup.BoltFastening, TeachMode.ZOnly), settings);
         Assert.Equal(TeachMode.ZOnly, shootingZ.Position.Mode);
@@ -452,7 +453,7 @@ public sealed class RecipeTests
             bolt => Assert.Equal(14, fastening.GetBoltPosition(bolt).Z));
         position.FasteningZOffset = 0.5;
         position.Teach(311, 421, 999);
-        Assert.Equal((311, 421, 14.5), (position.X, position.Y, position.Z));
+        Assert.Equal((311, 421, 14.5), (position.Coordinates!.X, position.Coordinates!.Y, position.Coordinates!.Z));
         Assert.Equal(0.5, bolt.FasteningZOffset);
         Assert.Equal(14, fastening.ShootingHead.FasteningZ);
 

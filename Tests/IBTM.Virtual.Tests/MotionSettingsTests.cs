@@ -81,7 +81,7 @@ public sealed class MotionSettingsTests
         legacy.PcbSupply.Motion.HorizontalSpeed = 0;
         legacy.PcbSupply.Motion.ZHome.SearchSpeed = -1;
         legacy.PcbSupply.Motion.ZSpeed = 17;
-        await legacy.SaveAsync(store);
+        await store.SaveSettingsAsync(legacy.Sections);
 
         var loaded = await MachineSettings.LoadAsync(store);
         Assert.Equal(0, loaded.InspectionGantry.Motion.ZSpeed);
@@ -100,7 +100,7 @@ public sealed class MotionSettingsTests
         loaded.PcbSupply.Motion.HorizontalSpeed = 25;
         loaded.PcbSupply.Motion.ZHome.SearchSpeed = 5;
         Assert.Null(loaded.PcbSupply.Motion.GetValidationError(hasZ: true));
-        await loaded.SaveAsync(store);
+        await store.SaveSettingsAsync(loaded.Sections);
         var corrected = await MachineSettings.LoadAsync(store);
         Assert.Equal(25, corrected.PcbSupply.Motion.HorizontalSpeed);
         Assert.Equal(5, corrected.PcbSupply.Motion.ZHome.SearchSpeed);

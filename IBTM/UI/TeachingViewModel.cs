@@ -77,10 +77,8 @@ public partial class TeachingViewModel : ObservableObject
     private readonly PcbPlacer _pcbPlacement;
     private readonly BoltFasteningStation _fasteningStation;
     private readonly MachineStore _store;
-    private readonly IReadOnlyDictionary<HardwareArea, IoStatus[]> _ioGroups;
-    private readonly IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> _teachingOutputs;
     private CancellationTokenSource _viewCancellation;
-    private readonly Dictionary<HardwareArea, TeachingIoGroup[]> _teachingIoGroups;
+    private readonly IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]> _teachingIoGroups;
     private int _manualCommandRefreshQueued;
     private readonly object _liveImageGate;
     private ImageFrame? _pendingLiveFrame;
@@ -99,15 +97,23 @@ public partial class TeachingViewModel : ObservableObject
         RecipeEditor recipeEditor,
         RecipeManager recipes,
         MachineStore store,
-        IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
-        IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs,
+        IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]> teachingIoGroups,
         ILogger<TeachingViewModel> logger)
     {
         _logger = logger;
         _settings = settings;
         _liveImageGate = new();
         _viewCancellation = new();
-        _teachingIoGroups = [];
+        _teachingIoGroups = teachingIoGroups;
+        foreach (var unit in _teachingIoGroups)
+        {
+            foreach (var row in unit.Value.SelectMany(group => group.Outputs))
+            {
+                row.ViewCancellation = unit.Key == SelectedTeachingUnit
+                    ? _viewCancellation.Token
+                    : new(canceled: true);
+            }
+        }
         MoveModes = Enum.GetValues<TeachingMoveMode>();
         _recipeImageCancellation = new();
         FilteredPoints = [];
@@ -134,8 +140,6 @@ public partial class TeachingViewModel : ObservableObject
         Machine = machine;
         Operations = operations;
         _store = store;
-        _ioGroups = ioGroups;
-        _teachingOutputs = teachingOutputs;
 
         ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, () => IsToggleLiveViewAllowed);
         GrabCommand = new AsyncRelayCommand(GrabAsync, () => IsGrabAllowed);
@@ -263,7 +267,12 @@ public partial class TeachingViewModel : ObservableObject
 
     public async Task ShutdownAsync()
     {
-        IAsyncRelayCommand[] commands = [.. _commands, .. OutputCommands];
+        IAsyncRelayCommand[] commands = [
+            .. _commands,
+            .. _teachingIoGroups.Values.SelectMany(groups => groups)
+                .SelectMany(group => group.Outputs)
+                .Select(row => row.ToggleOutputCommand),
+        ];
         var pending = CommandShutdown.Capture(commands);
         Task deactivated;
         try
@@ -310,38 +319,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    public IReadOnlyList<TeachingIoGroup> TeachingIoGroups
-    {
-        get
-        {
-            if (!_teachingIoGroups.TryGetValue(SelectedTeachingUnit, out var groups))
-            {
-                groups = _ioGroups[SelectedTeachingUnit].Select(
-                    io =>
-                        new TeachingIoGroup(
-                            io,
-                            _teachingOutputs[SelectedTeachingUnit],
-                            Machine))
-                    .ToArray();
-                foreach (var row in groups.SelectMany(group => group.Outputs))
-                    row.ViewCancellation = _viewCancellation.Token;
-                _teachingIoGroups.Add(SelectedTeachingUnit, groups);
-            }
-
-            return groups;
-        }
-    }
-
-    private IAsyncRelayCommand[] OutputCommands
-    {
-        get
-        {
-            return _teachingIoGroups.Values.SelectMany(groups => groups)
-                .SelectMany(group => group.Outputs)
-                .Select(row => row.ToggleOutputCommand)
-                .ToArray();
-        }
-    }
+    public IReadOnlyList<TeachingIoGroup> TeachingIoGroups => _teachingIoGroups[SelectedTeachingUnit];
 
     private MachineController Machine { get; }
 
@@ -1321,7 +1299,7 @@ public partial class TeachingViewModel : ObservableObject
                     await Inspection.MoveToBarcodeAsync(SelectedPcb, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await Inspection.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, cancellationToken: operation.Token);
+                    await Inspection.MoveToAsync(point.Read(), cancellationToken: operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(point));

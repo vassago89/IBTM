@@ -81,6 +81,6 @@ internal static class DevelopmentProfile
         ];
         settings.RecipeSelection.LastRecipeName = recipe.Name;
         await Task.Run(() => database.SaveRecipe(recipe));
-        await settings.SaveAsync(database);
+        await database.SaveSettingsAsync(settings.Sections);
     }
 }

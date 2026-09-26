@@ -238,7 +238,7 @@ public sealed class IoTests
     }
 
     [Fact]
-    public void IoStatusSharesInputsAndRefreshesOutputDisplayOnlyWhenRequested()
+    public void IoSignalsShareInputsAndRefreshOutputDisplayOnlyWhenRequested()
     {
         var hardware = new NgShuttleHardwareSettings();
         hardware.Inputs.Add(InputIo.PcbSupplyPcbDetected, 999);
@@ -258,14 +258,16 @@ public sealed class IoTests
             if (args.PropertyName == nameof(IoSignals.InputsAvailable))
                 availabilityChanges++;
         };
-        var status = signals.Select(hardware.Area, hardware.Inputs.Keys, hardware.Outputs.Keys);
-        Assert.Equal(hardware.Area, status.Area);
-        Assert.Equal(hardware.Inputs.Keys.Order(), status.Inputs.Select(row => row.Signal));
-        var output = Assert.Single(status.Outputs);
+        Assert.Equal(hardware.Inputs.Keys.Order(), signals.Inputs.Keys.Order());
+        var output = Assert.Single(signals.Outputs.Values);
         Assert.Equal(hardware.Outputs[output.Signal].Number, output.Number);
         Assert.Equal(hardware.Outputs[output.Signal].OffNumber, output.OffNumber);
         Assert.Equal("068 / 069", output.Address);
-        Assert.All(status.Inputs, row => Assert.Equal(hardware.Inputs[row.Signal], row.Number));
+        Assert.All(signals.Inputs.Values, row =>
+        {
+            Assert.Equal(hardware.Area, row.Area);
+            Assert.Equal(hardware.Inputs[row.Signal], row.Number);
+        });
         Assert.Null(output.IsOn);
         Assert.Equal(0, probe.Reads);
         signals.RefreshOutputs();
@@ -277,13 +279,9 @@ public sealed class IoTests
             output.Feedback.Select(row => row.Signal));
         Assert.All(
             output.Feedback,
-            row =>
-            {
-                Assert.Same(status.Inputs.Single(input => input.Signal == row.Signal), row);
-                Assert.DoesNotContain(row, status.Sensors);
-            });
+            row => Assert.Same(signals.Inputs[row.Signal], row));
 
-        var sensor = status.Sensors.Single(row => row.Signal == InputIo.PcbSupplyPcbDetected);
+        var sensor = signals.Inputs[InputIo.PcbSupplyPcbDetected];
         Assert.Equal("999", sensor.Address);
         var filter = new IoList<IoOutputStatus, OutputIo>(signals.Outputs.Values.ToArray(), row => row);
         filter.SearchText = "069";

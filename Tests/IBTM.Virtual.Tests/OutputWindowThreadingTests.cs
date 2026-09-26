@@ -185,7 +185,7 @@ public sealed class OutputWindowThreadingTests
                 TimeSpan.FromSeconds(2)));
             Assert.False(teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-            Assert.Equal(inspection.Position.X, taughtPoint.X, 3);
+            Assert.Equal(inspection.Position.X, taughtPoint.Coordinates!.X, 3);
             Assert.True(teaching.ToggleLiveViewCommand.CanExecute(null));
         }
         finally

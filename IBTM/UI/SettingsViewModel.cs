@@ -236,7 +236,7 @@ public partial class SettingsViewModel : ObservableObject
                 hardware.Inputs[(InputIo)row.Signal] = row.Number;
             }
 
-            await Settings.SaveAsync(_store);
+            await _store.SaveSettingsAsync(Settings.Sections);
             DatabaseMessage = "Settings saved. Restart to apply hardware and logging changes.";
             _log.LogInformation(
                 "Settings saved to {Database}. Restart required for hardware and logging changes.",

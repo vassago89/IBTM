@@ -19,7 +19,7 @@ public sealed class ApplicationLogTests
         Assert.Equal(30, settings.Logging.RetentionDays);
         settings.Logging.Directory = Path.Combine(Path.GetTempPath(), "IBTM configured logs");
         settings.Logging.RetentionDays = 14;
-        await settings.SaveAsync(store);
+        await store.SaveSettingsAsync(settings.Sections);
 
         var reloaded = await MachineSettings.LoadAsync(store);
         Assert.Equal(settings.Logging.Directory, reloaded.Logging.Directory);
