@@ -11,7 +11,6 @@ namespace IBTM.UI;
 public sealed class MotionMonitorAxis : ObservableObject
 {
     private readonly MachineController _machine;
-    private readonly MachineState _state;
     private readonly UnitSettings _units;
     private bool _lastEnabled;
 
@@ -27,13 +26,12 @@ public sealed class MotionMonitorAxis : ObservableObject
         HomeCommand = new AsyncRelayCommand(HomeAsync, () => IsHomeAllowed);
 
         _machine = machine;
-        _state = state;
         _units = units;
         _lastEnabled = _units.IsMotionEnabled(group);
         Group = group;
         Axis = axis;
         Number = number;
-        Diagnostics = _state.GetMotionStatus(group).MonitorAxes[axis];
+        Diagnostics = state.GetMotionStatus(group).MonitorAxes[axis];
     }
 
     public MotionGroup Group { get; }

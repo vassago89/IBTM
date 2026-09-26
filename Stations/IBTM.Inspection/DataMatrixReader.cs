@@ -7,22 +7,22 @@ namespace IBTM.Inspection;
 
 public static class DataMatrixReader
 {
-    public static string? Read(ImageFrame image, PixelRegion region, DataMatrixInspectionRecipe? settings = null)
+    public static string? Read(ImageFrame image, PixelRegion region, DataMatrixInspectionRecipe settings)
     {
-        if (settings?.BinaryThreshold is { } threshold)
+        if (settings.BinaryThreshold is { } threshold)
         {
             image = BinaryChecker.Check(image, region, threshold).Image;
             region = new(0, 0, image.Width, image.Height);
         }
         var reader = new BarcodeReaderGeneric
         {
-            AutoRotate = settings?.AutoRotate ?? false,
+            AutoRotate = settings.AutoRotate,
             Options = new DecodingOptions
             {
                 PossibleFormats = [BarcodeFormat.DATA_MATRIX],
-                TryHarder = settings?.TryHarder ?? true,
-                TryInverted = settings?.TryInverted ?? true,
-                PureBarcode = settings?.PureBarcode ?? false,
+                TryHarder = settings.TryHarder,
+                TryInverted = settings.TryInverted,
+                PureBarcode = settings.PureBarcode,
             },
         };
         return reader.Decode(CreateLuminanceSource(image, region))?.Text;

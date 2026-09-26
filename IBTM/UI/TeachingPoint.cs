@@ -381,7 +381,7 @@ public enum TeachingSaveBehavior
     [Description("Record Position saves pickup X/Y together automatically. Move to Position moves X and Y together.")]
     NgPickup,
 
-    [Description("Record Position with pickup head (Head 1) down; saves automatically. Move to Position travels to pickup XY, lowers the head, then moves to pickup Z. Vacuum is unchanged.")]
+    [Description("Record Position with both heads raised and the pickup table down; saves automatically. Move to Position: Safe Z → table down → pickup XY → pickup Z. Vacuum is unchanged.")]
     BoltPickup,
 
     [Description("Record Position saves this head's Z automatically. Move to Position moves only Z. Automatic fastening reaches this Z before lowering the head.")]

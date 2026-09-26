@@ -24,7 +24,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     private readonly NgCarrierTransferSettings _settings;
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly UnitSettings _units;
-    private HeatSinkSlot[]? _runTargets;
     // An unfinished shuttle handoff must still wait for clearance after STOP.
     private bool _waitingForShuttleDown;
     // Selected work belongs only to this run; STOP starts again at the first point.
@@ -285,9 +284,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     {
         if (cancellationToken.IsCancellationRequested)
             return;
-        BeginRun();
         try
         {
+            BeginRun();
             if (_units.Inspection)
                 Station.Restart(Station.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
@@ -402,9 +401,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 BoltPoint[] bolts;
                 lock (_recipes.InspectionSync)
                     bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
-                _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
+                var targets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                 var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt)>();
-                foreach (var pcb in _runTargets)
+                foreach (var pcb in targets)
                 {
                     var pcbBolts = bolts.Where(bolt => bolt.HeatSink == pcb).OrderBy(bolt => bolt.Number).ToArray();
                     if (pcbBolts.Length == 0)
@@ -453,8 +452,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             {
                 await MoveToWaitingPositionAsync(token);
                 token.ThrowIfCancellationRequested();
-                foreach (var heatSink in _runTargets!)
-                    Station.GetAssembly(job, heatSink).CompleteInspection();
+                foreach (var point in _runPoints!)
+                    if (point.Bolt is null)
+                        Station.GetAssembly(job, point.Pcb).CompleteInspection();
                 Station.Complete(job);
                 ClearInspectionOperation();
                 return true;
@@ -520,7 +520,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             }
         }
         _runJob = null;
-        _runTargets = null;
         _runPoints = null;
         _pointIndex = 0;
         NotifyChanged();
@@ -628,9 +627,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         CancellationToken cancellationToken,
         bool allowEmpty = false)
     {
-        BeginRun();
         try
         {
+            BeginRun();
             while (!cancellationToken.IsCancellationRequested)
             {
                 var state = GetNextTransferStep(destination, canPickUp: true, allowEmpty: allowEmpty);
@@ -894,7 +893,15 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public bool IsLiveView => _camera.IsLiveView;
 
-    public Exception? LiveViewError { get; private set; }
+    public Exception? LiveViewError
+    {
+        get;
+        private set
+        {
+            field = value;
+            LiveViewChanged?.Invoke();
+        }
+    }
 
     public async Task InitializeVisionAsync(CancellationToken cancellationToken = default)
     {
@@ -934,7 +941,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             failure = failure is null ? exception : new AggregateException(failure, exception);
         }
 
-        PublishLiveView(failure);
+        LiveViewError = failure;
         if (failure is not null)
             ExceptionDispatchInfo.Throw(failure);
     }
@@ -1142,7 +1149,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         {
             var cancelled = exception is OperationCanceledException
                 && cancellationToken.IsCancellationRequested;
-            PublishLiveView(cancelled ? null : exception);
+            LiveViewError = cancelled ? null : exception;
             throw;
         }
         finally
@@ -1228,7 +1235,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             failure = exception;
         }
 
-        PublishLiveView(failure);
+        LiveViewError = failure;
         if (failure is not null)
             ExceptionDispatchInfo.Throw(failure);
     }
@@ -1246,14 +1253,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         {
             failure = cleanupFailure;
         }
-        PublishLiveView(failure);
-        _log?.LogError(failure, "Inspection live view failed.");
-    }
-
-    private void PublishLiveView(Exception? failure = null)
-    {
         LiveViewError = failure;
-        LiveViewChanged?.Invoke();
+        _log?.LogError(failure, "Inspection live view failed.");
     }
 
     private void TurnLightOff(int channel, Exception? failure)

@@ -1497,7 +1497,7 @@ public sealed partial class MachineLifecycleTests
         bool teachingHome)
     {
         var settings = FlowSettings();
-        foreach (var motionSettings in MotionSettingsOf(settings))
+        foreach (var (motionSettings, _) in settings.MotionSections)
             motionSettings.ZHome.SearchSpeed = 20;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
@@ -1534,7 +1534,7 @@ public sealed partial class MachineLifecycleTests
     public async Task MotionAlarmBlocksHomeAndStopsAllHomingAxes()
     {
         var settings = FlowSettings();
-        foreach (var motionSettings in MotionSettingsOf(settings))
+        foreach (var (motionSettings, _) in settings.MotionSections)
             motionSettings.ZHome.SearchSpeed = 20;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
@@ -1644,7 +1644,7 @@ public sealed partial class MachineLifecycleTests
         bool safetyStop)
     {
         var settings = FlowSettings();
-        foreach (var motionSettings in MotionSettingsOf(settings))
+        foreach (var (motionSettings, _) in settings.MotionSections)
             motionSettings.ZHome.SearchSpeed = 1;
         HomeResultMotion? homeResult = null;
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())

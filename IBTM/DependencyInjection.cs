@@ -111,26 +111,8 @@ public static class DependencyInjection
                 .AddSingleton<IIoService, PhysicalIoService>();
         }
 
-        AddXyMotion(
-            services,
-            settings.Drivers.Control,
-            settings.PcbSupply.Motion,
-            settings.PcbSupplyHardware);
-        AddXyMotion(
-            services,
-            settings.Drivers.Control,
-            settings.PcbPlacementHandler.Motion,
-            settings.PcbPlacementHandlerHardware);
-        AddXyMotion(
-            services,
-            settings.Drivers.Control,
-            settings.BoltFastening.Motion,
-            settings.BoltFasteningHardware);
-        AddXyMotion(
-            services,
-            settings.Drivers.Control,
-            settings.InspectionGantry.Motion,
-            settings.InspectionGantryHardware);
+        foreach (var (motionSettings, motionHardware) in settings.MotionSections)
+            AddXyMotion(services, settings.Drivers.Control, motionSettings, motionHardware);
 
         services.AddSingleton<IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]>>(provider =>
         {

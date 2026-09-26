@@ -43,7 +43,6 @@ public sealed class BoltControllerWiringTests
     }
 
     [Theory]
-    [InlineData(BoltDriver.Io)]
     [InlineData(BoltDriver.Virtual)]
     [InlineData(BoltDriver.HantasAdc)]
     public async Task DriverSelectionChangesControllerButKeepsAllIoAvailable(BoltDriver driver)
@@ -74,7 +73,7 @@ public sealed class BoltControllerWiringTests
                 row => row.Io.Signal == signal);
         }
 
-        settings.Drivers.Bolt = driver == BoltDriver.Io ? BoltDriver.HantasAdc : BoltDriver.Io;
+        settings.Drivers.Bolt = driver == BoltDriver.Virtual ? BoltDriver.HantasAdc : BoltDriver.Virtual;
         foreach (var signal in new[] { OutputIo.PickupBoltStart, OutputIo.ShootingBoltStart })
         {
             var row = Assert.Single(outputs.Rows, row => row.Io.Signal == signal);

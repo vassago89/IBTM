@@ -26,7 +26,13 @@ public sealed class AlphaMotionController : IDisposable
     public AlphaMotionController(AlphaMotionSettings settings, ILogger<AlphaMotionController>? log = null)
     {
         _log = log;
-        _cardNumber = GetCardNumber(settings.ControllerNumber);
+        var cardNumber = settings.ControllerNumber;
+        if (cardNumber < 0 || cardNumber > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(
+                nameof(AlphaMotionSettings.ControllerNumber),
+                cardNumber,
+                "AlphaMotion card number must fit the manufacturer's unsigned 16-bit address.");
+        _cardNumber = (ushort)cardNumber;
         _gate = new();
         _reportedResults = [];
     }
@@ -319,16 +325,6 @@ public sealed class AlphaMotionController : IDisposable
     private string Address(string operation, int? bit)
     {
         return $"{operation} (card={_cardNumber}{(bit is null ? "" : $", bit={bit}")})";
-    }
-
-    private static ushort GetCardNumber(int value)
-    {
-        if (value < 0 || value > ushort.MaxValue)
-            throw new ArgumentOutOfRangeException(
-                nameof(AlphaMotionSettings.ControllerNumber),
-                value,
-                "AlphaMotion card number must fit the manufacturer's unsigned 16-bit address.");
-        return (ushort)value;
     }
 
     private static ushort GetChannel(int bit)

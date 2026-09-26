@@ -40,18 +40,17 @@ public sealed class PcbSupplyRepeatTests
             settings,
             recipes,
             new() { PcbPlacement = false });
-        var handler = supplier;
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);
-        await handler.SetRotatedAsync(true);
+        await supplier.SetRotatedAsync(true);
         await motion.MoveToXYAsync(30, 20, 2_000);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false);
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
         io.SetInput(InputIo.PcbSupplyPcbDetected, pcbDetected);
-        Assert.Equal(pcbDetected ? PcbSupplyPcbState.Detected : PcbSupplyPcbState.None, handler.Pcb);
+        Assert.Equal(pcbDetected ? PcbSupplyPcbState.Detected : PcbSupplyPcbState.None, supplier.Pcb);
         var commanded = false;
         motion.MovingChanged += moving => commanded |= moving;
         io.OutputChanged += (output, on) => commanded |= output is OutputIo.PcbSupplyRotate
@@ -72,13 +71,13 @@ public sealed class PcbSupplyRepeatTests
             await Assert.ThrowsAsync<InvalidOperationException>(
                 () => supplier.RunAsync(new NoPlacement(), stop.Token, repeat));
             Assert.False(commanded);
-            Assert.Equal(PcbSupplyCylinderState.Forward, handler.Gripper);
+            Assert.Equal(PcbSupplyCylinderState.Forward, supplier.Gripper);
         }
         else
         {
             await supplier.RunAsync(new NoPlacement(), stop.Token, repeat);
             Assert.True(reachedPickup);
-            Assert.Equal(PcbSupplyCylinderState.Backward, handler.Gripper);
+            Assert.Equal(PcbSupplyCylinderState.Backward, supplier.Gripper);
             Assert.False(io.GetInput(InputIo.PcbSupplyIpmFixerForward));
         }
 
@@ -112,7 +111,6 @@ public sealed class PcbSupplyRepeatTests
             settings,
             recipes,
             new() { PcbPlacement = false });
-        var handler = supplier;
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);
@@ -121,7 +119,7 @@ public sealed class PcbSupplyRepeatTests
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        Assert.Equal(PcbSupplyPcbState.Detected, handler.Pcb);
+        Assert.Equal(PcbSupplyPcbState.Detected, supplier.Pcb);
         Assert.False(supplier.PcbSecured);
         Assert.NotEqual(PcbSupplyState.MovingToHandoff, supplier.Phase);
 
@@ -131,18 +129,18 @@ public sealed class PcbSupplyRepeatTests
             if (input != InputIo.PcbSupplyGripperClosed || !on)
                 return;
             var pickup = recipe.Pcb1PickPosition;
-            grippedAtPickup = MotionService.IsAt(handler.Motion.Feedback, new() { X = pickup.X, Y = pickup.Y!.Value, Z = pickup.Z })
-                && handler.Rotation == PcbSupplyRotationState.Rotated;
+            grippedAtPickup = MotionService.IsAt(supplier.Motion.Feedback, new() { X = pickup.X, Y = pickup.Y!.Value, Z = pickup.Z })
+                && supplier.Rotation == PcbSupplyRotationState.Rotated;
         };
 
         var movedBeforeFixing = false;
         var reachedHandoff = false;
         var lostGrip = false;
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-        motion.MovingChanged += moving => movedBeforeFixing |= moving && grippedAtPickup && !handler.PcbSecured;
+        motion.MovingChanged += moving => movedBeforeFixing |= moving && grippedAtPickup && !supplier.PcbSecured;
         motion.PositionChanged += (x, y, z) =>
         {
-            if (loseGrip && !lostGrip && handler.PcbSecured && motion.IsMovingHorizontal && x > 30)
+            if (loseGrip && !lostGrip && supplier.PcbSecured && motion.IsMovingHorizontal && x > 30)
             {
                 lostGrip = true;
                 io.SetInput(InputIo.PcbSupplyIpmFixerForward, false);
@@ -150,7 +148,7 @@ public sealed class PcbSupplyRepeatTests
         };
         motion.StateChanged += () =>
         {
-            if (!MotionService.IsAt(handler.Motion.Feedback, settings.HandoffPosition) || !handler.PcbSecured)
+            if (!MotionService.IsAt(supplier.Motion.Feedback, settings.HandoffPosition) || !supplier.PcbSecured)
                 return;
             reachedHandoff = true;
             finish.Cancel();
@@ -169,7 +167,7 @@ public sealed class PcbSupplyRepeatTests
         Assert.Equal(!loseGrip, reachedHandoff);
         Assert.True(grippedAtPickup);
         Assert.False(movedBeforeFixing);
-        Assert.Equal(!loseGrip, handler.PcbSecured);
+        Assert.Equal(!loseGrip, supplier.PcbSecured);
     }
 
     [Theory]
@@ -203,7 +201,6 @@ public sealed class PcbSupplyRepeatTests
             settings,
             recipes,
             new() { PcbPlacement = false });
-        var handler = supplier;
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);
@@ -220,16 +217,22 @@ public sealed class PcbSupplyRepeatTests
             if (output == OutputIo.PcbSupplyGripperClosed && !on)
                 releases++;
         };
+        var returnPosition = new AxisPosition
+        {
+            X = recipe.Pcb1PickPosition.X,
+            Y = recipe.Pcb1PickPosition.Y!.Value,
+            Z = settings.RotationZ,
+        };
         motion.StateChanged += () =>
         {
-            if (!returning && MotionService.IsAt(handler.Motion.Feedback, settings.HandoffPosition) && handler.PcbSecured)
+            if (!returning && MotionService.IsAt(supplier.Motion.Feedback, settings.HandoffPosition) && supplier.PcbSecured)
             {
                 visits++;
                 returning = true;
                 io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             }
-            if (returning && handler.Rotation == PcbSupplyRotationState.Rotated
-                && handler.IsAtPickupXY(recipe.Pcb1PickPosition) && MotionService.IsAtZ(handler.Motion.Feedback, settings.RotationZ))
+            if (returning && supplier.Rotation == PcbSupplyRotationState.Rotated
+                && MotionService.IsAt(supplier.Motion.Feedback, returnPosition))
             {
                 returning = false;
                 returns++;
@@ -241,7 +244,7 @@ public sealed class PcbSupplyRepeatTests
         {
             if (visits > 0 && z == recipe.Pcb1PickPosition.Z)
                 descendedAfterPickup = true;
-            if (loseHolding && !lost && handler.PcbSecured && motion.IsMovingHorizontal && x > 30)
+            if (loseHolding && !lost && supplier.PcbSecured && motion.IsMovingHorizontal && x > 30)
             {
                 lost = true;
                 io.SetInput(InputIo.PcbSupplyIpmFixerForward, false);
@@ -263,7 +266,7 @@ public sealed class PcbSupplyRepeatTests
         Assert.Equal(0, releases);
         Assert.False(descendedAfterPickup);
         if (!loseHolding)
-            Assert.True(handler.PcbSecured);
+            Assert.True(supplier.PcbSecured);
         Assert.False(motion.IsMoving);
     }
 

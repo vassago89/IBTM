@@ -32,9 +32,9 @@ Repeat에서도 사용하는 모션·인계·출력 동작은 기본 파일을 �
 공급·장착·볼트·검사·메인 컨베이어·NG 컨베이어의 실행 진입점은 아래 형태로 통일한다.
 
 ```csharp
-BeginRun();
 try
 {
+    BeginRun();
     while (!cancellationToken.IsCancellationRequested)
     {
         var step = GetNextStep(/* 현재 작업·모드·피드백 */);
@@ -79,7 +79,8 @@ STOP으로는 이 정보를 지우지 않고 원래 캐리어에 다시 놓았�
 공급의 반환 슬롯도 함께 유지하며, 재시작 때 현재 그립과 원래 캐리어를 다시 확인한다.
 Disabled는 화면·대기 표시로만 사용하며 미완료 인계 단계를 덮어쓰지 않는다.
 출력 정지·이벤트 구독 해제 등은 각 장치 경계의 `finally`에서 처리하고,
-`EndRun`에서 실행 단계 표시와 공통 이벤트 구독을 정리한다.
+`EndRun`에서 실행 단계 표시를 정리한다. 자기 피드백 변화는 `NotifyChanged`에서
+실행 중인 대기만 깨우며, Run마다 자기 `Changed` 이벤트를 다시 구독하지 않는다.
 
 `GetNextStep` / `GetNextTransferStep`은 다음 동작 선택이다. 진행 중 동작을 설명할 때는
 `Step`을 사용한다. 모든 유닛에서 실행 중인 동작·대기만 뜻하며, 종료 시 null로 지운다.

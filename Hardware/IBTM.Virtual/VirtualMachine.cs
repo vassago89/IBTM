@@ -131,8 +131,10 @@ public sealed class VirtualMachine
             && !_io.GetInput(InputIo.InspectionHeatSink2Present))
             _carrierPcbs.Remove(InputIo.InspectionHeatSink1Present);
         if (value
-            && IsEmergencyStop(input)
-            || (input == InputIo.AutoMode || IsDoor(input))
+            && input is InputIo.EmergencyStop1Pressed or InputIo.EmergencyStop2Pressed
+            || input is InputIo.AutoMode
+                or InputIo.Door1Open or InputIo.Door2Open or InputIo.Door3Open
+                or InputIo.Door4Open or InputIo.Door5Open or InputIo.Door6Open
             && AutoMode
             && DoorOpen)
         {
@@ -145,7 +147,12 @@ public sealed class VirtualMachine
             && !EmergencyStopPressed
             && (!AutoMode || !DoorOpen))
         {
-            RestoreServoPower();
+            _io.SetInput(InputIo.ServoMainContactorOn, true);
+            foreach (var motion in _motions)
+            {
+                foreach (var axis in motion.Axes)
+                    motion.SetServo(axis, true);
+            }
         }
     }
 
@@ -160,33 +167,6 @@ public sealed class VirtualMachine
                 motion.SetAlarm(axis, true);
             }
         }
-    }
-
-    private void RestoreServoPower()
-    {
-        _io.SetInput(InputIo.ServoMainContactorOn, true);
-        foreach (var motion in _motions)
-        {
-            foreach (var axis in motion.Axes)
-            {
-                motion.SetServo(axis, true);
-            }
-        }
-    }
-
-    private static bool IsDoor(InputIo input)
-    {
-        return input is InputIo.Door1Open
-            or InputIo.Door2Open
-            or InputIo.Door3Open
-            or InputIo.Door4Open
-            or InputIo.Door5Open
-            or InputIo.Door6Open;
-    }
-
-    private static bool IsEmergencyStop(InputIo input)
-    {
-        return input is InputIo.EmergencyStop1Pressed or InputIo.EmergencyStop2Pressed;
     }
 
     public void UpdateSupplyPosition(

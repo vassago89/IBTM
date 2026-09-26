@@ -27,6 +27,8 @@ public abstract class AutoUnit
     protected void NotifyChanged()
     {
         Changed?.Invoke();
+        if (IsRunning)
+            WakeRun();
     }
 
     // Peer changes wake this loop without broadcasting back to the peer.
@@ -82,14 +84,12 @@ public abstract class AutoUnit
         _lastStep = null;
         _waiting = false;
         Trace?.Invoke($"{GetType().Name}: run started.");
-        Changed += WakeRun;
         if (Step is not null)
             StepChanged?.Invoke();
     }
 
     protected void EndRun(CancellationToken cancellationToken)
     {
-        Changed -= WakeRun;
         IsRunning = false;
         Step = null;
         StepChanged?.Invoke();

@@ -187,8 +187,8 @@ public sealed class MotionSafetyTests
         };
         var handoff = new AxisPosition { X = 10, Y = 10, Z = 8 };
         var io = CreateIo();
-        using var supply = Motion(settings, operations);
-        using var placement = Motion(settings, operations);
+        using var supply = new VirtualMotionService(settings, operations);
+        using var placement = new VirtualMotionService(settings, operations);
         var placementHandler = VirtualTest.CreatePlacer(placement, io,
             new PcbPlacementHandlerSettings { HandoffPosition = handoff });
         var supplyHandoff = new AxisPosition { X = handoff.X, Y = handoff.Y, Z = 3 };

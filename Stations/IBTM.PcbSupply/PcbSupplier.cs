@@ -136,16 +136,6 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
     }
 
-    public bool IsAtPickupXY(PcbPickPosition position)
-    {
-        if (position.Y is not { } y)
-            return false;
-        var current = _motion.Position;
-        return MotionService.IsSettled(_motion, MotionAxis.X, MotionAxis.Y)
-            && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - y) <= MotionService.PositionToleranceMillimeters;
-    }
-
     public void SetUpstreamReady(bool ready)
     {
         if (!_io.GetInput(InputIo.AutoMode))
@@ -210,16 +200,12 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
     // Retained handoff phase; it is not proof of physical position or an active run.
     public PcbSupplyState Phase { get; private set; }
 
-    private void EnterStep(
-        PcbSupplyState step,
-        string? target = null,
-        long? workId = null,
-        string? waitingFor = null)
+    private void EnterStep(PcbSupplyState step, string? target = null)
     {
         var phaseChanged = step != PcbSupplyState.Disabled && Phase != step;
         if (phaseChanged)
             Phase = step;
-        base.EnterStep(step, target ?? _pickStep.ToString(), workId, waitingFor);
+        base.EnterStep(step, target ?? _pickStep.ToString());
         if (phaseChanged && !IsRunning)
             NotifyChanged();
     }

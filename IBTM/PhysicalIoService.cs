@@ -19,8 +19,6 @@ public sealed class PhysicalIoService : IIoService, IDisposable
     private readonly IReadOnlyDictionary<OutputIo, OutputHardware> _outputMap;
     private readonly MachineOptions _options;
     private readonly ILogger<PhysicalIoService>? _log;
-    // Persisted logical address boundary, not the detected AlphaMotion board size.
-    private const int AlphaMotionChannelCount = AlphaMotionController.ChannelCount;
     private readonly InputIo[] _mappedInputs;
     private readonly bool[] _inputs;
     private readonly bool[] _inputScan;
@@ -50,7 +48,7 @@ public sealed class PhysicalIoService : IIoService, IDisposable
             .Select(mapping => mapping.Key)
             .ToArray();
         _inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
-        _inputScan = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
+        _inputScan = new bool[_inputs.Length];
         _changedInputs = new InputIo[_inputMap.Count];
         _rtexInputs = new uint[_ajin.RtexInputWordCount];
         _lifecycleGate = new();
@@ -199,29 +197,30 @@ public sealed class PhysicalIoService : IIoService, IDisposable
         }
     }
 
+    // The fixed channel count is the persisted logical boundary, not the detected board size.
     private bool ReadInput(int channel)
     {
-        return channel < AlphaMotionChannelCount
+        return channel < AlphaMotionController.ChannelCount
             ? _alphaMotion.ReadInput(channel)
-            : _ajin.ReadRtexInput(channel - AlphaMotionChannelCount);
+            : _ajin.ReadRtexInput(channel - AlphaMotionController.ChannelCount);
     }
 
     private bool ReadOutput(int channel)
     {
-        return channel < AlphaMotionChannelCount
+        return channel < AlphaMotionController.ChannelCount
             ? _alphaMotion.ReadOutput(channel)
-            : _ajin.ReadRtexOutput(channel - AlphaMotionChannelCount);
+            : _ajin.ReadRtexOutput(channel - AlphaMotionController.ChannelCount);
     }
 
     private void WriteOutput(int channel, bool value)
     {
-        if (channel < AlphaMotionChannelCount)
+        if (channel < AlphaMotionController.ChannelCount)
         {
             _alphaMotion.WriteOutput(channel, value);
             return;
         }
 
-        _ajin.WriteRtexOutput(channel - AlphaMotionChannelCount, value);
+        _ajin.WriteRtexOutput(channel - AlphaMotionController.ChannelCount, value);
     }
 
     public void RefreshInputs()
@@ -289,12 +288,12 @@ public sealed class PhysicalIoService : IIoService, IDisposable
 
     private bool ReadMonitoredInput(int channel, uint alphaInputs)
     {
-        if (channel < AlphaMotionChannelCount)
+        if (channel < AlphaMotionController.ChannelCount)
         {
             return ((alphaInputs >> channel) & 1) != 0;
         }
 
-        channel -= AlphaMotionChannelCount;
+        channel -= AlphaMotionController.ChannelCount;
         return ((_rtexInputs[channel / 32] >> (channel % 32)) & 1) != 0;
     }
 }

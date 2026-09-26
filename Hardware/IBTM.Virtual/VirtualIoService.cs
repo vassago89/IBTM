@@ -28,12 +28,30 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
     {
         _outputHardware = outputs;
         _options = options;
-        _inputs = CreateInitialInputs();
+        _inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
         _outputs = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
         _feedbackVersions = new int[_outputs.Length];
         _responseGate = new();
         _autoResponseEnabled = true;
         _connected = true;
+
+        // Start in MANUAL using the same raw selector polarity as the machine.
+        _inputs[(int)InputIo.AutoMode] = true;
+        // All six doors start closed; opening a door switches its raw input OFF.
+        _inputs[(int)InputIo.Door1Open] = true;
+        _inputs[(int)InputIo.Door2Open] = true;
+        _inputs[(int)InputIo.Door3Open] = true;
+        _inputs[(int)InputIo.Door4Open] = true;
+        _inputs[(int)InputIo.Door5Open] = true;
+        _inputs[(int)InputIo.Door6Open] = true;
+        _inputs[(int)InputIo.AirPressureHigh] = true;
+        // Virtual equipment starts raised with an open NG gripper.
+        _inputs[(int)InputIo.PickupTableUp] = true;
+        _inputs[(int)InputIo.PickupHeadUp] = true;
+        _inputs[(int)InputIo.ShootingHeadUp] = true;
+        _inputs[(int)InputIo.NgCarrierPickupUp] = true;
+        _inputs[(int)InputIo.NgCarrierGripperOpen] = true;
+        _inputs[(int)InputIo.NgShuttleUp] = true;
     }
 
     public event Action<InputIo, bool>? InputChanged;
@@ -98,29 +116,6 @@ public sealed class VirtualIoService : IIoService, INotifyPropertyChanged
     }
 
     internal int AutoResponseVersion => Volatile.Read(ref _autoResponseVersion);
-
-    private static bool[] CreateInitialInputs()
-    {
-        var inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
-        // Start in MANUAL using the same raw selector polarity as the machine.
-        inputs[(int)InputIo.AutoMode] = true;
-        // All six doors start closed; opening a door switches its raw input OFF.
-        inputs[(int)InputIo.Door1Open] = true;
-        inputs[(int)InputIo.Door2Open] = true;
-        inputs[(int)InputIo.Door3Open] = true;
-        inputs[(int)InputIo.Door4Open] = true;
-        inputs[(int)InputIo.Door5Open] = true;
-        inputs[(int)InputIo.Door6Open] = true;
-        inputs[(int)InputIo.AirPressureHigh] = true;
-        // Virtual equipment starts raised with an open NG gripper.
-        inputs[(int)InputIo.PickupTableUp] = true;
-        inputs[(int)InputIo.PickupHeadUp] = true;
-        inputs[(int)InputIo.ShootingHeadUp] = true;
-        inputs[(int)InputIo.NgCarrierPickupUp] = true;
-        inputs[(int)InputIo.NgCarrierGripperOpen] = true;
-        inputs[(int)InputIo.NgShuttleUp] = true;
-        return inputs;
-    }
 
     internal void ApplyAutoResponse(int version, Action response)
     {

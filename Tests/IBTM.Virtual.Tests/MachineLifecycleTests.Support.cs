@@ -120,19 +120,9 @@ public sealed partial class MachineLifecycleTests
         return new() { SearchSpeed = 10_000 };
     }
 
-    private static MotionSettings[] MotionSettingsOf(MachineSettings settings)
-    {
-        return [
-            settings.PcbSupply.Motion,
-            settings.PcbPlacementHandler.Motion,
-            settings.BoltFastening.Motion,
-            settings.InspectionGantry.Motion,
-        ];
-    }
-
     private static void FastHomes(MachineSettings settings)
     {
-        foreach (var motion in MotionSettingsOf(settings))
+        foreach (var (motion, _) in settings.MotionSections)
         {
             motion.HorizontalHome = FastHome();
             motion.ZHome = FastHome();
@@ -142,7 +132,6 @@ public sealed partial class MachineLifecycleTests
     private static MachineSettings FlowSettings()
     {
         var settings = new MachineSettings();
-        FastHomes(settings);
         settings.PcbSupply.Motion = FastMotion();
         settings.PcbSupply.RotationZ = 0;
         settings.PcbSupply.HandoffPosition = new()

@@ -17,6 +17,30 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class InspectionTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartupNotificationFailureClearsInspectionRun(bool transferOnly)
+    {
+        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        using var motion = new VirtualMotionService(new(), new(), hasZ: false);
+        var station = CreateNgTransfer(io, motion);
+        var failure = new InvalidOperationException("Run-start notification failed.");
+        station.Trace += message =>
+        {
+            if (message.EndsWith("run started."))
+                throw failure;
+        };
+
+        var error = await Record.ExceptionAsync(() => transferOnly
+            ? station.RunToAsync(NgTransferDestination.Shuttle, CancellationToken.None)
+            : station.RunAsync());
+
+        Assert.Same(failure, error);
+        Assert.False(station.IsRunning);
+        Assert.Null(station.Step);
+    }
+
     [Fact]
     public async Task ConveyorRunFeedbackCancelsInFlightInspectionBeforeRecording()
     {
@@ -253,15 +277,15 @@ public sealed class InspectionTests
         Assert.NotNull(binary);
         Assert.Equal((80, 80), (binary.Width, binary.Height));
         Assert.All(binary.Pixels, pixel => Assert.True(pixel is 0 or 255));
-        Assert.Equal("PCB-000123", DataMatrixReader.Read(binary, new(0, 0, 80, 80)));
+        Assert.Equal("PCB-000123", DataMatrixReader.Read(binary, new(0, 0, 80, 80), new()));
         var manual = DataMatrixReader.CreateBinaryImage(padded, new(180, 40, 80, 80), threshold: 128);
         Assert.Equal(BinaryChecker.Check(padded, new(180, 40, 80, 80), 128).Image.Pixels, manual!.Pixels);
-        Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80)));
+        Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80), new()));
         Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80),
             new() { BinaryThreshold = 128, AutoRotate = true }));
         Assert.Null(DataMatrixReader.Read(padded, new(180, 40, 80, 80), new() { BinaryThreshold = 0 }));
-        Assert.Null(DataMatrixReader.Read(padded, new(120, 80, 80, 80)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => DataMatrixReader.Read(padded, new(300, 0, 80, 80)));
+        Assert.Null(DataMatrixReader.Read(padded, new(120, 80, 80, 80), new()));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DataMatrixReader.Read(padded, new(300, 0, 80, 80), new()));
     }
 
     [Fact]
@@ -486,7 +510,6 @@ public sealed class InspectionTests
             new VirtualLightController(),
             new LightingSettings(),
             recipes);
-        var inspector = station;
 
         io.Initialize();
         motion.Initialize();
@@ -506,13 +529,13 @@ public sealed class InspectionTests
         Assert.Null(station.ActiveBolt);
         Assert.Empty(work.Assemblies);
 
-        await inspector.HomeHorizontalAsync();
-        var barcodeResult = await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None);
-        Assert.True(MotionService.IsAt(inspector.Motion.Feedback, recipes.Current.GetInspectionPosition(inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
+        await station.HomeHorizontalAsync();
+        var barcodeResult = await station.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None);
+        Assert.True(MotionService.IsAt(station.Motion.Feedback, recipes.Current.GetInspectionPosition(station.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-2", barcodeResult.Barcode);
-        var boltResult = await inspector.InspectAsync(bolts[0]);
-        Assert.True(MotionService.IsAt(inspector.Motion.Feedback, bolts[0].InspectionPosition!));
+        var boltResult = await station.InspectAsync(bolts[0]);
+        Assert.True(MotionService.IsAt(station.Motion.Feedback, bolts[0].InspectionPosition!));
         Assert.NotEmpty(boltResult.Frame.Pixels);
         Assert.Empty(work.Assemblies);
 

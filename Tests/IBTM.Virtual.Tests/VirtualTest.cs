@@ -106,13 +106,6 @@ internal static class VirtualTest
         }
     }
 
-    public static VirtualMotionService Motion(MotionSettings settings, OperationCancellation operations)
-    {
-        return new(
-            settings,
-            operationCancellation: operations);
-    }
-
     public static IReadOnlyDictionary<OutputIo, OutputHardware> Outputs(
         params IoHardwareSettings[] settings)
     {

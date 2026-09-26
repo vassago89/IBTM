@@ -276,7 +276,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     Station.Complete(Station.CurrentJob);
                 return false;
             case BoltFasteningState.MovingToStandby:
-                var position = _settings.GetBoltPosition(StandbyBolt!);
+                var position = _settings.GetBoltPosition(selectedBolt!);
                 await RaiseCylindersAsync(cancellationToken);
                 await MoveZAsync(_settings.SafeZ, cancellationToken);
                 await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
@@ -334,7 +334,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 return true;
             }
 
-            var bolt = ActiveBolt ?? throw new InvalidOperationException("No bolt is selected.");
+            var bolt = selectedBolt ?? throw new InvalidOperationException("No bolt is selected.");
             var feeding = !repeat && _units.IsBoltFeederEnabled(bolt.Head);
             switch (bolt.Head)
             {

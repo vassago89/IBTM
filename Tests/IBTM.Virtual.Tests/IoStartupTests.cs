@@ -131,7 +131,6 @@ public sealed class IoStartupTests
     }
 
     [Theory]
-    [InlineData(BoltDriver.Io)]
     [InlineData(BoltDriver.Virtual)]
     [InlineData(BoltDriver.HantasAdc)]
     public async Task MachineStopClearsBothIoBoltStartsEvenWhenOneWriteFails(BoltDriver driver)
