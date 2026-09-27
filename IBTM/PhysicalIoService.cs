@@ -166,33 +166,22 @@ public sealed class PhysicalIoService : IIoService, IDisposable
     public void SetOutput(OutputIo output, bool value)
     {
         var mapping = _outputMap[output];
-        try
+        // Validate both coils before any write; a missing OFF address is not a single-coil valve.
+        if (mapping.Number < 0 || mapping.OffNumber is < 0)
+            throw new IOException($"DO {output} is unavailable: configure both output addresses before operation.");
+        if (mapping.OffNumber is { } offChannel)
         {
-            // Validate both coils before any write; a missing OFF address is not a single-coil valve.
-            if (mapping.Number < 0 || mapping.OffNumber is < 0)
-                throw new IOException($"DO {output} is unavailable: configure both output addresses before operation.");
-            if (mapping.OffNumber is { } offChannel)
+            // Keep opposite commands for this valve from interleaving its two writes.
+            // Other outputs and input acquisition retain their independent device locks.
+            lock (mapping)
             {
-                // Keep opposite commands for this valve from interleaving its two writes.
-                // Other outputs and input acquisition retain their independent device locks.
-                lock (mapping)
-                {
-                    WriteOutput(value ? offChannel : mapping.Number, false);
-                    WriteOutput(value ? mapping.Number : offChannel, true);
-                }
-            }
-            else
-            {
-                WriteOutput(mapping.Number, value);
+                WriteOutput(value ? offChannel : mapping.Number, false);
+                WriteOutput(value ? mapping.Number : offChannel, true);
             }
         }
-        catch (Exception exception)
+        else
         {
-            _log?.LogError(
-                exception,
-                "DO {Output}, channel={Channel}, paired OFF={OffChannel}: write {Value} failed.",
-                output.ToString(), mapping.Number, mapping.OffNumber?.ToString() ?? "", value ? "ON" : "OFF");
-            throw;
+            WriteOutput(mapping.Number, value);
         }
 
         _log?.LogInformation("DO {Output}, channel={Channel}: {Value}", output.ToString(), mapping.Number, value ? "ON" : "OFF");

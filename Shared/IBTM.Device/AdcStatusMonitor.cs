@@ -165,11 +165,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                     var status = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);
                     sample = new(startedAt, status, null);
                 }
-                catch (OperationCanceledException) when (token.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception exception)
+                catch (Exception exception) when (
+                    exception is not OperationCanceledException || !token.IsCancellationRequested)
                 {
                     sample = new(startedAt, null, exception);
                 }

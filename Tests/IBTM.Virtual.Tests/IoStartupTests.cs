@@ -1729,9 +1729,6 @@ public sealed class IoStartupTests
         var detail = Assert.Single(log.Snapshot(), entry => entry.Detail?.Contains(error.Message) == true);
         Assert.Equal("Machine alarm: IoCommunication.", detail.Message);
         Assert.Equal(error.ToString(), detail.Detail);
-        var stage = failCheckReady ? "Control I/O readiness check" : "Control I/O initialization";
-        Assert.Contains(log.Snapshot(), entry => entry.Message == $"{stage} failed. {error.Message}"
-            && entry.Detail is null);
         Assert.True(machine.IsResetAllowed);
         Assert.False(machine.IsStartAllowed);
         Assert.False(machine.IsHomeAllowed);

@@ -69,11 +69,8 @@ public sealed partial class MachineController
                 _log?.LogInformation("Repeat carrier returned to its starting support.");
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
+        catch (Exception exception) when (
+            exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             var alarm = IsMotionFailure(exception)
                 ? MachineAlarm.MotionUnavailable

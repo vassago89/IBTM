@@ -997,8 +997,10 @@ public sealed partial class MachineLifecycleTests
         Assert.True(machine.IsStartAllowed);
     }
 
-    [Fact]
-    public async Task StopDuringMotionInitializationSkipsLaterUnitsAndCanRetry()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopDuringMotionInitializationSkipsLaterUnitsAndCanRetry(bool failAfterStop)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -1008,23 +1010,37 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var supply = probes[MotionGroup.PcbSupply];
+        var failure = new IOException("Motion initialization failed after STOP.");
         void StopAfterSupplyInitialization()
         {
             supply.Motion.StateChanged -= StopAfterSupplyInitialization;
             machine.Stop();
+            if (failAfterStop)
+                throw failure;
         }
 
         supply.Motion.StateChanged += StopAfterSupplyInitialization;
         try
         {
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                () => machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2)));
+            if (failAfterStop)
+                await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2));
+            else
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                    () => machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2)));
 
-            Assert.Equal(1, supply.InitializationCalls);
+            Assert.Equal(failAfterStop ? 0 : 1, supply.InitializationCalls);
             Assert.All(
                 probes.Where(item => item.Key != MotionGroup.PcbSupply),
                 item => Assert.Equal(0, item.Value.InitializationCalls));
             Assert.False(state.IsRunning);
+            if (failAfterStop)
+            {
+                Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+                Assert.Contains(failure.Message, state.AlarmDetail);
+                Assert.Single(services.GetRequiredService<ApplicationLog>().Snapshot(),
+                    entry => entry.Detail?.Contains(failure.Message) == true);
+                return;
+            }
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.DoesNotContain(
                 services.GetRequiredService<ApplicationLog>().Snapshot(),

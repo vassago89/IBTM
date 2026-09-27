@@ -489,9 +489,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
             if (operation is null)
                 return;
             var (alarm, error) = await InitializeHardwareAsync(operation.Token);
-            operation.Token.ThrowIfCancellationRequested();
             if (alarm == MachineAlarm.None)
+            {
+                operation.Token.ThrowIfCancellationRequested();
                 alarm = SafetyAlarm;
+            }
 
             if (alarm == MachineAlarm.None)
                 _state.Refresh();
@@ -503,150 +505,99 @@ public sealed partial class MachineController : INotifyPropertyChanged
         _log?.LogInformation("Machine initialization finished. Alarm={Alarm}.", _state.Alarm.ToString());
     }
 
-    private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeIoAsync(
+    private async Task InitializeIoAsync(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var stage = "Control I/O initialization";
-        _log?.LogInformation("{Stage} started.", stage);
-        try
-        {
-            // Keep SDK initialization off the input notification thread.
-            await Task.Run(
-                () =>
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    _io.Initialize();
-                    cancellationToken.ThrowIfCancellationRequested();
-                    stage = "Control I/O readiness check";
-                    _io.CheckReady();
-                },
-                cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            stage = "Stopping run outputs after I/O initialization";
-            StopRunOutputs();
-            stage = "Setting conveyor normal speed outputs";
-            _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
-            _io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
-            stage = "Setting placement handler rotation OFF";
-            _io.SetOutput(OutputIo.PcbPlacementHandlerRotate, false);
-            stage = "Setting main conveyor forward direction";
-            _io.SetOutput(OutputIo.MainConveyorForward, true);
-            _log?.LogInformation("Control I/O initialization and readiness check completed.");
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _log?.LogError("{Stage} failed. {Error}", stage, exception.Message);
-            return (MachineAlarm.IoCommunication, exception);
-        }
-
-        return (MachineAlarm.None, null);
+        _log?.LogInformation("Control I/O initialization started.");
+        // Keep SDK initialization off the input notification thread.
+        await Task.Run(
+            () =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _io.Initialize();
+                cancellationToken.ThrowIfCancellationRequested();
+                _log?.LogInformation("Control I/O readiness check started.");
+                _io.CheckReady();
+            },
+            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        StopRunOutputs();
+        _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
+        _io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
+        _io.SetOutput(OutputIo.PcbPlacementHandlerRotate, false);
+        _io.SetOutput(OutputIo.MainConveyorForward, true);
+        _log?.LogInformation("Control I/O initialization and readiness check completed.");
     }
 
     private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeHardwareAsync(
         CancellationToken cancellationToken)
     {
-        var ioResult = await InitializeIoAsync(cancellationToken);
-        // Input feedback must keep updating during the remaining device initialization.
-        await _feedback.StartAsync();
-        if (ioResult.Alarm != MachineAlarm.None)
-        {
-            return ioResult;
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        var stage = "Motion initialization";
+        var alarm = MachineAlarm.IoCommunication;
         try
-        {
-            if (_units.PcbSupply)
-            {
-                stage = "PCB supply motion initialization";
-                _log?.LogInformation("{Stage} started.", stage);
-                _motions[MotionGroup.PcbSupply].Initialize();
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            if (_units.PcbPlacement)
-            {
-                stage = "PCB placement motion initialization";
-                _log?.LogInformation("{Stage} started.", stage);
-                _motions[MotionGroup.PcbPlacementHandler].Initialize();
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            if (_units.BoltFastening)
-            {
-                stage = "Bolt fastening motion initialization";
-                _log?.LogInformation("{Stage} started.", stage);
-                _motions[MotionGroup.BoltFastening].Initialize();
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            if (_units.Inspection)
-            {
-                stage = "Inspection motion initialization";
-                _log?.LogInformation("{Stage} started.", stage);
-                _motions[MotionGroup.InspectionGantry].Initialize();
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            _log?.LogInformation("Motion initialization completed.");
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _log?.LogError("{Stage} failed. {Error}", stage, exception.Message);
-            return (MachineAlarm.MotionUnavailable, exception);
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_units.Inspection)
         {
             try
             {
+                await InitializeIoAsync(cancellationToken);
+            }
+            finally
+            {
+                // Keep input feedback available for recovery even if initialization fails.
+                if (!cancellationToken.IsCancellationRequested)
+                    await _feedback.StartAsync();
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            alarm = MachineAlarm.MotionUnavailable;
+            if (_units.PcbSupply)
+            {
+                _log?.LogInformation("PCB supply motion initialization started.");
+                _motions[MotionGroup.PcbSupply].Initialize();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            if (_units.PcbPlacement)
+            {
+                _log?.LogInformation("PCB placement motion initialization started.");
+                _motions[MotionGroup.PcbPlacementHandler].Initialize();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            if (_units.BoltFastening)
+            {
+                _log?.LogInformation("Bolt fastening motion initialization started.");
+                _motions[MotionGroup.BoltFastening].Initialize();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            if (_units.Inspection)
+            {
+                _log?.LogInformation("Inspection motion initialization started.");
+                _motions[MotionGroup.InspectionGantry].Initialize();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            _log?.LogInformation("Motion initialization completed.");
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_units.Inspection)
+            {
+                alarm = MachineAlarm.Inspection;
                 _log?.LogInformation("Vision / lighting initialization started.");
                 await _inspectionStation.InitializeVisionAsync(cancellationToken);
                 _log?.LogInformation("Vision / lighting initialization completed.");
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_units.BoltFastening)
             {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                _log?.LogError("Vision / lighting initialization failed. {Error}", exception.Message);
-                return (MachineAlarm.Inspection, exception);
-            }
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_units.BoltFastening)
-        {
-            try
-            {
+                alarm = MachineAlarm.BoltFastening;
                 _log?.LogInformation("Bolt controller readiness check started.");
                 await _fasteningStation.CheckReadyAsync(cancellationToken);
                 _log?.LogInformation("Bolt controller readiness check completed.");
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                _log?.LogError("Bolt controller readiness check failed. {Error}", exception.Message);
-                return (MachineAlarm.BoltFastening, exception);
-            }
+            return (MachineAlarm.None, null);
         }
-
-        return (MachineAlarm.None, null);
+        catch (Exception exception) when (
+            exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            return (alarm, exception);
+        }
     }
 
     public bool IsStartAllowed => _state.Available && IsStartAllowedFor(StartBlock, _state.IsRunning);
@@ -709,197 +660,174 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         await Task.Run(async () =>
         {
+            var failureAlarm = MachineAlarm.MotionUnavailable;
+            OperationCancellation.Operation? operation = null;
             try
             {
-                using var operation = _operations.TryBegin(cancellationToken);
+                operation = _operations.TryBegin(cancellationToken);
                 if (operation is null)
                     return;
                 cancellationToken = operation.Token;
-                await RunAutomaticAsync(operation);
+                if (!IsStartAllowedFor(
+                    GetStartBlock(_feedback.ReadLiveReadiness()), _state.IsRunningFor(includeOperations: false)))
+                    return;
+                operation.Token.ThrowIfCancellationRequested();
+
+                var repeat = _state.RepeatEnabled;
+                var startedInManual = _state.ManualMode;
+                var feedbackStartedAt = Stopwatch.GetTimestamp();
+                void StopWhenOperationBecomesUnavailable()
+                {
+                    if (operation.IsCancellationRequested)
+                        return;
+                    if (_state.IsError)
+                    {
+                        operation.Cancel();
+                        return;
+                    }
+
+                    try
+                    {
+                        var modeReady = _state.ManualMode == startedInManual;
+                        // An unsafe DI already requires a stop. Do not wait for unrelated
+                        // axis diagnostics before requesting it; safe operation still uses live SDK feedback.
+                        if (!_io.IsReady
+                            || !modeReady
+                            || !_state.SafetyReady
+                            || !_state.DoorInterlockReady)
+                        {
+                            _log?.LogInformation("Automatic stop: I/O, selector, emergency stop, air or door condition changed.");
+                            operation.Cancel();
+                            return;
+                        }
+
+                        if (!_state.ServoMainContactorOn)
+                        {
+                            _state.SetError(MachineAlarm.MotionUnavailable);
+                        }
+                        else
+                        {
+                            // Motion faults are handled by the acquisition sample below.
+                            // DI/state notifications must not start another full native scan.
+                            return;
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        _state.SetError(MachineAlarm.MotionUnavailable, exception);
+                    }
+
+                    operation.Cancel();
+                }
+
+                void StopWhenMotionFeedbackBecomesUnavailable(MotionGroup group, MotionFeedbackSample sample)
+                {
+                    // Live admission already checked the equipment. Do not apply a scan that
+                    // began before this run (for example, while Home was still completing).
+                    if (operation.IsCancellationRequested
+                        || sample.StartedAt < feedbackStartedAt
+                        || !sample.Enabled
+                        || !_units.IsMotionEnabled(group))
+                        return;
+                    if (_state.IsError)
+                    {
+                        operation.Cancel();
+                        return;
+                    }
+
+                    var motion = sample.Readiness;
+                    if (sample.IoReady
+                        && sample.ReadError is null
+                        && motion.Homed
+                        && motion.ServosOn
+                        && !motion.Faulted)
+                        return;
+                    // Consume the completed scan, not a second native read that could miss a
+                    // transient fault. Disabled axes have already been excluded from this snapshot.
+                    try
+                    {
+                        _state.SetError(
+                            sample.IoReady ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication,
+                            sample.ReadError ?? new InvalidOperationException(
+                                $"Motion feedback {group} became unavailable during automatic operation: "
+                                    + $"homed={motion.Homed}, servosOn={motion.ServosOn}, faulted={motion.Faulted}."));
+                    }
+                    finally
+                    {
+                        operation.Cancel();
+                    }
+                }
+
+                try
+                {
+                    var (startAlarm, startError) = await InitializeHardwareAsync(operation.Token);
+                    if (startAlarm != MachineAlarm.None)
+                    {
+                        _state.SetError(startAlarm, startError);
+                        return;
+                    }
+                    operation.Token.ThrowIfCancellationRequested();
+
+                    _state.Changed += StopWhenOperationBecomesUnavailable;
+                    _feedback.Sampled += StopWhenMotionFeedbackBecomesUnavailable;
+                    StopWhenOperationBecomesUnavailable();
+                    if (operation.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    // Initialization can change drive feedback. Recheck once before motion;
+                    // ongoing supervision then belongs to the shared acquisition loop.
+                    var motion = _feedback.ReadLiveReadiness();
+                    if (!motion.Homed || !motion.ServosOn || motion.Faulted)
+                    {
+                        _state.SetError(MachineAlarm.MotionUnavailable);
+                        return;
+                    }
+
+                    operation.Token.ThrowIfCancellationRequested();
+                    await RaiseCylindersAsync(operation);
+
+                    if (_units.MainConveyor)
+                    {
+                        failureAlarm = MachineAlarm.MainConveyor;
+                        await _conveyor.PrepareEmptyStationsAsync(operation.Token);
+                    }
+
+                    operation.Token.ThrowIfCancellationRequested();
+                    failureAlarm = MachineAlarm.IoCommunication;
+                    _state.AutomaticRunning = true;
+                    if (repeat)
+                    {
+                        await RunRepeatAsync(operation.Token);
+                    }
+                    else
+                    {
+                        using var cycle = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
+                        await RunAutomaticUnitsAsync(cycle, repeat: false);
+                    }
+                }
+                finally
+                {
+                    _state.Changed -= StopWhenOperationBecomesUnavailable;
+                    _feedback.Sampled -= StopWhenMotionFeedbackBecomesUnavailable;
+                    _state.AutomaticRunning = false;
+                    StopAndReportFailure();
+                }
             }
             catch (OperationCanceledException) when (
                 cancellationToken.IsCancellationRequested || _operations.IsShuttingDown)
             {
             }
-            catch (Exception exception) when (exception is IOException or MotionException)
-            {
-                StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
-            }
-        });
-    }
-
-    private async Task RunAutomaticAsync(OperationCancellation.Operation operation)
-    {
-        if (!IsStartAllowedFor(
-            GetStartBlock(_feedback.ReadLiveReadiness()), _state.IsRunningFor(includeOperations: false)))
-            return;
-        operation.Token.ThrowIfCancellationRequested();
-
-        var repeat = _state.RepeatEnabled;
-        var startedInManual = _state.ManualMode;
-        var feedbackStartedAt = Stopwatch.GetTimestamp();
-        void StopWhenOperationBecomesUnavailable()
-        {
-            if (operation.IsCancellationRequested)
-                return;
-            if (_state.IsError)
-            {
-                operation.Cancel();
-                return;
-            }
-
-            try
-            {
-                var modeReady = _state.ManualMode == startedInManual;
-                // An unsafe DI already requires a stop. Do not wait for unrelated
-                // axis diagnostics before requesting it; safe operation still uses live SDK feedback.
-                if (!_io.IsReady
-                    || !modeReady
-                    || !_state.SafetyReady
-                    || !_state.DoorInterlockReady)
-                {
-                    _log?.LogInformation("Automatic stop: I/O, selector, emergency stop, air or door condition changed.");
-                    operation.Cancel();
-                    return;
-                }
-
-                if (!_state.ServoMainContactorOn)
-                {
-                    _state.SetError(MachineAlarm.MotionUnavailable);
-                }
-                else
-                {
-                    // Motion faults are handled by the acquisition sample below.
-                    // DI/state notifications must not start another full native scan.
-                    return;
-                }
-            }
             catch (Exception exception)
             {
-                _state.SetError(MachineAlarm.MotionUnavailable, exception);
-            }
-
-            operation.Cancel();
-        }
-
-        void StopWhenMotionFeedbackBecomesUnavailable(MotionGroup group, MotionFeedbackSample sample)
-        {
-            // Live admission already checked the equipment. Do not apply a scan that
-            // began before this run (for example, while Home was still completing).
-            if (operation.IsCancellationRequested
-                || sample.StartedAt < feedbackStartedAt
-                || !sample.Enabled
-                || !_units.IsMotionEnabled(group))
-                return;
-            if (_state.IsError)
-            {
-                operation.Cancel();
-                return;
-            }
-
-            var motion = sample.Readiness;
-            if (sample.IoReady
-                && sample.ReadError is null
-                && motion.Homed
-                && motion.ServosOn
-                && !motion.Faulted)
-                return;
-            // Consume the completed scan, not a second native read that could miss a
-            // transient fault. Disabled axes have already been excluded from this snapshot.
-            try
-            {
-                _state.SetError(
-                    sample.IoReady ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication,
-                    sample.ReadError ?? new InvalidOperationException(
-                        $"Motion feedback {group} became unavailable during automatic operation: "
-                            + $"homed={motion.Homed}, servosOn={motion.ServosOn}, faulted={motion.Faulted}."));
+                StopAndReportFailure(_state.IsError ? _state.Alarm : failureAlarm, exception);
             }
             finally
             {
-                operation.Cancel();
+                operation?.Dispose();
             }
-        }
-
-        try
-        {
-            var (startAlarm, startError) = await InitializeHardwareAsync(operation.Token);
-            operation.Token.ThrowIfCancellationRequested();
-            if (startAlarm != MachineAlarm.None)
-            {
-                _state.SetError(startAlarm, startError);
-                return;
-            }
-
-            _state.Changed += StopWhenOperationBecomesUnavailable;
-            _feedback.Sampled += StopWhenMotionFeedbackBecomesUnavailable;
-            StopWhenOperationBecomesUnavailable();
-            if (operation.IsCancellationRequested)
-            {
-                return;
-            }
-
-            // Initialization can change drive feedback. Recheck once before motion;
-            // ongoing supervision then belongs to the shared acquisition loop.
-            try
-            {
-                var motion = _feedback.ReadLiveReadiness();
-                if (!motion.Homed || !motion.ServosOn || motion.Faulted)
-                {
-                    _state.SetError(MachineAlarm.MotionUnavailable);
-                    return;
-                }
-            }
-            catch (Exception exception)
-            {
-                _state.SetError(MachineAlarm.MotionUnavailable, exception);
-                return;
-            }
-
-            operation.Token.ThrowIfCancellationRequested();
-            await RaiseCylindersAsync(operation);
-
-            if (_units.MainConveyor)
-            {
-                try
-                {
-                    await _conveyor.PrepareEmptyStationsAsync(operation.Token);
-                }
-                catch (Exception exception) when (exception is not OperationCanceledException)
-                {
-                    if (!_state.IsError)
-                        _state.SetError(MachineAlarm.MainConveyor, exception);
-                    else
-                        _log?.LogError(exception, "Main conveyor startup plate lowering failed while stopping.");
-                    return;
-                }
-            }
-
-            operation.Token.ThrowIfCancellationRequested();
-            _state.AutomaticRunning = true;
-            if (repeat)
-            {
-                await RunRepeatAsync(operation.Token);
-            }
-            else
-            {
-                using var cycle = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
-                await RunAutomaticUnitsAsync(cycle, repeat: false);
-            }
-        }
-        catch (OperationCanceledException) when (operation.IsCancellationRequested)
-        {
-        }
-        catch (IOException exception)
-        {
-            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, exception);
-        }
-        finally
-        {
-            _state.Changed -= StopWhenOperationBecomesUnavailable;
-            _feedback.Sampled -= StopWhenMotionFeedbackBecomesUnavailable;
-            _state.AutomaticRunning = false;
-            StopAndReportFailure();
-        }
+        });
     }
 
     private async Task RunAutomaticUnitsAsync(CancellationTokenSource cycle, bool repeat)
@@ -1173,10 +1101,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
             {
                 await raising;
             }
-            catch (OperationCanceledException) when (operation.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
+            catch (Exception exception) when (
+                exception is not OperationCanceledException || !operation.IsCancellationRequested)
             {
                 if (!_state.IsError)
                     _state.SetError(alarm, exception);
@@ -1214,159 +1140,146 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         await Task.Run(async () =>
         {
+            var failureAlarm = MachineAlarm.MotionUnavailable;
+            OperationCancellation.Operation? operation = null;
             try
             {
-                using var operation = _operations.TryBegin(cancellationToken);
+                operation = _operations.TryBegin(cancellationToken);
                 if (operation is null)
                     return;
                 cancellationToken = operation.Token;
-                await HomeAllAxesAsync(operation);
+                if (!IsHomeAllowedFor(_feedback.ReadLiveReadiness(), _state.IsRunningFor(includeOperations: false)))
+                    return;
+                cancellationToken.ThrowIfCancellationRequested();
+                var homingAxes = false;
+                var feedbackStartedAt = Stopwatch.GetTimestamp();
+                void StopWhenHomeBecomesUnavailable()
+                {
+                    if (operation.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        if (!_io.IsReady
+                            || _state.IsError
+                            || !_state.SafetyReady
+                            || GetHomeBlock(requireRaised: homingAxes) != HomeBlockReason.None)
+                        {
+                            operation.Cancel();
+                            return;
+                        }
+
+                        if (!_state.ServoMainContactorOn)
+                        {
+                            operation.Cancel();
+                            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable);
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        operation.Cancel();
+                        _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
+                    }
+                }
+
+                void StopWhenHomeMotionBecomesUnavailable(MotionGroup group, MotionFeedbackSample sample)
+                {
+                    if (operation.IsCancellationRequested
+                        || sample.StartedAt < feedbackStartedAt
+                        || !sample.Enabled
+                        || !_units.IsMotionEnabled(group))
+                        return;
+                    // Unhomed is expected during HOME; unavailable feedback, servo loss and faults are not.
+                    if (sample.IoReady && sample.ReadError is null
+                        && sample.Readiness.ServosOn && !sample.Readiness.Faulted)
+                        return;
+                    try
+                    {
+                        _state.SetError(_state.IsError ? _state.Alarm
+                            : sample.IoReady ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication,
+                            sample.ReadError ?? new InvalidOperationException(
+                                $"Motion feedback {group} became unavailable during HOME: "
+                                + $"servosOn={sample.Readiness.ServosOn}, faulted={sample.Readiness.Faulted}."));
+                    }
+                    finally
+                    {
+                        operation.Cancel();
+                    }
+                }
+
+                _state.Changed += StopWhenHomeBecomesUnavailable;
+                _feedback.Sampled += StopWhenHomeMotionBecomesUnavailable;
+                try
+                {
+                    failureAlarm = MachineAlarm.HomeFailed;
+                    _state.IsHoming = true;
+                    await RaiseCylindersAsync(operation);
+                    homingAxes = true;
+                    StopWhenHomeBecomesUnavailable();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    // Verify again after cylinder preparation, before issuing the first HOME.
+                    failureAlarm = MachineAlarm.MotionUnavailable;
+                    var motion = _feedback.ReadLiveReadiness();
+                    if (motion.Faulted || !motion.ServosOn)
+                    {
+                        _state.SetError(MachineAlarm.MotionUnavailable);
+                        return;
+                    }
+                    failureAlarm = MachineAlarm.HomeFailed;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (_units.PcbPlacement)
+                    {
+                        // Placement must finish homing before any other unit starts.
+                        await CheckHomeAsync(
+                            _pcbPlacement.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await CheckHomeAsync(_pcbPlacement.HomeHorizontalAsync(cancellationToken), cancellationToken);
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    await Task.WhenAll(
+                        _units.PcbSupply
+                            ? CheckHomeAsync(
+                                _pcbSupply.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                            : Task.CompletedTask,
+                        _units.BoltFastening
+                            ? CheckHomeAsync(
+                                _fasteningStation.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
+                            : Task.CompletedTask);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await Task.WhenAll(
+                        _units.PcbSupply
+                            ? CheckHomeAsync(_pcbSupply.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                            : Task.CompletedTask,
+                        _units.BoltFastening
+                            ? CheckHomeAsync(_fasteningStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                            : Task.CompletedTask,
+                        _units.Inspection
+                            ? CheckHomeAsync(_inspectionStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
+                            : Task.CompletedTask);
+                }
+                finally
+                {
+                    _state.Changed -= StopWhenHomeBecomesUnavailable;
+                    _feedback.Sampled -= StopWhenHomeMotionBecomesUnavailable;
+                    _state.IsHoming = false;
+                    _state.Refresh();
+                }
             }
             catch (OperationCanceledException) when (
                 cancellationToken.IsCancellationRequested || _operations.IsShuttingDown)
             {
             }
-            catch (Exception exception) when (exception is IOException or MotionException)
-            {
-                StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
-            }
-        });
-    }
-
-    private async Task HomeAllAxesAsync(OperationCancellation.Operation operation)
-    {
-        if (!IsHomeAllowedFor(_feedback.ReadLiveReadiness(), _state.IsRunningFor(includeOperations: false)))
-            return;
-        var cancellationToken = operation.Token;
-        cancellationToken.ThrowIfCancellationRequested();
-        var homingAxes = false;
-        var feedbackStartedAt = Stopwatch.GetTimestamp();
-        void StopWhenHomeBecomesUnavailable()
-        {
-            if (operation.IsCancellationRequested)
-            {
-                return;
-            }
-
-            try
-            {
-                if (!_io.IsReady
-                    || _state.IsError
-                    || !_state.SafetyReady
-                    || GetHomeBlock(requireRaised: homingAxes) != HomeBlockReason.None)
-                {
-                    operation.Cancel();
-                    return;
-                }
-
-                if (!_state.ServoMainContactorOn)
-                {
-                    operation.Cancel();
-                    _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable);
-                }
-            }
             catch (Exception exception)
             {
-                operation.Cancel();
-                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
-            }
-        }
-
-        void StopWhenHomeMotionBecomesUnavailable(MotionGroup group, MotionFeedbackSample sample)
-        {
-            if (operation.IsCancellationRequested
-                || sample.StartedAt < feedbackStartedAt
-                || !sample.Enabled
-                || !_units.IsMotionEnabled(group))
-                return;
-            // Unhomed is expected during HOME; unavailable feedback, servo loss and faults are not.
-            if (sample.IoReady && sample.ReadError is null
-                && sample.Readiness.ServosOn && !sample.Readiness.Faulted)
-                return;
-            try
-            {
-                _state.SetError(_state.IsError ? _state.Alarm
-                    : sample.IoReady ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication,
-                    sample.ReadError ?? new InvalidOperationException(
-                        $"Motion feedback {group} became unavailable during HOME: "
-                        + $"servosOn={sample.Readiness.ServosOn}, faulted={sample.Readiness.Faulted}."));
+                StopAndReportFailure(_state.IsError ? _state.Alarm : failureAlarm, exception);
             }
             finally
             {
-                operation.Cancel();
+                operation?.Dispose();
             }
-        }
-
-        _state.Changed += StopWhenHomeBecomesUnavailable;
-        _feedback.Sampled += StopWhenHomeMotionBecomesUnavailable;
-        try
-        {
-            _state.IsHoming = true;
-            await RaiseCylindersAsync(operation);
-            homingAxes = true;
-            StopWhenHomeBecomesUnavailable();
-            cancellationToken.ThrowIfCancellationRequested();
-            // Verify again after cylinder preparation, before issuing the first HOME.
-            try
-            {
-                var motion = _feedback.ReadLiveReadiness();
-                if (motion.Faulted || !motion.ServosOn)
-                {
-                    _state.SetError(MachineAlarm.MotionUnavailable);
-                    return;
-                }
-            }
-            catch (Exception exception)
-            {
-                _state.SetError(MachineAlarm.MotionUnavailable, exception);
-                return;
-            }
-            cancellationToken.ThrowIfCancellationRequested();
-            if (_units.PcbPlacement)
-            {
-                // Placement must finish homing before any other unit starts.
-                await CheckHomeAsync(
-                    _pcbPlacement.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-                await CheckHomeAsync(_pcbPlacement.HomeHorizontalAsync(cancellationToken), cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-            await Task.WhenAll(
-                _units.PcbSupply
-                    ? CheckHomeAsync(
-                        _pcbSupply.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
-                    : Task.CompletedTask,
-                _units.BoltFastening
-                    ? CheckHomeAsync(
-                        _fasteningStation.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
-                    : Task.CompletedTask);
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.WhenAll(
-                _units.PcbSupply
-                    ? CheckHomeAsync(_pcbSupply.HomeHorizontalAsync(cancellationToken), cancellationToken)
-                    : Task.CompletedTask,
-                _units.BoltFastening
-                    ? CheckHomeAsync(_fasteningStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
-                    : Task.CompletedTask,
-                _units.Inspection
-                    ? CheckHomeAsync(_inspectionStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
-                    : Task.CompletedTask);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            _state.SetError(_state.IsError ? _state.Alarm
-                : exception is IOException ? MachineAlarm.IoCommunication : MachineAlarm.HomeFailed, exception);
-        }
-        finally
-        {
-            _state.Changed -= StopWhenHomeBecomesUnavailable;
-            _feedback.Sampled -= StopWhenHomeMotionBecomesUnavailable;
-            _state.IsHoming = false;
-            _state.Refresh();
-        }
+        });
     }
 
     private async Task CheckHomeAsync(Task<bool> homing, CancellationToken cancellationToken)
@@ -1376,11 +1289,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
             if (!await homing && !cancellationToken.IsCancellationRequested)
                 _state.SetError(MachineAlarm.HomeFailed);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
+        catch (Exception exception) when (
+            exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
             throw;
@@ -1585,10 +1495,13 @@ public sealed partial class MachineController : INotifyPropertyChanged
         {
             _log?.LogInformation("Machine RESET cancelled.");
         }
-        catch (IOException exception)
+        catch (Exception exception)
         {
-            // Physical RESET has no awaiting view model to report admission/read failures.
-            StopAndReportFailure(MachineAlarm.IoCommunication, exception);
+            // A disconnected controller cannot accept cleanup writes; keep its original failure.
+            if (_io.IsReady)
+                StopAndReportFailure(MachineAlarm.IoCommunication, exception);
+            else
+                _state.SetError(MachineAlarm.IoCommunication, exception);
         }
     }
 
@@ -1625,16 +1538,12 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
         operation.Token.ThrowIfCancellationRequested();
         _log?.LogInformation("Machine RESET started.");
-        var (alarm, error) = await InitializeIoAsync(operation.Token);
+        await InitializeIoAsync(operation.Token);
         operation.Token.ThrowIfCancellationRequested();
-        if (alarm != MachineAlarm.None)
-        {
-            _state.SetError(alarm, error);
-            return;
-        }
         if (!_state.SafetyReady || !_state.ManualMode && !_state.DoorInterlockReady)
             return;
 
+        var alarm = MachineAlarm.None;
         var failures = new List<Exception>();
         void RecordFailure(MachineAlarm deviceAlarm, string device, Exception exception)
         {
@@ -1667,11 +1576,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     motion.SetServo(axis, true);
                 }
             }
-            catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
+            catch (Exception exception) when (
+                exception is not OperationCanceledException || !operation.Token.IsCancellationRequested)
             {
                 RecordFailure(MachineAlarm.MotionUnavailable, group.ToString(), exception);
             }
@@ -1684,11 +1590,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
             {
                 await _inspectionStation.InitializeVisionAsync(operation.Token);
             }
-            catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
+            catch (Exception exception) when (
+                exception is not OperationCanceledException || !operation.Token.IsCancellationRequested)
             {
                 RecordFailure(MachineAlarm.Inspection, "Vision / lighting", exception);
             }
@@ -1701,11 +1604,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
             {
                 await _fasteningStation.ResetHeadsAsync(operation.Token);
             }
-            catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
+            catch (Exception exception) when (
+                exception is not OperationCanceledException || !operation.Token.IsCancellationRequested)
             {
                 RecordFailure(MachineAlarm.BoltFastening, "Bolt controllers", exception);
             }

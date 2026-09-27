@@ -694,11 +694,8 @@ public sealed class BoltFasteningStation : AutoUnit
             {
                 await head.ResetAsync(cancellationToken);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
+            catch (Exception exception) when (
+                exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 (failures ??= []).Add(exception);
             }

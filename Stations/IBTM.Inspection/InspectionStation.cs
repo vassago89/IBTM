@@ -637,9 +637,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     await WaitForChangeAsync(cancellationToken);
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
         finally
         {
             EndRun(cancellationToken);

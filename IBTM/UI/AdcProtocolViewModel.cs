@@ -360,35 +360,29 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             operation = BeginCommand(cancellationToken);
             _machine.EnsureBoltTestAvailable();
-            try
-            {
-                _state.BoltTestRunning = true;
-                var head = ConnectedHead;
-                await head.SelectPresetAsync(1, operation.Token);
-                ResultMessage = "Fastening...";
-                var result = await head.TightenAsync(operation.Token, resultReceived: ShowResult);
-                ShowResult(result);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.BoltFastening, exception);
-                throw;
-            }
-            finally
-            {
-                _state.BoltTestRunning = false;
-            }
+            _state.BoltTestRunning = true;
+            var head = ConnectedHead;
+            await head.SelectPresetAsync(1, operation.Token);
+            ResultMessage = "Fastening...";
+            var result = await head.TightenAsync(operation.Token, resultReceived: ShowResult);
+            ShowResult(result);
         }
         catch (Exception exception)
         {
             failure = exception;
+            if (operation is not null && _state.BoltTestRunning
+                && exception is not OperationCanceledException)
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.BoltFastening, exception);
             ShowFailure(exception);
             throw;
         }
         finally
         {
             if (operation is not null)
+            {
+                _state.BoltTestRunning = false;
                 EndCommand(operation, failure);
+            }
         }
     }
 
@@ -396,25 +390,16 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     private async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_operationCancellation is not null)
-        {
-            try
-            {
-                await CommandShutdown.CancelAndWaitAsync(
-                    _commands.Where(command => command != StopCommand).ToArray());
-            }
-            catch (Exception exception)
-            {
-                ShowFailure(exception);
-                throw;
-            }
-            return;
-        }
-
         OperationCancellation.Operation? operation = null;
         Exception? failure = null;
         try
         {
+            if (_operationCancellation is not null)
+            {
+                await CommandShutdown.CancelAndWaitAsync(
+                    _commands.Where(command => command != StopCommand).ToArray());
+                return;
+            }
             operation = BeginCommand(cancellationToken);
             operation.Token.ThrowIfCancellationRequested();
             ResultMessage = "Turning START OFF...";
@@ -459,32 +444,26 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             operation = BeginCommand(cancellationToken);
             _machine.EnsureBoltTestAvailable();
-            try
-            {
-                _state.BoltTestRunning = true;
-                ResultMessage = "Loosening — hold to run; release to stop. No automatic completion judgement.";
-                await ConnectedHead.RunReverseAsync(operation.Token);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.BoltFastening, exception);
-                throw;
-            }
-            finally
-            {
-                _state.BoltTestRunning = false;
-            }
+            _state.BoltTestRunning = true;
+            ResultMessage = "Loosening — hold to run; release to stop. No automatic completion judgement.";
+            await ConnectedHead.RunReverseAsync(operation.Token);
         }
         catch (Exception exception)
         {
             failure = exception;
+            if (operation is not null && _state.BoltTestRunning
+                && exception is not OperationCanceledException)
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.BoltFastening, exception);
             ShowFailure(exception);
             throw;
         }
         finally
         {
             if (operation is not null)
+            {
+                _state.BoltTestRunning = false;
                 EndCommand(operation, failure);
+            }
         }
     }
 
