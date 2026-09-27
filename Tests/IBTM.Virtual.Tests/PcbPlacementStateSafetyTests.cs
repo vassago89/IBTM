@@ -233,6 +233,48 @@ public sealed class PcbPlacementStateSafetyTests
     }
 
     [Fact]
+    public async Task MachineStopDuringPreparationKeepsGripAndAllowsRestart()
+    {
+        var operations = new OperationCancellation();
+        using var rig = new PlacementRig(operations: operations);
+        await rig.InitializeAsync();
+        await rig.ReceiveAsync();
+        var moving = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Motion.PositionChanged += (x, y, z) =>
+        {
+            if (rig.Motion.IsMoving && z < 11.9)
+                moving.TrySetResult();
+        };
+        using var command = operations.TryBegin();
+        Assert.NotNull(command);
+        var preparation = rig.Placer.ExecuteStepAsync(
+            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, command.Token);
+        try
+        {
+            await moving.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            operations.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => preparation);
+            Assert.True(rig.Placer.PcbSecured);
+            Assert.False(rig.Motion.IsMoving);
+            Assert.Empty(rig.Work.Assemblies);
+        }
+        finally
+        {
+            command.Cancel();
+            await ((Task)preparation).ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+
+        command.Dispose();
+        using var restarted = operations.TryBegin();
+        Assert.NotNull(restarted);
+        await rig.Placer.ExecuteStepAsync(
+            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, restarted.Token);
+        Assert.Equal(PcbPlacementHandoff.Clear, rig.Placer.Handoff);
+        Assert.True(rig.Placer.PcbSecured);
+    }
+
+    [Fact]
     public async Task ReceiptWaitsForCurrentPcbPresenceBeforeStartingVacuum()
     {
         using var rig = new PlacementRig();
@@ -467,7 +509,7 @@ public sealed class PcbPlacementStateSafetyTests
 
     private sealed class PlacementRig : IDisposable
     {
-        public PlacementRig(bool probeFeedback = false)
+        public PlacementRig(bool probeFeedback = false, OperationCancellation? operations = null)
         {
             Settings = new PcbPlacementHandlerSettings
             {
@@ -477,7 +519,7 @@ public sealed class PcbPlacementStateSafetyTests
             };
             Position = new() { X = 70, Y = 20, Z = 10 };
             Io = new(Outputs(new PcbPlacementHandlerHardwareSettings(), new ConveyorHardwareSettings()), new());
-            Motion = new(Settings.Motion, new());
+            Motion = new(Settings.Motion, operations ?? new());
 
             Supply = new() { Handoff = PcbSupplyHandoff.Released };
             Units = new();

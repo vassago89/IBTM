@@ -817,6 +817,7 @@ public sealed partial class MachineLifecycleTests
         };
         FastHomes(settings);
         settings.Units.ShootingBoltFeeder = true;
+        settings.BoltFastening.ShootingArrivalDelaySeconds = 0.5;
         var head = new StoppingBoltHead();
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
@@ -1075,16 +1076,16 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         var stopped = false;
-        var feederStarted = false;
+        var conveyorStarted = false;
         Exception error = motionFailure
-            ? new MotionException("Conveyor start", new IOException("Motion controller disconnected."))
-            : new InvalidOperationException("Conveyor start failed.");
+            ? new MotionException("Feeder start", new IOException("Motion controller disconnected."))
+            : new InvalidOperationException("Feeder start failed.");
         if (combinedFailure)
             error = new AggregateException(new IOException("Output cleanup failed."), new AggregateException(error));
         io.OutputChanged += (output, value) =>
         {
-            feederStarted |= output == OutputIo.ShootingFeederOff && !value;
-            if (output == OutputIo.MainConveyorReadyToFront2 && value)
+            conveyorStarted |= output == OutputIo.MainConveyorReadyToFront2 && value;
+            if (output == OutputIo.ShootingFeederOff && !value)
             {
                 stopped = true;
                 if (!failure || stopBeforeFailure)
@@ -1097,11 +1098,11 @@ public sealed partial class MachineLifecycleTests
         await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(stopped);
-        Assert.False(feederStarted);
+        Assert.False(conveyorStarted);
         Assert.False(state.IsRunning);
         var expectedAlarm = motionFailure
             ? MachineAlarm.MotionUnavailable
-            : failure ? MachineAlarm.MainConveyor : MachineAlarm.None;
+            : failure ? MachineAlarm.ShootingBoltFeeder : MachineAlarm.None;
         Assert.Equal(expectedAlarm, state.Alarm);
         Assert.Equal(failure ? error.Message : null, state.AlarmMessage);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
@@ -1109,7 +1110,7 @@ public sealed partial class MachineLifecycleTests
         if (failure)
         {
             var entries = services.GetRequiredService<ApplicationLog>().Snapshot();
-            Assert.Contains(entries, entry => entry.Message == $"Automatic unit MainConveyor failed. {error.Message}");
+            Assert.Contains(entries, entry => entry.Message == $"Automatic unit ShootingBoltFeeder failed. {error.Message}");
             var alarm = Assert.Single(entries, entry => entry.Detail == error.ToString());
             Assert.Equal($"Machine alarm: {expectedAlarm}.", alarm.Message);
             Assert.Equal(error.ToString(), state.AlarmDetail);

@@ -8,6 +8,87 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class OperationCancellationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopCancelsCommandBeforeDeviceScopes(bool shutdown)
+    {
+        var operations = new OperationCancellation();
+        using var command = operations.TryBegin();
+        Assert.NotNull(command);
+        using var cycle = CancellationTokenSource.CreateLinkedTokenSource(command.Token);
+        using var guardedMove = CancellationTokenSource.CreateLinkedTokenSource(cycle.Token);
+        using var device = operations.Link(guardedMove.Token);
+        using var independent = operations.Link();
+        var commandWasCancelled = false;
+        var cycleWasCancelled = false;
+        var guardWasCancelled = false;
+        using var registration = device.Token.Register(() =>
+        {
+            commandWasCancelled = command.IsCancellationRequested;
+            cycleWasCancelled = cycle.IsCancellationRequested;
+            guardWasCancelled = guardedMove.IsCancellationRequested;
+        });
+
+        var completion = Task.CompletedTask;
+        if (shutdown)
+            completion = operations.ShutdownAsync();
+        else
+            operations.Cancel();
+
+        Assert.True(commandWasCancelled);
+        Assert.True(cycleWasCancelled);
+        Assert.True(guardWasCancelled);
+        Assert.True(independent.IsCancellationRequested);
+        independent.Dispose();
+        device.Dispose();
+        command.Dispose();
+        await completion.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopPreservesFailuresFromIndependentScopes(bool shutdown)
+    {
+        var operations = new OperationCancellation();
+        using var command = operations.TryBegin();
+        Assert.NotNull(command);
+        using var independent = operations.Link();
+        var commandFailure = new InvalidOperationException("Command stop failed.");
+        var deviceFailure = new InvalidOperationException("Device stop failed.");
+        using var commandCallback = command.Token.Register(() => throw commandFailure);
+        using var deviceCallback = independent.Token.Register(() => throw deviceFailure);
+
+        AggregateException failure;
+        if (shutdown)
+        {
+            var completion = operations.ShutdownAsync();
+            Assert.True(independent.IsCancellationRequested);
+            Assert.False(completion.IsCompleted);
+            independent.Dispose();
+            command.Dispose();
+            failure = await Assert.ThrowsAsync<AggregateException>(
+                () => completion.WaitAsync(TimeSpan.FromSeconds(2)));
+        }
+        else
+        {
+            failure = Assert.Throws<AggregateException>(operations.Cancel);
+            Assert.True(independent.IsCancellationRequested);
+            independent.Dispose();
+            command.Dispose();
+            using var next = operations.TryBegin();
+            Assert.NotNull(next);
+            Assert.False(next.IsCancellationRequested);
+        }
+
+        var failures = failure.Flatten().InnerExceptions;
+        Assert.Equal(2, failures.Count);
+        Assert.Contains(commandFailure, failures);
+        Assert.Contains(deviceFailure, failures);
+        Assert.False(operations.HasActiveOperations);
+    }
+
     [Fact]
     public async Task StopCancelsRecoveryWaitingForPreviousCleanup()
     {

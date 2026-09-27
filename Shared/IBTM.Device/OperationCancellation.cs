@@ -51,6 +51,8 @@ public sealed class OperationCancellation
         }
     }
 
+    // A supplied token follows the caller's operation. Only command roots and
+    // standalone scopes without a token subscribe directly to machine STOP.
     public Operation Link(
         CancellationToken cancellationToken = default,
         CancellationToken additionalCancellationToken = default)
@@ -88,7 +90,8 @@ public sealed class OperationCancellation
             var source = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken,
                 additionalCancellationToken,
-                _source.Token);
+                requireIdle || !cancellationToken.CanBeCanceled && !additionalCancellationToken.CanBeCanceled
+                    ? _source.Token : default);
             becameActive = ++_activeOperations == 1;
             operation = new Operation(this, source);
         }
