@@ -147,4 +147,9 @@ public sealed record PcbInspectionImageView(PcbInspectionImage Record, BitmapSou
         ? $"Bright {Record.BrightRatio:P2} · Required ≥ {Record.MinimumBrightRatio:P2}"
         : Record.Barcode ?? "Data Matrix not read";
     public string Resolution => $"{Image.PixelWidth} × {Image.PixelHeight} px";
+
+    public override string ToString()
+    {
+        return $"{Title} · {Verdict}";
+    }
 }

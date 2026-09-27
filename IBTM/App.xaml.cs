@@ -242,12 +242,15 @@ public partial class App : System.Windows.Application
         System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
     {
         _log?.LogError(e.Exception, "Unhandled UI exception.");
+        StopAfterUnhandledException();
         ShowError("An unhandled UI error occurred.", e.Exception);
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
         _log?.LogError(e.ExceptionObject as Exception, "Unhandled exception. Terminating={Terminating}.", e.IsTerminating.ToString());
+        if (e.IsTerminating)
+            StopAfterUnhandledException();
         ShowError(
             e.IsTerminating
                 ? "An unhandled error occurred. The application will close."
@@ -257,6 +260,20 @@ public partial class App : System.Windows.Application
         {
             DisposeCamera();
             _loggerFactory?.Dispose();
+        }
+    }
+
+    private void StopAfterUnhandledException()
+    {
+        _exitCode = 1;
+        try
+        {
+            _serviceProvider?.GetService<MachineController>()?.Stop();
+        }
+        catch (Exception exception)
+        {
+            _log?.LogError(exception, "Device STOP failed after an unhandled application error.");
+            ShowError("Device STOP failed after an unhandled application error.", exception);
         }
     }
 
