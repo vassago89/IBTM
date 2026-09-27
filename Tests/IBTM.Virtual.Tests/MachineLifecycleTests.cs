@@ -734,8 +734,10 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(interruptedEvent + 1, (await bus.ReadFasteningResultAsync(slave)).EventCount);
     }
 
-    [Fact]
-    public async Task AdcDiagnosticCancellationTurnsStartOffAndReleasesMachineLock()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdcDiagnosticCancellationTurnsStartOffAndReleasesMachineLock(bool diagnosticStop)
     {
         var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgConveyor) };
         await using var services = CreateServices(settings);
@@ -743,7 +745,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         var io = new VirtualIoService(VirtualTest.Outputs(), new());
-        var bus = new AdcControllerStub { SuppressCompletion = true };
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
         bus.BindIo(io, FasteningHead.Pickup);
         using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), io, settings.Hantas, machine, state);
         var testing = diagnostics.StartCommand.ExecuteAsync(null);
@@ -752,11 +754,54 @@ public sealed partial class MachineLifecycleTests
         Assert.True(await VirtualTest.WaitUntilAsync(
             () => io.GetOutput(OutputIo.PickupBoltStart), TimeSpan.FromSeconds(2)));
         Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
-        machine.Stop();
-        await testing.WaitAsync(TimeSpan.FromSeconds(2));
+        if (diagnosticStop)
+            await diagnostics.StopCommand.ExecuteAsync(null);
+        else
+            machine.Stop();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => testing.WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.Equal(1, bus.StopWrites);
         Assert.False(state.IsRunning);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdcDiagnosticCloseAwaitsTheCommandAndReportsStopFailure(bool failStop)
+    {
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgConveyor) };
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        var io = new VirtualIoService(VirtualTest.Outputs(), new());
+        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        bus.BindIo(io, FasteningHead.Pickup);
+        using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), io, settings.Hantas, machine, state);
+        var testing = diagnostics.StartCommand.ExecuteAsync(null);
+        Assert.True(await VirtualTest.WaitUntilAsync(
+            () => io.GetOutput(OutputIo.PickupBoltStart), TimeSpan.FromSeconds(2)));
+        if (failStop)
+            bus.StopWriteFailure = new IOException("START OFF failed while closing diagnostics.");
+
+        Assert.Equal(!failStop, await diagnostics.TryCloseAsync().WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.True(testing.IsCompleted);
+        Assert.False(state.IsRunning);
+        Assert.False(state.BoltTestRunning);
+        Assert.Equal(1, bus.StopWrites);
+        if (failStop)
+        {
+            var failure = await Assert.ThrowsAsync<AggregateException>(() => testing);
+            Assert.Contains(bus.StopWriteFailure!, failure.InnerExceptions);
+            Assert.Contains(bus.StopWriteFailure!.Message, diagnostics.CloseError);
+            Assert.Equal(MachineAlarm.BoltFastening, state.Alarm);
+        }
+        else
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => testing);
+            Assert.Null(diagnostics.CloseError);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
     }
 
     [Fact]
@@ -1602,6 +1647,50 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task HomeUsesAcquiredFeedbackAndStopsOnSilentReadFailure()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 1;
+        await using var services = CreateDisplayServices(out var motion, settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        await motion.Motion.MoveAxisAsync(MotionAxis.X, 50, 10_000);
+        var homing = machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            await WaitUntilAsync(() => state.IsHoming && motion.Motion.IsMoving);
+            var refreshThread = Environment.CurrentManagedThreadId;
+            var directReads = 0;
+            motion.BeforeRead = () =>
+            {
+                if (Environment.CurrentManagedThreadId == refreshThread)
+                    directReads++;
+            };
+            state.Refresh();
+            motion.BeforeRead = null;
+            var failure = new IOException("Home monitor feedback became unreadable.");
+            motion.DiagnosticReadError = failure;
+            // No DI/SDK event or explicit state refresh accompanies the failed sample.
+            await homing.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(0, directReads);
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+            Assert.Contains(failure.Message, state.AlarmDetail);
+            Assert.False(motion.Motion.IsMoving);
+            Assert.False(state.IsHoming);
+        }
+        finally
+        {
+            motion.BeforeRead = null;
+            motion.DiagnosticReadError = null;
+            machine.Stop();
+            await homing.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task HomeAndAutomaticStartIgnorePreStartSample()
     {
         var settings = FlowSettings();
@@ -1648,6 +1737,24 @@ public sealed partial class MachineLifecycleTests
             Assert.False(run.IsCompleted);
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.True(state.FeedbackReadiness.Homed);
+
+            var refreshThread = Environment.CurrentManagedThreadId;
+            var reads = 0;
+            motion.BeforeRead = () =>
+            {
+                if (Environment.CurrentManagedThreadId == refreshThread)
+                    reads++;
+            };
+            try
+            {
+                state.Refresh();
+                Assert.Equal(0, reads); // State notifications reuse the monitor; no second native scan.
+                Assert.True(state.AutomaticRunning);
+            }
+            finally
+            {
+                motion.BeforeRead = null;
+            }
         }
         finally
         {
@@ -1682,7 +1789,7 @@ public sealed partial class MachineLifecycleTests
         feedback.BeforeRead = () => throw error;
         feedback.DiagnosticReadError = error;
         // A ready display is not permission to operate when the actual read fails.
-        Assert.Throws<IOException>(() => state.MotionReadiness);
+        Assert.Throws<IOException>(() => services.GetRequiredService<MachineFeedbackMonitor>().ReadLiveReadiness());
         await WaitUntilAsync(() => !state.Available && messages.Contains(error.Message)
             && modes.Contains("UNKNOWN"));
         Assert.Same(error, state.ReadError);
@@ -3518,7 +3625,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            var bus = new AdcControllerStub
+            using var bus = new AdcControllerStub
             {
                 StopWriteFailure = failure,
                 Started = () =>
@@ -3531,7 +3638,11 @@ public sealed partial class MachineLifecycleTests
             var headIo = new VirtualIoService(VirtualTest.Outputs(), new());
             bus.BindIo(headIo, FasteningHead.Pickup);
             using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), headIo, settings.Hantas, machine, state);
-            await diagnostics.StartCommand.ExecuteAsync(null);
+            var taskFailure = await Record.ExceptionAsync(() => diagnostics.StartCommand.ExecuteAsync(null));
+            Assert.NotNull(taskFailure);
+            Assert.Contains(failure.Message, taskFailure.ToString());
+            if (!emergencyStop)
+                Assert.Contains("OK  Torque", diagnostics.ResultMessage);
             Assert.Contains("failed", diagnostics.ResultMessage);
             Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.BoltFastening, state.Alarm);
             Assert.Contains(failure.Message, state.AlarmDetail);
@@ -3563,13 +3674,13 @@ public sealed partial class MachineLifecycleTests
             throw failure;
         }
 
-        var bus = new AdcControllerStub();
+        using var bus = new AdcControllerStub();
         using var diagnostics = new AdcProtocolViewModel(bus, new VirtualAdcBus(), services.GetRequiredService<IIoService>(), settings.Hantas, machine, state);
         state.Changed += FailWhenTestingStarts;
         try
         {
             var command = reverse ? diagnostics.ReverseCommand : diagnostics.StartCommand;
-            await command.ExecuteAsync(null);
+            Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => command.ExecuteAsync(null)));
 
             Assert.False(state.BoltTestRunning);
             Assert.False(state.IsRunning);
@@ -5006,8 +5117,10 @@ public sealed partial class MachineLifecycleTests
         Assert.False(fastening.GetAxisState(MotionAxis.Z).Homed);
     }
 
-    [Fact]
-    public async Task ParallelHomeReportsEachUnitsFailureAfterTheFirstFailureStopsHome()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ParallelHomeReportsEachUnitsFailureAfterTheFirstFailureStopsHome(bool unexpectedCancellation)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -5035,7 +5148,9 @@ public sealed partial class MachineLifecycleTests
         var log = services.GetRequiredService<ApplicationLog>();
         await machine.InitializeAsync();
         var homing = machine.HomeAsync(default);
-        var firstFailure = new MotionException("Supply home", new IOException("Supply home failed."));
+        Exception firstFailure = unexpectedCancellation
+            ? new OperationCanceledException("Supply home failed without a STOP request.")
+            : new MotionException("Supply home", new IOException("Supply home failed."));
         var stopFailure = new MotionException("Fastening STOP", new IOException("Fastening stop failed."));
         try
         {
@@ -5048,7 +5163,7 @@ public sealed partial class MachineLifecycleTests
             results[MotionGroup.BoltFastening].Result.SetException(stopFailure);
             await homing.WaitAsync(TimeSpan.FromSeconds(2));
 
-            Assert.Contains("Supply home failed.", state.AlarmDetail);
+            Assert.Contains("Supply home failed", state.AlarmDetail);
             Assert.Contains(log.Snapshot(), entry => entry.Detail?.Contains("Fastening stop failed.") == true);
             Assert.False(state.IsHoming);
             Assert.All(results.Values, result => Assert.Equal(0, result.HorizontalHomeCalls));
@@ -7932,7 +8047,8 @@ public sealed partial class MachineLifecycleTests
         public async Task<BoltResult> TightenAsync(
             CancellationToken cancellationToken = default,
             Func<CancellationToken, Task>? feedAsync = null,
-            int dryRunMilliseconds = 0)
+            int dryRunMilliseconds = 0,
+            Action<BoltResult>? resultReceived = null)
         {
             Started.SetResult();
             try
@@ -7993,7 +8109,8 @@ public sealed partial class MachineLifecycleTests
         public Task<BoltResult> TightenAsync(
             CancellationToken cancellationToken = default,
             Func<CancellationToken, Task>? feedAsync = null,
-            int dryRunMilliseconds = 0)
+            int dryRunMilliseconds = 0,
+            Action<BoltResult>? resultReceived = null)
         {
             throw new NotSupportedException();
         }

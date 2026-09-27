@@ -439,30 +439,32 @@ public sealed class BoltFasteningStation : AutoUnit
             }
             var assembly = Station.GetAssembly(job, bolt.HeatSink);
             TraceStep(step, target, job.Id, "fastening controller result");
-            var result = await FastenAsync(bolt, repeat, token);
-            Exception? clearFailure = null;
+            BoltResult? result = null;
+            Exception? fasteningFailure = null;
             try
             {
+                result = await FastenAsync(bolt, repeat, token, received => result = received);
                 // Finish physical clearance before publishing the measured result.
                 TraceStep(step, target, job.Id, "head retraction");
                 await ClearHeadAsync(bolt.Head, token);
             }
             catch (Exception exception)
             {
-                clearFailure = exception;
+                fasteningFailure = exception;
                 throw;
             }
             finally
             {
-                // Keep the measured result with its original carrier even if clearance
-                // is cancelled or fails. A storage failure must not hide a motion failure.
+                // Keep the measured result with its original carrier even if STOP or clearance
+                // fails. A storage failure must not hide the original hardware failure.
                 try
                 {
-                    assembly.RecordBolt(bolt.Head, bolt.Number, result);
+                    if (result is not null)
+                        assembly.RecordBolt(bolt.Head, bolt.Number, result);
                 }
-                catch (Exception recordFailure) when (clearFailure is not null)
+                catch (Exception recordFailure) when (fasteningFailure is not null)
                 {
-                    throw new AggregateException(clearFailure, recordFailure);
+                    throw new AggregateException(fasteningFailure, recordFailure);
                 }
             }
 
@@ -572,7 +574,8 @@ public sealed class BoltFasteningStation : AutoUnit
     private async Task<BoltResult> FastenAsync(
         BoltPoint bolt,
         bool repeat,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<BoltResult> resultReceived)
     {
         var job = Station.CurrentJob;
         var head = bolt.Head switch
@@ -606,7 +609,8 @@ public sealed class BoltFasteningStation : AutoUnit
             _log?.LogInformation(
                 "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
                 bolt.Head, bolt.HeatSink, bolt.Number, head.GetType().Name, dryRunMilliseconds);
-            var completed = await head.TightenAsync(fastening.Token, LowerHeadWhileFasteningAsync, dryRunMilliseconds);
+            var completed = await head.TightenAsync(
+                fastening.Token, LowerHeadWhileFasteningAsync, dryRunMilliseconds, resultReceived);
             completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };
             _log?.LogInformation(
                 "Bolt {Head}, {HeatSink}, point {Bolt}: cycle completed; success={Success}, source={Source}, error={Error}.",

@@ -128,8 +128,6 @@ public sealed class MachineState : INotifyPropertyChanged
 
     public bool ServoPowerOn => ServoMainContactorOn && FeedbackReadiness.ServosOn;
 
-    internal MotionReadiness MotionReadiness => _feedback.ReadLiveReadiness();
-
     public MotionReadiness FeedbackReadiness => _feedback.Readiness;
 
     public bool Ready

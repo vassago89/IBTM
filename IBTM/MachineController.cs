@@ -731,7 +731,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private async Task RunAutomaticAsync(OperationCancellation.Operation operation)
     {
         if (!IsStartAllowedFor(
-            GetStartBlock(_state.MotionReadiness), _state.IsRunningFor(includeOperations: false)))
+            GetStartBlock(_feedback.ReadLiveReadiness()), _state.IsRunningFor(includeOperations: false)))
             return;
         operation.Token.ThrowIfCancellationRequested();
 
@@ -769,11 +769,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 }
                 else
                 {
-                    var motion = _state.MotionReadiness;
-                    if (!motion.Homed || !motion.ServosOn || motion.Faulted)
-                        _state.SetError(MachineAlarm.MotionUnavailable);
-                    else
-                        return;
+                    // Motion faults are handled by the acquisition sample below.
+                    // DI/state notifications must not start another full native scan.
+                    return;
                 }
             }
             catch (Exception exception)
@@ -840,6 +838,24 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 return;
             }
 
+            // Initialization can change drive feedback. Recheck once before motion;
+            // ongoing supervision then belongs to the shared acquisition loop.
+            try
+            {
+                var motion = _feedback.ReadLiveReadiness();
+                if (!motion.Homed || !motion.ServosOn || motion.Faulted)
+                {
+                    _state.SetError(MachineAlarm.MotionUnavailable);
+                    return;
+                }
+            }
+            catch (Exception exception)
+            {
+                _state.SetError(MachineAlarm.MotionUnavailable, exception);
+                return;
+            }
+
+            operation.Token.ThrowIfCancellationRequested();
             await RaiseCylindersAsync(operation);
 
             if (_units.MainConveyor)
@@ -1219,11 +1235,12 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     private async Task HomeAllAxesAsync(OperationCancellation.Operation operation)
     {
-        if (!IsHomeAllowedFor(_state.MotionReadiness, _state.IsRunningFor(includeOperations: false)))
+        if (!IsHomeAllowedFor(_feedback.ReadLiveReadiness(), _state.IsRunningFor(includeOperations: false)))
             return;
         var cancellationToken = operation.Token;
         cancellationToken.ThrowIfCancellationRequested();
         var homingAxes = false;
+        var feedbackStartedAt = Stopwatch.GetTimestamp();
         void StopWhenHomeBecomesUnavailable()
         {
             if (operation.IsCancellationRequested)
@@ -1242,8 +1259,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     return;
                 }
 
-                var motion = _state.MotionReadiness;
-                if (motion.Faulted || !motion.ServosOn || !_state.ServoMainContactorOn)
+                if (!_state.ServoMainContactorOn)
                 {
                     operation.Cancel();
                     _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable);
@@ -1256,13 +1272,55 @@ public sealed partial class MachineController : INotifyPropertyChanged
             }
         }
 
+        void StopWhenHomeMotionBecomesUnavailable(MotionGroup group, MotionFeedbackSample sample)
+        {
+            if (operation.IsCancellationRequested
+                || sample.StartedAt < feedbackStartedAt
+                || !sample.Enabled
+                || !_units.IsMotionEnabled(group))
+                return;
+            // Unhomed is expected during HOME; unavailable feedback, servo loss and faults are not.
+            if (sample.IoReady && sample.ReadError is null
+                && sample.Readiness.ServosOn && !sample.Readiness.Faulted)
+                return;
+            try
+            {
+                _state.SetError(_state.IsError ? _state.Alarm
+                    : sample.IoReady ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication,
+                    sample.ReadError ?? new InvalidOperationException(
+                        $"Motion feedback {group} became unavailable during HOME: "
+                        + $"servosOn={sample.Readiness.ServosOn}, faulted={sample.Readiness.Faulted}."));
+            }
+            finally
+            {
+                operation.Cancel();
+            }
+        }
+
         _state.Changed += StopWhenHomeBecomesUnavailable;
+        _feedback.Sampled += StopWhenHomeMotionBecomesUnavailable;
         try
         {
             _state.IsHoming = true;
             await RaiseCylindersAsync(operation);
             homingAxes = true;
             StopWhenHomeBecomesUnavailable();
+            cancellationToken.ThrowIfCancellationRequested();
+            // Verify again after cylinder preparation, before issuing the first HOME.
+            try
+            {
+                var motion = _feedback.ReadLiveReadiness();
+                if (motion.Faulted || !motion.ServosOn)
+                {
+                    _state.SetError(MachineAlarm.MotionUnavailable);
+                    return;
+                }
+            }
+            catch (Exception exception)
+            {
+                _state.SetError(MachineAlarm.MotionUnavailable, exception);
+                return;
+            }
             cancellationToken.ThrowIfCancellationRequested();
             if (_units.PcbPlacement)
             {
@@ -1294,7 +1352,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     ? CheckHomeAsync(_inspectionStation.HomeHorizontalAsync(cancellationToken), cancellationToken)
                     : Task.CompletedTask);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
@@ -1305,6 +1363,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         finally
         {
             _state.Changed -= StopWhenHomeBecomesUnavailable;
+            _feedback.Sampled -= StopWhenHomeMotionBecomesUnavailable;
             _state.IsHoming = false;
             _state.Refresh();
         }
@@ -1317,10 +1376,13 @@ public sealed partial class MachineController : INotifyPropertyChanged
             if (!await homing && !cancellationToken.IsCancellationRequested)
                 _state.SetError(MachineAlarm.HomeFailed);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception exception)
         {
-            if (exception is not OperationCanceledException)
-                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
+            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
             throw;
         }
     }

@@ -77,7 +77,7 @@ public sealed class AdcBoltHeadTests
         Assert.NotNull(result.Controller);
         Assert.Equal(1, eventReads); // Pre-START baseline only.
         Assert.Equal(1, resultReads);
-        Assert.True(statusReads >= 4); // Preset, RUN ON, RUN OFF and STOP.
+        Assert.True(statusReads >= 3); // Preset, RUN ON and RUN OFF.
         Assert.False(io.GetOutput(start));
     }
 
@@ -253,7 +253,7 @@ public sealed class AdcBoltHeadTests
         var cycle = head.TightenAsync();
         Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Sample?.Status?.Running == true, TimeSpan.FromSeconds(2)));
         bus.StatusReadFailure = new IOException("Status lost");
-        await Assert.ThrowsAsync<AggregateException>(() => cycle);
+        Assert.Same(bus.StatusReadFailure, await Assert.ThrowsAsync<IOException>(() => cycle));
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         Assert.Equal(0, bus.ResultReads);
         Assert.Null(head.Monitor.Sample?.Status);
@@ -357,7 +357,7 @@ public sealed class AdcBoltHeadTests
         Assert.True(Environment.TickCount64 - startedAt >= 140);
         Assert.Equal(1, bus.ResultReads);
         Assert.Equal(1, bus.EventReads);
-        Assert.True(bus.StatusReads >= 7);
+        Assert.True(bus.StatusReads >= 6);
         Assert.False(bus.ResultReadWhileRunning);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
@@ -551,73 +551,89 @@ public sealed class AdcBoltHeadTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ResultAndDryRunSampleRunOnceAfterStartOff(bool dryRun)
+    public async Task StartOffDoesNotWaitForAnotherStatusRead(bool dryRun)
     {
         using var bus = new AdcControllerStub { StopPollsRemaining = -1 };
         var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 80 });
         await head.SelectPresetAsync(1);
-        Assert.True((await head.TightenAsync(dryRunMilliseconds: dryRun ? 20 : 0)).Success);
-        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal(dryRun, head.Monitor.Sample?.Status!.Running);
-        Assert.True(bus.StatusReads >= (dryRun ? 2 : 4));
-        if (dryRun)
-            await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
+        var blocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void BlockAfterStop(OutputIo output, bool on)
+        {
+            if (output == OutputIo.PickupBoltStart && !on)
+                bus.StatusReadBarrier = blocked.Task;
+        }
+        io.OutputChanged += BlockAfterStop;
+        try
+        {
+            var result = await head.TightenAsync(dryRunMilliseconds: dryRun ? 20 : 0)
+                .WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(result.Success);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.Equal(1, bus.StopWrites);
+            Assert.Equal(dryRun ? 0 : 1, bus.ResultReads);
+            blocked.SetResult();
+            if (dryRun)
+                await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(1));
+            else
+                await head.SelectPresetAsync(1);
+        }
+        finally
+        {
+            blocked.TrySetResult();
+            io.OutputChanged -= BlockAfterStop;
+        }
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task RejectedStopStatusWaitsForFreshFeedbackWithinTheStatusDeadline(bool recovers)
+    [Fact]
+    public async Task StatusRejectionAfterStopCannotEraseTheMeasuredResult()
     {
         using var bus = new AdcControllerStub();
-        var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 100, StatusPollMilliseconds = 10 });
+        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         var rejection = new AdcResponseException(0x03, "Status read rejected after START OFF");
-        var rejected = false;
         void RejectAfterStop(OutputIo output, bool on)
         {
             if (output == OutputIo.PickupBoltStart && !on)
                 bus.StatusReadFailure = rejection;
         }
-        void OnSampled(AdcStatusSample sample)
-        {
-            if (!ReferenceEquals(sample.Error, rejection))
-                return;
-            rejected = true;
-            if (recovers)
-                bus.StatusReadFailure = null;
-        }
         io.OutputChanged += RejectAfterStop;
-        head.Monitor.Sampled += OnSampled;
         try
         {
-            if (recovers)
-            {
-                var result = await head.TightenAsync().WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.True(result.Success, result.Error);
-                Assert.NotNull(result.Torque);
-                Assert.NotNull(result.Controller);
-                Assert.Null(head.Monitor.Sample?.Error);
-            }
-            else
-            {
-                var failure = await Assert.ThrowsAsync<TimeoutException>(
-                    () => head.TightenAsync().WaitAsync(TimeSpan.FromSeconds(2)));
-                Assert.Contains("no fresh controller status", failure.Message);
-                Assert.Same(rejection, failure.InnerException);
-                Assert.Same(rejection, head.Monitor.Sample?.Error);
-            }
-            Assert.True(rejected);
+            var result = await head.TightenAsync().WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(result.Success, result.Error);
+            Assert.NotNull(result.Torque);
+            Assert.NotNull(result.Controller);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.Same(rejection, await Assert.ThrowsAsync<AdcResponseException>(
+                () => head.SelectPresetAsync(1)));
             Assert.Equal(1, bus.ResultReads);
             Assert.Equal(1, bus.StartWrites);
-            Assert.Equal(1, bus.StopWrites);
-            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
         }
         finally
         {
             io.OutputChanged -= RejectAfterStop;
-            head.Monitor.Sampled -= OnSampled;
         }
+    }
+
+    [Fact]
+    public async Task CancellationAfterReceivingAResultPreservesItAndStopsStart()
+    {
+        using var bus = new AdcControllerStub();
+        var (io, head) = Create(bus);
+        await head.SelectPresetAsync(1);
+        using var stop = new CancellationTokenSource();
+        BoltResult? received = null;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => head.TightenAsync(
+            stop.Token, resultReceived: result =>
+            {
+                Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+                received = result;
+                stop.Cancel();
+            }));
+        Assert.True(received?.Success);
+        Assert.NotNull(received?.Torque);
+        Assert.NotNull(received?.Controller);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
     [Fact]
@@ -635,8 +651,7 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(1, bus.EventReads);
         Assert.Equal(0, bus.ResultReads);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(head.Monitor.Sample?.Status!.Running);
-        Assert.Equal(2, bus.StatusReads);
+        Assert.True(bus.Running); // START OFF is not a claim that RUN feedback has stopped.
     }
 
     [Theory]
@@ -812,27 +827,26 @@ public sealed class AdcBoltHeadTests
         Assert.Equal(1, bus.ResetWrites);
         Assert.Equal((ushort)0, head.Monitor.Sample?.Status!.Alarm);
         Assert.True(head.Monitor.Sample?.Status?.Ready);
-        Assert.True(bus.StatusReads >= 6); // Shared monitoring includes RUN transitions.
+        Assert.True(bus.StatusReads >= 5); // Shared monitoring includes RUN transitions.
         bus.ResultStatus = AdcEventStatus.FasteningOk;
         bus.ResultError = 0;
         Assert.True((await head.TightenAsync()).Success);
     }
 
     [Fact]
-    public async Task AlarmWithoutCompletionResultIsSampledAtStop()
+    public async Task ControllerAlarmStopsWithoutWaitingForTheFasteningTimeout()
     {
         using var bus = new AdcControllerStub { SuppressCompletion = true };
-        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 80 });
+        var (io, head) = Create(bus, new() { FasteningTimeoutMilliseconds = 5000, StatusPollMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         var cycle = head.TightenAsync();
         bus.CurrentAlarm = 125;
-        Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.Equal(1, bus.StatusReads);
-        var result = await cycle;
+        var result = await cycle.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(result.Success);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.Contains("125", result.Error);
         Assert.Equal((ushort)125, head.Monitor.Sample?.Status!.Alarm);
-        Assert.Equal(2, bus.StatusReads);
+        Assert.Equal(0, bus.ResultReads);
     }
 
     [Theory]

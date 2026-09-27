@@ -78,9 +78,10 @@ public sealed class BoltFasteningTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ResultStorageFailureOccursAfterClearanceAndPreservesClearanceFailure(bool failClearance)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task MeasuredResultSurvivesStopClearanceAndStorageFailures(bool failClearance, bool failStop)
     {
         var settings = new BoltFasteningSettings
         {
@@ -116,6 +117,7 @@ public sealed class BoltFasteningTests
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         var clearFailure = new IOException("Head rise failed.");
         var storageFailure = new IOException("Result storage failed.");
+        var stopFailure = new IOException("START OFF failed.");
         var headWasLowered = false;
         io.OutputChanged += (output, on) =>
         {
@@ -127,7 +129,11 @@ public sealed class BoltFasteningTests
             if (output == OutputIo.ShootingHeadDown)
             {
                 if (on)
+                {
                     headWasLowered = true;
+                    if (failStop)
+                        bus.StopWriteFailure = stopFailure;
+                }
                 else if (headWasLowered && failClearance)
                     throw clearFailure;
             }
@@ -138,7 +144,7 @@ public sealed class BoltFasteningTests
                 return;
             Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
             Assert.False(bus.Running);
-            if (!failClearance)
+            if (!failClearance && !failStop)
             {
                 Assert.Equal(StationCylinderState.Up, station.ShootingHeadPosition);
                 Assert.Equal(settings.SafeZ, motion.Position.Z);
@@ -146,16 +152,19 @@ public sealed class BoltFasteningTests
             throw storageFailure;
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        if (failClearance)
+        if (failClearance || failStop)
         {
             var failure = await Assert.ThrowsAsync<AggregateException>(() => station.RunAsync(stop.Token));
-            Assert.Equal(new Exception[] { clearFailure, storageFailure }, failure.InnerExceptions);
+            Assert.Equal(new Exception[] { failStop ? stopFailure : clearFailure, storageFailure }, failure.InnerExceptions);
         }
         else
         {
             Assert.Same(storageFailure, await Assert.ThrowsAsync<IOException>(() => station.RunAsync(stop.Token)));
         }
         Assert.True(assembly.PcbBoltResults[1].Success);
+        Assert.NotNull(assembly.PcbBoltResults[1].Torque);
+        Assert.NotNull(assembly.PcbBoltResults[1].Controller);
+        Assert.Equal(1, bus.StartWrites);
         Assert.False(work.Completed);
     }
 

@@ -268,7 +268,7 @@ public sealed class IoStartupTests
         var cycle = head.TightenAsync();
         Assert.Same(stopError, await Assert.ThrowsAsync<IOException>(() => cycle));
         io.BeforeOutputWrite = null;
-        await head.StopAsync();
+        head.Stop();
         io.BeforeOutputWrite = (output, on) =>
         {
             if (output == OutputIo.PickupBoltStart && on)
@@ -304,7 +304,7 @@ public sealed class IoStartupTests
         Assert.Contains(feedError, failure.InnerExceptions);
         Assert.Contains(stopError, failure.InnerExceptions);
         io.BeforeOutputWrite = null;
-        await ((AdcBoltHead)head).StopAsync();
+        ((AdcBoltHead)head).Stop();
     }
 
     [Fact]
@@ -1520,7 +1520,7 @@ public sealed class IoStartupTests
             };
 
             Assert.Null(Record.Exception(state.Refresh));
-            await testing.WaitAsync(TimeSpan.FromSeconds(2));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => testing.WaitAsync(TimeSpan.FromSeconds(2)));
 
             Assert.False(headIo.GetOutput(OutputIo.PickupBoltStart));
             Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
@@ -1531,7 +1531,7 @@ public sealed class IoStartupTests
         {
             io.BeforeInputRead = null;
             machine.Stop();
-            await testing;
+            await CommandShutdown.WaitAsync(testing);
             await machine.ShutdownAsync();
         }
     }
@@ -1579,8 +1579,9 @@ public sealed class IoStartupTests
         io.BeforeInputRead = input =>
         {
             if (input != InputIo.PcbPlacementPcbDetected
-                || operations.HasActiveOperations != operationStarted)
+                || state.IsHoming != operationStarted)
                 return;
+            Assert.True(operations.HasActiveOperations); // Admission already owns the STOP token.
             io.BeforeInputRead = null;
             readsFailed++;
             throw failure;
