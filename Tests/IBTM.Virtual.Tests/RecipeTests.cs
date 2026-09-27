@@ -494,6 +494,28 @@ public sealed class RecipeTests
         Assert.Equal(new[] { 2, 1, 3 }, recipe.BoltPoints.Select(point => point.Number));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RecipeSelectionCannotChangeWhileAnotherOperationOwnsMachine(bool createNew)
+    {
+        var database = VirtualTest.OpenMachineStore();
+        database.SaveRecipe(new Recipe { Name = "Other" });
+        var recipes = new RecipeManager(database, new()) { Current = { Name = "Active" } };
+        var operations = new OperationCancellation();
+        var editor = new RecipeEditor(recipes, database, operations);
+
+        using var running = operations.Link();
+        if (createNew)
+            editor.NewCommand.Execute(null);
+        else
+            await editor.LoadCommand.ExecuteAsync("Other");
+
+        Assert.Equal("Active", recipes.Current.Name);
+        Assert.NotNull(editor.Error);
+        Assert.False(running.IsCancellationRequested);
+    }
+
     [Fact]
     public async Task RecipeSaveAndLoadKeepTheirOperationActive()
     {
@@ -523,7 +545,6 @@ public sealed class RecipeTests
 
         editor.Name = " ";
         Assert.False(editor.IsSaveAllowed);
-        Assert.False(editor.SaveCommand.CanExecute(null));
         Assert.False(await editor.SaveAsync()); // Direct autosave calls use the same name check.
         Assert.NotNull(editor.Error);
         Assert.False(await editor.SaveCarrierImagesAsync([]));
@@ -555,7 +576,10 @@ public sealed class RecipeTests
         Assert.Contains(savedName, editor.Recipes);
         Assert.False(operations.HasActiveOperations);
 
+        activeAtChange = null;
         editor.NewCommand.Execute(null);
+        Assert.True(activeAtChange);
+        Assert.False(operations.HasActiveOperations);
         var defaults = new BoltInspectionRecipe();
         Assert.Equal(defaults.LightLevel, recipe.BoltInspection.LightLevel);
         Assert.Equal(defaults.BrightnessThreshold, recipe.BoltInspection.BrightnessThreshold);

@@ -488,7 +488,7 @@ public sealed class AlarmRecoveryTests
             Assert.True(state.AutoMode);
             Assert.False(state.ManualMode);
             Assert.False(view.IsSettingsEditAllowed);
-            Assert.False(state.ManualControlsEnabled);
+            Assert.False(state.ManualSetupEnabled);
             Assert.False(state.AutomaticRunning);
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => state.AutoMode, TimeSpan.FromSeconds(2)));
@@ -551,7 +551,6 @@ public sealed class AlarmRecoveryTests
             io.SetInput(InputIo.AutoMode, true);
             Assert.True(view.IsSettingsEditAllowed);
             Assert.True(view.SaveSettingsCommand.CanExecute(null));
-            Assert.False(state.ManualControlsEnabled);
             Assert.True(state.ManualSetupEnabled);
             Assert.False(machine.IsStartAllowed);
             Assert.False(machine.IsHomeAllowed);

@@ -267,7 +267,7 @@ public sealed class OutputWindowThreadingTests
             io.AutoResponseEnabled = false;
             var editor = main.RecipeEditor;
             editor.Name = "MVVM recipe selection";
-            await editor.SaveCommand.ExecuteAsync(null);
+            Assert.True(await editor.SaveAsync());
             Assert.Null(editor.Error);
             var recipeSelector = new ComboBox { ItemsSource = editor.Recipes };
             recipeSelector.SetBinding(

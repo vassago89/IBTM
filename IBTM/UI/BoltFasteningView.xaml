@@ -159,7 +159,8 @@
                             <Ellipse Width="12" Height="12" Fill="{StaticResource EquipBgBrush}"
                                 Stroke="{StaticResource TextMutedBrush}" StrokeThickness="2"/>
                             <Ellipse Style="{StaticResource VacuumDetectedVisualStyle}"
-                                Visibility="{Binding Fastening.ShootingBoltLoaded, Converter={StaticResource BoolToVis}}"/>
+                                ToolTip="Shooting head vacuum feedback (display only)"
+                                Visibility="{Binding Signals.Inputs[ShootingHeadVacuumDetected].IsOn, Converter={StaticResource BoolToVis}}"/>
                         </Grid>
                     </Canvas>
                 </Grid>

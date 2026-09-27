@@ -8,7 +8,7 @@ public class OutputWindowViewModel
 {
     public OutputWindowViewModel(IoSignals signals, MachineController machine)
     {
-        RefreshCommand = new RelayCommand(Refresh);
+        ClearMessagesCommand = new RelayCommand(ClearMessages);
 
         Rows = signals.Outputs.Values
             .Select(row => new OutputWindowRow(row, machine))
@@ -19,9 +19,9 @@ public class OutputWindowViewModel
     public OutputWindowRow[] Rows { get; }
     public IoList<OutputWindowRow, OutputIo> Filter { get; }
 
-    public IRelayCommand RefreshCommand { get; }
+    public IRelayCommand ClearMessagesCommand { get; }
 
-    private void Refresh()
+    private void ClearMessages()
     {
         foreach (var row in Rows)
             row.ActionMessage = null;

@@ -23,8 +23,8 @@
 
         <Grid>
             <TextBlock Text="Digital Outputs" Style="{StaticResource TitleStyle}"/>
-            <Button Content="Refresh" HorizontalAlignment="Right" Style="{StaticResource SecondaryButtonStyle}" Padding="14,5"
-                Command="{Binding RefreshCommand}"/>
+            <Button Content="Clear Messages" HorizontalAlignment="Right" Style="{StaticResource SecondaryButtonStyle}" Padding="14,5"
+                Command="{Binding ClearMessagesCommand}"/>
         </Grid>
 
 

@@ -143,7 +143,7 @@ public partial class OperationViewModel : ObservableObject
 
     public UnitSettings Units { get; }
 
-    public MainConveyor Conveyor { get; }
+    private MainConveyor Conveyor { get; }
 
     public NgCarrierConveyor NgConveyor { get; }
 
@@ -347,8 +347,6 @@ public partial class OperationViewModel : ObservableObject
             LoadOlderPcbsCommand.Execute(null);
         OnMachineStateChanged(this, new(null));
         OnRecipeChanged();
-        OnPropertyChanged(nameof(ConveyorState));
-        OnPropertyChanged(nameof(Conveyor));
         OnPropertyChanged(nameof(Units));
         OnPropertyChanged(nameof(SafetyBypass));
     }
@@ -586,7 +584,6 @@ public partial class OperationViewModel : ObservableObject
             return;
 
         OnPropertyChanged(nameof(ConveyorState));
-        OnPropertyChanged(nameof(Conveyor));
         OnPropertyChanged(nameof(ConveyorStatus));
         OnPropertyChanged(nameof(InspectionStatus));
     }
@@ -630,7 +627,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(InspectionPcb1Barcode));
         OnPropertyChanged(nameof(InspectionPcb2Barcode));
         OnPropertyChanged(nameof(InspectionTargets));
-        OnPropertyChanged(nameof(InspectionStateVisible));
         OnPropertyChanged(nameof(InspectionHeatSink1Result));
         OnPropertyChanged(nameof(InspectionHeatSink2Result));
         OnPropertyChanged(nameof(InspectionDisplayState));
@@ -822,7 +818,7 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public bool InspectionStateVisible
+    private bool InspectionStateVisible
     {
         get
         {

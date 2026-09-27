@@ -20,6 +20,44 @@ namespace IBTM.Virtual.Tests;
 public sealed class DiagnosticToolsTests
 {
     [Fact]
+    public async Task InspectionStepUsesSelectedManualSpeed()
+    {
+        await using var services = CreateServices(new RecordingLight());
+        services.GetRequiredService<UnitSettings>().Inspection = true;
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+        var settings = services.GetRequiredService<InspectionGantrySettings>();
+        await machine.InitializeAsync();
+        try
+        {
+            await motion.HomeHorizontalAsync(1_000);
+            teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+            teaching.JogSpeed = 10;
+            settings.Motion.HorizontalSpeed = 0;
+            var before = motion.Position;
+
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+
+            Assert.Null(teaching.SaveError);
+            Assert.Equal(before.X + teaching.StepDistance, motion.Position.X, 3);
+
+            settings.Motion.HorizontalSpeed = 100;
+            teaching.JogSpeed = 0;
+            before = motion.Position;
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+
+            Assert.NotNull(teaching.SaveError);
+            Assert.Equal(before, motion.Position);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task FinishedImageLoadDoesNotRestoreAPointDeletedBeforeUiPublication()
     {
         await using var services = CreateServices(new RecordingLight());

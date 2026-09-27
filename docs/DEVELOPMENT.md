@@ -152,10 +152,10 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 
 ## 화면과 ViewModel 경계
 
-Operation의 카메라 위치와 검사 마커는 검사 기준 핀 좌표계로 표시한다. 검사 마커의 좌표는
-실제로 촬영할 FOV의 `Center`이며, 볼트 중심 좌표와 구분한다. NG 픽업·셔틀의 도식상 이송 위치로
-카메라 표시를 변형하지 않는다. 체결 마커는 원본 볼트 좌표를 사용하고, 픽업·슈팅 헤드의 현재 위치는
-각 헤드의 실제 이동 변환을 역변환해 동일한 캐리어 좌표계로 표시한다. 두 헤드를 고정 간격으로 그리기 위해
+Operation의 카메라 위치와 검사 마커는 검사 기준 핀 좌표계로 표시한다. 검사 볼트 마커는
+촬영 XY인 `BoltPoint.InspectionPosition`을 사용한다. NG 픽업·셔틀의 도식상 이송 위치로
+카메라 표시를 변형하지 않는다. 체결 마커는 독립 저장한 `FasteningX/Y`를 사용하고,
+마커와 픽업·슈팅 헤드의 현재 위치를 각 헤드 기준 핀으로 역변환해 동일한 캐리어 좌표계로 표시한다. 두 헤드를 고정 간격으로 그리기 위해
 기준 핀 좌표를 혼합하지 않는다. 이 화면 변환은 모션 명령이나 저장된 티칭값에 적용하지 않는다.
 
 모든 화면의 명령과 편집값은 XAML에서 해당 ViewModel에 바인딩한다. ADC 진단도 창 객체가 아니라
@@ -170,7 +170,8 @@ ADC 프레임 로그는 실제 COM 포트와 함께 `Logs/Communication/IBTM-*.l
 ViewModel의 명령 본문은 통신과 헤드 동작을 직접 호출한다.
 체결 테스트의 시작 조건은 `EnsureBoltTestAvailable`에서 확인하고, 실행과 결과 처리는 명령 본문에 둔다.
 ADC는 별도 busy 플래그 없이 현재 작업의 취소 소스로 실행 중 여부를 판단한다.
-STOP과 창 닫기는 현재 작업을 취소하고 완료를 기다리며, 모터 정지는 실제 RUN OFF로 확인한다.
+STOP과 창 닫기는 현재 작업을 취소하고 정리를 기다린다. 헤드는 START OFF 후 공용 모니터의
+새 상태 표본을 한 번 확인하며, 여기서 RUN OFF까지 반복 대기하지 않는다. 다음 START 전에는 READY와 RUN을 다시 확인한다.
 화면의 실행 가능 조건은 `CanExecute`·`IsEnabled`에서 처리하고, 명령 본문에서 같은 조건을 반복 검사하지 않는다.
 장치의 실행권·현재 피드백·인터록과 비동기 대기 후 상태 변화 확인, 입력값 검증은 유지한다.
 모션 진단의 상태 구독은 `Activate`/`Deactivate`, 종료 시 작업 취소·대기는 `ShutdownAsync`에서 찾는다.
@@ -350,11 +351,12 @@ HOME·START 선상승과 HOME 순서(2026-09-19):
   완료까지 반환하지 않는 SDK 함수를 기다리느라 취소·인터록 정지가 지연되지 않도록 한다.
   축 알람·도착 신호 타임아웃은 수동 화면에서 처리하는 모션 오류로 전달한다.
 
-검사 → 체결 좌표는 검사측과 해당 체결 헤드의 Upper→Lower 방향각 차이 θ를 구한다.
+체결 XY를 처음 만들 때는 검사측과 해당 체결 헤드의 Upper→Lower 방향각 차이 θ를 구한다.
 `체결 XY = 헤드 Upper XY + R(θ) × (검사 티칭 XY − 검사 Upper XY)`로 회전과 위치 차이를 적용한다.
 두 기준점은 서로 다른 위치여야 하며, 두 점 사이 거리 차이로 배율을 보정하지 않는다.
-`Record Position`은 실제 검사축 XY를 그대로 저장한다. 기준점 차감과 회전은 목표 좌표를 계산할 때만 수행하며,
-저장된 티칭 좌표를 수정하지 않고 화면·Move To·자동 체결에서 같은 변환식을 사용한다.
+검사측 `Record Position`은 실제 검사축 XY를 저장한다. 체결 XY가 아직 없을 때만 이 변환으로
+`FasteningX/Y`를 초기화하고, 이후 체결측 `Record Position`으로 독립 티칭한다. Move To와 자동 체결은
+저장된 체결 XY와 헤드 공통 Z + 볼트별 Z 오프셋을 사용한다. Operation 표시의 역변환은 저장값을 변경하지 않는다.
 
 볼트 티칭의 `Move to Position`은 Safe Z → 테이블(픽업 Down / 슈팅 Up) 완료 확인 →
 볼트 XY → 해당 헤드의 체결 Z 순서다. 양쪽 헤드가 올라와 있어야 시작하며,
@@ -484,29 +486,32 @@ Operation 화면의 SMEMA 카드에 직접 바인딩하며 저장·새 I/O 주�
 UI는 같은 입력의 관측값으로 활성화한다. 티칭 OFF 입력은 세 값을 지워 재진입 시 복원하지 않는다.
 STOP은 값을 유지하고 프로그램을 다시 실행하면 OFF다. Front 1은 선택된 Available 소스가
 OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류나 일반 I/O 통신 오류는 여전히 오류다.
-시퀀스의 SMEMA 출력은 `IIoService.SetAutomaticSmemaOutput`을 사용하며 티칭에서는 쓰지 않는다.
+시퀀스의 SMEMA 출력은 `PcbSupplier.SetUpstreamReady`와 `MainConveyor.SetSmemaOutput`에서
+현재 모드 입력을 확인하고, 티칭에서는 쓰지 않는다.
 초기화·티칭 진입 시 기존 STOP 경로로 외부 SMEMA를 OFF한다. OUTPUTS 창은 원래 `SetOutput`을
 직접 사용하므로 티칭에서도 수동 ON/OFF가 가능하다. 이 창의 기존 조작 조건에 새 제한을 넣지 않았다.
 `SupplyChecksBothSlotsBeforeDroppingReady`가 두 슬롯 확인 전 Ready를 내리지 않는지 확인한다.
 `PickingPcb` 분기는 픽업 중 전단 캐리어 이탈을 받으면 그 픽업을 취소한다. 늦게 끝난 이전 픽업은
 새 캐리어의 슬롯 이력을 넘기지 않으며 `SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes`로 확인한다.
-수동 스텝 이동은 `TeachingViewModel.StepAsync` → 각 핸들러의 `AdjustAxisAsync` →
-`MotionService.AdjustAxisAsync` 순서다. 공급기·배치기 조그/스텝은 현재 Z에서 선택 축만 움직인다.
+수동 스텝 이동은 `TeachingViewModel.StepAsync`에서 유닛의 축 이동을 호출한다. 공급·장착·체결은
+`AdjustAxisAsync`, 검사·NG 공용 축은 `InspectionStation.MoveAxisAsync`를 사용한다.
+공급기·배치기 조그/스텝은 현재 Z에서 선택 축만 움직인다.
 티칭 버튼은 Record Position(현재 좌표 기록), Move to Position(선택 좌표 이동),
 Move Z to … Height(적용된 기준 높이로 Z만 이동)로 구분한다. Z 바로가기는 별도 줄에 표시한다.
-조그/스텝은 해당 모드의 속도를 표시한다. 검사·NG 스텝은 설정된 XY 속도를 사용한다고 안내한다.
+모든 유닛의 조그/스텝은 화면의 Jog speed / Step speed 값을 사용한다. 검사·NG 스텝도 자동 운전용 XY 속도와 별개다.
 상단 Save는 인계 좌표와 제품 레시피를 함께 저장한다.
 Rotation Z/인계 Z와의 일치 조건 및 선행 Z 이동은 없다. 배치기 Z 조그/스텝은 핸들러가 내려와 있어도
 조정할 수 있으며, X/Y 조그/스텝과 Move to Position에는 핸들러 상승 확인을 유지한다.
-모션 계층에서 축 속도·범위·취소를 처리한다. 자동/수동 인계 진입은
-`MoveToHandoffAsync`에서 `MoveToHorizontalZAsync`에 인계 Z를 전달한 뒤 XY를 이동한다.
+모션 계층에서 축 속도·범위·취소를 처리한다. Supply의 자동 인계 진입은 `PrepareHandoffAsync`,
+티칭 이동은 `MoveToTeachingPositionAsync`에서 공통 `MoveUnrotatedAsync`로 이어진다.
+이 메서드가 Unrotated 피드백을 유지하면서 인계 Z → XY 이동을 수행한다.
 XY 이동 전에 Rotation Z로 되돌아가지 않는다.
 픽업은 Rotation Z에서 XY 도착 후 해당 PCB 픽업 Z로 내려간다.
 회전 IO는 Rotation Z에서만 조작한다. 자동 이송·티칭 포인트 이동은 Rotated일 때 Rotation Z,
 Unrotated일 때 인계 Z를 사용한다.
 해제 후에는 두 Supply 실린더의 후퇴 완료 → Placement의 대기 Z 복귀·Handler Up 확인 → 히트싱크 Y 도착 → `MoveFromHandoffAsync`의
-XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2 X와 Carrier Y, PCB2 후에는
-다음 캐리어의 PCB1 X와 Carrier Y로 돌아간다. 픽업 XY에 도착한 뒤 Rotation Z로 이동하고 Rotated로 전환한다.
+XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2의 개별 픽업 XY, PCB2 후에는
+다음 캐리어의 PCB1 픽업 XY로 돌아간다. 픽업 XY에 도착한 뒤 Rotation Z로 이동하고 Rotated로 전환한다.
 별도 Clear Z나 복귀 좌표는 없다. 시작 시 SMEMA가 없으면 PCB 1 XY·Rotation Z까지 이동해 대기한다.
 기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Handoff`의 XYZ를 확인하고 `Save`로 저장한다.
 Placement는 `PCB Receive Standby`에서 기다리다가 실린더 Up 상태로 `PCB Receive Z`까지 내려가

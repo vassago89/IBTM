@@ -88,7 +88,7 @@ public partial class MainViewModel : ObservableObject
         _windows = windows;
         _log = log;
         NavigateCommand.PropertyChanged += OnRecipeEditingChanged;
-        recipeEditor.PropertyChanged += OnRecipeEditingChanged;
+        recipeEditor.LoadCommand.PropertyChanged += OnRecipeEditingChanged;
         teachingViewModel.PropertyChanged += OnRecipeEditingChanged;
 
         state.PropertyChanged += OnMachineStateChanged;
@@ -110,7 +110,7 @@ public partial class MainViewModel : ObservableObject
                 && !IsClosing
                 && _state.SetupEditingEnabled
                 && !NavigateCommand.IsRunning
-                && !RecipeEditor.IsBusy
+                && !RecipeEditor.LoadCommand.IsRunning
                 && !_teachingViewModel.IsBusy;
         }
     }
@@ -148,7 +148,7 @@ public partial class MainViewModel : ObservableObject
         {
             return !NavigateCommand.IsRunning
                 && (SelectedPage is AppPage.Operation or AppPage.Inspection or AppPage.Settings or AppPage.ManualHardware
-                    || !RecipeEditor.IsBusy);
+                    || !RecipeEditor.LoadCommand.IsRunning);
         }
     }
 
@@ -240,7 +240,7 @@ public partial class MainViewModel : ObservableObject
         ResetCommand.NotifyCanExecuteChanged();
         _state.PropertyChanged -= OnMachineStateChanged;
         NavigateCommand.PropertyChanged -= OnRecipeEditingChanged;
-        RecipeEditor.PropertyChanged -= OnRecipeEditingChanged;
+        RecipeEditor.LoadCommand.PropertyChanged -= OnRecipeEditingChanged;
         _teachingViewModel.PropertyChanged -= OnRecipeEditingChanged;
 
         return Task.WhenAll(
@@ -353,7 +353,7 @@ public partial class MainViewModel : ObservableObject
 
     private void OnRecipeEditingChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(IAsyncRelayCommand.IsRunning) or nameof(RecipeEditor.IsBusy))
+        if (e.PropertyName is nameof(IAsyncRelayCommand.IsRunning) or nameof(TeachingViewModel.IsBusy))
         {
             OnPropertyChanged(nameof(RecipeEditingEnabled));
             OnPropertyChanged(nameof(CurrentPageEnabled));

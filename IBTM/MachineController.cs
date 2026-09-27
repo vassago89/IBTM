@@ -1725,6 +1725,9 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         try
         {
+            if (_operations.IsShuttingDown)
+                return OutputBlockReason.ShuttingDown;
+            using var operation = _operations.Link();
             var block = ManualOutputSafetyBlock;
             if (block != OutputBlockReason.None)
             {
@@ -1739,13 +1742,14 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 OutputIo.PcbPlacementHandlerRotate => false,
                 _ => !_io.GetOutput(signal),
             };
+            operation.Token.ThrowIfCancellationRequested();
             _io.SetOutput(signal, value);
             _log?.LogInformation("Direct output {Signal}: {Value}; alarm={Alarm}.",
                 signal.ToString(), value ? "ON" : "OFF", _state.Alarm.ToString());
             _state.Refresh();
             return OutputBlockReason.None;
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             _state.SetError(MachineAlarm.IoCommunication, exception);
             _operations.Cancel();
@@ -1970,6 +1974,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 return;
             operation.Token.ThrowIfCancellationRequested();
             var value = !_io.GetOutput(output.Signal);
+            operation.Token.ThrowIfCancellationRequested();
             switch (output.Signal)
             {
                 case OutputIo.ShootBolt:

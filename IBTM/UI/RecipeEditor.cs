@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -23,7 +22,6 @@ public partial class RecipeEditor : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSaveAllowed))]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     public partial string Name { get; set; }
 
     [ObservableProperty]
@@ -38,11 +36,8 @@ public partial class RecipeEditor : ObservableObject
         OperationCancellation operations,
         ILogger<RecipeEditor>? log = null)
     {
-        SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsSaveAllowed);
         LoadCommand = new AsyncRelayCommand<string>(LoadAsync);
         NewCommand = new RelayCommand(New);
-        SaveCommand.PropertyChanged += OnCommandChanged;
-        LoadCommand.PropertyChanged += OnCommandChanged;
 
         _log = log;
         _recipes = recipes;
@@ -51,14 +46,6 @@ public partial class RecipeEditor : ObservableObject
         Name = recipes.Current.Name;
         Recipes = database.RecipeNames;
         recipes.Changed += OnRecipeChanged;
-    }
-
-    public bool IsBusy => SaveCommand.IsRunning || LoadCommand.IsRunning;
-
-    private void OnCommandChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
-            OnPropertyChanged(nameof(IsBusy));
     }
 
     public string ActiveName => _recipes.Current.Name;
@@ -72,10 +59,8 @@ public partial class RecipeEditor : ObservableObject
 
     public Task ShutdownAsync()
     {
-        return CommandShutdown.WaitAsync(CommandShutdown.Capture(SaveCommand, LoadCommand));
+        return CommandShutdown.WaitAsync(CommandShutdown.Capture(LoadCommand));
     }
-
-    public IAsyncRelayCommand SaveCommand { get; }
 
     public async Task<bool> SaveAsync(CancellationToken cancellationToken = default)
     {
@@ -108,7 +93,12 @@ public partial class RecipeEditor : ObservableObject
         try
         {
             ArgumentNullException.ThrowIfNull(recipeName);
-            using var operation = _operations.Link();
+            using var operation = _operations.TryBegin();
+            if (operation is null)
+            {
+                Error = "Stop the current operation before changing the recipe.";
+                return;
+            }
             await _recipes.LoadAsync(recipeName, operation.Token);
         }
         catch (OperationCanceledException)
@@ -125,7 +115,24 @@ public partial class RecipeEditor : ObservableObject
     private void New()
     {
         Error = null;
-        _recipes.New();
+        try
+        {
+            using var operation = _operations.TryBegin();
+            if (operation is null)
+            {
+                Error = "Stop the current operation before changing the recipe.";
+                return;
+            }
+            operation.Token.ThrowIfCancellationRequested();
+            _recipes.New();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ReportError(exception);
+        }
     }
 
     private void OnRecipeChanged()

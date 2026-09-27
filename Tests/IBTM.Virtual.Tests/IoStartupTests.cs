@@ -35,7 +35,7 @@ public sealed class IoStartupTests
         io.BeforeOutputWrite = (output, on) =>
         {
             if (output == OutputIo.PickupBoltDirection && on)
-                io.BeforeOutputRead = release.Cancel;
+                io.BeforeOutputRead = _ => release.Cancel();
         };
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => head.RunReverseAsync(release.Token));
@@ -55,7 +55,7 @@ public sealed class IoStartupTests
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         var initializations = io.Initializations;
         state.SetError(MachineAlarm.Inspection);
-        io.BeforeOutputRead = machine.Stop;
+        io.BeforeOutputRead = _ => machine.Stop();
         try
         {
             await machine.ResetAsync();
@@ -1281,7 +1281,7 @@ public sealed class IoStartupTests
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         var homeStarted = false;
         state.Changed += () => homeStarted |= state.IsHoming;
-        io.BeforeOutputRead = machine.Stop;
+        io.BeforeOutputRead = _ => machine.Stop();
         try
         {
             await machine.HomeAsync(MotionGroup.InspectionGantry, CancellationToken.None);
@@ -1325,7 +1325,7 @@ public sealed class IoStartupTests
             if (output == OutputIo.NgCarrierPickupDown && value)
                 started = true;
         };
-        io.BeforeOutputRead = machine.Stop;
+        io.BeforeOutputRead = _ => machine.Stop();
         try
         {
             if (outputCommand)
@@ -1342,6 +1342,53 @@ public sealed class IoStartupTests
         {
             io.BeforeOutputRead = null;
             await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ShootBoltDoesNotTurnOnAfterStopDuringItsOutputRead(bool diagnostic)
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        var stopped = false;
+        var started = false;
+        io.BeforeOutputWrite = (output, value) => started |= output == OutputIo.ShootBolt && value;
+        io.BeforeOutputRead = StopAtShotRead;
+        try
+        {
+            var output = services.GetRequiredService<IoSignals>().Outputs[OutputIo.ShootBolt];
+            if (diagnostic)
+                new OutputWindowRow(output, machine).ToggleCommand.Execute(null);
+            else
+                await machine.ToggleTeachingOutputAsync(output, default, default);
+
+            Assert.True(stopped);
+            Assert.False(started);
+            Assert.False(io.GetOutput(OutputIo.ShootBolt));
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.False(services.GetRequiredService<MachineState>().IsError);
+        }
+        finally
+        {
+            io.BeforeOutputRead = null;
+            io.BeforeOutputWrite = null;
+            await machine.ShutdownAsync();
+        }
+
+        void StopAtShotRead(OutputIo output)
+        {
+            if (output == OutputIo.ShootBolt)
+            {
+                stopped = true;
+                machine.Stop();
+            }
+            else
+                io.BeforeOutputRead = StopAtShotRead;
         }
     }
 
@@ -1497,7 +1544,7 @@ public sealed class IoStartupTests
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
-        io.BeforeOutputRead = machine.Stop;
+        io.BeforeOutputRead = _ => machine.Stop();
         try
         {
             Assert.Throws<OperationCanceledException>(() =>
@@ -1747,7 +1794,7 @@ public sealed class IoStartupTests
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
         var error = new IOException("Original connection fault during output scan.");
-        io.BeforeOutputRead = () =>
+        io.BeforeOutputRead = _ =>
         {
             io.Disconnect(error);
             throw new IOException("Secondary AXT_RT_NOT_OPEN during the in-flight read.");
@@ -1885,13 +1932,11 @@ public sealed class IoStartupTests
     {
         Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
         Assert.False(state.Available);
-        Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
         Assert.Equal(error.Message, state.AlarmMessage);
         Assert.Contains(error.Message, state.AlarmDetail);
         Assert.Null(state.ReadError);
         Assert.False(machine.IsStartAllowed);
         Assert.False(machine.IsHomeAllowed);
-        Assert.False(state.ManualControlsEnabled);
         Assert.False(state.ManualSetupEnabled);
     }
 
@@ -1960,7 +2005,7 @@ public sealed class IoStartupTests
         public Exception? InitializationError { get; set; }
         public Exception? OutputReadError { get; set; }
         public Exception? InputScanError { get; set; }
-        public Action? BeforeOutputRead { get; set; }
+        public Action<OutputIo>? BeforeOutputRead { get; set; }
         public Action<InputIo>? BeforeInputRead { get; set; }
         public Action<OutputIo, bool>? BeforeOutputWrite { get; set; }
         public bool FailCheckReady { get; set; }
@@ -2037,7 +2082,7 @@ public sealed class IoStartupTests
 
             var beforeRead = BeforeOutputRead;
             BeforeOutputRead = null;
-            beforeRead?.Invoke();
+            beforeRead?.Invoke(output);
             if (OutputReadError is { } error)
                 throw error;
             if (output == OutputIo.MachineLight && ObservedLight is { } light)

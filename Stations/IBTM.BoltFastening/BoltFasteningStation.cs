@@ -443,7 +443,7 @@ public sealed class BoltFasteningStation : AutoUnit
             Exception? clearFailure = null;
             try
             {
-                // Result notifications can write to disk. Finish physical clearance first.
+                // Finish physical clearance before publishing the measured result.
                 TraceStep(step, target, job.Id, "head retraction");
                 await ClearHeadAsync(bolt.Head, token);
             }

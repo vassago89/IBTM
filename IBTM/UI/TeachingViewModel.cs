@@ -139,8 +139,6 @@ public partial class TeachingViewModel : ObservableObject
 
         TeachCurrentPositionCommand = new AsyncRelayCommand(TeachCurrentPositionAsync, () => IsTeachCurrentPositionAllowed);
         MoveToPointCommand = new AsyncRelayCommand(MoveToPointAsync, () => IsMoveToPointAllowed);
-        SelectPreviousPointCommand = new RelayCommand(SelectPreviousPoint, () => IsSelectPreviousPointAllowed);
-        SelectNextPointCommand = new RelayCommand(SelectNextPoint, () => IsSelectNextPointAllowed);
         JogCommand = new AsyncRelayCommand<TeachingDirection>(JogAsync, IsMoveDirectionAllowed);
         StepCommand = new AsyncRelayCommand<TeachingDirection>(StepAsync, IsStepAllowed);
         JogStopCommand = new RelayCommand(JogStop);
@@ -185,6 +183,7 @@ public partial class TeachingViewModel : ObservableObject
         state.PropertyChanged += OnMachineStateChanged;
         recipes.Changed += OnRecipeChanged;
         recipeEditor.PropertyChanged += OnRecipeEditorChanged;
+        recipeEditor.LoadCommand.PropertyChanged += OnRecipeEditorChanged;
 
         RefreshTeachingPoints();
         ShowRecipeImages();
@@ -192,7 +191,7 @@ public partial class TeachingViewModel : ObservableObject
 
     private void OnRecipeEditorChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(RecipeEditor.IsSaveAllowed) or nameof(RecipeEditor.IsBusy))
+        if (e.PropertyName is nameof(RecipeEditor.IsSaveAllowed) or nameof(IAsyncRelayCommand.IsRunning))
             SaveCommand.NotifyCanExecuteChanged();
         if (e.PropertyName != nameof(RecipeEditor.IsSaveAllowed))
             return;
@@ -471,13 +470,10 @@ public partial class TeachingViewModel : ObservableObject
             ? Recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel : newValue?.Position.Bolt?.LightLevel)
             ?? Recipes.Current.BoltInspection.LightLevel;
         OnPropertyChanged(nameof(CameraImage));
-        SelectPreviousPointCommand.NotifyCanExecuteChanged();
-        SelectNextPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(SaveBehavior));
         NotifyManualTeachingCommands();
         OnPropertyChanged(nameof(SelectedBarcode));
         OnPropertyChanged(nameof(IsDataMatrixSelected));
-        OnPropertyChanged(nameof(IsBoltSelected));
     }
 
     [ObservableProperty]
@@ -493,7 +489,7 @@ public partial class TeachingViewModel : ObservableObject
 
     public bool BoltPointEditorVisible => IsFasteningSelected || IsInspectionSelected;
 
-    public bool IsBoltSelected => IsInspectionSelected && SelectedPoint?.Position.Bolt is not null;
+    private bool IsBoltSelected => IsInspectionSelected && SelectedPoint?.Position.Bolt is not null;
 
     public TeachingSaveBehavior SaveBehavior
     {
@@ -528,17 +524,6 @@ public partial class TeachingViewModel : ObservableObject
                 default:
                     return TeachingSaveBehavior.Recipe;
             }
-        }
-    }
-
-    private int CurrentPointIndex
-    {
-        get
-        {
-            for (var index = 0; index < FilteredPoints.Count; index++)
-                if (FilteredPoints[index] == SelectedPoint)
-                    return index;
-            return -1;
         }
     }
 
@@ -683,24 +668,6 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    public IRelayCommand SelectPreviousPointCommand { get; }
-
-    private void SelectPreviousPoint()
-    {
-        SelectedPoint = FilteredPoints[CurrentPointIndex - 1];
-    }
-
-    private bool IsSelectPreviousPointAllowed => CurrentPointIndex > 0;
-
-    public IRelayCommand SelectNextPointCommand { get; }
-
-    private void SelectNextPoint()
-    {
-        SelectedPoint = FilteredPoints[CurrentPointIndex + 1];
-    }
-
-    private bool IsSelectNextPointAllowed => CurrentPointIndex < FilteredPoints.Count - 1;
-
     public IAsyncRelayCommand TeachCurrentPositionCommand { get; }
 
     private async Task TeachCurrentPositionAsync(CancellationToken cancellationToken)
@@ -737,7 +704,11 @@ public partial class TeachingViewModel : ObservableObject
                         && !await SaveSettingsAsync(operation.Token, point.Setting!))
                         return;
                     operation.Token.ThrowIfCancellationRequested();
-                    OnPointTaught(point);
+                    if (point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
+                    {
+                        SelectedPoint = FilteredPoints.First(
+                            candidate => candidate.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+                    }
                     NotifyManualTeachingCommands();
                     break;
                 case { Position.Mode: not TeachMode.Image }:
@@ -783,15 +754,6 @@ public partial class TeachingViewModel : ObservableObject
                 is { Homed: true, InMotion: false });
     }
 
-    private void OnPointTaught(TeachingPoint point)
-    {
-        if (point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
-        {
-            SelectedPoint = FilteredPoints.First(
-                candidate => candidate.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
-        }
-    }
-
     public IAsyncRelayCommand SaveCommand { get; }
 
     private async Task SaveAsync(CancellationToken cancellationToken)
@@ -832,7 +794,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsSaveAllowed => State.SetupEditingEnabled && RecipeEditor.IsSaveAllowed && !RecipeEditor.IsBusy;
+    private bool IsSaveAllowed => State.SetupEditingEnabled && RecipeEditor.IsSaveAllowed && !RecipeEditor.LoadCommand.IsRunning;
 
     private async Task<bool> SaveSettingsAsync(
         CancellationToken cancellationToken,
@@ -1186,7 +1148,7 @@ public partial class TeachingViewModel : ObservableObject
                     await _fasteningStation.AdjustAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 case MotionGroup.InspectionGantry:
-                    await Inspection.MoveAxisAsync(axis, target, _settings.InspectionGantry.Motion.HorizontalSpeed, operation.Token);
+                    await Inspection.MoveAxisAsync(axis, target, JogSpeed, operation.Token);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup));

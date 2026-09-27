@@ -118,7 +118,6 @@ public partial class InspectionPreview : ObservableObject
         var region = _sourceRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");
         if (_pcb is not null)
         {
-            RefreshBinaryImage();
             var settings = _recipe.BoltInspection.GetDataMatrix(_pcb.Value);
             var text = await Task.Run(() => DataMatrixReader.Read(frame, region, settings), token);
             token.ThrowIfCancellationRequested();
@@ -134,12 +133,6 @@ public partial class InspectionPreview : ObservableObject
             return (check.BrightRatio, CreateBitmap(check.Image));
         }, token);
         token.ThrowIfCancellationRequested();
-        if (threshold != BrightnessThreshold)
-        {
-            var check = BinaryChecker.Check(frame, region, BrightnessThreshold);
-            ratio = check.BrightRatio;
-            binary = CreateBitmap(check.Image);
-        }
         _brightRatio = ratio;
         Overlay = binary;
         RefreshResult();

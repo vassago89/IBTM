@@ -109,7 +109,6 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentMotionSettings))]
-    [NotifyPropertyChangedFor(nameof(CurrentMotionHardwareSettings))]
     [NotifyPropertyChangedFor(nameof(CurrentMotionHasZ))]
     [NotifyPropertyChangedFor(nameof(CurrentAxisMappings))]
     public partial MotionGroup SelectedMotionGroup { get; set; } = MotionGroup.PcbSupply;
@@ -150,7 +149,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public IEnumerable<HardwareMappingRow> CurrentAxisMappings => AxisMappings.Where(row => row.Hardware.Area == CurrentMotionHardwareSettings.Area);
 
-    public MotionHardwareSettings CurrentMotionHardwareSettings => _motions[SelectedMotionGroup].Hardware;
+    private MotionHardwareSettings CurrentMotionHardwareSettings => _motions[SelectedMotionGroup].Hardware;
 
     public bool CurrentMotionHasZ => CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
 

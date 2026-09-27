@@ -591,7 +591,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.True(machine.IsHomeAllowed);
         await machine.HomeAsync(CancellationToken.None);
-        Assert.True(state.ManualControlsEnabled);
+        Assert.True(machine.IsManualMotionReady(MotionGroup.InspectionGantry));
 
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.IsStartAllowed);
@@ -610,7 +610,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.AutoMode, true);
         await machine.ResetAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.True(state.ManualControlsEnabled);
+        Assert.True(machine.IsManualMotionReady(MotionGroup.InspectionGantry));
     }
 
     [Theory]
@@ -4037,7 +4037,7 @@ public sealed partial class MachineLifecycleTests
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         await machine.InitializeAsync();
         Assert.True(machine.IsHomeAllowed);
-        Assert.False(state.ManualControlsEnabled);
+        Assert.False(state.Ready);
         Assert.True(state.ManualSetupEnabled);
         io.SetInput(InputIo.AutoMode, false);
         Assert.False(state.ManualSetupEnabled);
@@ -4815,7 +4815,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => state.Ready);
         Assert.True(state.Ready);
-        await WaitUntilAsync(() => state.ManualControlsEnabled);
+        Assert.True(machine.IsManualMotionReady(group));
 
         probes[group].Motion.SetServo(MotionAxis.X, false);
         await WaitUntilAsync(() => machine.IsResetAllowed);
@@ -4893,7 +4893,7 @@ public sealed partial class MachineLifecycleTests
 
         await machine.InitializeAsync();
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-        Assert.False(state.ManualControlsEnabled);
+        Assert.False(state.Ready);
         var failedCalls = probes[MotionGroup.PcbSupply].HardwareCalls;
 
         settings.Units.PcbSupply = false;
@@ -4903,12 +4903,11 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.True(state.Ready);
-        Assert.True(state.ManualControlsEnabled);
         Assert.Equal(failedCalls, probes[MotionGroup.PcbSupply].HardwareCalls);
         // Re-enabling the same faulty hardware makes it mandatory again.
         settings.Units.PcbSupply = true;
         Assert.True(state.FeedbackReadiness.Faulted);
-        Assert.False(state.ManualControlsEnabled);
+        Assert.False(state.Ready);
         var placementResets = probes[MotionGroup.PcbPlacementHandler].ResetCalls;
         await machine.ResetAsync();
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
@@ -5725,7 +5724,7 @@ public sealed partial class MachineLifecycleTests
         teaching.JogSpeed = 1;
         Action[] stops = [
             () => teaching.JogStopCommand.Execute(null),
-            () => teaching.SelectNextPointCommand.Execute(null),
+            () => teaching.SelectedPoint = teaching.FilteredPoints.First(point => point != teaching.SelectedPoint),
             teaching.Deactivate,
             machine.Stop,
             () => io.SetInput(InputIo.AutoMode, false),
@@ -6732,7 +6731,7 @@ public sealed partial class MachineLifecycleTests
         await placementPlate.ToggleOutputCommand.ExecuteAsync(null);
         await placementPlate.ToggleOutputCommand.ExecuteAsync(null);
         supply.SetServo(MotionAxis.X, false);
-        Assert.False(state.ManualControlsEnabled);
+        Assert.False(machine.IsManualMotionReady(MotionGroup.PcbSupply));
         await WaitUntilAsync(() => placementPlate.ToggleOutputCommand.CanExecute(null));
         io.SetInput(InputIo.AutoMode, false);
         await WaitUntilAsync(() => !placementPlate.ToggleOutputCommand.CanExecute(null));

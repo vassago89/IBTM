@@ -255,10 +255,6 @@ public sealed class MachineState : INotifyPropertyChanged
         }
     }
 
-    public ManualControlBlock ManualBlock => GetManualBlock(FeedbackReadiness, IsRunning);
-
-    public bool ManualControlsEnabled => Available && ManualBlock == ManualControlBlock.None;
-
     // Data editing is also available before I/O connects; it does not grant manual operation.
     public bool SetupEditingEnabled
     {
@@ -312,23 +308,6 @@ public sealed class MachineState : INotifyPropertyChanged
             || (_io.IsReady && (ngRunning ?? _io.GetOutput(OutputIo.NgConveyorRun)));
     }
 
-    internal ManualControlBlock GetManualBlock(
-        MotionReadiness motion,
-        bool? running = null)
-    {
-        if (IsError)
-            return ManualControlBlock.Alarm;
-        if (!IsMotionReady(motion))
-            return ManualControlBlock.MotionNotReady;
-        if (!SafetyReady)
-            return ManualControlBlock.SafetyNotReady;
-        if (AutoMode)
-            return ManualControlBlock.AutoMode;
-        if (running ?? IsRunning)
-            return ManualControlBlock.Busy;
-        return ManualControlBlock.None;
-    }
-
     public void Refresh()
     {
         Changed?.Invoke();
@@ -340,7 +319,6 @@ public sealed class MachineState : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(nameof(FeedbackReadiness)));
         PropertyChanged?.Invoke(this, new(nameof(ServoPowerOn)));
         PropertyChanged?.Invoke(this, new(nameof(Ready)));
-        NotifyManualControlsChanged();
     }
 
     private void OnReadErrorChanged()
@@ -353,14 +331,7 @@ public sealed class MachineState : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new(nameof(Available)));
         PropertyChanged?.Invoke(this, new(nameof(Ready)));
-        PropertyChanged?.Invoke(this, new(nameof(ManualControlsEnabled)));
         PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
-    }
-
-    private void NotifyManualControlsChanged()
-    {
-        PropertyChanged?.Invoke(this, new(nameof(ManualBlock)));
-        PropertyChanged?.Invoke(this, new(nameof(ManualControlsEnabled)));
     }
 
     private void OnFeedbackPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -383,7 +354,6 @@ public sealed class MachineState : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new(nameof(SetupEditingEnabled)));
         }
         PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
-        NotifyManualControlsChanged();
     }
 
     private void OnMotionPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -392,7 +362,6 @@ public sealed class MachineState : INotifyPropertyChanged
         {
             PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
             PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
-            NotifyManualControlsChanged();
         }
     }
 
@@ -422,7 +391,6 @@ public sealed class MachineState : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(nameof(AlarmMessage)));
         PropertyChanged?.Invoke(this, new(nameof(IsError)));
         Changed?.Invoke();
-        NotifyManualControlsChanged();
     }
 
     internal void ClearError()
@@ -437,7 +405,6 @@ public sealed class MachineState : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(nameof(AlarmMessage)));
         PropertyChanged?.Invoke(this, new(nameof(IsError)));
         Changed?.Invoke();
-        NotifyManualControlsChanged();
     }
 
     private void NotifyChanged()
@@ -446,7 +413,6 @@ public sealed class MachineState : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(nameof(IsRunning)));
         PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
         PropertyChanged?.Invoke(this, new(nameof(SetupEditingEnabled)));
-        NotifyManualControlsChanged();
     }
 
     internal static bool IsSafetyInput(InputIo input)
@@ -494,7 +460,6 @@ public sealed class MachineState : INotifyPropertyChanged
                     PropertyChanged?.Invoke(this, new(nameof(DoorInterlockReady)));
                     break;
             }
-            NotifyManualControlsChanged();
         }
         PropertyChanged?.Invoke(this, new(nameof(ManualSetupEnabled)));
     }

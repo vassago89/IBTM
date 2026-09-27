@@ -89,11 +89,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public partial PcbInspectionImageView? SelectedHistoryImage { get; set; }
     [ObservableProperty] public partial bool IsMeasuring { get; set; }
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(RulerResolution))]
     [NotifyCanExecuteChangedFor(nameof(ApplyResolutionCommand))]
     public partial ImageRuler? Ruler { get; set; }
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(RulerResolution))]
     [NotifyCanExecuteChangedFor(nameof(ApplyResolutionCommand))]
     public partial double? RulerMillimeters { get; set; }
 
@@ -102,7 +100,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public bool IsDataMatrixSelected => SelectedPoint?.Metadata.IsBarcode == true;
     public DataMatrixInspectionRecipe? DataMatrix => IsDataMatrixSelected
         ? Draft.BoltInspection.GetDataMatrix(SelectedPoint!.Metadata.HeatSink) : null;
-    public double? RulerResolution => Ruler is { PixelLength: >= 1 } ruler && RulerMillimeters is > 0
+    private double? RulerResolution => Ruler is { PixelLength: >= 1 } ruler && RulerMillimeters is > 0
         && double.IsFinite(RulerMillimeters.Value) ? RulerMillimeters.Value / ruler.PixelLength : null;
 
     public void Activate()
