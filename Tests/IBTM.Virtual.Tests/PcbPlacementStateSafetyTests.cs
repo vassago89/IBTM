@@ -135,6 +135,21 @@ public sealed class PcbPlacementStateSafetyTests
     }
 
     [Fact]
+    public async Task RestartInitializationPreservesConfirmedHandoff()
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        await rig.ReceiveAsync();
+        Assert.Equal(PcbPlacementHandoff.Holding, rig.Placer.Handoff);
+
+        rig.Motion.Stop();
+        rig.Motion.Initialize();
+
+        Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, rig.Placer.Phase);
+        Assert.Equal(PcbPlacementHandoff.Holding, rig.Placer.Handoff);
+    }
+
+    [Fact]
     public async Task AxisAlarmInvalidatesHeldPcbHandoffUntilItsStageRunsAgain()
     {
         using var rig = new PlacementRig();

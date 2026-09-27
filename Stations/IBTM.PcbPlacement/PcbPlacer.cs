@@ -59,7 +59,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     private void OnMotionStateChanged()
     {
-        _handoffPosition = null;
+        if (_handoffPosition is { } position && !MotionService.IsHoldingPosition(_motion, position))
+            _handoffPosition = null;
         NotifyChanged();
     }
 

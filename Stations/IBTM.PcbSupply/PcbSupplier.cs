@@ -46,7 +46,8 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     private void OnMotionStateChanged()
     {
-        _handoffPosition = null;
+        if (_handoffPosition is { } position && !MotionService.IsHoldingPosition(_motion, position))
+            _handoffPosition = null;
         NotifyChanged();
     }
 

@@ -11,7 +11,7 @@
     d:DataContext="{d:DesignInstance Type=ui:AdcProtocolViewModel, IsDesignTimeCreatable=False}"
     Title="HANTAS ADC Protocol"
     Width="1120"
-    Height="780"
+    Height="980"
     MinWidth="960"
     MinHeight="680"
     WindowStartupLocation="CenterOwner"
@@ -21,7 +21,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="220"/>
+            <RowDefinition Height="280"/>
         </Grid.RowDefinitions>
 
         <Grid>

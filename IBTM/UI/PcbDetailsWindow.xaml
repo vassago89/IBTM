@@ -64,13 +64,13 @@
                     <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}"><ContentPresenter/></Border>
                 </ControlTemplate>
             </Setter.Value></Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{StaticResource ControlSelectedBackgroundBrush}"/></Trigger>
+            </Style.Triggers>
         </Style>
         <Style TargetType="DataGridRow">
             <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
             <Setter Property="MinHeight" Value="40"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{StaticResource ControlSelectedBackgroundBrush}"/></Trigger>
-            </Style.Triggers>
         </Style>
     </Window.Resources>
     <Grid Margin="24,20">

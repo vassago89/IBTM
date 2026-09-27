@@ -68,6 +68,16 @@ public enum TeachingMotionHint
     NgPickupPositionRequired,
 }
 
+public enum ManualControlBlock
+{
+    [Description("")]
+    None,
+    [Description("Switch the machine to Manual mode.")]
+    AutoMode = 4,
+    [Description("Wait for the current operation to stop.")]
+    Busy,
+}
+
 public partial class TeachingViewModel : ObservableObject
 {
     private readonly ILogger<TeachingViewModel> _logger;

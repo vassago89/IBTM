@@ -186,6 +186,23 @@ public sealed class PcbSupplyHandoffTests
     }
 
     [Fact]
+    public async Task RestartInitializationPreservesConfirmedHandoff()
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+        await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
+        rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        Assert.Equal(PcbSupplyHandoff.Holding, rig.Supplier.Handoff);
+
+        rig.Motion.Stop();
+        rig.Motion.Initialize();
+
+        Assert.Equal(PcbSupplyState.HandingOff, rig.Supplier.Phase);
+        Assert.Equal(PcbSupplyHandoff.Holding, rig.Supplier.Handoff);
+    }
+
+    [Fact]
     public async Task ServoLossInvalidatesHandoffUntilItsStageRunsAgain()
     {
         using var rig = new HandoffRig();

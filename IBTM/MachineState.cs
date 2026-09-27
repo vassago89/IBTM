@@ -64,22 +64,6 @@ public enum MachineAlarm
     StopFailed,
 }
 
-public enum ManualControlBlock
-{
-    [Description("")]
-    None,
-    [Description("Reset the machine alarm.")]
-    Alarm,
-    [Description("Enable the servos and home the axes; clear motion alarms.")]
-    MotionNotReady,
-    [Description("Check emergency stops and air pressure.")]
-    SafetyNotReady,
-    [Description("Switch the machine to Manual mode.")]
-    AutoMode,
-    [Description("Wait for the current operation to stop.")]
-    Busy,
-}
-
 public sealed class MachineState : INotifyPropertyChanged
 {
     private readonly MachineFeedbackMonitor _feedback;
@@ -148,7 +132,14 @@ public sealed class MachineState : INotifyPropertyChanged
 
     public MotionReadiness FeedbackReadiness => _feedback.Readiness;
 
-    public bool Ready => Available && IsMotionReady(FeedbackReadiness);
+    public bool Ready
+    {
+        get
+        {
+            return Available && ServoMainContactorOn
+                && FeedbackReadiness is { Homed: true, ServosOn: true, Faulted: false };
+        }
+    }
 
     public bool EmergencyStopReleased
     {
@@ -288,11 +279,6 @@ public sealed class MachineState : INotifyPropertyChanged
         return _feedback.Motions.TryGetValue(group, out var motion)
             ? motion
             : throw new ArgumentOutOfRangeException(nameof(group));
-    }
-
-    private bool IsMotionReady(MotionReadiness motion)
-    {
-        return ServoMainContactorOn && motion.Homed && motion.ServosOn && !motion.Faulted;
     }
 
     internal bool IsRunningFor(bool? mainRunning = null, bool? ngRunning = null, bool includeOperations = true)
