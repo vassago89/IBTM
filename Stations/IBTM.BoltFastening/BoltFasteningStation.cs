@@ -212,7 +212,14 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             BeginRun();
             if (_units.BoltFastening)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!repeat && _units.ShootingBoltFeeder
+                    && (selectedBolts is null || _recipes.Current.Pcb.BoltPoints.Any(
+                        bolt => bolt.Head == FasteningHead.Shooting && selectedBolts.Contains(bolt.Id))))
+                    _io.SetOutput(OutputIo.ShootingEscapeForward, false);
                 Station.Restart(Station.CurrentJob);
+            }
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (_units.BoltFastening && repeat && !_units.MainConveyor && Station.Completed)
@@ -459,12 +466,12 @@ public sealed class BoltFasteningStation : AutoUnit
                         for (var retry = 0; ; retry++)
                         {
                             token.ThrowIfCancellationRequested();
-                            // Late feedback at Safe Z can confirm the previous attempt.
-                            if (retry > 0 && _io.GetInput(InputIo.PickupHeadVacuumDetected))
-                                break;
-                            TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: bolt supply and descent");
                             if (feeding)
+                            {
+                                TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: waiting for feeder bolt detection");
                                 await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
+                            }
+                            TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: descent");
                             await MoveToPickupZAsync(token);
                             if (feeding)
                             {
@@ -473,23 +480,20 @@ public sealed class BoltFasteningStation : AutoUnit
                             }
                             TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: return to Safe Z");
                             await ReturnFromPickupAsync(token);
+                            token.ThrowIfCancellationRequested();
                             if (!feeding)
                                 break;
-                            try
-                            {
-                                TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: vacuum detection at Safe Z");
-                                var vacuumStarted = Stopwatch.GetTimestamp();
-                                await _io.WaitForInputAsync(InputIo.PickupHeadVacuumDetected, true, token, requireCurrent: true);
-                                _log?.LogInformation("Bolt timing {Bolt}: pickup vacuum at Safe Z, attempt={Attempt}, elapsed={ElapsedMs:F1} ms.",
-                                    bolt.Id, retry + 1, Stopwatch.GetElapsedTime(vacuumStarted).TotalMilliseconds);
+                            var vacuumDetected = _io.GetInput(InputIo.PickupHeadVacuumDetected);
+                            _log?.LogInformation("Bolt timing {Bolt}: pickup vacuum at Safe Z, attempt={Attempt}, detected={Detected}.",
+                                bolt.Id, retry + 1, vacuumDetected);
+                            if (vacuumDetected)
                                 break;
-                            }
-                            catch (IoTimeoutException) when (retry < retryCount && !token.IsCancellationRequested)
-                            {
-                                _log?.LogWarning(
-                                    "Pickup bolt {Bolt}, {HeatSink}: vacuum not detected at Safe Z; retry {Retry}/{RetryCount}.",
-                                    bolt.Id, bolt.HeatSink, retry + 1, retryCount);
-                            }
+                            if (retry >= retryCount)
+                                throw new InvalidOperationException(
+                                    $"Pickup bolt {bolt.Id}, {bolt.HeatSink}: vacuum not detected at Safe Z after {retry + 1} pickup attempts.");
+                            _log?.LogWarning(
+                                "Pickup bolt {Bolt}, {HeatSink}: vacuum not detected at Safe Z; retry {Retry}/{RetryCount}.",
+                                bolt.Id, bolt.HeatSink, retry + 1, retryCount);
                         }
                         token.ThrowIfCancellationRequested();
                         Station.RequireCurrentJob(job);

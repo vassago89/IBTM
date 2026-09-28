@@ -38,8 +38,6 @@ public sealed class BoltFeederUnit : AutoUnit
         {
             BeginRun();
             cancellationToken.ThrowIfCancellationRequested();
-            if (shootingEnabled)
-                _io.SetOutput(OutputIo.ShootingEscapeForward, false);
             while (!cancellationToken.IsCancellationRequested)
             {
                 var waitMilliseconds = double.PositiveInfinity;

@@ -948,8 +948,11 @@ public sealed class BoltFasteningTests
         var physicalEvents = new FeederWriteNotifyingIo(io);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var feederWrites = 0;
+        var shootingControlWrites = 0;
         physicalEvents.OutputChanged += (output, value) =>
         {
+            if (output is OutputIo.ShootingEscapeForward or OutputIo.ShootBolt)
+                Interlocked.Increment(ref shootingControlWrites);
             if (output == OutputIo.ShootingFeederOff && Interlocked.Increment(ref feederWrites) >= 50)
                 stop.Cancel(); // Bound a self-waking regression instead of hanging the test.
         };
@@ -1000,6 +1003,7 @@ public sealed class BoltFasteningTests
             stop.Cancel();
             await run;
         }
+        Assert.Equal(0, shootingControlWrites);
     }
 
     [Fact]
@@ -1106,6 +1110,11 @@ public sealed class BoltFasteningTests
             io,
             new BoltFeederSettings { ShootingTimeoutMilliseconds = 500, ShootingRunOnMilliseconds = 30 },
             new() { PickupBoltFeeder = false });
+        var settings = new BoltFasteningSettings();
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        using var bus = new VirtualAdcBus();
+        var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
+        var station = CreateFastening(head, head, io, motion, settings, new());
         var refillCount = 0;
         var runCount = 0;
         io.OutputChanged += (output, value) =>
@@ -1124,12 +1133,15 @@ public sealed class BoltFasteningTests
         };
 
         io.Initialize();
-        // Starting the independent feeder must also return an escape left forward.
+        // Only the bolt station returns an escape left forward; feeder start/stop must not move it.
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true);
         feeder.Stop();
         Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
+        Assert.True(io.GetOutput(OutputIo.ShootingEscapeForward));
         using var cancellation = new CancellationTokenSource();
         var run = feeder.RunAsync(cancellation.Token);
+        Assert.True(io.GetOutput(OutputIo.ShootingEscapeForward));
+        var stationRun = station.RunAsync(cancellation.Token);
         try
         {
             Assert.True(await WaitUntilAsync(
@@ -1157,7 +1169,7 @@ public sealed class BoltFasteningTests
         finally
         {
             cancellation.Cancel();
-            await run;
+            await Task.WhenAll(run, stationRun);
         }
         Assert.True(io.GetOutput(OutputIo.ShootingFeederOff));
     }
@@ -2102,7 +2114,7 @@ public sealed class BoltFasteningTests
         settings.PickupHead.FasteningZ = 16;
         var io = new VirtualIoService(
             Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()),
-            new() { TimeoutMilliseconds = 500 });
+            new() { TimeoutMilliseconds = 10_000 });
         io.Initialize();
         using var motion = new VirtualMotionService(settings.Motion, new());
         motion.Initialize();
@@ -2150,26 +2162,17 @@ public sealed class BoltFasteningTests
             }
             previousZ = z;
             if (!confirmedAfterLift && vacuumRequested && z < settings.PickupPosition.Z)
-                io.SetInput(InputIo.PickupHeadVacuumDetected, false);
+            {
+                confirmedAfterLift = z == settings.SafeZ && pickupAttempts == successfulAttempt;
+                io.SetInput(InputIo.PickupHeadVacuumDetected, confirmedAfterLift);
+            }
         };
         var run = station.RunAsync(stop.Token);
         try
         {
-            Assert.True(await WaitUntilAsync(
-                () => vacuumRequested && station.IsAtPickupXY && station.IsAtSafeZ,
-                TimeSpan.FromSeconds(2)));
-            await Task.Delay(40);
-            Assert.Equal((10, 10, settings.SafeZ), motion.Position);
-            Assert.Equal(0, bus.StartWrites);
-            Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
+            // Each missed pickup must retry immediately, without the 10-second I/O wait.
             if (successfulAttempt > 0)
             {
-                Assert.True(await WaitUntilAsync(
-                    () => pickupAttempts == successfulAttempt && station.IsAtPickupXY && station.IsAtSafeZ,
-                    TimeSpan.FromSeconds(3)));
-                Assert.Equal(0, bus.StartWrites);
-                confirmedAfterLift = true;
-                io.SetInput(InputIo.PickupHeadVacuumDetected, true);
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.Equal(successfulAttempt, pickupAttempts);
                 Assert.Equal(1, bus.StartWrites);
@@ -2184,8 +2187,9 @@ public sealed class BoltFasteningTests
             }
             else
             {
-                var error = await Assert.ThrowsAsync<IoTimeoutException>(() => run);
-                Assert.Contains("Vacuum", error.Message);
+                var error = await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => run.WaitAsync(TimeSpan.FromSeconds(2)));
+                Assert.Contains("vacuum", error.Message);
                 Assert.Equal(retryCount + 1, pickupAttempts);
                 Assert.Equal((10, 10, settings.SafeZ), motion.Position);
                 Assert.Equal(0, bus.StartWrites);
