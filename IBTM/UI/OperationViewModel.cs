@@ -58,7 +58,7 @@ public partial class OperationViewModel : ObservableObject
         DiagnosticWindows windows,
         ILogger<OperationViewModel> log)
     {
-        OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest, () => state.ManualMode);
+        OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest);
         StartCommand = new AsyncRelayCommand(StartAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(HomeAsync);

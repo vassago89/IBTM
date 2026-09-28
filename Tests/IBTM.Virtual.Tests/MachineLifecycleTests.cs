@@ -6422,7 +6422,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task InspectionMoveToUsesRecordedXyWithoutRequiringRoi(bool barcode)
+    public async Task InspectionMoveToUsesRecordedXyWithoutRequiringInspectionImageOrRoi(bool barcode)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -6474,11 +6474,29 @@ public sealed partial class MachineLifecycleTests
             await gantry.SetLiftUpAsync(true);
 
             recipe.CarrierImages.Remove(fov);
-            Assert.False(teaching.SelectedPoint.Position.HasPosition);
-            Assert.False(teaching.MoveToPointCommand.CanExecute(null));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => barcode
-                ? teaching.Inspection.MoveToBarcodeAsync(HeatSinkSlot.HeatSink1)
-                : teaching.Inspection.MoveToBoltAsync(bolt));
+            Assert.False(machine.TeachingReady);
+            Assert.False(teaching.GrabCommand.CanExecute(null));
+            if (barcode)
+            {
+                Assert.False(teaching.SelectedPoint.Position.HasPosition);
+                Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+                await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    teaching.Inspection.MoveToBarcodeAsync(HeatSinkSlot.HeatSink1));
+            }
+            else
+            {
+                Assert.True(teaching.SelectedPoint.Position.HasPosition);
+                Assert.Contains("No linked inspection image", teaching.SelectedPoint.PositionLabel);
+                Assert.True(teaching.MoveToPointCommand.CanExecute(null));
+                await gantry.MoveToAsync(new() { X = 1, Y = 2 });
+                await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+                await teaching.MoveToPointCommand.ExecuteAsync(null);
+                Assert.True(MotionService.IsAt(gantry.Motion.Feedback, bolt.InspectionPosition!));
+
+                bolt.X = null;
+                Assert.False(teaching.SelectedPoint.Position.HasPosition);
+                await Assert.ThrowsAsync<InvalidOperationException>(() => teaching.Inspection.MoveToBoltAsync(bolt));
+            }
         }
         finally
         {

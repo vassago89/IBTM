@@ -165,7 +165,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         }
         if (RunCommand.IsRunning && _station.ActiveBolt is { } active)
         {
-            var row = Bolts.FirstOrDefault(item => item.Bolt.Id == active.Id);
+            var row = Bolts.FirstOrDefault(item => item.Bolt == active);
             if (row is not null && row.Result is null)
                 row.Status = "Running";
         }
@@ -184,7 +184,9 @@ public partial class BoltStationTestViewModel : ObservableObject
             dispatcher.BeginInvoke(() => OnResultReceived(bolt, result));
             return;
         }
-        var row = Bolts.Single(item => item.Bolt.Id == bolt.Id);
+        var row = Bolts.FirstOrDefault(item => item.Bolt == bolt);
+        if (row is null)
+            return;
         row.Result = result;
         row.Status = result.Source == BoltResultSource.DryRun ? "Dry run" : result.Success ? "OK" : "NG";
     }

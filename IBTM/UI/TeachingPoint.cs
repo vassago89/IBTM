@@ -110,10 +110,10 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.NgShuttlePlace:
                     return _settings.NgCarrierTransfer.ShuttlePlacePosition;
                 case TeachingTarget.DataMatrix:
-                    return recipe.CarrierImages.SingleOrDefault(tile => tile.IsBarcode && tile.HeatSink == _pcb)?.Center;
+                    var images = recipe.CarrierImages.Where(tile => tile.IsBarcode && tile.HeatSink == _pcb).ToArray();
+                    return images.Length == 1 ? images[0].Center : null;
                 case TeachingTarget.BoltReference:
-                    return recipe.CarrierImages.Count(tile => !tile.IsBarcode && tile.HeatSink == _pcb
-                        && tile.BoltId == _definition.Bolt?.Id) == 1 ? _definition.Bolt?.InspectionPosition : null;
+                    return _definition.Bolt?.InspectionPosition;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(_definition.Target));
             }
@@ -255,12 +255,27 @@ public class TeachingPoint : ObservableObject
         {
             if (Coordinates is not { } position)
             {
+                if (_definition.Target == TeachingTarget.DataMatrix
+                    && _recipes.Current.CarrierImages.Count(tile => tile.IsBarcode && tile.HeatSink == _pcb) > 1)
+                    return "Multiple Data Matrix positions; movement target is ambiguous";
                 if (_definition.Target == TeachingTarget.BoltPosition)
                     return "Record fastening XY; initial conversion needs inspection XY and both sets of reference pins";
                 return "Not taught";
             }
             if (_definition.Target == TeachingTarget.BoltPosition)
                 return $"X {position.X:F3}  Y {position.Y:F3}  Z {position.Z:F3}";
+            if (_definition.Target == TeachingTarget.BoltReference)
+            {
+                var imageCount = _recipes.Current.CarrierImages.Count(tile => !tile.IsBarcode
+                    && tile.HeatSink == _pcb && tile.BoltId == _definition.Bolt!.Id);
+                var coordinates = $"X {position.X:F3}  Y {position.Y:F3}";
+                return imageCount switch
+                {
+                    0 => $"{coordinates} · No linked inspection image",
+                    1 => coordinates,
+                    _ => $"{coordinates} · Multiple linked inspection images",
+                };
+            }
             switch (_definition.Mode)
             {
                 case TeachMode.Image or TeachMode.XYOnly:

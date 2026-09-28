@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System;
@@ -29,6 +30,21 @@ public sealed class Recipe
     public BoltInspectionRecipe BoltInspection { get; set; }
     public double CarrierImageMillimetersPerPixel { get; set; } = DefaultCarrierImageMillimetersPerPixel;
     public List<CarrierImageTile> CarrierImages { get; set; }
+
+    public void ValidateBoltIds()
+    {
+        var ids = new HashSet<Guid>();
+        for (var index = 0; index < Pcb.BoltPoints.Count; index++)
+        {
+            var bolt = Pcb.BoltPoints[index];
+            if (bolt.Id == Guid.Empty)
+                throw new InvalidDataException(
+                    $"Recipe '{Name}': bolt entry {index + 1} ({bolt.HeatSink}) has no valid GUID. Its images and results cannot be linked.");
+            if (!ids.Add(bolt.Id))
+                throw new InvalidDataException(
+                    $"Recipe '{Name}': bolt entry {index + 1} ({bolt.HeatSink}) has duplicate GUID {bolt.Id}. Each bolt must have its own GUID.");
+        }
+    }
 
     public AxisPosition GetInspectionPosition(CarrierImageTile tile)
     {

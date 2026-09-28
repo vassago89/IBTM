@@ -224,7 +224,8 @@ public partial class RecipeEditor : ObservableObject
                     _log?.LogInformation("Teaching image {Recipe}/{Image}: DB read={ReadMs:F1} ms, decode={DecodeMs:F1} ms, pixels={Width}x{Height}.",
                         name, tile.Number, readMilliseconds, Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                         image.PixelWidth, image.PixelHeight);
-                    var bolt = tile.IsBarcode ? null : bolts.SingleOrDefault(point => point.Id == tile.BoltId);
+                    var bolt = tile.IsBarcode ? null : bolts.FirstOrDefault(point =>
+                        point.HeatSink == tile.HeatSink && point.Id == tile.BoltId);
                     var ordinal = bolt is null ? (int?)null : bolts.Where(point => point.HeatSink == bolt.HeatSink)
                         .TakeWhile(point => point.Id != bolt.Id).Count() + 1;
                     return new CarrierImageTileView(tile, image, bolt, ordinal);

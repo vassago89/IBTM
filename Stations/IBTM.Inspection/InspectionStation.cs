@@ -1006,10 +1006,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public bool HasPosition(BoltPoint point)
     {
-        return point.InspectionPosition is not null && _recipes.Current.CarrierImages.Count(fov =>
-            !fov.IsBarcode
-            && fov.BoltId == point.Id
-            && fov.HeatSink == point.HeatSink) == 1;
+        return point.InspectionPosition is not null;
     }
 
     public bool HasRegion(BoltPoint point)
@@ -1038,7 +1035,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public Task MoveToBoltAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
-        return MoveToAsync(_recipes.Current.GetInspectionPosition(GetFov(point)), cancellationToken: cancellationToken);
+        var position = point.InspectionPosition ?? throw new InvalidOperationException(
+            $"Record an inspection position for {point.HeatSink.GetDescription()} bolt {point.Id}.");
+        return MoveToAsync(position, cancellationToken: cancellationToken);
     }
 
     private async Task<ImageFrame> CaptureWithLightAsync(

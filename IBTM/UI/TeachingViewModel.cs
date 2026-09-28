@@ -1457,7 +1457,10 @@ public partial class TeachingViewModel : ObservableObject
             await CaptureTeachingImageAsync(recordPosition: false, cancellationToken);
     }
 
-    private bool IsGrabAllowed => IsRecordImagePositionAllowed && SelectedPoint?.Position.HasPosition == true;
+    private bool IsGrabAllowed => IsRecordImagePositionAllowed && SelectedPoint?.Position.HasPosition == true
+        && CarrierImages.Count(image => image.Metadata.HeatSink == SelectedPcb
+            && (IsDataMatrixSelected ? image.Metadata.IsBarcode
+                : !image.Metadata.IsBarcode && image.Metadata.BoltId == SelectedPoint.Position.Bolt?.Id)) == 1;
 
     public IAsyncRelayCommand ApplyLightCommand { get; }
 
@@ -1561,7 +1564,7 @@ public partial class TeachingViewModel : ObservableObject
                 && (barcode ? tile.Metadata.IsBarcode : !tile.Metadata.IsBarcode && tile.Metadata.BoltId == bolt!.Id));
             var previous = index >= 0 ? images[index].Metadata : null;
             if (!recordPosition && previous is null)
-                throw new InvalidOperationException("Record Position first, then use Grab to update its reference image.");
+                throw new InvalidOperationException("No image is linked to this point. Use Move to Position, then Record Position to save its image and coordinates together.");
             var metadata = new CarrierImageTile
             {
                 Number = previous?.Number ?? (images.Count == 0 ? 1 : images.Max(tile => tile.Metadata.Number) + 1),

@@ -46,6 +46,94 @@ public sealed class RecipeTests
     }
 
     [Fact]
+    public void AmbiguousDataMatrixTeachingDoesNotSelectAMotionTarget()
+    {
+        var recipe = new Recipe
+        {
+            CarrierImages = [
+                new() { Number = 1, IsBarcode = true, Center = new() { X = 10, Y = 20 } },
+                new() { Number = 2, IsBarcode = true, Center = new() { X = 30, Y = 40 } },
+            ],
+        };
+        var point = VirtualTest.CreateTeachingPoint(
+            new(TeachingTarget.DataMatrix, MotionGroup.InspectionGantry, TeachMode.Image), new(), recipe);
+
+        Assert.Null(point.Coordinates);
+        Assert.Contains("ambiguous", point.PositionLabel);
+        Assert.Throws<MotionInterlockException>(() => point.MovePosition);
+
+        recipe.CarrierImages.RemoveAt(1);
+        Assert.Equal((10d, 20d), (point.MovePosition.X, point.MovePosition.Y));
+    }
+
+    [Fact]
+    public void InspectionCoordinatesAndNamesSurviveSavingWithoutLinkedImages()
+    {
+        var first = new BoltPoint { X = 148.637, Y = 244.938 };
+        var second = new BoltPoint { X = 160, Y = 250 };
+        var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
+        var firstPoint = VirtualTest.CreateTeachingPoint(
+            new(TeachingTarget.BoltReference, MotionGroup.InspectionGantry, TeachMode.Image) { Bolt = first }, new(), recipe);
+        var secondPoint = VirtualTest.CreateTeachingPoint(
+            new(TeachingTarget.BoltReference, MotionGroup.InspectionGantry, TeachMode.Image) { Bolt = second }, new(), recipe);
+
+        Assert.Equal("Bolt 1 Inspection", firstPoint.Name);
+        Assert.Equal("Bolt 2 Inspection", secondPoint.Name);
+        Assert.True(firstPoint.Position.HasPosition);
+        Assert.Equal((148.637, 244.938), (firstPoint.MovePosition.X, firstPoint.MovePosition.Y));
+        Assert.DoesNotContain("Not taught", firstPoint.PositionLabel);
+        Assert.Contains("No linked inspection image", firstPoint.PositionLabel);
+
+        firstPoint.BoltName = "좌상단 고정";
+        var store = VirtualTest.OpenMachineStore();
+        store.SaveRecipe(recipe);
+        var saved = store.LoadRecipe(recipe.Name);
+        Assert.Equal("좌상단 고정", saved.Pcb.BoltPoints[0].Name);
+        Assert.Equal(first.Id, saved.Pcb.BoltPoints[0].Id);
+        Assert.Equal(second.Id, saved.Pcb.BoltPoints[1].Id);
+        Assert.Equal((first.X, first.Y), (saved.Pcb.BoltPoints[0].X, saved.Pcb.BoltPoints[0].Y));
+        Assert.Equal(2, saved.Pcb.GetBoltOrdinal(second.Id));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InvalidBoltIdsCannotReplaceActiveRecipeOrOverwriteSavedData(bool duplicate)
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var recipes = new RecipeManager(store, new());
+        var active = new Recipe { Name = "Active", Pcb = new() { BoltPoints = [new()] } };
+        store.SaveRecipe(active);
+        await recipes.LoadAsync(active.Name);
+        var before = JsonSerializer.Serialize(recipes.Current);
+        var id = Guid.NewGuid();
+        var identity = duplicate ? $"\"Id\":\"{id}\"," : "";
+        var json = $$"""
+            {"Name":"Invalid","Pcb":{"TaughtBolts":[
+                {{{identity}}"Number":1,"X":148.637,"Y":244.938},
+                {{{identity}}"Number":2,"X":160,"Y":250}
+            ]},"CarrierImages":[{"Number":1,"BoltNumber":1},{"Number":2,"BoltNumber":2}]}
+            """;
+        using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "INSERT INTO Recipes (Name, Value) VALUES ('Invalid', $value)";
+            command.Parameters.AddWithValue("$value", json);
+            command.ExecuteNonQuery();
+        }
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => recipes.LoadAsync("Invalid"));
+        Assert.Contains(duplicate ? "duplicate GUID" : "no valid GUID", error.Message);
+        Assert.Equal(before, JsonSerializer.Serialize(recipes.Current));
+        var invalid = JsonSerializer.Deserialize<Recipe>(json)!;
+        invalid.Name = active.Name;
+        Assert.Throws<InvalidDataException>(() => store.SaveRecipe(invalid));
+        Assert.Throws<InvalidDataException>(() => store.SaveInspectionSettings(invalid));
+        Assert.Equal(before, JsonSerializer.Serialize(store.LoadRecipe(active.Name)));
+    }
+
+    [Fact]
     public void FasteningOrderGroupsHeadsAndAppendsNewBoltsWithoutReorderingInspection()
     {
         var shooting1 = new BoltPoint();

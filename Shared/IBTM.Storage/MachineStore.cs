@@ -134,17 +134,21 @@ public sealed class MachineStore
     {
         using var db = new MachineDb(_options);
         var json = db.Recipes.Where(row => row.Name == name).Select(row => row.Value).Single();
-        return JsonSerializer.Deserialize<Recipe>(json) ?? throw new InvalidDataException(
+        var recipe = JsonSerializer.Deserialize<Recipe>(json) ?? throw new InvalidDataException(
             $"Recipe '{name}' is empty.");
+        recipe.ValidateBoltIds();
+        return recipe;
     }
 
     public void SaveInspectionSettings(Recipe edited, CancellationToken cancellationToken = default)
     {
+        edited.ValidateBoltIds();
         using var db = new MachineDb(_options);
         using var transaction = db.Database.BeginTransaction();
         var row = db.Recipes.Single(item => item.Name == edited.Name);
         var saved = JsonSerializer.Deserialize<Recipe>(row.Value)
             ?? throw new InvalidDataException($"Recipe '{edited.Name}' is empty.");
+        saved.ValidateBoltIds();
         saved.ApplyInspectionSettings(edited);
         row.Value = JsonSerializer.Serialize(saved);
         cancellationToken.ThrowIfCancellationRequested();
@@ -160,6 +164,7 @@ public sealed class MachineStore
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        recipe.ValidateBoltIds();
         var name = recipe.Name;
         var imageNumbers = recipe.CarrierImages.Select(tile => tile.Number).ToArray();
         using var db = new MachineDb(_options);

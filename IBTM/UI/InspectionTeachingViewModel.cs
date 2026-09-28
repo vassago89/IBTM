@@ -177,7 +177,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                     {
                         token.ThrowIfCancellationRequested();
                         return new CarrierImageTileView(tile, InspectionPreview.DecodeImage(_store.LoadRecipeImage(name, tile.Number)),
-                            tile.IsBarcode ? null : recipe.Pcb.BoltPoints.SingleOrDefault(
+                            tile.IsBarcode ? null : recipe.Pcb.BoltPoints.FirstOrDefault(
                                 bolt => bolt.HeatSink == tile.HeatSink && bolt.Id == tile.BoltId),
                             recipe.Pcb.GetBoltOrdinal(tile.BoltId ?? Guid.Empty));
                     }).ToArray();
@@ -377,8 +377,10 @@ public partial class InspectionTeachingViewModel : ObservableObject
         if (!IsUseHistoryImageAllowed)
             return;
         var saved = SelectedHistoryImage!;
-        var target = Points.Single(point => point.Metadata.HeatSink == LoadedRecord!.HeatSink
+        var target = Points.FirstOrDefault(point => point.Metadata.HeatSink == LoadedRecord!.HeatSink
             && (point.Metadata.IsBarcode ? saved.Record.BoltId is null : point.Metadata.BoltId == saved.Record.BoltId));
+        if (target is null)
+            return;
         if (target.Image.PixelWidth != saved.Image.PixelWidth || target.Image.PixelHeight != saved.Image.PixelHeight)
         {
             Error = "Saved result image dimensions differ from the recipe image. Select an image with the same resolution.";
