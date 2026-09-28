@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json.Serialization;
+using System.Windows.Data;
 
 namespace IBTM.Core;
 // Each heat sink owns its bolts with independent inspection and fastening coordinates.
@@ -10,12 +12,31 @@ public sealed class PcbLayout
     public PcbLayout()
     {
         BoltPoints = [];
+        BindingOperations.EnableCollectionSynchronization(BoltPoints, BoltPoints);
         FasteningOrder = [];
     }
 
     // Old shared PCB-local coordinates must not be read as independently taught bolts.
     [JsonPropertyName("TaughtBolts")]
-    public List<BoltPoint> BoltPoints { get; set; }
+    public ObservableCollection<BoltPoint> BoltPoints
+    {
+        get;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            if (field is null)
+            {
+                field = value;
+                return;
+            }
+            if (ReferenceEquals(field, value))
+                return;
+            // Keep the collection registered by this layout's constructor.
+            field.Clear();
+            foreach (var bolt in value)
+                field.Add(bolt);
+        }
+    }
 
     public List<Guid> FasteningOrder { get; set; }
 

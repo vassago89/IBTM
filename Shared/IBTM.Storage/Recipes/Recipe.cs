@@ -75,7 +75,8 @@ public sealed class Recipe
         Name = recipe.Name;
         PcbSupply = recipe.PcbSupply;
         PcbPlacement = recipe.PcbPlacement;
-        Pcb = recipe.Pcb;
+        Pcb.BoltPoints = recipe.Pcb.BoltPoints;
+        Pcb.FasteningOrder = recipe.Pcb.FasteningOrder;
         BoltInspection = recipe.BoltInspection;
         CarrierImageMillimetersPerPixel = recipe.CarrierImageMillimetersPerPixel;
         CarrierImages = recipe.CarrierImages;

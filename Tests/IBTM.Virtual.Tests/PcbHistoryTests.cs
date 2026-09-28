@@ -292,7 +292,7 @@ public sealed class PcbHistoryTests
         Assert.Equal(new long[] { 3, 2, 1 }, view.PcbRecords.Select(record => record.Number));
         Assert.Same(first, fastening.GetAssembly(HeatSinkSlot.HeatSink1));
         view.SelectedPcb = view.PcbRecords.Single(record => record.Number == first.PcbNumber);
-        recipe.Pcb.BoltPoints.Reverse();
+        recipe.Pcb.BoltPoints.Move(0, 1);
         first.RecordBolt(FasteningHead.Shooting, VirtualTest.BoltId(1), new(false, 0.5, Error: "NG torque"));
         first.RecordBolt(FasteningHead.Pickup, VirtualTest.BoltId(2), new(true, 1.1));
         first.CompleteFastening();

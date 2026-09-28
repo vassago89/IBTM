@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
+using System.Windows.Data;
 using System.Windows.Media.Imaging;
 using IBTM.BoltFastening;
 using IBTM.Core;
@@ -22,6 +23,28 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class RecipeTests
 {
+    [Fact]
+    public void PcbLayoutRegistersAndKeepsItsOwnBoltCollection()
+    {
+        var recipe = new Recipe();
+        var original = recipe.Pcb.BoltPoints;
+        BindingOperations.AccessCollection(original,
+            () => Assert.True(Monitor.IsEntered(original)), writeAccess: false);
+        var bolt = new BoltPoint { Name = "좌상단 고정" };
+        recipe.Pcb.BoltPoints = [bolt];
+        Assert.Same(original, recipe.Pcb.BoltPoints);
+        var loaded = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipe))!;
+        BindingOperations.AccessCollection(loaded.Pcb.BoltPoints,
+            () => Assert.True(Monitor.IsEntered(loaded.Pcb.BoltPoints)), writeAccess: false);
+        recipe.ReplaceWith(new Recipe());
+        Assert.Empty(original);
+        recipe.ReplaceWith(loaded);
+        Assert.Same(original, recipe.Pcb.BoltPoints);
+        Assert.Equal(bolt.Id, Assert.Single(original).Id);
+        BindingOperations.AccessCollection(original,
+            () => Assert.True(Monitor.IsEntered(original)), writeAccess: false);
+    }
+
     [Fact]
     public void FasteningOrderGroupsHeadsAndAppendsNewBoltsWithoutReorderingInspection()
     {
@@ -51,7 +74,7 @@ public sealed class RecipeTests
             new() { Number = 2, BoltId = second.Id, Region = new(5, 6, 7, 8) }];
         var draft = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipe))!;
         draft.Pcb.BoltPoints[0].BrightnessThreshold = 180;
-        recipe.Pcb.BoltPoints.Reverse();
+        recipe.Pcb.BoltPoints.Move(0, 1);
         recipe.ApplyInspectionSettings(draft);
         Assert.Equal(180, first.BrightnessThreshold);
         Assert.Equal(2, recipe.Pcb.GetBoltOrdinal(first.Id));

@@ -742,7 +742,7 @@ public partial class TeachingViewModel : ObservableObject
         if (SelectedPoint?.Position.Bolt is not { } selectedBolt)
             return;
         var boltId = selectedBolt.Id;
-        Recipes.Current.Pcb.BoltPoints.RemoveAll(bolt => bolt.Id == boltId && bolt.HeatSink == SelectedPcb);
+        Recipes.Current.Pcb.BoltPoints.Remove(selectedBolt);
         Recipes.Current.Pcb.FasteningOrder.RemoveAll(id => id == boltId);
         Recipes.Current.CarrierImages.RemoveAll(fov =>
             !fov.IsBarcode && fov.BoltId == boltId && fov.HeatSink == SelectedPcb);

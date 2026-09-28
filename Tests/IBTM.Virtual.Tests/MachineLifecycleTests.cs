@@ -136,7 +136,8 @@ public sealed partial class MachineLifecycleTests
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         PrepareCarrierTeaching(settings, recipe);
-        recipe.Pcb.BoltPoints.RemoveAll(bolt => bolt.HeatSink == HeatSinkSlot.HeatSink2);
+        foreach (var bolt in recipe.Pcb.BoltPoints.Where(bolt => bolt.HeatSink == HeatSinkSlot.HeatSink2).ToArray())
+            recipe.Pcb.BoltPoints.Remove(bolt);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
