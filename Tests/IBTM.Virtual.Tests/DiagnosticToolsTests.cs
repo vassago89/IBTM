@@ -62,12 +62,12 @@ public sealed class DiagnosticToolsTests
     {
         await using var services = CreateServices(new RecordingLight());
         var recipes = services.GetRequiredService<RecipeManager>();
-        var bolt = new BoltPoint { Number = 1, X = 10, Y = 20 };
+        var bolt = new BoltPoint { Id = VirtualTest.BoltId(1), X = 10, Y = 20 };
         recipes.Current.Pcb.BoltPoints.Add(bolt);
         var editor = services.GetRequiredService<RecipeEditor>();
         var image = InspectionPreview.CreateBitmap(new ImageFrame(2, 2, 6, new byte[12]));
         Assert.True(await editor.SaveCarrierImagesAsync([
-            new(new CarrierImageTile { Number = 1, BoltNumber = 1 }, image, bolt),
+            new(new CarrierImageTile { Number = 1, BoltId = VirtualTest.BoltId(1) }, image, bolt),
             new(new CarrierImageTile { Number = 2, IsBarcode = true }, image),
         ]));
         var teaching = services.GetRequiredService<TeachingViewModel>();

@@ -216,8 +216,10 @@ public partial class RecipeEditor : ObservableObject
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var image = InspectionPreview.DecodeImage(_database.LoadRecipeImage(name, tile.Number));
-                    return new CarrierImageTileView(tile, image, tile.IsBarcode ? null : bolts.SingleOrDefault(
-                        bolt => bolt.HeatSink == tile.HeatSink && bolt.Number == tile.BoltNumber));
+                    var bolt = tile.IsBarcode ? null : bolts.SingleOrDefault(point => point.Id == tile.BoltId);
+                    var ordinal = bolt is null ? (int?)null : bolts.Where(point => point.HeatSink == bolt.HeatSink)
+                        .TakeWhile(point => point.Id != bolt.Id).Count() + 1;
+                    return new CarrierImageTileView(tile, image, bolt, ordinal);
                 })
                 .ToArray(),
             cancellationToken);

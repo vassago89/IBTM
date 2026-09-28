@@ -101,7 +101,7 @@
                     <Canvas>
                         <TextBlock Canvas.Left="{x:Static ui:MachinePlan.PickupHeadLeft}" Canvas.Top="65"
                             Text="Pick" FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-                        <TextBlock Canvas.Left="45" Canvas.Top="65" Text="{Binding BoltFasteningActiveBolt.Number}">
+                        <TextBlock Canvas.Left="45" Canvas.Top="65" Text="{Binding BoltFasteningActiveOrdinal}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource ActiveToolNumberStyle}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -140,7 +140,7 @@
                     <Canvas>
                         <TextBlock Canvas.Left="{x:Static ui:MachinePlan.ShootingHeadLeft}" Canvas.Top="65" Text="Shoot"
                             FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-                        <TextBlock Canvas.Left="107" Canvas.Top="65" Text="{Binding BoltFasteningActiveBolt.Number}">
+                        <TextBlock Canvas.Left="107" Canvas.Top="65" Text="{Binding BoltFasteningActiveOrdinal}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource ActiveToolNumberStyle}">
                                     <Setter Property="Visibility" Value="Collapsed"/>

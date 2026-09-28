@@ -50,14 +50,19 @@ public partial class PcbDetailsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? ImageError { get; private set; }
 
+    public IReadOnlyList<KeyValuePair<int?, bool>> PresenceResults => Record is { } record
+        ? record.BoltPresenceResults.Select(pair => new KeyValuePair<int?, bool>(record.GetBoltOrdinal(pair.Key), pair.Value))
+            .OrderBy(pair => pair.Key).ToArray() : [];
+
     partial void OnRecordChanged(PcbRecord? oldValue, PcbRecord? newValue)
     {
+        OnPropertyChanged(nameof(PresenceResults));
         var selected = SelectedBolt;
         BoltResults = newValue is null ? [] : newValue.PcbBoltResults
-            .Select(pair => new PcbBoltResultView(pair.Key, FasteningHead.Shooting, pair.Value))
-            .Concat(newValue.PickupBoltResults.Select(pair => new PcbBoltResultView(pair.Key, FasteningHead.Pickup, pair.Value)))
+            .Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Shooting, pair.Value))
+            .Concat(newValue.PickupBoltResults.Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Pickup, pair.Value)))
             .OrderBy(row => row.Number).ThenBy(row => row.Head).ToArray();
-        SelectedBolt = BoltResults.FirstOrDefault(row => row.Number == selected?.Number && row.Head == selected.Head)
+        SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
             ?? BoltResults.FirstOrDefault();
         if (oldValue?.Number != newValue?.Number || oldValue?.DatabaseFile != newValue?.DatabaseFile)
         {
@@ -70,7 +75,7 @@ public partial class PcbDetailsViewModel : ObservableObject
     partial void OnSelectedBoltChanged(PcbBoltResultView? value)
     {
         if (value is not null)
-            SelectedImage = Images.FirstOrDefault(image => image.Record.BoltNumber == value.Number);
+            SelectedImage = Images.FirstOrDefault(image => image.Record.BoltId == value.BoltId);
     }
 
     public void RefreshImages()
@@ -95,18 +100,18 @@ public partial class PcbDetailsViewModel : ObservableObject
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var bitmap = InspectionPreview.DecodeImage(image.Png);
-                    return new PcbInspectionImageView(image, bitmap);
+                    return new PcbInspectionImageView(image, bitmap, image.BoltId is { } id ? record.GetBoltOrdinal(id) : null);
                 }).ToArray();
             }, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (request != _imageRequest)
                 return;
             var hasSelection = SelectedImage is not null || SelectedBolt is not null;
-            var selectedNumber = SelectedImage is { } selected
-                ? selected.Record.BoltNumber : SelectedBolt?.Number;
+            var selectedBoltId = SelectedImage is { } selected
+                ? selected.Record.BoltId : SelectedBolt?.BoltId;
             Images = images;
             SelectedImage = hasSelection
-                ? images.FirstOrDefault(image => image.Record.BoltNumber == selectedNumber)
+                ? images.FirstOrDefault(image => image.Record.BoltId == selectedBoltId)
                 : images.FirstOrDefault();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -122,7 +127,7 @@ public partial class PcbDetailsViewModel : ObservableObject
     }
 }
 
-public sealed record PcbBoltResultView(int Number, FasteningHead Head, BoltResult Result)
+public sealed record PcbBoltResultView(Guid BoltId, int? Number, FasteningHead Head, BoltResult Result)
 {
     public string HeadLabel => Head == FasteningHead.Pickup ? "H1 · Pickup" : "H2 · Shooting";
     public string Title => $"Bolt {Number} · {HeadLabel}";
@@ -138,12 +143,12 @@ public sealed record PcbBoltResultView(int Number, FasteningHead Head, BoltResul
         ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}")) : "Not recorded";
 }
 
-public sealed record PcbInspectionImageView(PcbInspectionImage Record, BitmapSource Image)
+public sealed record PcbInspectionImageView(PcbInspectionImage Record, BitmapSource Image, int? Ordinal = null)
 {
-    public string Title => Record.BoltNumber is { } number ? $"Bolt {number}" : "Data Matrix";
+    public string Title => Record.BoltId.HasValue ? $"Bolt {Ordinal}" : "Data Matrix";
     public string Verdict => Record.Success ? "OK" : "NG";
     public Rect Region => new(Record.Region.X, Record.Region.Y, Record.Region.Width, Record.Region.Height);
-    public string Details => Record.BoltNumber.HasValue
+    public string Details => Record.BoltId.HasValue
         ? $"Bright {Record.BrightRatio:P2} · Required ≥ {Record.MinimumBrightRatio:P2}"
         : Record.Barcode ?? "Data Matrix not read";
     public string Resolution => $"{Image.PixelWidth} × {Image.PixelHeight} px";

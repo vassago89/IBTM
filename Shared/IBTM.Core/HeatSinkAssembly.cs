@@ -19,9 +19,9 @@ public enum AssemblyResult
 
 public sealed class HeatSinkAssembly
 {
-    private readonly ConcurrentDictionary<int, BoltResult> _pcbBoltResults;
-    private readonly ConcurrentDictionary<int, BoltResult> _pickupBoltResults;
-    private readonly ConcurrentDictionary<int, bool> _boltPresenceResults;
+    private readonly ConcurrentDictionary<Guid, BoltResult> _pcbBoltResults;
+    private readonly ConcurrentDictionary<Guid, BoltResult> _pickupBoltResults;
+    private readonly ConcurrentDictionary<Guid, bool> _boltPresenceResults;
 
     public HeatSinkAssembly(HeatSinkSlot heatSink)
     {
@@ -38,11 +38,11 @@ public sealed class HeatSinkAssembly
     public event Action<HeatSinkAssembly>? ResultsChanged;
     public event Action<InspectionCapture>? InspectionCaptured;
 
-    public IReadOnlyDictionary<int, BoltResult> PcbBoltResults => _pcbBoltResults;
+    public IReadOnlyDictionary<Guid, BoltResult> PcbBoltResults => _pcbBoltResults;
 
-    public IReadOnlyDictionary<int, BoltResult> PickupBoltResults => _pickupBoltResults;
+    public IReadOnlyDictionary<Guid, BoltResult> PickupBoltResults => _pickupBoltResults;
 
-    public IReadOnlyDictionary<int, bool> BoltPresenceResults => _boltPresenceResults;
+    public IReadOnlyDictionary<Guid, bool> BoltPresenceResults => _boltPresenceResults;
 
     public AssemblyResult FasteningResult { get; private set; }
     public AssemblyResult InspectionResult { get; private set; }
@@ -63,7 +63,7 @@ public sealed class HeatSinkAssembly
 
     public AssemblyResult Result => FasteningResult == AssemblyResult.Ng ? AssemblyResult.Ng : InspectionResult;
 
-    public void RecordBolt(FasteningHead head, int number, BoltResult result)
+    public void RecordBolt(FasteningHead head, Guid boltId, BoltResult result)
     {
         var results = head switch
         {
@@ -71,7 +71,7 @@ public sealed class HeatSinkAssembly
             FasteningHead.Pickup => _pickupBoltResults,
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
-        results[number] = result;
+        results[boltId] = result;
         if (!result.Success)
         {
             FasteningResult = AssemblyResult.Ng;
@@ -88,9 +88,9 @@ public sealed class HeatSinkAssembly
         ResultsChanged?.Invoke(this);
     }
 
-    public void RecordBoltPresence(int number, bool present)
+    public void RecordBoltPresence(Guid boltId, bool present)
     {
-        _boltPresenceResults[number] = present;
+        _boltPresenceResults[boltId] = present;
         if (!present)
         {
             InspectionResult = AssemblyResult.Ng;

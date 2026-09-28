@@ -133,6 +133,7 @@ public partial class TeachingViewModel : ObservableObject
         MoveModes = Enum.GetValues<TeachingMoveMode>();
         _recipeImageCancellation = new();
         FilteredPoints = [];
+        FasteningPoints = [];
         TeachingUnits = [
             HardwareArea.PcbSupply,
             HardwareArea.PcbPlacementHandler,
@@ -160,6 +161,8 @@ public partial class TeachingViewModel : ObservableObject
         ApplyLightCommand = new AsyncRelayCommand(ApplyLightAsync, () => IsApplyLightAllowed);
         AddBoltPointCommand = new RelayCommand(AddBoltPoint, () => IsAddBoltPointAllowed);
         RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint, () => IsRemoveBoltPointAllowed);
+        MoveFasteningEarlierCommand = new RelayCommand(MoveFasteningEarlier, () => IsFasteningMoveAllowed(-1));
+        MoveFasteningLaterCommand = new RelayCommand(MoveFasteningLater, () => IsFasteningMoveAllowed(1));
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsSaveAllowed);
         ReturnFromPickupCommand = new AsyncRelayCommand(ReturnFromPickupAsync, () => IsReturnFromPickupAllowed);
 
@@ -469,6 +472,14 @@ public partial class TeachingViewModel : ObservableObject
     public partial IReadOnlyList<TeachingPoint> FilteredPoints { get; set; }
 
     [ObservableProperty]
+    public partial IReadOnlyList<TeachingPoint> FasteningPoints { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MoveFasteningEarlierCommand))]
+    [NotifyCanExecuteChangedFor(nameof(MoveFasteningLaterCommand))]
+    public partial TeachingPoint? SelectedFasteningPoint { get; set; }
+
+    [ObservableProperty]
     public partial TeachingPoint? SelectedPoint { get; set; }
 
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
@@ -606,10 +617,61 @@ public partial class TeachingViewModel : ObservableObject
             .ToArray();
         SelectedPoint = FilteredPoints.FirstOrDefault(
             point => selectedBolt is not null
-                ? point.Position.Bolt?.Number == selectedBolt.Number
+                ? point.Position.Bolt?.Id == selectedBolt.Id
                 : point.Position.Target == selectedTarget)
             ?? NextTeachingPoint
                 ?? FilteredPoints.FirstOrDefault();
+        RefreshFasteningPoints();
+    }
+
+    private void RefreshFasteningPoints()
+    {
+        var selectedId = SelectedFasteningPoint?.Position.Bolt?.Id;
+        FasteningPoints = Recipes.Current.Pcb.FasteningPoints
+            .Where(bolt => bolt.HeatSink == SelectedPcb)
+            .Select(bolt => new TeachingPoint(
+                new(TeachingTarget.BoltPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = bolt },
+                _settings, Recipes, bolt.HeatSink)).ToArray();
+        SelectedFasteningPoint = FasteningPoints.FirstOrDefault(point => point.Position.Bolt?.Id == selectedId)
+            ?? FasteningPoints.FirstOrDefault();
+    }
+
+    public IRelayCommand MoveFasteningEarlierCommand { get; }
+
+    private void MoveFasteningEarlier()
+    {
+        MoveFasteningPoint(-1);
+    }
+
+    public IRelayCommand MoveFasteningLaterCommand { get; }
+
+    private void MoveFasteningLater()
+    {
+        MoveFasteningPoint(1);
+    }
+
+    private bool IsFasteningMoveAllowed(int offset)
+    {
+        if (SelectedFasteningPoint?.Position.Bolt is not { } selected)
+            return false;
+        var bolts = Recipes.Current.Pcb.FasteningPoints.ToList();
+        var index = bolts.FindIndex(bolt => bolt.Id == selected.Id);
+        var target = index + offset;
+        return index >= 0 && target >= 0 && target < bolts.Count
+            && bolts[target].Head == selected.Head
+            && bolts[target].HeatSink == selected.HeatSink;
+    }
+
+    private void MoveFasteningPoint(int offset)
+    {
+        if (!IsFasteningMoveAllowed(offset))
+            return;
+        var pcb = Recipes.Current.Pcb;
+        var bolts = pcb.FasteningPoints.ToList();
+        var index = bolts.FindIndex(bolt => bolt.Id == SelectedFasteningPoint!.Position.Bolt!.Id);
+        (bolts[index], bolts[index + offset]) = (bolts[index + offset], bolts[index]);
+        pcb.FasteningOrder = bolts.Select(bolt => bolt.Id).ToList();
+        RefreshFasteningPoints();
     }
 
     private void RefreshPointPositions()
@@ -635,10 +697,8 @@ public partial class TeachingViewModel : ObservableObject
 
     private void AddBoltPoint()
     {
-        var number = Recipes.Current.Pcb.GetBolts(SelectedPcb).Select(bolt => bolt.Number).DefaultIfEmpty().Max() + 1;
         var bolt = new BoltPoint
         {
-            Number = number,
             HeatSink = SelectedPcb,
             Head = NewFasteningHead,
             BrightnessThreshold = Recipes.Current.BoltInspection.BrightnessThreshold,
@@ -659,12 +719,15 @@ public partial class TeachingViewModel : ObservableObject
     {
         if (SelectedPoint?.Position.Bolt is not { } selectedBolt)
             return;
-        var number = selectedBolt.Number;
-        Recipes.Current.Pcb.BoltPoints.RemoveAll(bolt => bolt.Number == number && bolt.HeatSink == SelectedPcb);
+        var boltId = selectedBolt.Id;
+        Recipes.Current.Pcb.BoltPoints.RemoveAll(bolt => bolt.Id == boltId && bolt.HeatSink == SelectedPcb);
+        Recipes.Current.Pcb.FasteningOrder.RemoveAll(id => id == boltId);
         Recipes.Current.CarrierImages.RemoveAll(fov =>
-            !fov.IsBarcode && fov.BoltNumber == number && fov.HeatSink == SelectedPcb);
+            !fov.IsBarcode && fov.BoltId == boltId && fov.HeatSink == SelectedPcb);
         CarrierImages = CarrierImages.Where(image =>
-            image.Metadata.IsBarcode || image.Metadata.BoltNumber != number || image.Metadata.HeatSink != SelectedPcb).ToArray();
+            image.Metadata.IsBarcode || image.Metadata.BoltId != boltId || image.Metadata.HeatSink != SelectedPcb)
+            .Select(image => image with { Ordinal = image.Bolt is { } bolt ? Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null })
+            .ToArray();
         RefreshTeachingPoints();
     }
 
@@ -1362,7 +1425,7 @@ public partial class TeachingViewModel : ObservableObject
         tile.Metadata.HeatSink == SelectedPcb
         && (IsDataMatrixSelected ? tile.Metadata.IsBarcode
             : IsBoltSelected && !tile.Metadata.IsBarcode
-                && tile.Metadata.BoltNumber == SelectedPoint!.Position.Bolt!.Number))?.Image;
+                && tile.Metadata.BoltId == SelectedPoint!.Position.Bolt!.Id))?.Image;
 
     public IAsyncRelayCommand GrabCommand { get; }
 
@@ -1473,7 +1536,7 @@ public partial class TeachingViewModel : ObservableObject
             operation.Token.ThrowIfCancellationRequested();
             var images = CarrierImages.ToList();
             var index = images.FindIndex(tile => tile.Metadata.HeatSink == pcb
-                && (barcode ? tile.Metadata.IsBarcode : !tile.Metadata.IsBarcode && tile.Metadata.BoltNumber == bolt!.Number));
+                && (barcode ? tile.Metadata.IsBarcode : !tile.Metadata.IsBarcode && tile.Metadata.BoltId == bolt!.Id));
             var previous = index >= 0 ? images[index].Metadata : null;
             if (!recordPosition && previous is null)
                 throw new InvalidOperationException("Record Position first, then use Grab to update its reference image.");
@@ -1482,12 +1545,12 @@ public partial class TeachingViewModel : ObservableObject
                 Number = previous?.Number ?? (images.Count == 0 ? 1 : images.Max(tile => tile.Metadata.Number) + 1),
                 Center = barcode ? (recordPosition ? captured.Center : previous!.Center) : null,
                 HeatSink = pcb,
-                BoltNumber = bolt?.Number,
+                BoltId = bolt?.Id,
                 IsBarcode = barcode,
                 Region = previous?.Region ?? PixelRegion.CenteredSquare(
                     image.PixelWidth, image.PixelHeight, Math.Min(image.PixelWidth, image.PixelHeight) / 4),
             };
-            var replacement = new CarrierImageTileView(metadata, image, bolt);
+            var replacement = new CarrierImageTileView(metadata, image, bolt, bolt is null ? null : Recipes.Current.Pcb.GetBoltOrdinal(bolt.Id));
             if (index >= 0)
                 images[index] = replacement;
             else

@@ -149,7 +149,7 @@ public sealed class RecipeManager
             {
                 // Gantry capture owns images/positions; inspection teaching owns existing ROIs.
                 var current = snapshot.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
-                    && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltNumber == tile.BoltNumber);
+                    && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
                 if (current is not null)
                     tile.Region = current.Region;
             }

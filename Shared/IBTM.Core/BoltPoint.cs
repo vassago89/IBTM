@@ -26,7 +26,7 @@ public sealed class BoltPoint
         Id = id;
     }
 
-    public Guid Id { get; set; }
+    public Guid Id { get; init; }
 
     public int? LightLevel
     {
@@ -38,7 +38,6 @@ public sealed class BoltPoint
             field = value;
         }
     }
-    public int Number { get; set; }
     public HeatSinkSlot HeatSink { get; set; }
     public FasteningHead Head { get; set; } = FasteningHead.Shooting;
     // Actual Inspection Gantry XY captured by Record Position, in millimetres.

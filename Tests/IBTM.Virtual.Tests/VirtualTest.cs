@@ -20,6 +20,11 @@ namespace IBTM.Virtual.Tests;
 
 internal static class VirtualTest
 {
+    public static Guid BoltId(int number, HeatSinkSlot pcb = HeatSinkSlot.HeatSink1)
+    {
+        return new Guid(number, (short)pcb, 0, 0x49, 0x42, 0x54, 0x4d, 0x54, 0x45, 0x53, 0x54);
+    }
+
     public static IBTM.UI.TeachingPoint CreateTeachingPoint(
         TeachingPosition definition, MachineSettings settings, Recipe? recipe = null)
     {
@@ -33,7 +38,7 @@ internal static class VirtualTest
         return teaching.CarrierImages.SingleOrDefault(image => image.Metadata.HeatSink == teaching.SelectedPcb
             && (teaching.SelectedBarcode is not null ? image.Metadata.IsBarcode
                 : !image.Metadata.IsBarcode
-                    && image.Metadata.BoltNumber == teaching.SelectedPoint?.Position.Bolt?.Number));
+                    && image.Metadata.BoltId == teaching.SelectedPoint?.Position.Bolt?.Id));
     }
 
     public static AdcBoltHead CreateAdcHead(

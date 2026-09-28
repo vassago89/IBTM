@@ -222,6 +222,12 @@ public partial class OperationViewModel : ObservableObject
 
     public string? InspectionPcb2Barcode => InspectionBarcode(HeatSinkSlot.HeatSink2);
 
+    public int? BoltFasteningActiveOrdinal => BoltFasteningActiveBolt is { } bolt
+        ? _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
+
+    public int? InspectionActiveOrdinal => InspectionActiveBolt is { } bolt
+        ? _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
+
     public IReadOnlyList<BoltTargetView> BoltTargets
     {
         get
@@ -243,9 +249,9 @@ public partial class OperationViewModel : ObservableObject
                 var state = BoltTargetState.Pending;
                 if (bolt == active)
                     state = BoltTargetState.Active;
-                else if (results is not null && results.TryGetValue(bolt.Number, out var result))
+                else if (results is not null && results.TryGetValue(bolt.Id, out var result))
                     state = result.Success ? BoltTargetState.Ok : BoltTargetState.Ng;
-                targets.Add(new(bolt.Number, bolt.Head, position.X, position.Y, state));
+                targets.Add(new(_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
             }
             return targets;
         }
@@ -271,9 +277,9 @@ public partial class OperationViewModel : ObservableObject
                 var state = BoltTargetState.Pending;
                 if (bolt == active)
                     state = BoltTargetState.Active;
-                else if (assembly is not null && assembly.BoltPresenceResults.TryGetValue(bolt.Number, out var present))
+                else if (assembly is not null && assembly.BoltPresenceResults.TryGetValue(bolt.Id, out var present))
                     state = present ? BoltTargetState.Ok : BoltTargetState.Ng;
-                targets.Add(new(bolt.Number, bolt.Head, position.X, position.Y, state));
+                targets.Add(new(_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
             }
             return targets;
         }
@@ -597,6 +603,7 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(FasteningPositionKnown));
         OnPropertyChanged(nameof(Fastening));
         OnPropertyChanged(nameof(BoltFasteningActiveBolt));
+        OnPropertyChanged(nameof(BoltFasteningActiveOrdinal));
         OnPropertyChanged(nameof(BoltTargets));
         OnPropertyChanged(nameof(FasteningStateVisible));
         OnPropertyChanged(nameof(BoltFasteningHeatSink1Result));
@@ -604,10 +611,10 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(BoltDisplayState));
     }
 
-    private void OnInspectionCaptured(ImageFrame frame, HeatSinkSlot pcb, int? boltNumber)
+    private void OnInspectionCaptured(ImageFrame frame, HeatSinkSlot pcb, Guid? boltId)
     {
-        InspectionImageCaption = boltNumber is { } number
-            ? $"{pcb.GetDescription()} · Bolt {number}"
+        InspectionImageCaption = boltId is { } id
+            ? $"{pcb.GetDescription()} · Bolt {_recipes.Current.Pcb.GetBoltOrdinal(id)}"
             : $"{pcb.GetDescription()} · Data Matrix";
         InspectionImage = InspectionPreview.CreateBitmap(frame);
     }
@@ -622,6 +629,7 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(InspectionState));
         OnPropertyChanged(nameof(InspectionPositionKnown));
         OnPropertyChanged(nameof(InspectionActiveBolt));
+        OnPropertyChanged(nameof(InspectionActiveOrdinal));
         OnPropertyChanged(nameof(InspectionActivePcb));
         OnPropertyChanged(nameof(InspectionActiveBarcode));
         OnPropertyChanged(nameof(InspectionPcb1Barcode));

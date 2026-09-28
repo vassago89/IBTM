@@ -173,12 +173,13 @@ public partial class InspectionTeachingViewModel : ObservableObject
             {
                 var recipe = activeRecipe ?? _store.LoadRecipe(name);
                 var images = recipe.CarrierImages.OrderBy(tile => tile.HeatSink).ThenBy(tile => !tile.IsBarcode)
-                    .ThenBy(tile => tile.BoltNumber).Select(tile =>
+                    .ThenBy(tile => recipe.Pcb.GetBoltOrdinal(tile.BoltId ?? Guid.Empty)).Select(tile =>
                     {
                         token.ThrowIfCancellationRequested();
                         return new CarrierImageTileView(tile, InspectionPreview.DecodeImage(_store.LoadRecipeImage(name, tile.Number)),
                             tile.IsBarcode ? null : recipe.Pcb.BoltPoints.SingleOrDefault(
-                                bolt => bolt.HeatSink == tile.HeatSink && bolt.Number == tile.BoltNumber));
+                                bolt => bolt.HeatSink == tile.HeatSink && bolt.Id == tile.BoltId),
+                            recipe.Pcb.GetBoltOrdinal(tile.BoltId ?? Guid.Empty));
                     }).ToArray();
                 return (Recipe: recipe, Images: images);
             }, token);
@@ -193,7 +194,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             OnPropertyChanged(nameof(Draft));
             SelectedPoint = (preserveEdits && selected is not null
                 ? Points.FirstOrDefault(point => point.Metadata.HeatSink == selected.HeatSink
-                    && point.Metadata.IsBarcode == selected.IsBarcode && point.Metadata.BoltNumber == selected.BoltNumber)
+                    && point.Metadata.IsBarcode == selected.IsBarcode && point.Metadata.BoltId == selected.BoltId)
                 : null) ?? Points.FirstOrDefault();
             Message = Points.Count == 0 ? "No recorded inspection positions. Record positions in Teaching first."
                 : preserveEdits ? "Latest recipe images loaded. ROI and inspection edits are preserved."
@@ -238,7 +239,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata.Number);
         }
         ImageSource = $"Recipe · {Draft.Name} · {point.Metadata.HeatSink.GetDescription()} · "
-            + (point.Metadata.IsBarcode ? "Data Matrix" : $"Bolt {point.Metadata.BoltNumber}");
+            + (point.Metadata.IsBarcode ? "Data Matrix" : $"Bolt {point.Ordinal}");
     }
 
     private bool IsDrawRegionAllowed => !IsBusy && !IsMeasuring && SelectedPoint is not null && Preview.HasImage;
@@ -348,7 +349,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
         try
         {
             var images = await Task.Run(() => _store.LoadPcbImages(record)
-                .Select(image => new PcbInspectionImageView(image, InspectionPreview.DecodeImage(image.Png))).ToArray(), token);
+                .Select(image => new PcbInspectionImageView(image, InspectionPreview.DecodeImage(image.Png),
+                    image.BoltId is { } id ? record.GetBoltOrdinal(id) : null)).ToArray(), token);
             token.ThrowIfCancellationRequested();
             LoadedRecord = record;
             HistoryImages = images;
@@ -367,8 +369,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
         && MachineStore.IsSameRecipeName(LoadedRecord.RecipeName, Draft.Name)
         && SelectedHistoryImage is not null
         && Points.Any(point => point.Metadata.HeatSink == LoadedRecord.HeatSink
-            && (point.Metadata.IsBarcode ? SelectedHistoryImage.Record.BoltNumber is null
-                : point.Metadata.BoltNumber == SelectedHistoryImage.Record.BoltNumber));
+            && (point.Metadata.IsBarcode ? SelectedHistoryImage.Record.BoltId is null
+                : point.Metadata.BoltId == SelectedHistoryImage.Record.BoltId));
 
     private void UseHistoryImage()
     {
@@ -376,7 +378,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             return;
         var saved = SelectedHistoryImage!;
         var target = Points.Single(point => point.Metadata.HeatSink == LoadedRecord!.HeatSink
-            && (point.Metadata.IsBarcode ? saved.Record.BoltNumber is null : point.Metadata.BoltNumber == saved.Record.BoltNumber));
+            && (point.Metadata.IsBarcode ? saved.Record.BoltId is null : point.Metadata.BoltId == saved.Record.BoltId));
         if (target.Image.PixelWidth != saved.Image.PixelWidth || target.Image.PixelHeight != saved.Image.PixelHeight)
         {
             Error = "Saved result image dimensions differ from the recipe image. Select an image with the same resolution.";

@@ -443,7 +443,7 @@ public sealed class NgHandoffTests
             Assert.False(run.IsCompleted);
             Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
             var assembly = system.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-            assembly.RecordBoltPresence(1, false);
+            assembly.RecordBoltPresence(VirtualTest.BoltId(1), false);
             assembly.CompleteInspection();
             system.Inspection.Station.Complete(system.Inspection.Station.CurrentJob);
             // No transfer or carrier sensor changes: releasing the button alone must wake the loop.

@@ -154,7 +154,7 @@
                     <StackPanel Grid.Row="4" Margin="0,8,0,0">
                         <TextBlock Text="Loading images…" Foreground="{StaticResource TextMutedBrush}" Visibility="{Binding LoadImagesCommand.IsRunning, Converter={StaticResource BoolToVis}}"/>
                         <TextBlock Text="{Binding ImageError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
-                        <ItemsControl ItemsSource="{Binding Record.BoltPresenceResults}">
+                        <ItemsControl ItemsSource="{Binding PresenceResults}">
                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate><DataTemplate>
                                 <StackPanel Orientation="Horizontal" Margin="0,3,12,0"><TextBlock Text="{Binding Key, StringFormat='Bolt {0}: '}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>

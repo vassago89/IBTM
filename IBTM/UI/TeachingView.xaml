@@ -21,6 +21,11 @@
                 <PropertyGroupDescription PropertyName="Group"/>
             </CollectionViewSource.GroupDescriptions>
         </CollectionViewSource>
+        <CollectionViewSource x:Key="FasteningPoints" Source="{Binding FasteningPoints}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Position.Bolt.Head"/>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
     </UserControl.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -235,6 +240,55 @@
                     </ScrollViewer>
                 </Grid>
             </Border>
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="12"
+                Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Margin="0,0,0,10">
+                        <TextBlock Text="Fastening order" Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="Shooting → Pickup" Margin="0,6,0,0"
+                            Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="Runs from top to bottom. Move a bolt within its head group."
+                            Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ListBox Grid.Row="1" ItemsSource="{Binding Source={StaticResource FasteningPoints}}"
+                        SelectedItem="{Binding SelectedFasteningPoint}"
+                        Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}"
+                        BorderThickness="1" ItemContainerStyle="{StaticResource FlatListItemStyle}">
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate DataType="{x:Type data:CollectionViewGroup}">
+                                        <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
+                                            FontWeight="SemiBold" Margin="8,12,4,6" TextWrapping="Wrap"
+                                            Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type ui:TeachingPoint}">
+                                <TextBlock Text="{Binding BoltLabel}" Margin="6,8" FontWeight="SemiBold"
+                                    TextWrapping="Wrap"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                        <UniformGrid Columns="2">
+                            <Button Content="↑ Move up" Command="{Binding MoveFasteningEarlierCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,3,0"/>
+                            <Button Content="↓ Move down" Command="{Binding MoveFasteningLaterCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}" Margin="3,0,0,0"/>
+                        </UniformGrid>
+                        <TextBlock Text="Save to keep this order in the recipe. Inspection order and point coordinates stay unchanged."
+                            Margin="0,8,0,0" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
             <Border Padding="12">
                 <Border.Style>
                     <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
@@ -242,6 +296,10 @@
                         <Setter Property="Grid.ColumnSpan" Value="3"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsInspectionSelected}" Value="True">
+                                <Setter Property="Grid.Column" Value="4"/>
+                                <Setter Property="Grid.ColumnSpan" Value="1"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsFasteningSelected}" Value="True">
                                 <Setter Property="Grid.Column" Value="4"/>
                                 <Setter Property="Grid.ColumnSpan" Value="1"/>
                             </DataTrigger>

@@ -75,10 +75,10 @@ internal static class DevelopmentProfile
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
         recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 10 };
         recipe.Pcb.BoltPoints = [
-            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Shooting, X = 7, Y = 7 },
-            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Pickup, X = 7, Y = 19 },
-            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 25, Y = 7 },
-            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 25, Y = 19 },
+            new() { HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Shooting, X = 7, Y = 7 },
+            new() { HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Pickup, X = 7, Y = 19 },
+            new() { HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 25, Y = 7 },
+            new() { HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 25, Y = 19 },
         ];
         settings.RecipeSelection.LastRecipeName = recipe.Name;
         await Task.Run(() => database.SaveRecipe(recipe, selection: settings.RecipeSelection));

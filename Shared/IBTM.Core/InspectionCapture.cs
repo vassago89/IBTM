@@ -3,7 +3,7 @@ using System;
 namespace IBTM.Core;
 
 public sealed record InspectionCapture(
-    int? BoltNumber,
+    Guid? BoltId,
     DateTimeOffset CapturedAt,
     ImageFrame Frame,
     PixelRegion Region,

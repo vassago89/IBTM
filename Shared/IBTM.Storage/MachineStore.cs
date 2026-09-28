@@ -296,7 +296,7 @@ public sealed class MachineStore
         using var command = connection.CreateCommand();
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS PcbImages (
-                PcbNumber INTEGER NOT NULL, Target INTEGER NOT NULL,
+                PcbNumber INTEGER NOT NULL, Target TEXT NOT NULL,
                 Metadata TEXT NOT NULL, Png BLOB NOT NULL,
                 PRIMARY KEY (PcbNumber, Target))
             """;
@@ -306,7 +306,7 @@ public sealed class MachineStore
             ON CONFLICT(PcbNumber, Target) DO UPDATE SET Metadata=excluded.Metadata, Png=excluded.Png
             """;
         command.Parameters.AddWithValue("$pcb", pcbNumber);
-        command.Parameters.AddWithValue("$target", image.BoltNumber ?? 0);
+        command.Parameters.AddWithValue("$target", (image.BoltId ?? Guid.Empty).ToString("D"));
         command.Parameters.AddWithValue("$metadata", JsonSerializer.Serialize(image));
         command.Parameters.AddWithValue("$png", image.Png);
         command.ExecuteNonQuery();
@@ -336,6 +336,6 @@ public sealed class MachineStore
                 ?? throw new InvalidDataException($"PCB {record.Number} has invalid inspection image metadata.");
             images.Add(image with { Png = (byte[])reader[1] });
         }
-        return images;
+        return images.OrderBy(image => image.BoltId is { } id ? record.GetBoltOrdinal(id) ?? int.MaxValue : 0).ToArray();
     }
 }

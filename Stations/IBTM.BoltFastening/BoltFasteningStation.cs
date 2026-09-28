@@ -179,9 +179,8 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         get
         {
-            return _recipes.Current.Pcb.GetBolts(HeatSinkSlot.HeatSink1)
+            return _recipes.Current.Pcb.FasteningPoints
                 .Where(bolt => bolt.Head == FasteningHead.Shooting)
-                .OrderBy(bolt => bolt.Number)
                 .FirstOrDefault();
         }
     }
@@ -267,7 +266,7 @@ public sealed class BoltFasteningStation : AutoUnit
         cancellationToken.ThrowIfCancellationRequested();
         var selectedBolt = step == BoltFasteningState.MovingToStandby ? StandbyBolt : ActiveBolt;
         var target = selectedBolt is null ? null
-            : $"{selectedBolt.HeatSink}, bolt {selectedBolt.Number}, {selectedBolt.Head}";
+            : $"{selectedBolt.HeatSink}, bolt {_recipes.Current.Pcb.GetBoltOrdinal(selectedBolt.Id)}, {selectedBolt.Head}";
         EnterStep(step, target, Station.CurrentJob.Id);
         switch (step)
         {
@@ -295,11 +294,8 @@ public sealed class BoltFasteningStation : AutoUnit
                             $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
                 }
                 _runJob = Station.CurrentJob;
-                _runBolts = _recipes.Current.Pcb.BoltPoints
+                _runBolts = _recipes.Current.Pcb.FasteningPoints
                     .Where(bolt => _runTargets.Contains(bolt.HeatSink))
-                    .OrderBy(bolt => bolt.Head == FasteningHead.Shooting ? 0 : 1)
-                    .ThenBy(bolt => bolt.HeatSink)
-                    .ThenBy(bolt => bolt.Number)
                     .ToArray();
                 _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 Station.Changed += CheckCarrier;
@@ -418,7 +414,7 @@ public sealed class BoltFasteningStation : AutoUnit
                             {
                                 _log?.LogWarning(
                                     "Pickup bolt {Bolt}, {HeatSink}: vacuum not detected at Safe Z; retry {Retry}/{RetryCount}.",
-                                    bolt.Number, bolt.HeatSink, retry + 1, retryCount);
+                                    bolt.Id, bolt.HeatSink, retry + 1, retryCount);
                             }
                         }
                         token.ThrowIfCancellationRequested();
@@ -460,7 +456,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 try
                 {
                     if (result is not null)
-                        assembly.RecordBolt(bolt.Head, bolt.Number, result);
+                        assembly.RecordBolt(bolt.Head, bolt.Id, result);
                 }
                 catch (Exception recordFailure) when (fasteningFailure is not null)
                 {
@@ -608,13 +604,13 @@ public sealed class BoltFasteningStation : AutoUnit
                 ? _settings.DryRunMilliseconds : 0;
             _log?.LogInformation(
                 "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
-                bolt.Head, bolt.HeatSink, bolt.Number, head.GetType().Name, dryRunMilliseconds);
+                bolt.Head, bolt.HeatSink, bolt.Id, head.GetType().Name, dryRunMilliseconds);
             var completed = await head.TightenAsync(
                 fastening.Token, LowerHeadWhileFasteningAsync, dryRunMilliseconds, resultReceived);
             completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };
             _log?.LogInformation(
                 "Bolt {Head}, {HeatSink}, point {Bolt}: cycle completed; success={Success}, source={Source}, error={Error}.",
-                bolt.Head, bolt.HeatSink, bolt.Number, completed.Success, completed.Source, completed.Error);
+                bolt.Head, bolt.HeatSink, bolt.Id, completed.Success, completed.Source, completed.Error);
             Station.RequireCurrentJob(job);
             return completed;
         }
@@ -831,7 +827,7 @@ public sealed class BoltFasteningStation : AutoUnit
             {
                 _log?.LogInformation(
                     "Bolt teaching Move To: {HeatSink}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}; Safe Z={SafeZ}.",
-                    bolt.HeatSink, bolt.Number, bolt.Head, position.X, position.Y, position.Z, _settings.SafeZ);
+                    bolt.HeatSink, bolt.Id, bolt.Head, position.X, position.Y, position.Z, _settings.SafeZ);
                 if (!point.HasPosition)
                     throw new MotionInterlockException("Record fastening XY before moving to this bolt.");
                 var tableDown = bolt.Head == FasteningHead.Pickup;
@@ -909,7 +905,7 @@ public sealed class BoltFasteningStation : AutoUnit
         var position = _settings.GetBoltPosition(bolt);
         _log?.LogInformation(
             "Automatic bolt move: {HeatSink}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}.",
-            bolt.HeatSink, bolt.Number, bolt.Head, position.X, position.Y, position.Z);
+            bolt.HeatSink, bolt.Id, bolt.Head, position.X, position.Y, position.Z);
         // XY travel uses Safe Z. Approach the work height with both heads raised.
         await MoveToXYAsync(position.X, position.Y, cancellationToken);
         EnsureCanMoveHorizontal(cancellationToken);

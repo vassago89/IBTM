@@ -1,3 +1,4 @@
+using System;
 using IBTM.Core;
 using System.Text.Json.Serialization;
 
@@ -10,7 +11,7 @@ public sealed class CarrierImageTile
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public AxisPosition? Center { get; set; }
     public PixelRegion? Region { get; set; }
-    public int? BoltNumber { get; set; }
+    public Guid? BoltId { get; set; }
     public bool IsBarcode { get; set; }
     public HeatSinkSlot HeatSink { get; set; }
 }

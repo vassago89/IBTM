@@ -36,7 +36,7 @@ public sealed partial class MachineLifecycleTests
         foreach (var heatSink in Enum.GetValues<HeatSinkSlot>())
             recipe.Pcb.BoltPoints.Add(new()
             {
-                Number = 2,
+                Id = VirtualTest.BoltId(2, heatSink),
                 HeatSink = heatSink,
                 Head = FasteningHead.Pickup,
                 X = 15,

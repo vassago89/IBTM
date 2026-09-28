@@ -173,12 +173,12 @@ public sealed class LightingTests
         recipe.BoltInspection.LightLevel = 91;
         recipe.BoltInspection.DataMatrix1.LightLevel = 31;
         recipe.BoltInspection.DataMatrix2.LightLevel = 62;
-        var bolt = new BoltPoint { Number = 1, X = 0, Y = 0, LightLevel = 123 };
+        var bolt = new BoltPoint { Id = VirtualTest.BoltId(1), X = 0, Y = 0, LightLevel = 123 };
         recipe.Pcb.BoltPoints.Add(bolt);
         recipe.CarrierImages = [
             new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
             new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
-            new() { BoltNumber = 1, Region = new(0, 0, 20, 20) },
+            new() { BoltId = VirtualTest.BoltId(1), Region = new(0, 0, 20, 20) },
         ];
 
         await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
@@ -226,12 +226,12 @@ public sealed class LightingTests
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
         motion.Initialize();
         Assert.True(await inspector.HomeHorizontalAsync());
-        var bolt = new BoltPoint { Number = 1, X = 0, Y = 0, LightLevel = 23, BrightnessThreshold = 128, MinimumBrightRatio = 0.5 };
+        var bolt = new BoltPoint { Id = VirtualTest.BoltId(1), X = 0, Y = 0, LightLevel = 23, BrightnessThreshold = 128, MinimumBrightRatio = 0.5 };
         recipes.Current.Pcb.BoltPoints.Add(bolt);
-        recipes.Current.CarrierImages = [new() { BoltNumber = 1, Region = new(0, 0, 1, 1) }];
+        recipes.Current.CarrierImages = [new() { BoltId = VirtualTest.BoltId(1), Region = new(0, 0, 1, 1) }];
         var edited = new Recipe();
-        edited.Pcb.BoltPoints.Add(new(bolt.Id) { Number = 1, LightLevel = 87, BrightnessThreshold = 0, MinimumBrightRatio = 0 });
-        edited.CarrierImages = [new() { BoltNumber = 1, Region = new(0, 0, 1, 1) }];
+        edited.Pcb.BoltPoints.Add(new(bolt.Id) { Id = VirtualTest.BoltId(1), LightLevel = 87, BrightnessThreshold = 0, MinimumBrightRatio = 0 });
+        edited.CarrierImages = [new() { BoltId = VirtualTest.BoltId(1), Region = new(0, 0, 1, 1) }];
         camera.OnCapture = () =>
         {
             lock (recipes.InspectionSync)

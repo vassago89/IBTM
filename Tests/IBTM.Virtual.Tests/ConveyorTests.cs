@@ -841,7 +841,7 @@ public sealed class ConveyorTests
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         var departing = source.CurrentJob;
         var original = source.GetAssembly(departing, HeatSinkSlot.HeatSink1);
-        original.RecordBolt(FasteningHead.Shooting, 1, new(false, 1.25));
+        original.RecordBolt(FasteningHead.Shooting, VirtualTest.BoltId(1), new(false, 1.25));
         SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         var arrived = destination.CurrentJob;
 
@@ -912,7 +912,7 @@ public sealed class ConveyorTests
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         var departing = source.CurrentJob;
         var original = source.GetAssembly(departing, HeatSinkSlot.HeatSink1);
-        original.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
+        original.RecordBolt(FasteningHead.Shooting, VirtualTest.BoltId(1), new BoltResult(false, 1.25));
         source.Complete(departing);
 
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
@@ -943,7 +943,7 @@ public sealed class ConveyorTests
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
         var result = new BoltResult(false, 1.25);
-        assembly.RecordBolt(FasteningHead.Shooting, 1, result);
+        assembly.RecordBolt(FasteningHead.Shooting, VirtualTest.BoltId(1), result);
         source.Complete(source.CurrentJob);
         var changes = 0;
         source.Changed += () => changes++;
@@ -953,7 +953,7 @@ public sealed class ConveyorTests
         Assert.Equal(2, changes);
         Assert.True(source.Completed);
         Assert.True(source.HasNg);
-        Assert.Same(result, assembly.PcbBoltResults[1]);
+        Assert.Same(result, assembly.PcbBoltResults[VirtualTest.BoltId(1)]);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
@@ -1050,7 +1050,7 @@ public sealed class ConveyorTests
         Assert.True(work.IsTransferAllowed);
         Assert.True(work.RouteToNg);
         Assert.False(work.HasNg);
-        work.Station.GetAssembly(HeatSinkSlot.HeatSink1).RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
+        work.Station.GetAssembly(HeatSinkSlot.HeatSink1).RecordBolt(FasteningHead.Shooting, VirtualTest.BoltId(1), new BoltResult(false, 1.25));
         Assert.True(work.HasNg);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
@@ -1386,7 +1386,7 @@ public sealed class ConveyorTests
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
         var originalJob = source.CurrentJob;
         var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
+        assembly.RecordBolt(FasteningHead.Shooting, VirtualTest.BoltId(1), new BoltResult(false, 1.25));
         source.Complete(originalJob);
         var pushing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         conveyor.Trace += message =>
@@ -1424,7 +1424,7 @@ public sealed class ConveyorTests
         foreach (var slot in Enum.GetValues<HeatSinkSlot>().Where(destination.Station.IsHeatSinkPresent))
         {
             var inspected = destination.Station.GetAssembly(slot);
-            inspected.RecordBoltPresence(1, true);
+            inspected.RecordBoltPresence(VirtualTest.BoltId(1), true);
             inspected.CompleteInspection();
         }
         destination.Station.Complete(destination.Station.CurrentJob);
@@ -1449,7 +1449,7 @@ public sealed class ConveyorTests
         var originalJob = source.CurrentJob;
         var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
         var result = new BoltResult(false, 1.25);
-        assembly.RecordBolt(FasteningHead.Shooting, 1, result);
+        assembly.RecordBolt(FasteningHead.Shooting, VirtualTest.BoltId(1), result);
         source.Complete(originalJob);
         var runningWhenTransferred = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         destination.Station.Changed += () =>
@@ -1481,7 +1481,7 @@ public sealed class ConveyorTests
 
             Assert.Equal(originalJob.Id, destination.Station.CurrentJob.Id);
             Assert.Same(assembly, Assert.Single(destination.Station.Assemblies));
-            Assert.Same(result, assembly.PcbBoltResults[1]);
+            Assert.Same(result, assembly.PcbBoltResults[VirtualTest.BoltId(1)]);
             Assert.True(destination.HasNg);
             Assert.Same(nextJob, source.CurrentJob);
             Assert.Empty(source.Assemblies);
@@ -1715,7 +1715,7 @@ public sealed class ConveyorTests
         await SetSeatedCarrierAsync(io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
         var job = source.CurrentJob;
         var assembly = source.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
+        assembly.RecordBolt(FasteningHead.Shooting, VirtualTest.BoltId(1), new BoltResult(false, 1.25));
         source.Complete(job);
         var run = conveyor.RunAsync();
         try
@@ -1852,7 +1852,7 @@ public sealed class ConveyorTests
             OutputIo.BoltFasteningBackupPlateUp);
         virtualIo.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
         var assembly = boltWork.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 0));
+        assembly.RecordBolt(FasteningHead.Shooting, VirtualTest.BoltId(1), new BoltResult(false, 0));
         boltWork.Complete(boltWork.CurrentJob);
         virtualIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
         var frontReadyBeforeTransfer = false;
@@ -1917,7 +1917,7 @@ public sealed class ConveyorTests
             InputIo.InspectionHeatSink1Present,
             OutputIo.InspectionBackupPlateUp);
         var assembly = inspectionWork.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBoltPresence(1, false);
+        assembly.RecordBoltPresence(VirtualTest.BoltId(1), false);
         assembly.CompleteInspection();
         inspectionWork.Station.Complete(inspectionWork.Station.CurrentJob);
         Assert.True(inspectionWork.HasNg);

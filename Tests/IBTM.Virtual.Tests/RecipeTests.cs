@@ -23,46 +23,48 @@ namespace IBTM.Virtual.Tests;
 public sealed class RecipeTests
 {
     [Fact]
-    public void LegacyBoltIdentitySurvivesIndependentLoadsAndSaving()
+    public void FasteningOrderGroupsHeadsAndAppendsNewBoltsWithoutReorderingInspection()
     {
-        const string json = """
-            {"Pcb":{"TaughtBolts":[{"Number":7,"BrightnessThreshold":91},{"Number":8}]}}
-            """;
-        var recipe = System.Text.Json.JsonSerializer.Deserialize<Recipe>(json)!;
-        var draft = System.Text.Json.JsonSerializer.Deserialize<Recipe>(json)!;
-        Assert.NotEqual(Guid.Empty, recipe.Pcb.BoltPoints[0].Id);
-        Assert.Equal(recipe.Pcb.BoltPoints[0].Id, draft.Pcb.BoltPoints[0].Id);
-        Assert.NotEqual(recipe.Pcb.BoltPoints[0].Id, recipe.Pcb.BoltPoints[1].Id);
-        draft.Pcb.BoltPoints[0].BrightnessThreshold = 180;
-        recipe.ApplyInspectionSettings(draft);
-        Assert.Equal(180, recipe.Pcb.BoltPoints[0].BrightnessThreshold);
-
-        var saved = System.Text.Json.JsonSerializer.Deserialize<Recipe>(System.Text.Json.JsonSerializer.Serialize(recipe))!;
-        Assert.Equal(recipe.Pcb.BoltPoints[0].Id, saved.Pcb.BoltPoints[0].Id);
-        Assert.NotEqual(recipe.Pcb.BoltPoints[0].Id, new BoltPoint { Number = 7 }.Id);
+        var shooting1 = new BoltPoint();
+        var pickup1 = new BoltPoint { Head = FasteningHead.Pickup };
+        var shooting2 = new BoltPoint { HeatSink = HeatSinkSlot.HeatSink2 };
+        var pickup2 = new BoltPoint { HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup };
+        var pcb = new PcbLayout { BoltPoints = [shooting1, pickup1, shooting2, pickup2] };
+        Assert.Equal(new[] { shooting1, shooting2, pickup1, pickup2 }, pcb.FasteningPoints);
+        // The configured point order cannot change the head or PCB processing order.
+        pcb.FasteningOrder = [pickup2.Id, shooting2.Id, pickup1.Id, shooting1.Id];
+        var added = new BoltPoint();
+        pcb.BoltPoints.Add(added);
+        Assert.Equal(new[] { shooting1, added, shooting2, pickup1, pickup2 }, pcb.FasteningPoints);
+        Assert.Equal(new[] { shooting1, pickup1, added }, pcb.GetBolts(HeatSinkSlot.HeatSink1));
+        Assert.Equal(1, pcb.GetBoltOrdinal(shooting1.Id));
+        Assert.Equal(2, pcb.GetBoltOrdinal(pickup1.Id));
     }
 
     [Fact]
-    public void LegacyImageCenterMigratesToOneInspectionCoordinateWithoutChangingFastening()
+    public void BoltGuidKeepsImageAndInspectionSettingsLinkedAfterReordering()
     {
-        var recipe = System.Text.Json.JsonSerializer.Deserialize<Recipe>("""
-            {"Pcb":{"TaughtBolts":[{"Number":7,"X":1,"Y":2,"FasteningX":101,"FasteningY":202,"FasteningZOffset":0.5}]},
-             "CarrierImages":[{"Number":1,"BoltNumber":7,"Center":{"X":11,"Y":22}},
-                              {"Number":2,"IsBarcode":true,"Center":{"X":33,"Y":44}}]}
-            """)!;
-        var bolt = Assert.Single(recipe.Pcb.BoltPoints);
-        Assert.Equal((11d, 22d), (bolt.X, bolt.Y));
-        Assert.Equal((101d, 202d, 0.5), (bolt.FasteningX, bolt.FasteningY, bolt.FasteningZOffset));
-        Assert.Null(recipe.CarrierImages[0].Center);
+        var first = new BoltPoint { X = 11, Y = 22, FasteningX = 101, FasteningY = 202 };
+        var second = new BoltPoint { X = 33, Y = 44 };
+        var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
+        recipe.CarrierImages = [new() { Number = 1, BoltId = first.Id, Region = new(1, 2, 3, 4) },
+            new() { Number = 2, BoltId = second.Id, Region = new(5, 6, 7, 8) }];
+        var draft = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipe))!;
+        draft.Pcb.BoltPoints[0].BrightnessThreshold = 180;
+        recipe.Pcb.BoltPoints.Reverse();
+        recipe.ApplyInspectionSettings(draft);
+        Assert.Equal(180, first.BrightnessThreshold);
+        Assert.Equal(2, recipe.Pcb.GetBoltOrdinal(first.Id));
         Assert.Equal(11, recipe.GetInspectionPosition(recipe.CarrierImages[0]).X);
-        Assert.Equal(33, recipe.GetInspectionPosition(recipe.CarrierImages[1]).X);
-        bolt.X = 55;
-        var saved = System.Text.Json.JsonSerializer.Serialize(recipe);
-        using var json = System.Text.Json.JsonDocument.Parse(saved);
-        Assert.False(json.RootElement.GetProperty("CarrierImages")[0].TryGetProperty("Center", out _));
-        var restored = System.Text.Json.JsonSerializer.Deserialize<Recipe>(saved)!;
-        Assert.Equal(55, restored.GetInspectionPosition(restored.CarrierImages[0]).X);
-        Assert.Equal(101, restored.Pcb.BoltPoints[0].FasteningX);
+        Assert.Equal(101, first.FasteningX);
+        var store = VirtualTest.OpenMachineStore();
+        store.SaveRecipe(recipe);
+        var saved = store.LoadRecipe(recipe.Name);
+        Assert.Equal(new[] { second.Id, first.Id }, saved.Pcb.BoltPoints.Select(bolt => bolt.Id));
+        Assert.Equal(first.Id, saved.CarrierImages[0].BoltId);
+        Assert.DoesNotContain("\"Number\"", JsonSerializer.Serialize(saved.Pcb.BoltPoints));
+        Assert.DoesNotContain("BoltNumber", JsonSerializer.Serialize(saved));
+        Assert.NotEqual(first.Id, new BoltPoint().Id);
     }
 
     [Theory]
@@ -186,7 +188,7 @@ public sealed class RecipeTests
         var layout = recipe.Pcb;
         layout.BoltPoints.Add(new()
         {
-            Number = 1,
+            Id = VirtualTest.BoltId(1),
             HeatSink = HeatSinkSlot.HeatSink1,
             X = 13,
             Y = 24,
@@ -195,7 +197,7 @@ public sealed class RecipeTests
         });
         layout.BoltPoints.Add(new()
         {
-            Number = 1,
+            Id = VirtualTest.BoltId(1, HeatSinkSlot.HeatSink2),
             HeatSink = HeatSinkSlot.HeatSink2,
             X = 73,
             Y = 29,
@@ -425,7 +427,7 @@ public sealed class RecipeTests
                 LowerRightLocatingPin = new() { X = 400, Y = 500 },
             },
         };
-        var bolt = new BoltPoint { Number = 1 };
+        var bolt = new BoltPoint { Id = VirtualTest.BoltId(1) };
         var recipe = new PcbLayout();
         recipe.BoltPoints = [bolt];
         var settings = new MachineSettings { BoltFastening = fastening, CarrierReference = reference };
@@ -473,9 +475,9 @@ public sealed class RecipeTests
         Assert.Same(reference, upperLeft.Setting);
 
         recipe.BoltPoints = [
-            new() { Number = 2, Head = FasteningHead.Pickup, X = 10, Y = 20 },
+            new() { Id = VirtualTest.BoltId(2), Head = FasteningHead.Pickup, X = 10, Y = 20 },
             bolt,
-            new() { Number = 3, Head = FasteningHead.Pickup, X = 20, Y = 30 },
+            new() { Id = VirtualTest.BoltId(3), Head = FasteningHead.Pickup, X = 20, Y = 30 },
         ];
         foreach (var target in recipe.BoltPoints)
             fastening.InitializeBoltPosition(target, reference);
@@ -491,7 +493,7 @@ public sealed class RecipeTests
         Assert.All(recipe.BoltPoints, target => Assert.Equal(
             (target.Head == FasteningHead.Pickup ? 18 : 14) + target.FasteningZOffset,
             fastening.GetBoltPosition(target).Z));
-        Assert.Equal(new[] { 2, 1, 3 }, recipe.BoltPoints.Select(point => point.Number));
+        Assert.Equal(new[] { VirtualTest.BoltId(2), VirtualTest.BoltId(1), VirtualTest.BoltId(3) }, recipe.BoltPoints.Select(point => point.Id));
     }
 
     [Theory]
@@ -645,7 +647,7 @@ public sealed class RecipeTests
                     Number = 1,
                     Center = new() { X = x },
                     Region = new(0, 0, 1, 1),
-                    BoltNumber = 3,
+                    BoltId = VirtualTest.BoltId(3),
                     HeatSink = HeatSinkSlot.HeatSink2,
                 }, Image(value)),
                 new(new CarrierImageTile
@@ -690,14 +692,14 @@ public sealed class RecipeTests
         Assert.Equal(new byte[] { 10, 11, 12 }, pixels);
         var savedFov = database.LoadRecipe("Source").CarrierImages[0];
         Assert.Equal(new PixelRegion(0, 0, 1, 1), savedFov.Region);
-        Assert.Equal(3, savedFov.BoltNumber);
+        Assert.Equal(VirtualTest.BoltId(3), savedFov.BoltId);
         Assert.Equal(HeatSinkSlot.HeatSink2, savedFov.HeatSink);
         var loadedImages = await sourceEditor.LoadCarrierImagesAsync();
         Assert.Same(source.CarrierImages[0], loadedImages[0].Metadata);
         Assert.Equal(savedFov.Region, loadedImages[0].Metadata.Region);
         var savedBarcode = database.LoadRecipe("Source").CarrierImages[1];
         Assert.True(savedBarcode.IsBarcode);
-        Assert.Null(savedBarcode.BoltNumber);
+        Assert.Null(savedBarcode.BoltId);
         Assert.Equal(new PixelRegion(0, 0, 1, 1), savedBarcode.Region);
         Assert.Same(source.CarrierImages[1], loadedImages[1].Metadata);
         Assert.True(loadedImages[1].Metadata.IsBarcode);

@@ -111,10 +111,20 @@ public class TeachingPoint : ObservableObject
                     return recipe.CarrierImages.SingleOrDefault(tile => tile.IsBarcode && tile.HeatSink == _pcb)?.Center;
                 case TeachingTarget.BoltReference:
                     return recipe.CarrierImages.Count(tile => !tile.IsBarcode && tile.HeatSink == _pcb
-                        && tile.BoltNumber == _definition.Bolt?.Number) == 1 ? _definition.Bolt?.InspectionPosition : null;
+                        && tile.BoltId == _definition.Bolt?.Id) == 1 ? _definition.Bolt?.InspectionPosition : null;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(_definition.Target));
             }
+        }
+    }
+
+    public string? BoltLabel
+    {
+        get
+        {
+            if (_definition.Bolt is not { } bolt)
+                return null;
+            return $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}";
         }
     }
 
@@ -125,8 +135,8 @@ public class TeachingPoint : ObservableObject
             if (_definition.Bolt is { } bolt)
             {
                 return _definition.Target == TeachingTarget.BoltPosition
-                    ? $"Bolt {bolt.Number} Fastening · {bolt.Head.GetDescription()}"
-                    : $"Bolt {bolt.Number} Inspection";
+                    ? $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)} Fastening · {bolt.Head.GetDescription()}"
+                    : $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)} Inspection";
             }
 
             switch ((_definition.Target, _definition.MotionGroup))

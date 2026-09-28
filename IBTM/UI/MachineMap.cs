@@ -243,7 +243,7 @@ public sealed class MachineMap
     public Point? GetInspectionTargetPosition(BoltPoint bolt)
     {
         var fovCount = _recipes.Current.CarrierImages.Count(fov => !fov.IsBarcode
-            && fov.HeatSink == bolt.HeatSink && fov.BoltNumber == bolt.Number);
+            && fov.HeatSink == bolt.HeatSink && fov.BoltId == bolt.Id);
         if (!InspectionDefined || fovCount != 1 || bolt.InspectionPosition is not { } center)
             return null;
         var mapped = MapCarrier(center.X, center.Y, MachinePlan.InspectionUpperLeft, MachinePlan.InspectionLowerRight);

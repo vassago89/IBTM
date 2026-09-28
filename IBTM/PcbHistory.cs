@@ -66,7 +66,8 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
         var initial = new PcbRecord(0, createdAt, createdAt, recipeName, assembly.HeatSink,
             assembly.PcbBarcode, assembly.PcbBarcodeResult, assembly.FasteningResult, assembly.InspectionResult,
             assembly.PcbBoltResults.ToDictionary(), assembly.PickupBoltResults.ToDictionary(),
-            assembly.BoltPresenceResults.ToDictionary());
+            assembly.BoltPresenceResults.ToDictionary(),
+            _recipes.Current.Pcb.GetBolts(assembly.HeatSink).Select(bolt => bolt.Id).ToArray());
 
         // Subscriptions and the first queued write do not depend on successful DB access.
         lock (_gate)
@@ -147,7 +148,7 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
                     encoder.Frames.Add(BitmapFrame.Create(InspectionPreview.CreateBitmap(capture.Frame)));
                     using var output = new MemoryStream();
                     encoder.Save(output);
-                    var image = new PcbInspectionImage(capture.BoltNumber, capture.CapturedAt, capture.Region,
+                    var image = new PcbInspectionImage(capture.BoltId, capture.CapturedAt, capture.Region,
                         capture.Success, capture.Barcode, capture.BrightRatio, capture.MinimumBrightRatio, output.ToArray());
                     _store.SavePcbImage(file, number, image);
                     ImageSaved?.Invoke(number);

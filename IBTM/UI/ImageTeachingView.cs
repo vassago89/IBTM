@@ -11,12 +11,13 @@ namespace IBTM.UI;
 public sealed record CarrierImageTileView(
     CarrierImageTile Metadata,
     BitmapSource Image,
-    BoltPoint? Bolt = null)
+    BoltPoint? Bolt = null,
+    int? Ordinal = null)
 {
     public AxisPosition? Position => Metadata.IsBarcode ? Metadata.Center : Bolt?.InspectionPosition;
 
     public string Title => $"{Metadata.HeatSink.GetDescription()} · "
-        + (Metadata.IsBarcode ? "Data Matrix" : $"Bolt {Metadata.BoltNumber}");
+        + (Metadata.IsBarcode ? "Data Matrix" : $"Bolt {Ordinal}");
 
     public override string ToString()
     {

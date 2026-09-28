@@ -90,7 +90,7 @@ public sealed class BoltFasteningSettings : Setting
     public AxisPosition GetBoltPosition(BoltPoint bolt)
     {
         if (!bolt.IsFasteningPositionDefined)
-            throw new InvalidOperationException($"Record fastening XY for {bolt.HeatSink}, bolt {bolt.Number} before moving.");
+            throw new InvalidOperationException($"Record fastening XY for {bolt.HeatSink}, bolt {bolt.Id} before moving.");
         return new()
         {
             X = bolt.FasteningX!.Value,

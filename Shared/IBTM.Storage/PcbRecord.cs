@@ -15,10 +15,22 @@ public sealed record PcbRecord(
     AssemblyResult PcbBarcodeResult,
     AssemblyResult FasteningResult,
     AssemblyResult InspectionResult,
-    IReadOnlyDictionary<int, BoltResult> PcbBoltResults,
-    IReadOnlyDictionary<int, BoltResult> PickupBoltResults,
-    IReadOnlyDictionary<int, bool> BoltPresenceResults)
+    IReadOnlyDictionary<Guid, BoltResult> PcbBoltResults,
+    IReadOnlyDictionary<Guid, BoltResult> PickupBoltResults,
+    IReadOnlyDictionary<Guid, bool> BoltPresenceResults,
+    IReadOnlyList<Guid> BoltIds)
 {
+    // The order belongs to this recorded PCB, independent of later recipe edits.
+    public int? GetBoltOrdinal(Guid boltId)
+    {
+        for (var index = 0; index < BoltIds.Count; index++)
+        {
+            if (BoltIds[index] == boltId)
+                return index + 1;
+        }
+        return null;
+    }
+
     [JsonIgnore]
     public string? DatabaseFile { get; init; }
 

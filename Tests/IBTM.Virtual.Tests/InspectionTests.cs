@@ -47,7 +47,7 @@ public sealed class InspectionTests
         var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new ConveyorHardwareSettings()), new());
         io.Initialize();
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        recipes.Current.Pcb.BoltPoints = [new() { Number = 1, X = 0, Y = 0 }];
+        recipes.Current.Pcb.BoltPoints = [new() { Id = VirtualTest.BoltId(1), X = 0, Y = 0 }];
         recipes.Current.CarrierImages = [new() { Number = 1, IsBarcode = true, Center = new(), Region = new(0, 0, 20, 20) }];
         var settings = new InspectionGantrySettings();
         var transfer = new NgCarrierTransferSettings { WaitingPosition = new(), CarrierPickupPosition = new() };
@@ -94,14 +94,14 @@ public sealed class InspectionTests
         io.Initialize();
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.Pcb.BoltPoints = [
-            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 0, Y = 0 },
-            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, X = 0, Y = 0 },
+            new() { Id = VirtualTest.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 0, Y = 0 },
+            new() { Id = VirtualTest.BoltId(2), HeatSink = HeatSinkSlot.HeatSink2, X = 0, Y = 0 },
         ];
         recipes.Current.CarrierImages = [
             new() { Number = 1, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
-            new() { Number = 2, BoltNumber = 1, HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
+            new() { Number = 2, BoltId = VirtualTest.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
             new() { Number = 3, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
-            new() { Number = 4, BoltNumber = 2, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
+            new() { Number = 4, BoltId = VirtualTest.BoltId(2), HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
         ];
         var settings = new InspectionGantrySettings();
         var transfer = new NgCarrierTransferSettings
@@ -134,7 +134,7 @@ public sealed class InspectionTests
             (InputIo.InspectionStopperDown, false), (InputIo.InspectionStopperUp, true),
             (InputIo.NgCarrierPickupUp, true), (InputIo.NgCarrierPickupDown, false),
             (InputIo.NgCarrierGripperOpen, true), (InputIo.NgCarrierGripperClosed, false));
-        var visited = new System.Collections.Generic.List<(HeatSinkSlot?, int?)>();
+        var visited = new System.Collections.Generic.List<(HeatSinkSlot?, Guid?)>();
         using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         using var secondStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var interrupt = true;
@@ -142,9 +142,9 @@ public sealed class InspectionTests
         {
             if (station.Step is not (InspectionStationState.ReadingBarcode or InspectionStationState.InspectingBolt))
                 return;
-            var bolt = station.ActiveBolt?.Number;
+            var bolt = station.ActiveBolt?.Id;
             visited.Add((station.ActivePcb, bolt));
-            if (interrupt && bolt == 2)
+            if (interrupt && bolt == VirtualTest.BoltId(2))
                 firstStop.Cancel();
         };
         work.Changed += () =>
@@ -153,9 +153,9 @@ public sealed class InspectionTests
                 secondStop.Cancel();
         };
         await station.RunAsync(firstStop.Token);
-        Assert.Equal(new (HeatSinkSlot?, int?)[] {
-            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, 1),
-            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, 2),
+        Assert.Equal(new (HeatSinkSlot?, Guid?)[] {
+            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTest.BoltId(1)),
+            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTest.BoltId(2)),
         }, visited);
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
         Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
@@ -165,9 +165,9 @@ public sealed class InspectionTests
         visited.Clear();
         interrupt = false;
         await station.RunAsync(secondStop.Token);
-        Assert.Equal(new (HeatSinkSlot?, int?)[] {
-            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, 1),
-            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, 2),
+        Assert.Equal(new (HeatSinkSlot?, Guid?)[] {
+            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTest.BoltId(1)),
+            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTest.BoltId(2)),
         }, visited);
         Assert.True(work.Completed);
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
@@ -186,10 +186,10 @@ public sealed class InspectionTests
         var store = OpenMachineStore();
         var recipes = new RecipeManager(store, new());
         recipes.Current.Name = "Teaching wait";
-        recipes.Current.Pcb.BoltPoints = [new() { Number = 1, X = 0, Y = 0 }];
+        recipes.Current.Pcb.BoltPoints = [new() { Id = VirtualTest.BoltId(1), X = 0, Y = 0 }];
         recipes.Current.CarrierImages = [
             new() { Number = 1, IsBarcode = true, Center = new(), Region = barcode ? null : new(0, 0, 20, 20) },
-            new() { Number = 2, BoltNumber = 1, Center = new(), Region = barcode ? new(0, 0, 20, 20) : null },
+            new() { Number = 2, BoltId = VirtualTest.BoltId(1), Center = new(), Region = barcode ? new(0, 0, 20, 20) : null },
         ];
         store.SaveRecipe(recipes.Current);
         var settings = new InspectionGantrySettings();
@@ -346,7 +346,7 @@ public sealed class InspectionTests
             Number = 1,
             Center = new() { X = 12, Y = 9 },
             Region = new(200, 30, 60, 80),
-            BoltNumber = 1,
+            BoltId = VirtualTest.BoltId(1),
             HeatSink = HeatSinkSlot.HeatSink1,
         };
         var units = new UnitSettings();
@@ -390,7 +390,7 @@ public sealed class InspectionTests
             Assert.NotEmpty(image.Frame.Pixels);
         }
 
-        var bolt = new BoltPoint { Number = 1, X = 12, Y = 9 };
+        var bolt = new BoltPoint { Id = VirtualTest.BoltId(1), X = 12, Y = 9 };
         recipes.Current.Pcb.BoltPoints.Add(bolt);
         var taughtPosition = fov.Center!;
         fov.Center = null;
@@ -415,7 +415,7 @@ public sealed class InspectionTests
 
         fov.Center = taughtPosition;
         fov.IsBarcode = true;
-        fov.BoltNumber = null;
+        fov.BoltId = null;
         fov.Region = new(180, 40, 80, 80);
         var barcodeResult = await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
         Assert.True(MotionService.IsAt(inspector.Motion.Feedback, fov.Center));
@@ -456,10 +456,10 @@ public sealed class InspectionTests
         var recipes = new RecipeManager(OpenMachineStore(), new());
         var work = ConveyorStation.CreateInspection(io);
         BoltPoint[] bolts = [
-            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 9 },
-            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 21 },
-            new() { Number = 3, HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 9 },
-            new() { Number = 4, HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 21 },
+            new() { Id = VirtualTest.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 9 },
+            new() { Id = VirtualTest.BoltId(2), HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 21 },
+            new() { Id = VirtualTest.BoltId(3), HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 9 },
+            new() { Id = VirtualTest.BoltId(4), HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 21 },
         ];
         var camera = new MissingBoltCamera(
             new VirtualCamera(
@@ -476,7 +476,7 @@ public sealed class InspectionTests
             {
                 Number = index + 1,
                 Region = new(128, 88, 64, 64),
-                BoltNumber = bolt.Number,
+                BoltId = bolt.Id,
                 HeatSink = bolt.HeatSink,
             }),
                 new()
@@ -576,8 +576,8 @@ public sealed class InspectionTests
         var heatSink1 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1);
         var heatSink2 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2);
         Assert.Equal(AssemblyResult.Ng, heatSink1.InspectionResult);
-        Assert.True(heatSink1.BoltPresenceResults[1]);
-        Assert.False(heatSink1.BoltPresenceResults[2]);
+        Assert.True(heatSink1.BoltPresenceResults[VirtualTest.BoltId(1)]);
+        Assert.False(heatSink1.BoltPresenceResults[VirtualTest.BoltId(2)]);
         Assert.Equal(AssemblyResult.Ok, heatSink2.InspectionResult);
         Assert.All(heatSink2.BoltPresenceResults.Values, Assert.True);
 

@@ -402,7 +402,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt)>();
                 foreach (var pcb in targets)
                 {
-                    var pcbBolts = bolts.Where(bolt => bolt.HeatSink == pcb).OrderBy(bolt => bolt.Number).ToArray();
+                    var pcbBolts = bolts.Where(bolt => bolt.HeatSink == pcb).ToArray();
                     if (pcbBolts.Length == 0)
                         throw new InvalidOperationException(
                             $"{pcb.GetDescription()} has no taught bolts. Complete bolt teaching before inspection.");
@@ -472,11 +472,11 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     break;
                 case InspectionStationState.InspectingBolt:
                     var bolt = target.Bolt ?? throw new InvalidOperationException("No inspection bolt is selected.");
-                    EnterStep(state, $"{pcb.GetDescription()} / Bolt {bolt.Number}", job.Id);
+                    EnterStep(state, $"{pcb.GetDescription()} / Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}", job.Id);
                     var capture = await InspectAsync(bolt, token);
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
-                    assembly.RecordBoltPresence(bolt.Number, capture.Success);
+                    assembly.RecordBoltPresence(bolt.Id, capture.Success);
                     assembly.RecordInspectionCapture(capture);
                     break;
                 default:
@@ -877,7 +877,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public event Action? LiveViewChanged;
 
-    public event Action<ImageFrame, HeatSinkSlot, int?>? InspectionCaptured;
+    public event Action<ImageFrame, HeatSinkSlot, Guid?>? InspectionCaptured;
 
     public event Action<ImageFrame>? FrameReady
     {
@@ -1010,7 +1010,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     {
         return point.InspectionPosition is not null && _recipes.Current.CarrierImages.Count(fov =>
             !fov.IsBarcode
-            && fov.BoltNumber == point.Number
+            && fov.BoltId == point.Id
             && fov.HeatSink == point.HeatSink) == 1;
     }
 
@@ -1019,7 +1019,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         var size = _camera.FrameSize;
         var fovs = _recipes.Current.CarrierImages.Where(fov =>
             !fov.IsBarcode
-            && fov.BoltNumber == point.Number
+            && fov.BoltId == point.Id
             && fov.HeatSink == point.HeatSink).ToArray();
         return point.InspectionPosition is not null && fovs.Length == 1
             && fovs[0].Region is { } region
@@ -1030,11 +1030,11 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     {
         var fov = _recipes.Current.CarrierImages.SingleOrDefault(fov =>
             !fov.IsBarcode
-            && fov.BoltNumber == point.Number
+            && fov.BoltId == point.Id
             && fov.HeatSink == point.HeatSink);
         if (fov is null)
             throw new InvalidOperationException(
-                $"Record a position for {point.HeatSink.GetDescription()} bolt {point.Number}.");
+                $"Record a position for {point.HeatSink.GetDescription()} bolt {point.Id}.");
         return fov;
     }
 
@@ -1077,7 +1077,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         lock (_recipes.InspectionSync)
         {
             if (!HasRegion(point))
-                throw new InvalidOperationException($"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
+                throw new InvalidOperationException($"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Id}.");
             var fov = GetFov(point);
             var defaults = _recipes.Current.BoltInspection;
             settings = (_recipes.Current.GetInspectionPosition(fov), fov.Region!, point.LightLevel ?? defaults.LightLevel,
@@ -1087,14 +1087,14 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         await MoveToAsync(settings.Center, cancellationToken: cancellationToken).ConfigureAwait(false);
         var image = await CaptureCurrentAsync(cancellationToken, lightLevel: settings.Light).ConfigureAwait(false);
         var capturedAt = DateTimeOffset.Now;
-        InspectionCaptured?.Invoke(image, point.HeatSink, point.Number);
+        InspectionCaptured?.Invoke(image, point.HeatSink, point.Id);
         return await Task.Run(
             () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var ratio = BinaryChecker.Check(image, settings.Region, settings.Threshold).BrightRatio;
                 cancellationToken.ThrowIfCancellationRequested();
-                return new InspectionCapture(point.Number, capturedAt, image, settings.Region, ratio >= settings.Minimum,
+                return new InspectionCapture(point.Id, capturedAt, image, settings.Region, ratio >= settings.Minimum,
                     BrightRatio: ratio, MinimumBrightRatio: settings.Minimum);
             },
             cancellationToken);

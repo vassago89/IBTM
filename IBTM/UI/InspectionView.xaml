@@ -43,7 +43,7 @@
                 <TextBlock x:Name="ActivePcb" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
                     Text="{Binding InspectionActivePcb, Converter={StaticResource EnumDescriptionConverter}}"/>
                 <TextBlock FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="{Binding InspectionActiveBolt.Number, StringFormat=' · Bolt {0}'}">
+                    Text="{Binding InspectionActiveOrdinal, StringFormat=' · Bolt {0}'}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Style.Triggers>
