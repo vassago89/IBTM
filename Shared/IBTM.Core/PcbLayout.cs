@@ -58,7 +58,7 @@ public sealed class PcbLayout
 
     public int? GetBoltOrdinal(Guid boltId)
     {
-        var bolt = BoltPoints.SingleOrDefault(point => point.Id == boltId);
+        var bolt = BoltPoints.FirstOrDefault(point => point.Id == boltId);
         if (bolt is null)
             return null;
         return BoltPoints.Where(point => point.HeatSink == bolt.HeatSink)

@@ -487,8 +487,6 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MachineState.ManualMode))
-            OpenBoltStationTestCommand.NotifyCanExecuteChanged();
         if (e.PropertyName is null or nameof(MachineState.Available) or nameof(MachineState.SafetyReady)
             or nameof(MachineState.Alarm) or nameof(MachineState.FeedbackReadiness) or nameof(MachineState.IsHoming)
             or nameof(MachineState.ServoPowerOn) or nameof(MachineState.IsRunning))

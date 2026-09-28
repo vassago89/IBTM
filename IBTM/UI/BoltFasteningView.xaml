@@ -167,6 +167,8 @@
             </Canvas>
         </Canvas>
         <Button Command="{Binding OpenBoltStationTestCommand}" Background="Transparent" Cursor="Hand"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
             Visibility="{Binding State.ManualMode, Converter={StaticResource BoolToVis}}"
             ToolTip="Open selected-bolt test · Manual mode">
             <Button.Template>
