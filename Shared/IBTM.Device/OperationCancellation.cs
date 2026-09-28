@@ -33,23 +33,9 @@ public sealed class OperationCancellation
         }
     }
 
-    public bool HasActiveOperations
-    {
-        get
-        {
-            lock (_gate)
-                return _activeOperations > 0;
-        }
-    }
+    public bool HasActiveOperations => Volatile.Read(ref _activeOperations) > 0;
 
-    public bool IsShuttingDown
-    {
-        get
-        {
-            lock (_gate)
-                return _shutdown is not null;
-        }
-    }
+    public bool IsShuttingDown => Volatile.Read(ref _shutdown) is not null;
 
     // A supplied token follows the caller's operation. Only command roots and
     // standalone scopes without a token subscribe directly to machine STOP.

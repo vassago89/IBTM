@@ -19,6 +19,11 @@
         </Style>
     </Window.Style>
     <Window.Resources>
+        <CollectionViewSource x:Key="BoltsByPcb" Source="{Binding Bolts}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Bolt.HeatSink"/>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
         <Style x:Key="TestCell" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -87,7 +92,17 @@
                 <Button Content="Select all" Command="{Binding SelectAllCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
                 <Button Content="Clear selection" Command="{Binding ClearSelectionCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
             </StackPanel>
-            <TextBlock Text="{Binding SelectedCount, StringFormat={}{0} bolts selected}" Style="{StaticResource TestCell}" FontWeight="SemiBold"/>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding SelectedCount, StringFormat={}{0} bolts selected}" Style="{StaticResource TestCell}" FontWeight="SemiBold"/>
+                <Border Background="{StaticResource EquipBgBrush}" Padding="12,6" Margin="20,0,0,0" CornerRadius="4"
+                    ToolTip="Total elapsed time including feeding, movement, fastening and cleanup.">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="TOTAL RUN" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding TotalRunSeconds, StringFormat={}{0:0.000} s, TargetNullValue=—}"
+                            Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
         </DockPanel>
         <Grid Grid.Row="4">
             <Grid.RowDefinitions>
@@ -100,7 +115,7 @@
                     <ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
                     <ColumnDefinition Width="90"/><ColumnDefinition Width="90"/><ColumnDefinition Width="100"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="1" Text="BOLT / PCB" Style="{StaticResource TestCell}"/>
+                <TextBlock Grid.Column="1" Text="BOLT" Style="{StaticResource TestCell}"/>
                 <TextBlock Grid.Column="2" Text="HEAD" Style="{StaticResource TestCell}"/>
                 <TextBlock Grid.Column="3" Text="RESULT" Style="{StaticResource TestCell}"/>
                 <TextBlock Grid.Column="4" Text="TORQUE" Style="{StaticResource TestCell}"/>
@@ -108,7 +123,7 @@
                 <TextBlock Grid.Column="6" Text="TIME (ms)" Style="{StaticResource TestCell}"/>
             </Grid>
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding Bolts}">
+                <ItemsControl ItemsSource="{Binding Source={StaticResource BoltsByPcb}}">
                     <ItemsControl.Style>
                         <Style TargetType="ItemsControl">
                             <Style.Triggers>
@@ -118,6 +133,18 @@
                             </Style.Triggers>
                         </Style>
                     </ItemsControl.Style>
+                    <ItemsControl.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource EquipBgBrush}" Padding="12,8" Margin="0,12,0,0">
+                                        <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
+                                            Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold"/>
+                                    </Border>
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ItemsControl.GroupStyle>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type ui:BoltTestRow}">
                             <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,10">

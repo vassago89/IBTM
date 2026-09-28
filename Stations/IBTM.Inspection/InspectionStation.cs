@@ -395,9 +395,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 return true;
             case InspectionStationState.PreparingInspection:
                 ClearInspectionOperation();
-                BoltPoint[] bolts;
-                lock (_recipes.InspectionSync)
-                    bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
+                var bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
                 var targets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                 var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt)>();
                 foreach (var pcb in targets)

@@ -50,14 +50,11 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         await _startGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            lock (_stateGate)
+            if (_lifetime is { IsCancellationRequested: false })
             {
-                if (_lifetime is { IsCancellationRequested: false })
-                {
-                    if (SlaveAddress != slaveAddress)
-                        throw new InvalidOperationException("Close the ADC connection before changing the monitored slave.");
-                    return;
-                }
+                if (SlaveAddress != slaveAddress)
+                    throw new InvalidOperationException("Close the ADC connection before changing the monitored slave.");
+                return;
             }
             await _completion.ConfigureAwait(false);
             lock (_stateGate)

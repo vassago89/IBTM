@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Core;
@@ -59,14 +60,7 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
     // Collection readers, including WPF binding, use the same lock as writers.
     public object SyncRoot { get; }
 
-    public string? FileError
-    {
-        get
-        {
-            lock (SyncRoot)
-                return _fileError;
-        }
-    }
+    public string? FileError => Volatile.Read(ref _fileError);
 
     public long LatestSequence
     {

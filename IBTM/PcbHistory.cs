@@ -69,13 +69,10 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
             assembly.BoltPresenceResults.ToDictionary(),
             _recipes.Current.Pcb.GetBolts(assembly.HeatSink).Select(bolt => bolt.Id).ToArray());
 
-        // Subscriptions and the first queued write do not depend on successful DB access.
-        lock (_gate)
-        {
-            assembly.ResultsChanged += QueueResults;
-            assembly.InspectionCaptured += QueueImage;
-            Enqueue(new(assembly, directory, initial));
-        }
+        // The station records results after this creation callback returns.
+        assembly.ResultsChanged += QueueResults;
+        assembly.InspectionCaptured += QueueImage;
+        Enqueue(new(assembly, directory, initial));
 
         void QueueResults(HeatSinkAssembly source)
         {

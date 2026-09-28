@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -66,6 +67,7 @@ public partial class BoltStationTestViewModel : ObservableObject
     [ObservableProperty] public partial bool IsClosing { get; private set; }
     [ObservableProperty] public partial string Message { get; private set; }
     [ObservableProperty] public partial string? Error { get; private set; }
+    [ObservableProperty] public partial double? TotalRunSeconds { get; private set; }
 
     public int SelectedCount => Bolts.Count(row => row.IsSelected);
 
@@ -101,6 +103,7 @@ public partial class BoltStationTestViewModel : ObservableObject
     {
         IsClosing = false;
         Error = null;
+        TotalRunSeconds = null;
         Message = "Uncheck bolts to leave only the bolts you want to test.";
         foreach (var row in Bolts)
             row.PropertyChanged -= OnRowChanged;
@@ -109,8 +112,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         {
             var label = string.IsNullOrWhiteSpace(bolt.Name)
                 ? $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}" : bolt.Name;
-            var row = new BoltTestRow(bolt,
-                $"{bolt.HeatSink.GetDescription()} · {label}");
+            var row = new BoltTestRow(bolt, label);
             row.PropertyChanged += OnRowChanged;
             Bolts.Add(row);
         }
@@ -191,12 +193,14 @@ public partial class BoltStationTestViewModel : ObservableObject
     {
         var selected = Bolts.Where(row => row.IsSelected).ToArray();
         Error = null;
+        TotalRunSeconds = null;
         foreach (var row in selected)
         {
             row.Result = null;
             row.Status = "Queued";
         }
         Message = $"Testing {selected.Length} selected bolts...";
+        var started = Stopwatch.GetTimestamp();
         try
         {
             var completed = await _machine.RunSelectedBoltsAsync(
@@ -212,6 +216,10 @@ public partial class BoltStationTestViewModel : ObservableObject
         }
         finally
         {
+            var elapsed = Stopwatch.GetElapsedTime(started);
+            TotalRunSeconds = elapsed.TotalSeconds;
+            _log.LogInformation("Selected-bolt test timing: selected={Count}, elapsed={ElapsedMs:F1} ms, outcome={Outcome}.",
+                selected.Length, elapsed.TotalMilliseconds, Message);
             foreach (var row in selected.Where(row => row.Result is null))
                 row.Status = row.Status == "Running" ? (Error is null ? "Stopped" : "Error") : "Not run";
             Refresh();

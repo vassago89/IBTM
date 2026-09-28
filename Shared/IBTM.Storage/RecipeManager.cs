@@ -101,13 +101,9 @@ public sealed class RecipeManager
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
-            Recipe snapshot;
-            string? imageRecipeName;
-            lock (InspectionSync)
-            {
-                snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(Current))!;
-                imageRecipeName = _imageRecipeName;
-            }
+            // Save/load and live inspection updates already share _saveGate.
+            var snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(Current))!;
+            var imageRecipeName = _imageRecipeName;
             var originalName = snapshot.Name;
             snapshot.Name = name;
             await Task.Run(
@@ -117,11 +113,8 @@ public sealed class RecipeManager
                     selection: new RecipeSelectionSettings { LastRecipeName = name },
                     cancellationToken: cancellationToken),
                 cancellationToken);
-            lock (InspectionSync)
-            {
-                if (Current.Name == originalName)
-                    Saved(name);
-            }
+            if (Current.Name == originalName)
+                Saved(name);
         }
         finally
         {
@@ -138,11 +131,7 @@ public sealed class RecipeManager
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
-            Recipe snapshot;
-            lock (InspectionSync)
-            {
-                snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(Current))!;
-            }
+            var snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(Current))!;
             var originalName = snapshot.Name;
             var capturedTiles = JsonSerializer.Deserialize<List<CarrierImageTile>>(JsonSerializer.Serialize(tiles))!;
             foreach (var tile in capturedTiles)
