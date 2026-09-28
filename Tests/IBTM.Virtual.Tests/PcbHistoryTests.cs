@@ -20,6 +20,83 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbHistoryTests
 {
     [Fact]
+    public async Task SixNamedBoltsKeepSeparateResultsAfterRecipeReloadAndReordering()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var recipe = new Recipe();
+        for (var index = 0; index < 6; index++)
+        {
+            recipe.Pcb.BoltPoints.Add(new()
+            {
+                Name = "고정",
+                Head = index < 4 ? FasteningHead.Shooting : FasteningHead.Pickup,
+            });
+        }
+        store.SaveRecipe(recipe);
+        var settings = new MachineSettings();
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-six-bolts-{Guid.NewGuid():N}");
+        await using var services = new ServiceCollection().AddSingleton(store)
+            .AddIbtmApplication(settings).BuildServiceProvider();
+        var recipes = services.GetRequiredService<RecipeManager>();
+        await recipes.LoadAsync(recipe.Name);
+        var bolts = recipes.Current.Pcb.FasteningPoints.ToArray();
+        Assert.Equal(6, bolts.Select(bolt => bolt.Id).Distinct().Count());
+        Assert.DoesNotContain(bolts, bolt => bolt.Id == Guid.Empty);
+
+        var history = services.GetRequiredService<PcbHistory>();
+        var assembly = services.GetRequiredService<BoltFasteningStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        for (var index = 0; index < bolts.Length; index++)
+        {
+            assembly.RecordBolt(bolts[index].Head, bolts[index].Id,
+                new(index != 4, index == 4 ? null : 8 + index, Error: index == 4 ? "ADC response error" : null));
+        }
+        assembly.CompleteFastening();
+        recipes.Current.Pcb.BoltPoints.Move(0, 5);
+        bolts[4].Name = "변경된 이름";
+        await recipes.SaveAsync(recipe.Name);
+        await history.FlushAsync();
+
+        var reopened = new MachineStore(store.DatabaseFile);
+        var record = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
+        Assert.Equal(4, record.PcbBoltResults.Count);
+        Assert.Equal(2, record.PickupBoltResults.Count);
+        Assert.Equal(AssemblyResult.Ng, record.FasteningResult);
+        Assert.Equal(bolts.Select(bolt => bolt.Id), record.BoltIds);
+        Assert.Equal(bolts.Select(bolt => bolt.Id).Order(), reopened.LoadRecipe(recipe.Name).Pcb.BoltPoints.Select(bolt => bolt.Id).Order());
+        using (var connection = new SqliteConnection($"Data Source={record.DatabaseFile};Mode=ReadOnly"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT Value FROM Pcbs WHERE Number=$number";
+            command.Parameters.AddWithValue("$number", record.Number);
+            var json = (string)command.ExecuteScalar()!;
+            Assert.DoesNotContain("BoltNumber", json);
+            using var saved = System.Text.Json.JsonDocument.Parse(json);
+            Assert.All(saved.RootElement.GetProperty(nameof(PcbRecord.PcbBoltResults)).EnumerateObject(),
+                result => Assert.True(Guid.TryParse(result.Name, out var id) && id != Guid.Empty));
+            Assert.All(saved.RootElement.GetProperty(nameof(PcbRecord.PickupBoltResults)).EnumerateObject(),
+                result => Assert.True(Guid.TryParse(result.Name, out var id) && id != Guid.Empty));
+        }
+
+        var details = services.GetRequiredService<PcbDetailsViewModel>();
+        details.Record = record;
+        Assert.Equal(6, details.BoltResults.Count);
+        for (var index = 0; index < bolts.Length; index++)
+        {
+            var row = details.BoltResults[index];
+            Assert.Equal(bolts[index].Id, row.BoltId);
+            Assert.Equal(index + 1, row.Number);
+            Assert.Equal(bolts[index].Head, row.Head);
+            Assert.Equal(index != 4, row.Result.Success);
+            Assert.Equal(index == 4 ? null : (double?)(8 + index), row.Result.Torque);
+        }
+        details.SelectedBolt = details.BoltResults[4];
+        Assert.Equal("ADC response error", details.SelectedBolt.Result.Error);
+        Assert.True(details.BoltResults[5].Result.Success);
+        await details.LoadImagesCommand.ExecuteAsync(null);
+    }
+
+    [Fact]
     public async Task LockedDatabaseDoesNotBlockAssemblyCreationOrResultCollection()
     {
         var store = VirtualTest.OpenMachineStore();

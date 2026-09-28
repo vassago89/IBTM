@@ -95,10 +95,8 @@ public sealed class RecipeTests
         Assert.Equal(2, saved.Pcb.GetBoltOrdinal(second.Id));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task InvalidBoltIdsCannotReplaceActiveRecipeOrOverwriteSavedData(bool duplicate)
+    [Fact]
+    public async Task DuplicateBoltIdsCannotReplaceActiveRecipeOrOverwriteSavedData()
     {
         var store = VirtualTest.OpenMachineStore();
         var recipes = new RecipeManager(store, new());
@@ -107,12 +105,12 @@ public sealed class RecipeTests
         await recipes.LoadAsync(active.Name);
         var before = JsonSerializer.Serialize(recipes.Current);
         var id = Guid.NewGuid();
-        var identity = duplicate ? $"\"Id\":\"{id}\"," : "";
+        var identity = $"\"Id\":\"{id}\",";
         var json = $$"""
             {"Name":"Invalid","Pcb":{"TaughtBolts":[
                 {{{identity}}"Number":1,"X":148.637,"Y":244.938},
                 {{{identity}}"Number":2,"X":160,"Y":250}
-            ]},"CarrierImages":[{"Number":1,"BoltNumber":1},{"Number":2,"BoltNumber":2}]}
+            ]} }
             """;
         using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
         {
@@ -124,13 +122,98 @@ public sealed class RecipeTests
         }
 
         var error = await Assert.ThrowsAsync<InvalidDataException>(() => recipes.LoadAsync("Invalid"));
-        Assert.Contains(duplicate ? "duplicate GUID" : "no valid GUID", error.Message);
+        Assert.Contains("duplicate GUID", error.Message);
         Assert.Equal(before, JsonSerializer.Serialize(recipes.Current));
         var invalid = JsonSerializer.Deserialize<Recipe>(json)!;
         invalid.Name = active.Name;
         Assert.Throws<InvalidDataException>(() => store.SaveRecipe(invalid));
         Assert.Throws<InvalidDataException>(() => store.SaveInspectionSettings(invalid));
         Assert.Equal(before, JsonSerializer.Serialize(store.LoadRecipe(active.Name)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadingEmptyBoltGuidsPersistsUniqueIdsWithoutUsingLegacyNumbers(bool explicitEmpty)
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var preservedId = Guid.NewGuid();
+        var identity = explicitEmpty ? $"\"Id\":\"{Guid.Empty}\"," : "";
+        var json = $$"""
+            {"Name":"Legacy","Pcb":{"TaughtBolts":[
+                {{{identity}}"Number":7,"Name":"고정","HeatSink":"HeatSink1","X":68.936,"Y":216.493,"FasteningX":152.904,"FasteningY":73.405,"FasteningZOffset":2},
+                {{{identity}}"Number":7,"Name":"고정","HeatSink":"HeatSink2","X":356.478,"Y":271.678},
+                {"Id":"{{preservedId}}","Number":8,"HeatSink":"HeatSink1","X":28.4,"Y":216.495}
+            ],"FasteningOrder":["{{preservedId}}"]},"CarrierImages":[
+                {"Number":12,"BoltNumber":7,"HeatSink":"HeatSink1","Region":{"X":512,"Y":384,"Width":256,"Height":256} },
+                {"Number":24,"BoltNumber":7,"HeatSink":"HeatSink2"},
+                {"Number":17,"BoltId":"{{preservedId}}","HeatSink":"HeatSink1"},
+                {"Number":5,"IsBarcode":true,"HeatSink":"HeatSink1","Center":{"X":148.637,"Y":244.938} }
+            ]}
+            """;
+        using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "INSERT INTO Recipes (Name, Value) VALUES ('Legacy', $value)";
+            command.Parameters.AddWithValue("$value", json);
+            command.ExecuteNonQuery();
+        }
+
+        var loaded = await Task.WhenAll(Task.Run(() => store.LoadRecipe("Legacy")), Task.Run(() => store.LoadRecipe("Legacy")));
+        var first = loaded[0];
+        var ids = first.Pcb.BoltPoints.Select(bolt => bolt.Id).ToArray();
+        Assert.Equal(3, ids.Distinct().Count());
+        Assert.DoesNotContain(Guid.Empty, ids);
+        Assert.Equal(preservedId, ids[2]);
+        Assert.Equal(ids, loaded[1].Pcb.BoltPoints.Select(bolt => bolt.Id));
+        Assert.Equal(new[] { preservedId }, first.Pcb.FasteningOrder);
+        Assert.Null(first.CarrierImages[0].BoltId);
+        Assert.Null(first.CarrierImages[1].BoltId);
+        Assert.Equal(preservedId, first.CarrierImages[2].BoltId);
+        Assert.Null(first.CarrierImages[3].BoltId);
+        Assert.Equal(new PixelRegion(512, 384, 256, 256), first.CarrierImages[0].Region);
+        Assert.Equal((148.637, 244.938), (first.CarrierImages[3].Center!.X, first.CarrierImages[3].Center!.Y));
+        var bolt = first.Pcb.BoltPoints[0];
+        Assert.Equal("고정", bolt.Name);
+        Assert.Equal((68.936, 216.493, 152.904, 73.405, 2d), (bolt.X, bolt.Y, bolt.FasteningX, bolt.FasteningY, bolt.FasteningZOffset));
+
+        var reopened = new MachineStore(store.DatabaseFile);
+        Assert.Equal(ids, reopened.LoadRecipe("Legacy").Pcb.BoltPoints.Select(point => point.Id));
+        store.SaveInspectionSettings(first);
+        store.SaveRecipe(first);
+        Assert.Equal(ids, store.LoadRecipe("Legacy").Pcb.BoltPoints.Select(point => point.Id));
+        using var verification = new SqliteConnection($"Data Source={store.DatabaseFile}");
+        verification.Open();
+        using var query = verification.CreateCommand();
+        query.CommandText = "SELECT Value FROM Recipes WHERE Name='Legacy'";
+        var savedJson = (string)query.ExecuteScalar()!;
+        Assert.DoesNotContain("BoltNumber", savedJson);
+        using var saved = JsonDocument.Parse(savedJson);
+        Assert.All(saved.RootElement.GetProperty("Pcb").GetProperty("TaughtBolts").EnumerateArray(),
+            point => Assert.False(point.TryGetProperty("Number", out _)));
+    }
+
+    [Fact]
+    public void LoadingEmptyBoltGuidsWithoutLegacyNumbersKeepsImagesUnlinked()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var json = $$"""
+            {"Name":"Empty","Pcb":{"TaughtBolts":[{"Id":"{{Guid.Empty}}"},{"Id":"{{Guid.Empty}}"}]},
+            "CarrierImages":[{"Number":1,"BoltId":"{{Guid.Empty}}"}]}
+            """;
+        using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO Recipes (Name, Value) VALUES ('Empty', $value)";
+        command.Parameters.AddWithValue("$value", json);
+        command.ExecuteNonQuery();
+
+        var loaded = store.LoadRecipe("Empty");
+        Assert.Equal(2, loaded.Pcb.BoltPoints.Select(bolt => bolt.Id).Distinct().Count());
+        Assert.DoesNotContain(loaded.Pcb.BoltPoints, bolt => bolt.Id == Guid.Empty);
+        Assert.Equal(Guid.Empty, loaded.CarrierImages[0].BoltId);
+        Assert.All(loaded.Pcb.BoltPoints, bolt => Assert.NotEqual(bolt.Id, loaded.CarrierImages[0].BoltId));
     }
 
     [Fact]

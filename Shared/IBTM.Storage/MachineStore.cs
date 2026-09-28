@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -136,6 +137,27 @@ public sealed class MachineStore
         var json = db.Recipes.Where(row => row.Name == name).Select(row => row.Value).Single();
         var recipe = JsonSerializer.Deserialize<Recipe>(json) ?? throw new InvalidDataException(
             $"Recipe '{name}' is empty.");
+        if (recipe.Pcb.BoltPoints.Any(bolt => bolt.Id == Guid.Empty))
+        {
+            // Re-read under the write transaction so concurrent loads keep the same repaired IDs.
+            using var transaction = db.Database.BeginTransaction();
+            var row = db.Recipes.Single(row => row.Name == name);
+            recipe = JsonSerializer.Deserialize<Recipe>(row.Value)!;
+            var document = JsonNode.Parse(row.Value)!;
+            var bolts = document[nameof(Recipe.Pcb)]!["TaughtBolts"]!.AsArray();
+            for (var index = 0; index < recipe.Pcb.BoltPoints.Count; index++)
+            {
+                if (recipe.Pcb.BoltPoints[index].Id == Guid.Empty)
+                    bolts[index]![nameof(BoltPoint.Id)] = JsonValue.Create(Guid.NewGuid());
+            }
+            recipe = document.Deserialize<Recipe>()!;
+            recipe.ValidateBoltIds();
+            // Save before publishing the recipe; another load must never generate different IDs.
+            row.Value = JsonSerializer.Serialize(recipe);
+            db.SaveChanges();
+            transaction.Commit();
+            return recipe;
+        }
         recipe.ValidateBoltIds();
         return recipe;
     }
