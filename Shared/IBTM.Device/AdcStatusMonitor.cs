@@ -5,15 +5,20 @@ using System.IO;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace IBTM.Device;
 
-public sealed record AdcStatusSample(long StartedAt, AdcControllerStatus? Status, Exception? Error);
+// Monotonic query timestamps; completion precedes feedback/change notification.
+public sealed record AdcStatusSample(
+    long StartedAt, long CompletedAt, AdcControllerStatus? Status, Exception? Error);
 
 // One communication loop per connection. Commands queue here alongside status sampling.
 public sealed class AdcStatusMonitor : INotifyPropertyChanged
 {
     private readonly IAdcBus _bus;
+    private readonly ILogger<AdcStatusMonitor> _logger;
     private readonly SemaphoreSlim _startGate;
     private readonly Lock _stateGate;
     private readonly Channel<Func<CancellationToken, Task>> _requests;
@@ -21,9 +26,10 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     private Task _completion;
     private AdcStatusSample? _sample;
 
-    public AdcStatusMonitor(IAdcBus bus)
+    public AdcStatusMonitor(IAdcBus bus, ILogger<AdcStatusMonitor>? logger = null)
     {
         _bus = bus;
+        _logger = logger ?? NullLogger<AdcStatusMonitor>.Instance;
         _startGate = new(1, 1);
         _stateGate = new();
         _requests = Channel.CreateUnbounded<Func<CancellationToken, Task>>(
@@ -67,7 +73,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 SlaveAddress = slaveAddress;
                 // Open clears the previous connection. Its disconnect sample is not
                 // feedback from this new session; stay unknown until the first reply.
-                Publish(new(Stopwatch.GetTimestamp(), null, null));
+                var now = Stopwatch.GetTimestamp();
+                Publish(new(now, now, null, null));
                 var token = _lifetime.Token;
                 _completion = Task.Run(() => RunAsync(token), CancellationToken.None);
             }
@@ -83,7 +90,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         lock (_stateGate)
         {
             _lifetime?.Cancel();
-            Publish(new(Stopwatch.GetTimestamp(), null,
+            var now = Stopwatch.GetTimestamp();
+            Publish(new(now, now, null,
                 new IOException($"ADC {_bus.PortName}/{SlaveAddress} status monitor is disconnected.")));
         }
     }
@@ -92,9 +100,11 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         Func<CancellationToken, Task<T>> request, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var queuedAt = Stopwatch.GetTimestamp();
         var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task ExecuteAsync(CancellationToken lifetimeToken)
         {
+            var startedAt = Stopwatch.GetTimestamp();
             try
             {
                 using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetimeToken);
@@ -114,6 +124,15 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
             {
                 completion.TrySetException(exception);
             }
+            finally
+            {
+                _logger.LogDebug(
+                    "ADC {Port}/{Slave} queued request timing: response type={ResponseType}; "
+                        + "queue wait={QueueWait:F1} ms; execution={Execution:F1} ms; outcome={Outcome}.",
+                    _bus.PortName, SlaveAddress, typeof(T).Name,
+                    Stopwatch.GetElapsedTime(queuedAt, startedAt).TotalMilliseconds,
+                    Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds, completion.Task.Status);
+            }
         }
 
         lock (_stateGate)
@@ -128,6 +147,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     private async Task RunAsync(CancellationToken token)
     {
         long? lastStatusAt = null;
+        long? previousStartedAt = null;
         Task<bool>? requestAvailable = null;
         try
         {
@@ -160,19 +180,35 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 try
                 {
                     var status = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);
-                    sample = new(startedAt, status, null);
+                    sample = new(startedAt, Stopwatch.GetTimestamp(), status, null);
                 }
                 catch (Exception exception) when (
                     exception is not OperationCanceledException || !token.IsCancellationRequested)
                 {
-                    sample = new(startedAt, null, exception);
+                    sample = new(startedAt, Stopwatch.GetTimestamp(), null, exception);
                 }
                 lock (_stateGate)
                 {
                     token.ThrowIfCancellationRequested();
                     Publish(sample);
                 }
-                lastStatusAt = Stopwatch.GetTimestamp();
+                var publishedAt = Stopwatch.GetTimestamp();
+                _logger.LogDebug(
+                    "ADC {Port}/{Slave} status timing: start gap={StartGap:F1} ms; "
+                        + "since previous publish={SincePublish:F1} ms; query={Query:F1} ms; "
+                        + "publish={Publish:F1} ms; configured pause after publish={Interval} ms; "
+                        + "READY={Ready}, RUN={Running}, ALARM={Alarm}; error={ErrorType}.",
+                    _bus.PortName, SlaveAddress,
+                    previousStartedAt is { } previous
+                        ? Stopwatch.GetElapsedTime(previous, startedAt).TotalMilliseconds : (double?)null,
+                    lastStatusAt is { } last
+                        ? Stopwatch.GetElapsedTime(last, startedAt).TotalMilliseconds : (double?)null,
+                    Stopwatch.GetElapsedTime(startedAt, sample.CompletedAt).TotalMilliseconds,
+                    Stopwatch.GetElapsedTime(sample.CompletedAt, publishedAt).TotalMilliseconds,
+                    IntervalMilliseconds, sample.Status?.Ready, sample.Status?.Running, sample.Status?.Alarm,
+                    sample.Error?.GetType().Name);
+                previousStartedAt = startedAt;
+                lastStatusAt = publishedAt;
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

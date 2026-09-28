@@ -112,7 +112,7 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
     private static bool IsCommunication(LogEvent logEvent)
     {
         return logEvent.Properties.TryGetValue("SourceContext", out var source)
-            && source is ScalarValue { Value: "IBTM.Hantas.AdcBus" };
+            && source is ScalarValue { Value: "IBTM.Hantas.AdcBus" or "IBTM.Device.AdcStatusMonitor" };
     }
 
     private static bool IsCommunicationDetail(LogEvent logEvent)

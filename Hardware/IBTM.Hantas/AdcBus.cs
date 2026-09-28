@@ -22,9 +22,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
     private readonly SemaphoreSlim _exchange;
     private SerialPort? _port;
 
-    public AdcBus(HantasSettings settings, ILogger<AdcBus>? logger = null)
+    public AdcBus(
+        HantasSettings settings,
+        ILogger<AdcBus>? logger = null,
+        ILogger<AdcStatusMonitor>? monitorLogger = null)
     {
-        Monitor = new(this);
+        Monitor = new(this, monitorLogger);
         _settings = settings;
         _logger = logger ?? NullLogger<AdcBus>.Instance;
         _exchange = new(1, 1);
@@ -182,7 +185,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
     {
         var responseTimeoutMilliseconds = _settings.ResponseTimeoutMilliseconds;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(responseTimeoutMilliseconds);
+        var queuedAt = Stopwatch.GetTimestamp();
         await _exchange.WaitAsync(cancellationToken);
+        var acquiredAt = Stopwatch.GetTimestamp();
         try
         {
             var port = _port;
@@ -203,8 +208,15 @@ public sealed class AdcBus : IAdcBus, IDisposable
             var started = Stopwatch.GetTimestamp();
             var receivedBytes = new List<byte>();
             var receivedChunks = 0;
+            long? writeStartedAt = null;
+            long? writeCompletedAt = null;
+            long? firstReceivedAt = null;
+            long? lastReceivedAt = null;
             void OnReceived(byte[] bytes)
             {
+                var now = Stopwatch.GetTimestamp();
+                firstReceivedAt ??= now;
+                lastReceivedAt = now;
                 receivedBytes.AddRange(bytes);
                 receivedChunks++;
                 FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes);
@@ -215,10 +227,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
             {
                 FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
                 _logger.LogInformation("ADC [{Port}] TX {Frame}", port.PortName, Convert.ToHexString(request));
+                writeStartedAt = Stopwatch.GetTimestamp();
                 await AwaitSerialIoAsync(
                     port.BaseStream.WriteAsync(request, timeout.Token).AsTask(),
                     port.DiscardOutBuffer,
                     timeout.Token);
+                writeCompletedAt = Stopwatch.GetTimestamp();
                 if (captureMilliseconds is not null)
                     timeout.CancelAfter(Timeout.Infinite);
                 response = await ReadResponseAsync(port.BaseStream, port.DiscardInBuffer, OnReceived,
@@ -251,6 +265,29 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     throw new TimeoutException(
                         $"{detail} Response timed out after {responseTimeoutMilliseconds} ms.", exception);
                 throw;
+            }
+            finally
+            {
+                var finishedAt = Stopwatch.GetTimestamp();
+                _logger.LogDebug(
+                    "ADC {Port}/{Slave} exchange timing: TX={Request}; gate wait={GateWait:F1} ms; "
+                        + "frame gap/setup={Setup:F1} ms; TX notification={Notification:F1} ms; write={Write:F1} ms; "
+                        + "write start to first RX={FirstRx:F1} ms; RX span={RxSpan:F1} ms; "
+                        + "post RX handling={PostRx:F1} ms; exchange={Exchange:F1} ms; chunks={Chunks}, bytes={Bytes}.",
+                    port.PortName, slaveAddress, Convert.ToHexString(request),
+                    Stopwatch.GetElapsedTime(queuedAt, acquiredAt).TotalMilliseconds,
+                    Stopwatch.GetElapsedTime(acquiredAt, started).TotalMilliseconds,
+                    writeStartedAt is { } writing
+                        ? Stopwatch.GetElapsedTime(started, writing).TotalMilliseconds : (double?)null,
+                    writeStartedAt is { } writeStart && writeCompletedAt is { } written
+                        ? Stopwatch.GetElapsedTime(writeStart, written).TotalMilliseconds : (double?)null,
+                    writeStartedAt is { } sent && firstReceivedAt is { } first
+                        ? Stopwatch.GetElapsedTime(sent, first).TotalMilliseconds : (double?)null,
+                    firstReceivedAt is { } firstRx && lastReceivedAt is { } lastRx
+                        ? Stopwatch.GetElapsedTime(firstRx, lastRx).TotalMilliseconds : (double?)null,
+                    lastReceivedAt is { } received
+                        ? Stopwatch.GetElapsedTime(received, finishedAt).TotalMilliseconds : (double?)null,
+                    Stopwatch.GetElapsedTime(started, finishedAt).TotalMilliseconds, receivedChunks, receivedBytes.Count);
             }
 
             return response;

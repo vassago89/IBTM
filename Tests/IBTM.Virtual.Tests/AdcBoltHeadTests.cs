@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.ExceptionServices;
@@ -10,6 +11,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.Virtual;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
@@ -267,7 +269,18 @@ public sealed class AdcBoltHeadTests
         string response, AdcEventStatus resultStatus)
     {
         using var bus = new AdcControllerStub { SuppressCompletion = true, ResultStatus = resultStatus };
-        var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
+        var log = new ApplicationLog();
+        using var factory = log.CreateLoggerFactory();
+        var io = new VirtualIoService(VirtualTest.Outputs(), new());
+        bus.BindIo(io, FasteningHead.Pickup);
+        var head = new AdcBoltHead(bus, io, FasteningHead.Pickup,
+            new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200, factory.CreateLogger<AdcBoltHead>());
+        bool? startDuringSummary = null;
+        ((INotifyCollectionChanged)log.Entries).CollectionChanged += (sender, args) =>
+        {
+            if (log.Entries[^1].Message.Contains("completion status timing"))
+                startDuringSummary = io.GetOutput(OutputIo.PickupBoltStart);
+        };
         await head.SelectPresetAsync(1);
         var rejection = Assert.IsAssignableFrom<IOException>(Record.Exception(() => AdcBus.ValidateResponse(
             Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14)));
@@ -300,6 +313,11 @@ public sealed class AdcBoltHeadTests
             Assert.Equal(1, bus.StartWrites);
             Assert.Equal(1, bus.StopWrites);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.False(startDuringSummary);
+            Assert.Contains(log.Snapshot(), entry => entry.Message.Contains("completion status timing")
+                && entry.Message.Contains("rejected=1"));
+            Assert.Contains(log.Snapshot(), entry => entry.Message.Contains("cycle timing")
+                && entry.Message.Contains("controller fastening=250 ms"));
         }
         finally
         {

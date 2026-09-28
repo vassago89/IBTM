@@ -209,7 +209,14 @@ public sealed class AdcBoltHead : IBoltHead
         AdcFasteningResult? lastResult = null;
         var runObserved = false;
         var startedAt = long.MaxValue;
-        var stopped = new TaskCompletionSource<AdcControllerStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource<AdcStatusSample>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var statusSamples = 0;
+        var rejectedSamples = 0;
+        var longestQueryMilliseconds = 0.0;
+        long? lastRunningQueryAt = null;
+        AdcStatusSample? finishedSample = null;
+        long? resultQueuedAt = null;
+        long? resultReceivedAt = null;
         Exception? failure = null;
         var waitingForResult = false;
         Exception? ioFailure = null;
@@ -221,12 +228,19 @@ public sealed class AdcBoltHead : IBoltHead
         void OnStatusSampled(AdcStatusSample sample)
         {
             var cycleStartedAt = Interlocked.Read(ref startedAt);
-            if (sample.StartedAt < cycleStartedAt)
+            if (sample.StartedAt < cycleStartedAt || stopped.Task.IsCompleted)
                 return;
+            var observedAt = Stopwatch.GetTimestamp();
+            var queryMilliseconds = Stopwatch.GetElapsedTime(sample.StartedAt, sample.CompletedAt).TotalMilliseconds;
+            statusSamples++;
+            longestQueryMilliseconds = Math.Max(longestQueryMilliseconds, queryMilliseconds);
             // A rejected or unmatched valid reply supplies no RUN feedback or fastening result.
             // Await the monitor's next scheduled sample within the existing cycle timeout.
             if (sample.Error is AdcResponseException or AdcUnexpectedResponseException)
+            {
+                rejectedSamples++;
                 return;
+            }
             if (sample.Error is { } error)
             {
                 stopped.TrySetException(error);
@@ -234,16 +248,19 @@ public sealed class AdcBoltHead : IBoltHead
             }
             if (sample.Status is not { } status)
                 return;
+            if (status.Running)
+                lastRunningQueryAt = sample.StartedAt;
             if (status.Running && !runObserved)
             {
                 runObserved = true;
                 _logger.LogInformation(
-                    "ADC {Port}/{Slave}: RUN ON observed; elapsed since START={Elapsed:F1} ms; status query={QueryElapsed:F1} ms.",
-                    _portName, _slaveAddress, Stopwatch.GetElapsedTime(cycleStartedAt).TotalMilliseconds,
-                    Stopwatch.GetElapsedTime(sample.StartedAt).TotalMilliseconds);
+                    "ADC {Port}/{Slave}: RUN ON observed; elapsed since START={Elapsed:F1} ms; "
+                        + "status query={QueryElapsed:F1} ms; notification={Notification:F1} ms.",
+                    _portName, _slaveAddress, Stopwatch.GetElapsedTime(cycleStartedAt, observedAt).TotalMilliseconds,
+                    queryMilliseconds, Stopwatch.GetElapsedTime(sample.CompletedAt, observedAt).TotalMilliseconds);
             }
             if (status.Alarm != 0 || runObserved && !status.Running)
-                stopped.TrySetResult(status);
+                stopped.TrySetResult(sample);
         }
         _io.Faulted += OnIoFaulted;
         try
@@ -288,18 +305,23 @@ public sealed class AdcBoltHead : IBoltHead
             {
                 try
                 {
-                    var finishedStatus = await stopped.Task.WaitAsync(timeout.Token);
+                    finishedSample = await stopped.Task.WaitAsync(timeout.Token);
+                    var finishedStatus = finishedSample.Status!;
                     Monitor.Sampled -= OnStatusSampled;
                     if (finishedStatus.Alarm != 0 && finishedStatus.Running)
                         failure = new InvalidOperationException(AdcControllerError.Describe(finishedStatus.Alarm));
                     if (failure is null)
                     {
                         _logger.LogInformation(
-                            "ADC {Port}/{Slave}: RUN OFF; reading fastening result once; start event={StartEvent}; elapsed since START={Elapsed:F1} ms.",
+                            "ADC {Port}/{Slave}: RUN OFF; reading fastening result once; start event={StartEvent}; "
+                                + "elapsed since START={Elapsed:F1} ms; sample to result enqueue={Handoff:F1} ms.",
                             _portName, _slaveAddress, fastening.EventCount,
-                            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+                            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                            Stopwatch.GetElapsedTime(finishedSample.CompletedAt).TotalMilliseconds);
+                        resultQueuedAt = Stopwatch.GetTimestamp();
                         var result = await Monitor.EnqueueAsync(
                             token => _bus.ReadFasteningResultAsync(_slaveAddress, token), timeout.Token);
+                        resultReceivedAt = Stopwatch.GetTimestamp();
                         lastResult = result;
                         var hasNewResult = result.EventCount != fastening.EventCount
                             && result.Status is AdcEventStatus.Error or AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg;
@@ -373,6 +395,43 @@ public sealed class AdcBoltHead : IBoltHead
             Monitor.Sampled -= OnStatusSampled;
             _io.Faulted -= OnIoFaulted;
             StopAfterOperation(failure);
+            // Record the summary after START OFF; diagnostics must not hold the motor on.
+            var stoppedAt = Stopwatch.GetTimestamp();
+            if (finishedSample is { } sample)
+            {
+                _logger.LogInformation(
+                    "ADC {Port}/{Slave}: completion status timing; start event={StartEvent}; "
+                        + "RUN={Running}, ALARM={Alarm}; START to sample={Elapsed:F1} ms; "
+                        + "samples={Samples}, rejected={Rejected}; longest query={LongestQuery:F1} ms; "
+                        + "final query={QueryElapsed:F1} ms; last RUN query start to completion sample={RunGap:F1} ms; "
+                        + "sample to result enqueue={Handoff:F1} ms.",
+                    _portName, _slaveAddress, started?.EventCount, sample.Status?.Running, sample.Status?.Alarm,
+                    Stopwatch.GetElapsedTime(startedAt, sample.CompletedAt).TotalMilliseconds,
+                    statusSamples, rejectedSamples, longestQueryMilliseconds,
+                    Stopwatch.GetElapsedTime(sample.StartedAt, sample.CompletedAt).TotalMilliseconds,
+                    lastRunningQueryAt is { } runningAt
+                        ? Stopwatch.GetElapsedTime(runningAt, sample.CompletedAt).TotalMilliseconds : (double?)null,
+                    resultQueuedAt is { } queuedAt
+                        ? Stopwatch.GetElapsedTime(sample.CompletedAt, queuedAt).TotalMilliseconds : (double?)null);
+                if (completed?.Controller is { } controller
+                    && resultReceivedAt is { } receivedAt
+                    && resultQueuedAt is { } queued)
+                {
+                    _logger.LogInformation(
+                        "ADC {Port}/{Slave}: cycle timing; result event={ResultEvent}; "
+                            + "START to result={Elapsed:F1} ms; controller fastening={ControllerTime} ms; "
+                            + "difference (includes mechanical/start time)={Difference:F1} ms; "
+                            + "completion sample to result={CompletionToResult:F1} ms; result queue/read={ResultRead:F1} ms; "
+                            + "result to STOP cleanup complete={Stop:F1} ms.",
+                        _portName, _slaveAddress, controller.EventCount,
+                        Stopwatch.GetElapsedTime(startedAt, receivedAt).TotalMilliseconds,
+                        controller.FasteningTimeMilliseconds,
+                        Stopwatch.GetElapsedTime(startedAt, receivedAt).TotalMilliseconds - controller.FasteningTimeMilliseconds,
+                        Stopwatch.GetElapsedTime(sample.CompletedAt, receivedAt).TotalMilliseconds,
+                        Stopwatch.GetElapsedTime(queued, receivedAt).TotalMilliseconds,
+                        Stopwatch.GetElapsedTime(receivedAt, stoppedAt).TotalMilliseconds);
+                }
+            }
         }
 
         cancellationToken.ThrowIfCancellationRequested();

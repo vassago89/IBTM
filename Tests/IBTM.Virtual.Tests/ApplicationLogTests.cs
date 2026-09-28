@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Device;
 using IBTM.Hantas;
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -94,6 +95,7 @@ public sealed class ApplicationLogTests
                 Parallel.For(0, 64, index => communication.LogInformation(
                     "ADC [{Port}] RX RAW {Frame}", "COM9", $"FRAME-{index}"));
                 communication.LogDebug("RTU response decoded");
+                factory.CreateLogger<AdcStatusMonitor>().LogDebug("ADC status timing: query/publish/pause");
                 communication.LogWarning("ADC request rejected");
                 communication.LogError(new IOException("Response timed out"), "ADC exchange failed");
                 factory.CreateLogger<ApplicationLogTests>().LogInformation("Machine cycle completed");
@@ -108,9 +110,11 @@ public sealed class ApplicationLogTests
             Assert.Contains("Machine cycle completed", machine);
             Assert.DoesNotContain("RX RAW", machine);
             Assert.DoesNotContain("RTU response decoded", machine);
+            Assert.DoesNotContain("ADC status timing", machine);
             Assert.DoesNotContain("Machine cycle completed", communicationText);
             Assert.Equal(64, File.ReadAllLines(communicationPath).Count(line => line.Contains("RX RAW")));
             Assert.Contains("RTU response decoded", communicationText);
+            Assert.Contains("ADC status timing", communicationText);
             foreach (var text in new[] { machine, communicationText })
             {
                 Assert.Contains("ADC request rejected", text);
