@@ -26,6 +26,8 @@ public sealed class BoltFasteningStation : AutoUnit
     private int _boltIndex;
     private ConveyorStation.Job? _runJob;
     private CancellationTokenSource? _carrierOperation;
+    // A supply operation for the next selected bolt, owned only by the current carrier run.
+    private (Guid BoltId, CancellationTokenSource Cancellation, Task Completion)? _shootingFeed;
 
     public BoltFasteningStation(
         IBoltHead shootingHead,
@@ -246,15 +248,25 @@ public sealed class BoltFasteningStation : AutoUnit
         }
         finally
         {
-            ClearCarrierOperation();
             try
             {
-                if (_units.BoltFastening)
-                    StopShooting(failure);
+                await ClearCarrierOperationAsync();
+            }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
             }
             finally
             {
-                EndRun(cancellationToken);
+                try
+                {
+                    if (_units.BoltFastening)
+                        StopShooting(failure);
+                }
+                finally
+                {
+                    EndRun(cancellationToken);
+                }
             }
         }
     }
@@ -315,7 +327,7 @@ public sealed class BoltFasteningStation : AutoUnit
             case BoltFasteningState.Waiting:
                 return false;
             case BoltFasteningState.PreparingCarrier:
-                ClearCarrierOperation();
+                await ClearCarrierOperationAsync();
                 _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                 foreach (var heatSink in _runTargets)
                 {
@@ -357,7 +369,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 await MoveZAsync(_settings.SafeZ, token);
                 token.ThrowIfCancellationRequested();
                 Station.Complete(job);
-                ClearCarrierOperation();
+                await ClearCarrierOperationAsync();
                 return true;
             }
 
@@ -384,23 +396,34 @@ public sealed class BoltFasteningStation : AutoUnit
                     if (moveRequired || feeding)
                         await RaiseCylindersAsync(token);
 
-                    if (moveRequired && feeding)
+                    if (feeding)
                     {
+                        var pendingFeed = _shootingFeed;
+                        if (pendingFeed is { } pending && pending.BoltId != bolt.Id)
+                            throw new InvalidOperationException("The shooting supply belongs to a different bolt.");
+                        _shootingFeed = null;
+                        using var pendingCancellation = pendingFeed?.Cancellation;
                         using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
-                        var moving = MoveToBoltAsync(bolt, preparation.Token);
-                        if (moving.IsCompleted)
+                        var moving = moveRequired ? MoveToBoltAsync(bolt, preparation.Token) : Task.CompletedTask;
+                        if (moving.IsCompleted && pendingFeed is null)
                             await moving;
-                        var shooting = ShootBoltAsync(preparation.Token);
+                        var shooting = pendingFeed?.Completion ?? ShootBoltAsync(preparation.Token, bolt.Id);
+                        var supplyWaitStarted = Stopwatch.GetTimestamp();
+                        if (pendingFeed is not null)
+                            _log?.LogInformation("Bolt timing {Bolt}: using shooting supply started during previous retraction.", bolt.Id);
                         var first = await Task.WhenAny(moving, shooting);
                         if (!first.IsCompletedSuccessfully)
+                        {
                             preparation.Cancel();
+                            pendingCancellation?.Cancel();
+                        }
                         // Drain both operations, including STOP/air-OFF cleanup on failure.
                         await Task.WhenAll(moving, shooting);
+                        _log?.LogInformation("Bolt timing {Bolt}: movement / shooting supply joined, elapsed={ElapsedMs:F1} ms, supplied during previous retraction={Prefed}.",
+                            bolt.Id, Stopwatch.GetElapsedTime(supplyWaitStarted).TotalMilliseconds, pendingFeed is not null);
                     }
                     else if (moveRequired)
                         await MoveToBoltAsync(bolt, token);
-                    else if (feeding)
-                        await ShootBoltAsync(token);
                     break;
                 }
                 case FasteningHead.Pickup:
@@ -481,7 +504,10 @@ public sealed class BoltFasteningStation : AutoUnit
                 result = await FastenAsync(bolt, repeat, token, received => result = received);
                 // Finish physical clearance before publishing the measured result.
                 TraceStep(step, target, job.Id, "head retraction");
-                await ClearHeadAsync(bolt.Head, token);
+                var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1] : null;
+                var nextShootingBolt = bolt.Head == FasteningHead.Shooting && feeding
+                    && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
+                await ClearHeadAsync(bolt.Head, token, nextShootingBolt);
             }
             catch (Exception exception)
             {
@@ -521,7 +547,7 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             if (selectedBolts is not null)
                 throw new MotionInterlockException("The test carrier changed or lost its seated feedback.");
-            ClearCarrierOperation();
+            await ClearCarrierOperationAsync();
         }
         return true;
     }
@@ -538,27 +564,47 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    private void ClearCarrierOperation()
+    private async Task ClearCarrierOperationAsync()
     {
         Station.Changed -= CheckCarrier;
-        if (_carrierOperation is { } operation)
+        var operation = _carrierOperation;
+        var pendingFeed = _shootingFeed;
+        _shootingFeed = null;
+        try
         {
-            lock (operation)
+            if (operation is not null)
             {
-                _carrierOperation = null;
-                operation.Dispose();
+                lock (operation)
+                {
+                    _carrierOperation = null;
+                    operation.Cancel();
+                }
+            }
+            if (pendingFeed is { } pending)
+            {
+                pending.Cancellation.Cancel();
+                try
+                {
+                    await pending.Completion;
+                }
+                catch (OperationCanceledException) when (pending.Cancellation.IsCancellationRequested) { }
             }
         }
-        _runJob = null;
-        _runTargets = null;
-        _runBolts = null;
-        _boltIndex = 0;
+        finally
+        {
+            pendingFeed?.Cancellation.Dispose();
+            operation?.Dispose();
+            _runJob = null;
+            _runTargets = null;
+            _runBolts = null;
+            _boltIndex = 0;
+        }
     }
 
-    internal async Task ShootBoltAsync(CancellationToken cancellationToken = default)
+    internal async Task ShootBoltAsync(CancellationToken cancellationToken = default, Guid? boltId = null)
     {
         var started = Stopwatch.GetTimestamp();
-        var boltId = ActiveBolt?.Id;
+        boltId ??= ActiveBolt?.Id;
         _log?.LogInformation("Bolt timing {Bolt}: shooting feed begin.", boltId);
         cancellationToken.ThrowIfCancellationRequested();
         if (ShootingEscape != BoltEscapeState.Backward)
@@ -718,15 +764,46 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    private async Task ClearHeadAsync(FasteningHead head, CancellationToken cancellationToken)
+    private async Task ClearHeadAsync(
+        FasteningHead head, CancellationToken cancellationToken, Guid? nextShootingBolt = null)
     {
-        await FinishFasteningAsync(head, cancellationToken);
-        await RaiseCylindersAsync(cancellationToken);
-        var started = Stopwatch.GetTimestamp();
+        var boltId = ActiveBolt?.Id;
+        var clearanceStarted = Stopwatch.GetTimestamp();
+        await SetVacuumAsync(head, false, cancellationToken);
+        _log?.LogInformation("Bolt timing {Bolt}/{Head}: vacuum OFF request completed, elapsed={ElapsedMs:F1} ms.",
+            boltId, head, Stopwatch.GetElapsedTime(clearanceStarted).TotalMilliseconds);
+
         var safeZ = _settings.GetSafeZ(head);
-        await MoveZAsync(safeZ, cancellationToken);
-        _log?.LogInformation("Bolt timing {Head}: retract Z={SafeZ}, elapsed={ElapsedMs:F1} ms.",
-            head, safeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        using var clearance = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var zStarted = Stopwatch.GetTimestamp();
+        _log?.LogInformation("Bolt timing {Bolt}/{Head}: parallel head UP / retract Z={SafeZ} begin.",
+            boltId, head, safeZ);
+        var moving = MoveZAsync(safeZ, clearance.Token);
+        if (moving.IsCompleted)
+            await moving;
+        var headStarted = Stopwatch.GetTimestamp();
+        var raising = RaiseCylindersAsync(clearance.Token);
+        if (nextShootingBolt is { } nextId && !raising.IsFaulted && !raising.IsCanceled)
+        {
+            _log?.LogInformation("Bolt timing {Bolt}: starting shooting supply for next bolt {NextBolt} during head UP / Z retraction.",
+                boltId, nextId);
+            var supplyCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _shootingFeed = (nextId, supplyCancellation, ShootBoltAsync(supplyCancellation.Token, nextId));
+        }
+        var first = await Task.WhenAny(moving, raising);
+        var firstFinished = Stopwatch.GetTimestamp();
+        if (!first.IsCompletedSuccessfully)
+            clearance.Cancel();
+        // No next XY move or result publication until both operations have finished.
+        await Task.WhenAll(moving, raising);
+        var finished = Stopwatch.GetTimestamp();
+        _log?.LogInformation(
+            "Bolt timing {Bolt}/{Head}: clearance complete; head UP={HeadMs:F1} ms, retract Z={SafeZ} in {ZMs:F1} ms, parallel={ParallelMs:F1} ms, total including vacuum OFF={TotalMs:F1} ms.",
+            boltId, head,
+            Stopwatch.GetElapsedTime(headStarted, first == raising ? firstFinished : finished).TotalMilliseconds,
+            safeZ, Stopwatch.GetElapsedTime(zStarted, first == moving ? firstFinished : finished).TotalMilliseconds,
+            Stopwatch.GetElapsedTime(zStarted, finished).TotalMilliseconds,
+            Stopwatch.GetElapsedTime(clearanceStarted, finished).TotalMilliseconds);
     }
 
     public bool IsAtSafeZ

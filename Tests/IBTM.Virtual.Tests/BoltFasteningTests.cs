@@ -252,6 +252,328 @@ public sealed class BoltFasteningTests
         }
     }
 
+    public enum RetractionScenario { HeadFirst, ZFirst, Stop, MotionFailure }
+
+    [Theory]
+    [InlineData(FasteningHead.Pickup, RetractionScenario.HeadFirst)]
+    [InlineData(FasteningHead.Shooting, RetractionScenario.ZFirst)]
+    [InlineData(FasteningHead.Pickup, RetractionScenario.Stop)]
+    [InlineData(FasteningHead.Shooting, RetractionScenario.MotionFailure)]
+    public async Task RetractionOverlapsHeadAndZAndDrainsBothBeforeNextBolt(
+        FasteningHead selectedHead, RetractionScenario scenario)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            ShootingSafeZ = 9,
+            DryRunMilliseconds = 20,
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            PickupHead = HeadSettings(),
+            ShootingHead = HeadSettings(),
+        };
+        settings.PickupHead.FasteningZ = 12;
+        settings.ShootingHead.FasteningZ = 12;
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()),
+            new() { TimeoutMilliseconds = 3_000 });
+        io.Initialize();
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new AdcControllerStub();
+        using var otherBus = new AdcControllerStub();
+        var head = CreateAdcHead(bus, io, selectedHead, new(), 1, "Virtual", 115200);
+        var otherHead = CreateAdcHead(otherBus, io,
+            selectedHead == FasteningHead.Pickup ? FasteningHead.Shooting : FasteningHead.Pickup,
+            new(), 1, "Other", 115200);
+        var bolts = new[] { Bolt(1, selectedHead, 20, 30), Bolt(2, selectedHead, 40, 50) };
+        var work = ConveyorStation.CreateBoltFastening(io);
+        var station = new BoltFasteningStation(
+            selectedHead == FasteningHead.Shooting ? head : otherHead,
+            selectedHead == FasteningHead.Pickup ? head : otherHead,
+            io, motion, new(motion), settings,
+            new() { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
+            work, new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
+            new() { ShootingBoltFeeder = false, PickupBoltFeeder = false });
+        SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        await work.SeatAsync(CancellationToken.None);
+        await ((IIoService)io).SetOutputAndWaitAsync(
+            OutputIo.PickupTableDown, selectedHead == FasteningHead.Pickup);
+        await station.MoveToBoltAsync(bolts[0]);
+        var (start, down, vacuum, upInput, downInput) = selectedHead == FasteningHead.Pickup
+            ? (OutputIo.PickupBoltStart, OutputIo.PickupHeadDown, OutputIo.PickupHeadVacuumPump,
+                InputIo.PickupHeadUp, InputIo.PickupHeadDown)
+            : (OutputIo.ShootingBoltStart, OutputIo.ShootingHeadDown, OutputIo.ShootingHeadVacuumPump,
+                InputIo.ShootingHeadUp, InputIo.ShootingHeadDown);
+        io.SetOutput(vacuum, true);
+        if (selectedHead == FasteningHead.Pickup)
+            io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+        var riseRequested = false;
+        var vacuumReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nextXy = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var motionFailure = new IOException("Retraction Z failed.");
+        var failMotion = false;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == down && on)
+            {
+                io.AutoResponseEnabled = false;
+                io.SetInputs((upInput, false), (downInput, true));
+            }
+            if (output == start && !on)
+                settings.Motion.ZSpeed = 10; // Hold Z in motion while cylinder feedback is controlled independently.
+            if (output == vacuum && !on)
+            {
+                Assert.False(io.GetOutput(start));
+                vacuumReleased.TrySetResult();
+            }
+            if (output == down && !on)
+            {
+                Assert.False(io.GetOutput(start));
+                Assert.False(io.GetOutput(vacuum));
+                riseRequested = true;
+            }
+        };
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (failMotion)
+                throw motionFailure;
+            if (x == 20 && y == 30)
+                return;
+            Assert.True(io.GetInput(upInput));
+            Assert.Equal(settings.GetSafeZ(selectedHead), z);
+            nextXy.TrySetResult();
+            stop.Cancel();
+        };
+        var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
+        var results = selectedHead == FasteningHead.Pickup ? assembly.PickupBoltResults : assembly.PcbBoltResults;
+        var run = station.RunAsync(stop.Token, selectedBolts: bolts.Select(bolt => bolt.Id).ToArray());
+        try
+        {
+            await vacuumReleased.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            if (selectedHead == FasteningHead.Pickup)
+            {
+                Assert.False(riseRequested);
+                Assert.False(motion.IsMoving);
+                Assert.Equal(12, motion.Position.Z);
+                io.SetInput(InputIo.PickupHeadVacuumDetected, false);
+            }
+            Assert.True(await WaitUntilAsync(() => riseRequested && motion.IsMoving, TimeSpan.FromSeconds(1)));
+            Assert.False(io.GetInput(upInput));
+            Assert.Empty(results);
+            Assert.False(nextXy.Task.IsCompleted);
+            switch (scenario)
+            {
+                case RetractionScenario.HeadFirst:
+                    io.SetInputs((upInput, true), (downInput, false));
+                    Assert.True(motion.IsMoving);
+                    Assert.False(nextXy.Task.IsCompleted);
+                    await nextXy.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                    await run;
+                    break;
+                case RetractionScenario.ZFirst:
+                    Assert.True(await WaitUntilAsync(() => !motion.IsMoving, TimeSpan.FromSeconds(2)));
+                    Assert.Equal(settings.GetSafeZ(selectedHead), motion.Position.Z);
+                    Assert.False(nextXy.Task.IsCompleted);
+                    Assert.Empty(results);
+                    io.SetInputs((upInput, true), (downInput, false));
+                    await nextXy.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                    await run;
+                    break;
+                case RetractionScenario.Stop:
+                    stop.Cancel();
+                    await run.WaitAsync(TimeSpan.FromSeconds(1));
+                    Assert.False(nextXy.Task.IsCompleted);
+                    break;
+                case RetractionScenario.MotionFailure:
+                    failMotion = true;
+                    Assert.Same(motionFailure, await Assert.ThrowsAsync<IOException>(
+                        () => run.WaitAsync(TimeSpan.FromSeconds(1))));
+                    Assert.False(nextXy.Task.IsCompleted);
+                    break;
+            }
+            Assert.False(motion.IsMoving);
+            Assert.False(io.GetOutput(start));
+            Assert.Equal(1, bus.StartWrites);
+            Assert.True(Assert.Single(results).Value.Success);
+            Assert.Contains(bolts[0].Id, results.Keys);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Theory]
+    [InlineData(ShootingPreparationFailure.None)]
+    [InlineData(ShootingPreparationFailure.Stop)]
+    [InlineData(ShootingPreparationFailure.Motion)]
+    [InlineData(ShootingPreparationFailure.Supply)]
+    public async Task NextShootingSupplyOverlapsRetractionAndTravelWithoutDuplicateShot(
+        ShootingPreparationFailure failure)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            ShootingSafeZ = 9,
+            ShootingArrivalDelaySeconds = 0,
+            DryRunMilliseconds = 20,
+            ShootingDetectionTimeoutMilliseconds = failure == ShootingPreparationFailure.Supply ? 150 : 2_000,
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
+            PickupHead = HeadSettings(),
+            ShootingHead = HeadSettings(),
+        };
+        settings.ShootingHead.FasteningZ = 12;
+        settings.PickupHead.FasteningZ = 12;
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()),
+            new() { TimeoutMilliseconds = 2_000 }) { AutoResponseEnabled = false };
+        io.SetInputs((InputIo.BoltFasteningHeatSink1Present, true),
+            (InputIo.BoltFasteningBackupPlateUp, true), (InputIo.BoltFasteningStopperDown, true),
+            (InputIo.ShootingFeederBoltDetected, true), (InputIo.ShootingEscapeBackward, true));
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new AdcControllerStub();
+        using var pickupBus = new AdcControllerStub();
+        var shooting = CreateAdcHead(bus, io, FasteningHead.Shooting,
+            new() { StatusPollMilliseconds = 10 }, 1, "Shooting", 115200);
+        var pickup = CreateAdcHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Pickup", 115200);
+        var bolts = new[] { Bolt(1, FasteningHead.Shooting, 20, 30),
+            Bolt(2, FasteningHead.Shooting, 30, 40), Bolt(3, FasteningHead.Shooting, 40, 50),
+            Bolt(4, FasteningHead.Pickup, 60, 50) };
+        var work = ConveyorStation.CreateBoltFastening(io);
+        var station = new BoltFasteningStation(shooting, pickup, io, motion, new(motion), settings,
+            new() { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
+            work, new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
+            new() { PickupBoltFeeder = false });
+        await station.MoveToBoltAsync(bolts[0]);
+        io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
+        io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+        var shots = 0;
+        var secondSupply = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nextPointReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var motionFailure = new IOException("Retraction failed while supplying the next bolt.");
+        var failMotion = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootingEscapeForward)
+                io.SetInputs((InputIo.ShootingEscapeForward, on), (InputIo.ShootingEscapeBackward, !on));
+            if (output == OutputIo.ShootingBoltStart)
+                settings.Motion.ZSpeed = !on && bus.StartWrites == 1 ? 10 : 20_000;
+            if (output == OutputIo.PickupTableDown)
+                io.SetInputs((InputIo.PickupTableUp, !on), (InputIo.PickupTableDown, on));
+            if (output == OutputIo.PickupHeadDown)
+                io.SetInputs((InputIo.PickupHeadUp, !on), (InputIo.PickupHeadDown, on));
+            if (output == OutputIo.PickupHeadVacuumPump)
+                io.SetInput(InputIo.PickupHeadVacuumDetected, on);
+            if (output == OutputIo.ShootingHeadDown)
+            {
+                // Hold the first rise until the test releases its feedback.
+                if (on || bus.StartWrites != 1)
+                    io.SetInputs((InputIo.ShootingHeadUp, !on), (InputIo.ShootingHeadDown, on));
+            }
+            if (output == OutputIo.ShootBolt && on)
+            {
+                shots++;
+                if (shots == 2)
+                {
+                    Assert.Equal(bolts[0].Id, station.ActiveBolt!.Id);
+                    Assert.Equal(1, bus.StartWrites);
+                    Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+                    Assert.False(io.GetOutput(OutputIo.ShootingHeadDown));
+                    Assert.False(io.GetInput(InputIo.ShootingHeadUp));
+                    Assert.True(motion.IsMoving);
+                    secondSupply.TrySetResult();
+                }
+                else
+                {
+                    io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                    io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+                }
+            }
+        };
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (failMotion)
+                throw motionFailure;
+            if (station.ActiveBolt?.Id == bolts[2].Id && bus.StartWrites == 1 && (x != 20 || y != 30))
+            {
+                Assert.True(station.IsHorizontalMoveAllowed);
+                if (z == settings.ShootingHead.FasteningZ)
+                    nextPointReached.TrySetResult();
+            }
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var run = station.RunAsync(stop.Token, selectedBolts: [bolts[0].Id, bolts[2].Id, bolts[3].Id]);
+        var results = work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBoltResults;
+        try
+        {
+            await secondSupply.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(nextPointReached.Task.IsCompleted);
+            switch (failure)
+            {
+                case ShootingPreparationFailure.None:
+                    io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
+                    await nextPointReached.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                    Assert.True(io.GetOutput(OutputIo.ShootBolt));
+                    Assert.Equal(1, bus.StartWrites); // Travel is complete; supply still owns the next START.
+                    Assert.Equal(2, shots);
+                    io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                    io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+                    await run.WaitAsync(TimeSpan.FromSeconds(2));
+                    Assert.Equal(2, bus.StartWrites);
+                    Assert.Equal(1, pickupBus.StartWrites);
+                    Assert.Equal(new[] { bolts[0].Id, bolts[2].Id }.Order(), results.Keys.Order());
+                    Assert.True(work.GetAssembly(HeatSinkSlot.HeatSink1).PickupBoltResults[bolts[3].Id].Success);
+                    break;
+                case ShootingPreparationFailure.Stop:
+                    stop.Cancel();
+                    await run.WaitAsync(TimeSpan.FromSeconds(1));
+                    break;
+                case ShootingPreparationFailure.Motion:
+                    failMotion = true;
+                    Assert.Same(motionFailure, await Assert.ThrowsAsync<IOException>(
+                        () => run.WaitAsync(TimeSpan.FromSeconds(1))));
+                    break;
+                case ShootingPreparationFailure.Supply:
+                    io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
+                    var error = await Assert.ThrowsAsync<IoTimeoutException>(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
+                    Assert.Equal(InputIo.ShootingTubeBoltDetected, error.Input);
+                    break;
+            }
+            Assert.Equal(2, shots); // Neither the unselected bolt nor the following pickup causes another shot.
+            Assert.False(motion.IsMoving);
+            Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+            Assert.False(io.GetOutput(OutputIo.ShootBolt));
+            Assert.False(io.GetOutput(OutputIo.ShootingEscapeForward));
+            Assert.True(results[bolts[0].Id].Success); // A next-supply failure cannot erase the completed bolt.
+            if (failure != ShootingPreparationFailure.None)
+            {
+                Assert.Equal(1, bus.StartWrites);
+                Assert.Single(results);
+            }
+            if (failure == ShootingPreparationFailure.Stop)
+            {
+                io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
+                settings.Motion.ZSpeed = 20_000;
+                using var restart = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await station.RunAsync(restart.Token, selectedBolts: [bolts[0].Id]);
+                Assert.Equal(3, shots); // Restart supplies the first selected bolt afresh.
+                Assert.Equal(2, bus.StartWrites);
+            }
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, false)]
@@ -871,6 +1193,11 @@ public sealed class BoltFasteningTests
         };
         var descending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        work.Changed += () =>
+        {
+            if (work.Completed)
+                stop.Cancel();
+        };
         io.OutputChanged += (output, on) =>
         {
             Assert.NotEqual(OutputIo.ShootingFeederOff, output); // Only the feeder loop owns this output.
@@ -940,8 +1267,6 @@ public sealed class BoltFasteningTests
                 else
                 {
                     io.SetInputs((up, true), (down, false));
-                    if (results.ContainsKey(VirtualTest.BoltId(1)))
-                        stop.Cancel();
                 }
             }
         };

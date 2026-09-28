@@ -224,7 +224,8 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 response = await ReadResponseAsync(port.BaseStream, port.DiscardInBuffer, OnReceived,
                     slaveAddress, function, timeout.Token, expectedByteCount, captureMilliseconds);
                 if (captureMilliseconds is null)
-                    _logger.LogDebug("ADC {Port} RTU response: {Interpretation}", port.PortName, DescribeResponse(response));
+                    _logger.LogDebug("ADC {Port} RTU response in {Elapsed:F1} ms: {Interpretation}",
+                        port.PortName, Stopwatch.GetElapsedTime(started).TotalMilliseconds, DescribeResponse(response));
             }
             catch (Exception exception) when (
                 exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -234,7 +235,10 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
                     + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
                 if (exception is AdcUnexpectedResponseException unexpected)
+                {
+                    _logger.LogWarning(exception, "ADC unmatched response. {Detail}", detail);
                     throw new AdcUnexpectedResponseException($"{detail} {unexpected.Message}", unexpected);
+                }
                 if (exception is AdcResponseException rejection)
                 {
                     _logger.LogWarning(exception, "ADC request rejected. {Detail}", detail);

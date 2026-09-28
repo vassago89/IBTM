@@ -259,14 +259,18 @@ public sealed class AdcBoltHeadTests
         Assert.Null(head.Monitor.Sample?.Status);
     }
 
-    [Fact]
-    public async Task RejectedStatusSampleWaitsForActualRunOffAndReadsTheResult()
+    [Theory]
+    [InlineData("0184030301", AdcEventStatus.FasteningOk)]
+    [InlineData("018C0304C1", AdcEventStatus.FasteningOk)]
+    [InlineData("018C0304C1", AdcEventStatus.FasteningNg)]
+    public async Task RejectedStatusSampleWaitsForActualRunOffAndReadsTheResult(
+        string response, AdcEventStatus resultStatus)
     {
-        using var bus = new AdcControllerStub { SuppressCompletion = true };
+        using var bus = new AdcControllerStub { SuppressCompletion = true, ResultStatus = resultStatus };
         var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
         await head.SelectPresetAsync(1);
-        var rejection = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
-            [0x01, 0x84, 0x03, 0x03, 0x01], 1, AdcFunctionCode.ReadInputRegisters, 14));
+        var rejection = Assert.IsAssignableFrom<IOException>(Record.Exception(() => AdcBus.ValidateResponse(
+            Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14)));
         var rejected = false;
         var unknownDuringRejection = false;
         void RejectOneStatusSample(AdcStatusSample sample)
@@ -287,8 +291,10 @@ public sealed class AdcBoltHeadTests
             var result = await head.TightenAsync();
             Assert.True(rejected);
             Assert.True(unknownDuringRejection);
-            Assert.True(result.Success, result.Error);
+            Assert.Equal(resultStatus == AdcEventStatus.FasteningOk, result.Success);
+            Assert.Null(result.Error);
             Assert.NotNull(result.Controller);
+            Assert.Equal((ushort)resultStatus, result.Controller.StatusCode);
             Assert.Equal(1, bus.ResultReads);
             Assert.False(bus.ResultReadWhileRunning);
             Assert.Equal(1, bus.StartWrites);
@@ -301,8 +307,10 @@ public sealed class AdcBoltHeadTests
         }
     }
 
-    [Fact]
-    public async Task RepeatedStatusRejectionsCannotCompleteFasteningAndStillTimeOut()
+    [Theory]
+    [InlineData("0184030301")]
+    [InlineData("018C0304C1")]
+    public async Task RepeatedStatusRejectionsCannotCompleteFasteningAndStillTimeOut(string response)
     {
         using var bus = new AdcControllerStub { SuppressCompletion = true };
         var (io, head) = Create(bus, new()
@@ -311,8 +319,8 @@ public sealed class AdcBoltHeadTests
             FasteningTimeoutMilliseconds = 150,
         });
         await head.SelectPresetAsync(1);
-        var rejection = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
-            [0x01, 0x84, 0x03, 0x03, 0x01], 1, AdcFunctionCode.ReadInputRegisters, 14));
+        var rejection = Assert.IsAssignableFrom<IOException>(Record.Exception(() => AdcBus.ValidateResponse(
+            Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14)));
         void RejectStatusWhileStarted(OutputIo output, bool on)
         {
             if (output == OutputIo.PickupBoltStart)
@@ -324,7 +332,7 @@ public sealed class AdcBoltHeadTests
             var result = await head.TightenAsync();
             Assert.False(result.Success);
             Assert.Contains("timed out", result.Error);
-            Assert.Contains("0184030301", result.Error);
+            Assert.Contains(response, result.Error);
             Assert.Null(result.Controller);
             Assert.Null(result.Torque);
             Assert.Equal(0, bus.ResultReads);

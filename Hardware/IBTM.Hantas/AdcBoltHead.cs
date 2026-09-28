@@ -220,11 +220,12 @@ public sealed class AdcBoltHead : IBoltHead
         }
         void OnStatusSampled(AdcStatusSample sample)
         {
-            if (sample.StartedAt < Interlocked.Read(ref startedAt))
+            var cycleStartedAt = Interlocked.Read(ref startedAt);
+            if (sample.StartedAt < cycleStartedAt)
                 return;
-            // A rejected status query supplies no RUN feedback or fastening result.
+            // A rejected or unmatched valid reply supplies no RUN feedback or fastening result.
             // Await the monitor's next scheduled sample within the existing cycle timeout.
-            if (sample.Error is AdcResponseException)
+            if (sample.Error is AdcResponseException or AdcUnexpectedResponseException)
                 return;
             if (sample.Error is { } error)
             {
@@ -233,8 +234,14 @@ public sealed class AdcBoltHead : IBoltHead
             }
             if (sample.Status is not { } status)
                 return;
-            if (status.Running)
+            if (status.Running && !runObserved)
+            {
                 runObserved = true;
+                _logger.LogInformation(
+                    "ADC {Port}/{Slave}: RUN ON observed; elapsed since START={Elapsed:F1} ms; status query={QueryElapsed:F1} ms.",
+                    _portName, _slaveAddress, Stopwatch.GetElapsedTime(cycleStartedAt).TotalMilliseconds,
+                    Stopwatch.GetElapsedTime(sample.StartedAt).TotalMilliseconds);
+            }
             if (status.Alarm != 0 || runObserved && !status.Running)
                 stopped.TrySetResult(status);
         }
@@ -288,8 +295,9 @@ public sealed class AdcBoltHead : IBoltHead
                     if (failure is null)
                     {
                         _logger.LogInformation(
-                            "ADC {Port}/{Slave}: RUN OFF; reading fastening result once; start event={StartEvent}.",
-                            _portName, _slaveAddress, fastening.EventCount);
+                            "ADC {Port}/{Slave}: RUN OFF; reading fastening result once; start event={StartEvent}; elapsed since START={Elapsed:F1} ms.",
+                            _portName, _slaveAddress, fastening.EventCount,
+                            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
                         var result = await Monitor.EnqueueAsync(
                             token => _bus.ReadFasteningResultAsync(_slaveAddress, token), timeout.Token);
                         lastResult = result;
