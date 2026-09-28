@@ -1,0 +1,256 @@
+using System;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using IBTM.BoltFastening;
+using IBTM.Core;
+using IBTM.Storage;
+using Microsoft.Extensions.Logging;
+
+namespace IBTM.UI;
+
+public partial class BoltTestRow : ObservableObject
+{
+    public BoltTestRow(BoltPoint bolt, string label)
+    {
+        Bolt = bolt;
+        Label = label;
+        IsSelected = true;
+        Status = "Not run";
+    }
+
+    public BoltPoint Bolt { get; }
+    public string Label { get; }
+    [ObservableProperty] public partial bool IsSelected { get; set; }
+    [ObservableProperty] public partial string Status { get; set; }
+    [ObservableProperty] public partial BoltResult? Result { get; set; }
+}
+
+public partial class BoltStationTestViewModel : ObservableObject
+{
+    private readonly MachineController _machine;
+    private readonly RecipeManager _recipes;
+    private readonly BoltFasteningStation _station;
+    private readonly ILogger<BoltStationTestViewModel> _log;
+
+    public BoltStationTestViewModel(
+        MachineController machine, MachineState state, UnitSettings units,
+        RecipeManager recipes, BoltFasteningStation station, ILogger<BoltStationTestViewModel> log)
+    {
+        _machine = machine;
+        State = state;
+        Units = units;
+        _recipes = recipes;
+        _station = station;
+        _log = log;
+        Bolts = new();
+        RunCommand = new AsyncRelayCommand(RunAsync, () => IsRunAllowed);
+        StopCommand = new AsyncRelayCommand(StopAsync);
+        SelectAllCommand = new RelayCommand(SelectAll, () => !RunCommand.IsRunning && !IsClosing);
+        ClearSelectionCommand = new RelayCommand(ClearSelection, () => !RunCommand.IsRunning && !IsClosing);
+        Message = "Uncheck bolts to leave only the bolts you want to test.";
+    }
+
+    public MachineState State { get; }
+    public UnitSettings Units { get; }
+    public ObservableCollection<BoltTestRow> Bolts { get; }
+    public IAsyncRelayCommand RunCommand { get; }
+    public IAsyncRelayCommand StopCommand { get; }
+    public IRelayCommand SelectAllCommand { get; }
+    public IRelayCommand ClearSelectionCommand { get; }
+    [ObservableProperty] public partial bool IsClosing { get; private set; }
+    [ObservableProperty] public partial string Message { get; private set; }
+    [ObservableProperty] public partial string? Error { get; private set; }
+
+    public int SelectedCount => Bolts.Count(row => row.IsSelected);
+
+    public bool IsRunAllowed => !IsClosing && State.ManualSetupEnabled
+        && _machine.IsManualMotionReady(MotionGroup.BoltFastening, live: false)
+        && _station.Station.CarrierSeated && SelectedCount > 0
+        && Bolts.Where(row => row.IsSelected).All(row => row.Bolt.IsFasteningPositionDefined
+            && _station.Station.IsHeatSinkPresent(row.Bolt.HeatSink));
+
+    public string Readiness
+    {
+        get
+        {
+            if (!State.ManualMode)
+                return "Switch to MANUAL to test bolts.";
+            if (RunCommand.IsRunning)
+                return "Selected bolts are running once. STOP cancels the test.";
+            if (!State.ManualSetupEnabled)
+                return "Wait for the machine to stop and clear its alarm / safety conditions.";
+            if (!_machine.IsManualMotionReady(MotionGroup.BoltFastening, live: false))
+                return "Enable and home the bolt station; confirm its servos and motion feedback.";
+            if (!_station.Station.CarrierSeated)
+                return "Load the S2 carrier and raise its backup plate before testing.";
+            if (Bolts.Any(row => row.IsSelected && !_station.Station.IsHeatSinkPresent(row.Bolt.HeatSink)))
+                return "A selected PCB is not detected at S2. Load it or uncheck its bolts.";
+            if (Bolts.Any(row => row.IsSelected && !row.Bolt.IsFasteningPositionDefined))
+                return "A selected bolt has no fastening position. Complete its teaching first.";
+            return SelectedCount == 0 ? "Select at least one bolt." : "Ready to run selected bolts.";
+        }
+    }
+
+    public void Activate()
+    {
+        IsClosing = false;
+        Error = null;
+        Message = "Uncheck bolts to leave only the bolts you want to test.";
+        foreach (var row in Bolts)
+            row.PropertyChanged -= OnRowChanged;
+        Bolts.Clear();
+        foreach (var bolt in _recipes.Current.Pcb.FasteningPoints)
+        {
+            var row = new BoltTestRow(bolt,
+                $"{bolt.HeatSink.GetDescription()} · Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}");
+            row.PropertyChanged += OnRowChanged;
+            Bolts.Add(row);
+        }
+        State.Changed += Refresh;
+        _station.Changed += Refresh;
+        RunCommand.PropertyChanged += OnRunChanged;
+        Refresh();
+    }
+
+    public void Deactivate()
+    {
+        State.Changed -= Refresh;
+        _station.Changed -= Refresh;
+        RunCommand.PropertyChanged -= OnRunChanged;
+        foreach (var row in Bolts)
+            row.PropertyChanged -= OnRowChanged;
+    }
+
+    private void SelectAll()
+    {
+        foreach (var row in Bolts)
+            row.IsSelected = true;
+    }
+
+    private void ClearSelection()
+    {
+        foreach (var row in Bolts)
+            row.IsSelected = false;
+    }
+
+    private void OnRowChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BoltTestRow.IsSelected))
+            Refresh();
+    }
+
+    private void OnRunChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+            Refresh();
+    }
+
+    private void Refresh()
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(Refresh);
+            return;
+        }
+        if (RunCommand.IsRunning && _station.ActiveBolt is { } active)
+        {
+            var row = Bolts.FirstOrDefault(item => item.Bolt.Id == active.Id);
+            if (row is not null && row.Result is null)
+                row.Status = "Running";
+        }
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(Readiness));
+        RunCommand.NotifyCanExecuteChanged();
+        SelectAllCommand.NotifyCanExecuteChanged();
+        ClearSelectionCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnResultReceived(BoltPoint bolt, BoltResult result)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => OnResultReceived(bolt, result));
+            return;
+        }
+        var row = Bolts.Single(item => item.Bolt.Id == bolt.Id);
+        row.Result = result;
+        row.Status = result.Source == BoltResultSource.DryRun ? "Dry run" : result.Success ? "OK" : "NG";
+    }
+
+    private async Task RunAsync(CancellationToken cancellationToken)
+    {
+        var selected = Bolts.Where(row => row.IsSelected).ToArray();
+        Error = null;
+        foreach (var row in selected)
+        {
+            row.Result = null;
+            row.Status = "Queued";
+        }
+        Message = $"Testing {selected.Length} selected bolts...";
+        try
+        {
+            var completed = await _machine.RunSelectedBoltsAsync(
+                selected.Select(row => row.Bolt.Id).ToArray(), OnResultReceived, cancellationToken);
+            Message = completed ? "Selected-bolt test finished." : "Test stopped.";
+        }
+        catch (Exception exception)
+        {
+            Error = exception.Message;
+            Message = "Test failed.";
+            _log.LogError(exception, "Selected-bolt test failed.");
+            _machine.ReportManualFailure(MachineAlarm.BoltFastening, exception);
+        }
+        finally
+        {
+            foreach (var row in selected.Where(row => row.Result is null))
+                row.Status = row.Status == "Running" ? (Error is null ? "Stopped" : "Error") : "Not run";
+            Refresh();
+        }
+    }
+
+    private async Task StopAsync()
+    {
+        try
+        {
+            var pending = CommandShutdown.Capture(RunCommand);
+            await CommandShutdown.CancelAndWaitAsync([RunCommand], _machine.StopAsync(), pending);
+        }
+        catch (Exception exception)
+        {
+            Error = exception.Message;
+            _log.LogError(exception, "Bolt station test STOP failed.");
+            _machine.ReportManualFailure(MachineAlarm.StopFailed, exception);
+        }
+    }
+
+    public Task ShutdownAsync()
+    {
+        return CommandShutdown.CancelAndWaitAsync([RunCommand, StopCommand]);
+    }
+
+    public async Task<bool> TryCloseAsync()
+    {
+        IsClosing = true;
+        try
+        {
+            await ShutdownAsync();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            IsClosing = false;
+            Error = exception.Message;
+            _log.LogError(exception, "Bolt station test shutdown failed.");
+            _machine.ReportManualFailure(MachineAlarm.StopFailed, exception);
+            return false;
+        }
+    }
+}
