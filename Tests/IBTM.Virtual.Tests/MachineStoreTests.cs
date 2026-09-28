@@ -328,6 +328,8 @@ public sealed class MachineStoreTests
         var motion = settings.PcbPlacementHandler.Motion;
         motion.AccelerationSeconds = 0.3;
         motion.DecelerationSeconds = 0.7;
+        motion.ZAccelerationSeconds = 0.15;
+        motion.ZDecelerationSeconds = 0.25;
         motion.HorizontalHome.SearchSpeed = 8;
         motion.HorizontalHome.DetectionSpeed = 2.5;
         motion.HorizontalHome.ApproachSpeed = 0.8;

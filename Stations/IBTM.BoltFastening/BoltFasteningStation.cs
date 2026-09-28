@@ -383,15 +383,25 @@ public sealed class BoltFasteningStation : AutoUnit
                 case FasteningHead.Shooting:
                 {
                     TraceStep(step, target, job.Id, "head/table clearance, shooting feed and point movement");
-                    if (PickupTablePosition != StationCylinderState.Up)
+                    if (_shootingFeed is not null)
                     {
-                        await RaiseCylindersAsync(token);
-                        await MoveZAsync(_settings.SafeZ, token);
-                        await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
+                        // Do not release a supplied bolt by repeating vacuum-OFF clearance.
+                        if (!IsHorizontalMoveAllowed || PickupTablePosition != StationCylinderState.Up)
+                            throw new MotionInterlockException(
+                                "Head/table clearance was lost after starting supply for the next shooting bolt.");
                     }
-                    if (ShootingHeadPosition != StationCylinderState.Up
-                        && (!IsAt(bolt) || feeding))
-                        await ClearHeadAsync(FasteningHead.Shooting, token);
+                    else
+                    {
+                        if (PickupTablePosition != StationCylinderState.Up)
+                        {
+                            await RaiseCylindersAsync(token);
+                            await MoveZAsync(_settings.SafeZ, token);
+                            await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
+                        }
+                        if (ShootingHeadPosition != StationCylinderState.Up
+                            && (!IsAt(bolt) || feeding))
+                            await ClearHeadAsync(FasteningHead.Shooting, token);
+                    }
                     var moveRequired = !IsAt(bolt);
                     if (moveRequired || feeding)
                         await RaiseCylindersAsync(token);
@@ -404,10 +414,13 @@ public sealed class BoltFasteningStation : AutoUnit
                         _shootingFeed = null;
                         using var pendingCancellation = pendingFeed?.Cancellation;
                         using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
+                        var shooting = pendingFeed?.Completion;
+                        if (shooting?.IsCompleted == true)
+                            await shooting;
                         var moving = moveRequired ? MoveToBoltAsync(bolt, preparation.Token) : Task.CompletedTask;
                         if (moving.IsCompleted && pendingFeed is null)
                             await moving;
-                        var shooting = pendingFeed?.Completion ?? ShootBoltAsync(preparation.Token, bolt.Id);
+                        shooting ??= ShootBoltAsync(preparation.Token, bolt.Id);
                         var supplyWaitStarted = Stopwatch.GetTimestamp();
                         if (pendingFeed is not null)
                             _log?.LogInformation("Bolt timing {Bolt}: using shooting supply started during previous retraction.", bolt.Id);

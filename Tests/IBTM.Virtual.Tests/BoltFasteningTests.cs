@@ -412,6 +412,9 @@ public sealed class BoltFasteningTests
     [InlineData(ShootingPreparationFailure.Stop)]
     [InlineData(ShootingPreparationFailure.Motion)]
     [InlineData(ShootingPreparationFailure.Supply)]
+    [InlineData(ShootingPreparationFailure.SupplyBeforeTravel)]
+    [InlineData(ShootingPreparationFailure.ClearanceLost)]
+    [InlineData(ShootingPreparationFailure.CarrierLost)]
     public async Task NextShootingSupplyOverlapsRetractionAndTravelWithoutDuplicateShot(
         ShootingPreparationFailure failure)
     {
@@ -421,7 +424,8 @@ public sealed class BoltFasteningTests
             ShootingSafeZ = 9,
             ShootingArrivalDelaySeconds = 0,
             DryRunMilliseconds = 20,
-            ShootingDetectionTimeoutMilliseconds = failure == ShootingPreparationFailure.Supply ? 150 : 2_000,
+            ShootingDetectionTimeoutMilliseconds = failure is ShootingPreparationFailure.Supply
+                or ShootingPreparationFailure.SupplyBeforeTravel ? 150 : 2_000,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
             PickupHead = HeadSettings(),
             ShootingHead = HeadSettings(),
@@ -455,7 +459,9 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.PickupHeadVacuumDetected, true);
         var shots = 0;
         var secondSupply = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondSupplyStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var nextPointReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nextTravelStarted = false;
         var motionFailure = new IOException("Retraction failed while supplying the next bolt.");
         var failMotion = false;
         io.OutputChanged += (output, on) =>
@@ -495,6 +501,13 @@ public sealed class BoltFasteningTests
                     io.SetInput(InputIo.ShootingTubeBoltDetected, false);
                 }
             }
+            if (output == OutputIo.ShootBolt && !on && shots == 2)
+                secondSupplyStopped.TrySetResult();
+        };
+        motion.StateChanged += () =>
+        {
+            if (station.ActiveBolt?.Id == bolts[2].Id && motion.IsMovingHorizontal)
+                nextTravelStarted = true;
         };
         motion.PositionChanged += (x, y, z) =>
         {
@@ -508,7 +521,12 @@ public sealed class BoltFasteningTests
             }
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var run = station.RunAsync(stop.Token, selectedBolts: [bolts[0].Id, bolts[2].Id, bolts[3].Id]);
+        var run = station.RunAsync(stop.Token, selectedBolts: [bolts[0].Id, bolts[2].Id, bolts[3].Id],
+            resultReceived: (bolt, result) =>
+            {
+                if (bolt.Id == bolts[0].Id && failure == ShootingPreparationFailure.ClearanceLost)
+                    io.SetInputs((InputIo.ShootingHeadUp, false), (InputIo.ShootingHeadDown, false));
+            });
         var results = work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBoltResults;
         try
         {
@@ -543,6 +561,26 @@ public sealed class BoltFasteningTests
                     io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
                     var error = await Assert.ThrowsAsync<IoTimeoutException>(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
                     Assert.Equal(InputIo.ShootingTubeBoltDetected, error.Input);
+                    break;
+                case ShootingPreparationFailure.SupplyBeforeTravel:
+                    await secondSupplyStopped.Task.WaitAsync(TimeSpan.FromSeconds(1));
+                    io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
+                    await Assert.ThrowsAsync<IoTimeoutException>(() => run.WaitAsync(TimeSpan.FromSeconds(3)));
+                    Assert.False(nextTravelStarted);
+                    break;
+                case ShootingPreparationFailure.ClearanceLost:
+                    io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                    io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+                    await secondSupplyStopped.Task.WaitAsync(TimeSpan.FromSeconds(1));
+                    io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
+                    await Assert.ThrowsAsync<MotionInterlockException>(() => run.WaitAsync(TimeSpan.FromSeconds(3)));
+                    Assert.False(nextTravelStarted);
+                    Assert.True(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
+                    break;
+                case ShootingPreparationFailure.CarrierLost:
+                    io.SetInput(InputIo.BoltFasteningBackupPlateUp, false);
+                    await Assert.ThrowsAsync<MotionInterlockException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
+                    Assert.False(nextTravelStarted);
                     break;
             }
             Assert.Equal(2, shots); // Neither the unselected bolt nor the following pickup causes another shot.
@@ -2400,6 +2438,9 @@ public sealed class BoltFasteningTests
         Motion,
         Supply,
         Stop,
+        SupplyBeforeTravel,
+        ClearanceLost,
+        CarrierLost,
     }
 
 }

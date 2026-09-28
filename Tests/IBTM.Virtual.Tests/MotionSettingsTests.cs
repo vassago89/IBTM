@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -13,6 +14,18 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MotionSettingsTests
 {
+    [Fact]
+    public void ExistingMotionTimesLoadWithoutZOverrides()
+    {
+        var settings = JsonSerializer.Deserialize<MotionSettings>(
+            """{"AccelerationSeconds":1,"DecelerationSeconds":0.7}""")!;
+        Assert.Equal(1, settings.AccelerationSeconds);
+        Assert.Equal(0.7, settings.DecelerationSeconds);
+        Assert.Null(settings.ZAccelerationSeconds);
+        Assert.Null(settings.ZDecelerationSeconds);
+        Assert.Null(settings.GetValidationError(hasZ: true));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -22,17 +35,70 @@ public sealed class MotionSettingsTests
     {
         var settings = new MotionSettings { HorizontalSpeed = value };
         settings.ZHome.SearchSpeed = value;
+        settings.ZAccelerationSeconds = value;
+        settings.ZDecelerationSeconds = value;
         Assert.Equal(value, settings.HorizontalSpeed);
         Assert.Contains(nameof(settings.HorizontalSpeed), settings.GetValidationError(hasZ: true));
         Assert.NotNull(settings[nameof(settings.HorizontalSpeed)]);
         Assert.NotNull(settings.ZHome[nameof(settings.ZHome.SearchSpeed)]);
+        Assert.NotNull(settings[nameof(settings.ZAccelerationSeconds)]);
+        Assert.NotNull(settings[nameof(settings.ZDecelerationSeconds)]);
 
         settings.HorizontalSpeed = 100;
         Assert.Null(settings.GetValidationError(hasZ: false));
         Assert.NotNull(settings.GetValidationError(hasZ: true));
         settings.ZHome.SearchSpeed = 10;
+        settings.ZAccelerationSeconds = 0.2;
+        settings.ZDecelerationSeconds = 0.3;
         Assert.Null(settings.GetValidationError(hasZ: true));
         Assert.Empty(((IDataErrorInfo)settings).Error);
+    }
+
+    [Fact]
+    public async Task ZTimeBindingAcceptsIndependentValuesAndBlankFallback()
+    {
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var settings = new MotionSettings { AccelerationSeconds = 1, DecelerationSeconds = 1 };
+                foreach (var property in new[] { nameof(settings.ZAccelerationSeconds), nameof(settings.ZDecelerationSeconds) })
+                {
+                    var input = new TextBox();
+                    input.SetBinding(TextBox.TextProperty, new Binding(property)
+                    {
+                        Source = settings,
+                        TargetNullValue = string.Empty,
+                        UpdateSourceTrigger = UpdateSourceTrigger.LostFocus,
+                        ValidatesOnDataErrors = true,
+                    });
+                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                    Assert.Equal(string.Empty, input.Text);
+                    input.Text = "0";
+                    input.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+                    Assert.True(Validation.GetHasError(input));
+                    input.Text = "0.2";
+                    input.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+                    Assert.False(Validation.GetHasError(input));
+                    Assert.Equal(0.2, (double?)typeof(MotionSettings).GetProperty(property)!.GetValue(settings));
+                    input.Text = string.Empty;
+                    input.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+                    Assert.False(Validation.GetHasError(input));
+                    Assert.Null(typeof(MotionSettings).GetProperty(property)!.GetValue(settings));
+                }
+                Assert.Equal(1, settings.AccelerationSeconds);
+                Assert.Equal(1, settings.DecelerationSeconds);
+                done.SetResult();
+            }
+            catch (Exception exception)
+            {
+                done.SetException(exception);
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]

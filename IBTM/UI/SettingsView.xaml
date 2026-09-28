@@ -416,25 +416,30 @@
                                 <TextBlock Text="Speeds and acceleration times must be greater than 0. Valid edits apply to subsequent moves; Save keeps them after restart." Style="{StaticResource SettingHelpText}"/>
                                 <UniformGrid Columns="2">
                                     <StackPanel Margin="0,0,8,0">
+                                        <TextBlock Text="X / Y" Style="{StaticResource SettingSectionTitle}"/>
                                         <TextBlock Text="X / Y Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding CurrentMotionSettings.HorizontalSpeed, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
-                                    </StackPanel>
-                                    <StackPanel Margin="0,0,8,0"
-                                        Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="Z Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding CurrentMotionSettings.ZSpeed, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
-                                    </StackPanel>
-                                    <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="Acceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding CurrentMotionSettings.AccelerationSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
-                                    </StackPanel>
-                                    <StackPanel>
                                         <TextBlock Text="Deceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding CurrentMotionSettings.DecelerationSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,0"
+                                        Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="Z" Style="{StaticResource SettingSectionTitle}"/>
+                                        <TextBlock Text="Z Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Text="{Binding CurrentMotionSettings.ZSpeed, UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
+                                        <TextBlock Text="Acceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Text="{Binding CurrentMotionSettings.ZAccelerationSeconds, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
+                                        <TextBlock Text="Deceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                            Text="{Binding CurrentMotionSettings.ZDecelerationSeconds, TargetNullValue='', UpdateSourceTrigger=LostFocus, ValidatesOnDataErrors=True}"/>
+                                        <TextBlock Text="Leave either Z time blank to use its X / Y time." Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </UniformGrid>
                             </StackPanel>

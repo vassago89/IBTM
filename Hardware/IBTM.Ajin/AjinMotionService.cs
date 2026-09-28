@@ -207,12 +207,16 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         ValidateJog(axis, velocity);
-        ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
-        ValidatePositive(Settings.DecelerationSeconds, nameof(Settings.DecelerationSeconds));
+        var accelerationSeconds = axis == MotionAxis.Z
+            ? Settings.ZAccelerationSeconds ?? Settings.AccelerationSeconds : Settings.AccelerationSeconds;
+        var decelerationSeconds = axis == MotionAxis.Z
+            ? Settings.ZDecelerationSeconds ?? Settings.DecelerationSeconds : Settings.DecelerationSeconds;
+        ValidatePositive(accelerationSeconds, nameof(accelerationSeconds));
+        ValidatePositive(decelerationSeconds, nameof(decelerationSeconds));
         var axisNumber = GetAxis(axis);
         var velocityInUnits = ToUnits(velocity);
-        var acceleration = Math.Abs(velocityInUnits) / Settings.AccelerationSeconds;
-        var deceleration = Math.Abs(velocityInUnits) / Settings.DecelerationSeconds;
+        var acceleration = Math.Abs(velocityInUnits) / accelerationSeconds;
+        var deceleration = Math.Abs(velocityInUnits) / decelerationSeconds;
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
@@ -473,8 +477,12 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
-        ValidatePositive(Settings.DecelerationSeconds, nameof(Settings.DecelerationSeconds));
+        var accelerationSeconds = axis == MotionAxis.Z
+            ? Settings.ZAccelerationSeconds ?? Settings.AccelerationSeconds : Settings.AccelerationSeconds;
+        var decelerationSeconds = axis == MotionAxis.Z
+            ? Settings.ZDecelerationSeconds ?? Settings.DecelerationSeconds : Settings.DecelerationSeconds;
+        ValidatePositive(accelerationSeconds, nameof(accelerationSeconds));
+        ValidatePositive(decelerationSeconds, nameof(decelerationSeconds));
         var axisNumber = GetAxis(axis);
         var velocityInUnits = velocity * 1000;
         try
@@ -488,8 +496,8 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                 AjinController.Check(
                     CAXM.AxmMoveStartPos(
                         axisNumber, position * 1000, velocityInUnits,
-                        velocityInUnits / Settings.AccelerationSeconds,
-                        velocityInUnits / Settings.DecelerationSeconds),
+                        velocityInUnits / accelerationSeconds,
+                        velocityInUnits / decelerationSeconds),
                     $"{nameof(CAXM.AxmMoveStartPos)} (axis={axisNumber})");
             }).ConfigureAwait(false);
             await WaitForMoveAsync([axisNumber], cancellationToken).ConfigureAwait(false);

@@ -281,7 +281,7 @@ public sealed class AjinControllerTests
         io.Initialize();
         Assert.Equal(0, presentNotifications); // Initial levels are not new input edges.
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBolt(FasteningHead.Shooting, 1, new BoltResult(false, 1.25));
+        assembly.RecordBolt(FasteningHead.Shooting, Guid.NewGuid(), new BoltResult(false, 1.25));
         work.Complete(work.CurrentJob);
         Assert.True(work.Completed);
         var job = work.CurrentJob;
@@ -971,7 +971,8 @@ public sealed class AjinControllerTests
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
             controller, new() { Number = 9 }, new() { Number = 10 }, null,
-            new() { AccelerationSeconds = 0.25, DecelerationSeconds = 0.75 }, new(), operations);
+            new() { AccelerationSeconds = 0.25, DecelerationSeconds = 0.75,
+                ZAccelerationSeconds = 0.1, ZDecelerationSeconds = 0.2 }, new(), operations);
         foreach (var axis in new[] { 9, 10 })
         {
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
@@ -1547,7 +1548,8 @@ public sealed class AjinControllerTests
     public async Task AxisMoveAndJogUseConfiguredAccelerationWithAnyWaveUnits()
     {
         using var controller = new AjinController(new());
-        var settings = new MotionSettings { AccelerationSeconds = 0.2, DecelerationSeconds = 0.75 };
+        var settings = new MotionSettings { AccelerationSeconds = 0.2, DecelerationSeconds = 0.75,
+            ZAccelerationSeconds = 0.1, ZDecelerationSeconds = 0.25 };
         var motion = CreateHorizontalHome(controller, hasY: false, settings: settings);
         using var cancellation = new CancellationTokenSource();
         AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 9)] = 0;
@@ -1578,6 +1580,69 @@ public sealed class AjinControllerTests
         Assert.Equal(new double[] { 5000 }, jog.Accelerations);
         Assert.Equal(new double[] { 10000 }, jog.Decelerations);
         Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Fact]
+    public async Task ZMovesAdjustmentAndJogUseSeparateTimesOrExistingTimesWhenUnset()
+    {
+        using var controller = new AjinController(new());
+        var settings = new MotionSettings { AccelerationSeconds = 0.2, DecelerationSeconds = 0.75 };
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, null, new() { Number = 11 }, settings, new(), new());
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        AjinSdk.MotionAxes[11] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveStartPos), Axis: 11)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveVel), Axis: 11)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 11)] = 0;
+        using var cancellation = new CancellationTokenSource();
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == nameof(CAXM.AxmMoveStartPos))
+                AjinSdk.MotionAxes[11] = AjinSdk.MotionAxes[11] with { Position = AjinSdk.Moves.Last().Positions![0] };
+            if (call.Operation == nameof(CAXM.AxmMoveVel))
+                cancellation.Cancel();
+        };
+
+        await motion.MoveAxisAsync(MotionAxis.Z, 2.5, 3);
+        Assert.Equal(new double[] { 15000 }, AjinSdk.Moves[0].Accelerations);
+        Assert.Equal(new double[] { 4000 }, AjinSdk.Moves[0].Decelerations);
+
+        settings.ZAccelerationSeconds = 0.1;
+        settings.ZDecelerationSeconds = 0.25;
+        await motion.AdjustAxisAsync(MotionAxis.Z, 1, 3);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            motion.JogAsync(MotionAxis.Z, -3, cancellation.Token));
+        Assert.Equal(3, AjinSdk.Moves.Count);
+        Assert.All(AjinSdk.Moves.Skip(1), move =>
+        {
+            Assert.Equal(new[] { 11 }, move.Axes);
+            Assert.Equal(new double[] { 30000 }, move.Accelerations);
+            Assert.Equal(new double[] { 12000 }, move.Decelerations);
+        });
+        Assert.Equal(new double[] { -3000 }, AjinSdk.Moves[2].Velocities);
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public async Task InvalidZTimesNeverStartMoveOrJog(double value)
+    {
+        using var controller = new AjinController(new());
+        var settings = new MotionSettings { ZAccelerationSeconds = value };
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, null, new() { Number = 11 }, settings, new(), new());
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        AjinSdk.MotionAxes[11] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => motion.MoveAxisAsync(MotionAxis.Z, 2, 1));
+        settings.ZAccelerationSeconds = 0.2;
+        settings.ZDecelerationSeconds = value;
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => motion.JogAsync(MotionAxis.Z, -1));
+        Assert.Empty(AjinSdk.Moves);
         Assert.Equal(MotionCommand.None, motion.Command);
     }
 

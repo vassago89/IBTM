@@ -22,6 +22,9 @@ public sealed class MotionSettings : IDataErrorInfo
     public double ZSpeed { get; set; } = 50.0;
     public double AccelerationSeconds { get; set; } = 0.5;
     public double DecelerationSeconds { get; set; } = 0.5;
+    // Blank keeps the existing X/Y time, including settings saved before Z was separated.
+    public double? ZAccelerationSeconds { get; set; }
+    public double? ZDecelerationSeconds { get; set; }
     public HomeSettings HorizontalHome { get; set; }
     public HomeSettings ZHome { get; set; }
 
@@ -43,6 +46,10 @@ public sealed class MotionSettings : IDataErrorInfo
                 nameof(ZSpeed) => PositiveValueError(ZSpeed, propertyName),
                 nameof(AccelerationSeconds) => PositiveValueError(AccelerationSeconds, propertyName),
                 nameof(DecelerationSeconds) => PositiveValueError(DecelerationSeconds, propertyName),
+                nameof(ZAccelerationSeconds) => ZAccelerationSeconds is { } acceleration
+                    ? PositiveValueError(acceleration, propertyName) : null,
+                nameof(ZDecelerationSeconds) => ZDecelerationSeconds is { } deceleration
+                    ? PositiveValueError(deceleration, propertyName) : null,
                 _ => null,
             };
         }
@@ -54,7 +61,10 @@ public sealed class MotionSettings : IDataErrorInfo
             ?? this[nameof(AccelerationSeconds)]
             ?? this[nameof(DecelerationSeconds)]
             ?? HorizontalHome.ValidationError
-            ?? (hasZ ? this[nameof(ZSpeed)] ?? ZHome.ValidationError : null);
+            ?? (hasZ ? this[nameof(ZSpeed)]
+                ?? this[nameof(ZAccelerationSeconds)]
+                ?? this[nameof(ZDecelerationSeconds)]
+                ?? ZHome.ValidationError : null);
     }
 
     internal static string? PositiveValueError(double value, string name)
