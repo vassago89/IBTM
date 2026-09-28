@@ -27,6 +27,7 @@ public sealed class BoltPoint
     }
 
     public Guid Id { get; init; }
+    public string? Name { get; set; }
 
     public int? LightLevel
     {

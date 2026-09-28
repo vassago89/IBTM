@@ -631,7 +631,7 @@ public sealed class BoltFasteningStation : AutoUnit
         var started = Stopwatch.GetTimestamp();
         _log?.LogInformation("Bolt {Head}: requesting vacuum OFF.", head);
         await SetVacuumAsync(head, false, cancellationToken);
-        _log?.LogInformation("Bolt timing {Head}: vacuum OFF confirmed, elapsed={ElapsedMs:F1} ms; requesting head UP.",
+        _log?.LogInformation("Bolt timing {Head}: vacuum OFF request completed, elapsed={ElapsedMs:F1} ms; requesting head UP.",
             head, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         started = Stopwatch.GetTimestamp();
         await SetHeadDownAsync(head, false, cancellationToken);

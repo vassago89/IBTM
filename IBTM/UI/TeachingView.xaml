@@ -118,6 +118,23 @@
                     <ScrollViewer Grid.Row="2" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto"
                         HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="0,0,12,0">
+                            <StackPanel Margin="0,0,0,12" IsEnabled="{Binding State.SetupEditingEnabled}">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedPoint.Position.Bolt}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="Bolt name" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding SelectedPoint.BoltName, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="Name for the selected bolt, for example: Upper-left fixing screw."/>
+                                <TextBlock Text="Save to keep the name. Leave blank to use Bolt 1, Bolt 2, …"
+                                    TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
                             <StackPanel Margin="0,0,0,12"
                                 Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="Live → Align with crosshair → Record Position"

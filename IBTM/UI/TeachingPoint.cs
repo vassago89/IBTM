@@ -120,13 +120,28 @@ public class TeachingPoint : ObservableObject
         }
     }
 
+    public string? BoltName
+    {
+        get => _definition.Bolt?.Name;
+        set
+        {
+            if (_definition.Bolt is not { } bolt || bolt.Name == value)
+                return;
+            bolt.Name = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(BoltLabel));
+            OnPropertyChanged(nameof(Name));
+        }
+    }
+
     public string? BoltLabel
     {
         get
         {
             if (_definition.Bolt is not { } bolt)
                 return null;
-            return $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}";
+            return string.IsNullOrWhiteSpace(bolt.Name)
+                ? $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}" : bolt.Name;
         }
     }
 
@@ -137,8 +152,8 @@ public class TeachingPoint : ObservableObject
             if (_definition.Bolt is { } bolt)
             {
                 return _definition.Target == TeachingTarget.BoltPosition
-                    ? $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)} Fastening · {bolt.Head.GetDescription()}"
-                    : $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)} Inspection";
+                    ? $"{BoltLabel} Fastening · {bolt.Head.GetDescription()}"
+                    : $"{BoltLabel} Inspection";
             }
 
             switch ((_definition.Target, _definition.MotionGroup))

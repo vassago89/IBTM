@@ -649,7 +649,9 @@ public partial class TeachingViewModel : ObservableObject
         var selectedId = SelectedFasteningPoint?.Position.Bolt?.Id;
         FasteningPoints = Recipes.Current.Pcb.FasteningPoints
             .Where(bolt => bolt.HeatSink == SelectedPcb)
-            .Select(bolt => new TeachingPoint(
+            .Select(bolt => FilteredPoints.FirstOrDefault(point =>
+                point.Position.Target == TeachingTarget.BoltPosition && point.Position.Bolt == bolt)
+                ?? new TeachingPoint(
                 new(TeachingTarget.BoltPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = bolt },
                 _settings, Recipes, bolt.HeatSink)).ToArray();
         SelectedFasteningPoint = FasteningPoints.FirstOrDefault(point => point.Position.Bolt?.Id == selectedId)

@@ -44,7 +44,7 @@ public sealed class RecipeTests
     [Fact]
     public void BoltGuidKeepsImageAndInspectionSettingsLinkedAfterReordering()
     {
-        var first = new BoltPoint { X = 11, Y = 22, FasteningX = 101, FasteningY = 202 };
+        var first = new BoltPoint { Name = "좌상단 고정", X = 11, Y = 22, FasteningX = 101, FasteningY = 202 };
         var second = new BoltPoint { X = 33, Y = 44 };
         var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
         recipe.CarrierImages = [new() { Number = 1, BoltId = first.Id, Region = new(1, 2, 3, 4) },
@@ -62,6 +62,7 @@ public sealed class RecipeTests
         var saved = store.LoadRecipe(recipe.Name);
         Assert.Equal(new[] { second.Id, first.Id }, saved.Pcb.BoltPoints.Select(bolt => bolt.Id));
         Assert.Equal(first.Id, saved.CarrierImages[0].BoltId);
+        Assert.Equal("좌상단 고정", saved.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).Name);
         Assert.DoesNotContain("\"Number\"", JsonSerializer.Serialize(saved.Pcb.BoltPoints));
         Assert.DoesNotContain("BoltNumber", JsonSerializer.Serialize(saved));
         Assert.NotEqual(first.Id, new BoltPoint().Id);
