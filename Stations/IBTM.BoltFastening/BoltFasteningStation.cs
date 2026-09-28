@@ -133,24 +133,6 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    internal BoltEscapeState ShootingEscape
-    {
-        get
-        {
-            switch ((
-                _io.GetInput(InputIo.ShootingEscapeForward),
-                _io.GetInput(InputIo.ShootingEscapeBackward)))
-            {
-                case (true, false):
-                    return BoltEscapeState.Forward;
-                case (false, true):
-                    return BoltEscapeState.Backward;
-                default:
-                    return BoltEscapeState.Between;
-            }
-        }
-    }
-
     private void OnInputChanged(InputIo input, bool value)
     {
         if (input is InputIo.PickupHeadVacuumDetected
@@ -182,8 +164,7 @@ public sealed class BoltFasteningStation : AutoUnit
         get
         {
             return _recipes.Current.Pcb.FasteningPoints
-                .Where(bolt => bolt.Head == FasteningHead.Shooting)
-                .FirstOrDefault();
+                .FirstOrDefault(bolt => bolt.Head == FasteningHead.Shooting);
         }
     }
 
@@ -299,7 +280,7 @@ public sealed class BoltFasteningStation : AutoUnit
         switch (ActiveBolt?.Head)
         {
             case FasteningHead.Shooting:
-                return BoltFasteningState.FasteningPcb;
+                return BoltFasteningState.FasteningShooting;
             case FasteningHead.Pickup:
                 return BoltFasteningState.FasteningPickup;
             default:
@@ -352,7 +333,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 CheckCarrier();
                 NotifyChanged();
                 return true;
-            case BoltFasteningState.FasteningPcb or BoltFasteningState.FasteningPickup or BoltFasteningState.CompletingCarrier:
+            case BoltFasteningState.FasteningShooting or BoltFasteningState.FasteningPickup or BoltFasteningState.CompletingCarrier:
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(step));
@@ -625,7 +606,8 @@ public sealed class BoltFasteningStation : AutoUnit
         boltId ??= ActiveBolt?.Id;
         _log?.LogInformation("Bolt timing {Bolt}: shooting feed begin.", boltId);
         cancellationToken.ThrowIfCancellationRequested();
-        if (ShootingEscape != BoltEscapeState.Backward)
+        if ((_io.GetInput(InputIo.ShootingEscapeForward), _io.GetInput(InputIo.ShootingEscapeBackward))
+            is not (false, true))
             await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false, cancellationToken);
         await WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken);
         await _io.WaitForInputAsync(

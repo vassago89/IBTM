@@ -11,7 +11,7 @@ public enum BoltFasteningState
     MovingToStandby,
 
     [Description("Feeding and Fastening Shooting Bolt")]
-    FasteningPcb,
+    FasteningShooting,
 
     [Description("Picking and Fastening Pickup Bolt")]
     FasteningPickup,
@@ -24,16 +24,4 @@ public enum BoltFasteningState
 
     [Description("Disabled")]
     Disabled,
-}
-
-internal enum BoltEscapeState
-{
-    [Description("Forward")]
-    Forward,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Backward")]
-    Backward,
 }
