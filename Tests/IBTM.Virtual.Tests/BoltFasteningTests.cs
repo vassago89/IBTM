@@ -259,8 +259,10 @@ public sealed class BoltFasteningTests
     [InlineData(FasteningHead.Shooting, RetractionScenario.ZFirst)]
     [InlineData(FasteningHead.Pickup, RetractionScenario.Stop)]
     [InlineData(FasteningHead.Shooting, RetractionScenario.MotionFailure)]
+    [InlineData(FasteningHead.Shooting, RetractionScenario.ZFirst, true)]
+    [InlineData(FasteningHead.Shooting, RetractionScenario.Stop, true)]
     public async Task RetractionOverlapsHeadAndZAndDrainsBothBeforeNextBolt(
-        FasteningHead selectedHead, RetractionScenario scenario)
+        FasteningHead selectedHead, RetractionScenario scenario, bool pickupNext = false)
     {
         var settings = new BoltFasteningSettings
         {
@@ -286,7 +288,9 @@ public sealed class BoltFasteningTests
         var otherHead = CreateAdcHead(otherBus, io,
             selectedHead == FasteningHead.Pickup ? FasteningHead.Shooting : FasteningHead.Pickup,
             new(), 1, "Other", 115200);
-        var bolts = new[] { Bolt(1, selectedHead, 20, 30), Bolt(2, selectedHead, 40, 50) };
+        var nextHead = pickupNext ? FasteningHead.Pickup : selectedHead;
+        var retractionZ = pickupNext ? settings.SafeZ : settings.GetSafeZ(selectedHead);
+        var bolts = new[] { Bolt(1, selectedHead, 20, 30), Bolt(2, nextHead, 40, 50) };
         var work = ConveyorStation.CreateBoltFastening(io);
         var station = new BoltFasteningStation(
             selectedHead == FasteningHead.Shooting ? head : otherHead,
@@ -334,6 +338,13 @@ public sealed class BoltFasteningTests
                 Assert.False(io.GetOutput(vacuum));
                 riseRequested = true;
             }
+            if (output == OutputIo.PickupTableDown && on)
+            {
+                Assert.True(io.GetInput(upInput));
+                Assert.False(motion.IsMoving);
+                Assert.Equal(settings.SafeZ, motion.Position.Z);
+                io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, true));
+            }
         };
         motion.PositionChanged += (x, y, z) =>
         {
@@ -342,7 +353,7 @@ public sealed class BoltFasteningTests
             if (x == 20 && y == 30)
                 return;
             Assert.True(io.GetInput(upInput));
-            Assert.Equal(settings.GetSafeZ(selectedHead), z);
+            Assert.Equal(retractionZ, z);
             nextXy.TrySetResult();
             stop.Cancel();
         };
@@ -374,7 +385,7 @@ public sealed class BoltFasteningTests
                     break;
                 case RetractionScenario.ZFirst:
                     Assert.True(await WaitUntilAsync(() => !motion.IsMoving, TimeSpan.FromSeconds(2)));
-                    Assert.Equal(settings.GetSafeZ(selectedHead), motion.Position.Z);
+                    Assert.Equal(retractionZ, motion.Position.Z);
                     Assert.False(nextXy.Task.IsCompleted);
                     Assert.Empty(results);
                     io.SetInputs((upInput, true), (downInput, false));
