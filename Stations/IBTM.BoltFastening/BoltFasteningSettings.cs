@@ -50,9 +50,26 @@ public sealed class BoltFasteningSettings : Setting
         }
     } = 3.0;
     public double SafeZ { get; set; }
+    // Unset uses the existing travel height until the shooting height is taught.
+    public double? ShootingSafeZ
+    {
+        get;
+        set
+        {
+            if (value is { } z && !double.IsFinite(z))
+                throw new ArgumentOutOfRangeException(nameof(value), "Use a finite shooting Safe Z.");
+            field = value;
+        }
+    }
+
     public AxisPosition PickupPosition { get; set; }
     public BoltHeadSettings ShootingHead { get; set; }
     public BoltHeadSettings PickupHead { get; set; }
+
+    public double GetSafeZ(FasteningHead head)
+    {
+        return head == FasteningHead.Shooting ? ShootingSafeZ ?? SafeZ : SafeZ;
+    }
 
     public BoltHeadSettings GetHead(FasteningHead head)
     {

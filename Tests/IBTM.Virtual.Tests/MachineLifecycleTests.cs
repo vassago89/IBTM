@@ -3632,6 +3632,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.BoltFastening.ShootingSafeZ = 4;
         settings.Units.ShootingBoltFeeder = true;
         settings.Units.PickupBoltFeeder = true;
         settings.BoltFeeder.PickupTimeoutMilliseconds = 50;
@@ -6583,6 +6584,41 @@ public sealed partial class MachineLifecycleTests
         Assert.True(teaching.IsInspectionSelected);
         Assert.Equal(MotionGroup.InspectionGantry, teaching.ActiveMotionGroup);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+    }
+
+    [Fact]
+    public async Task ShootingSafeZTeachingPersistsWithoutChangingCommonClearance()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.BoltFastening.SafeZ = 5;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+            var point = teaching.FilteredPoints.Single(item => item.Position.Target == TeachingTarget.ShootingSafeZ);
+            Assert.Equal(5, point.Coordinates!.Z); // Existing clearance until explicitly taught.
+            Assert.Equal(TeachingStorage.Machine, point.Storage);
+            teaching.SelectedPoint = point;
+            await station.MoveZAsync(9);
+            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Null(teaching.SaveError);
+            var saved = services.GetRequiredService<MachineStore>().LoadSettings().Get<BoltFasteningSettings>();
+            Assert.Equal(9, saved.ShootingSafeZ);
+            Assert.Equal(5, saved.SafeZ);
+            Assert.Equal(9, point.Coordinates.Z);
+            Assert.Equal(5, settings.BoltFastening.GetSafeZ(FasteningHead.Pickup));
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]

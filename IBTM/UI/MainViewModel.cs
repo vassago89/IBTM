@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -284,6 +285,9 @@ public partial class MainViewModel : ObservableObject
         if (page == SelectedPage)
             return;
 
+        var started = Stopwatch.GetTimestamp();
+        var previousPage = SelectedPage;
+        _log.LogInformation("UI navigation: {From} -> {To}, begin.", previousPage, page);
         NavigationError = null;
         try
         {
@@ -299,14 +303,20 @@ public partial class MainViewModel : ObservableObject
                     await _settingsViewModel.ShutdownAsync();
                     break;
             }
+            _log.LogInformation("UI navigation {From} -> {To}: previous page stopped, elapsed={ElapsedMs:F1} ms.",
+                previousPage, page, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             if (_shuttingDown)
                 return;
             // The selector can change while the previous device operation is stopping.
             if (!IsNavigateAllowed(page))
                 page = AppPage.Operation;
 
+            var activateStarted = Stopwatch.GetTimestamp();
             SelectedPage = page;
             ActivateCurrentPage();
+            _log.LogInformation("UI navigation {From} -> {To}: view model activated, activation={ActivationMs:F1} ms, total={ElapsedMs:F1} ms.",
+                previousPage, page, Stopwatch.GetElapsedTime(activateStarted).TotalMilliseconds,
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             if (page == AppPage.Operation)
                 _state.Refresh();
         }

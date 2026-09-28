@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -215,7 +216,14 @@ public partial class RecipeEditor : ObservableObject
                 tile =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var image = InspectionPreview.DecodeImage(_database.LoadRecipeImage(name, tile.Number));
+                    var started = Stopwatch.GetTimestamp();
+                    var bytes = _database.LoadRecipeImage(name, tile.Number);
+                    var readMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                    started = Stopwatch.GetTimestamp();
+                    var image = InspectionPreview.DecodeImage(bytes);
+                    _log?.LogInformation("Teaching image {Recipe}/{Image}: DB read={ReadMs:F1} ms, decode={DecodeMs:F1} ms, pixels={Width}x{Height}.",
+                        name, tile.Number, readMilliseconds, Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                        image.PixelWidth, image.PixelHeight);
                     var bolt = tile.IsBarcode ? null : bolts.SingleOrDefault(point => point.Id == tile.BoltId);
                     var ordinal = bolt is null ? (int?)null : bolts.Where(point => point.HeatSink == bolt.HeatSink)
                         .TakeWhile(point => point.Id != bolt.Id).Count() + 1;

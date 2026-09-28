@@ -11,7 +11,7 @@
     d:DataContext="{d:DesignInstance Type=ui:TeachingViewModel, IsDesignTimeCreatable=False}"
     Foreground="{StaticResource TextPrimaryBrush}"
     Background="{StaticResource AppBgBrush}"
-    Validation.ErrorTemplate="{x:Null}">
+    Validation.ErrorTemplate="{x:Null}" Loaded="OnViewLoaded">
     <UserControl.BindingGroup>
         <BindingGroup/>
     </UserControl.BindingGroup>

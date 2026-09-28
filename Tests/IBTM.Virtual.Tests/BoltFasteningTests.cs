@@ -1348,6 +1348,7 @@ public sealed class BoltFasteningTests
             DryRunMilliseconds = 30,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 20_000 },
             SafeZ = 5,
+            ShootingSafeZ = 9,
             PickupPosition = new() { X = 100, Y = 50, Z = 10 },
             ShootingHead = HeadSettings(),
             PickupHead = HeadSettings(),
@@ -1429,7 +1430,9 @@ public sealed class BoltFasteningTests
         {
             if (motion.IsMovingHorizontal)
             {
-                Assert.Equal(settings.SafeZ, z);
+                var expectedZ = !work.Completed && station.ActiveBolt?.Head == FasteningHead.Shooting
+                    ? settings.ShootingSafeZ!.Value : settings.SafeZ;
+                Assert.Equal(expectedZ, z);
                 Assert.True(station.IsHorizontalMoveAllowed);
                 Assert.Equal(tableDescents > 0 && !work.Completed ? StationCylinderState.Down : StationCylinderState.Up,
                     station.PickupTablePosition);
@@ -1864,6 +1867,7 @@ public sealed class BoltFasteningTests
         var settings = new BoltFasteningSettings
         {
             SafeZ = 5,
+            ShootingSafeZ = 9,
             Motion = new() { HorizontalSpeed = 20_000, ZSpeed = loseTableDuringFasteningZ ? 50 : 20_000 },
             PickupHead = HeadSettings(),
             ShootingHead = HeadSettings(),
@@ -1909,7 +1913,7 @@ public sealed class BoltFasteningTests
             steps.Add(motion.IsMovingHorizontal ? "XY" : "Z");
             if (motion.IsMovingHorizontal)
             {
-                Assert.Equal(settings.SafeZ, motion.Position.Z);
+                Assert.Equal(settings.GetSafeZ(head), motion.Position.Z);
                 Assert.Equal(tableDown ? StationCylinderState.Down : StationCylinderState.Up, station.PickupTablePosition);
             }
         };
@@ -1918,7 +1922,7 @@ public sealed class BoltFasteningTests
             if (loseTableDuringXy && motion.IsMovingHorizontal)
                 io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
             if (loseTableDuringFasteningZ && !motion.IsMovingHorizontal
-                && x == destination.X && y == destination.Y && z > settings.SafeZ + 0.05)
+                && x == destination.X && y == destination.Y && z > settings.GetSafeZ(head) + 0.05)
                 io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
         };
         io.OutputChanged += (output, on) =>
@@ -1963,13 +1967,15 @@ public sealed class BoltFasteningTests
                 {
                     Assert.InRange(motion.Position.X, 0, destination.X - 0.05);
                     Assert.InRange(motion.Position.Y, 0, destination.Y - 0.05);
-                    Assert.Equal(settings.SafeZ, motion.Position.Z);
+                    Assert.Equal(settings.GetSafeZ(head), motion.Position.Z);
                 }
             }
             else
             {
                 await move;
-                Assert.Equal(new[] { "Z", "Table", "XY", "Z" }, steps);
+                Assert.Equal(head == FasteningHead.Shooting
+                    ? new[] { "Z", "Table", "Z", "XY", "Z" }
+                    : new[] { "Z", "Table", "XY", "Z" }, steps);
                 Assert.Equal((destination.X, destination.Y, destination.Z), motion.Position);
             }
         }

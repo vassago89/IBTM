@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -97,6 +98,7 @@ public partial class TeachingViewModel : ObservableObject
     private Task _liveImageUpdate;
     private Task _cameraStop;
     private Task _recipeImageUpdate;
+    private long _activationStarted;
 
     public TeachingViewModel(
         MachineSettings settings,
@@ -258,15 +260,32 @@ public partial class TeachingViewModel : ObservableObject
 
     public void Activate()
     {
+        var started = Stopwatch.GetTimestamp();
+        _activationStarted = started;
+        _logger.LogInformation("Teaching open: unit={Unit}, PCB={Pcb}, recipe={Recipe}, bolts={Bolts}, images={Images}; begin.",
+            SelectedTeachingUnit, SelectedPcb, Recipes.Current.Name, Recipes.Current.Pcb.BoltPoints.Count, Recipes.Current.CarrierImages.Count);
         CameraError = null;
         RecipeEditor.Refresh();
+        _logger.LogInformation("Teaching open: recipe list read, elapsed={ElapsedMs:F1} ms.",
+            Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        var pointsStarted = Stopwatch.GetTimestamp();
         RefreshTeachingPoints();
+        _logger.LogInformation("Teaching open: point lists refreshed, points={Points}, elapsed={ElapsedMs:F1} ms.",
+            FilteredPoints.Count, Stopwatch.GetElapsedTime(pointsStarted).TotalMilliseconds);
         if (!PositionUpdatesActive)
             SubscribeMotionChanges();
         PositionUpdatesActive = true;
         OnPropertyChanged(nameof(Motion));
         ShowRecipeImages();
         NotifyManualTeachingCommands();
+        _logger.LogInformation("Teaching open: activation finished, elapsed={ElapsedMs:F1} ms; image loading may continue.",
+            Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+    }
+
+    public void ReportViewReady(double xamlMilliseconds, double layoutMilliseconds)
+    {
+        _logger.LogInformation("Teaching open: UI ready; XAML construction={XamlMs:F1} ms, loaded to dispatcher idle={LayoutMs:F1} ms, since activation={TotalMs:F1} ms.",
+            xamlMilliseconds, layoutMilliseconds, Stopwatch.GetElapsedTime(_activationStarted).TotalMilliseconds);
     }
 
     public void Deactivate()
@@ -588,6 +607,7 @@ public partial class TeachingViewModel : ObservableObject
             ],
             HardwareArea.BoltFastening => [
                 Point(TeachingTarget.SafeZ, TeachMode.ZOnly),
+                Point(TeachingTarget.ShootingSafeZ, TeachMode.ZOnly),
                 Point(TeachingTarget.ShootingHeadFasteningZ, TeachMode.ZOnly),
                 Point(TeachingTarget.ShootingHeadUpperLeftLocatingPin, TeachMode.XYOnly),
                 Point(TeachingTarget.ShootingHeadLowerRightLocatingPin, TeachMode.XYOnly),
@@ -1645,19 +1665,30 @@ public partial class TeachingViewModel : ObservableObject
 
     private async Task LoadRecipeImagesAsync(Task previous, CancellationToken cancellationToken)
     {
+        var started = Stopwatch.GetTimestamp();
         try
         {
             await previous;
+            _logger.LogInformation("Teaching images: previous load drained, elapsed={ElapsedMs:F1} ms.",
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             cancellationToken.ThrowIfCancellationRequested();
             if (!PositionUpdatesActive || !IsInspectionSelected)
                 return;
+            var loadStarted = Stopwatch.GetTimestamp();
             var images = await RecipeEditor.LoadCarrierImagesAsync(cancellationToken);
+            _logger.LogInformation("Teaching images: read/decode finished, count={Count}, elapsed={ElapsedMs:F1} ms.",
+                images.Length, Stopwatch.GetElapsedTime(loadStarted).TotalMilliseconds);
             cancellationToken.ThrowIfCancellationRequested();
             // Point edits may finish while image decoding or its UI continuation is pending.
+            var publishStarted = Stopwatch.GetTimestamp();
             CarrierImages = images.Where(image => Recipes.Current.CarrierImages.Contains(image.Metadata)).ToArray();
+            _logger.LogInformation("Teaching images: UI collection updated, elapsed={ElapsedMs:F1} ms, total={TotalMs:F1} ms.",
+                Stopwatch.GetElapsedTime(publishStarted).TotalMilliseconds, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
         catch (OperationCanceledException)
         {
+            _logger.LogInformation("Teaching images: cancelled, elapsed={ElapsedMs:F1} ms.",
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
         catch (Exception exception)
         {

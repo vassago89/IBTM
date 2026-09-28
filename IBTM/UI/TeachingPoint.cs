@@ -48,7 +48,7 @@ public class TeachingPoint : ObservableObject
         TeachingTarget.PlacementHandoff or TeachingTarget.PlacementReceiveZ => _settings.PcbPlacementHandler,
         TeachingTarget.SafeZ => _definition.MotionGroup == MotionGroup.PcbSupply
             ? _settings.PcbSupply : _settings.BoltFastening,
-        TeachingTarget.BoltPickup or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
+        TeachingTarget.ShootingSafeZ or TeachingTarget.BoltPickup or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
             or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
             or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin => _settings.BoltFastening,
         TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin => _settings.CarrierReference,
@@ -66,6 +66,8 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.SafeZ:
                     return new() { Z = _definition.MotionGroup == MotionGroup.PcbSupply
                         ? _settings.PcbSupply.RotationZ : _settings.BoltFastening.SafeZ };
+                case TeachingTarget.ShootingSafeZ:
+                    return new() { Z = _settings.BoltFastening.GetSafeZ(FasteningHead.Shooting) };
                 case TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
                     var pick = _definition.Target == TeachingTarget.SupplyPcb1Pick
                         ? recipe.PcbSupply.Pcb1PickPosition : recipe.PcbSupply.Pcb2PickPosition;
@@ -159,7 +161,7 @@ public class TeachingPoint : ObservableObject
                     return TeachingPointGroup.Fastening;
                 case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
                     return TeachingPointGroup.CarrierTransfer;
-                case TeachingTarget.SafeZ or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
+                case TeachingTarget.SafeZ or TeachingTarget.ShootingSafeZ or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
                     or TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin
                     or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
                     or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin:
@@ -179,7 +181,9 @@ public class TeachingPoint : ObservableObject
                 case TeachingTarget.SafeZ when _definition.MotionGroup == MotionGroup.PcbSupply:
                     return "Z height used before PCB rotation and for travel above the pickup positions. Moving to this height moves only Z.";
                 case TeachingTarget.SafeZ:
-                    return "Z height for horizontal travel with both fastening heads raised.";
+                    return "Common clearance Z for pickup travel, table changes, standby and carrier release.";
+                case TeachingTarget.ShootingSafeZ:
+                    return "Z for shooting-bolt XY travel and retraction. Until recorded, uses common Safe Z. Table changes and carrier release still use common Safe Z.";
                 case TeachingTarget.SupplyPcb1Pick:
                     return "XYZ where Supply picks PCB 1 from the incoming carrier.";
                 case TeachingTarget.SupplyPcb2Pick:
@@ -280,6 +284,9 @@ public class TeachingPoint : ObservableObject
                 break;
             case TeachingTarget.SafeZ:
                 _settings.BoltFastening.SafeZ = position.Z;
+                break;
+            case TeachingTarget.ShootingSafeZ:
+                _settings.BoltFastening.ShootingSafeZ = position.Z;
                 break;
             case TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
                 var pick = _definition.Target == TeachingTarget.SupplyPcb1Pick

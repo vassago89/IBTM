@@ -100,6 +100,9 @@ public enum TeachingTarget
     [Description("Waiting")]
     InspectionWaiting,
 
+    [Description("Shooting Safe Z")]
+    ShootingSafeZ,
+
 }
 
 // Command metadata only. Teaching values and writes are owned by the teaching UI.
