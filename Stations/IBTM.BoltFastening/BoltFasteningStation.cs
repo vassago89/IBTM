@@ -200,7 +200,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         bolt => bolt.Head == FasteningHead.Shooting && selectedBolts.Contains(bolt.Id))))
                     _io.SetOutput(OutputIo.ShootingEscapeForward, false);
                 Station.Restart(Station.CurrentJob);
-                if (!IsReadyToFasten && StandbyBolt is { IsFasteningPositionDefined: true } standby)
+                if (StandbyBolt is { IsFasteningPositionDefined: true } standby)
                 {
                     var position = _settings.GetBoltPosition(standby);
                     EnterStep(BoltFasteningState.MovingToStandby,

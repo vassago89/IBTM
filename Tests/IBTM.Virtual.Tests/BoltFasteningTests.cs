@@ -1752,8 +1752,12 @@ public sealed class BoltFasteningTests
         }
     }
 
-    [Fact]
-    public async Task StartupStandbyStopsDuringZRetractionAndRestartsThroughZeroBeforeXy()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task StartupStandbyStopsDuringZRetractionAndRestartsThroughZeroBeforeXy(
+        bool carrierSeated, bool selectedTest)
     {
         var settings = new BoltFasteningSettings
         {
@@ -1773,7 +1777,14 @@ public sealed class BoltFasteningTests
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 20_000);
+        if (carrierSeated)
+        {
+            SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            await station.Station.SeatAsync(CancellationToken.None);
+        }
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, true);
         await motion.MoveAxisAsync(MotionAxis.Z, 20, 20_000);
+        Guid[]? selectedBolts = selectedTest ? [VirtualTest.BoltId(1)] : null;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         void StopDuringRetraction(double x, double y, double z)
         {
@@ -1783,7 +1794,7 @@ public sealed class BoltFasteningTests
         motion.PositionChanged += StopDuringRetraction;
         try
         {
-            await station.RunAsync(stop.Token);
+            await station.RunAsync(stop.Token, selectedBolts: selectedBolts);
             Assert.True(stop.IsCancellationRequested);
             Assert.Equal((0d, 0d), (motion.Position.X, motion.Position.Y));
             Assert.False(motion.IsMoving);
@@ -1795,6 +1806,7 @@ public sealed class BoltFasteningTests
 
         var xyAtZero = false;
         var loweredAfterXy = false;
+        using var restartedStop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         motion.PositionChanged += (x, y, z) =>
         {
             if (motion.IsMovingHorizontal)
@@ -1806,25 +1818,18 @@ public sealed class BoltFasteningTests
             {
                 Assert.Equal((10d, 20d), (x, y));
                 loweredAfterXy = true;
+                if (z == settings.SafeZ)
+                    restartedStop.Cancel();
             }
         };
-        using var restartedStop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var restarted = station.RunAsync(restartedStop.Token, repeat: true);
-        try
-        {
-            Assert.True(await WaitUntilAsync(
-                () => station.Step is BoltFasteningState.Waiting || restarted.IsCompleted,
-                TimeSpan.FromSeconds(1)));
-            Assert.False(restarted.IsCompleted, restarted.Exception?.ToString());
-            Assert.True(xyAtZero);
-            Assert.True(loweredAfterXy);
-            Assert.Equal((10d, 20d, 5d), motion.Position);
-        }
-        finally
-        {
-            restartedStop.Cancel();
-            await restarted;
-        }
+        await station.RunAsync(restartedStop.Token, repeat: !selectedTest, selectedBolts: selectedBolts);
+        Assert.True(xyAtZero);
+        Assert.True(loweredAfterXy);
+        Assert.Equal((10d, 20d, 5d), motion.Position);
+        Assert.False(motion.IsMoving);
+        Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.All(station.Station.Assemblies, assembly => Assert.Empty(assembly.PcbBoltResults));
     }
 
     [Fact]
