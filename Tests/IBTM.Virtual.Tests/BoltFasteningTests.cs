@@ -1742,6 +1742,81 @@ public sealed class BoltFasteningTests
     }
 
     [Fact]
+    public async Task StartupStandbyStopsDuringZRetractionAndRestartsThroughZeroBeforeXy()
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 5,
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = 100 },
+        };
+        var io = new VirtualIoService(Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        using var bus = new VirtualAdcBus();
+        var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
+        var recipes = new RecipeManager(OpenMachineStore(), new())
+        {
+            Current = { Pcb = new() { BoltPoints = [Bolt(1, FasteningHead.Shooting, 10, 20)] } },
+        };
+        var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, new(),
+            ConveyorStation.CreateBoltFastening(io), recipes, new());
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        await motion.MoveAxisAsync(MotionAxis.Z, 20, 20_000);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        void StopDuringRetraction(double x, double y, double z)
+        {
+            if (z < 20)
+                stop.Cancel();
+        }
+        motion.PositionChanged += StopDuringRetraction;
+        try
+        {
+            await station.RunAsync(stop.Token);
+            Assert.True(stop.IsCancellationRequested);
+            Assert.Equal((0d, 0d), (motion.Position.X, motion.Position.Y));
+            Assert.False(motion.IsMoving);
+        }
+        finally
+        {
+            motion.PositionChanged -= StopDuringRetraction;
+        }
+
+        var xyAtZero = false;
+        var loweredAfterXy = false;
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if (motion.IsMovingHorizontal)
+            {
+                Assert.Equal(0, z);
+                xyAtZero = true;
+            }
+            else if (motion.IsMoving && xyAtZero)
+            {
+                Assert.Equal((10d, 20d), (x, y));
+                loweredAfterXy = true;
+            }
+        };
+        using var restartedStop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var restarted = station.RunAsync(restartedStop.Token, repeat: true);
+        try
+        {
+            Assert.True(await WaitUntilAsync(
+                () => station.Step is BoltFasteningState.Waiting || restarted.IsCompleted,
+                TimeSpan.FromSeconds(1)));
+            Assert.False(restarted.IsCompleted, restarted.Exception?.ToString());
+            Assert.True(xyAtZero);
+            Assert.True(loweredAfterXy);
+            Assert.Equal((10d, 20d, 5d), motion.Position);
+        }
+        finally
+        {
+            restartedStop.Cancel();
+            await restarted;
+        }
+    }
+
+    [Fact]
     public async Task FasteningKeepsPcbOrderAndPickupTableClearance()
     {
         var settings = new BoltFasteningSettings
@@ -1792,6 +1867,7 @@ public sealed class BoltFasteningTests
         motion.Initialize();
         await HomeAsync(motion, 20_000);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, CancellationToken.None);
+        await motion.MoveAxisAsync(MotionAxis.Z, 20, settings.Motion.ZSpeed);
         await shootingBus.WriteRegisterAsync(2, (ushort)AdcRemoteRegister.Preset, 4);
         await bus.WriteRegisterAsync(1, (ushort)AdcRemoteRegister.Preset, 5);
         var presets = new List<(byte Head, ushort Preset)>();
@@ -1828,12 +1904,16 @@ public sealed class BoltFasteningTests
             if (on && output is OutputIo.PickupHeadDown or OutputIo.ShootingHeadDown)
                 Assert.False(station.IsAtPickupXY);
         };
+        var startupXyMoved = false;
         motion.PositionChanged += (_, _, z) =>
         {
             if (motion.IsMovingHorizontal)
             {
-                var expectedZ = !work.Completed && station.ActiveBolt?.Head == FasteningHead.Shooting
-                    ? settings.ShootingSafeZ!.Value : settings.SafeZ;
+                var startup = starts.Count == 0 && station.ActiveBolt is null;
+                startupXyMoved |= startup;
+                var expectedZ = startup ? 0
+                    : !work.Completed && station.ActiveBolt?.Head == FasteningHead.Shooting
+                        ? settings.ShootingSafeZ!.Value : settings.SafeZ;
                 Assert.Equal(expectedZ, z);
                 Assert.True(station.IsHorizontalMoveAllowed);
                 Assert.Equal(tableDescents > 0 && !work.Completed ? StationCylinderState.Down : StationCylinderState.Up,
@@ -1847,6 +1927,7 @@ public sealed class BoltFasteningTests
             Assert.True(await WaitUntilAsync(
                 () => station.GetNextStep() == BoltFasteningState.Waiting, TimeSpan.FromSeconds(2)));
             Assert.Equal((280d, 410d, 5d), (motion.Position.X, motion.Position.Y, motion.Position.Z));
+            Assert.True(startupXyMoved);
             Assert.Empty(starts);
             Assert.Equal(StationCylinderState.Up, station.PickupTablePosition);
             io.SetInputs(

@@ -200,6 +200,19 @@ public sealed class BoltFasteningStation : AutoUnit
                         bolt => bolt.Head == FasteningHead.Shooting && selectedBolts.Contains(bolt.Id))))
                     _io.SetOutput(OutputIo.ShootingEscapeForward, false);
                 Station.Restart(Station.CurrentJob);
+                if (!IsReadyToFasten && StandbyBolt is { IsFasteningPositionDefined: true } standby)
+                {
+                    var position = _settings.GetBoltPosition(standby);
+                    EnterStep(BoltFasteningState.MovingToStandby,
+                        $"Startup: Z=0 -> X={position.X}, Y={position.Y} -> Safe Z={_settings.SafeZ}",
+                        Station.CurrentJob.Id);
+                    await RaiseCylindersAsync(cancellationToken);
+                    await MoveZAsync(0, cancellationToken);
+                    await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
+                    EnsureCanMoveHorizontal(cancellationToken);
+                    await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
+                    await MoveZAsync(_settings.SafeZ, cancellationToken);
+                }
             }
             while (!cancellationToken.IsCancellationRequested)
             {
