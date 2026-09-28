@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -158,17 +159,19 @@ public sealed class AdcProtocolTests
             0, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 2);
 
         if (kind == AdcResponseKind.Valid)
-            Assert.Equal(frame, await waiting.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(frame, (await waiting.WaitAsync(TimeSpan.FromSeconds(2))).RequireSuccess());
         else if (kind == AdcResponseKind.ControllerError)
         {
-            var error = await Assert.ThrowsAsync<AdcResponseException>(() => waiting);
+            var response = await waiting;
+            var error = Assert.Throws<AdcResponseException>(() => response.RequireSuccess());
             Assert.Equal(3, error.ErrorCode);
             Assert.Contains("InvalidDataLength", error.Message);
             Assert.Contains(Convert.ToHexString(frame), error.Message);
         }
         else if (kind == AdcResponseKind.WriteResponse)
         {
-            var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() => waiting);
+            var response = await waiting;
+            var error = Assert.Throws<AdcUnexpectedResponseException>(() => response.RequireSuccess());
             Assert.Contains("Write Single Register", error.Message);
             Assert.Contains("kind=normal", error.Message);
         }
@@ -189,7 +192,8 @@ public sealed class AdcProtocolTests
             1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28);
         Assert.False(waiting.IsCompleted);
         stream.Feed(frame[2..]);
-        var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() => waiting);
+        var response = await waiting;
+        var error = Assert.Throws<AdcUnexpectedResponseException>(() => response.RequireSuccess());
         Assert.Contains("RX=018C0304C1", error.Message);
         Assert.Contains("function=0x8C", error.Message);
         Assert.Contains("base function=0x0C (Get Comm Event Log)", error.Message);
@@ -209,7 +213,7 @@ public sealed class AdcProtocolTests
     {
         var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)function, [data]);
         var error = Assert.Throws<AdcUnexpectedResponseException>(
-            () => AdcBus.ValidateResponse(frame, 1, request, byteCount));
+            () => AdcBus.ValidateResponse(frame, 1, request, byteCount).RequireSuccess());
         Assert.Contains($"function=0x{function:X2}", error.Message);
         Assert.Contains($"exception=0x{data:X2}", error.Message);
         Assert.Contains("CRC valid", error.Message);
@@ -233,15 +237,15 @@ public sealed class AdcProtocolTests
         var frame = AdcRtuFrame.Build(1, (AdcFunctionCode)function, Convert.FromHexString(data));
         var result = ResultFrame(31);
         stream.Feed([.. frame, .. result]);
-        var error = await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() =>
-            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28));
+        var response = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28);
+        var error = Assert.Throws<AdcUnexpectedResponseException>(() => response.RequireSuccess());
         Assert.Contains(functionName, error.Message);
         Assert.Contains(interpretedData, error.Message);
         Assert.Contains($"RX={Convert.ToHexString(frame)}", error.Message);
         // Read only the first frame, leaving the following frame intact.
-        Assert.Equal(result, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28));
+        Assert.Equal(result, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28)).RequireSuccess());
     }
 
     [Fact]
@@ -300,19 +304,44 @@ public sealed class AdcProtocolTests
         stream.Feed(oldFrame[receivedCount..]);
         stream.DiscardInput();
         stream.Feed(nextFrame);
-        Assert.Equal(nextFrame, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 2));
+        Assert.Equal(nextFrame, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 2)).RequireSuccess());
     }
 
-    [Fact]
-    public async Task LoggedStatusReadRejectionRemainsAnError()
+    [Theory]
+    [InlineData("0184030301", 3)]
+    [InlineData("018C0304C1", null)]
+    public async Task LoggedStatusReadRejectionReturnsWithoutThrowing(string frame, int? errorCode)
     {
-        using var stream = new ReplyStream();
-        stream.Feed([1, 0x84, 3, 3, 1]);
-        var error = await Assert.ThrowsAsync<AdcResponseException>(() =>
-            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14));
-        Assert.Equal(3, error.ErrorCode);
+        using var stream = new ReplyStream { MaximumRead = 1 };
+        byte[] statusData = [14, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
+        var status = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, statusData);
+        stream.Feed([.. Convert.FromHexString(frame), .. status]);
+        var reading = new AsyncLocal<bool> { Value = true };
+        var exceptions = 0;
+        void OnFirstChanceException(object? sender, FirstChanceExceptionEventArgs args)
+        {
+            if (reading.Value && args.Exception is AdcResponseException or AdcUnexpectedResponseException)
+                Interlocked.Increment(ref exceptions);
+        }
+        AppDomain.CurrentDomain.FirstChanceException += OnFirstChanceException;
+        try
+        {
+            var response = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14);
+            Assert.Equal(errorCode, (int?)response.ErrorCode);
+            Assert.Contains(frame, response.Rejection);
+            Assert.Contains("CRC valid", response.Rejection);
+            var next = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14);
+            Assert.Equal(status, next.RequireSuccess());
+            Assert.Equal(0, Volatile.Read(ref exceptions));
+        }
+        finally
+        {
+            AppDomain.CurrentDomain.FirstChanceException -= OnFirstChanceException;
+            reading.Value = false;
+        }
     }
 
     [Fact]
@@ -323,14 +352,15 @@ public sealed class AdcProtocolTests
         var status = AdcRtuFrame.Build(1, AdcFunctionCode.ReadInputRegisters, statusData);
         var result = ResultFrame(10);
         stream.Feed([.. status, .. result]);
-        Assert.Equal(status, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14));
-        Assert.Equal(result, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28));
+        Assert.Equal(status, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14)).RequireSuccess());
+        Assert.Equal(result, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 28)).RequireSuccess());
         stream.Feed(result);
-        await Assert.ThrowsAsync<AdcUnexpectedResponseException>(() =>
-            AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-                1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14));
+        var mismatch = await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            1, AdcFunctionCode.ReadInputRegisters, CancellationToken.None, 14);
+        Assert.Contains("28 data bytes; expected 14", mismatch.Rejection);
+        Assert.Throws<AdcUnexpectedResponseException>(() => mismatch.RequireSuccess());
     }
 
     [Fact]
@@ -355,7 +385,7 @@ public sealed class AdcProtocolTests
         await Task.Delay(10);
         Assert.False(capture.IsCompleted);
         stream.Feed([.. frame, 0xAB]);
-        Assert.Equal([.. echo, .. frame, 0xAB], await capture);
+        Assert.Equal([.. echo, .. frame, 0xAB], (await capture).Frame);
     }
 
     [Fact]
@@ -373,8 +403,8 @@ public sealed class AdcProtocolTests
         Assert.Equal(echo, chunks.SelectMany(chunk => chunk).ToArray());
         var frame = AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, [2, 1, 0xFF]);
         stream.Feed(frame);
-        Assert.Equal(frame, await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
-            0, AdcFunctionCode.RequestDeviceInformation, CancellationToken.None));
+        Assert.Equal(frame, (await AdcBus.ReadResponseAsync(stream, stream.DiscardInput, _ => { },
+            0, AdcFunctionCode.RequestDeviceInformation, CancellationToken.None)).RequireSuccess());
     }
 
     [Fact]

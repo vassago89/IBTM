@@ -103,11 +103,12 @@ public sealed class AdcBus : IAdcBus, IDisposable
         BinaryPrimitives.WriteUInt16BigEndian(data, address);
         BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), value);
         var request = AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.WriteSingleRegister, data);
-        var response = await ExchangeAsync(
+        var reply = await ExchangeAsync(
             slaveAddress,
             AdcFunctionCode.WriteSingleRegister,
             request,
             cancellationToken);
+        var response = reply.RequireSuccess();
 
         if (!request.AsSpan(0, 6).SequenceEqual(response.AsSpan(0, 6)))
         {
@@ -125,21 +126,22 @@ public sealed class AdcBus : IAdcBus, IDisposable
             AdcFunctionCode.RequestDeviceInformation,
             AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestDeviceInformation, []),
             cancellationToken);
-        return response[3..^2];
+        return response.RequireSuccess()[3..^2];
     }
 
-    public Task<byte[]> CaptureDeviceInformationAsync(
+    public async Task<byte[]> CaptureDeviceInformationAsync(
         byte slaveAddress,
         int durationMilliseconds,
         CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durationMilliseconds);
-        return ExchangeAsync(
+        var response = await ExchangeAsync(
             slaveAddress,
             AdcFunctionCode.RequestDeviceInformation,
             AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestDeviceInformation, []),
             cancellationToken,
             durationMilliseconds);
+        return response.RequireSuccess();
     }
 
     public void Dispose()
@@ -159,12 +161,13 @@ public sealed class AdcBus : IAdcBus, IDisposable
         var data = new byte[4];
         BinaryPrimitives.WriteUInt16BigEndian(data, address);
         BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), count);
-        var response = await ExchangeAsync(
+        var reply = await ExchangeAsync(
             slaveAddress,
             function,
             AdcRtuFrame.Build(slaveAddress, function, data),
             cancellationToken,
             expectedByteCount: count * 2);
+        var response = reply.RequireSuccess();
 
         var values = new ushort[count];
         for (var index = 0; index < count; index++)
@@ -175,7 +178,29 @@ public sealed class AdcBus : IAdcBus, IDisposable
         return values;
     }
 
-    private async Task<byte[]> ExchangeAsync(
+    public async Task<(AdcControllerStatus? Status, string? Rejection)> ReadControllerStatusAsync(
+        byte slaveAddress,
+        CancellationToken cancellationToken = default)
+    {
+        var data = new byte[4];
+        BinaryPrimitives.WriteUInt16BigEndian(data, (ushort)AdcStatusRegister.Preset);
+        BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), AdcControllerStatus.RegisterCount);
+        var response = await ExchangeAsync(
+            slaveAddress,
+            AdcFunctionCode.ReadInputRegisters,
+            AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.ReadInputRegisters, data),
+            cancellationToken,
+            expectedByteCount: AdcControllerStatus.RegisterCount * 2);
+        if (response.Rejection is not null)
+            return (null, response.Rejection);
+
+        var values = new ushort[AdcControllerStatus.RegisterCount];
+        for (var index = 0; index < values.Length; index++)
+            values[index] = BinaryPrimitives.ReadUInt16BigEndian(response.Frame.AsSpan(3 + index * 2, 2));
+        return (AdcControllerStatus.FromRegisters(values), null);
+    }
+
+    private async Task<AdcResponse> ExchangeAsync(
         byte slaveAddress,
         AdcFunctionCode function,
         byte[] request,
@@ -222,7 +247,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                 FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes);
                 _logger.LogInformation("ADC [{Port}] RX RAW {Frame}", port.PortName, Convert.ToHexString(bytes));
             }
-            byte[] response;
+            AdcResponse response;
             try
             {
                 FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
@@ -237,9 +262,18 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     timeout.CancelAfter(Timeout.Infinite);
                 response = await ReadResponseAsync(port.BaseStream, port.DiscardInBuffer, OnReceived,
                     slaveAddress, function, timeout.Token, expectedByteCount, captureMilliseconds);
-                if (captureMilliseconds is null)
+                if (response.Rejection is { } rejection)
+                {
+                    var detail = $"ADC {port.PortName}/{slaveAddress}; baud={port.BaudRate}; "
+                        + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
+                        + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
+                        + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
+                    _logger.LogWarning("ADC response rejected or unmatched. {Detail} {Rejection}", detail, rejection);
+                    response = response with { Rejection = $"{detail} {rejection}" };
+                }
+                else if (captureMilliseconds is null)
                     _logger.LogDebug("ADC {Port} RTU response in {Elapsed:F1} ms: {Interpretation}",
-                        port.PortName, Stopwatch.GetElapsedTime(started).TotalMilliseconds, DescribeResponse(response));
+                        port.PortName, Stopwatch.GetElapsedTime(started).TotalMilliseconds, DescribeResponse(response.Frame));
             }
             catch (Exception exception) when (
                 exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -248,16 +282,6 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     + $"elapsed={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms; "
                     + $"TX={Convert.ToHexString(request)}; RX ALL={Convert.ToHexString(receivedBytes.ToArray())}; "
                     + $"RX chunks={receivedChunks}, bytes={receivedBytes.Count}.";
-                if (exception is AdcUnexpectedResponseException unexpected)
-                {
-                    _logger.LogWarning(exception, "ADC unmatched response. {Detail}", detail);
-                    throw new AdcUnexpectedResponseException($"{detail} {unexpected.Message}", unexpected);
-                }
-                if (exception is AdcResponseException rejection)
-                {
-                    _logger.LogWarning(exception, "ADC request rejected. {Detail}", detail);
-                    throw new AdcResponseException(rejection.ErrorCode, $"{detail} {rejection.Message}", rejection);
-                }
                 _logger.LogError(exception, "ADC exchange failed. {Detail}", detail);
                 if (exception is InvalidDataException invalid)
                     throw new InvalidDataException($"{detail} {invalid.Message}", invalid);
@@ -333,7 +357,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
         }
     }
 
-    internal static void ValidateResponse(byte[] frame, byte slaveAddress,
+    internal static AdcResponse ValidateResponse(byte[] frame, byte slaveAddress,
         AdcFunctionCode function, int? expectedByteCount = null)
     {
         // Integrity and request ownership are separate: a different function is not a broken frame.
@@ -360,19 +384,20 @@ public sealed class AdcBus : IAdcBus, IDisposable
         var expectedFunction = isException ? (byte)((byte)function | ExceptionFunctionMask) : (byte)function;
         if (frame[1] != expectedFunction)
         {
-            throw new AdcUnexpectedResponseException(
+            return new(frame,
                 $"ADC response does not match request function=0x{(byte)function:X2}; "
                 + $"expected response=0x{expectedFunction:X2}. {DescribeResponse(frame)}");
         }
         if (isException)
         {
             var code = (AdcExceptionCode)frame[2];
-            throw new AdcResponseException(frame[2],
-                $"ADC controller returned {code} (0x{(byte)code:X2}). {DescribeResponse(frame)}");
+            return new(frame,
+                $"ADC controller returned {code} (0x{(byte)code:X2}). {DescribeResponse(frame)}", frame[2]);
         }
         if (expectedByteCount is { } expected && frame[2] != expected)
-            throw new AdcUnexpectedResponseException(
+            return new(frame,
                 $"ADC returned {frame[2]} data bytes; expected {expected}. {DescribeResponse(frame)}");
+        return new(frame);
     }
 
     internal static string DescribeResponse(byte[] frame)
@@ -427,7 +452,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
     }
 
     // Read only this request's response; fragmented serial reads are joined up to the RTU frame length.
-    internal static async Task<byte[]> ReadResponseAsync(
+    internal static async Task<AdcResponse> ReadResponseAsync(
         Stream stream,
         Action abortRead,
         Action<byte[]> received,
@@ -452,9 +477,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
                     throw new InvalidDataException($"ADC response exceeds the RTU frame limit; RX={Convert.ToHexString(bytes.ToArray())}.");
                 if (captureMilliseconds is null && length > 0 && bytes.Count == length)
                 {
-                    var frame = bytes.ToArray();
-                    ValidateResponse(frame, slaveAddress, function, expectedByteCount);
-                    return frame;
+                    return ValidateResponse(bytes.ToArray(), slaveAddress, function, expectedByteCount);
                 }
                 var remaining = captureMilliseconds is not null ? buffer.Length
                     : length > 0 ? length - bytes.Count : bytes.Count < 2 ? 2 - bytes.Count : 1;
@@ -470,7 +493,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
         }
         catch (OperationCanceledException) when (captureMilliseconds is not null && !cancellationToken.IsCancellationRequested)
         {
-            return bytes.ToArray();
+            return new(bytes.ToArray());
         }
     }
 
@@ -507,5 +530,20 @@ public sealed class AdcBus : IAdcBus, IDisposable
         InvalidCrc = 0x07,
         ByteCountExceeded = 0x0C,
         ValueOutOfRange = 0x0E,
+    }
+}
+
+// Valid RTU replies can reject a request without making a status poll throw.
+internal sealed record AdcResponse(byte[] Frame, string? Rejection = null, byte? ErrorCode = null)
+{
+    public byte[] RequireSuccess()
+    {
+        if (Rejection is { } rejection)
+        {
+            if (ErrorCode is { } code)
+                throw new AdcResponseException(code, rejection);
+            throw new AdcUnexpectedResponseException(rejection);
+        }
+        return Frame;
     }
 }

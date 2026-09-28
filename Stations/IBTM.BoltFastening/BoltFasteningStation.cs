@@ -206,12 +206,30 @@ public sealed class BoltFasteningStation : AutoUnit
                     EnterStep(BoltFasteningState.MovingToStandby,
                         $"Startup: Z=0 -> X={position.X}, Y={position.Y} -> Safe Z={_settings.SafeZ}",
                         Station.CurrentJob.Id);
+                    var startupStarted = Stopwatch.GetTimestamp();
+                    var started = startupStarted;
                     await RaiseCylindersAsync(cancellationToken);
+                    _log?.LogInformation("Bolt timing {Bolt}: startup heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
+                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    started = Stopwatch.GetTimestamp();
                     await MoveZAsync(0, cancellationToken);
+                    _log?.LogInformation("Bolt timing {Bolt}: startup Z=0 arrived, elapsed={ElapsedMs:F1} ms.",
+                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    started = Stopwatch.GetTimestamp();
                     await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
+                    _log?.LogInformation("Bolt timing {Bolt}: startup pickup table UP confirmed, elapsed={ElapsedMs:F1} ms.",
+                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    started = Stopwatch.GetTimestamp();
                     EnsureCanMoveHorizontal(cancellationToken);
                     await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
+                    _log?.LogInformation("Bolt timing {Bolt}: startup XY arrived, X={X}, Y={Y}, elapsed={ElapsedMs:F1} ms.",
+                        standby.Id, position.X, position.Y, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    started = Stopwatch.GetTimestamp();
                     await MoveZAsync(_settings.SafeZ, cancellationToken);
+                    _log?.LogInformation("Bolt timing {Bolt}: startup Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+                        standby.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    _log?.LogInformation("Bolt timing {Bolt}: startup standby complete, total={ElapsedMs:F1} ms.",
+                        standby.Id, Stopwatch.GetElapsedTime(startupStarted).TotalMilliseconds);
                 }
             }
             while (!cancellationToken.IsCancellationRequested)
@@ -230,7 +248,10 @@ public sealed class BoltFasteningStation : AutoUnit
                     // A selected-bolt test never completes or transfers the whole carrier.
                     if (_runBolts is not null && _boltIndex == _runBolts.Length)
                     {
+                        var started = Stopwatch.GetTimestamp();
                         await MoveZAsync(_settings.SafeZ, cancellationToken);
+                        _log?.LogInformation("Bolt timing {Job}: selected test final Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+                            testJob.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                         break;
                     }
                 }
@@ -318,13 +339,31 @@ public sealed class BoltFasteningStation : AutoUnit
                     Station.Complete(Station.CurrentJob);
                 return false;
             case BoltFasteningState.MovingToStandby:
-                var position = _settings.GetBoltPosition(selectedBolt!);
+            {
+                var standby = selectedBolt!;
+                var position = _settings.GetBoltPosition(standby);
+                var standbyStarted = Stopwatch.GetTimestamp();
+                var started = standbyStarted;
                 await RaiseCylindersAsync(cancellationToken);
+                _log?.LogInformation("Bolt timing {Bolt}: standby heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
+                    standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                started = Stopwatch.GetTimestamp();
                 await MoveZAsync(_settings.SafeZ, cancellationToken);
+                _log?.LogInformation("Bolt timing {Bolt}: standby Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+                    standby.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                started = Stopwatch.GetTimestamp();
                 await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
+                _log?.LogInformation("Bolt timing {Bolt}: standby pickup table UP confirmed, elapsed={ElapsedMs:F1} ms.",
+                    standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                started = Stopwatch.GetTimestamp();
                 EnsureCanMoveHorizontal(cancellationToken);
                 await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
+                _log?.LogInformation("Bolt timing {Bolt}: standby XY arrived, X={X}, Y={Y}, elapsed={ElapsedMs:F1} ms.",
+                    standby.Id, position.X, position.Y, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                _log?.LogInformation("Bolt timing {Bolt}: standby complete, total={ElapsedMs:F1} ms.",
+                    standby.Id, Stopwatch.GetElapsedTime(standbyStarted).TotalMilliseconds);
                 return true;
+            }
             case BoltFasteningState.Waiting:
                 return false;
             case BoltFasteningState.PreparingCarrier:
@@ -363,14 +402,20 @@ public sealed class BoltFasteningStation : AutoUnit
             Station.RequireCurrentJob(job);
             if (step == BoltFasteningState.CompletingCarrier)
             {
+                var completionStarted = Stopwatch.GetTimestamp();
                 foreach (var heatSink in _runTargets!)
                     Station.GetAssembly(job, heatSink).CompleteFastening();
                 await FinishFasteningAsync(FasteningHead.Pickup, token);
                 await FinishFasteningAsync(FasteningHead.Shooting, token);
+                var started = Stopwatch.GetTimestamp();
                 await MoveZAsync(_settings.SafeZ, token);
+                _log?.LogInformation("Bolt timing {Job}: completion Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+                    job.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                 token.ThrowIfCancellationRequested();
                 Station.Complete(job);
                 await ClearCarrierOperationAsync();
+                _log?.LogInformation("Bolt timing {Job}: carrier completion complete, total={ElapsedMs:F1} ms.",
+                    job.Id, Stopwatch.GetElapsedTime(completionStarted).TotalMilliseconds);
                 return true;
             }
 
@@ -447,9 +492,18 @@ public sealed class BoltFasteningStation : AutoUnit
                         await ClearHeadAsync(FasteningHead.Shooting, _settings.GetSafeZ(FasteningHead.Shooting), token);
                     if (PickupTablePosition != StationCylinderState.Down)
                     {
+                        var started = Stopwatch.GetTimestamp();
                         await RaiseCylindersAsync(token);
+                        _log?.LogInformation("Bolt timing {Bolt}: pickup changeover heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
+                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                        started = Stopwatch.GetTimestamp();
                         await MoveZAsync(_settings.SafeZ, token);
+                        _log?.LogInformation("Bolt timing {Bolt}: pickup changeover Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+                            bolt.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                        started = Stopwatch.GetTimestamp();
                         await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, token);
+                        _log?.LogInformation("Bolt timing {Bolt}: pickup table DOWN confirmed, elapsed={ElapsedMs:F1} ms.",
+                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                     }
 
                     if (!_io.GetInput(InputIo.PickupHeadVacuumDetected))
@@ -463,7 +517,10 @@ public sealed class BoltFasteningStation : AutoUnit
                             if (feeding)
                             {
                                 TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: waiting for feeder bolt detection");
+                                var started = Stopwatch.GetTimestamp();
                                 await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
+                                _log?.LogInformation("Bolt timing {Bolt}: pickup feeder detected, attempt={Attempt}, elapsed={ElapsedMs:F1} ms.",
+                                    bolt.Id, retry + 1, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                             }
                             TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: descent");
                             await MoveToPickupZAsync(token);
@@ -980,11 +1037,18 @@ public sealed class BoltFasteningStation : AutoUnit
 
     public async Task ReturnFromPickupAsync(CancellationToken cancellationToken = default)
     {
-        var started = Stopwatch.GetTimestamp();
+        var boltId = ActiveBolt?.Id;
+        var returnStarted = Stopwatch.GetTimestamp();
+        var started = returnStarted;
         await MoveZAsync(_settings.SafeZ, cancellationToken);
+        _log?.LogInformation("Bolt timing {Bolt}: pickup return Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+            boltId, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        started = Stopwatch.GetTimestamp();
         await SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
-        _log?.LogInformation("Bolt timing Pickup: return from feeder to common Safe Z, elapsed={ElapsedMs:F1} ms.",
-            Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        _log?.LogInformation("Bolt timing {Bolt}: pickup return head UP confirmed, elapsed={ElapsedMs:F1} ms.",
+            boltId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        _log?.LogInformation("Bolt timing {Bolt}: return from feeder to common Safe Z, elapsed={ElapsedMs:F1} ms.",
+            boltId, Stopwatch.GetElapsedTime(returnStarted).TotalMilliseconds);
     }
 
     public async Task MoveToTeachingPositionAsync(
@@ -1102,22 +1166,41 @@ public sealed class BoltFasteningStation : AutoUnit
 
     internal async Task MoveToPickupXYAsync(CancellationToken cancellationToken = default)
     {
+        var boltId = ActiveBolt?.Id;
+        var started = Stopwatch.GetTimestamp();
         await RaiseCylindersAsync(cancellationToken);
+        _log?.LogInformation("Bolt timing {Bolt}: pickup travel heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
+            boltId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        started = Stopwatch.GetTimestamp();
         await MoveZAsync(_settings.SafeZ, cancellationToken);
+        _log?.LogInformation("Bolt timing {Bolt}: pickup travel Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+            boltId, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         if (PickupTablePosition != StationCylinderState.Down)
+        {
+            started = Stopwatch.GetTimestamp();
             await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, cancellationToken);
+            _log?.LogInformation("Bolt timing {Bolt}: pickup travel table DOWN confirmed, elapsed={ElapsedMs:F1} ms.",
+                boltId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        }
+        started = Stopwatch.GetTimestamp();
         EnsureCanMoveHorizontal(cancellationToken);
         await _motion.MoveToXYAsync(
             _settings.PickupPosition.X,
             _settings.PickupPosition.Y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
+        _log?.LogInformation("Bolt timing {Bolt}: pickup feeder XY arrived, X={X}, Y={Y}, elapsed={ElapsedMs:F1} ms.",
+            boltId, _settings.PickupPosition.X, _settings.PickupPosition.Y, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
-    internal Task MoveToPickupZAsync(CancellationToken cancellationToken = default)
+    internal async Task MoveToPickupZAsync(CancellationToken cancellationToken = default)
     {
+        var boltId = ActiveBolt?.Id;
+        var started = Stopwatch.GetTimestamp();
         EnsureCanMoveHorizontal(cancellationToken);
-        return MoveZAsync(_settings.PickupPosition.Z, cancellationToken);
+        await MoveZAsync(_settings.PickupPosition.Z, cancellationToken);
+        _log?.LogInformation("Bolt timing {Bolt}: pickup descent Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+            boltId, _settings.PickupPosition.Z, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
     private void EnsureCanMoveHorizontal(CancellationToken cancellationToken)

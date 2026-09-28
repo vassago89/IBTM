@@ -837,8 +837,8 @@ public sealed partial class MachineLifecycleTests
             await diagnostics.SelectPresetCommand.ExecuteAsync(null);
             await diagnostics.ReadResultCommand.ExecuteAsync(null);
             Assert.StartsWith("Last result:", diagnostics.ResultMessage);
-            Assert.Equal((ushort)1, (await shooting.ReadControllerStatusAsync(1)).Preset);
-            Assert.Equal((ushort)7, (await pickup.ReadControllerStatusAsync(1)).Preset);
+            Assert.Equal((ushort)1, (await shooting.ReadControllerStatusAsync(1)).Status!.Preset);
+            Assert.Equal((ushort)7, (await pickup.ReadControllerStatusAsync(1)).Status!.Preset);
             Assert.True(pickup.IsOpen);
             Assert.Equal(38400, shooting.BaudRate);
             await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);

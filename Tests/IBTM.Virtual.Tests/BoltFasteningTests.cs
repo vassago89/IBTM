@@ -676,7 +676,7 @@ public sealed class BoltFasteningTests
             // Exact exception reply in the equipment log, including CRC.
             bus.NextResultReadFailure = Assert.Throws<AdcResponseException>(
                 () => AdcBus.ValidateResponse([0x01, 0x84, 0x03, 0x03, 0x01],
-                    1, AdcFunctionCode.ReadInputRegisters));
+                    1, AdcFunctionCode.ReadInputRegisters).RequireSuccess());
         }
         else
         {
@@ -1717,7 +1717,7 @@ public sealed class BoltFasteningTests
         Assert.Same(responseError, await Assert.ThrowsAsync<IOException>(
             () => station.RunAsync(firstStop.Token)));
         Assert.Empty(originalAssembly.PickupBoltResults);
-        Assert.False((await ((IAdcBus)bus).ReadControllerStatusAsync(1)).Running);
+        Assert.False((await ((IAdcBus)bus).ReadControllerStatusAsync(1)).Status!.Running);
 
         if (replaceCarrier)
         {

@@ -147,6 +147,7 @@
                                 <LineBreak/><Run Text="Alarm "/><Run Text="{Binding Bus.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—}"/>
                             </TextBlock>
                             <TextBlock Text="{Binding Bus.Monitor.Sample.Error.Message}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                            <TextBlock Text="{Binding Bus.Monitor.Sample.Rejection}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
                             <TextBlock Margin="0,10,0,0"
                                 Text="{Binding ResultMessage}"
                                 TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" Foreground="{StaticResource TextPrimaryBrush}"/>

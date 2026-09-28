@@ -236,7 +236,7 @@ public sealed class AdcBoltHead : IBoltHead
             longestQueryMilliseconds = Math.Max(longestQueryMilliseconds, queryMilliseconds);
             // A rejected or unmatched valid reply supplies no RUN feedback or fastening result.
             // Await the monitor's next scheduled sample within the existing cycle timeout.
-            if (sample.Error is AdcResponseException or AdcUnexpectedResponseException)
+            if (sample.Rejection is not null)
             {
                 rejectedSamples++;
                 return;
@@ -381,7 +381,7 @@ public sealed class AdcBoltHead : IBoltHead
                 + $"start event={started?.EventCount}, expected preset={started?.Preset}, "
                 + $"last event={lastResult?.EventCount}, status={lastResult?.Status}, preset={lastResult?.Preset}, "
                 + $"direction={lastResult?.Direction}, error={lastResult?.Error}; "
-                + $"last status error={Monitor.Sample?.Error?.Message ?? "none"}.");
+                + $"last status error={Monitor.Sample?.Error?.Message ?? Monitor.Sample?.Rejection ?? "none"}.");
             if (!waitingForResult)
                 throw failure;
         }

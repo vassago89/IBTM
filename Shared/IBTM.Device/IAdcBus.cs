@@ -57,7 +57,7 @@ public interface IAdcBus
         return AdcFasteningResult.FromRegisters(values);
     }
 
-    async Task<AdcControllerStatus> ReadControllerStatusAsync(
+    async Task<(AdcControllerStatus? Status, string? Rejection)> ReadControllerStatusAsync(
         byte slaveAddress,
         CancellationToken cancellationToken = default)
     {
@@ -67,7 +67,7 @@ public interface IAdcBus
             (ushort)AdcStatusRegister.Preset,
             AdcControllerStatus.RegisterCount,
             cancellationToken);
-        return AdcControllerStatus.FromRegisters(values);
+        return (AdcControllerStatus.FromRegisters(values), null);
     }
 }
 
@@ -169,7 +169,7 @@ public sealed record AdcControllerStatus(
 {
     public const ushort RegisterCount = (ushort)AdcStatusRegister.Direction - (ushort)AdcStatusRegister.Preset + 1;
 
-    internal static AdcControllerStatus FromRegisters(ushort[] values)
+    public static AdcControllerStatus FromRegisters(ushort[] values)
     {
         ushort Read(AdcStatusRegister register)
         {

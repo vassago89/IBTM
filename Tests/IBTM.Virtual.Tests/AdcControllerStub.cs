@@ -34,6 +34,7 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
     public Queue<bool> RunReplies { get; }
     public bool ResultReadWhileRunning { get; private set; }
     public IOException? StatusReadFailure { get; set; }
+    public string? StatusRejection { get; set; }
     public int StatusReadDelayMilliseconds { get; set; }
     public Task? StatusReadBarrier { get; set; }
     public bool ConcurrentStatusReadsDetected { get; private set; }
@@ -170,6 +171,20 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
             if (index >= 0)
                 ApplyControl((ushort)AdcRemoteRegister.Preset, (ushort)(index + 1));
         }
+    }
+
+    public async Task<(AdcControllerStatus? Status, string? Rejection)> ReadControllerStatusAsync(
+        byte slaveAddress, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (StatusRejection is { } rejection)
+        {
+            StatusReads++;
+            return (null, rejection);
+        }
+        var values = await ReadRegistersAsync(slaveAddress, AdcFunctionCode.ReadInputRegisters,
+            (ushort)AdcStatusRegister.Preset, AdcControllerStatus.RegisterCount, cancellationToken);
+        return (AdcControllerStatus.FromRegisters(values), null);
     }
 
     public async Task<ushort[]> ReadRegistersAsync(byte slaveAddress, AdcFunctionCode function, ushort address, ushort count, CancellationToken cancellationToken = default)

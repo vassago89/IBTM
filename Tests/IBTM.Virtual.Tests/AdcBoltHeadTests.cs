@@ -282,21 +282,22 @@ public sealed class AdcBoltHeadTests
                 startDuringSummary = io.GetOutput(OutputIo.PickupBoltStart);
         };
         await head.SelectPresetAsync(1);
-        var rejection = Assert.IsAssignableFrom<IOException>(Record.Exception(() => AdcBus.ValidateResponse(
-            Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14)));
+        var rejection = AdcBus.ValidateResponse(
+            Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14).Rejection;
+        Assert.NotNull(rejection);
         var rejected = false;
         var unknownDuringRejection = false;
         void RejectOneStatusSample(AdcStatusSample sample)
         {
-            if (ReferenceEquals(sample.Error, rejection))
+            if (sample.Rejection == rejection)
             {
                 rejected = true;
-                unknownDuringRejection = head.Monitor.Sample?.Status is null;
-                bus.StatusReadFailure = null;
+                unknownDuringRejection = head.Monitor.Sample is { Status: null, Error: null };
+                bus.StatusRejection = null;
                 bus.SuppressCompletion = false;
             }
             else if (!rejected && sample.Status is { Running: true })
-                bus.StatusReadFailure = rejection;
+                bus.StatusRejection = rejection;
         }
         head.Monitor.Sampled += RejectOneStatusSample;
         try
@@ -337,12 +338,13 @@ public sealed class AdcBoltHeadTests
             FasteningTimeoutMilliseconds = 150,
         });
         await head.SelectPresetAsync(1);
-        var rejection = Assert.IsAssignableFrom<IOException>(Record.Exception(() => AdcBus.ValidateResponse(
-            Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14)));
+        var rejection = AdcBus.ValidateResponse(
+            Convert.FromHexString(response), 1, AdcFunctionCode.ReadInputRegisters, 14).Rejection;
+        Assert.NotNull(rejection);
         void RejectStatusWhileStarted(OutputIo output, bool on)
         {
             if (output == OutputIo.PickupBoltStart)
-                bus.StatusReadFailure = on ? rejection : null;
+                bus.StatusRejection = on ? rejection : null;
         }
         io.OutputChanged += RejectStatusWhileStarted;
         try
@@ -449,9 +451,9 @@ public sealed class AdcBoltHeadTests
     {
         if (rejected)
             return Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
-                [0x01, 0x84, 0x03, 0x03, 0x01], 1, AdcFunctionCode.ReadInputRegisters, 28));
+                [0x01, 0x84, 0x03, 0x03, 0x01], 1, AdcFunctionCode.ReadInputRegisters, 28).RequireSuccess());
         return Assert.Throws<AdcUnexpectedResponseException>(() => AdcBus.ValidateResponse(
-            [0x01, 0x8C, 0x03, 0x04, 0xC1], 1, AdcFunctionCode.ReadInputRegisters, 28));
+            [0x01, 0x8C, 0x03, 0x04, 0xC1], 1, AdcFunctionCode.ReadInputRegisters, 28).RequireSuccess());
     }
 
     [Fact]
@@ -461,7 +463,7 @@ public sealed class AdcBoltHeadTests
         using var bus = new AdcControllerStub
         {
             NextResultReadFailure = Assert.Throws<AdcResponseException>(() => AdcBus.ValidateResponse(
-                frame, 1, AdcFunctionCode.ReadInputRegisters, 28)),
+                frame, 1, AdcFunctionCode.ReadInputRegisters, 28).RequireSuccess()),
         };
         var (io, head) = Create(bus, new());
         await head.SelectPresetAsync(1);
@@ -616,11 +618,11 @@ public sealed class AdcBoltHeadTests
         using var bus = new AdcControllerStub();
         var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
         await head.SelectPresetAsync(1);
-        var rejection = new AdcResponseException(0x03, "Status read rejected after START OFF");
+        var rejection = "Status read rejected after START OFF";
         void RejectAfterStop(OutputIo output, bool on)
         {
             if (output == OutputIo.PickupBoltStart && !on)
-                bus.StatusReadFailure = rejection;
+                bus.StatusRejection = rejection;
         }
         io.OutputChanged += RejectAfterStop;
         try
@@ -630,8 +632,8 @@ public sealed class AdcBoltHeadTests
             Assert.NotNull(result.Torque);
             Assert.NotNull(result.Controller);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-            Assert.Same(rejection, await Assert.ThrowsAsync<AdcResponseException>(
-                () => head.SelectPresetAsync(1)));
+            var error = await Assert.ThrowsAsync<IOException>(() => head.SelectPresetAsync(1));
+            Assert.Equal(rejection, error.Message);
             Assert.Equal(1, bus.ResultReads);
             Assert.Equal(1, bus.StartWrites);
         }

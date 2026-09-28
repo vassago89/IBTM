@@ -12,7 +12,7 @@ namespace IBTM.Device;
 
 // Monotonic query timestamps; completion precedes feedback/change notification.
 public sealed record AdcStatusSample(
-    long StartedAt, long CompletedAt, AdcControllerStatus? Status, Exception? Error);
+    long StartedAt, long CompletedAt, AdcControllerStatus? Status, Exception? Error, string? Rejection = null);
 
 // One communication loop per connection. Commands queue here alongside status sampling.
 public sealed class AdcStatusMonitor : INotifyPropertyChanged
@@ -179,8 +179,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 AdcStatusSample sample;
                 try
                 {
-                    var status = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);
-                    sample = new(startedAt, Stopwatch.GetTimestamp(), status, null);
+                    var response = await _bus.ReadControllerStatusAsync(SlaveAddress, token).ConfigureAwait(false);
+                    sample = new(startedAt, Stopwatch.GetTimestamp(), response.Status, null, response.Rejection);
                 }
                 catch (Exception exception) when (
                     exception is not OperationCanceledException || !token.IsCancellationRequested)
@@ -197,7 +197,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                     "ADC {Port}/{Slave} status timing: start gap={StartGap:F1} ms; "
                         + "since previous publish={SincePublish:F1} ms; query={Query:F1} ms; "
                         + "publish={Publish:F1} ms; configured pause after publish={Interval} ms; "
-                        + "READY={Ready}, RUN={Running}, ALARM={Alarm}; error={ErrorType}.",
+                        + "READY={Ready}, RUN={Running}, ALARM={Alarm}; rejected={Rejected}; error={ErrorType}.",
                     _bus.PortName, SlaveAddress,
                     previousStartedAt is { } previous
                         ? Stopwatch.GetElapsedTime(previous, startedAt).TotalMilliseconds : (double?)null,
@@ -206,7 +206,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                     Stopwatch.GetElapsedTime(startedAt, sample.CompletedAt).TotalMilliseconds,
                     Stopwatch.GetElapsedTime(sample.CompletedAt, publishedAt).TotalMilliseconds,
                     IntervalMilliseconds, sample.Status?.Ready, sample.Status?.Running, sample.Status?.Alarm,
-                    sample.Error?.GetType().Name);
+                    sample.Rejection is not null, sample.Error?.GetType().Name);
                 previousStartedAt = startedAt;
                 lastStatusAt = publishedAt;
             }
@@ -225,7 +225,7 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
     private void Publish(AdcStatusSample sample)
     {
         var previous = Interlocked.Exchange(ref _sample, sample);
-        if (previous?.Status != sample.Status || previous?.Error != sample.Error)
+        if (previous?.Status != sample.Status || previous?.Error != sample.Error || previous?.Rejection != sample.Rejection)
             PropertyChanged?.Invoke(this, new(nameof(Sample)));
         Sampled?.Invoke(sample);
     }
@@ -239,6 +239,8 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 return;
             if (sample.Error is { } error)
                 received.TrySetException(error);
+            else if (sample.Rejection is { } rejection)
+                received.TrySetException(new IOException(rejection));
             else if (sample.Status is { } status)
                 received.TrySetResult(status);
         }
