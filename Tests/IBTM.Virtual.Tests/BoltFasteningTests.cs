@@ -409,6 +409,7 @@ public sealed class BoltFasteningTests
 
     [Theory]
     [InlineData(ShootingPreparationFailure.None)]
+    [InlineData(ShootingPreparationFailure.None, 1.5)]
     [InlineData(ShootingPreparationFailure.Stop)]
     [InlineData(ShootingPreparationFailure.Motion)]
     [InlineData(ShootingPreparationFailure.Supply)]
@@ -416,7 +417,7 @@ public sealed class BoltFasteningTests
     [InlineData(ShootingPreparationFailure.ClearanceLost)]
     [InlineData(ShootingPreparationFailure.CarrierLost)]
     public async Task NextShootingSupplyOverlapsRetractionAndTravelWithoutDuplicateShot(
-        ShootingPreparationFailure failure)
+        ShootingPreparationFailure failure, double arrivalDelaySeconds = 0)
     {
         var settings = new BoltFasteningSettings
         {
@@ -461,15 +462,24 @@ public sealed class BoltFasteningTests
         var secondSupply = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var secondSupplyStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var nextPointReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        long secondPassageAt = 0;
         var nextTravelStarted = false;
         var motionFailure = new IOException("Retraction failed while supplying the next bolt.");
         var failMotion = false;
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.ShootingEscapeForward)
-                io.SetInputs((InputIo.ShootingEscapeForward, on), (InputIo.ShootingEscapeBackward, !on));
+                io.SetInputs((InputIo.ShootingEscapeForward, on),
+                    (InputIo.ShootingEscapeBackward, !on && !(arrivalDelaySeconds > 0 && shots == 2)));
             if (output == OutputIo.ShootingBoltStart)
+            {
                 settings.Motion.ZSpeed = !on && bus.StartWrites == 1 ? 10 : 20_000;
+                if (on && bus.StartWrites == 2 && arrivalDelaySeconds > 0)
+                {
+                    Assert.True(Stopwatch.GetElapsedTime(secondPassageAt).TotalSeconds >= arrivalDelaySeconds);
+                    Assert.True(station.IsAt(bolts[2]));
+                }
+            }
             if (output == OutputIo.PickupTableDown)
                 io.SetInputs((InputIo.PickupTableUp, !on), (InputIo.PickupTableDown, on));
             if (output == OutputIo.PickupHeadDown)
@@ -487,6 +497,7 @@ public sealed class BoltFasteningTests
                 shots++;
                 if (shots == 2)
                 {
+                    settings.ShootingArrivalDelaySeconds = arrivalDelaySeconds;
                     Assert.Equal(bolts[0].Id, station.ActiveBolt!.Id);
                     Assert.Equal(1, bus.StartWrites);
                     Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
@@ -535,13 +546,27 @@ public sealed class BoltFasteningTests
             switch (failure)
             {
                 case ShootingPreparationFailure.None:
+                    if (arrivalDelaySeconds > 0)
+                    {
+                        secondPassageAt = Stopwatch.GetTimestamp();
+                        io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                        io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+                    }
                     io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
                     await nextPointReached.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                    if (arrivalDelaySeconds > 0)
+                    {
+                        Assert.True(Stopwatch.GetElapsedTime(secondPassageAt).TotalSeconds < arrivalDelaySeconds);
+                        Assert.False(io.GetInput(InputIo.ShootingEscapeBackward));
+                    }
                     Assert.True(io.GetOutput(OutputIo.ShootBolt));
                     Assert.Equal(1, bus.StartWrites); // Travel is complete; supply still owns the next START.
                     Assert.Equal(2, shots);
-                    io.SetInput(InputIo.ShootingTubeBoltDetected, true);
-                    io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+                    if (arrivalDelaySeconds == 0)
+                    {
+                        io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                        io.SetInput(InputIo.ShootingTubeBoltDetected, false);
+                    }
                     await run.WaitAsync(TimeSpan.FromSeconds(2));
                     Assert.Equal(2, bus.StartWrites);
                     Assert.Equal(1, pickupBus.StartWrites);
@@ -862,7 +887,8 @@ public sealed class BoltFasteningTests
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.ShootingEscapeForward)
-                io.SetInputs((InputIo.ShootingEscapeForward, on), (InputIo.ShootingEscapeBackward, !on));
+                // Backward feedback deliberately never arrives after the first advance.
+                io.SetInputs((InputIo.ShootingEscapeForward, on), (InputIo.ShootingEscapeBackward, false));
         };
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var shot = gantry.ShootBoltAsync(stop.Token);
@@ -876,9 +902,10 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.ShootingTubeBoltDetected, false);
         try
         {
-            Assert.True(await WaitUntilAsync(() => io.GetInput(InputIo.ShootingEscapeBackward),
+            Assert.True(await WaitUntilAsync(() => !io.GetOutput(OutputIo.ShootingEscapeForward),
                 TimeSpan.FromMilliseconds(100)));
-            Assert.False(shot.IsCompleted); // Escape returns on passage, before the head-arrival delay ends.
+            Assert.False(io.GetInput(InputIo.ShootingEscapeBackward));
+            Assert.False(shot.IsCompleted); // Backward is commanded on passage; only arrival time remains.
             Assert.True(io.GetOutput(OutputIo.ShootBolt));
             if (stopDuringDelay)
             {

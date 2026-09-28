@@ -417,6 +417,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         var shooting = pendingFeed?.Completion;
                         if (shooting?.IsCompleted == true)
                             await shooting;
+                        // XY travel and fastening-Z descent overlap the supply's arrival delay.
                         var moving = moveRequired ? MoveToBoltAsync(bolt, preparation.Token) : Task.CompletedTask;
                         if (moving.IsCompleted && pendingFeed is null)
                             await moving;
@@ -652,8 +653,9 @@ public sealed class BoltFasteningStation : AutoUnit
             _log?.LogInformation("Bolt timing {Bolt}: tube passage OFF, elapsed={ElapsedMs:F1} ms.",
                 boltId, Stopwatch.GetElapsedTime(arrivalStartedAt).TotalMilliseconds);
             started = Stopwatch.GetTimestamp();
-            await _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false, cancellationToken);
-            _log?.LogInformation("Bolt timing {Bolt}: escape BACKWARD, elapsed={ElapsedMs:F1} ms.",
+            cancellationToken.ThrowIfCancellationRequested();
+            _io.SetOutput(OutputIo.ShootingEscapeForward, false);
+            _log?.LogInformation("Bolt timing {Bolt}: escape BACKWARD requested, elapsed={ElapsedMs:F1} ms.",
                 boltId, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             var arrivalRemaining = TimeSpan.FromSeconds(_settings.ShootingArrivalDelaySeconds)
                 - Stopwatch.GetElapsedTime(arrivalStartedAt);
