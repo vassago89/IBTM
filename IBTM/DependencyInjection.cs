@@ -374,6 +374,7 @@ public static class DependencyInjection
             .AddSingleton<RecipeEditor>()
             .AddSingleton<MachineMap>()
             .AddSingleton<OperationViewModel>()
+            .AddSingleton<BoltStationTestViewModel>()
             .AddSingleton<SettingsViewModel>()
             .AddSingleton<ManualHardwareViewModel>()
             .AddSingleton<MotionWindowViewModel>()

@@ -166,5 +166,25 @@
                 </Grid>
             </Canvas>
         </Canvas>
+        <Button Command="{Binding OpenBoltStationTestCommand}" Background="Transparent" Cursor="Hand"
+            Visibility="{Binding State.ManualMode, Converter={StaticResource BoolToVis}}"
+            ToolTip="Open selected-bolt test · Manual mode">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}" BorderThickness="1" CornerRadius="6">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="Transparent"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
     </Grid>
 </UserControl>

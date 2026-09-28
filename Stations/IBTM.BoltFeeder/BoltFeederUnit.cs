@@ -25,10 +25,10 @@ public sealed class BoltFeederUnit : AutoUnit
         io.InputChanged += OnInputChanged;
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task RunAsync(CancellationToken cancellationToken = default, FasteningHead? head = null)
     {
-        var pickupEnabled = _units.PickupBoltFeeder;
-        var shootingEnabled = _units.ShootingBoltFeeder;
+        var pickupEnabled = _units.PickupBoltFeeder && head is not FasteningHead.Shooting;
+        var shootingEnabled = _units.ShootingBoltFeeder && head is not FasteningHead.Pickup;
         var startedAt = Stopwatch.GetTimestamp();
         Interlocked.Exchange(ref _pickupChangedAt, startedAt);
         Interlocked.Exchange(ref _shootingChangedAt, startedAt);

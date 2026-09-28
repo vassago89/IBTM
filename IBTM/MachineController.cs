@@ -1457,6 +1457,68 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
     }
 
+    internal async Task<bool> RunSelectedBoltsAsync(
+        IReadOnlyCollection<Guid> selectedBolts,
+        Action<BoltPoint, BoltResult> resultReceived,
+        CancellationToken cancellationToken)
+    {
+        using var operation = BeginManualOperation(
+            () => IsManualMotionReady(MotionGroup.BoltFastening), cancellationToken)
+            ?? throw new InvalidOperationException("Another machine operation is already running.");
+        try
+        {
+            operation.Token.ThrowIfCancellationRequested();
+            if (_state.IsRunningFor(includeOperations: false))
+                throw new InvalidOperationException("Stop the machine before starting a bolt test.");
+            _state.BoltTestRunning = true;
+            using var cycle = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
+            var heads = _recipes.Current.Pcb.BoltPoints
+                .Where(bolt => selectedBolts.Contains(bolt.Id)).Select(bolt => bolt.Head).Distinct().ToArray();
+            var feeding = heads.Any(_units.IsBoltFeederEnabled)
+                ? _boltFeeder.RunAsync(cycle.Token, heads.Length == 1 ? heads[0] : null)
+                : null;
+            var fastening = _fasteningStation.RunAsync(cycle.Token,
+                selectedBolts: selectedBolts, resultReceived: resultReceived);
+            try
+            {
+                if (feeding is null)
+                    await fastening;
+                else
+                {
+                    var first = await Task.WhenAny(feeding, fastening);
+                    if (first == feeding && feeding.IsCompletedSuccessfully && !cycle.IsCancellationRequested)
+                        throw new InvalidOperationException("The bolt feeder stopped before the test completed.");
+                }
+            }
+            finally
+            {
+                try
+                {
+                    cycle.Cancel();
+                }
+                finally
+                {
+                    // Drain both and retain concurrent failures before releasing manual ownership.
+                    var completion = Task.WhenAll(fastening, feeding ?? Task.CompletedTask);
+                    await completion.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                    if (completion.Exception is { InnerExceptions.Count: > 1 } failures)
+                        throw failures;
+                    await completion;
+                }
+            }
+            operation.Token.ThrowIfCancellationRequested();
+            return true;
+        }
+        catch (OperationCanceledException) when (operation.IsCancellationRequested)
+        {
+            return false;
+        }
+        finally
+        {
+            _state.BoltTestRunning = false;
+        }
+    }
+
     internal void EnsureBoltTestAvailable()
     {
         if (!AdcProtocolAvailable)

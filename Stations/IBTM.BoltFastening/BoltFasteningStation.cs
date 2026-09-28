@@ -185,10 +185,26 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
+    public async Task RunAsync(
+        CancellationToken cancellationToken = default,
+        bool repeat = false,
+        IReadOnlyCollection<Guid>? selectedBolts = null,
+        Action<BoltPoint, BoltResult>? resultReceived = null)
     {
         if (cancellationToken.IsCancellationRequested)
             return;
+        var testJob = selectedBolts is null ? null : Station.CurrentJob;
+        if (selectedBolts is not null)
+        {
+            var bolts = _recipes.Current.Pcb.BoltPoints.Where(bolt => selectedBolts.Contains(bolt.Id)).ToArray();
+            if (repeat || !_units.BoltFastening || selectedBolts.Count == 0
+                || bolts.Length != selectedBolts.Distinct().Count())
+                throw new InvalidOperationException("Select current recipe bolts for a single fastening test.");
+            if (!Station.CarrierSeated || bolts.Any(bolt => !Station.IsHeatSinkPresent(bolt.HeatSink)))
+                throw new InvalidOperationException("Seat the carrier and load every selected PCB before testing.");
+            if (bolts.Any(bolt => !bolt.IsFasteningPositionDefined))
+                throw new InvalidOperationException("Teach the fastening position of every selected bolt before testing.");
+        }
         Exception? failure = null;
         try
         {
@@ -203,8 +219,17 @@ public sealed class BoltFasteningStation : AutoUnit
                         throw new InvalidOperationException("Fastening repeat requires the original seated carrier and both heads at safe height.");
                     Station.StartRepeat(Station.CurrentJob);
                 }
+                if (testJob is not null)
+                {
+                    Station.RequireCurrentJob(testJob);
+                    if (!Station.CarrierSeated)
+                        throw new MotionInterlockException("The test carrier is no longer seated.");
+                    // A selected-bolt test never completes or transfers the whole carrier.
+                    if (_runBolts is not null && _boltIndex == _runBolts.Length)
+                        break;
+                }
                 var step = GetNextStep();
-                if (!await ExecuteStepAsync(step, repeat, cancellationToken))
+                if (!await ExecuteStepAsync(step, repeat, cancellationToken, selectedBolts, resultReceived))
                     await WaitForChangeAsync(cancellationToken);
             }
         }
@@ -261,7 +286,9 @@ public sealed class BoltFasteningStation : AutoUnit
     }
 
     private async Task<bool> ExecuteStepAsync(
-        BoltFasteningState step, bool repeat, CancellationToken cancellationToken)
+        BoltFasteningState step, bool repeat, CancellationToken cancellationToken,
+        IReadOnlyCollection<Guid>? selectedBolts,
+        Action<BoltPoint, BoltResult>? resultReceived)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var selectedBolt = step == BoltFasteningState.MovingToStandby ? StandbyBolt : ActiveBolt;
@@ -289,13 +316,14 @@ public sealed class BoltFasteningStation : AutoUnit
                 _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                 foreach (var heatSink in _runTargets)
                 {
-                    if (!_recipes.Current.Pcb.GetBolts(heatSink).Any())
+                    if (selectedBolts is null && !_recipes.Current.Pcb.GetBolts(heatSink).Any())
                         throw new InvalidOperationException(
                             $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
                 }
                 _runJob = Station.CurrentJob;
                 _runBolts = _recipes.Current.Pcb.FasteningPoints
-                    .Where(bolt => _runTargets.Contains(bolt.HeatSink))
+                    .Where(bolt => _runTargets.Contains(bolt.HeatSink)
+                        && (selectedBolts is null || selectedBolts.Contains(bolt.Id)))
                     .ToArray();
                 _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 Station.Changed += CheckCarrier;
@@ -456,7 +484,10 @@ public sealed class BoltFasteningStation : AutoUnit
                 try
                 {
                     if (result is not null)
+                    {
                         assembly.RecordBolt(bolt.Head, bolt.Id, result);
+                        resultReceived?.Invoke(bolt, result);
+                    }
                 }
                 catch (Exception recordFailure) when (fasteningFailure is not null)
                 {
@@ -472,6 +503,8 @@ public sealed class BoltFasteningStation : AutoUnit
         catch (OperationCanceledException) when (operation.IsCancellationRequested
             && !cancellationToken.IsCancellationRequested)
         {
+            if (selectedBolts is not null)
+                throw new MotionInterlockException("The test carrier changed or lost its seated feedback.");
             ClearCarrierOperation();
         }
         return true;

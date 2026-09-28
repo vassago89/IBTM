@@ -29,6 +29,8 @@ public sealed class DiagnosticWindows
     private AdcProtocolWindow? _adc;
     private AdcProtocolViewModel? _adcViewModel;
     private LogWindow? _logs;
+    private BoltStationTestWindow? _boltTest;
+    private readonly BoltStationTestViewModel _boltTestViewModel;
 
     public DiagnosticWindows(
         IIoService io,
@@ -37,6 +39,7 @@ public sealed class DiagnosticWindows
         MachineController machine,
         MachineState state,
         MotionWindowViewModel motionViewModel,
+        BoltStationTestViewModel boltTestViewModel,
         ApplicationLog applicationLog,
         ILoggerFactory loggerFactory,
         [FromKeyedServices(FasteningHead.Pickup)] IAdcBus pickupAdcBus,
@@ -48,6 +51,7 @@ public sealed class DiagnosticWindows
         _machine = machine;
         _state = state;
         _motionViewModel = motionViewModel;
+        _boltTestViewModel = boltTestViewModel;
         _applicationLog = applicationLog;
         _loggerFactory = loggerFactory;
         _log = loggerFactory.CreateLogger<DiagnosticWindows>();
@@ -128,6 +132,20 @@ public sealed class DiagnosticWindows
         _adc.Show();
     }
 
+    public void OpenBoltStationTest()
+    {
+        if (_boltTest is not null)
+        {
+            _boltTest.Activate();
+            return;
+        }
+        if (!_state.ManualMode)
+            return;
+        _boltTest = new(_boltTestViewModel) { Owner = Owner };
+        _boltTest.Closed += (_, _) => _boltTest = null;
+        _boltTest.ShowDialog();
+    }
+
     public void OpenLogs()
     {
         if (_logs is not null)
@@ -147,7 +165,7 @@ public sealed class DiagnosticWindows
         foreach (var window in Owner.OwnedWindows.Cast<Window>().ToArray())
         {
             window.IsEnabled = false;
-            if (window is not AdcProtocolWindow and not OutputWindow and not MotionWindow)
+            if (window is not AdcProtocolWindow and not OutputWindow and not MotionWindow and not BoltStationTestWindow)
                 window.Close();
         }
     }
@@ -156,6 +174,7 @@ public sealed class DiagnosticWindows
     {
         return CommandShutdown.WaitAsync(
             _adcViewModel?.ShutdownAsync() ?? Task.CompletedTask,
+            _boltTest is null ? Task.CompletedTask : _boltTestViewModel.ShutdownAsync(),
             _motion is null ? Task.CompletedTask : _motionViewModel.ShutdownAsync());
     }
 }

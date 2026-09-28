@@ -55,8 +55,10 @@ public partial class OperationViewModel : ObservableObject
         MachineStore store,
         PcbHistorySettings historySettings,
         PcbDetailsViewModel pcbDetails,
+        DiagnosticWindows windows,
         ILogger<OperationViewModel> log)
     {
+        OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest, () => state.ManualMode);
         StartCommand = new AsyncRelayCommand(StartAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(HomeAsync);
@@ -369,6 +371,8 @@ public partial class OperationViewModel : ObservableObject
             [StopCommand, StartCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
     }
 
+    public IRelayCommand OpenBoltStationTestCommand { get; }
+
     public IAsyncRelayCommand StartCommand { get; }
 
     private async Task StartAsync(CancellationToken cancellationToken)
@@ -483,6 +487,8 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnMachineStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MachineState.ManualMode))
+            OpenBoltStationTestCommand.NotifyCanExecuteChanged();
         if (e.PropertyName is null or nameof(MachineState.Available) or nameof(MachineState.SafetyReady)
             or nameof(MachineState.Alarm) or nameof(MachineState.FeedbackReadiness) or nameof(MachineState.IsHoming)
             or nameof(MachineState.ServoPowerOn) or nameof(MachineState.IsRunning))
