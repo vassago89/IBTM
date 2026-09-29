@@ -4,12 +4,6 @@
     ThemeMode="Dark">
     <Application.Resources>
         <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="UI/AppStyles.xaml"/>
-                <ResourceDictionary Source="UI/MachineStyles.xaml"/>
-                <ResourceDictionary Source="UI/WorkpieceStyles.xaml"/>
-                <ResourceDictionary Source="UI/IoWindowStyles.xaml"/>
-            </ResourceDictionary.MergedDictionaries>
             <DrawingImage x:Key="AppIcon">
                 <DrawingImage.Drawing>
                     <DrawingGroup>

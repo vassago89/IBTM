@@ -7,39 +7,42 @@
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:ManualHardwareViewModel, IsDesignTimeCreatable=False}">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="24,20,24,18">
+        <StackPanel Margin="16" MaxWidth="1100" HorizontalAlignment="Left">
             <TextBlock Text="Manual" Style="{StaticResource TitleStyle}" Margin="0,0,0,12"/>
-            <ItemsControl ItemsSource="{Binding Conveyors}">
+            <ItemsControl ItemsSource="{Binding Conveyors}" Margin="0,0,-10,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type ui:ManualConveyorRow}">
-                        <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,0,0,8">
+                        <Border Style="{StaticResource CardStyle}" Padding="14" Margin="0,0,10,0">
                             <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
-                                        Style="{StaticResource PanelTitleStyle}" Margin="0,0,16,0"/>
-                                    <TextBlock Tag="{Binding Io.IsOn}"
-                                        Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
-                                        Style="{StaticResource IoOutputStateStyle}"/>
-                                </StackPanel>
-                                <Button Grid.Column="1" Content="Run"
-                                    Command="{Binding RunCommand}"
-                                    ToolTip="{Binding ActionMessage}"
-                                    ToolTipService.ShowOnDisabled="True" Style="{StaticResource PrimaryButtonStyle}" MinWidth="100"
-                                    Margin="0,0,8,0"/>
-                                <Button Grid.Column="2" Content="Stop"
-                                    Command="{Binding StopCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}" MinWidth="100"/>
+                                <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                    Style="{StaticResource PanelTitleStyle}" Margin="0,0,24,0" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Tag="{Binding Io.IsOn}"
+                                    Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
+                                    Style="{StaticResource IoOutputStateStyle}"/>
+                                <UniformGrid Grid.Row="1" Grid.ColumnSpan="2" Columns="2" Margin="0,12,0,0">
+                                    <Button Content="Run" Command="{Binding RunCommand}"
+                                        ToolTip="{Binding ActionMessage}" ToolTipService.ShowOnDisabled="True"
+                                        Style="{StaticResource PrimaryButtonStyle}" MinWidth="140" Margin="0,0,6,0"/>
+                                    <Button Content="Stop" Command="{Binding StopCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" MinWidth="140" Margin="6,0,0,0"/>
+                                </UniformGrid>
                             </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,8,0,0">
+            <Border Style="{StaticResource CardStyle}" Padding="14" Margin="0,12,0,0">
                 <StackPanel>
                     <TextBlock Text="SMEMA Test" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,12"/>
                     <WrapPanel IsEnabled="{Binding Signals.Inputs[AutoMode].IsOn, TargetNullValue=False}">
@@ -50,8 +53,6 @@
                         <CheckBox Content="Rear · Ready to receive" Margin="0,0,0,8"
                             IsChecked="{Binding Conveyor.TestDownstreamReady, Mode=TwoWay}"/>
                     </WrapPanel>
-                    <TextBlock Text="Manual test signals"
-                        Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
                 </StackPanel>
             </Border>
         </StackPanel>

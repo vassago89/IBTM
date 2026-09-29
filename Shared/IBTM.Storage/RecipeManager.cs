@@ -96,7 +96,11 @@ public sealed class RecipeManager
         Changed?.Invoke();
     }
 
-    public async Task SaveAsync(string name, CancellationToken cancellationToken = default)
+    public async Task SaveAsync(
+        string name,
+        List<CarrierImageTile>? tiles = null,
+        IEnumerable<RecipeImage>? images = null,
+        CancellationToken cancellationToken = default)
     {
         await _saveGate.WaitAsync(cancellationToken);
         try
@@ -105,48 +109,24 @@ public sealed class RecipeManager
             var snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(Current))!;
             var imageRecipeName = _imageRecipeName;
             var originalName = snapshot.Name;
+            if (tiles is not null)
+            {
+                var capturedTiles = JsonSerializer.Deserialize<List<CarrierImageTile>>(JsonSerializer.Serialize(tiles))!;
+                foreach (var tile in capturedTiles)
+                {
+                    // Gantry capture owns images/positions; inspection teaching owns existing ROIs.
+                    var current = snapshot.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
+                        && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
+                    if (current is not null)
+                        tile.Region = current.Region;
+                }
+                snapshot.CarrierImages = capturedTiles;
+            }
             snapshot.Name = name;
             await Task.Run(
                 () => _database.SaveRecipe(
                     snapshot,
                     imageRecipeName,
-                    selection: new RecipeSelectionSettings { LastRecipeName = name },
-                    cancellationToken: cancellationToken),
-                cancellationToken);
-            if (Current.Name == originalName)
-                Saved(name);
-        }
-        finally
-        {
-            _saveGate.Release();
-        }
-    }
-
-    public async Task SaveImagesAsync(
-        string name,
-        List<CarrierImageTile> tiles,
-        IEnumerable<RecipeImage> images,
-        CancellationToken cancellationToken = default)
-    {
-        await _saveGate.WaitAsync(cancellationToken);
-        try
-        {
-            var snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(Current))!;
-            var originalName = snapshot.Name;
-            var capturedTiles = JsonSerializer.Deserialize<List<CarrierImageTile>>(JsonSerializer.Serialize(tiles))!;
-            foreach (var tile in capturedTiles)
-            {
-                // Gantry capture owns images/positions; inspection teaching owns existing ROIs.
-                var current = snapshot.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
-                    && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
-                if (current is not null)
-                    tile.Region = current.Region;
-            }
-            snapshot.Name = name;
-            snapshot.CarrierImages = capturedTiles;
-            await Task.Run(
-                () => _database.SaveRecipe(
-                    snapshot,
                     images: images,
                     selection: new RecipeSelectionSettings { LastRecipeName = name },
                     cancellationToken: cancellationToken),
@@ -155,10 +135,15 @@ public sealed class RecipeManager
             {
                 if (Current.Name == originalName)
                 {
-                    for (var index = 0; index < tiles.Count; index++)
-                        tiles[index].Region = capturedTiles[index].Region;
-                    Current.CarrierImages = tiles;
-                    Saved(name);
+                    if (tiles is not null)
+                    {
+                        for (var index = 0; index < tiles.Count; index++)
+                            tiles[index].Region = snapshot.CarrierImages[index].Region;
+                        Current.CarrierImages = tiles;
+                    }
+                    Current.Name = name;
+                    _imageRecipeName = name;
+                    _selection.LastRecipeName = name;
                 }
             }
         }
@@ -166,12 +151,5 @@ public sealed class RecipeManager
         {
             _saveGate.Release();
         }
-    }
-
-    private void Saved(string name)
-    {
-        Current.Name = name;
-        _imageRecipeName = name;
-        _selection.LastRecipeName = name;
     }
 }

@@ -13,7 +13,7 @@ public enum MainConveyorState
     [Description("Seating S1 / S2 carriers")]
     SeatingCarriers,
 
-    [Description("Raising S3 for waiting / NG pickup")]
+    [Description("Raising S3")]
     RaisingInspectionCarrier,
 
     [Description("Receiving at infeed")]
@@ -31,19 +31,19 @@ public enum MainConveyorState
     [Description("Conveyor RUN output ON")]
     Running,
 
-    [Description("Waiting for S2 fastening completion")]
+    [Description("Waiting for S2 fastening")]
     WaitingForBoltFastening,
 
-    [Description("Waiting for S1 placement completion")]
+    [Description("Waiting for S1 placement")]
     WaitingForPcbPlacement,
 
     [Description("Waiting for S3 / NG pickup to clear")]
     WaitingForInspectionClear,
 
-    [Description("Preparing S3 for inspection: plate DOWN")]
+    [Description("Preparing S3: plate DOWN")]
     PreparingInspectionCarrier,
 
-    [Description("Waiting for S3 inspection; conveyor stopped")]
+    [Description("Waiting for S3 inspection")]
     WaitingForInspection,
 
     [Description("Waiting for transfer at NG pickup")]

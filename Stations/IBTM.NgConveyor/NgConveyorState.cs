@@ -4,7 +4,7 @@ namespace IBTM.NgConveyor;
 
 public enum NgConveyorState
 {
-    [Description("Waiting for NG Transfer Release and Pickup Up")]
+    [Description("Waiting: transfer release + pickup UP")]
     WaitingForTransferRelease,
 
     [Description("Lowering NG Shuttle")]

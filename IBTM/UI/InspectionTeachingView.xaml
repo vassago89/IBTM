@@ -13,7 +13,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="44"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,12">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" IsEnabled="{Binding IsIdle}">
@@ -101,7 +101,7 @@
                             <StackPanel Grid.Row="2" Margin="0,6,0,6">
                                 <Button Content="Load PCB Images" Command="{Binding LoadRecordCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" Padding="8,5"/>
-                                <TextBlock Text="{Binding LoadedRecord.Number, StringFormat='PCB {0} · inspection images', TargetNullValue='Select and load a PCB', FallbackValue='Select and load a PCB'}"
+                                <TextBlock Text="{Binding LoadedRecord.Number, StringFormat='PCB {0} · images', TargetNullValue='No PCB loaded', FallbackValue='No PCB loaded'}"
                                     FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
                             </StackPanel>
                             <ListBox Grid.Row="3" ItemsSource="{Binding HistoryImages}"
@@ -152,7 +152,7 @@
                             <Button Content="Show Reference Image" Command="{Binding ShowRecipeImageCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,6"/>
                         </WrapPanel>
                         <TextBlock Text="{Binding ImageSource}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ImageSource}"/>
-                        <TextBlock Text="{Binding OriginalResult}" TextTrimming="CharacterEllipsis" ToolTip="{Binding OriginalResult}"
+                        <TextBlock Text="{Binding OriginalResult}" Style="{StaticResource StatusMessageStyle}" TextTrimming="CharacterEllipsis" ToolTip="{Binding OriginalResult}"
                             Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
                         <StackPanel IsEnabled="{Binding IsIdle}" Margin="0,8,0,0">
                             <TextBlock Text="Reference image unavailable" Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,0,6">
@@ -171,9 +171,9 @@
                                 <TextBlock Text="Data Matrix" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,6"/>
                                 <CheckBox Content="Extended search" IsChecked="{Binding DataMatrix.TryHarder, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="Check inverted colors" IsChecked="{Binding DataMatrix.TryInverted, BindingGroupName={x:Null}}"
+                                <CheckBox Content="Inverted colors" IsChecked="{Binding DataMatrix.TryInverted, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="Check rotated image" IsChecked="{Binding DataMatrix.AutoRotate, BindingGroupName={x:Null}}"
+                                <CheckBox Content="Rotation" IsChecked="{Binding DataMatrix.AutoRotate, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
                                 <CheckBox Content="Pure barcode" IsChecked="{Binding DataMatrix.PureBarcode, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
@@ -220,18 +220,19 @@
                                 RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                         </Border>
                     </Grid>
-                    <TextBlock Grid.Row="2" Margin="0,8,0,0" Text="{Binding Preview.Result}" FontWeight="SemiBold" FontSize="17"
+                    <TextBlock Grid.Row="2" Style="{StaticResource StatusMessageStyle}" Margin="0,8,0,0" Text="{Binding Preview.Result}" FontWeight="SemiBold" FontSize="17"
                         TextTrimming="CharacterEllipsis" ToolTip="{Binding Preview.Result}"/>
                 </Grid>
             </Border>
         </Grid>
-        <ScrollViewer Grid.Row="2" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <TextBlock Text="Check the highlighted input."
+                    Style="{StaticResource StatusMessageStyle}"
                     Visibility="{Binding ElementName=EditorRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"
                     TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
-                <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
-                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBlock Text="{Binding Error}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                <TextBlock Text="{Binding Message}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource TextSecondaryBrush}"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>

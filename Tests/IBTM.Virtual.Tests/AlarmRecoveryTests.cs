@@ -244,7 +244,7 @@ public sealed class AlarmRecoveryTests
                 {
                     Assert.False(io.GetOutput(row.Io.Signal));
                     row.ToggleCommand.Execute(null);
-                    Assert.Contains("AutoMode", row.ActionMessage);
+                    Assert.Equal(OutputBlockReason.AutoMode.GetDescription(), row.ActionMessage);
                     Assert.False(io.GetOutput(row.Io.Signal));
                 });
 
@@ -258,7 +258,7 @@ public sealed class AlarmRecoveryTests
                 {
                     Assert.False(io.GetOutput(row.Io.Signal));
                     row.ToggleCommand.Execute(null);
-                    Assert.Contains("EmergencyStop", row.ActionMessage);
+                    Assert.Equal(OutputBlockReason.EmergencyStop.GetDescription(), row.ActionMessage);
                     Assert.False(io.GetOutput(row.Io.Signal));
                 });
         }
@@ -455,7 +455,7 @@ public sealed class AlarmRecoveryTests
             await active.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             await row.RunCommand.ExecuteAsync(null);
-            Assert.Contains("[AutoMode]", row.ActionMessage);
+            Assert.Equal(OutputBlockReason.AutoMode.GetDescription(), row.ActionMessage);
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             Assert.False(state.IsRunning);
         }

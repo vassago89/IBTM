@@ -262,16 +262,12 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     private void OnMachinePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is null or nameof(MachineState.Ready)
+        var readinessChanged = e.PropertyName is null or nameof(MachineState.Ready)
             or nameof(MachineState.SafetyReady) or nameof(MachineState.DoorInterlockReady)
-            or nameof(MachineState.Alarm) or nameof(MachineState.RepeatEnabled))
-        {
+            or nameof(MachineState.Alarm) or nameof(MachineState.RepeatEnabled);
+        if (readinessChanged)
             PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
-            PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
-            PropertyChanged?.Invoke(this, new(nameof(IsHomeAllowed)));
-            PropertyChanged?.Invoke(this, new(nameof(IsResetAllowed)));
-        }
-        if (e.PropertyName == nameof(MachineState.IsRunning))
+        if (readinessChanged || e.PropertyName == nameof(MachineState.IsRunning))
         {
             PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
             PropertyChanged?.Invoke(this, new(nameof(IsHomeAllowed)));

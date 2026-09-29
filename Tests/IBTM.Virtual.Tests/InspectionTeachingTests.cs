@@ -70,7 +70,7 @@ public sealed class InspectionTeachingTests
         foreach (var name in new[] { "Inspection", "Copy" })
         {
             editor.Name = name;
-            Assert.True(await editor.SaveCarrierImagesAsync(loaded), editor.Error);
+            Assert.True(await editor.SaveAsync(loaded), editor.Error);
             Assert.Equal(3, store.LoadRecipe(name).CarrierImages.Count);
             Assert.Equal(damaged, store.LoadRecipeImage(name, 2));
             Assert.Throws<FileNotFoundException>(() => store.LoadRecipeImage(name, 3));
@@ -78,7 +78,7 @@ public sealed class InspectionTeachingTests
             Assert.All(InspectionPreviewViewModel.CreateFrame(reloaded[0].Image!).Pixels, pixel => Assert.Equal(90, pixel));
         }
         loaded[1] = loaded[1] with { Image = loaded[0].Image, Error = null, UnreadablePng = null };
-        Assert.True(await editor.SaveCarrierImagesAsync(loaded), editor.Error);
+        Assert.True(await editor.SaveAsync(loaded), editor.Error);
         var repaired = await images.LoadRecipeAsync(store.LoadRecipe("Copy"));
         Assert.NotNull(repaired[1].Image);
         Assert.Null(repaired[1].Error);
@@ -127,7 +127,7 @@ public sealed class InspectionTeachingTests
 
         var tiles = recipes.Current.CarrierImages.ToList();
         tiles.Add(new() { Number = 3, BoltId = bolt.Id, Region = new(2, 2, 10, 10) });
-        await recipes.SaveImagesAsync("Inspection", tiles, [new(1, png), new(2, png), new(3, png)]);
+        await recipes.SaveAsync("Inspection", tiles, [new(1, png), new(2, png), new(3, png)]);
         await editor.RefreshImagesCommand.ExecuteAsync(null);
         var loadedImages = await images.LoadRecipeAsync(recipes.Current);
         Assert.Equal(bolt.Id, editor.SelectedPoint!.Bolt!.Id);
@@ -160,7 +160,7 @@ public sealed class InspectionTeachingTests
         var replacement = new BoltPoint { X = 100, Y = 200, BrightnessThreshold = 180 };
         recipes.Current.Pcb.BoltPoints.Add(replacement);
         var tile = new CarrierImageTile { Number = 2, BoltId = replacement.Id };
-        await recipes.SaveImagesAsync("Inspection", [recipes.Current.CarrierImages[0], tile], [new(1, png), new(2, png)]);
+        await recipes.SaveAsync("Inspection", [recipes.Current.CarrierImages[0], tile], [new(1, png), new(2, png)]);
 
         // Saving the old draft before refreshing must also leave the replacement untouched.
         await editor.SaveCommand.ExecuteAsync(null);
@@ -260,7 +260,7 @@ public sealed class InspectionTeachingTests
         edited.BoltInspection.DataMatrix1.BinaryThreshold = 81;
         await recipes.SaveInspectionAsync(edited);
 
-        await recipes.SaveImagesAsync("Inspection", captured, [new(1, png), new(2, png)]);
+        await recipes.SaveAsync("Inspection", captured, [new(1, png), new(2, png)]);
 
         foreach (var recipe in new[] { recipes.Current, store.LoadRecipe("Inspection") })
         {
@@ -292,7 +292,7 @@ public sealed class InspectionTeachingTests
             yield return new(1, png);
             yield return new(2, png);
         }
-        var capture = recipes.SaveImagesAsync("Inspection", captured, Images());
+        var capture = recipes.SaveAsync("Inspection", captured, Images());
         Task save = Task.CompletedTask;
         try
         {
@@ -701,7 +701,7 @@ public sealed class InspectionTeachingTests
         recipes.Current.Pcb.BoltPoints.Add(bolt);
         var editor = services.GetRequiredService<RecipeEditorViewModel>();
         var image = InspectionPreviewViewModel.CreateBitmap(new ImageFrame(2, 2, 6, new byte[12]));
-        Assert.True(await editor.SaveCarrierImagesAsync([
+        Assert.True(await editor.SaveAsync([
             new(new CarrierImageTile { Number = 1, BoltId = VirtualTestSupport.BoltId(1) }, image),
             new(new CarrierImageTile { Number = 2, IsBarcode = true }, image),
         ]));

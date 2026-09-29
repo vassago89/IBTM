@@ -27,7 +27,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="40"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,10">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0"
@@ -342,13 +342,14 @@
                 </Grid>
             </Border>
         </Grid>
-        <ScrollViewer Grid.Row="2" Margin="0,6,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <TextBlock Text="Check the highlighted input."
+                    Style="{StaticResource StatusMessageStyle}"
                     Visibility="{Binding ElementName=TeachingRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"
                     Foreground="{StaticResource AccentRedBrush}"/>
-                <TextBlock Text="{Binding SaveError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
-                <TextBlock Text="{Binding CameraError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                <TextBlock Text="{Binding SaveError}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                <TextBlock Text="{Binding CameraError}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource AccentRedBrush}"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>

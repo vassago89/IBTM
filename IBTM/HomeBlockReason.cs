@@ -6,18 +6,18 @@ public enum HomeBlockReason
 {
     [Description("")]
     None,
-    [Description("Restore I/O communication before HOME")]
+    [Description("I/O communication unavailable")]
     IoUnavailable,
-    [Description("Placement is holding a PCB with the IPM lift down; release it before HOME")]
+    [Description("Release held PCB before HOME (IPM lift down)")]
     PlacementHoldingPcb,
-    [Description("Raise the Placement handler and IPM lift before HOME")]
+    [Description("Raise placement handler and IPM lift")]
     PlacementNotRaised,
-    [Description("Raise both fastening heads before HOME")]
+    [Description("Raise both fastening heads")]
     FasteningNotRaised,
-    [Description("Raise the NG pickup before HOME")]
+    [Description("Raise NG pickup")]
     NgPickupNotRaised,
-    [Description("Close the doors before HOME")]
+    [Description("Close doors")]
     DoorOpen,
-    [Description("Enable this unit in Settings before HOME")]
+    [Description("Unit disabled in Settings")]
     UnitDisabled,
 }

@@ -8,28 +8,28 @@ public enum OutputBlockReason
     [Description("")]
     None = 0,
 
-    [Description("Read only: the machine is shutting down.")]
+    [Description("Shutting down")]
     ShuttingDown,
-    [Description("Read only: control I/O is unavailable.")]
+    [Description("Control I/O unavailable")]
     IoUnavailable,
-    [Description("Read only: switch the selector to MANUAL.")]
+    [Description("Switch to MANUAL")]
     AutoMode,
-    [Description("Read only: release both emergency stops.")]
+    [Description("Release both E-stops")]
     EmergencyStop,
 
-    [Description("Raise the Placement handler cylinders to clear the conveyor path.")]
+    [Description("Raise placement cylinders")]
     PlacementNotRaised,
-    [Description("Move the Placement handler Z to its conveyor-clearance position.")]
+    [Description("Placement Z: conveyor clearance required")]
     PlacementNotAtSafeZ,
-    [Description("Raise both fastening heads to clear the conveyor path.")]
+    [Description("Raise both fastening heads")]
     FasteningNotRaised,
-    [Description("Move the Fastening Z axis to its conveyor-clearance position.")]
+    [Description("Fastening Z: conveyor clearance required")]
     FasteningNotAtSafeZ,
-    [Description("Raise the NG pickup: UP must be ON and DOWN must be OFF.")]
+    [Description("Raise NG pickup (UP=ON, DOWN=OFF)")]
     NgPickupNotRaised,
-    [Description("Complete the pending NG transfer before moving the main conveyor.")]
+    [Description("NG transfer pending")]
     NgTransferPending,
 
-    [Description("Wait for the current machine operation and its stop cleanup to finish.")]
+    [Description("Operation or stop cleanup in progress")]
     Busy,
 }

@@ -19,7 +19,7 @@ public enum PcbPlacementState
     [Description("Waiting for Supply PCB")]
     WaitingForSupply,
 
-    [Description("Preparing and Moving to Handoff")]
+    [Description("Preparing / moving to handoff")]
     MovingToHandoff,
 
     [Description("Receiving PCB")]
@@ -28,7 +28,7 @@ public enum PcbPlacementState
     [Description("Waiting for Supply Release")]
     WaitingForSupplyRelease,
 
-    [Description("Raising Handler, Departing and Completing Handoff")]
+    [Description("Raising / leaving handoff")]
     PreparingPlacement,
 
     [Description("Waiting for Carrier")]
@@ -55,7 +55,7 @@ public enum PcbPlacementState
     [Description("Waiting for Supply Grip")]
     WaitingForSupplyGrip,
 
-    [Description("Releasing PCB to Supply and Departing")]
+    [Description("Releasing PCB / leaving supply")]
     ReleasingToSupply,
 
     [Description("Waiting for Supply Departure")]

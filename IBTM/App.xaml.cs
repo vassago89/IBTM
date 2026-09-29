@@ -73,6 +73,12 @@ public partial class App : System.Windows.Application
             }
 
             var settings = await MachineSettings.LoadAsync(database);
+            UiText.Apply(settings.Options.Language);
+            foreach (var source in new[] { "AppStyles", "MachineStyles", "WorkpieceStyles", "IoWindowStyles" })
+                Resources.MergedDictionaries.Add(new ResourceDictionary
+                {
+                    Source = new Uri($"UI/{source}.xaml", UriKind.Relative),
+                });
             var applicationLog = InitializeLogging(settings.Logging);
             services
                 .AddSingleton(applicationLog)

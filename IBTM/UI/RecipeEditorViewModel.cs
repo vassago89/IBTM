@@ -76,17 +76,41 @@ public partial class RecipeEditorViewModel : ObservableObject
         return CommandShutdown.CancelAndWaitAsync([LoadCommand, RefreshCommand]);
     }
 
-    public async Task<bool> SaveAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> SaveAsync(
+        IReadOnlyList<RecipeImageItem>? images = null,
+        CancellationToken cancellationToken = default)
     {
-        if (!ValidateName())
+        if (!IsSaveAllowed)
+        {
+            Error = "Enter a recipe name before saving.";
             return false;
+        }
         Error = null;
         var name = Name.Trim();
         try
         {
             using var operation = _operations.Link(cancellationToken);
-            await _recipes.SaveAsync(name, operation.Token);
-            Saved();
+            await _recipes.SaveAsync(
+                name,
+                images?.Select(image => image.Metadata).ToList(),
+                images?.Where(image => image.Image is not null || image.UnreadablePng is not null).Select(image =>
+                {
+                    operation.Token.ThrowIfCancellationRequested();
+                    if (image.Image is null)
+                        return new RecipeImage(image.Metadata.Number, image.UnreadablePng!);
+                    using var stream = new MemoryStream();
+                    var encoder = new PngBitmapEncoder();
+                    // Encode pixels only; decoder metadata can belong to another thread.
+                    encoder.Frames.Add(BitmapFrame.Create(image.Image, null, null, null));
+                    encoder.Save(stream);
+                    return new RecipeImage(image.Metadata.Number, stream.ToArray());
+                }),
+                operation.Token);
+            if (RefreshCommand.IsRunning)
+                _ = RefreshCommand.ExecuteAsync(null);
+            OnRecipeChanged();
+            if (!Recipes.Any(savedName => MachineStore.IsSameRecipeName(savedName, Name)))
+                Recipes = Recipes.Append(Name).Order(StringComparer.Ordinal).ToArray();
             return true;
         }
         catch (OperationCanceledException)
@@ -153,65 +177,6 @@ public partial class RecipeEditorViewModel : ObservableObject
     {
         Name = _recipes.Current.Name;
         OnPropertyChanged(nameof(ActiveName));
-    }
-
-    private void Saved()
-    {
-        if (RefreshCommand.IsRunning)
-            _ = RefreshCommand.ExecuteAsync(null);
-        Name = _recipes.Current.Name;
-        OnPropertyChanged(nameof(ActiveName));
-        if (!Recipes.Any(name => MachineStore.IsSameRecipeName(name, Name)))
-            Recipes = Recipes.Append(Name).Order(StringComparer.Ordinal).ToArray();
-    }
-
-    public async Task<bool> SaveCarrierImagesAsync(
-        IReadOnlyList<RecipeImageItem> images,
-        CancellationToken cancellationToken = default)
-    {
-        if (!ValidateName())
-            return false;
-        Error = null;
-        var name = Name.Trim();
-        try
-        {
-            using var operation = _operations.Link(cancellationToken);
-            await _recipes.SaveImagesAsync(
-                name,
-                images.Select(image => image.Metadata).ToList(),
-                images.Where(image => image.Image is not null || image.UnreadablePng is not null).Select(image =>
-                {
-                    operation.Token.ThrowIfCancellationRequested();
-                    if (image.Image is null)
-                        return new RecipeImage(image.Metadata.Number, image.UnreadablePng!);
-                    using var stream = new MemoryStream();
-                    var encoder = new PngBitmapEncoder();
-                    // Encode pixels only; decoder metadata can belong to another thread.
-                    encoder.Frames.Add(BitmapFrame.Create(image.Image, null, null, null));
-                    encoder.Save(stream);
-                    return new RecipeImage(image.Metadata.Number, stream.ToArray());
-                }),
-                operation.Token);
-            Saved();
-            return true;
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
-        catch (Exception exception)
-        {
-            ReportError(exception);
-            return false;
-        }
-    }
-
-    private bool ValidateName()
-    {
-        if (IsSaveAllowed)
-            return true;
-        Error = "Enter a recipe name before saving.";
-        return false;
     }
 
     private void ReportError(Exception exception)

@@ -51,14 +51,8 @@
             <Setter Property="Margin" Value="8,6,8,0"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
         </Style>
-        <Style x:Key="NotificationTextStyle" TargetType="TextBlock">
+        <Style x:Key="NotificationTextStyle" TargetType="TextBlock" BasedOn="{StaticResource StatusMessageStyle}">
             <Setter Property="Margin" Value="0,2"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Style.Triggers>
-                <Trigger Property="Text" Value="">
-                    <Setter Property="Visibility" Value="Collapsed"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
     </Window.Resources>
 
@@ -171,7 +165,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="64"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="64"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="64"/>
             </Grid.RowDefinitions>
 
@@ -211,8 +205,6 @@
                                     <Setter Property="BorderThickness" Value="1"/>
                                     <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-                                    <Setter Property="ToolTip"
-                                        Value="Set mode with the hardware switch."/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Operation.State.AutoMode}" Value="True">
                                             <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
@@ -254,9 +246,23 @@
                             Foreground="{StaticResource TextPrimaryBrush}" FontSize="14" FontWeight="SemiBold"
                             VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis"
                             ToolTip="{Binding RecipeEditor.ActiveName}"/>
-                        <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" Width="156" Margin="10,0,0,0"
-                            IsEnabled="{Binding RecipeEditingEnabled}"
-                            SelectedItem="{Binding SelectedRecipeName, Mode=TwoWay}"/>
+                        <Grid Width="156" Margin="10,0,0,0" IsEnabled="{Binding RecipeEditingEnabled}">
+                            <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" AutomationProperties.Name="Change recipe"
+                                SelectedItem="{Binding SelectedRecipeName, Mode=TwoWay}"/>
+                            <TextBlock Text="Change recipe..." Margin="10,0,28,0" VerticalAlignment="Center"
+                                Foreground="{StaticResource TextMutedBrush}" FontSize="12" IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedRecipeName}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </StackPanel>
 
                     <WrapPanel Grid.Column="6" VerticalAlignment="Center" HorizontalAlignment="Right">
@@ -345,6 +351,21 @@
 
             <Border Grid.Row="2" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
                 BorderThickness="0,1,0,0" Padding="18,6">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Operation.HasAlarm}" Value="False"/>
+                                    <Condition Binding="{Binding ResetError}" Value="{x:Null}"/>
+                                    <Condition Binding="{Binding NavigationError}" Value="{x:Null}"/>
+                                    <Condition Binding="{Binding RecipeEditor.Error}" Value="{x:Null}"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="100"/>
@@ -352,7 +373,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="Messages" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
                         VerticalAlignment="Center"/>
-                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Grid.Column="1" MaxHeight="100" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
                             <TextBlock Text="{Binding Operation.AlarmMessage}" ToolTip="{Binding Operation.AlarmDetail}"
                                 Visibility="{Binding Operation.HasAlarm, Converter={StaticResource BoolToVis}}"
@@ -362,8 +383,7 @@
                             <TextBlock Text="{Binding NavigationError}"
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                             <TextBlock Text="{Binding RecipeEditor.Error}"
-                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"
-                                ToolTip="Changes are not saved. Retry after resolving the error."/>
+                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -428,8 +448,6 @@
                             <Button Content="START"
                                 Command="{Binding Operation.StartCommand}"
                                 IsEnabled="{Binding Operation.Machine.IsStartAllowed}"
-                                ToolTip="{Binding Operation.StartBlock,
-                                                      Converter={StaticResource EnumDescriptionConverter}}"
                                 MinWidth="144" Height="48" Margin="0,0,8,0">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -451,7 +469,7 @@
                         </StackPanel>
                         <Button
                             Command="{Binding ResetCommand}"
-                            ToolTip="Silence buzzer; recover hardware when stopped (servos may turn ON)."
+                            ToolTip="Silence buzzer / recover stopped hardware; servos may turn ON."
                             ToolTipService.ShowOnDisabled="True" MinWidth="120" Height="48" Margin="0,0,8,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">

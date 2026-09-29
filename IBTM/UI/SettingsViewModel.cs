@@ -40,6 +40,7 @@ public partial class SettingsViewModel : ObservableObject
         ILogger<SettingsViewModel> log)
     {
         LightDrivers = Enum.GetValues<LightDriver>();
+        Languages = Enum.GetValues<UiLanguage>();
 
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => IsSettingsEditAllowed);
         BrowsePcbResultsFolderCommand = new RelayCommand(BrowsePcbResultsFolder, () => IsSettingsEditAllowed);
@@ -134,6 +135,8 @@ public partial class SettingsViewModel : ObservableObject
     public BoltDriver[] BoltDrivers { get; }
 
     public LightDriver[] LightDrivers { get; }
+
+    public UiLanguage[] Languages { get; }
 
     public bool IsVirtualCamera => _virtualCamera is not null;
 

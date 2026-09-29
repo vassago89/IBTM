@@ -41,7 +41,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         ? _bolt is null ? "Binary ROI · no inspection target" : $"Binary ROI · threshold {BrightnessThreshold}"
         : DataMatrixThreshold is { } threshold ? $"Binary ROI · threshold {threshold}"
         : HasImage && Overlay is null ? "Automatic binary unavailable · set a threshold"
-        : "Binary ROI · automatic (ZXing)";
+        : "Binary ROI · automatic";
 
     public int? DataMatrixThreshold
     {

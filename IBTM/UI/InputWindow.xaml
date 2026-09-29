@@ -34,12 +34,14 @@
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,4,0,18">
             <TextBlock.Style>
                 <Style TargetType="TextBlock" BasedOn="{StaticResource PageSubtitleStyle}">
-                    <Setter Property="Text" Value="Blue = input ON"/>
+                    <Setter Property="Visibility" Value="Collapsed"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsVirtual}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
                             <Setter Property="Text" Value="Virtual inputs · click to toggle"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
+                            <Setter Property="Visibility" Value="Visible"/>
                             <Setter Property="Text" Value="I/O disconnected · input states unknown"/>
                             <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                         </DataTrigger>

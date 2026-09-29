@@ -879,7 +879,6 @@ public sealed class RecipeTests
         Assert.False(editor.IsSaveAllowed);
         Assert.False(await editor.SaveAsync()); // Direct autosave calls use the same name check.
         Assert.NotNull(editor.Error);
-        Assert.False(await editor.SaveCarrierImagesAsync([]));
         Assert.Empty(database.RecipeNames);
         Assert.Equal(savedName, recipe.Name);
         editor.Name = savedName;
@@ -892,7 +891,7 @@ public sealed class RecipeTests
         }
 
         operations.ActivityChanged += CancelWhenStarted;
-        Assert.False(await editor.SaveAsync(cancellation.Token));
+        Assert.False(await editor.SaveAsync(cancellationToken: cancellation.Token));
         operations.ActivityChanged -= CancelWhenStarted;
         Assert.Null(editor.Error);
         Assert.Empty(database.RecipeNames);
@@ -1007,7 +1006,7 @@ public sealed class RecipeTests
         }
 
         var sourceImages = Images(1, 10);
-        Assert.True(await sourceEditor.SaveCarrierImagesAsync(sourceImages));
+        Assert.True(await sourceEditor.SaveAsync(sourceImages));
         Assert.Same(sourceImages[0].Metadata, source.CarrierImages[0]);
         Assert.Same(sourceImages[1].Metadata, source.CarrierImages[1]);
         var reloaded = await Task.Factory.StartNew(
@@ -1021,7 +1020,7 @@ public sealed class RecipeTests
             Assert.True(tile.Image.IsFrozen);
         });
         Assert.Equal("FOV 1", reloaded[0].ToString());
-        Assert.True(await sourceEditor.SaveCarrierImagesAsync(reloaded));
+        Assert.True(await sourceEditor.SaveAsync(reloaded));
         var pixels = new byte[3];
         var savedImage = (await imagesLoader.LoadRecipeAsync(sourceRecipes.Current))[0].Image;
         Assert.NotNull(savedImage);
@@ -1041,7 +1040,7 @@ public sealed class RecipeTests
         Assert.Same(source.CarrierImages[1], loadedImages[1].Metadata);
         Assert.True(loadedImages[1].Metadata.IsBarcode);
         Assert.Equal("Source", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
-        Assert.True(await targetEditor.SaveCarrierImagesAsync(Images(10, 100)));
+        Assert.True(await targetEditor.SaveAsync(Images(10, 100)));
         Assert.Equal("Target", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
         await sourceEditor.SaveAsync();
         Assert.Null(sourceEditor.Error);
@@ -1062,7 +1061,7 @@ public sealed class RecipeTests
         Assert.Throws<FileNotFoundException>(() => database.LoadRecipeImage("Rejected", 1));
 
         targetEditor.Name = "Target";
-        Assert.False(await targetEditor.SaveCarrierImagesAsync(Images(30, 200)));
+        Assert.False(await targetEditor.SaveAsync(Images(30, 200)));
         Assert.Contains("selection failure", targetEditor.Error);
         Assert.Equal([10d, 11d], target.CarrierImages.Select(tile => tile.Center!.X));
         Assert.Equal(
@@ -1075,7 +1074,7 @@ public sealed class RecipeTests
 
         command.CommandText = "CREATE TRIGGER FailImage BEFORE INSERT ON RecipeImages WHEN NEW.Number = 2 BEGIN SELECT RAISE(ABORT, 'test failure'); END";
         command.ExecuteNonQuery();
-        Assert.False(await targetEditor.SaveCarrierImagesAsync(Images(30, 200)));
+        Assert.False(await targetEditor.SaveAsync(Images(30, 200)));
         Assert.Contains("test failure", targetEditor.Error);
         Assert.Equal([10d, 11d], target.CarrierImages.Select(tile => tile.Center!.X));
         Assert.Equal(
@@ -1116,11 +1115,11 @@ public sealed class RecipeTests
                 cancellationToken: cancellation.Token));
         Assert.Equal(beforeCancelRecipe, JsonSerializer.Serialize(database.LoadRecipe("Target")));
         Assert.Equal(beforeCancel, database.LoadRecipeImage("Target", 1));
-        Assert.False(await sourceEditor.SaveCarrierImagesAsync(Images(30, 200), cancellation.Token));
+        Assert.False(await sourceEditor.SaveAsync(Images(30, 200), cancellation.Token));
         Assert.Null(sourceEditor.Error);
         Assert.Equal([1d, 2d], source.CarrierImages.Select(tile => tile.Center!.X));
 
-        await sourceEditor.SaveCarrierImagesAsync(Images(50, 200).Take(1).ToArray());
+        await sourceEditor.SaveAsync(Images(50, 200).Take(1).ToArray());
         Assert.Single(database.LoadRecipe("Target").CarrierImages);
         Assert.Throws<FileNotFoundException>(() => database.LoadRecipeImage("Target", 2));
         Assert.Equal(2, database.LoadRecipe("Source").CarrierImages.Count);

@@ -16,7 +16,7 @@ public enum InspectionStationState
     [Description("Inspecting Bolt")]
     InspectingBolt,
 
-    [Description("Returning and Completing Inspection")]
+    [Description("Returning / completing inspection")]
     CompletingInspection,
 
     [Description("Waiting for Transfer Supports")]
@@ -43,10 +43,10 @@ public enum InspectionStationState
     [Description("Returning to Waiting Position")]
     ReturningToWaitingPosition,
 
-    [Description("Moving to NG Pickup and Raising Carrier")]
+    [Description("NG pickup: move / raise carrier")]
     SeatingCarrier,
 
-    [Description("Waiting for Other Carrier Transfers Before Inspection")]
+    [Description("Waiting for carrier transfers")]
     WaitingForConveyor,
 
     [Description("Disabled")]

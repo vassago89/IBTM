@@ -1071,7 +1071,7 @@ public partial class OperationViewModel : ObservableObject
         catch (Exception exception)
         {
             if (directory == _pcbHistoryDirectory)
-                PcbHistoryError = $"PCB history could not be loaded: {exception.Message}";
+                PcbHistoryError = "Cannot load PCB history. Open Logs for details.";
             _log.LogError(exception, "PCB history load failed for {Directory}.", directory);
         }
     }

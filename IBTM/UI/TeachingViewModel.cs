@@ -49,23 +49,23 @@ public enum TeachingMotionHint
 {
     [Description("")]
     None,
-    [Description("This unit is disabled in Settings.")]
+    [Description("Unit disabled in Settings")]
     UnitDisabled,
-    [Description("Raise the NG pickup before moving XY.")]
+    [Description("Raise NG pickup before XY movement")]
     RaiseNgPickup,
-    [Description("Raise the handler before XY or position moves.")]
+    [Description("Raise placement handler")]
     RaisePlacementCylinders,
-    [Description("Raise both heads before moving to a teaching position.")]
+    [Description("Raise both fastening heads")]
     RaiseFasteningHeads,
-    [Description("Home this unit before jogging or moving to a teaching position.")]
+    [Description("Home this unit first")]
     HomeRequired,
-    [Description("Turn on this unit's axis servos before moving.")]
+    [Description("Axis servo OFF")]
     ServoOff,
-    [Description("Clear this unit's axis alarm or emergency signal before moving.")]
+    [Description("Clear axis alarm / E-stop")]
     AxisFault,
-    [Description("Motion feedback is unavailable for this unit.")]
+    [Description("Motion feedback unavailable")]
     MotionUnavailable,
-    [Description("Record Carrier Pickup (S3) X/Y before moving to a carrier.")]
+    [Description("Teach Carrier Pickup (S3) X/Y first")]
     NgPickupPositionRequired,
 }
 
@@ -73,9 +73,9 @@ public enum ManualControlBlock
 {
     [Description("")]
     None,
-    [Description("Switch the machine to Manual mode.")]
+    [Description("Switch to MANUAL")]
     AutoMode = 4,
-    [Description("Wait for the current operation to stop.")]
+    [Description("Wait for operation to stop")]
     Busy,
 }
 
@@ -751,7 +751,7 @@ public partial class TeachingViewModel : ObservableObject
                     NotifyManualTeachingCommands();
                     break;
                 case { Position.Mode: not TeachMode.Image }:
-                    SaveError = "Home the axes used by this teaching position and wait for them to stop before teaching.";
+                    SaveError = "Home the selected axes and wait for them to stop.";
                     break;
             }
         }
@@ -815,10 +815,10 @@ public partial class TeachingViewModel : ObservableObject
             if (await SaveSettingsAsync(operation.Token,
                     _settings.PcbSupply, _settings.PcbPlacementHandler, _settings.BoltFastening,
                     _settings.InspectionGantry, _settings.CarrierReference, _settings.NgCarrierTransfer)
-                && !await RecipeEditor.SaveAsync(operation.Token))
+                && !await RecipeEditor.SaveAsync(cancellationToken: operation.Token))
             {
-                SaveError = "Teaching settings were saved, but the recipe was not saved. "
-                    + (RecipeEditor.Error ?? "Save was cancelled. Save again to finish.");
+                SaveError = "Settings saved; recipe was not saved. "
+                    + (RecipeEditor.Error ?? "Save cancelled. Retry Save.");
             }
             NotifyManualTeachingCommands();
         }
@@ -850,7 +850,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            SaveError = "Teaching save cancelled. Values have not been saved.";
+            SaveError = "Save cancelled; teaching not saved.";
             throw;
         }
         catch (Exception exception)
@@ -1539,7 +1539,7 @@ public partial class TeachingViewModel : ObservableObject
                 bolt.Y = captured.Center.Y;
                 _settings.BoltFastening.InitializeBoltPosition(bolt, _settings.CarrierReference);
             }
-            if (await RecipeEditor.SaveCarrierImagesAsync(images, operation.Token))
+            if (await RecipeEditor.SaveAsync(images, operation.Token))
             {
                 CarrierImages = images;
                 RefreshPointPositions();
@@ -1562,7 +1562,7 @@ public partial class TeachingViewModel : ObservableObject
                     bolt.FasteningX = previousFasteningX;
                     bolt.FasteningY = previousFasteningY;
                 }
-                CameraError = RecipeEditor.Error ?? "Recording was cancelled before saving. Record the point again.";
+                CameraError = RecipeEditor.Error ?? "Recording cancelled; point not saved. Record again.";
                 _logger.LogInformation("Teaching image was not saved: PCB={Pcb}, point={Point}, reason={Reason}.",
                     pcb, point.Name, CameraError);
             }

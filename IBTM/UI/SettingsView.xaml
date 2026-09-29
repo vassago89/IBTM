@@ -89,9 +89,21 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="84"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,12">
+            <Button DockPanel.Dock="Right" Command="{Binding SaveSettingsCommand}" MinWidth="140" HorizontalAlignment="Right">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                        <Setter Property="Content" Value="Save Settings"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SaveSettingsCommand.IsRunning}" Value="True">
+                                <Setter Property="Content" Value="Saving..."/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
             <TextBlock Text="Settings" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
         <TabControl Grid.Row="1" Style="{StaticResource SectionTabs}" ItemContainerStyle="{StaticResource SectionTab}">
@@ -130,6 +142,14 @@
                             </Border>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
+                            <Border Style="{StaticResource SettingCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Language / 언어" Style="{StaticResource SettingSectionTitle}"/>
+                                    <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding Settings.Options.Language}"
+                                        IsEnabled="{Binding IsSettingsEditAllowed}"/>
+                                    <TextBlock Text="Save + restart" Style="{StaticResource SettingHelpText}"/>
+                                </StackPanel>
+                            </Border>
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
                                     <TextBlock Text="Interlocks &amp; reset input" Style="{StaticResource SettingSectionTitle}"/>
@@ -184,8 +204,7 @@
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.TransferTimeoutSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Entry, destination HS2 and Rear Ready OFF waits."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
@@ -209,8 +228,6 @@
                                             Text="{Binding Settings.Conveyor.RearSmemaOffDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
-                                    <TextBlock Text="Excludes station work and SMEMA waiting."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -238,8 +255,7 @@
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.NgConveyor.EjectRunSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Timed from S1 detection."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -308,8 +324,6 @@
                                             Text="{Binding Settings.BoltFastening.DryRunMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
-                                    <TextBlock Text="Used with the feeder disabled or Repeat."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -344,12 +358,11 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Tube detection timeout (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="Tube ON / OFF timeout (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.ShootingDetectionTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Applies separately to tube sensor ON and OFF."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
@@ -370,6 +383,7 @@
             </TabItem>
             <TabItem Header="Motion">
                 <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="1200"/></Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -448,7 +462,7 @@
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
                                             </Grid>
                                             <TextBlock
-                                                Text="Blank Z acceleration / deceleration uses X / Y."
+                                                Text="Z accel / decel: blank = X / Y"
                                                 Style="{StaticResource SettingHelpText}"/>
                                         </StackPanel>
                                     </Border>
@@ -584,8 +598,6 @@
                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled"/>
                                 </StackPanel>
                             </Border>
-                            <TextBlock Text="Motion changes apply to the next move."
-                                Style="{StaticResource SettingHelpText}"/>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -920,9 +932,6 @@
                                                 VerticalAlignment="Center" Grid.Column="1"/>
                                         </Grid>
                                     </Border>
-                                    <TextBlock
-                                        Text="ADC logs: Communication subfolder."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -1032,36 +1041,14 @@
             </TabItem>
         </TabControl>
         <Border Grid.Row="2" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,12,0,0" Padding="0,10,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Grid Margin="0,0,16,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="Hardware and log changes require Save + restart."
-                        Style="{StaticResource SettingHelpText}"/>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <TextBlock Text="{Binding DatabaseMessage}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
-                            Margin="0,4,0,0"/>
-                    </ScrollViewer>
-                </Grid>
-                <Button Command="{Binding SaveSettingsCommand}" MinWidth="140" Grid.Column="1" VerticalAlignment="Center">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                            <Setter Property="Content" Value="Save Settings"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SaveSettingsCommand.IsRunning}" Value="True">
-                                    <Setter Property="Content" Value="Saving..."/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </Grid>
+            <StackPanel>
+                <TextBlock Text="Hardware / logs: Save + restart"
+                    Style="{StaticResource SettingHelpText}" Margin="0"/>
+                <ScrollViewer MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock Text="{Binding DatabaseMessage}" Foreground="{StaticResource TextSecondaryBrush}"
+                        Style="{StaticResource StatusMessageStyle}"/>
+                </ScrollViewer>
+            </StackPanel>
         </Border>
     </Grid>
 </UserControl>

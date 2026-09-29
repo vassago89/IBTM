@@ -66,12 +66,8 @@
                 Command="{Binding StopCommand}"
                 Style="{StaticResource DangerButtonStyle}" HorizontalAlignment="Right" MinWidth="100"/>
         </Grid>
-        <StackPanel Grid.Row="1" Margin="0,6,0,16">
-            <TextBlock Text="{Binding ControlStatus}" Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
-            <TextBlock
-                Text="Blue: ON · Red: limit / alarm · —: unknown"
-                Style="{StaticResource PageSubtitleStyle}" Margin="0,4,0,0" TextWrapping="Wrap"/>
-        </StackPanel>
+        <TextBlock Grid.Row="1" Margin="0,6,0,16" Text="{Binding ControlStatus}"
+            Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
         <Grid Grid.Row="2" Margin="0,0,0,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -182,7 +178,7 @@
                         <TextBlock Grid.Column="9"
                             Tag="{Binding Diagnostics.Snapshot.Faulted}"
                             Text="{Binding Diagnostics.Snapshot.Faulted, Converter={StaticResource SignalTextConverter}}"
-                            Style="{StaticResource MotionFaultBit}" ToolTip="Axis alarm or emergency."/>
+                            Style="{StaticResource MotionFaultBit}" ToolTip="Alarm / E-stop"/>
                         <StackPanel Grid.Column="10" Orientation="Horizontal" HorizontalAlignment="Right">
                             <Button Width="96" Padding="8,7" Margin="8,0,6,0" Command="{Binding ToggleServoCommand}">
                                 <Button.Style>

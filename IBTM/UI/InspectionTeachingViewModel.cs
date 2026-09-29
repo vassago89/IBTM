@@ -188,7 +188,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 : null) ?? Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
             var unlinked = Draft.CarrierImages.Count(tile => !Points.Any(point => point.Matches(tile)));
             var failed = images.Count(image => image.Error is not null);
-            Message = failed > 0 ? $"{failed} reference image(s) unavailable. Select a point for details."
+            Message = failed > 0 ? $"{failed} reference image(s) unavailable."
                 : unlinked > 0 ? $"{unlinked} unlinked image(s) excluded." : null;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -290,19 +290,21 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private async Task RefreshHistoryAsync(CancellationToken token)
     {
-        LoadOlderCommand.Cancel();
-        LoadRecordCommand.Cancel();
-        Records.Clear();
-        SelectedRecord = null;
-        LoadedRecord = null;
-        HistoryImages = [];
-        SelectedHistoryImage = null;
+        ClearHistory();
         await LoadOlderAsync(token);
     }
 
     partial void OnHistoryDirectoryChanged(string value)
     {
         RefreshHistoryCommand.Cancel();
+        ClearHistory();
+        HasOlder = true;
+        Error = null;
+        Message = null;
+    }
+
+    private void ClearHistory()
+    {
         LoadOlderCommand.Cancel();
         LoadRecordCommand.Cancel();
         Records.Clear();
@@ -310,9 +312,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
         LoadedRecord = null;
         HistoryImages = [];
         SelectedHistoryImage = null;
-        HasOlder = true;
-        Error = null;
-        Message = null;
     }
 
     private async Task LoadOlderAsync(CancellationToken token)
@@ -355,7 +354,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             LoadedRecord = record;
             HistoryImages = images;
             SelectedHistoryImage = images.FirstOrDefault();
-            Message = images.Length == 0 ? "No inspection images saved for this PCB." : null;
+            Message = images.Length == 0 ? "No saved images for this PCB." : null;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)

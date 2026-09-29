@@ -9,7 +9,7 @@ public sealed class EnumDescriptionConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is Enum enumValue ? enumValue.GetDescription() : value;
+        return value is Enum enumValue ? UiText.Get(enumValue) : value;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

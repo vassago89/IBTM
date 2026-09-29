@@ -6,7 +6,7 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:BoltStationTestViewModel, IsDesignTimeCreatable=False}"
-    Title="Bolt Station · Selected Bolt Test" Width="1080" Height="760"
+    Title="Bolt Station · Selected Bolt Test" Width="1080" Height="800"
     MinWidth="940" MinHeight="600" WindowStartupLocation="CenterOwner"
     Background="{StaticResource AppBgBrush}">
     <Window.Style>
@@ -37,7 +37,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="64"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <DockPanel>
@@ -47,19 +47,18 @@
             <TextBlock Text="Bolt Station" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
         <StackPanel Grid.Row="1" Margin="0,8,0,18">
-            <TextBlock Text="Shooting → Pickup" Style="{StaticResource PageSubtitleStyle}"/>
-            <TextBlock Text="Axes and fastening heads will move. Keep the work area clear."
-                Foreground="{StaticResource AccentAmberBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
+            <TextBlock Text="Axes and heads move. Keep clear."
+                Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
         </StackPanel>
         <Border Grid.Row="2" Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}"
             BorderThickness="1" CornerRadius="4" Padding="14" Margin="0,0,0,16">
             <StackPanel>
-                <TextBlock Text="FEEDER SETTINGS" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBlock Text="BOLT SUPPLY" Style="{StaticResource SectionHeaderStyle}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                     <TextBlock Margin="0,0,30,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource TestCell}">
-                                <Setter Property="Text" Value="Shooting · feeder OFF / dry run"/>
+                                <Setter Property="Text" Value="Shooting · supply bypassed / dry run"/>
                                 <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Units.ShootingBoltFeeder}" Value="True">
@@ -73,7 +72,7 @@
                     <TextBlock>
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource TestCell}">
-                                <Setter Property="Text" Value="Pickup · feeder OFF / dry run"/>
+                                <Setter Property="Text" Value="Pickup · supply bypassed / dry run"/>
                                 <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Units.PickupBoltFeeder}" Value="True">
@@ -136,7 +135,7 @@
                         <GroupStyle>
                             <GroupStyle.HeaderTemplate>
                                 <DataTemplate>
-                                    <Border Background="{StaticResource EquipBgBrush}" Padding="12,8" Margin="0,12,0,0">
+                                    <Border Background="{StaticResource EquipBgBrush}" Padding="12,6" Margin="0,6,0,0">
                                         <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
                                             Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold"/>
                                     </Border>
@@ -146,7 +145,7 @@
                     </ItemsControl.GroupStyle>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type ui:BoltTestRow}">
-                            <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,10">
+                            <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,4">
                                 <StackPanel>
                                     <Grid MinHeight="34">
                                         <Grid.ColumnDefinitions>
@@ -155,8 +154,9 @@
                                             <ColumnDefinition Width="90"/><ColumnDefinition Width="90"/><ColumnDefinition Width="100"/>
                                         </Grid.ColumnDefinitions>
                                         <CheckBox IsChecked="{Binding IsSelected}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                            ToolTip="{Binding Label}"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Label}" Style="{StaticResource TestCell}" FontWeight="SemiBold"/>
+                                            AutomationProperties.Name="{Binding Label}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Label}" Style="{StaticResource TestCell}" FontWeight="SemiBold"
+                                            TextTrimming="CharacterEllipsis" ToolTip="{Binding Label}"/>
                                         <TextBlock Grid.Column="2" Text="{Binding Bolt.Head, Converter={StaticResource EnumDescriptionConverter}}" Style="{StaticResource TestCell}"/>
                                         <TextBlock Grid.Column="3" Text="{Binding Status}">
                                             <TextBlock.Style>
@@ -174,7 +174,8 @@
                                         <TextBlock Grid.Column="5" Text="{Binding Result.Controller.TargetTorque, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}" Style="{StaticResource TestCell}"/>
                                         <TextBlock Grid.Column="6" Text="{Binding Result.Controller.FasteningTimeMilliseconds, TargetNullValue=—, FallbackValue=—}" Style="{StaticResource TestCell}"/>
                                     </Grid>
-                                    <TextBlock Text="{Binding Result.Error}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap" Margin="52,4,8,0"/>
+                                    <TextBlock Text="{Binding Result.Error}" Foreground="{StaticResource AccentRedBrush}"
+                                        Style="{StaticResource StatusMessageStyle}" Margin="52,4,8,0"/>
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -182,11 +183,13 @@
                 </ItemsControl>
             </ScrollViewer>
         </Grid>
-        <ScrollViewer Grid.Row="5" Margin="0,12" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="5" Margin="0,8,0,12" MaxHeight="80" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <TextBlock Text="{Binding Message}" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold"/>
-                <TextBlock Text="{Binding Readiness}" Style="{StaticResource PageSubtitleStyle}" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                <TextBlock Text="{Binding Error}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                <TextBlock Text="{Binding Message}" Style="{StaticResource StatusMessageStyle}"
+                    Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding Readiness}" Style="{StaticResource StatusMessageStyle}"
+                    Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Text="{Binding Error}" Style="{StaticResource StatusMessageStyle}" Foreground="{StaticResource AccentRedBrush}"/>
             </StackPanel>
         </ScrollViewer>
         <DockPanel Grid.Row="6">
@@ -194,7 +197,7 @@
                 <Button Content="Fasten Selected Bolts" Command="{Binding RunCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="170" Margin="0,0,12,0"/>
                 <Button Content="STOP" Command="{Binding StopCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="120"/>
             </StackPanel>
-            <TextBlock Text="Carrier remains at S2 after testing."
+            <TextBlock Text="Carrier stays at S2"
                 Style="{StaticResource PageSubtitleStyle}" VerticalAlignment="Center"/>
         </DockPanel>
     </Grid>

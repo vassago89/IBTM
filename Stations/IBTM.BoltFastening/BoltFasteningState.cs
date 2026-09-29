@@ -7,13 +7,13 @@ public enum BoltFasteningState
     [Description("Waiting")]
     Waiting,
 
-    [Description("Preparing First Shooting Bolt / Safe Z")]
+    [Description("Preparing first shooting point")]
     MovingToStandby,
 
-    [Description("Feeding and Fastening Shooting Bolt")]
+    [Description("Shooting: feed / fasten")]
     FasteningShooting,
 
-    [Description("Picking and Fastening Pickup Bolt")]
+    [Description("Pickup: pick / fasten")]
     FasteningPickup,
 
     [Description("Completing Carrier")]

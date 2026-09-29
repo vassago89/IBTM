@@ -58,12 +58,11 @@ public partial class PcbResultsViewModel : ObservableObject
         var selected = SelectedBolt;
         var selectedImage = SelectedImage;
         BoltResults = newValue is null ? [] : newValue.ShootingBoltResults
-            .Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Shooting, pair.Value,
-                newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null,
-                newValue.BoltNames?.GetValueOrDefault(pair.Key)))
-            .Concat(newValue.PickupBoltResults.Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Pickup, pair.Value,
-                newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null,
-                newValue.BoltNames?.GetValueOrDefault(pair.Key))))
+            .Select(pair => (pair.Key, pair.Value, Head: FasteningHead.Shooting))
+            .Concat(newValue.PickupBoltResults.Select(pair => (pair.Key, pair.Value, Head: FasteningHead.Pickup)))
+            .Select(row => new PcbBoltResultView(row.Key, newValue.GetBoltOrdinal(row.Key), row.Head, row.Value,
+                newValue.BoltPresenceResults.TryGetValue(row.Key, out var present) ? present : null,
+                newValue.BoltNames?.GetValueOrDefault(row.Key)))
             .OrderBy(row => row.Ordinal).ThenBy(row => row.Head).ToArray();
         SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
             ?? BoltResults.FirstOrDefault();

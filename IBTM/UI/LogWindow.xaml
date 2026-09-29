@@ -7,8 +7,8 @@
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:LogViewModel, IsDesignTimeCreatable=False}"
     Title="Logs"
-    Width="1100"
-    Height="720"
+    Width="1400"
+    Height="860"
     MinWidth="680"
     MinHeight="420"
     WindowStartupLocation="CenterOwner"
@@ -23,7 +23,7 @@
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <CheckBox Content="Pause display" IsChecked="{Binding IsPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                <Button Content="Copy" Command="{Binding CopyCommand}" ToolTip="Copy selection, or all visible lines."
+                <Button Content="Copy" Command="{Binding CopyCommand}"
                     Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Margin="0,0,8,0"/>
                 <Button Content="Copy all" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Command="{Binding CopyAllCommand}" Margin="0,0,8,0"/>
                 <Button Content="Clear Display" Command="{Binding ClearCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6"/>
@@ -31,12 +31,12 @@
             <TextBlock Text="Logs" Style="{StaticResource TitleStyle}" VerticalAlignment="Center"/>
         </DockPanel>
         <TextBlock Grid.Row="1" Margin="0,8,0,16" Style="{StaticResource PageSubtitleStyle}"
-            Text="Newest first · text selection pauses the display."
+            Text="Text selection pauses updates"
             TextWrapping="Wrap"/>
         <ui:LogTextBox x:Name="LogText" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2"
             Text="{Binding Text, Mode=OneWay}"
             IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
-            SelectionText="{Binding SelectedText, Mode=TwoWay}" IsPaused="{Binding IsPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap" Padding="8"
+            SelectionText="{Binding SelectedText, Mode=TwoWay}" IsPaused="{Binding IsPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="13" TextWrapping="NoWrap" Padding="8"
             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
         <StackPanel Grid.Row="3" Margin="0,12,0,0">
             <TextBlock Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap">
@@ -58,14 +58,16 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-            <TextBlock Text="Machine log" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
-            <TextBox Text="{Binding Log.FilePath, Mode=OneWay, TargetNullValue='File logging disabled'}"
-                IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}"
-                Padding="0,4,0,0"/>
-            <TextBlock Text="ADC communication log" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
-            <TextBox Text="{Binding Log.CommunicationFilePath, Mode=OneWay, TargetNullValue='Communication logging disabled'}"
-                IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}"
-                Padding="0,4,0,0"/>
+            <DockPanel Margin="0,6,0,0">
+                <TextBlock Text="Machine log" Width="164" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding Log.FilePath, Mode=OneWay, TargetNullValue='File logging disabled'}"
+                    IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}" Padding="0,4"/>
+            </DockPanel>
+            <DockPanel Margin="0,4,0,0">
+                <TextBlock Text="ADC communication log" Width="164" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding Log.CommunicationFilePath, Mode=OneWay, TargetNullValue='Communication logging disabled'}"
+                    IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}" Padding="0,4"/>
+            </DockPanel>
         </StackPanel>
     </Grid>
 </Window>
