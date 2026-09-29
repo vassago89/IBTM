@@ -1084,14 +1084,21 @@ public sealed class IoStartupTests
         var io = services.GetRequiredService<StartupIo>();
         var physicalIo = services.GetRequiredService<VirtualIoService>();
         var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
+        services.GetRequiredService<IBTM.Conveyor.ConveyorSettings>().CarrierStopDelaySeconds = 0;
         io.Initialize();
         physicalIo.SetInput(InputIo.AutoMode, false);
         physicalIo.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
         var failure = new IOException("SMEMA output update failed during receipt.");
         io.BeforeOutputWrite = (output, value) =>
         {
-            if (output == OutputIo.MainConveyorAvailableToRear
-                && io.GetOutput(OutputIo.MainConveyorRun))
+            if (output == OutputIo.MainConveyorRun && value)
+                physicalIo.SetInputs(
+                    (InputIo.PcbPlacementHeatSink1Present, true),
+                    (InputIo.PcbPlacementHeatSink2Present, true));
+            if (output == OutputIo.MainConveyorReadyToFront2 && !value
+                && conveyor.IsRunning
+                && io.GetInput(InputIo.PcbPlacementBackupPlateUp)
+                && io.GetInput(InputIo.PcbPlacementStopperDown))
             {
                 io.BeforeOutputWrite = null;
                 throw failure;

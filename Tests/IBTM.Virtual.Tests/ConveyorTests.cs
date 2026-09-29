@@ -2360,7 +2360,37 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task SmemaTracksFeedbackDuringReceiveAndRetainsEntryPulse()
+    public async Task FrontReceiptWaitingYieldsToRearDischargeBeforeAnyCarrierEnters()
+    {
+        var (io, conveyor) = await PrepareRearDischargeAsync(new ConveyorSettings
+        {
+            RearSmemaOffDelaySeconds = 0,
+        });
+        io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, true);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            io.SetInput(InputIo.MainConveyorReadyFromRear, true);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            Assert.Equal(MainConveyorState.DischargingInspectionCarrier, conveyor.Step);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+            io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, false);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
+    public async Task FrontReadyStaysOnUntilS1SeatedWithoutReselectingTheActiveTransfer()
     {
         var (io, conveyor) = await PrepareRearDischargeAsync(new ConveyorSettings
         {
@@ -2373,31 +2403,41 @@ public sealed class ConveyorTests
         try
         {
             await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, true);
+            var readyOff = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var rearDropped = false;
             void ObserveRear(OutputIo output, bool value)
             {
                 if (output == OutputIo.MainConveyorAvailableToRear && !value)
                     rearDropped = true;
+                if (output == OutputIo.MainConveyorReadyToFront2 && !value)
+                    readyOff.TrySetResult(!io.GetOutput(OutputIo.MainConveyorRun)
+                        && io.GetInput(InputIo.PcbPlacementBackupPlateUp)
+                        && io.GetInput(InputIo.PcbPlacementStopperDown));
             }
             io.OutputChanged += ObserveRear;
-            // A pulse admitted while idle must survive before the receive sequence subscribes.
+            // The receipt arms entry detection before READY and keeps running after the pulse.
             io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
             io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
-            await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, false);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
             io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
             await Task.Delay(30);
             Assert.False(rearDropped, "Receiving at S1 must not withdraw the available carrier at S3.");
-            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            Assert.True(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
             Assert.False(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
-            io.OutputChanged -= ObserveRear;
 
-            // The receive sequence is still waiting for HS2; SMEMA must follow S3 now.
+            // S3 changes do not reselect an in-progress S1 receipt.
             SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-            await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, false);
+            await Task.Delay(30);
+            Assert.Equal(MainConveyorState.ReceivingFrontCarrier, conveyor.Step);
             Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.True(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+            Assert.True(await readyOff.Task.WaitAsync(TimeSpan.FromSeconds(2)),
+                "READY must remain ON until the belt stops and S1 seating finishes.");
+            io.OutputChanged -= ObserveRear;
             await ((IIoService)io).WaitForInputAsync(InputIo.PcbPlacementBackupPlateUp, true);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, false);
         }
         finally
         {
