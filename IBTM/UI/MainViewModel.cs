@@ -69,11 +69,11 @@ public partial class MainViewModel : ObservableObject
         DiagnosticWindowManager windows,
         ILogger<MainViewModel> log)
     {
-        OpenInputsCommand = new RelayCommand(OpenInputs, () => IsOpenDiagnosticAllowed);
-        OpenOutputsCommand = new RelayCommand(OpenOutputs, () => IsOpenOutputsAllowed);
-        OpenMotionCommand = new RelayCommand(OpenMotion, () => IsOpenDiagnosticAllowed);
-        OpenAdcProtocolCommand = new RelayCommand(OpenAdcProtocol, () => IsOpenAdcProtocolAllowed);
-        OpenLogsCommand = new RelayCommand(OpenLogs, () => IsOpenDiagnosticAllowed);
+        OpenInputsCommand = new RelayCommand(windows.OpenInputs, () => IsOpenDiagnosticAllowed);
+        OpenOutputsCommand = new RelayCommand(windows.OpenOutputs, () => IsOpenOutputsAllowed);
+        OpenMotionCommand = new RelayCommand(windows.OpenMotion, () => IsOpenDiagnosticAllowed);
+        OpenAdcProtocolCommand = new RelayCommand(windows.OpenAdcProtocol, () => IsOpenAdcProtocolAllowed);
+        OpenLogsCommand = new RelayCommand(windows.OpenLogs, () => IsOpenDiagnosticAllowed);
         ResetCommand = new AsyncRelayCommand(
             ResetAsync, () => IsResetAllowed, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         NavigateCommand = new AsyncRelayCommand<AppPage>(NavigateAsync, IsNavigateAllowed);
@@ -165,38 +165,13 @@ public partial class MainViewModel : ObservableObject
 
     public IRelayCommand OpenInputsCommand { get; }
 
-    private void OpenInputs()
-    {
-        _windows.OpenInputs();
-    }
-
     public IRelayCommand OpenOutputsCommand { get; }
-
-    private void OpenOutputs()
-    {
-        _windows.OpenOutputs();
-    }
 
     public IRelayCommand OpenMotionCommand { get; }
 
-    private void OpenMotion()
-    {
-        _windows.OpenMotion();
-    }
-
     public IRelayCommand OpenAdcProtocolCommand { get; }
 
-    private void OpenAdcProtocol()
-    {
-        _windows.OpenAdcProtocol();
-    }
-
     public IRelayCommand OpenLogsCommand { get; }
-
-    private void OpenLogs()
-    {
-        _windows.OpenLogs();
-    }
 
     private bool IsOpenDiagnosticAllowed => !IsClosing && !_shuttingDown;
 

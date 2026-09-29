@@ -22,7 +22,7 @@ public partial class OperationView : UserControl
             return;
         try
         {
-            viewModel.SelectedPcb = record;
+            viewModel.PcbDetails.Record = record;
             if (_pcbDetails is not null)
                 return;
             _pcbDetails = new(viewModel.PcbDetails);
@@ -46,7 +46,7 @@ public partial class OperationView : UserControl
             }
             finally
             {
-                viewModel.ClosePcbDetailsCommand.Execute(null);
+                viewModel.PcbDetails.Record = null;
             }
             throw;
         }
@@ -58,7 +58,7 @@ public partial class OperationView : UserControl
             window.Closed -= OnPcbDetailsClosed;
         _pcbDetails = null;
         if (DataContext is OperationViewModel viewModel)
-            viewModel.ClosePcbDetailsCommand.Execute(null);
+            viewModel.PcbDetails.Record = null;
     }
 
     private void OnViewUnloaded(object sender, RoutedEventArgs e)

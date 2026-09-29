@@ -319,7 +319,7 @@
         <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="12,8" Height="108"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
             BorderThickness="1" CornerRadius="3">
-            <ListBox ItemsSource="{Binding PcbRecords}" SelectedItem="{Binding SelectedPcb, Mode=TwoWay}"
+            <ListBox ItemsSource="{Binding PcbRecords}" SelectedItem="{Binding PcbDetails.Record, Mode=TwoWay}"
                 SelectionChanged="OnPcbSelectionChanged"
                 ItemTemplate="{StaticResource PcbHistoryCard}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
                 Background="{StaticResource ControlBgBrush}" BorderThickness="0"

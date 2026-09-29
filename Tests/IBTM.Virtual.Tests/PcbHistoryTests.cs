@@ -488,7 +488,7 @@ public sealed class PcbHistoryTests
         await history.FlushAsync();
         Assert.Equal(new long[] { 3, 2, 1 }, view.PcbRecords.Select(record => record.Number));
         Assert.Same(first, fastening.GetAssembly(HeatSinkSlot.HeatSink1));
-        view.SelectedPcb = view.PcbRecords.Single(record => record.Number == first.PcbNumber);
+        view.PcbDetails.Record = view.PcbRecords.Single(record => record.Number == first.PcbNumber);
         recipe.Pcb.BoltPoints.Move(0, 1);
         first.RecordBolt(FasteningHead.Shooting, VirtualTestSupport.BoltId(1), new(false, 0.5, Error: "NG torque"));
         first.RecordBolt(FasteningHead.Pickup, VirtualTestSupport.BoltId(2), new(true, 1.1));
@@ -503,11 +503,11 @@ public sealed class PcbHistoryTests
             BrightRatio: 0.1, MinimumBrightRatio: 0.8));
         first.CompleteInspection();
         await history.FlushAsync();
-        Assert.Equal(first.PcbNumber, view.SelectedPcb!.Number);
-        Assert.Equal(AssemblyResult.Ng, view.SelectedPcb.PcbBarcodeResult);
-        Assert.Equal("NG torque", view.SelectedPcb.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
-        Assert.Equal(1.1, view.SelectedPcb.PickupBoltResults[VirtualTestSupport.BoltId(2)].Torque);
-        Assert.False(view.SelectedPcb.BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
+        Assert.Equal(first.PcbNumber, view.PcbDetails.Record!.Number);
+        Assert.Equal(AssemblyResult.Ng, view.PcbDetails.Record.PcbBarcodeResult);
+        Assert.Equal("NG torque", view.PcbDetails.Record.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
+        Assert.Equal(1.1, view.PcbDetails.Record.PickupBoltResults[VirtualTestSupport.BoltId(2)].Torque);
+        Assert.False(view.PcbDetails.Record.BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
         await view.LoadOlderPcbsCommand.ExecuteAsync(null);
         Assert.Equal(3, view.PcbRecords.Count);
         Assert.Null(view.PcbHistoryError);
@@ -515,7 +515,7 @@ public sealed class PcbHistoryTests
         var image = Assert.Single(view.PcbDetails.Images);
         Assert.Equal(VirtualTestSupport.BoltId(1), image.Record.BoltId);
         Assert.Equal(1, image.Ordinal);
-        Assert.Equal(new[] { VirtualTestSupport.BoltId(1), VirtualTestSupport.BoltId(2) }, view.SelectedPcb!.BoltIds);
+        Assert.Equal(new[] { VirtualTestSupport.BoltId(1), VirtualTestSupport.BoltId(2) }, view.PcbDetails.Record!.BoltIds);
         Assert.Equal(2, recipe.Pcb.GetBoltOrdinal(VirtualTestSupport.BoltId(1)));
         Assert.Equal(0.1, image.Record.BrightRatio);
         Assert.NotNull(image.Image);
@@ -539,8 +539,8 @@ public sealed class PcbHistoryTests
         await history.FlushAsync();
         Assert.Equal(4, fourth.PcbNumber);
         Assert.Equal(4, Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).Number);
-        view.ClosePcbDetailsCommand.Execute(null);
-        Assert.Null(view.SelectedPcb);
+        view.PcbDetails.Record = null;
+        Assert.Null(view.PcbDetails.Record);
         await view.ShutdownAsync();
 
         settings.PcbHistory.Directory = originalFolder;
@@ -550,8 +550,8 @@ public sealed class PcbHistoryTests
         await reopenedView.LoadOlderPcbsCommand.ExecuteAsync(null);
         Assert.Equal(new long[] { 3, 2, 1 }, reopenedView.PcbRecords.Select(record => record.Number));
         Assert.Empty(restarted.GetRequiredService<PcbPlacer>().Station.Assemblies);
-        reopenedView.SelectedPcb = reopenedView.PcbRecords[^1];
-        Assert.Equal("NG torque", reopenedView.SelectedPcb.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
+        reopenedView.PcbDetails.Record = reopenedView.PcbRecords[^1];
+        Assert.Equal("NG torque", reopenedView.PcbDetails.Record.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
         await reopenedView.PcbDetails.LoadImagesCommand.ExecuteAsync(null);
         Assert.Single(reopenedView.PcbDetails.Images);
         Assert.Empty(store.LoadPcbImages(reopenedView.PcbRecords[1]));

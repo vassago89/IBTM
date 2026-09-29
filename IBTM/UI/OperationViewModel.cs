@@ -66,7 +66,6 @@ public partial class OperationViewModel : ObservableObject
         HomeCommand = new AsyncRelayCommand(HomeAsync);
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync, () => HasOlderPcbs);
         RetryPcbSaveCommand = new AsyncRelayCommand(RetryPcbSaveAsync);
-        ClosePcbDetailsCommand = new RelayCommand(ClosePcbDetails);
         PcbRecords = new();
         _pcbHistoryLimit = PcbHistoryPageSize;
         _store = store;
@@ -350,7 +349,7 @@ public partial class OperationViewModel : ObservableObject
         {
             _pcbHistoryDirectory = _historySettings.Directory;
             PcbRecords.Clear();
-            SelectedPcb = null;
+            PcbDetails.Record = null;
             PcbHistoryError = null;
             HasOlderPcbs = true;
             _pcbHistoryLimit = PcbHistoryPageSize;
@@ -543,13 +542,12 @@ public partial class OperationViewModel : ObservableObject
         if (sender == Signals.Outputs[OutputIo.MainConveyorRun])
         {
             OnMainConveyorChanged();
-            OnInspectionChanged();
         }
         else
         {
             OnNgConveyorChanged();
-            OnInspectionChanged();
         }
+        OnInspectionChanged();
     }
 
     private void OnRecipeChanged()
@@ -1002,17 +1000,7 @@ public partial class OperationViewModel : ObservableObject
 
     public IAsyncRelayCommand RetryPcbSaveCommand { get; }
 
-    public IRelayCommand ClosePcbDetailsCommand { get; }
-
     public PcbResultsViewModel PcbDetails { get; }
-
-    [ObservableProperty]
-    public partial PcbRecord? SelectedPcb { get; set; }
-
-    partial void OnSelectedPcbChanged(PcbRecord? value)
-    {
-        PcbDetails.Record = value;
-    }
 
     private void OnPcbImageSaved(long number)
     {
@@ -1022,7 +1010,7 @@ public partial class OperationViewModel : ObservableObject
             dispatcher.BeginInvoke(() => OnPcbImageSaved(number));
             return;
         }
-        if (SelectedPcb?.Number == number)
+        if (PcbDetails.Record?.Number == number)
             PcbDetails.RefreshImages();
     }
 
@@ -1092,7 +1080,7 @@ public partial class OperationViewModel : ObservableObject
         var index = 0;
         while (index < PcbRecords.Count && PcbRecords[index].Number > record.Number)
             index++;
-        var selected = SelectedPcb?.Number == record.Number;
+        var selected = PcbDetails.Record?.Number == record.Number;
         if (index < PcbRecords.Count && PcbRecords[index].Number == record.Number)
         {
             if (PcbRecords[index].UpdatedAt > record.UpdatedAt)
@@ -1104,7 +1092,7 @@ public partial class OperationViewModel : ObservableObject
             PcbRecords.Insert(index, record);
         }
         if (selected)
-            SelectedPcb = record;
+            PcbDetails.Record = record;
         if (PcbRecords.Count > _pcbHistoryLimit)
         {
             PcbRecords.RemoveAt(PcbRecords.Count - 1);
@@ -1112,8 +1100,4 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    private void ClosePcbDetails()
-    {
-        SelectedPcb = null;
-    }
 }

@@ -547,7 +547,7 @@ public sealed class UiBindingTests
             var exception = Assert.Throws<TargetInvocationException>(() =>
                 selectionHandler.Invoke(operationView, [operationView, selection]));
             Assert.Equal("Simulated PCB details layout failure.", exception.GetBaseException().Message);
-            Assert.Null(operation.SelectedPcb);
+            Assert.Null(operation.PcbDetails.Record);
             Assert.Empty(Application.Current.Windows.OfType<PcbResultsWindow>());
 
             resources[typeof(PcbResultsWindow)] = normalStyle;
@@ -556,9 +556,9 @@ public sealed class UiBindingTests
                 selectionHandler.Invoke(operationView, [operationView, selection]);
                 var detailsWindow = Assert.Single(Application.Current.Windows.OfType<PcbResultsWindow>());
                 Assert.True(detailsWindow.IsVisible);
-                Assert.Same(record, operation.SelectedPcb);
+                Assert.Same(record, operation.PcbDetails.Record);
                 detailsWindow.Close();
-                Assert.Null(operation.SelectedPcb);
+                Assert.Null(operation.PcbDetails.Record);
             }
         }
         finally

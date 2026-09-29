@@ -142,13 +142,12 @@ public sealed class MachineStore
             // Re-read under the write transaction so concurrent loads keep the same repaired IDs.
             using var transaction = db.Database.BeginTransaction();
             var row = db.Recipes.Single(row => row.Name == name);
-            recipe = JsonSerializer.Deserialize<Recipe>(row.Value)!;
             var document = JsonNode.Parse(row.Value)!;
             var bolts = document[nameof(Recipe.Pcb)]!["TaughtBolts"]!.AsArray();
-            for (var index = 0; index < recipe.Pcb.BoltPoints.Count; index++)
+            foreach (var bolt in bolts)
             {
-                if (recipe.Pcb.BoltPoints[index].Id == Guid.Empty)
-                    bolts[index]![nameof(BoltPoint.Id)] = JsonValue.Create(Guid.NewGuid());
+                if ((bolt![nameof(BoltPoint.Id)]?.GetValue<Guid>() ?? Guid.Empty) == Guid.Empty)
+                    bolt[nameof(BoltPoint.Id)] = JsonValue.Create(Guid.NewGuid());
             }
             recipe = document.Deserialize<Recipe>()!;
             recipe.ValidateBoltIds();
