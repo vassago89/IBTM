@@ -309,8 +309,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         try
         {
             var records = await Task.Run(() => _store.LoadPcbs(directory, before), token);
-            token.ThrowIfCancellationRequested();
-            if (directory != HistoryDirectory)
+            if (token.IsCancellationRequested)
                 return;
             foreach (var record in records)
                 Records.Add(record);
@@ -319,7 +318,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (directory == HistoryDirectory)
+            if (!token.IsCancellationRequested)
                 Error = exception.Message;
             _log.LogError(exception, "Inspection history load failed for {Directory}.", directory);
         }
@@ -329,7 +328,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         if (SelectedRecord is not { } record)
             return;
-        var directory = HistoryDirectory;
         Error = null;
         Message = null;
         LoadedRecord = null;
@@ -338,8 +336,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         try
         {
             var images = await _images.LoadRecordAsync(record, token);
-            token.ThrowIfCancellationRequested();
-            if (directory != HistoryDirectory || SelectedRecord != record)
+            if (token.IsCancellationRequested || SelectedRecord != record)
                 return;
             LoadedRecord = record;
             HistoryImages = images;
@@ -349,7 +346,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (directory == HistoryDirectory && SelectedRecord == record)
+            if (!token.IsCancellationRequested && SelectedRecord == record)
                 Error = exception.Message;
             _log.LogError(exception, "Inspection image history failed for PCB {Number}.", record.Number);
         }

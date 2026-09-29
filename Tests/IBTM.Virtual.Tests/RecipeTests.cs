@@ -383,27 +383,27 @@ public sealed class RecipeTests
     {
         var upper = new AxisPosition { X = 100, Y = 200 };
         var lower = new AxisPosition { X = 200, Y = 400 };
+        var reference = new CarrierReferenceSettings { UpperLeftLocatingPin = upper, LowerRightLocatingPin = lower };
+        var settings = new BoltFasteningSettings();
+        settings.ShootingHead.UpperLeftLocatingPin = upper;
+        settings.ShootingHead.LowerRightLocatingPin = lower;
+        var bolt = new BoltPoint { X = 110, Y = 220 };
 
-        Assert.False(CarrierCoordinates.IsDefined(null, lower));
-        Assert.False(CarrierCoordinates.IsDefined(upper, null));
-        Assert.False(CarrierCoordinates.IsDefined(upper, new() { X = 100, Y = 200 }));
-        Assert.Throws<InvalidOperationException>(() =>
-            CarrierCoordinates.ToMachine(new(), upper, null!, upper, lower));
-        Assert.Throws<InvalidOperationException>(() =>
-            CarrierCoordinates.ToMachine(new(), upper, lower, null!, lower));
-        Assert.Throws<InvalidOperationException>(() =>
-            CarrierCoordinates.ToMachine(new(), upper, upper, upper, lower));
-        Assert.Throws<InvalidOperationException>(() =>
-            CarrierCoordinates.ToMachine(new(), upper, lower, lower, lower));
+        // Missing, coincident and nonfinite pins must not create a taught fastening position.
+        foreach (var invalid in new AxisPosition?[] { null, upper, new() { X = double.NaN, Y = 400 } })
+        {
+            reference.LowerRightLocatingPin = invalid;
+            settings.InitializeBoltPosition(bolt, reference);
+            Assert.Null(bolt.FasteningX);
+            Assert.Null(bolt.FasteningY);
 
-        var invalidSource = new AxisPosition { X = double.NaN, Y = 200 };
-        var invalidTarget = new AxisPosition { X = 200, Y = double.PositiveInfinity };
-        Assert.False(CarrierCoordinates.IsDefined(invalidSource, lower));
-        Assert.False(CarrierCoordinates.IsDefined(upper, invalidTarget));
-        Assert.Throws<InvalidOperationException>(() =>
-            CarrierCoordinates.ToMachine(new(), invalidSource, lower, upper, lower));
-        Assert.Throws<InvalidOperationException>(() =>
-            CarrierCoordinates.ToMachine(new(), upper, lower, upper, invalidTarget));
+            reference.LowerRightLocatingPin = lower;
+            settings.ShootingHead.LowerRightLocatingPin = invalid;
+            settings.InitializeBoltPosition(bolt, reference);
+            Assert.Null(bolt.FasteningX);
+            Assert.Null(bolt.FasteningY);
+            settings.ShootingHead.LowerRightLocatingPin = lower;
+        }
     }
 
     [Fact]

@@ -307,8 +307,9 @@ public sealed class PcbHistoryTests
         }
 
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
-        await Assert.ThrowsAsync<IOException>(history.FlushAsync);
-        Assert.NotNull(history.SaveError);
+        var failure = await Assert.ThrowsAsync<IOException>(history.FlushAsync);
+        Assert.Equal(history.SaveError, failure.Message);
+        Assert.IsType<SqliteException>(failure.InnerException);
         Assert.Null(assembly.PcbNumber);
         assembly.RecordBolt(FasteningHead.Pickup, VirtualTest.BoltId(2), new(true, 8.1));
         Assert.Same(assembly, work.GetAssembly(HeatSinkSlot.HeatSink1));

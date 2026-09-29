@@ -353,6 +353,11 @@ public sealed class InspectionTeachingTests
         Assert.All(InspectionPreview.CreateFrame(preview.Overlay!).Pixels, pixel => Assert.Equal(0, pixel));
         preview.BrightnessThreshold = 80;
         Assert.All(InspectionPreview.CreateFrame(preview.Overlay!).Pixels, pixel => Assert.Equal(255, pixel));
+        preview.MinimumBrightPercent = 42.5;
+        Assert.Equal(0.425, bolt.MinimumBrightRatio);
+        Assert.Throws<ArgumentOutOfRangeException>(() => preview.MinimumBrightPercent = 101);
+        Assert.Throws<ArgumentOutOfRangeException>(() => preview.MinimumBrightPercent = double.NaN);
+        Assert.Equal(0.425, bolt.MinimumBrightRatio);
         Assert.Same(original, preview.Image);
         Assert.Equal(pixels, InspectionPreview.CreateFrame(preview.Image!).Pixels);
     }

@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media.Imaging;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
@@ -157,6 +158,70 @@ public sealed class DiagnosticToolsTests
                 context.Release();
                 await editor.ShutdownAsync();
             }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PcbSelectionDiscardsPreviousImageLoadAndItsError(bool corruptImage)
+    {
+        await using var services = CreateServices(new RecordingLight());
+        var store = services.GetRequiredService<MachineStore>();
+        var details = services.GetRequiredService<PcbDetailsViewModel>();
+        var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
+            null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
+        {
+            DatabaseFile = Path.Combine(store.DatabaseFile + ".results", "PCB-2026-09.db"),
+        };
+        using var stream = new MemoryStream();
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(
+            InspectionPreview.CreateBitmap(new ImageFrame(2, 2, 6, new byte[12])), null, null, null));
+        encoder.Save(stream);
+        store.SavePcb(record.DatabaseFile, record);
+        store.SavePcbImage(record.DatabaseFile, record.Number,
+            new(null, record.CreatedAt, new(0, 0, 1, 1), true, "PCB-1", null, null,
+                corruptImage ? [1, 2, 3] : stream.ToArray()));
+        var next = record with { Number = 2 };
+        store.SavePcb(next.DatabaseFile!, next);
+
+        var context = new PausedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            details.Record = record;
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+        var pending = details.LoadImagesCommand.ExecutionTask!;
+        try
+        {
+            Assert.True(await VirtualTest.WaitUntilAsync(() => context.HasPending, TimeSpan.FromSeconds(2)));
+            details.Record = next;
+            await details.LoadImagesCommand.ExecutionTask!;
+            context.Release();
+            await pending.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Same(next, details.Record);
+            Assert.Empty(details.Images);
+            Assert.Null(details.SelectedImage);
+            Assert.Null(details.ImageError);
+
+            details.Record = record;
+            await details.LoadImagesCommand.ExecutionTask!;
+            if (corruptImage)
+                Assert.NotNull(details.ImageError);
+            else
+                Assert.Equal("PCB-1", Assert.Single(details.Images).Record.Barcode);
+        }
+        finally
+        {
+            context.Release();
+            await pending.WaitAsync(TimeSpan.FromSeconds(2));
         }
     }
 

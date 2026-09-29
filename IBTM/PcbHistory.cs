@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
@@ -205,7 +206,7 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
             lock (_gate)
             {
                 if (_failure is not null)
-                    throw new IOException(SaveError, _failure);
+                    ExceptionDispatchInfo.Throw(_failure);
                 if (_pending.Count == 0)
                     return;
                 writer = _writer;

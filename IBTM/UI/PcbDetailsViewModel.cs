@@ -17,7 +17,6 @@ public partial class PcbDetailsViewModel : ObservableObject
 {
     private readonly InspectionImages _images;
     private readonly ILogger<PcbDetailsViewModel> _log;
-    private int _imageRequest;
 
     public PcbDetailsViewModel(InspectionImages images, ILogger<PcbDetailsViewModel> log)
     {
@@ -88,13 +87,11 @@ public partial class PcbDetailsViewModel : ObservableObject
 
     public void RefreshImages()
     {
-        LoadImagesCommand.Cancel();
         _ = LoadImagesCommand.ExecuteAsync(null);
     }
 
     private async Task LoadImagesAsync(CancellationToken cancellationToken)
     {
-        var request = ++_imageRequest;
         var record = Record;
         ImageError = null;
         if (record is null)
@@ -102,8 +99,7 @@ public partial class PcbDetailsViewModel : ObservableObject
         try
         {
             var images = await _images.LoadRecordAsync(record, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (request != _imageRequest)
+            if (cancellationToken.IsCancellationRequested)
                 return;
             var hasSelection = SelectedImage is not null || SelectedBolt is not null;
             var selectedBoltId = SelectedImage is { } selected
@@ -118,7 +114,7 @@ public partial class PcbDetailsViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            if (request != _imageRequest)
+            if (cancellationToken.IsCancellationRequested)
                 return;
             ImageError = $"Inspection images could not be loaded: {exception.Message}";
             _log.LogError(exception, "PCB {Number} image history load failed.", record.Number);

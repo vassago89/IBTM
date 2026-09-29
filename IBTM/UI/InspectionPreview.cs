@@ -76,8 +76,6 @@ public partial class InspectionPreview : ObservableObject
 
         set
         {
-            if (!(value >= 0 && value <= 100))
-                throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 100 percent.");
             if (_bolt is null)
                 throw new InvalidOperationException("Select a bolt before changing its required bright percentage.");
             _bolt.MinimumBrightRatio = value / 100;

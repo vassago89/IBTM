@@ -20,13 +20,6 @@ public static class CarrierCoordinates
         AxisPosition targetUpperLeftLocatingPin,
         AxisPosition targetLowerRightLocatingPin)
     {
-        if (!IsDefined(sourceUpperLeftLocatingPin, sourceLowerRightLocatingPin)
-            || !IsDefined(targetUpperLeftLocatingPin, targetLowerRightLocatingPin))
-        {
-            throw new InvalidOperationException(
-                "Record two distinct Upper/Lower reference positions for the camera and fastening head before converting bolt positions.");
-        }
-
         var sourceX = sourceLowerRightLocatingPin.X - sourceUpperLeftLocatingPin.X;
         var sourceY = sourceLowerRightLocatingPin.Y - sourceUpperLeftLocatingPin.Y;
         var targetX = targetLowerRightLocatingPin.X - targetUpperLeftLocatingPin.X;
