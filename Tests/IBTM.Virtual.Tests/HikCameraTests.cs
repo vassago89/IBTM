@@ -173,7 +173,7 @@ public sealed class HikCameraTests
         using var camera = sdk.CreateCamera();
         await using var services = new ServiceCollection()
             .AddSingleton(VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(new MachineSettings())
+            .AddVirtualApplication(new MachineSettings())
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
         var inspector = services.GetRequiredService<InspectionStation>();

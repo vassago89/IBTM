@@ -1,18 +1,6 @@
-using System.ComponentModel;
-using System.Text.Json.Serialization;
 using IBTM.Core;
 
 namespace IBTM.Device;
-
-[JsonConverter(typeof(JsonStringEnumConverter<CameraDriver>))]
-public enum CameraDriver
-{
-    [Description("Virtual")]
-    Virtual,
-
-    [Description("HIK")]
-    Hik,
-}
 
 public sealed class InspectionCameraSettings : Setting
 {

@@ -5,6 +5,8 @@
 테스트는 검증 대상별 클래스에 모으며, 별도의 반복 시험만 `.Repeat.cs`에 둔다.
 위치를 옮겨도 안전·취소·오류 복구 검증과 `Category=MachineFlow` 구분은 유지한다.
 
+테스트는 `MachineTestSupport.AddVirtualApplication`에서 가상 장치를 주입한다. 앱의 `AddIbtmApplication`은 공통 서비스만 등록하고, 실행 시 `AddIbtmHardware`가 실제 장치를 연결한다. 가상 카메라 이미지·센서·체결 결과 지정은 테스트 대역을 직접 사용한다. 앱의 가상 실행 프로필은 제거했다.
+
 ## 설비·화면 테스트 구성
 
 | 파일 | 검증 대상 |
@@ -32,7 +34,7 @@
 | --- | --- |
 | `IBTM.Virtual.Tests/AdcProtocolTests.cs` | 시리얼 설정, 포트 분리, 분할 응답·CRC·요청 소유권, 읽기 취소 |
 | `IBTM.Virtual.Tests/AdcBoltHeadTests.cs` | ADC START/STOP, 실제 RUN 피드백 확인, 결과 소유권, 드라이런·취소·통신 오류 |
-| `IBTM.Virtual.Tests/BoltControllerWiringTests.cs` | I/O START 실패·출력 매핑, 드라이버 선택, 구형 설정 호환 |
+| `IBTM.Virtual.Tests/BoltControllerWiringTests.cs` | I/O START 실패·출력 매핑, 장치 주입, 구형 I/O 설정 호환 |
 | `IBTM.Virtual.Tests/BoltFasteningTests.cs` | 스테이션 이동 순서, 공급, 실린더 인터록, 재시작 |
 | `IBTM.Virtual.Tests/MachineLifecycleTests.cs` | 피더 사용 설정과 설비 운전 연결, 상승 피드백 인터록 |
 

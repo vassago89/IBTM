@@ -30,10 +30,7 @@
             </StackPanel>
             <TextBlock Text="{ui:Text 'Logs'}" Style="{StaticResource TitleStyle}" VerticalAlignment="Center"/>
         </DockPanel>
-        <TextBlock Grid.Row="1" Margin="0,8,0,16" Style="{StaticResource PageSubtitleStyle}"
-            Text="{ui:Text 'Text selection pauses updates'}"
-            TextWrapping="Wrap"/>
-        <ui:LogTextBox x:Name="LogText" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2"
+        <ui:LogTextBox x:Name="LogText" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2" Margin="0,12,0,0"
             Text="{Binding Text, Mode=OneWay}"
             IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
             SelectionText="{Binding SelectedText, Mode=TwoWay}" IsPaused="{Binding IsPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="13" TextWrapping="NoWrap" Padding="8"

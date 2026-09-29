@@ -278,7 +278,7 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
             ioReady = _io.IsReady;
             motion.RefreshControlFeedback(ioReady && enabled);
             var error = enabled && ioReady
-                ? motion.MonitorAxes.Values.Select(axis => axis.Snapshot.ReadError)
+                ? motion.MonitorAxes.Values.Select(axis => axis.Sample.ReadError)
                     .FirstOrDefault(value => value is not null)
                 : null;
             var axes = motion.Axes.Values;

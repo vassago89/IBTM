@@ -933,7 +933,7 @@ public sealed class AjinControllerTests
 
         Assert.Null(status.Position.X);
         Assert.Equal(10, status.Position.Y);
-        Assert.IsType<IOException>(status.MonitorAxes[MotionAxis.X].Snapshot.ReadError);
+        Assert.IsType<IOException>(status.MonitorAxes[MotionAxis.X].Sample.ReadError);
         Assert.False(status.IsFeedbackAvailable);
         Assert.Throws<IOException>(() => motion.Position);
         await Assert.ThrowsAsync<IOException>(() => motion.MoveToXYAsync(20, 30, 1));
@@ -1067,11 +1067,11 @@ public sealed class AjinControllerTests
         status.RefreshMonitorFeedback();
 
         Assert.True(motion.IsReady); // Live SDK communication is available without a local init flag.
-        Assert.True(status.MonitorAxes[MotionAxis.X].Snapshot.State!.Value.Alarm);
-        Assert.True(status.MonitorAxes[MotionAxis.X].Snapshot.State!.Value.HomeSensor);
-        Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Snapshot.Position);
-        Assert.False(status.MonitorAxes[MotionAxis.Y].Snapshot.State!.Value.ServoOn);
-        Assert.Equal(-5.67, status.MonitorAxes[MotionAxis.Y].Snapshot.Position);
+        Assert.True(status.MonitorAxes[MotionAxis.X].Sample.State!.Value.Alarm);
+        Assert.True(status.MonitorAxes[MotionAxis.X].Sample.State!.Value.HomeSensor);
+        Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Sample.Position);
+        Assert.False(status.MonitorAxes[MotionAxis.Y].Sample.State!.Value.ServoOn);
+        Assert.Equal(-5.67, status.MonitorAxes[MotionAxis.Y].Sample.Position);
         Assert.Equal(new MotionPosition(12.34, -5.67, null), status.Position);
 
         var stateRead = new AjinSdk.Call(nameof(CAXM.AxmStatusReadMechanical), Axis: 9);
@@ -1110,14 +1110,14 @@ public sealed class AjinControllerTests
         }
 
         Assert.Equal(0, exceptions);
-        Assert.True(notifications > 0); // Error snapshots can carry a new exception on each acquisition.
+        Assert.True(notifications > 0); // Error samples can carry a new exception on each acquisition.
         Assert.All(status.Axes.Values, axis => Assert.Null(axis.State));
         Assert.Equal(2, reportedErrors); // Unchanged errors are reported only once.
-        Assert.Null(status.MonitorAxes[MotionAxis.X].Snapshot.State);
-        Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Snapshot.Position);
-        Assert.Contains("axis=9", status.MonitorAxes[MotionAxis.X].Snapshot.ReadError!.Message);
-        Assert.NotNull(status.MonitorAxes[MotionAxis.Y].Snapshot.State);
-        Assert.Null(status.MonitorAxes[MotionAxis.Y].Snapshot.Position);
+        Assert.Null(status.MonitorAxes[MotionAxis.X].Sample.State);
+        Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Sample.Position);
+        Assert.Contains("axis=9", status.MonitorAxes[MotionAxis.X].Sample.ReadError!.Message);
+        Assert.NotNull(status.MonitorAxes[MotionAxis.Y].Sample.State);
+        Assert.Null(status.MonitorAxes[MotionAxis.Y].Sample.Position);
         Assert.Equal(new MotionPosition(12.34, null, null), status.Position);
 
         Assert.Throws<IOException>(() => motion.GetAxisState(MotionAxis.X)); // Command reads still fail explicitly.
@@ -1127,8 +1127,8 @@ public sealed class AjinControllerTests
         var notificationsBeforeRecovery = notifications;
         status.RefreshMonitorFeedback(ReportError);
         Assert.Equal(notificationsBeforeRecovery + 2, notifications); // Recovery publishes both axes.
-        Assert.Equal(-0.0567, status.MonitorAxes[MotionAxis.Y].Snapshot.Position!.Value, 8);
-        Assert.All(status.MonitorAxes.Values, axis => Assert.Null(axis.Snapshot.ReadError));
+        Assert.Equal(-0.0567, status.MonitorAxes[MotionAxis.Y].Sample.Position!.Value, 8);
+        Assert.All(status.MonitorAxes.Values, axis => Assert.Null(axis.Sample.ReadError));
         AjinSdk.Results[stateRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
         status.RefreshMonitorFeedback(ReportError);
         Assert.Equal(3, reportedErrors); // The same fault is logged again after recovery.

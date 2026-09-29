@@ -38,10 +38,10 @@ public partial class InspectionPreviewViewModel : ObservableObject
         : null;
 
     public string BinaryDescription => _dataMatrixHeatSink is null
-        ? _bolt is null ? "Binary ROI · no inspection target" : $"Binary ROI · threshold {BrightnessThreshold}"
-        : DataMatrixThreshold is { } threshold ? $"Binary ROI · threshold {threshold}"
-        : HasImage && Overlay is null ? "Automatic binary unavailable · set a threshold"
-        : "Binary ROI · automatic";
+        ? _bolt is null ? UiText.Get("Binary ROI · no inspection target") : UiText.Format($"Binary ROI · threshold {BrightnessThreshold}")
+        : DataMatrixThreshold is { } threshold ? UiText.Format($"Binary ROI · threshold {threshold}")
+        : HasImage && Overlay is null ? UiText.Get("Automatic binary unavailable · set a threshold")
+        : UiText.Get("Binary ROI · automatic");
 
     public int? DataMatrixThreshold
     {
@@ -49,7 +49,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         set
         {
             if (_dataMatrixHeatSink is not { } heatSink)
-                throw new InvalidOperationException("Select a Data Matrix before changing its threshold.");
+                throw new InvalidOperationException(UiText.Get("Select a Data Matrix before changing its threshold."));
             _recipe.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold = value;
             RefreshBinaryImage();
             OnPropertyChanged();
@@ -63,7 +63,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         set
         {
             if (_bolt is null)
-                throw new InvalidOperationException("Select a bolt before changing its threshold.");
+                throw new InvalidOperationException(UiText.Get("Select a bolt before changing its threshold."));
             _bolt.BrightnessThreshold = value;
             RefreshBinaryImage();
             OnPropertyChanged();
@@ -77,7 +77,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         set
         {
             if (_bolt is null)
-                throw new InvalidOperationException("Select a bolt before changing its required bright percentage.");
+                throw new InvalidOperationException(UiText.Get("Select a bolt before changing its required bright percentage."));
             _bolt.MinimumBrightRatio = value / 100;
             RefreshResult();
             OnPropertyChanged();
@@ -113,16 +113,16 @@ public partial class InspectionPreviewViewModel : ObservableObject
     public async Task InspectAsync(CancellationToken token)
     {
         if (_dataMatrixHeatSink is null && _bolt is null)
-            throw new InvalidOperationException("Select an image linked to a Data Matrix or bolt before inspecting.");
+            throw new InvalidOperationException(UiText.Get("Select an image linked to a Data Matrix or bolt before inspecting."));
         Result = null;
         var frame = _frame!;
-        var region = _sourceRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");
+        var region = _sourceRegion ?? throw new InvalidOperationException(UiText.Get("Draw the FOV ROI before inspecting."));
         if (_dataMatrixHeatSink is { } heatSink)
         {
             var settings = _recipe.BoltInspection.GetDataMatrix(heatSink);
             var text = await Task.Run(() => DataMatrixReader.Read(frame, region, settings), token);
             token.ThrowIfCancellationRequested();
-            Result = string.IsNullOrEmpty(text) ? "Not Read" : text;
+            Result = string.IsNullOrEmpty(text) ? UiText.Get("Not Read") : text;
             return;
         }
 
@@ -172,7 +172,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         if (_brightRatio is not { } ratio)
             return;
         var minimum = _bolt?.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio;
-        Result = $"{(ratio >= minimum ? "OK" : "NG")} · Bright {ratio * 100:0.###}%";
+        Result = UiText.Format($"{(ratio >= minimum ? "OK" : "NG")} · Bright {ratio * 100:0.###}%");
     }
 
     public static BitmapSource CreateBitmap(ImageFrame frame)

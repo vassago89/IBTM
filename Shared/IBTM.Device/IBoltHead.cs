@@ -1,25 +1,9 @@
 using System;
-using System.ComponentModel;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 
 namespace IBTM.Device;
-
-[JsonConverter(typeof(JsonStringEnumConverter<BoltDriver>))]
-public enum BoltDriver
-{
-    [Description("Virtual")]
-    Virtual,
-
-    [Description("I/O control + ADC results")]
-    HantasAdc,
-
-    // Accepted only when loading older driver settings.
-    [Description("I/O control + ADC results")]
-    Io,
-}
 
 public interface IBoltHead
 {

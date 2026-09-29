@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Inspection;
@@ -33,18 +32,18 @@ public sealed class RecipeManager
 
     public async Task SaveInspectionAsync(Recipe edited, CancellationToken cancellationToken = default)
     {
-        var snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(edited))!;
+        var copy = edited.Clone();
         var applied = false;
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
-            await Task.Run(() => _database.SaveInspectionSettings(snapshot, cancellationToken), cancellationToken);
-            // Publish before allowing another save to snapshot the current recipe.
+            await Task.Run(() => _database.SaveInspectionSettings(copy, cancellationToken), cancellationToken);
+            // Apply before the next save copies the current recipe.
             lock (InspectionSync)
             {
-                if (MachineStore.IsSameRecipeName(Current.Name, snapshot.Name))
+                if (MachineStore.IsSameRecipeName(Current.Name, copy.Name))
                 {
-                    Current.ApplyInspectionSettings(snapshot);
+                    Current.ApplyInspectionSettings(copy);
                     applied = true;
                 }
             }
@@ -61,7 +60,7 @@ public sealed class RecipeManager
     {
         lock (InspectionSync)
         {
-            Current.ReplaceWith(new Recipe { Name = "New" });
+            Current.CopyFrom(new Recipe { Name = "New" });
             _imageRecipeName = null;
         }
         Changed?.Invoke();
@@ -84,7 +83,7 @@ public sealed class RecipeManager
             // Apply a committed selection even if cancellation arrives afterward.
             lock (InspectionSync)
             {
-                Current.ReplaceWith(loaded);
+                Current.CopyFrom(loaded);
                 _imageRecipeName = Current.Name;
                 _selection.LastRecipeName = Current.Name;
             }
@@ -106,26 +105,26 @@ public sealed class RecipeManager
         try
         {
             // Save/load and live inspection updates already share _saveGate.
-            var snapshot = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(Current))!;
+            var copy = Current.Clone();
             var imageRecipeName = _imageRecipeName;
-            var originalName = snapshot.Name;
+            var originalName = copy.Name;
             if (tiles is not null)
             {
-                var capturedTiles = JsonSerializer.Deserialize<List<CarrierImageTile>>(JsonSerializer.Serialize(tiles))!;
+                var capturedTiles = tiles.Clone();
                 foreach (var tile in capturedTiles)
                 {
                     // Gantry capture owns images/positions; inspection teaching owns existing ROIs.
-                    var current = snapshot.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
+                    var current = copy.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
                         && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
                     if (current is not null)
                         tile.Region = current.Region;
                 }
-                snapshot.CarrierImages = capturedTiles;
+                copy.CarrierImages = capturedTiles;
             }
-            snapshot.Name = name;
+            copy.Name = name;
             await Task.Run(
                 () => _database.SaveRecipe(
-                    snapshot,
+                    copy,
                     imageRecipeName,
                     images: images,
                     selection: new RecipeSelectionSettings { LastRecipeName = name },
@@ -138,7 +137,7 @@ public sealed class RecipeManager
                     if (tiles is not null)
                     {
                         for (var index = 0; index < tiles.Count; index++)
-                            tiles[index].Region = snapshot.CarrierImages[index].Region;
+                            tiles[index].Region = copy.CarrierImages[index].Region;
                         Current.CarrierImages = tiles;
                     }
                     Current.Name = name;

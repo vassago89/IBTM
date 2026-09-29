@@ -95,9 +95,9 @@ Teaching의 저장 버튼은 `Save` 하나다. 기록된 양쪽 인계값과 현
 
 ## 저장과 반영
 
-Settings에서 Save하고, 하드웨어 매핑·드라이버 설정 변경 후에는 재시작한다.
-체결기 타입은 `DriverSettings.Bolt`에 저장하며 선택지는 `Virtual`과 `HantasAdc`다.
-기존 `Io` 값은 로드할 때 `HantasAdc`로 정규화한다. 실장비는 START·방향·프리셋·리셋을 I/O로,
+Settings에서 Save하고, 하드웨어 매핑·연결 설정 변경 후에는 재시작한다.
+장치 구현은 시작 시 DI에서 연결한다. 가상 장치 선택 설정은 제거했으며 기존 DB의
+`DriverSettings` 항목은 읽거나 저장하지 않는다. 체결기는 START·방향·프리셋·리셋을 I/O로,
 상태·결과를 ADC로 처리한다. `IoBoltHardwareSettings`에는 공통 제어 출력 주소가 남아 있으며,
 삭제한 Ready·Alarm·FASTEN 입력 6개를 다시 등록하지 않는다.
 ADC 응답 제한시간과 체결 제한시간은 0보다 큰 밀리초 값이어야 한다. `-1`을 무한 대기로 사용하지 않으며,
@@ -118,7 +118,7 @@ FOV/ROI는 Heat Sink별로 독립적이며 캐리어 전체 맵/공유 PCB 영�
 
 AJIN은 `AxlOpen` 후 DIO 모듈을 확인하며 .mot를 로드하지 않는다. 설정 파일 경로는 필요하지 않다.
 
-Virtual 구성은 별도 출력 폴더와 DB를 사용한다. 데모 설정을 실장비에 복사하지 않는다.
+가상 장치는 테스트에서만 주입하며, 테스트 저장소는 임시 DB를 사용한다. 앱은 데모 데이터를 생성하지 않는다.
 
 볼트 검사는 레시피의 각 `Pcb.TaughtBolts` 항목에 BrightnessThreshold(0–255)와 MinimumBrightRatio(0–1)를 저장한다.
 개별 값이 없는 기존 볼트는 `BoltInspection`의 종전 공통값을 사용한다. 편집한 볼트는 개별 값으로 저장하며 다른 볼트의 값은 바뀌지 않는다.

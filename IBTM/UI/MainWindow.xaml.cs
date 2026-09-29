@@ -1,3 +1,4 @@
+using IBTM.Core;
 using System.ComponentModel;
 using System.Windows;
 
@@ -30,7 +31,7 @@ public partial class MainWindow : Window
         var stopped = await _viewModel.TryCloseAsync();
         if (!stopped)
         {
-            if (MessageBox.Show(this, _viewModel.CloseError, "Shutdown Incomplete",
+            if (MessageBox.Show(this, _viewModel.CloseError, UiText.Get("Shutdown Incomplete"),
                 MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
                 return;
             _viewModel.ApproveUnconfirmedExit();

@@ -92,7 +92,7 @@
                 <Button Content="{ui:Text 'Clear selection'}" Command="{Binding ClearSelectionCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="{Binding SelectedCount, StringFormat={}{0} bolts selected}" Style="{StaticResource TestCell}" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding SelectedCount, StringFormat={ui:Text '{}{0} bolts selected'}}" Style="{StaticResource TestCell}" FontWeight="SemiBold"/>
                 <Border Background="{StaticResource EquipBgBrush}" Padding="12,6" Margin="20,0,0,0" CornerRadius="4">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{ui:Text 'TOTAL RUN'}" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
@@ -136,7 +136,7 @@
                             <GroupStyle.HeaderTemplate>
                                 <DataTemplate>
                                     <Border Background="{StaticResource EquipBgBrush}" Padding="12,6" Margin="0,6,0,0">
-                                        <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
+                                        <TextBlock Text="{Binding Name, Converter={StaticResource UiTextConverter}}"
                                             Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold"/>
                                     </Border>
                                 </DataTemplate>
@@ -157,8 +157,8 @@
                                             AutomationProperties.Name="{Binding Label}"/>
                                         <TextBlock Grid.Column="1" Text="{Binding Label}" Style="{StaticResource TestCell}" FontWeight="SemiBold"
                                             TextTrimming="CharacterEllipsis" ToolTip="{Binding Label}"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding Bolt.Head, Converter={StaticResource EnumDescriptionConverter}}" Style="{StaticResource TestCell}"/>
-                                        <TextBlock Grid.Column="3" Text="{Binding Status}">
+                                        <TextBlock Grid.Column="2" Text="{Binding Bolt.Head, Converter={StaticResource UiTextConverter}}" Style="{StaticResource TestCell}"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding Status, Converter={StaticResource UiTextConverter}}">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock" BasedOn="{StaticResource TestCell}">
                                                     <Style.Triggers>

@@ -62,7 +62,7 @@ public sealed class PcbHistoryTests
         var settings = new MachineSettings();
         settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-turns-{Guid.NewGuid():N}");
         await using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings).BuildServiceProvider();
+            .AddVirtualApplication(settings).BuildServiceProvider();
         var recipe = services.GetRequiredService<RecipeManager>().Current;
         recipe.Pcb.BoltPoints = [new() { MinimumTurns = 3 }, new() { Head = FasteningHead.Pickup, MinimumTurns = 10 }];
         var history = services.GetRequiredService<PcbHistoryWriter>();
@@ -117,7 +117,7 @@ public sealed class PcbHistoryTests
         var settings = new MachineSettings();
         settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-six-bolts-{Guid.NewGuid():N}");
         await using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings).BuildServiceProvider();
+            .AddVirtualApplication(settings).BuildServiceProvider();
         var recipes = services.GetRequiredService<RecipeManager>();
         await recipes.LoadAsync(recipe.Name);
         var bolts = recipes.Current.Pcb.FasteningPoints.ToArray();
@@ -222,7 +222,7 @@ public sealed class PcbHistoryTests
         var settings = new MachineSettings();
         settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-locked-{Guid.NewGuid():N}");
         await using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings).BuildServiceProvider();
+            .AddVirtualApplication(settings).BuildServiceProvider();
         var history = services.GetRequiredService<PcbHistoryWriter>();
         var work = services.GetRequiredService<PcbPlacer>().Station;
         var snapshots = new List<PcbRecord>();
@@ -269,7 +269,7 @@ public sealed class PcbHistoryTests
         var settings = new MachineSettings();
         settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-exit-{Guid.NewGuid():N}");
         var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings).BuildServiceProvider();
+            .AddVirtualApplication(settings).BuildServiceProvider();
         _ = services.GetRequiredService<PcbHistoryWriter>();
         using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
         connection.Open();
@@ -297,7 +297,7 @@ public sealed class PcbHistoryTests
         var settings = new MachineSettings();
         settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-counter-{Guid.NewGuid():N}");
         await using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings).BuildServiceProvider();
+            .AddVirtualApplication(settings).BuildServiceProvider();
         var history = services.GetRequiredService<PcbHistoryWriter>();
         var work = services.GetRequiredService<PcbPlacer>().Station;
         using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
@@ -335,7 +335,7 @@ public sealed class PcbHistoryTests
         settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-unwritable-{Guid.NewGuid():N}");
         File.WriteAllText(settings.PcbHistory.Directory, "A file blocks creation of the results folder.");
         await using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings).BuildServiceProvider();
+            .AddVirtualApplication(settings).BuildServiceProvider();
         var view = services.GetRequiredService<OperationViewModel>();
         var history = services.GetRequiredService<PcbHistoryWriter>();
         var work = services.GetRequiredService<InspectionStation>();
@@ -473,7 +473,7 @@ public sealed class PcbHistoryTests
         var settings = new MachineSettings();
         settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-flow-{Guid.NewGuid():N}");
         await using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings).BuildServiceProvider();
+            .AddVirtualApplication(settings).BuildServiceProvider();
         var view = services.GetRequiredService<OperationViewModel>(); // Also constructs the machine/history subscription.
         var history = services.GetRequiredService<PcbHistoryWriter>();
         var placement = services.GetRequiredService<PcbPlacer>().Station;
@@ -545,7 +545,7 @@ public sealed class PcbHistoryTests
 
         settings.PcbHistory.Directory = originalFolder;
         await using var restarted = new ServiceCollection().AddSingleton(new MachineStore(store.DatabaseFile))
-            .AddIbtmApplication(settings).BuildServiceProvider();
+            .AddVirtualApplication(settings).BuildServiceProvider();
         var reopenedView = restarted.GetRequiredService<OperationViewModel>();
         await reopenedView.LoadOlderPcbsCommand.ExecuteAsync(null);
         Assert.Equal(new long[] { 3, 2, 1 }, reopenedView.PcbRecords.Select(record => record.Number));
@@ -565,7 +565,7 @@ public sealed class PcbHistoryTests
         settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-repeat-{Guid.NewGuid():N}");
         var store = VirtualTestSupport.OpenMachineStore();
         await using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings).BuildServiceProvider();
+            .AddVirtualApplication(settings).BuildServiceProvider();
         var history = services.GetRequiredService<PcbHistoryWriter>();
         var work = services.GetRequiredService<BoltFasteningStation>().Station;
         services.GetRequiredService<VirtualIoService>().SetInput(InputIo.BoltFasteningHeatSink1Present, true);

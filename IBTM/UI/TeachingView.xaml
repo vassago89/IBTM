@@ -89,7 +89,7 @@
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
                                     <DataTemplate DataType="{x:Type data:CollectionViewGroup}">
-                                        <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
+                                        <TextBlock Text="{Binding Name, Converter={StaticResource UiTextConverter}}"
                                             TextWrapping="Wrap" FontWeight="SemiBold" Margin="8,10,4,4"
                                             Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </DataTemplate>
@@ -324,16 +324,16 @@
                         Foreground="{StaticResource AccentAmberBrush}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                <Setter Property="Text" Value="{Binding HomeBlock, Converter={StaticResource UiTextConverter}}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HomeBlock}" Value="{x:Static machine:HomeBlockReason.None}">
-                                        <Setter Property="Text" Value="{Binding MotionHint, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                        <Setter Property="Text" Value="{Binding MotionHint, Converter={StaticResource UiTextConverter}}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding ManualBlock}" Value="{x:Static ui:ManualControlBlock.AutoMode}">
-                                        <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                        <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource UiTextConverter}}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding ManualBlock}" Value="{x:Static ui:ManualControlBlock.Busy}">
-                                        <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                        <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource UiTextConverter}}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>

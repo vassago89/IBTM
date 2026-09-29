@@ -21,11 +21,11 @@ public sealed partial class IoListViewModel<TRow, TSignal> : ObservableObject
     public IoListViewModel(TRow[] rows, Func<TRow, IoSignal<TSignal>> signal)
     {
         Areas = [
-            new(null, "All Units"),
+            new(null, UiText.Get("All Units")),
             ..rows.Select(row => UnitArea(signal(row).Area))
                 .Distinct()
                 .Order()
-                .Select(area => new KeyValuePair<HardwareArea?, string>(area, area.GetDescription())),
+                .Select(area => new KeyValuePair<HardwareArea?, string>(area, UiText.Get(area))),
         ];
         FilteredRows = new ListCollectionView(rows
             .OrderBy(row => UnitArea(signal(row).Area))
@@ -64,7 +64,7 @@ public sealed partial class IoListViewModel<TRow, TSignal> : ObservableObject
     private bool Matches<T>(IoSignal<T> row)
         where T : struct, Enum
     {
-        return row.Signal.GetDescription().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+        return UiText.Get(row.Signal).Contains(SearchText, StringComparison.OrdinalIgnoreCase)
             || row.Signal.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
             || row.Address.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
     }

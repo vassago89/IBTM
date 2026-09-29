@@ -42,14 +42,11 @@ public sealed class BoltControllerWiringTests
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
     }
 
-    [Theory]
-    [InlineData(BoltDriver.Virtual)]
-    [InlineData(BoltDriver.HantasAdc)]
-    public async Task DriverSelectionChangesControllerButKeepsAllIoAvailable(BoltDriver driver)
+    [Fact]
+    public async Task AdcHeadsKeepAllIoAvailable()
     {
         var settings = new MachineSettings();
-        settings.Drivers.Bolt = driver;
-        await using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
+        await using var services = new ServiceCollection().AddVirtualApplication(settings).BuildServiceProvider();
         var signals = services.GetRequiredService<IoSignals>();
         foreach (var head in Enum.GetValues<FasteningHead>())
         {
@@ -61,11 +58,11 @@ public sealed class BoltControllerWiringTests
         Assert.Null(services.GetService<IAdcBus>());
         var io = services.GetRequiredService<IIoService>();
         var machine = services.GetRequiredService<MachineController>();
-        var inputs = new InputViewModel(io, signals);
+        var inputs = new InputViewModel(signals);
         var outputs = new OutputViewModel(signals, machine);
         Assert.Empty(settings.IoBoltHardware.Inputs);
-        Assert.DoesNotContain(inputs.Filter.FilteredRows.Cast<InputSignalRow>(),
-            row => (int)row.Io.Signal is >= 83 and <= 88);
+        Assert.DoesNotContain(inputs.Filter.FilteredRows.Cast<IoInputStatus>(),
+            row => (int)row.Signal is >= 83 and <= 88);
         foreach (var signal in settings.IoBoltHardware.Outputs.Keys)
         {
             Assert.Contains(
@@ -73,7 +70,6 @@ public sealed class BoltControllerWiringTests
                 row => row.Io.Signal == signal);
         }
 
-        settings.Drivers.Bolt = driver == BoltDriver.Virtual ? BoltDriver.HantasAdc : BoltDriver.Virtual;
         foreach (var signal in new[] { OutputIo.PickupBoltStart, OutputIo.ShootingBoltStart })
         {
             var row = Assert.Single(outputs.Rows, row => row.Io.Signal == signal);
@@ -98,7 +94,5 @@ public sealed class BoltControllerWiringTests
         Assert.Empty(settings.Inputs);
         Assert.Equal(115, settings.Outputs[OutputIo.ShootingBoltStart].Number);
         Assert.DoesNotContain("Inputs", JsonSerializer.Serialize(settings));
-        var drivers = JsonSerializer.Deserialize<DriverSettings>("""{"Bolt":"Io"}""")!;
-        Assert.Equal(BoltDriver.HantasAdc, drivers.Bolt);
     }
 }

@@ -8,16 +8,6 @@
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)' == 'Virtual'">
-    <OutputPath>bin\Virtual\</OutputPath>
-    <DefineConstants>$(DefineConstants);VIRTUAL_DEVELOPMENT</DefineConstants>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>portable</DebugType>
-    <Optimize>false</Optimize>
-    <!-- The SDK disables metadata updates by default for configurations other than Debug. -->
-    <MetadataUpdaterSupport>true</MetadataUpdaterSupport>
-  </PropertyGroup>
-
   <ItemGroup>
     <InternalsVisibleTo Include="IBTM.Virtual.Tests" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
@@ -39,7 +29,6 @@
     <ProjectReference Include="..\Stations\IBTM.PcbPlacement\IBTM.PcbPlacement.csproj" />
     <ProjectReference Include="..\Stations\IBTM.PcbSupply\IBTM.PcbSupply.csproj" />
     <ProjectReference Include="..\Shared\IBTM.Storage\IBTM.Storage.csproj" />
-    <ProjectReference Include="..\Hardware\IBTM.Virtual\IBTM.Virtual.csproj" />
   </ItemGroup>
 
 </Project>

@@ -5,11 +5,16 @@ using IBTM.Core;
 
 namespace IBTM.UI;
 
-public sealed class EnumDescriptionConverter : IValueConverter
+public sealed class UiTextConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is Enum enumValue ? UiText.Get(enumValue) : value;
+        return value switch
+        {
+            Enum enumValue => UiText.Get(enumValue),
+            string text => UiText.Get(text),
+            _ => value,
+        };
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

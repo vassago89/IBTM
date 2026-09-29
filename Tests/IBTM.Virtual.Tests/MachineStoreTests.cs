@@ -356,7 +356,6 @@ public sealed class MachineStoreTests
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.EjectRunSeconds = double.NaN);
         settings.NgConveyor.EjectRunSeconds = 1.25;
         settings.Lighting.StabilizationDelayMilliseconds = 375;
-        settings.Drivers.Bolt = BoltDriver.Io;
         settings.IoBoltHardware.Outputs[OutputIo.ShootingBoltStart].Number = 115;
         await store.SaveSettingsAsync(settings.Sections);
         var recipe = new Recipe { Name = "Part", CarrierImages = [new() { Number = 1 }] };
@@ -436,17 +435,6 @@ public sealed class MachineStoreTests
         var loaded = await MachineSettings.LoadAsync(store);
         Assert.Equal("Second", loaded.RecipeSelection.LastRecipeName);
         Assert.Equal(42, loaded.PcbSupply.RotationZ);
-    }
-
-    [Fact]
-    public async Task VirtualDefaultsReopenWithTheirInitialRecipeSelected()
-    {
-        var store = VirtualTestSupport.OpenMachineStore();
-        await DevelopmentProfile.PrepareAsync(store);
-        var loaded = await MachineSettings.LoadAsync(store);
-        Assert.Equal("Virtual Development", loaded.RecipeSelection.LastRecipeName);
-        Assert.Equal(loaded.RecipeSelection.LastRecipeName,
-            store.LoadRecipe(loaded.RecipeSelection.LastRecipeName!).Name);
     }
 
     private static string CreateDirectory()

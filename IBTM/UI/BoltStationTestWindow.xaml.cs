@@ -1,3 +1,4 @@
+using IBTM.Core;
 using System;
 using System.ComponentModel;
 using System.Windows;
@@ -35,7 +36,7 @@ public partial class BoltStationTestWindow : Window
         }
         else
         {
-            MessageBox.Show(this, _viewModel.Error, "Bolt test shutdown failed",
+            MessageBox.Show(this, _viewModel.Error, UiText.Get("Bolt test shutdown failed"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

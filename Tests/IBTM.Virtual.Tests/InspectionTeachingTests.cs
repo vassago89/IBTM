@@ -252,10 +252,9 @@ public sealed class InspectionTeachingTests
         var png = await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var captured = JsonSerializer.Deserialize<List<CarrierImageTile>>(
-            JsonSerializer.Serialize(recipes.Current.CarrierImages))!;
+        var captured = recipes.Current.CarrierImages.Clone();
         captured[0].Center = new() { X = 30, Y = 40 };
-        var edited = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipes.Current))!;
+        var edited = recipes.Current.Clone();
         edited.CarrierImages[0].Region = new(4, 5, 6, 7);
         edited.BoltInspection.DataMatrix1.BinaryThreshold = 81;
         await recipes.SaveInspectionAsync(edited);
@@ -278,10 +277,9 @@ public sealed class InspectionTeachingTests
         var png = await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var edited = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipes.Current))!;
+        var edited = recipes.Current.Clone();
         edited.CarrierImages[0].Region = new(4, 5, 6, 7);
-        var captured = JsonSerializer.Deserialize<List<CarrierImageTile>>(
-            JsonSerializer.Serialize(recipes.Current.CarrierImages))!;
+        var captured = recipes.Current.CarrierImages.Clone();
         captured[0].Center = new() { X = 30, Y = 40 };
         using var writing = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();

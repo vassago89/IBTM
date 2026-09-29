@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using IBTM.Core;
 
 namespace IBTM.Hantas;
 
@@ -73,10 +74,10 @@ public sealed record AdcControllerError(ushort Code, string Group, string Descri
     public static string Describe(ushort code)
     {
         if (code == 0)
-            return "0 (0x0000): 오류 없음";
+            return $"0 (0x0000): {UiText.Get("오류 없음")}";
         var error = All.FirstOrDefault(item => item.Code == code);
         return error is null
-            ? $"{code} (0x{code:X4}): 문서에 없는 코드. 컨트롤러 모델·펌웨어별 오류표 확인 필요."
-            : $"{error.CodeText}: {error.Description}. {error.Action}.";
+            ? $"{code} (0x{code:X4}): {UiText.Get("문서에 없는 코드. 컨트롤러 모델·펌웨어별 오류표 확인 필요.")}"
+            : $"{error.CodeText}: {UiText.Get(error.Description)}. {UiText.Get(error.Action)}.";
     }
 }

@@ -223,7 +223,7 @@ public sealed class MachineHomeTests
         }
 
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(group => group,
                     group => group is MotionGroup.PcbSupply or MotionGroup.BoltFastening
@@ -938,7 +938,7 @@ public sealed class MachineHomeTests
         }
 
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(group => group,
                     group => group is MotionGroup.PcbSupply or MotionGroup.BoltFastening
@@ -997,7 +997,7 @@ public sealed class MachineHomeTests
             motionSettings.ZHome.SearchSpeed = 1;
         HomeResultMotion? homeResult = null;
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
             {
                 var motions = Enum.GetValues<MotionGroup>().ToDictionary(

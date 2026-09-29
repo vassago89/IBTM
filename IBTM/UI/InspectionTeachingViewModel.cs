@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -167,7 +166,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 if (MachineStore.IsSameRecipeName(_recipes.Current.Name, name))
                 {
                     // Teaching owns the point list, including edits not yet saved to the database.
-                    activeRecipe = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(_recipes.Current))!;
+                    activeRecipe = _recipes.Current.Clone();
                 }
             }
             var loaded = activeRecipe ?? await Task.Run(() => _store.LoadRecipe(name), token);
@@ -177,7 +176,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             if (preserveEdits)
                 loaded.ApplyInspectionSettings(Draft);
             SelectedPoint = null;
-            Draft.ReplaceWith(loaded);
+            Draft.CopyFrom(loaded);
             _carrierImages = images;
             Points = Enum.GetValues<HeatSinkSlot>().SelectMany(pcb => InspectionPoint.ForPcb(Draft, pcb)).ToArray();
             IsLoaded = true;
@@ -188,8 +187,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 : null) ?? Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
             var unlinked = Draft.CarrierImages.Count(tile => !Points.Any(point => point.Matches(tile)));
             var failed = images.Count(image => image.Error is not null);
-            Message = failed > 0 ? $"{failed} reference image(s) unavailable."
-                : unlinked > 0 ? $"{unlinked} unlinked image(s) excluded." : null;
+            Message = failed > 0 ? UiText.Format($"{failed} reference image(s) unavailable.")
+                : unlinked > 0 ? UiText.Format($"{unlinked} unlinked image(s) excluded.") : null;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
@@ -232,7 +231,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                     _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata.Number);
                 }
             }
-            ImageSource = $"Recipe · {Draft.Name} · {point.Title}";
+            ImageSource = UiText.Format($"Recipe · {Draft.Name} · {point.Title}");
         }
         InspectCommand.NotifyCanExecuteChanged();
         DrawRegionCommand.NotifyCanExecuteChanged();
@@ -249,7 +248,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         var region = PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight, (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
         metadata.Region = region;
         Preview.SetSavedImage(image, region);
-        Message = "ROI changed · not saved";
+        Message = UiText.Get("ROI changed · not saved");
     }
 
     private async Task InspectAsync(CancellationToken token)
@@ -277,8 +276,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
         {
             await _recipes.SaveInspectionAsync(Draft, token);
             Message = MachineStore.IsSameRecipeName(_recipes.Current.Name, Draft.Name)
-                ? "Saved · applies from the next inspection point."
-                : $"Saved to recipe '{Draft.Name}'.";
+                ? UiText.Get("Saved · applies from the next inspection point.")
+                : UiText.Format($"Saved to recipe '{Draft.Name}'.");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
@@ -354,7 +353,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
             LoadedRecord = record;
             HistoryImages = images;
             SelectedHistoryImage = images.FirstOrDefault();
-            Message = images.Length == 0 ? "No saved images for this PCB." : null;
+            Message = images.Length == 0 ? UiText.Get("No saved images for this PCB.") : null;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
@@ -384,7 +383,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         var reference = target.FindImage(_carrierImages)?.Image;
         if (reference is null || reference.PixelWidth != saved.Image!.PixelWidth || reference.PixelHeight != saved.Image.PixelHeight)
         {
-            Error = "Image dimensions do not match the recipe image.";
+            Error = UiText.Get("Image dimensions do not match the recipe image.");
             return;
         }
         Error = null;
@@ -402,6 +401,6 @@ public partial class InspectionTeachingViewModel : ObservableObject
             return;
         }
         ImageSource = $"PCB {LoadedRecord!.Number} · {saved.Title} · {saved.Record.CapturedAt:yyyy-MM-dd HH:mm:ss}";
-        OriginalResult = $"Recorded {saved.Verdict} · {saved.Details}";
+        OriginalResult = UiText.Format($"Recorded {saved.Verdict} · {saved.Details}");
     }
 }

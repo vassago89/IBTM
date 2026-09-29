@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
+using IBTM.Core;
 using IBTM.Storage;
 using Microsoft.Extensions.Logging;
 
@@ -49,7 +50,7 @@ public sealed class InspectionImageLoader
             {
                 _log.LogError(exception, "Recipe image {Recipe}/{Image} could not be loaded.", name, tile.Number);
                 return new RecipeImageItem(tile, null,
-                    bytes is null ? "Reference image is missing." : "Reference image could not be decoded.")
+                    bytes is null ? UiText.Get("No reference image") : UiText.Get("Image could not be decoded."))
                 {
                     UnreadablePng = bytes,
                 };
@@ -71,7 +72,7 @@ public sealed class InspectionImageLoader
             catch (Exception exception) when (exception is IOException or NotSupportedException
                 or ArgumentException or InvalidOperationException or COMException)
             {
-                error = "Image could not be decoded.";
+                error = UiText.Get("Image could not be decoded.");
                 _log.LogError(exception, "PCB {Number}, image {BoltId} could not be decoded.", record.Number, image.BoltId);
             }
             return new PcbInspectionImageItem(image, bitmap,

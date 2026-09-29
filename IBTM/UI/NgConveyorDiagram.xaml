@@ -59,7 +59,7 @@
             <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" FontSize="13">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
-                        <Setter Property="Text" Value="{Binding NgConveyorState, Converter={StaticResource EnumDescriptionConverter}}"/>
+                        <Setter Property="Text" Value="{Binding NgConveyorState, Converter={StaticResource UiTextConverter}}"/>
                         <Setter Property="Visibility" Value="Visible"/>
                         <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                         <Style.Triggers>

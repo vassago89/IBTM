@@ -18,9 +18,9 @@
                 Style="{StaticResource StationStateBadgeStyle}">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock
-                        Text="{Binding InspectionStatus, Converter={StaticResource EnumDescriptionConverter}}"
+                        Text="{Binding InspectionStatus, Converter={StaticResource UiTextConverter}}"
                         Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
-                        ToolTip="{Binding InspectionStatus, Converter={StaticResource EnumDescriptionConverter}}"/>
+                        ToolTip="{Binding InspectionStatus, Converter={StaticResource UiTextConverter}}"/>
                     <TextBlock Margin="0,3,0,0" FontSize="14" TextTrimming="CharacterEllipsis"
                         Foreground="{StaticResource TextPrimaryBrush}"
                         ToolTip="{Binding InspectionActiveBarcode}">
@@ -41,7 +41,7 @@
             <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.DetailTop}"
                 Orientation="Horizontal">
                 <TextBlock x:Name="ActivePcb" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="{Binding InspectionActivePcb, Converter={StaticResource EnumDescriptionConverter}}"/>
+                    Text="{Binding InspectionActivePcb, Converter={StaticResource UiTextConverter}}"/>
                 <TextBlock FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
                     Text="{Binding InspectionActiveOrdinal, StringFormat={ui:Text ' · Bolt {0}'}}">
                     <TextBlock.Style>

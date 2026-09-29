@@ -28,7 +28,7 @@ internal static class VirtualTestSupport
         TeachingPosition definition, MachineSettings settings, Recipe? recipe = null)
     {
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        recipes.Current.ReplaceWith(recipe ?? new());
+        recipes.Current.CopyFrom(recipe ?? new());
         return new(definition, settings, recipes, definition.Bolt?.HeatSink ?? HeatSinkSlot.HeatSink1);
     }
 

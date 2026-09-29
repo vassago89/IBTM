@@ -20,15 +20,26 @@ namespace IBTM.Virtual.Tests;
 public sealed class LightingTests
 {
     [Fact]
+    public async Task MissingComDoesNotBreakLightConstructionButPreventsUse()
+    {
+        var settings = new MachineSettings();
+        await using var services = new ServiceCollection()
+            .AddIbtmApplication(settings)
+            .AddIbtmHardware(settings)
+            .BuildServiceProvider();
+        var controller = Assert.IsType<MovsLightController>(services.GetRequiredService<ILightController>());
+        // Missing port validation must fail before any physical port is opened.
+        var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
+        Assert.Contains("COM port", error.Message);
+    }
+
+    [Fact]
     public async Task ResetRecoversMotionAndBoltHeadsEvenWhenVisionIsStillFaulted()
     {
         var camera = new TestCamera();
         await using var services = new ServiceCollection()
             .AddSingleton(VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(new MachineSettings
-            {
-                Drivers = new() { Light = LightDriver.Virtual }
-            })
+            .AddVirtualApplication(new MachineSettings())
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
@@ -76,7 +87,7 @@ public sealed class LightingTests
         await using var services = new ServiceCollection().AddSingleton(
             VirtualTestSupport.OpenMachineStore(
                 Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .AddSingleton<ILightController>(light)
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
@@ -165,7 +176,7 @@ public sealed class LightingTests
         settings.Lighting.StabilizationDelayMilliseconds = 0;
         await using var services = new ServiceCollection()
             .AddSingleton(VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .AddSingleton<ILightController>(light)
             .BuildServiceProvider();
         var inspector = services.GetRequiredService<InspectionStation>();
@@ -220,7 +231,7 @@ public sealed class LightingTests
         settings.Lighting.StabilizationDelayMilliseconds = 0;
         await using var services = new ServiceCollection()
             .AddSingleton(VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .AddSingleton<ILightController>(light)
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
@@ -259,7 +270,7 @@ public sealed class LightingTests
         var camera = new TestCamera();
         await using var services = new ServiceCollection()
             .AddSingleton(VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(new MachineSettings())
+            .AddVirtualApplication(new MachineSettings())
             .AddSingleton<ILightController>(light)
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
@@ -324,39 +335,6 @@ public sealed class LightingTests
         Assert.False(inspector.IsLiveView);
     }
 
-    [Fact]
-    public void VirtualDevelopmentAlsoForcesLightingToVirtual()
-    {
-        var settings = new MachineSettings();
-        settings.Drivers.Light = LightDriver.Movs;
-        DevelopmentProfile.UseVirtualHardware(settings);
-        Assert.Equal(LightDriver.Virtual, settings.Drivers.Light);
-    }
-
-    [Theory]
-    [InlineData(ControlDriver.Physical, LightDriver.Virtual)]
-    [InlineData(ControlDriver.Virtual, LightDriver.Movs)]
-    public async Task LightSelectionIsIndependentAndMissingComDoesNotBreakConstruction(
-        ControlDriver motion,
-        LightDriver light)
-    {
-        var settings = new MachineSettings();
-        settings.Drivers.Control = motion;
-        settings.Drivers.Light = light;
-        await using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
-        var controller = services.GetRequiredService<ILightController>();
-        if (light == LightDriver.Virtual)
-            Assert.IsType<VirtualLightController>(controller);
-        else
-        {
-            Assert.IsType<MovsLightController>(controller);
-            // Construction stays available for configuration; use must report the missing port.
-            // Validation stops before opening any physical port.
-            var error = Assert.Throws<InvalidOperationException>(controller.Initialize);
-            Assert.Contains("COM port", error.Message);
-        }
-    }
-
     [Theory]
     [InlineData(0)]
     [InlineData(10)]
@@ -372,7 +350,7 @@ public sealed class LightingTests
         settings.Lighting.InspectionChannel = channel;
         await using var services = new ServiceCollection()
             .AddSingleton(store)
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .BuildServiceProvider();
         var editor = services.GetRequiredService<SettingsViewModel>();
         await editor.SaveSettingsCommand.ExecuteAsync(null);
@@ -517,24 +495,27 @@ public sealed class LightingTests
             var commandFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             using var releaseCommand = new ManualResetEventSlim();
             var commandFailure = new InvalidOperationException("Simulated command failure.");
-            void FailImageCommand(object? sender, PropertyChangedEventArgs args)
+            void FailOffCommand(object? sender, PropertyChangedEventArgs args)
             {
-                if (args.PropertyName != nameof(settings.VirtualImageError) || settings.VirtualImageError is null)
+                if (args.PropertyName != nameof(settings.LightTestMessage) || string.IsNullOrEmpty(settings.LightTestMessage))
                     return;
                 commandFailed.SetResult();
                 Assert.True(releaseCommand.Wait(TimeSpan.FromSeconds(2)));
                 throw commandFailure;
             }
 
-            settings.PropertyChanged += FailImageCommand;
-            var load = Task.Run(() => settings.LoadVirtualImageCommand.ExecuteAsync(
-                Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.png")));
+            settings.LightTestMessage = "";
+            settings.PropertyChanged += FailOffCommand;
+            using var releaseOff = new ManualResetEventSlim();
+            light.OnOffStarted = () => Assert.True(releaseOff.Wait(TimeSpan.FromSeconds(2)));
+            var off = settings.OffTestLightCommand.ExecuteAsync(null);
+            releaseOff.Set();
             try
             {
                 await commandFailed.Task.WaitAsync(TimeSpan.FromSeconds(2));
                 var shutdown = settings.ShutdownAsync();
                 releaseCommand.Set();
-                Assert.Same(commandFailure, await Assert.ThrowsAsync<InvalidOperationException>(() => load));
+                Assert.Same(commandFailure, await Assert.ThrowsAsync<InvalidOperationException>(() => off));
                 var failures = (await Assert.ThrowsAsync<AggregateException>(() => shutdown)).Flatten().InnerExceptions;
                 Assert.Equal(2, failures.Count);
                 Assert.Contains(commandFailure, failures);
@@ -545,7 +526,8 @@ public sealed class LightingTests
             finally
             {
                 releaseCommand.Set();
-                settings.PropertyChanged -= FailImageCommand;
+                settings.PropertyChanged -= FailOffCommand;
+                light.OnOffStarted = null;
             }
 
             light.FailOff = false;
@@ -556,6 +538,7 @@ public sealed class LightingTests
         }
         finally
         {
+            light.FailOff = false;
             await settings.ShutdownAsync();
             await machine.ShutdownAsync();
         }
@@ -580,6 +563,7 @@ public sealed class LightingTests
         public bool FailOff { get; set; }
         public IOException OffFailure { get; }
         public Action? OnStarted { get; set; }
+        public Action? OnOffStarted { get; set; }
         public bool Connected { get; set; } = true;
 
         public void Initialize()
@@ -608,6 +592,7 @@ public sealed class LightingTests
         public void TurnOff(int channel)
         {
             Calls.Enqueue($"off:{channel}");
+            OnOffStarted?.Invoke();
             if (!Connected || FailOff)
                 throw OffFailure;
             IsOn = false;

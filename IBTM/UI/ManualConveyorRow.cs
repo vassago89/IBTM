@@ -38,7 +38,7 @@ public sealed partial class ManualConveyorRow : ObservableObject
         {
             var reason = await _machine.RunManualConveyorAsync(Io.Signal, cancellationToken);
             if (reason != OutputBlockReason.None)
-                ActionMessage = reason.GetDescription();
+                ActionMessage = UiText.Get(reason);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

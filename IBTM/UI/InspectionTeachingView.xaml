@@ -83,10 +83,10 @@
                                     <DataTemplate DataType="{x:Type storage:PcbRecord}">
                                         <StackPanel Margin="4,5">
                                             <DockPanel>
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding InspectionResult}" FontSize="12" Margin="6,0,0,0"/>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding InspectionResult, Converter={StaticResource UiTextConverter}}" FontSize="12" Margin="6,0,0,0"/>
                                                 <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
                                                     <Run Text="PCB "/><Run Text="{Binding Number, Mode=OneWay}"/>
-                                                    <Run Text=" · "/><Run Text="{Binding HeatSink, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                                    <Run Text=" · "/><Run Text="{Binding HeatSink, Mode=OneWay, Converter={StaticResource UiTextConverter}}"/>
                                                 </TextBlock>
                                             </DockPanel>
                                             <TextBlock TextTrimming="CharacterEllipsis" ToolTip="{Binding RecipeName}"

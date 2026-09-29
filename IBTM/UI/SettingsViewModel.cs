@@ -12,7 +12,6 @@ using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
-using IBTM.Virtual;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
@@ -24,7 +23,6 @@ public partial class SettingsViewModel : ObservableObject
     private readonly MachineController _machine;
     private readonly MachineStore _store;
     private readonly OperationCancellation _operations;
-    private readonly VirtualCamera? _virtualCamera;
     private readonly Dictionary<MotionGroup, (MotionSettings Settings, MotionHardwareSettings Hardware)> _motions;
     private readonly ILightController _light;
     private readonly ILogger<SettingsViewModel> _log;
@@ -33,20 +31,16 @@ public partial class SettingsViewModel : ObservableObject
         MachineSettings settings,
         MachineState state,
         MachineController machine,
-        ICamera camera,
         MachineStore store,
         OperationCancellation operations,
         ILightController light,
         ILogger<SettingsViewModel> log)
     {
-        LightDrivers = Enum.GetValues<LightDriver>();
         Languages = Enum.GetValues<UiLanguage>();
 
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => IsSettingsEditAllowed);
         BrowsePcbResultsFolderCommand = new RelayCommand(BrowsePcbResultsFolder, () => IsSettingsEditAllowed);
         BrowseLogFolderCommand = new RelayCommand(BrowseLogFolder, () => IsSettingsEditAllowed);
-        LoadVirtualImageCommand = new AsyncRelayCommand<string?>(LoadVirtualImageAsync, _ => IsChangeVirtualImageAllowed);
-        ClearVirtualImageCommand = new RelayCommand(ClearVirtualImage, () => IsClearVirtualImageAllowed);
         OffTestLightCommand = new AsyncRelayCommand(OffTestLightAsync, () => IsOffTestLightAllowed);
         TestLightCommand = new AsyncRelayCommand(TestLightAsync, () => IsTestLightAllowed);
 
@@ -57,23 +51,13 @@ public partial class SettingsViewModel : ObservableObject
         _light = light;
         _log = log;
         LightTestChannel = settings.Lighting.InspectionChannel;
-        ActiveLightConnection = settings.Drivers.Light == LightDriver.Virtual
-            ? "Virtual"
-            : settings.Lighting.Connection;
+        ActiveLightConnection = settings.Lighting.Connection;
         TestLightCommand.PropertyChanged += OnLightCommandChanged;
         OffTestLightCommand.PropertyChanged += OnLightCommandChanged;
         SaveSettingsCommand.PropertyChanged += OnSaveSettingsCommandChanged;
-        _virtualCamera = camera as VirtualCamera;
         Settings = settings;
-        ActiveControlDriver = settings.Drivers.Control;
-        ActiveCameraDriver = settings.Drivers.Camera;
-        ActiveBoltDriver = settings.Drivers.Bolt;
-        ActiveLightDriver = settings.Drivers.Light;
         _motions = settings.MotionSections.ToDictionary(section => section.Hardware.Group);
         MotionGroups = _motions.Keys.ToArray();
-        ControlDrivers = Enum.GetValues<ControlDriver>();
-        CameraDrivers = Enum.GetValues<CameraDriver>();
-        BoltDrivers = [BoltDriver.Virtual, BoltDriver.HantasAdc];
         var hardware = settings.HardwareSections;
         var inputMappings = hardware.OfType<InputHardwareSettings>()
             .SelectMany(
@@ -102,13 +86,6 @@ public partial class SettingsViewModel : ObservableObject
     public partial string? DatabaseMessage { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ClearVirtualImageCommand))]
-    public partial string? VirtualImageName { get; set; }
-
-    [ObservableProperty]
-    public partial string? VirtualImageError { get; set; }
-
-    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentMotionSettings))]
     [NotifyPropertyChangedFor(nameof(CurrentMotionHasZ))]
     [NotifyPropertyChangedFor(nameof(CurrentAxisMappings))]
@@ -116,29 +93,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public MachineSettings Settings { get; }
 
-    public ControlDriver ActiveControlDriver { get; }
-
-    public CameraDriver ActiveCameraDriver { get; }
-
-    public BoltDriver ActiveBoltDriver { get; }
-
-    public LightDriver ActiveLightDriver { get; }
-
-    public bool IsVirtualDevelopment => DevelopmentProfile.IsEnabled;
-
-    public bool IsDriverChangeAllowed => IsSettingsEditAllowed && !IsVirtualDevelopment;
-
-    public ControlDriver[] ControlDrivers { get; }
-
-    public CameraDriver[] CameraDrivers { get; }
-
-    public BoltDriver[] BoltDrivers { get; }
-
-    public LightDriver[] LightDrivers { get; }
-
     public UiLanguage[] Languages { get; }
-
-    public bool IsVirtualCamera => _virtualCamera is not null;
 
     public HardwareMappingRow[] AxisMappings { get; }
 
@@ -176,7 +131,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private void BrowseLogFolder()
     {
-        var dialog = new OpenFolderDialog { Title = "Log folder" };
+        var dialog = new OpenFolderDialog { Title = UiText.Get("Log folder") };
         if (Directory.Exists(LogDirectory))
             dialog.InitialDirectory = LogDirectory;
         if (dialog.ShowDialog() == true)
@@ -195,7 +150,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private void BrowsePcbResultsFolder()
     {
-        var dialog = new OpenFolderDialog { Title = "PCB results folder" };
+        var dialog = new OpenFolderDialog { Title = UiText.Get("PCB results folder") };
         if (Directory.Exists(PcbResultsDirectory))
             dialog.InitialDirectory = PcbResultsDirectory;
         if (dialog.ShowDialog() == true)
@@ -204,7 +159,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private async Task SaveSettingsAsync()
     {
-        DatabaseMessage = "Saving settings...";
+        DatabaseMessage = UiText.Get("Saving settings...");
         try
         {
             foreach (var (group, section) in _motions)
@@ -214,19 +169,19 @@ public partial class SettingsViewModel : ObservableObject
                     throw new InvalidOperationException($"{group}: {error}");
             }
             if (Settings.Lighting.InspectionChannel is < 1 or > 9)
-                throw new InvalidOperationException("Inspection light channel must be from 1 to 9.");
+                throw new InvalidOperationException(UiText.Get("Inspection light channel must be from 1 to 9."));
             if (Settings.Hantas.FasteningTimeoutMilliseconds <= 0)
-                throw new InvalidOperationException("Fastening timeout must be greater than 0 s.");
+                throw new InvalidOperationException(UiText.Get("Fastening timeout must be greater than 0 s."));
             if (Settings.Hantas.ResponseTimeoutMilliseconds <= 0)
-                throw new InvalidOperationException("ADC response timeout must be greater than 0 s.");
+                throw new InvalidOperationException(UiText.Get("ADC response timeout must be greater than 0 s."));
             if (string.IsNullOrWhiteSpace(LogDirectory) || !Path.IsPathFullyQualified(LogDirectory))
-                throw new InvalidOperationException("Choose an absolute folder path for logs.");
+                throw new InvalidOperationException(UiText.Get("Choose an absolute folder path for logs."));
             _ = Path.GetFullPath(LogDirectory);
             if (string.IsNullOrWhiteSpace(PcbResultsDirectory) || !Path.IsPathFullyQualified(PcbResultsDirectory))
-                throw new InvalidOperationException("Choose an absolute folder path for PCB results.");
+                throw new InvalidOperationException(UiText.Get("Choose an absolute folder path for PCB results."));
             Directory.CreateDirectory(PcbResultsDirectory);
             await _store.SaveSettingsAsync(Settings.Sections);
-            DatabaseMessage = "Settings saved.";
+            DatabaseMessage = UiText.Get("Settings saved.");
             _log.LogInformation(
                 "Settings saved to {Database}. Restart required for hardware and logging changes.",
                 _store.DatabaseFile);
@@ -234,7 +189,7 @@ public partial class SettingsViewModel : ObservableObject
         catch (Exception exception)
         {
             _log.LogError(exception, "Machine settings save failed.");
-            DatabaseMessage = $"Settings not saved: {exception.GetBaseException().Message}";
+            DatabaseMessage = UiText.Format($"Settings not saved: {exception.GetBaseException().Message}");
         }
     }
 
@@ -246,82 +201,13 @@ public partial class SettingsViewModel : ObservableObject
 
     public void RefreshCommands()
     {
-        LoadVirtualImageCommand.NotifyCanExecuteChanged();
-        ClearVirtualImageCommand.NotifyCanExecuteChanged();
         SaveSettingsCommand.NotifyCanExecuteChanged();
         TestLightCommand.NotifyCanExecuteChanged();
         OffTestLightCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsSettingsEditAllowed));
         BrowsePcbResultsFolderCommand.NotifyCanExecuteChanged();
         BrowseLogFolderCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(IsDriverChangeAllowed));
     }
-
-    public IAsyncRelayCommand<string?> LoadVirtualImageCommand { get; }
-
-    private async Task LoadVirtualImageAsync(string? path, CancellationToken cancellationToken)
-    {
-        if (path is null)
-        {
-            var dialog = new OpenFileDialog
-            {
-                Title = "Virtual Camera Image",
-                Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff",
-            };
-            if (dialog.ShowDialog() != true)
-            {
-                return;
-            }
-
-            path = dialog.FileName;
-        }
-
-        try
-        {
-            VirtualImageError = null;
-            var image = await Task.Run(
-                () =>
-                {
-                    using var stream = File.OpenRead(path);
-                    var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
-                        stream,
-                        System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
-                        System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
-                    return InspectionPreviewViewModel.CreateFrame(decoder.Frames[0]);
-                },
-                cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!IsChangeVirtualImageAllowed)
-            {
-                VirtualImageError = "Stop the machine before changing the camera image.";
-                return;
-            }
-
-            _virtualCamera!.SourceImage = image;
-            VirtualImageName = Path.GetFileName(path);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            _log.LogError(exception, "Virtual camera image load failed.");
-            VirtualImageError = exception.Message;
-        }
-    }
-
-    public IRelayCommand ClearVirtualImageCommand { get; }
-
-    private void ClearVirtualImage()
-    {
-        _virtualCamera!.SourceImage = null;
-        VirtualImageName = null;
-        VirtualImageError = null;
-    }
-
-    private bool IsChangeVirtualImageAllowed => IsVirtualCamera && IsSettingsEditAllowed;
-
-    private bool IsClearVirtualImageAllowed => IsChangeVirtualImageAllowed && VirtualImageName is not null;
 
     public async Task ShutdownAsync()
     {
@@ -329,7 +215,7 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             await CommandShutdown.CancelAndWaitAsync(
-                [SaveSettingsCommand, LoadVirtualImageCommand, TestLightCommand, OffTestLightCommand]);
+                [SaveSettingsCommand, TestLightCommand, OffTestLightCommand]);
         }
         catch (Exception exception)
         {
@@ -372,7 +258,7 @@ public partial class SettingsViewModel : ObservableObject
     public partial int? PendingLightOffChannel { get; set; }
 
     [ObservableProperty]
-    public partial string LightTestMessage { get; set; } = "Test only: does not change recipe brightness.";
+    public partial string LightTestMessage { get; set; } = "";
 
     public string ActiveLightConnection { get; }
 
@@ -422,7 +308,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             using var operation = _operations.Link();
             var failure = await TurnTestLightOffAsync(channel);
-            LightTestMessage = failure?.Message ?? $"OFF command sent · channel {channel}.";
+            LightTestMessage = failure?.Message ?? UiText.Format($"OFF command sent · channel {channel}.");
         }
         catch (OperationCanceledException)
         {
@@ -452,7 +338,7 @@ public partial class SettingsViewModel : ObservableObject
         catch (Exception exception)
         {
             var failure = new InvalidOperationException(
-                $"OFF failed on channel {channel}; light state is unknown. Press OFF to retry. {exception.Message}",
+                UiText.Format($"OFF failed on channel {channel}; light state is unknown. Press OFF to retry. {exception.Message}"),
                 exception);
             _log.LogError(exception, "Lighting test cleanup failed; light may still be ON.");
             return failure;
@@ -466,7 +352,7 @@ public partial class SettingsViewModel : ObservableObject
         // MOVS commands have a single channel digit; zero addresses all channels.
         if (LightTestChannel is < 1 or > 9 || LightTestLevel is < 0 or > 255)
         {
-            LightTestMessage = "Use a single channel (1–9) and brightness 0–255.";
+            LightTestMessage = UiText.Get("Use a single channel (1–9) and brightness 0–255.");
             return;
         }
 
@@ -480,13 +366,13 @@ public partial class SettingsViewModel : ObservableObject
                 cancellationToken);
             if (operation is null)
             {
-                LightTestMessage = "Wait for the current machine operation to finish.";
+                LightTestMessage = UiText.Get("Wait for the current machine operation to finish.");
                 return;
             }
         }
         catch (OperationCanceledException)
         {
-            LightTestMessage = "Lighting test cancelled.";
+            LightTestMessage = UiText.Get("Lighting test cancelled.");
             RefreshCommands();
             return;
         }
@@ -504,10 +390,10 @@ public partial class SettingsViewModel : ObservableObject
             Exception? failure = null;
             try
             {
-                LightTestMessage = $"Connecting: {ActiveLightConnection}…";
+                LightTestMessage = UiText.Format($"Connecting: {ActiveLightConnection}…");
                 _log.LogInformation(
-                    "Lighting test started: driver={Driver}, connection={Connection}, channel={Channel}, level={Level}.",
-                    ActiveLightDriver.ToString(), ActiveLightConnection, channel, level);
+                    "Lighting test started: connection={Connection}, channel={Channel}, level={Level}.",
+                    ActiveLightConnection, channel, level);
                 await Task.Run(
                     () =>
                     {
@@ -522,7 +408,7 @@ public partial class SettingsViewModel : ObservableObject
                     operation.Token);
                 operation.Token.ThrowIfCancellationRequested();
                 PendingLightOffChannel = channel;
-                LightTestMessage = $"ON command sent · channel {channel}, level {level}.";
+                LightTestMessage = UiText.Format($"ON command sent · channel {channel}, level {level}.");
                 _log.LogInformation("Lighting test ON command sent: channel={Channel}, level={Level}.", channel, level);
                 // Keep the operation owned while illuminated, including OFF cleanup.
                 // This blocks automatic/motion admission and lets STOP cancel the test.
@@ -546,8 +432,8 @@ public partial class SettingsViewModel : ObservableObject
                 }
 
                 LightTestMessage = failure?.Message ?? (initialized
-                    ? $"OFF command sent · channel {channel}."
-                    : "Lighting test cancelled.");
+                    ? UiText.Format($"OFF command sent · channel {channel}.")
+                    : UiText.Get("Lighting test cancelled."));
             }
         }
 

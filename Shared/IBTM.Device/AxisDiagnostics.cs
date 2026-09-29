@@ -4,32 +4,39 @@ using System.IO;
 
 namespace IBTM.Device;
 
+public sealed record AxisDiagnosticSample(AxisState? State, double? Position, Exception? ReadError)
+{
+    public AxisCondition Condition => AxisStatus.GetCondition(State);
+
+    public bool? Faulted => State is { } state ? state.Alarm || state.Emergency : null;
+}
+
 public sealed class AxisDiagnostics : INotifyPropertyChanged
 {
-    private AxisDiagnosticSnapshot _snapshot;
+    private AxisDiagnosticSample _sample;
 
     public AxisDiagnostics()
     {
-        _snapshot = new(null, null, null);
+        _sample = new(null, null, null);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public AxisDiagnosticSnapshot Snapshot
+    public AxisDiagnosticSample Sample
     {
-        get => System.Threading.Volatile.Read(ref _snapshot);
+        get => System.Threading.Volatile.Read(ref _sample);
         private set
         {
-            if (Snapshot == value)
+            if (Sample == value)
                 return;
-            System.Threading.Volatile.Write(ref _snapshot, value);
-            PropertyChanged?.Invoke(this, new(nameof(Snapshot)));
+            System.Threading.Volatile.Write(ref _sample, value);
+            PropertyChanged?.Invoke(this, new(nameof(Sample)));
         }
     }
 
     internal void Invalidate(Exception error)
     {
-        Snapshot = new(null, null, error);
+        Sample = new(null, null, error);
     }
 
     public void Refresh(IMotionDiagnostics feedback, MotionAxis axis)
@@ -61,7 +68,7 @@ public sealed class AxisDiagnostics : INotifyPropertyChanged
                 : new AggregateException(error, exception);
         }
 
-        Snapshot = new(state, position, error);
+        Sample = new(state, position, error);
     }
 
     private static bool IsReadFailure(Exception error)

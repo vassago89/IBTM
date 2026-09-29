@@ -1,3 +1,4 @@
+using IBTM.Core;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -41,7 +42,7 @@ public partial class OperationView : UserControl
             }
             catch (Exception closeException)
             {
-                throw new AggregateException("PCB details could not be opened or closed.", exception, closeException);
+                throw new AggregateException(UiText.Get("PCB details could not be opened or closed."), exception, closeException);
             }
             finally
             {

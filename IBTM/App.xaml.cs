@@ -26,28 +26,15 @@ public partial class App : System.Windows.Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        if (e.Args.Contains(DevelopmentProfile.Argument) && !DevelopmentProfile.IsEnabled)
-        {
-            MessageBox.Show(
-                "Select the Virtual build configuration for the Virtual launch profile.",
-                "IBTM",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-            Shutdown();
-            return;
-        }
-
         var instanceMutex = new Mutex(
             initiallyOwned: true,
-            DevelopmentProfile.IsEnabled
-                ? @"Global\IBTM.VirtualDevelopment"
-                : @"Global\IBTM.Application",
+            @"Global\IBTM.Application",
             out var createdNew);
         if (!createdNew)
         {
             instanceMutex.Dispose();
             MessageBox.Show(
-                "IBTM is already running.",
+                UiText.Get("IBTM is already running."),
                 "IBTM",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -67,34 +54,22 @@ public partial class App : System.Windows.Application
         try
         {
             var database = await Task.Run(() => new MachineStore());
-            if (DevelopmentProfile.IsEnabled)
-            {
-                await DevelopmentProfile.PrepareAsync(database);
-            }
-
             var settings = await MachineSettings.LoadAsync(database);
             UiText.Apply(settings.Options.Language);
             foreach (var source in new[] { "AppStyles", "MachineStyles", "WorkpieceStyles", "IoWindowStyles" })
                 Resources.MergedDictionaries.Add(new ResourceDictionary
                 {
-                    Source = new Uri($"UI/{source}.xaml", UriKind.Relative),
+                    Source = new Uri($"pack://application:,,,/IBTM;component/UI/{source}.xaml"),
                 });
             var applicationLog = InitializeLogging(settings.Logging);
             services
                 .AddSingleton(applicationLog)
                 .AddSingleton(_loggerFactory);
-            if (DevelopmentProfile.IsEnabled)
-            {
-                DevelopmentProfile.UseVirtualHardware(settings);
-            }
-
             var recipes = new RecipeManager(database, settings.RecipeSelection);
             if (settings.RecipeSelection.LastRecipeName is { } recipeName)
                 await recipes.LoadAsync(recipeName);
             _log.LogInformation(
-                "Settings loaded: {Database}. Control={Control}, Camera={Camera}, Light={Light}, Bolt={Bolt}.",
-                database.DatabaseFile, settings.Drivers.Control.ToString(), settings.Drivers.Camera.ToString(),
-                settings.Drivers.Light.ToString(), settings.Drivers.Bolt.ToString());
+                "Settings loaded: {Database}.", database.DatabaseFile);
             _log.LogInformation(
                 "Connections: AlphaMotion card={Card}, DI/DO counts detected during initialization; "
                     + "AJIN AxlOpen, interrupt={Interrupt}, input modules=[{InputModules}], output modules=[{OutputModules}], no .mot file loaded.",
@@ -105,7 +80,8 @@ public partial class App : System.Windows.Application
             services
                 .AddSingleton(database)
                 .AddSingleton(recipes)
-                .AddIbtmApplication(settings);
+                .AddIbtmApplication(settings)
+                .AddIbtmHardware(settings);
         }
         catch (Exception exception)
         {
@@ -113,8 +89,8 @@ public partial class App : System.Windows.Application
                 InitializeLogging(new LogSettings());
             _log.LogError(exception, "Startup configuration failed. Hardware was not initialized.");
             MessageBox.Show(
-                $"Startup configuration could not be prepared. Hardware was not initialized.\n\n{exception.GetBaseException().Message}",
-                "Startup Configuration Failed",
+                UiText.Format($"Startup configuration could not be prepared. Hardware was not initialized.\n\n{exception.GetBaseException().Message}"),
+                UiText.Get("Startup Configuration Failed"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             _exitCode = 1;
@@ -139,7 +115,7 @@ public partial class App : System.Windows.Application
     private ApplicationLog InitializeLogging(LogSettings settings)
     {
         if (string.IsNullOrWhiteSpace(settings.Directory) || !Path.IsPathFullyQualified(settings.Directory))
-            throw new InvalidOperationException("Choose an absolute folder path for logs.");
+            throw new InvalidOperationException(UiText.Get("Choose an absolute folder path for logs."));
         var logDirectory = Path.GetFullPath(settings.Directory);
         var applicationLog = new ApplicationLog(
             Path.Combine(logDirectory, "IBTM-.log"),
@@ -165,7 +141,7 @@ public partial class App : System.Windows.Application
             {
                 _log?.LogError(exception, "Final device STOP failed during application exit.");
                 _exitCode = 1;
-                ShowError("Device STOP failed during application exit.", exception);
+                ShowError(UiText.Get("Device STOP failed during application exit."), exception);
             }
 
             // Release the MVS connection even if a later DI-owned service fails to dispose.
@@ -183,7 +159,7 @@ public partial class App : System.Windows.Application
             {
                 _log?.LogError(exception, "Device disposal failed during application exit.");
                 _exitCode = 1;
-                ShowError("Device cleanup failed during application exit.", exception);
+                ShowError(UiText.Get("Device cleanup failed during application exit."), exception);
             }
 
             _serviceProvider = null;
@@ -212,7 +188,7 @@ public partial class App : System.Windows.Application
         {
             _log?.LogError(exception, "Final device STOP failed during application exit.");
             _exitCode = 1;
-            ShowError("Device STOP failed during application exit.", exception);
+            ShowError(UiText.Get("Device STOP failed during application exit."), exception);
         }
         finally
         {
@@ -240,7 +216,7 @@ public partial class App : System.Windows.Application
         {
             _log?.LogError(exception, "Camera disconnection failed during application exit.");
             _exitCode = 1;
-            ShowError("Camera disconnection failed during application exit.", exception);
+            ShowError(UiText.Get("Camera disconnection failed during application exit."), exception);
         }
     }
 
@@ -260,9 +236,9 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             _log?.LogError(exception, "Device STOP failed after an unhandled UI error.");
-            ShowError("Device STOP failed after an unhandled UI error.", exception);
+            ShowError(UiText.Get("Device STOP failed after an unhandled UI error."), exception);
         }
-        ShowError("An unhandled UI error occurred. The application will remain open.", e.Exception);
+        ShowError(UiText.Get("An unhandled UI error occurred. The application will remain open."), e.Exception);
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -279,13 +255,13 @@ public partial class App : System.Windows.Application
             catch (Exception exception)
             {
                 _log?.LogError(exception, "Device STOP failed after an unhandled application error.");
-                ShowError("Device STOP failed after an unhandled application error.", exception);
+                ShowError(UiText.Get("Device STOP failed after an unhandled application error."), exception);
             }
         }
         ShowError(
             e.IsTerminating
-                ? "An unhandled error occurred. The application will close."
-                : "An unhandled application error occurred.",
+                ? UiText.Get("An unhandled error occurred. The application will close.")
+                : UiText.Get("An unhandled application error occurred."),
             e.ExceptionObject);
         if (e.IsTerminating)
         {
@@ -299,7 +275,7 @@ public partial class App : System.Windows.Application
         e.SetObserved();
         _log?.LogError(e.Exception, "Unobserved background task exception.");
         _ = Dispatcher.InvokeAsync(
-            () => ShowError("A background task failed.", e.Exception));
+            () => ShowError(UiText.Get("A background task failed."), e.Exception));
     }
 
     private void ShowError(string message, object error)
@@ -312,8 +288,8 @@ public partial class App : System.Windows.Application
             ? exception.GetBaseException().Message
             : error.ToString();
         MessageBox.Show(
-            $"{message}\n\n{detail}\n\nSee the application log for details.",
-            "IBTM Error",
+            UiText.Format($"{message}\n\n{detail}\n\nSee the application log for details."),
+            UiText.Get("IBTM Error"),
             MessageBoxButton.OK,
             MessageBoxImage.Error);
     }

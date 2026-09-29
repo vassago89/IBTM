@@ -450,9 +450,8 @@ HOME은 IPM 상승이 필요하므로 PCB를 잡고 IPM이 내려간 경우 `Pla
 `OperationCancellation.Link`와 `Operation.Cancel`도 시작·취소 오류 뒤 종료 알림이 실패하면
 두 예외를 함께 남긴다. `OperationCancellationTests`에서 오류 보존과 작업 수명 해제를 확인한다.
 
-설정 저장·백업·복원·가상 이미지 변경은 버튼의 `CanExecute`뿐 아니라 실행 메서드에서도
-현재 편집 허용 상태를 확인한다. `SettingsStayLockedWhileBusyOrClosingEvenWithAnAlarm`은
-작업 중·종료 중 직접 호출해도 파일 대화상자를 열거나 검사 입력 이미지를 바꾸지 않는지 검증한다.
+`SettingsCommandsStayDisabledWhileBusyOrClosingEvenWithAnAlarm`은 작업 중·종료 중 설정 저장 명령이
+비활성화되는지 확인한다. 가상 카메라 이미지 주입은 화면에서 제거했고 테스트 대역에서만 사용한다.
 
 아래 표는 자동 유닛과 공급·안착 직접 인계를 포함한다. 각 유닛의 `RunAsync`에 있는 루프가
 현재 피드백으로 다음 동작을 선택하고, 할 일이 없으면 `WaitForChangeAsync`로 기다린다.

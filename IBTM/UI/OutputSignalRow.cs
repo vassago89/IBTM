@@ -33,7 +33,7 @@ public sealed partial class OutputSignalRow : ObservableObject
         {
             var reason = _machine.ToggleDiagnosticOutput(Io.Signal);
             if (reason != OutputBlockReason.None)
-                ActionMessage = reason.GetDescription();
+                ActionMessage = UiText.Get(reason);
         }
         catch (Exception exception)
         {

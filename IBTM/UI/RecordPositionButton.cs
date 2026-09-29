@@ -14,17 +14,17 @@ public sealed class RecordPositionButton : Button
 
         var replacement = point.Position.Mode switch
         {
-            TeachMode.Image => "Replace the recorded X/Y, reference image and light level with the current values.",
-            TeachMode.XYOnly => "Replace the recorded X/Y with the current coordinates.",
-            TeachMode.ZOnly => "Replace the recorded Z with the current coordinate.",
-            _ => "Replace the recorded X/Y/Z with the current coordinates.",
+            TeachMode.Image => UiText.Get("Replace the recorded X/Y, reference image and light level with the current values."),
+            TeachMode.XYOnly => UiText.Get("Replace the recorded X/Y with the current coordinates."),
+            TeachMode.ZOnly => UiText.Get("Replace the recorded Z with the current coordinate."),
+            _ => UiText.Get("Replace the recorded X/Y/Z with the current coordinates."),
         };
         var confirmed = WarningDialog.Confirm(
             Window.GetWindow(this),
-            point.Position.Mode == TeachMode.Image ? "Save position and image?" : "Record current position?",
+            point.Position.Mode == TeachMode.Image ? UiText.Get("Save position and image?") : UiText.Get("Record current position?"),
             replacement,
-            $"Unit      {teaching.SelectedTeachingUnit.GetDescription()}\nPoint     {point.Name}\nRecorded (mm)  {point.PositionLabel}",
-            Content?.ToString() ?? "Record Position");
+            UiText.Format($"Unit      {UiText.Get(teaching.SelectedTeachingUnit)}\nPoint     {point.Name}\nRecorded (mm)  {point.PositionLabel}"),
+            Content?.ToString() ?? UiText.Get("Record Position"));
         if (!confirmed
             || !IsEnabled
             || !ReferenceEquals(DataContext, teaching)

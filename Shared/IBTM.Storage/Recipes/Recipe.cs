@@ -1,12 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
-using System;
 using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 
 namespace IBTM;
 
@@ -54,7 +54,7 @@ public sealed class Recipe
     public void ApplyInspectionSettings(Recipe source)
     {
         // Gantry teaching owns coordinates, reference images and capture lighting.
-        var inspection = JsonSerializer.Deserialize<BoltInspectionRecipe>(JsonSerializer.Serialize(source.BoltInspection))!;
+        var inspection = source.BoltInspection.Clone();
         inspection.LightLevel = BoltInspection.LightLevel;
         inspection.DataMatrix1.LightLevel = BoltInspection.DataMatrix1.LightLevel;
         inspection.DataMatrix2.LightLevel = BoltInspection.DataMatrix2.LightLevel;
@@ -82,8 +82,9 @@ public sealed class Recipe
         }
     }
 
-    public void ReplaceWith(Recipe recipe)
+    public void CopyFrom(Recipe recipe)
     {
+        // Apply an owned copy/load result while retaining the bound recipe and bolt collection.
         Name = recipe.Name;
         PcbSupply = recipe.PcbSupply;
         PcbPlacement = recipe.PcbPlacement;

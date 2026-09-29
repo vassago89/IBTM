@@ -105,7 +105,7 @@ public partial class PcbResultsViewModel : ObservableObject
                 ? selected.Record.BoltId : SelectedBolt?.BoltId;
             Images = images;
             var failed = images.Where(image => image.Error is not null).Select(image => image.Title).ToArray();
-            ImageError = failed.Length == 0 ? null : $"Image unavailable: {string.Join(", ", failed)}";
+            ImageError = failed.Length == 0 ? null : UiText.Format($"Image unavailable: {string.Join(", ", failed)}");
             SelectedImage = hasSelection
                 ? images.FirstOrDefault(image => image.Record.BoltId == selectedBoltId)
                 : images.FirstOrDefault();
@@ -117,7 +117,7 @@ public partial class PcbResultsViewModel : ObservableObject
         {
             if (cancellationToken.IsCancellationRequested)
                 return;
-            ImageError = $"Inspection images could not be loaded: {exception.Message}";
+            ImageError = UiText.Format($"Inspection images could not be loaded: {exception.Message}");
             _log.LogError(exception, "PCB {Number} image history load failed.", record.Number);
         }
     }
@@ -131,24 +131,24 @@ public sealed record PcbBoltPresenceView(Guid BoltId, int? Ordinal, bool Present
 public sealed record PcbBoltResultView(
     Guid BoltId, int? Ordinal, FasteningHead Head, BoltResult Result, bool? Present = null, string? Name = null)
 {
-    public string HeadLabel => Head == FasteningHead.Pickup ? "H1 · Pickup" : "H2 · Shooting";
+    public string HeadLabel => Head == FasteningHead.Pickup ? UiText.Get("H1 · Pickup") : UiText.Get("H2 · Shooting");
     public string BoltLabel => BoltPoint.GetDisplayName(Name, Ordinal);
     public string Title => $"{BoltLabel} · {HeadLabel}";
-    public string Verdict => Result.Source == BoltResultSource.DryRun ? "DRY RUN" : Result.Success ? "OK" : "NG";
+    public string Verdict => Result.Source == BoltResultSource.DryRun ? UiText.Get("DRY RUN") : Result.Success ? "OK" : "NG";
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
     public string TurnsVerdict => Result.TurnsResult switch
     {
         AssemblyResult.Ok => "OK",
         AssemblyResult.Ng => "NG",
-        AssemblyResult.Pending => "No data",
-        _ => "Not set",
+        AssemblyResult.Pending => UiText.Get("No data"),
+        _ => UiText.Get("Not set"),
     };
     public string? ControllerStatus => Result.Controller is { } data
-        ? $"{((AdcEventStatus)data.StatusCode).GetDescription()} ({data.StatusCode})" : null;
+        ? $"{UiText.Get((AdcEventStatus)data.StatusCode)} ({data.StatusCode})" : null;
     public string? Direction => Result.Controller is { } data
-        ? $"{((AdcDirection)data.DirectionCode).GetDescription()} ({data.DirectionCode})" : null;
+        ? $"{UiText.Get((AdcDirection)data.DirectionCode)} ({data.DirectionCode})" : null;
     public string? ControllerErrorDescription => Result.Controller is { } data
         ? AdcControllerError.Describe(data.ErrorCode) : null;
     public string RegisterText => Result.Controller?.Registers is { } registers
-        ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}")) : "Not recorded";
+        ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}")) : UiText.Get("Not recorded");
 }

@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\IBTM\IBTM.csproj" />
+    <ProjectReference Include="..\..\Hardware\IBTM.Virtual\IBTM.Virtual.csproj" />
   </ItemGroup>
 
   <ItemGroup>

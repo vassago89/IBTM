@@ -38,11 +38,11 @@ public sealed class MotionStatus : INotifyPropertyChanged
     {
         get
         {
-            // The axis snapshots own the coordinates; this is not a second position cache.
+            // The axis samples own the coordinates; this is not a second position cache.
             return new(
-                MonitorAxes[MotionAxis.X].Snapshot.Position,
-                Feedback.HasY ? MonitorAxes[MotionAxis.Y].Snapshot.Position : null,
-                Feedback.HasZ ? MonitorAxes[MotionAxis.Z].Snapshot.Position : null);
+                MonitorAxes[MotionAxis.X].Sample.Position,
+                Feedback.HasY ? MonitorAxes[MotionAxis.Y].Sample.Position : null,
+                Feedback.HasZ ? MonitorAxes[MotionAxis.Z].Sample.Position : null);
         }
     }
 
@@ -53,7 +53,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
             // Observed movement only. Unknown feedback is exposed by the axis status;
             // command admission must still read current hardware feedback.
             return Feedback is IMotionDiagnostics
-                ? MonitorAxes.Values.Any(axis => axis.Snapshot.State is { InMotion: true })
+                ? MonitorAxes.Values.Any(axis => axis.Sample.State is { InMotion: true })
                 : Axes.Values.Any(axis => axis.State is { InMotion: true });
         }
     }
@@ -77,10 +77,10 @@ public sealed class MotionStatus : INotifyPropertyChanged
         var previousPosition = Position;
         foreach (var (axis, status) in MonitorAxes)
         {
-            var previous = status.Snapshot.ReadError;
+            var previous = status.Sample.ReadError;
             status.Refresh(diagnostics, axis);
-            // Report once per failed acquisition period; keep the latest exception in the snapshot.
-            if (status.Snapshot.ReadError is { } error && previous is null)
+            // Report once per failed acquisition period; keep the latest exception in the sample.
+            if (status.Sample.ReadError is { } error && previous is null)
                 reportError?.Invoke(axis, error);
         }
 
@@ -99,7 +99,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
         {
             // A failed monitor sample already establishes unavailable feedback.
             // Do not query the same disconnected driver again through throwing command getters.
-            var readable = MonitorAxes.Values.All(axis => axis.Snapshot.ReadError is null);
+            var readable = MonitorAxes.Values.All(axis => axis.Sample.ReadError is null);
             var ready = available && readable && Feedback.IsReady;
             foreach (var (axis, status) in Axes)
             {
@@ -109,7 +109,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
                 if (ready)
                 {
                     state = Feedback is IMotionDiagnostics
-                        ? MonitorAxes[axis].Snapshot.State
+                        ? MonitorAxes[axis].Sample.State
                         : Feedback.GetAxisState(axis);
                 }
 

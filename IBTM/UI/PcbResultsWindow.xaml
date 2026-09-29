@@ -80,13 +80,13 @@
             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
                 <TextBlock Text="{Binding Record.Number, StringFormat={ui:Text 'PCB {0}'}}" FontSize="24" FontWeight="SemiBold"/>
                 <Border Background="{StaticResource ControlBgBrush}" CornerRadius="4" Margin="12,0,0,0" Padding="12,5" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Record.Result, Converter={StaticResource EnumDescriptionConverter}}" Tag="{Binding Record.Result}" Style="{StaticResource ResultBadge}"/>
+                    <TextBlock Text="{Binding Record.Result, Converter={StaticResource UiTextConverter}}" Tag="{Binding Record.Result}" Style="{StaticResource ResultBadge}"/>
                 </Border>
             </StackPanel>
             <StackPanel VerticalAlignment="Center">
                 <WrapPanel TextBlock.Foreground="{StaticResource TextSecondaryBrush}" TextBlock.FontSize="12">
                     <TextBlock Text="{Binding Record.RecipeName}" Margin="0,0,14,0"/>
-                    <TextBlock Text="{Binding Record.HeatSink, Converter={StaticResource EnumDescriptionConverter}}"/>
+                    <TextBlock Text="{Binding Record.HeatSink, Converter={StaticResource UiTextConverter}}"/>
                 </WrapPanel>
                 <WrapPanel TextBlock.Foreground="{StaticResource TextMutedBrush}" TextBlock.FontSize="11" Margin="0,3,0,0">
                     <TextBlock Text="{Binding Record.CreatedAt, StringFormat={ui:Text 'Created {0:yyyy-MM-dd HH:mm:ss}'}}" Margin="0,0,14,0"/>
@@ -97,17 +97,17 @@
         <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,8">
             <Border Style="{StaticResource Card}" Margin="0,0,10,0" Padding="12,6">
                 <DockPanel><StackPanel><TextBlock Text="{ui:Text 'BOLT FASTENING'}" Style="{StaticResource MetricLabel}"/>
-                    <TextBlock Text="{Binding Record.FasteningResult, Converter={StaticResource EnumDescriptionConverter}}" Tag="{Binding Record.FasteningResult}" Style="{StaticResource ResultBadge}" Margin="0,5,0,0"/>
-                </StackPanel><TextBlock Text="{Binding BoltResults.Count, StringFormat='{}{0} results'}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/></DockPanel>
+                    <TextBlock Text="{Binding Record.FasteningResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding Record.FasteningResult}" Style="{StaticResource ResultBadge}" Margin="0,5,0,0"/>
+                </StackPanel><TextBlock Text="{Binding BoltResults.Count, StringFormat={ui:Text '{}{0} results'}}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/></DockPanel>
             </Border>
             <Border Style="{StaticResource Card}" Margin="0,0,10,0" Padding="12,6">
                 <DockPanel><StackPanel><TextBlock Text="{ui:Text 'VISION INSPECTION'}" Style="{StaticResource MetricLabel}"/>
-                    <TextBlock Text="{Binding Record.InspectionResult, Converter={StaticResource EnumDescriptionConverter}}" Tag="{Binding Record.InspectionResult}" Style="{StaticResource ResultBadge}" Margin="0,5,0,0"/>
-                </StackPanel><TextBlock Text="{Binding Images.Count, StringFormat='{}{0} images'}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/></DockPanel>
+                    <TextBlock Text="{Binding Record.InspectionResult, Converter={StaticResource UiTextConverter}}" Tag="{Binding Record.InspectionResult}" Style="{StaticResource ResultBadge}" Margin="0,5,0,0"/>
+                </StackPanel><TextBlock Text="{Binding Images.Count, StringFormat={ui:Text '{}{0} images'}}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/></DockPanel>
             </Border>
             <Border Style="{StaticResource Card}" Padding="12,6">
                 <DockPanel><StackPanel><TextBlock Text="{ui:Text 'MINIMUM TURNS'}" Style="{StaticResource MetricLabel}"/>
-                    <TextBlock Text="{Binding Record.TurnsResult, Converter={StaticResource EnumDescriptionConverter}, TargetNullValue={ui:Text 'Not set'}}" Tag="{Binding Record.TurnsResult}" Style="{StaticResource ResultBadge}" Margin="0,5,0,0"/>
+                    <TextBlock Text="{Binding Record.TurnsResult, Converter={StaticResource UiTextConverter}, TargetNullValue={ui:Text 'Not set'}}" Tag="{Binding Record.TurnsResult}" Style="{StaticResource ResultBadge}" Margin="0,5,0,0"/>
                 </StackPanel><TextBlock Text="{ui:Text 'A3 ÷ 360 ≥ minimum'}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/></DockPanel>
             </Border>
         </UniformGrid>
@@ -238,7 +238,7 @@
                                     <TextBlock Text="{Binding SelectedBolt.Title, TargetNullValue={ui:Text 'Controller details'}, FallbackValue={ui:Text 'Controller details'}}"
                                         ToolTip="{Binding SelectedBolt.Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="16"/>
                                     <WrapPanel Margin="0,3,0,4" TextBlock.FontSize="11" TextBlock.Foreground="{StaticResource TextMutedBrush}">
-                                        <TextBlock Text="{Binding SelectedBolt.Result.Source, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,14,0"/>
+                                        <TextBlock Text="{Binding SelectedBolt.Result.Source, Converter={StaticResource UiTextConverter}}" Margin="0,0,14,0"/>
                                         <TextBlock Text="{Binding SelectedBolt.Result.RecordedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}', TargetNullValue={ui:Text 'Time not recorded'}, FallbackValue={ui:Text 'Time not recorded'}}"/>
                                     </WrapPanel>
                                 </StackPanel>

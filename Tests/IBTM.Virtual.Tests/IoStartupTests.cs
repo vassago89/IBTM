@@ -340,13 +340,10 @@ public sealed class IoStartupTests
         }
     }
 
-    [Theory]
-    [InlineData(BoltDriver.Virtual)]
-    [InlineData(BoltDriver.HantasAdc)]
-    public async Task MachineStopClearsBothIoBoltStartsEvenWhenOneWriteFails(BoltDriver driver)
+    [Fact]
+    public async Task MachineStopClearsBothIoBoltStartsEvenWhenOneWriteFails()
     {
         var settings = new MachineSettings();
-        settings.Drivers.Bolt = driver;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();
@@ -374,7 +371,6 @@ public sealed class IoStartupTests
     public async Task IoFasteningStopWriteFailureRequiresANewCycleAfterStopping()
     {
         var settings = new MachineSettings();
-        settings.Drivers.Bolt = BoltDriver.Virtual;
         await using var services = CreateServices(settings);
         var io = services.GetRequiredService<StartupIo>();
         var head = Assert.IsType<AdcBoltHead>(services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup));
@@ -2236,7 +2232,7 @@ public sealed class IoStartupTests
 
     private static ServiceProvider CreateServices(MachineSettings? settings = null)
     {
-        return new ServiceCollection().AddIbtmApplication(
+        return new ServiceCollection().AddVirtualApplication(
             settings ?? new MachineSettings())
             .AddSingleton<StartupIo>()
             .AddSingleton<IIoService>(provider => provider.GetRequiredService<StartupIo>())

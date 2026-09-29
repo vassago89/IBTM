@@ -6,10 +6,6 @@
     "IBTM Native": {
       "commandName": "Project",
       "nativeDebugging": true
-    },
-    "Virtual": {
-      "commandName": "Project",
-      "commandLineArgs": "--virtual-development"
     }
   }
 }

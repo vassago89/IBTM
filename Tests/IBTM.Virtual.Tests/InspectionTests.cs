@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Conveyor;
@@ -326,7 +325,7 @@ public sealed class InspectionTests
         try
         {
             await waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            var edited = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipes.Current))!;
+            var edited = recipes.Current.Clone();
             edited.CarrierImages[barcode ? 0 : 1].Region = new(0, 0, 20, 20);
             await recipes.SaveInspectionAsync(edited);
             await resumed.Task.WaitAsync(TimeSpan.FromSeconds(2));

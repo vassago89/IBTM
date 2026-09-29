@@ -47,7 +47,7 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{ui:Text 'CONVEYOR'}" Margin="0,0,9,0" VerticalAlignment="Center"
                             Style="{StaticResource EquipmentRoleLabelStyle}"/>
-                        <TextBlock Text="{Binding ConveyorStatus, Converter={StaticResource EnumDescriptionConverter}}"
+                        <TextBlock Text="{Binding ConveyorStatus, Converter={StaticResource UiTextConverter}}"
                             FontSize="15" FontWeight="SemiBold">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource MapHintStyle}">

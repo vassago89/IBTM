@@ -76,7 +76,7 @@
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
-                    <Button Content="{Binding Source={x:Static ui:AppPage.Operation}, Converter={StaticResource EnumDescriptionConverter}}"
+                    <Button Content="{Binding Source={x:Static ui:AppPage.Operation}, Converter={StaticResource UiTextConverter}}"
                         Command="{Binding NavigateCommand}"
                         CommandParameter="{x:Static ui:AppPage.Operation}">
                         <Button.Style>
@@ -90,7 +90,7 @@
                         </Button.Style>
                     </Button>
                     <Button
-    Content="{Binding Source={x:Static ui:AppPage.ManualHardware}, Converter={StaticResource EnumDescriptionConverter}}"
+    Content="{Binding Source={x:Static ui:AppPage.ManualHardware}, Converter={StaticResource UiTextConverter}}"
     Command="{Binding NavigateCommand}"
     CommandParameter="{x:Static ui:AppPage.ManualHardware}">
                         <Button.Style>
@@ -105,7 +105,7 @@
                     </Button>
 
                     <Button
-                        Content="{Binding Source={x:Static ui:AppPage.Teaching}, Converter={StaticResource EnumDescriptionConverter}}"
+                        Content="{Binding Source={x:Static ui:AppPage.Teaching}, Converter={StaticResource UiTextConverter}}"
                         Command="{Binding NavigateCommand}"
                         CommandParameter="{x:Static ui:AppPage.Teaching}">
                         <Button.Style>
@@ -131,7 +131,7 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Content="{Binding Source={x:Static ui:AppPage.Settings}, Converter={StaticResource EnumDescriptionConverter}}"
+                    <Button Content="{Binding Source={x:Static ui:AppPage.Settings}, Converter={StaticResource UiTextConverter}}"
                         Command="{Binding NavigateCommand}"
                         CommandParameter="{x:Static ui:AppPage.Settings}">
                         <Button.Style>
@@ -185,12 +185,12 @@
                         <Border Tag="{Binding Operation.MachineDisplayState}" Style="{StaticResource MachineStateBadgeStyle}">
                             <TextBlock
                                 Text="{Binding Operation.MachineDisplayState,
-                                                     Converter={StaticResource EnumDescriptionConverter}}"
+                                                     Converter={StaticResource UiTextConverter}}"
                                 Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold"/>
                         </Border>
                         <TextBlock
                             Text="{Binding Operation.Alarm,
-                                                  Converter={StaticResource EnumDescriptionConverter}}"
+                                                  Converter={StaticResource UiTextConverter}}"
                             ToolTip="{Binding Operation.AlarmDetail}"
                             Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}" FontSize="16"
                             FontWeight="SemiBold" MaxWidth="180" TextTrimming="CharacterEllipsis"
@@ -410,7 +410,7 @@
                         <Ellipse Width="10" Height="10" Margin="0,0,8,0" Fill="{StaticResource AccentAmberBrush}"/>
                         <TextBlock
                             Text="{Binding Operation.StartBlock,
-                                                  Converter={StaticResource EnumDescriptionConverter}}"
+                                                  Converter={StaticResource UiTextConverter}}"
                             VerticalAlignment="Center" Foreground="{StaticResource AccentAmberBrush}" FontSize="15" FontWeight="SemiBold"/>
                     </StackPanel>
 
@@ -436,7 +436,7 @@
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
-                                        <Setter Property="ToolTip" Value="{Binding Operation.Machine.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                        <Setter Property="ToolTip" Value="{Binding Operation.Machine.HomeBlock, Converter={StaticResource UiTextConverter}}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.State.IsHoming}" Value="True">
                                                 <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>

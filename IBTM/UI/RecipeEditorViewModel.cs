@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
 using Microsoft.Extensions.Logging;
@@ -82,7 +83,7 @@ public partial class RecipeEditorViewModel : ObservableObject
     {
         if (!IsSaveAllowed)
         {
-            Error = "Enter a recipe name before saving.";
+            Error = UiText.Get("Enter a recipe name before saving.");
             return false;
         }
         Error = null;
@@ -134,7 +135,7 @@ public partial class RecipeEditorViewModel : ObservableObject
             using var operation = _operations.TryBegin();
             if (operation is null)
             {
-                Error = "Stop the current operation before changing the recipe.";
+                Error = UiText.Get("Stop the current operation before changing the recipe.");
                 return;
             }
             await _recipes.LoadAsync(recipeName, operation.Token);
@@ -158,7 +159,7 @@ public partial class RecipeEditorViewModel : ObservableObject
             using var operation = _operations.TryBegin();
             if (operation is null)
             {
-                Error = "Stop the current operation before changing the recipe.";
+                Error = UiText.Get("Stop the current operation before changing the recipe.");
                 return;
             }
             operation.Token.ThrowIfCancellationRequested();
@@ -182,6 +183,6 @@ public partial class RecipeEditorViewModel : ObservableObject
     private void ReportError(Exception exception)
     {
         _log?.LogError(exception, "Recipe operation failed.");
-        Error = $"Recipe operation failed: {exception.GetBaseException().Message}";
+        Error = UiText.Format($"Recipe operation failed: {exception.GetBaseException().Message}");
     }
 }

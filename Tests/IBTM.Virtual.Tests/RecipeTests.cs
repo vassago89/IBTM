@@ -128,16 +128,42 @@ public sealed class RecipeTests
         var bolt = new BoltPoint { Name = "좌상단 고정" };
         recipe.Pcb.BoltPoints = [bolt];
         Assert.Same(original, recipe.Pcb.BoltPoints);
-        var loaded = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipe))!;
+        var loaded = recipe.Clone();
         BindingOperations.AccessCollection(loaded.Pcb.BoltPoints,
             () => Assert.True(Monitor.IsEntered(loaded.Pcb.BoltPoints)), writeAccess: false);
-        recipe.ReplaceWith(new Recipe());
+        recipe.CopyFrom(new Recipe());
         Assert.Empty(original);
-        recipe.ReplaceWith(loaded);
+        recipe.CopyFrom(loaded);
         Assert.Same(original, recipe.Pcb.BoltPoints);
         Assert.Equal(bolt.Id, Assert.Single(original).Id);
         BindingOperations.AccessCollection(original,
             () => Assert.True(Monitor.IsEntered(original)), writeAccess: false);
+    }
+
+    [Fact]
+    public void JsonCloneKeepsBoltIdentityAndSeparatesNestedEdits()
+    {
+        var bolt = new BoltPoint { Name = "좌상단", X = 1.25, MinimumTurns = 2.5 };
+        var recipe = new Recipe
+        {
+            Pcb = new() { BoltPoints = [bolt], FasteningOrder = [bolt.Id] },
+            CarrierImages = [new() { Number = 1, BoltId = bolt.Id, Center = new() { X = 10, Y = 20 } }],
+        };
+        var original = JsonSerializer.Serialize(recipe);
+
+        var copy = recipe.Clone();
+        Assert.Equal(original, JsonSerializer.Serialize(copy));
+        Assert.Equal(bolt.Id, copy.Pcb.BoltPoints[0].Id);
+        Assert.Equal(bolt.Id, copy.CarrierImages[0].BoltId);
+        Assert.NotSame(recipe.Pcb.BoltPoints, copy.Pcb.BoltPoints);
+        Assert.NotSame(bolt, copy.Pcb.BoltPoints[0]);
+
+        copy.Pcb.BoltPoints[0].Name = "수정";
+        copy.Pcb.BoltPoints[0].X = 99;
+        copy.Pcb.FasteningOrder.Clear();
+        copy.CarrierImages[0].Center!.X = 90;
+        copy.BoltInspection.DataMatrix1.TryInverted = false;
+        Assert.Equal(original, JsonSerializer.Serialize(recipe));
     }
 
     [Fact]
@@ -338,7 +364,7 @@ public sealed class RecipeTests
         var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
         recipe.CarrierImages = [new() { Number = 1, BoltId = first.Id, Region = new(1, 2, 3, 4) },
             new() { Number = 2, BoltId = second.Id, Region = new(5, 6, 7, 8) }];
-        var draft = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(recipe))!;
+        var draft = recipe.Clone();
         draft.Pcb.BoltPoints[0].BrightnessThreshold = 180;
         recipe.Pcb.BoltPoints.Move(0, 1);
         recipe.ApplyInspectionSettings(draft);
@@ -565,7 +591,7 @@ public sealed class RecipeTests
 
         var database = VirtualTestSupport.OpenMachineStore();
         var recipes = new RecipeManager(database, new());
-        recipes.Current.ReplaceWith(recipe);
+        recipes.Current.CopyFrom(recipe);
         var editor = new RecipeEditorViewModel(recipes, database, new());
         await editor.SaveAsync();
         var loaded = database.LoadRecipe(recipe.Name);
@@ -861,7 +887,7 @@ public sealed class RecipeTests
         var database = VirtualTestSupport.OpenMachineStore();
         var selection = new RecipeSelectionSettings();
         var recipes = new RecipeManager(database, selection);
-        recipes.Current.ReplaceWith(recipe);
+        recipes.Current.CopyFrom(recipe);
         recipe = recipes.Current;
         var editor = new RecipeEditorViewModel(recipes, database, operations);
         bool? activeAtChange = null;

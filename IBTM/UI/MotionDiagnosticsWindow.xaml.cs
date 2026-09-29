@@ -1,3 +1,4 @@
+using IBTM.Core;
 using System;
 using System.ComponentModel;
 using System.Windows;
@@ -35,7 +36,7 @@ public partial class MotionDiagnosticsWindow : Window
         }
         else
         {
-            MessageBox.Show(this, _viewModel.CloseError, "Motion Shutdown Failed",
+            MessageBox.Show(this, _viewModel.CloseError, UiText.Get("Motion Shutdown Failed"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

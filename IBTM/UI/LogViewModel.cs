@@ -108,7 +108,7 @@ public partial class LogViewModel : ObservableObject, IDisposable
         }
         catch (ExternalException exception)
         {
-            ClipboardError = $"Clipboard is unavailable: {exception.Message}";
+            ClipboardError = UiText.Format($"Clipboard is unavailable: {exception.Message}");
         }
     }
 

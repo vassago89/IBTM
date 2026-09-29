@@ -69,7 +69,7 @@ public sealed class DiagnosticWindowManager
             _input.Activate();
             return;
         }
-        _input = new(new InputViewModel(_io, _signals));
+        _input = new(new InputViewModel(_signals));
         _input.Closed += (_, _) => _input = null;
         ShowWindow(_input);
     }
@@ -196,7 +196,7 @@ public sealed class DiagnosticWindowManager
             }
             catch (Exception closeException)
             {
-                throw new AggregateException("Diagnostic window could not be opened or closed.", exception, closeException);
+                throw new AggregateException(UiText.Get("Diagnostic window could not be opened or closed."), exception, closeException);
             }
             throw;
         }

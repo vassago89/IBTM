@@ -88,21 +88,21 @@ public sealed class MotionStatusTests
         motion.Failure = new IOException("Feedback failed.");
         status.RefreshMonitorFeedback(Report);
         Assert.Equal(1, reports);
-        var previous = diagnostics.Snapshot;
+        var previous = diagnostics.Sample;
         var previousChanges = changes;
 
         // Equal text does not make two failures the same: retain the new cause and stack.
         motion.Failure = new IOException("Feedback failed.", new InvalidOperationException());
         status.RefreshMonitorFeedback(Report);
-        Assert.NotSame(previous, diagnostics.Snapshot);
+        Assert.NotSame(previous, diagnostics.Sample);
         Assert.True(changes > previousChanges);
-        var error = Assert.IsType<AggregateException>(diagnostics.Snapshot.ReadError);
+        var error = Assert.IsType<AggregateException>(diagnostics.Sample.ReadError);
         Assert.All(error.InnerExceptions, failure => Assert.Same(motion.Failure, failure));
         Assert.Equal(1, reports);
 
         motion.Failure = null;
         status.RefreshMonitorFeedback(Report);
-        Assert.Null(diagnostics.Snapshot.ReadError);
+        Assert.Null(diagnostics.Sample.ReadError);
         motion.Failure = new IOException("Feedback failed.");
         status.RefreshMonitorFeedback(Report);
         Assert.Equal(2, reports);
@@ -141,7 +141,7 @@ public sealed class MotionStatusTests
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         Assert.Equal(new MotionPosition(12, null, null), status.Position);
-        Assert.Equal(status.MonitorAxes[MotionAxis.X].Snapshot.Position, status.Position.X);
+        Assert.Equal(status.MonitorAxes[MotionAxis.X].Sample.Position, status.Position.X);
         Assert.Equal(AxisCondition.Ready, first.Condition);
         Assert.True(status.IsFeedbackAvailable);
         Assert.True(status.XyHomed);
@@ -249,21 +249,21 @@ public sealed class MotionStatusTests
                 axes,
                 row =>
                 {
-                    Assert.NotNull(row.Diagnostics.Snapshot.State);
-                    Assert.NotNull(row.Diagnostics.Snapshot.Position);
+                    Assert.NotNull(row.Diagnostics.Sample.State);
+                    Assert.NotNull(row.Diagnostics.Sample.Position);
                     Assert.False(row.HomeCommand.CanExecute(null));
                 });
             var x = Assert.Single(axes, row => row.Axis == MotionAxis.X);
             var y = Assert.Single(axes, row => row.Axis == MotionAxis.Y);
             Assert.True(
                 await VirtualTestSupport.WaitUntilAsync(
-                    () => x.Diagnostics.Snapshot.Faulted == true
-                        && y.Diagnostics.Snapshot.State?.ServoOn == false,
+                    () => x.Diagnostics.Sample.Faulted == true
+                        && y.Diagnostics.Sample.State?.ServoOn == false,
                     TimeSpan.FromSeconds(2)));
-            Assert.Equal(AxisCondition.Alarm, x.Diagnostics.Snapshot.Condition);
-            Assert.True(x.Diagnostics.Snapshot.Faulted);
-            Assert.Equal(AxisCondition.ServoOff, y.Diagnostics.Snapshot.Condition);
-            Assert.False(y.Diagnostics.Snapshot.State?.ServoOn);
+            Assert.Equal(AxisCondition.Alarm, x.Diagnostics.Sample.Condition);
+            Assert.True(x.Diagnostics.Sample.Faulted);
+            Assert.Equal(AxisCondition.ServoOff, y.Diagnostics.Sample.Condition);
+            Assert.False(y.Diagnostics.Sample.State?.ServoOn);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         }
         finally
@@ -300,7 +300,7 @@ public sealed class MotionStatusTests
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.Y);
             var position = services.GetRequiredService<IBTM.Inspection.InspectionStation>().Motion;
             Assert.False(x.Enabled);
-            Assert.NotNull(x.Diagnostics.Snapshot.State);
+            Assert.NotNull(x.Diagnostics.Sample.State);
             Assert.False(x.ToggleServoCommand.CanExecute(null));
             Assert.False(x.HomeCommand.CanExecute(null));
             var reads = diagnostics.Reads;
@@ -310,8 +310,8 @@ public sealed class MotionStatusTests
             Assert.True(
                 await VirtualTestSupport.WaitUntilAsync(
                     () => diagnostics.Reads > reads
-                        && x.Diagnostics.Snapshot.Position == 42
-                        && x.Diagnostics.Snapshot.Faulted == true,
+                        && x.Diagnostics.Sample.Position == 42
+                        && x.Diagnostics.Sample.Faulted == true,
                     TimeSpan.FromSeconds(2)));
             Assert.Equal(MachineAlarm.None, state.Alarm); // Disabled axes are diagnostic only.
             Assert.Equal(42, position.Position.X);
@@ -346,18 +346,18 @@ public sealed class MotionStatusTests
             diagnostics.Position = 43;
             Assert.True(
                 await VirtualTestSupport.WaitUntilAsync(
-                    () => x.Diagnostics.Snapshot.State is null
-                        && x.Diagnostics.Snapshot.Position == 43
-                        && y.Diagnostics.Snapshot.State is not null,
+                    () => x.Diagnostics.Sample.State is null
+                        && x.Diagnostics.Sample.Position == 43
+                        && y.Diagnostics.Sample.State is not null,
                     TimeSpan.FromSeconds(2)));
-            Assert.NotNull(x.Diagnostics.Snapshot.ReadError);
+            Assert.NotNull(x.Diagnostics.Sample.ReadError);
             Assert.Equal(43, position.Position.X); // A state-query failure does not hide a readable coordinate.
             Assert.True(state.Available);
             diagnostics.FailPosition = true;
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
-                () => position.Position.X is null && x.Diagnostics.Snapshot.Position is null,
+                () => position.Position.X is null && x.Diagnostics.Sample.Position is null,
                 TimeSpan.FromSeconds(2)));
-            var readErrors = Assert.IsType<AggregateException>(x.Diagnostics.Snapshot.ReadError);
+            var readErrors = Assert.IsType<AggregateException>(x.Diagnostics.Sample.ReadError);
             Assert.Collection(
                 readErrors.InnerExceptions,
                 error => Assert.Equal("Diagnostic X read failed.", error.Message),
@@ -378,8 +378,8 @@ public sealed class MotionStatusTests
             diagnostics.FailControl = true;
             Assert.True(
                 await VirtualTestSupport.WaitUntilAsync(() => !state.Available, TimeSpan.FromSeconds(2)));
-            Assert.NotNull(y.Diagnostics.Snapshot.State);
-            Assert.NotNull(y.Diagnostics.Snapshot.Position);
+            Assert.NotNull(y.Diagnostics.Sample.State);
+            Assert.NotNull(y.Diagnostics.Sample.Position);
             Assert.True(machine.IsResetAllowed);
             Assert.False(y.ToggleServoCommand.CanExecute(null));
             diagnostics.FailControl = false;
@@ -393,8 +393,8 @@ public sealed class MotionStatusTests
             diagnostics.Position = 44;
             Assert.True(
                 await VirtualTestSupport.WaitUntilAsync(
-                    () => x.Diagnostics.Snapshot.Position == 44
-                        && x.Diagnostics.Snapshot.Faulted == false,
+                    () => x.Diagnostics.Sample.Position == 44
+                        && x.Diagnostics.Sample.Faulted == false,
                     TimeSpan.FromSeconds(2)));
             Assert.Equal(44, position.Position.X);
             Assert.False(x.ToggleServoCommand.CanExecute(null));
@@ -520,7 +520,7 @@ public sealed class MotionStatusTests
                 InMotion = false;
             }
             if (method!.Name == "get_IsMoving")
-                throw new IOException("Command availability must use the independent monitor snapshot.");
+                throw new IOException("Command availability must use the independent monitor sample.");
             if (FailControl && method!.Name == "get_" + nameof(IMotionFeedback.IsReady))
                 throw new IOException("Control readiness read failed.");
             return method!.Invoke(_motion, arguments);

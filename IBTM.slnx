@@ -2,7 +2,6 @@
   <Configurations>
     <BuildType Name="Debug" />
     <BuildType Name="Release" />
-    <BuildType Name="Virtual" />
   </Configurations>
   <Project Path="IBTM/IBTM.csproj" />
   <Folder Name="/Hardware/">
@@ -10,7 +9,6 @@
     <Project Path="Hardware/IBTM.AlphaMotion/IBTM.AlphaMotion.csproj" />
     <Project Path="Hardware/IBTM.Hantas/IBTM.Hantas.csproj" />
     <Project Path="Hardware/IBTM.Hik/IBTM.Hik.csproj" />
-    <Project Path="Hardware/IBTM.Virtual/IBTM.Virtual.csproj" />
   </Folder>
   <Folder Name="/Stations/">
     <Project Path="Stations/IBTM.BoltFastening/IBTM.BoltFastening.csproj" />

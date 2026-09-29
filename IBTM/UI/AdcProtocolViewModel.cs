@@ -14,7 +14,6 @@ using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
-using IBTM.Virtual;
 using Microsoft.Extensions.Logging;
 
 namespace IBTM.UI;
@@ -63,14 +62,12 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ValueText { get; set; } = "0";
     [ObservableProperty]
-    public partial AdcEventStatus NextResult { get; set; } = AdcEventStatus.FasteningOk;
-    [ObservableProperty]
     public partial string SelectedLogText { get; set; } = "";
 
     [ObservableProperty]
-    public partial string ConnectionStatus { get; set; } = "Disconnected";
+    public partial string ConnectionStatus { get; set; } = UiText.Get("Disconnected");
     [ObservableProperty]
-    public partial string ResultMessage { get; set; } = "No result read";
+    public partial string ResultMessage { get; set; } = UiText.Get("No result read");
     [ObservableProperty]
     public partial string RegisterResult { get; set; } = "-";
     [ObservableProperty]
@@ -103,9 +100,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             AdcFunctionCode.ReadInputRegisters,
             AdcFunctionCode.WriteSingleRegister,
         ];
-        FasteningResults = [AdcEventStatus.FasteningOk, AdcEventStatus.FasteningNg, AdcEventStatus.Error,];
 
-        QueueResultCommand = new RelayCommand(QueueResult);
         ToggleConnectionCommand = new AsyncRelayCommand(
             ToggleConnectionAsync, () => IsConnectAllowed, AsyncRelayCommandOptions.FlowExceptionsToTaskScheduler);
         SelectPresetCommand = new AsyncRelayCommand(
@@ -160,7 +155,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     public FasteningHead[] Heads { get; }
 
     public IAdcBus Bus => SelectedHead == FasteningHead.Pickup ? _pickupBus : _shootingBus;
-    public string ConnectionAction => Bus.IsOpen ? "Disconnect" : "Connect";
+    public string ConnectionAction => Bus.IsOpen ? UiText.Get("Disconnect") : UiText.Get("Connect");
 
     public string FrameLogText
     {
@@ -174,37 +169,16 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     public AdcFunctionCode[] RegisterAccesses { get; }
 
-    public bool IsVirtual => Bus is VirtualAdcBus;
-
-    public AdcEventStatus[] FasteningResults { get; }
-
     public bool ConnectionControlsEnabled => !_disposed && !IsClosing && _operationCancellation is null;
 
     public bool PortSelectionEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && !Bus.IsOpen;
 
     public bool SlaveSelectionEnabled => ConnectionControlsEnabled && !Bus.IsOpen
-        && (IsVirtual || _machine.IsUseAdcProtocolAllowed);
+        && _machine.IsUseAdcProtocolAllowed;
 
     public bool ProtocolEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && Bus.IsOpen;
 
     private byte SlaveAddress => byte.Parse(SlaveText);
-
-    public IRelayCommand QueueResultCommand { get; }
-
-    private void QueueResult()
-    {
-        switch (Bus)
-        {
-            case VirtualAdcBus virtualBus when byte.TryParse(SlaveText, out var slave):
-                var result = NextResult;
-                virtualBus.SetNextFasteningResult(slave, result);
-                AppendLog($"VIRTUAL  Slave {slave}: {result.GetDescription()} set for one fastening");
-                break;
-            case VirtualAdcBus:
-                ConnectionStatus = "Enter a valid slave address";
-                break;
-        }
-    }
 
     public async Task<bool> TryCloseAsync()
     {
@@ -247,7 +221,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     partial void OnSelectedHeadChanging(FasteningHead value)
     {
         if (!ConnectionControlsEnabled)
-            throw new InvalidOperationException("Wait for the ADC operation to stop before changing the selected head.");
+            throw new InvalidOperationException(UiText.Get("Wait for the ADC operation to stop before changing the selected head."));
         if (!Enum.IsDefined(value))
             throw new ArgumentOutOfRangeException(nameof(value));
     }
@@ -258,7 +232,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         SelectedPort = pickup ? _settings.PickupPortName : _settings.ShootingPortName;
         SelectedBaudRate = pickup ? _settings.PickupBaudRate : _settings.ShootingBaudRate;
         SlaveText = (pickup ? _settings.PickupSlaveAddress : _settings.ShootingSlaveAddress).ToString();
-        ResultMessage = "No result read";
+        ResultMessage = UiText.Get("No result read");
         RegisterResult = "-";
         RefreshPorts();
         if (Bus.IsOpen)
@@ -267,7 +241,6 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             SelectedBaudRate = Bus.BaudRate;
             ConnectionStatus = $"{Bus.PortName} | {Bus.BaudRate}";
         }
-        OnPropertyChanged(nameof(IsVirtual));
         OnPropertyChanged(nameof(Bus));
         RefreshControls();
     }
@@ -298,7 +271,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                 var connectedPort = Bus.PortName;
                 await Task.Run(Bus.Close);
                 _connectedHead = null;
-                ConnectionStatus = "Disconnected";
+                ConnectionStatus = UiText.Get("Disconnected");
                 AppendLog($"DISCONNECT  {connectedPort}");
                 return;
             }
@@ -335,7 +308,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             operation = BeginCommand(cancellationToken);
             await ConnectedHead.SelectPresetAsync(1, operation.Token);
-            ResultMessage = "Preset 1 selected";
+            ResultMessage = UiText.Get("Preset 1 selected");
         }
         catch (Exception exception)
         {
@@ -363,7 +336,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             _state.BoltTestRunning = true;
             var head = ConnectedHead;
             await head.SelectPresetAsync(1, operation.Token);
-            ResultMessage = "Fastening...";
+            ResultMessage = UiText.Get("Fastening...");
             var result = await head.TightenAsync(operation.Token, resultReceived: ShowResult);
             ShowResult(result);
         }
@@ -402,9 +375,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             }
             operation = BeginCommand(cancellationToken);
             operation.Token.ThrowIfCancellationRequested();
-            ResultMessage = "Turning START OFF...";
+            ResultMessage = UiText.Get("Turning START OFF...");
             ConnectedHead.Stop();
-            ResultMessage = "START OFF sent; see controller feedback.";
+            ResultMessage = UiText.Get("START OFF sent; see controller feedback.");
         }
         catch (Exception exception)
         {
@@ -445,7 +418,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             operation = BeginCommand(cancellationToken);
             _machine.EnsureBoltTestAvailable();
             _state.BoltTestRunning = true;
-            ResultMessage = "Loosening · release to stop";
+            ResultMessage = UiText.Get("Loosening · release to stop");
             await ConnectedHead.RunReverseAsync(operation.Token);
         }
         catch (Exception exception)
@@ -486,7 +459,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             operation = BeginCommand(cancellationToken);
             await ConnectedHead.ResetAsync(operation.Token);
-            ResultMessage = "I/O reset confirmed";
+            ResultMessage = UiText.Get("I/O reset confirmed");
         }
         catch (Exception exception)
         {
@@ -514,10 +487,10 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var slave = SlaveAddress;
             var result = await bus.Monitor.EnqueueAsync(
                 token => bus.ReadFasteningResultAsync(slave, token), operation.Token);
-            ResultMessage = $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n"
-                + $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n"
-                + $"Time {result.FasteningTimeMilliseconds} ms\n"
-                + $"Result error: {AdcControllerError.Describe(result.Error)}";
+            ResultMessage = UiText.Format($"Last result: {UiText.Get(result.Status)}  Event {result.EventCount}\n")
+                + UiText.Format($"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n")
+                + UiText.Format($"Time {result.FasteningTimeMilliseconds} ms\n")
+                + UiText.Format($"Result error: {AdcControllerError.Describe(result.Error)}");
         }
         catch (Exception exception)
         {
@@ -545,7 +518,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             var slave = SlaveAddress;
             var data = await bus.Monitor.EnqueueAsync(
                 token => bus.ReadDeviceInformationAsync(slave, token), operation.Token);
-            ResultMessage = $"Device data: {ToHex(data)}";
+            ResultMessage = UiText.Format($"Device data: {ToHex(data)}");
         }
         catch (Exception exception)
         {
@@ -572,14 +545,18 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             const int durationMilliseconds = 3000;
             var slave = SlaveAddress;
             IsLogPaused = false;
-            ResultMessage = "Capturing raw RX · 3 s";
+            ResultMessage = UiText.Get("Capturing raw RX · 3 s");
             AppendLog($"CAPTURE BEGIN  ADC {slave}, {Bus.PortName} | {Bus.BaudRate}, {durationMilliseconds} ms");
             var bus = Bus;
             var received = await bus.Monitor.EnqueueAsync(
                 token => bus.CaptureDeviceInformationAsync(slave, durationMilliseconds, token), operation.Token);
             var request = AdcRtuFrame.Build(slave, AdcFunctionCode.RequestDeviceInformation, []);
-            var summary = received.Length == 0 ? "No bytes received." : received.AsSpan().StartsWith(request) ? $"RX starts with the TX frame; {received.Length - request.Length} byte(s) follow it." : "RX does not start with the TX frame.";
-            ResultMessage = $"Captured {received.Length} bytes over {durationMilliseconds} ms. {summary}";
+            var summary = received.Length == 0
+                ? UiText.Get("No bytes received.")
+                : received.AsSpan().StartsWith(request)
+                    ? UiText.Format($"RX starts with the TX frame; {received.Length - request.Length} byte(s) follow it.")
+                    : UiText.Get("RX does not start with the TX frame.");
+            ResultMessage = UiText.Format($"Captured {received.Length} bytes over {durationMilliseconds} ms. {summary}");
             AppendLog($"RX ALL (arrival order)  {ToHex(received)}");
             AppendLog($"CAPTURE END  ADC {slave}: {ResultMessage}");
         }
@@ -623,7 +600,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
                     var value = ushort.Parse(ValueText);
                     if (address == (ushort)AdcRemoteRegister.RemoteStart && value != 0)
                     {
-                        RegisterResult = "Raw Start is not available. Use Start Fastening or Reverse (Hold).";
+                        RegisterResult = UiText.Get("Raw Start is not available. Use Start Fastening or Reverse (Hold).");
                         return;
                     }
 
@@ -700,7 +677,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
         catch (ExternalException exception)
         {
-            ClipboardError = $"Clipboard is unavailable: {exception.Message}";
+            ClipboardError = UiText.Format($"Clipboard is unavailable: {exception.Message}");
         }
     }
 
@@ -744,11 +721,11 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     {
         if (exception is OperationCanceledException)
         {
-            ResultMessage = "Operation canceled. Check controller status.";
+            ResultMessage = UiText.Get("Operation canceled. Check controller status.");
             return;
         }
 
-        ResultMessage += "\nOperation failed. Check controller status.";
+        ResultMessage += UiText.Get("\nOperation failed. Check controller status.");
         ConnectionStatus = exception.Message;
         _log?.LogError(exception, "ADC diagnostic operation failed.");
         AppendLog($"ERROR  {exception.Message}", record: false);
@@ -809,7 +786,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     private void ShowResult(BoltResult result)
     {
-        ResultMessage = $"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}";
+        ResultMessage = UiText.Format($"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}");
         if (result.Error is not null)
             ResultMessage += $"\n{result.Error}";
     }
@@ -827,8 +804,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         if (!Bus.IsOpen)
         {
             ConnectionStatus = ports.Length == 0
-                ? "No serial ports found"
-                : SelectedPort is null ? "Select a serial port" : "Disconnected";
+                ? UiText.Get("No serial ports found")
+                : SelectedPort is null ? UiText.Get("Select a serial port") : UiText.Get("Disconnected");
         }
 
         RefreshControls();

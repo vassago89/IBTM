@@ -87,7 +87,7 @@
 
                             <TextBlock Text="{Binding Io.Address}" Style="{StaticResource IoAddressStyle}"/>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
-                                <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                <TextBlock Text="{Binding Io.Signal, Converter={StaticResource UiTextConverter}}"
                                     Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
                                 <TextBlock Text="{Binding ActionMessage}"
                                     TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}" FontSize="11"/>

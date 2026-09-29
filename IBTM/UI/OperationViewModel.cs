@@ -79,12 +79,12 @@ public partial class OperationViewModel : ObservableObject
         State = state;
         Signals = signals;
         DoorSensors = [
-            new("DOOR 1", signals.Inputs[InputIo.Door1Open]),
-            new("DOOR 2", signals.Inputs[InputIo.Door2Open]),
-            new("DOOR 3", signals.Inputs[InputIo.Door3Open]),
-            new("DOOR 4", signals.Inputs[InputIo.Door4Open]),
-            new("DOOR 5", signals.Inputs[InputIo.Door5Open]),
-            new("DOOR 6", signals.Inputs[InputIo.Door6Open]),
+            new(UiText.Get("DOOR 1"), signals.Inputs[InputIo.Door1Open]),
+            new(UiText.Get("DOOR 2"), signals.Inputs[InputIo.Door2Open]),
+            new(UiText.Get("DOOR 3"), signals.Inputs[InputIo.Door3Open]),
+            new(UiText.Get("DOOR 4"), signals.Inputs[InputIo.Door4Open]),
+            new(UiText.Get("DOOR 5"), signals.Inputs[InputIo.Door5Open]),
+            new(UiText.Get("DOOR 6"), signals.Inputs[InputIo.Door6Open]),
         ];
         Machine = machine;
         Inspection = inspectionStation;
@@ -300,7 +300,7 @@ public partial class OperationViewModel : ObservableObject
 
     public AssemblyResult InspectionHeatSink2Result => GetAssemblyResult(Inspection.Station, HeatSinkSlot.HeatSink2, inspection: true);
 
-    public string ModeText => State.Available ? (State.AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
+    public string ModeText => State.Available ? (State.AutoMode ? UiText.Get("AUTO") : UiText.Get("MANUAL")) : UiText.Get("UNKNOWN");
 
     public bool HasAlarm
     {
@@ -340,7 +340,7 @@ public partial class OperationViewModel : ObservableObject
         if (!Inspection.Station.CarrierPresent || !Inspection.Station.IsHeatSinkPresent(pcb))
             return null;
         var assembly = Inspection.Station.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb);
-        return assembly?.PcbBarcodeResult == AssemblyResult.Ng ? "NG · Not Read" : assembly?.PcbBarcode;
+        return assembly?.PcbBarcodeResult == AssemblyResult.Ng ? UiText.Get("NG · Not Read") : assembly?.PcbBarcode;
     }
 
     public void Activate()
@@ -638,8 +638,8 @@ public partial class OperationViewModel : ObservableObject
     private void OnInspectionCaptured(ImageFrame frame, HeatSinkSlot pcb, Guid? boltId)
     {
         InspectionImageCaption = boltId is { } id
-            ? $"{pcb.GetDescription()} · {_recipes.Current.Pcb.GetBoltName(id)}"
-            : $"{pcb.GetDescription()} · Data Matrix";
+            ? $"{UiText.Get(pcb)} · {_recipes.Current.Pcb.GetBoltName(id)}"
+            : UiText.Format($"{UiText.Get(pcb)} · Data Matrix");
         InspectionImage = InspectionPreviewViewModel.CreateBitmap(frame);
     }
 
@@ -1071,7 +1071,7 @@ public partial class OperationViewModel : ObservableObject
         catch (Exception exception)
         {
             if (directory == _pcbHistoryDirectory)
-                PcbHistoryError = "Cannot load PCB history. Open Logs for details.";
+                PcbHistoryError = UiText.Get("Cannot load PCB history. Open Logs for details.");
             _log.LogError(exception, "PCB history load failed for {Directory}.", directory);
         }
     }

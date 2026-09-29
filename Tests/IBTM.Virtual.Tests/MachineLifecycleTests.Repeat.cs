@@ -27,7 +27,6 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units.PcbSupply = false;
-        settings.Drivers.Bolt = BoltDriver.Virtual;
         settings.Units.PickupBoltFeeder = true;
         settings.Units.ShootingBoltFeeder = true;
         settings.Conveyor.CarrierStopDelaySeconds = 0;

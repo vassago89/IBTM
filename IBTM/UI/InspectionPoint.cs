@@ -20,8 +20,8 @@ public sealed class InspectionPoint
     public HeatSinkSlot HeatSink { get; }
     public BoltPoint? Bolt { get; }
     public bool IsDataMatrix => Bolt is null;
-    public string Name => IsDataMatrix ? "Data Matrix Inspection" : $"{_recipe.Pcb.GetBoltName(Bolt!.Id)} Inspection";
-    public string Title => $"{HeatSink.GetDescription()} · {Name}";
+    public string Name => IsDataMatrix ? UiText.Get("Data Matrix Inspection") : UiText.Format($"{_recipe.Pcb.GetBoltName(Bolt!.Id)} Inspection");
+    public string Title => $"{UiText.Get(HeatSink)} · {Name}";
     public int ImageCount => _recipe.CarrierImages.Count(Matches);
 
     public CarrierImageTile? Metadata
@@ -41,13 +41,13 @@ public sealed class InspectionPoint
         {
             var imageCount = ImageCount;
             if (IsDataMatrix && imageCount > 1)
-                return "Position ambiguous · multiple reference images";
-            var coordinates = Position is { } position ? $"X {position.X:F3}  Y {position.Y:F3}" : "Not taught";
+                return UiText.Get("Position ambiguous · multiple reference images");
+            var coordinates = Position is { } position ? $"X {position.X:F3}  Y {position.Y:F3}" : UiText.Get("Not taught");
             return imageCount switch
             {
-                0 => $"{coordinates} · No reference image",
+                0 => UiText.Format($"{coordinates} · No reference image"),
                 1 => coordinates,
-                _ => $"{coordinates} · Multiple reference images",
+                _ => UiText.Format($"{coordinates} · Multiple reference images"),
             };
         }
     }

@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM;
 
-// Sequences only enqueue snapshots. This manager owns numbering, encoding and disk writes.
+// Sequences enqueue result copies. This manager owns numbering, encoding and disk writes.
 public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposable
 {
     private readonly Lock _gate;
@@ -100,8 +100,8 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
         void QueueImage(InspectionCapture capture)
         {
             // The camera/preview can reuse its buffer after this callback returns.
-            var snapshot = capture with { Frame = capture.Frame with { Pixels = (byte[])capture.Frame.Pixels.Clone() } };
-            Enqueue(new(assembly, directory, initial, snapshot));
+            var copy = capture with { Frame = capture.Frame with { Pixels = (byte[])capture.Frame.Pixels.Clone() } };
+            Enqueue(new(assembly, directory, initial, copy));
         }
     }
 

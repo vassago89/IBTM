@@ -647,7 +647,6 @@ public sealed class AlarmRecoveryTests
                 .Single(row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
             output.Number = 96;
             output.OffNumber = 97;
-            view.Settings.Drivers.Light = LightDriver.Movs;
             view.Settings.Lighting.Connection = "";
 
             Task saving;
@@ -679,7 +678,6 @@ public sealed class AlarmRecoveryTests
             var savedOutput = loaded.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp];
             Assert.Equal(96, savedOutput.Number);
             Assert.Equal(97, savedOutput.OffNumber);
-            Assert.Equal(LightDriver.Movs, loaded.Drivers.Light);
             Assert.Equal("", loaded.Lighting.Connection);
         }
         finally
@@ -696,10 +694,6 @@ public sealed class AlarmRecoveryTests
         var state = services.GetRequiredService<MachineState>();
         var view = services.GetRequiredService<SettingsViewModel>();
         await machine.InitializeAsync();
-        var camera = Assert.IsType<VirtualCamera>(services.GetRequiredService<ICamera>());
-        var sourceImage = await camera.CaptureAsync();
-        camera.SourceImage = sourceImage;
-        view.VirtualImageName = "locked-input.png";
         SetAlarm(state, MachineAlarm.Inspection);
         try
         {
@@ -707,17 +701,10 @@ public sealed class AlarmRecoveryTests
             {
                 Assert.False(view.IsSettingsEditAllowed);
                 Assert.False(view.SaveSettingsCommand.CanExecute(null));
-                Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
-                Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
             }
 
             Assert.True(view.IsSettingsEditAllowed);
-            Assert.True(view.ClearVirtualImageCommand.CanExecute(null));
-            view.ClearVirtualImageCommand.Execute(null);
-            Assert.Null(camera.SourceImage);
-            Assert.Null(view.VirtualImageName);
-            camera.SourceImage = sourceImage;
-            view.VirtualImageName = "locked-input.png";
+            Assert.True(view.SaveSettingsCommand.CanExecute(null));
         }
         finally
         {
@@ -726,10 +713,6 @@ public sealed class AlarmRecoveryTests
 
         Assert.False(view.IsSettingsEditAllowed);
         Assert.False(view.SaveSettingsCommand.CanExecute(null));
-        Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
-        Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
-        Assert.Same(sourceImage, camera.SourceImage);
-        Assert.Equal("locked-input.png", view.VirtualImageName);
     }
 
     [Fact]
@@ -838,12 +821,11 @@ public sealed class AlarmRecoveryTests
         return new ServiceCollection().AddSingleton(
             VirtualTestSupport.OpenMachineStore(
                 Path.Combine(Path.GetTempPath(), $"IBTM-alarm-recovery-{Guid.NewGuid():N}.db")))
-            .AddIbtmApplication(
+            .AddVirtualApplication(
                 new MachineSettings
 
                 {
 
-                    Drivers = new() { Light = LightDriver.Virtual },
                     Units = new()
                     {
                         MainConveyor = true,

@@ -136,12 +136,12 @@
                             Style="{StaticResource IoAddressStyle}"/>
                         <TextBlock Grid.Column="1" Text="{Binding Axis}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                         <TextBlock Grid.Column="2"
-                            Text="{Binding Diagnostics.Snapshot.Position, StringFormat=F3, TargetNullValue=—}"
+                            Text="{Binding Diagnostics.Sample.Position, StringFormat=F3, TargetNullValue=—}"
                             VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
                         <TextBlock Grid.Column="3"
-                            ToolTip="{Binding Diagnostics.Snapshot.ReadError.Message}"
+                            ToolTip="{Binding Diagnostics.Sample.ReadError.Message}"
                             VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0">
-                            <Run Text="{Binding Diagnostics.Snapshot.Condition, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
+                            <Run Text="{Binding Diagnostics.Sample.Condition, Mode=OneWay, Converter={StaticResource UiTextConverter}}"/>
                             <Run>
                                 <Run.Style>
                                     <Style TargetType="Run">
@@ -156,28 +156,28 @@
                             </Run>
                         </TextBlock>
                         <TextBlock Grid.Column="4"
-                            Tag="{Binding Diagnostics.Snapshot.State.ServoOn}"
-                            Text="{Binding Diagnostics.Snapshot.State.ServoOn, Converter={StaticResource SignalTextConverter}}"
+                            Tag="{Binding Diagnostics.Sample.State.ServoOn}"
+                            Text="{Binding Diagnostics.Sample.State.ServoOn, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionBit}"/>
                         <TextBlock Grid.Column="5"
-                            Tag="{Binding Diagnostics.Snapshot.State.Homed}"
-                            Text="{Binding Diagnostics.Snapshot.State.Homed, Converter={StaticResource SignalTextConverter}}"
+                            Tag="{Binding Diagnostics.Sample.State.Homed}"
+                            Text="{Binding Diagnostics.Sample.State.Homed, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionBit}"/>
                         <TextBlock Grid.Column="6"
-                            Tag="{Binding Diagnostics.Snapshot.State.HomeSensor}"
-                            Text="{Binding Diagnostics.Snapshot.State.HomeSensor, Converter={StaticResource SignalTextConverter}}"
+                            Tag="{Binding Diagnostics.Sample.State.HomeSensor}"
+                            Text="{Binding Diagnostics.Sample.State.HomeSensor, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionBit}"/>
                         <TextBlock Grid.Column="7"
-                            Tag="{Binding Diagnostics.Snapshot.State.NegativeLimit}"
-                            Text="{Binding Diagnostics.Snapshot.State.NegativeLimit, Converter={StaticResource SignalTextConverter}}"
+                            Tag="{Binding Diagnostics.Sample.State.NegativeLimit}"
+                            Text="{Binding Diagnostics.Sample.State.NegativeLimit, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionFaultBit}"/>
                         <TextBlock Grid.Column="8"
-                            Tag="{Binding Diagnostics.Snapshot.State.PositiveLimit}"
-                            Text="{Binding Diagnostics.Snapshot.State.PositiveLimit, Converter={StaticResource SignalTextConverter}}"
+                            Tag="{Binding Diagnostics.Sample.State.PositiveLimit}"
+                            Text="{Binding Diagnostics.Sample.State.PositiveLimit, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionFaultBit}"/>
                         <TextBlock Grid.Column="9"
-                            Tag="{Binding Diagnostics.Snapshot.Faulted}"
-                            Text="{Binding Diagnostics.Snapshot.Faulted, Converter={StaticResource SignalTextConverter}}"
+                            Tag="{Binding Diagnostics.Sample.Faulted}"
+                            Text="{Binding Diagnostics.Sample.Faulted, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionFaultBit}" ToolTip="{ui:Text 'Alarm / E-stop'}"/>
                         <StackPanel Grid.Column="10" Orientation="Horizontal" HorizontalAlignment="Right">
                             <Button Width="96" Padding="8,7" Margin="8,0,6,0" Command="{Binding ToggleServoCommand}">
@@ -185,7 +185,7 @@
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Setter Property="Content" Value="{ui:Text 'Servo ON'}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Diagnostics.Snapshot.State.ServoOn}" Value="True">
+                                            <DataTrigger Binding="{Binding Diagnostics.Sample.State.ServoOn}" Value="True">
                                                 <Setter Property="Content" Value="{ui:Text 'Servo OFF'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>

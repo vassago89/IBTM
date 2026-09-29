@@ -38,30 +38,30 @@
     </UserControl.Resources>
     <Grid>
         <Canvas>
-            <Grid Canvas.Left="{Binding BoltPickupFeederMapPosition.X, TargetNullValue={x:Static ui:MachineDiagramLayout.HeaderInset}, FallbackValue={x:Static ui:MachineDiagramLayout.HeaderInset}}"
+            <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}"
                 Canvas.Top="{x:Static ui:MachineDiagramLayout.HeaderTop}"
                 Width="{x:Static ui:MachineDiagramLayout.PlateWidth}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock Text="{ui:Text 'Bolt Fastening'}" Style="{StaticResource TitleStyle}" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Text="{ui:Text 'Bolt Fastening'}" Style="{StaticResource TitleStyle}" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                 <Button Grid.Column="1" Content="{ui:Text 'Test bolts'}" Command="{Binding OpenBoltStationTestCommand}"
                     Visibility="{Binding State.ManualMode, Converter={StaticResource BoolToVis}}"
                     Style="{StaticResource SecondaryButtonStyle}" Padding="10,5" FontSize="13"/>
             </Grid>
-            <Border Canvas.Left="{Binding BoltPickupFeederMapPosition.X, TargetNullValue={x:Static ui:MachineDiagramLayout.HeaderInset}, FallbackValue={x:Static ui:MachineDiagramLayout.HeaderInset}}"
+            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}"
                 Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}"
                 Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54" Tag="{Binding BoltDisplayState}"
                 Style="{StaticResource StationStateBadgeStyle}">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock
-                        Text="{Binding BoltDisplayState, Converter={StaticResource EnumDescriptionConverter}}"
+                        Text="{Binding BoltDisplayState, Converter={StaticResource UiTextConverter}}"
                         Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Text="{Binding FasteningState, Converter={StaticResource EnumDescriptionConverter}}"
+                    <TextBlock Text="{Binding FasteningState, Converter={StaticResource UiTextConverter}}"
                         Style="{StaticResource MapHintStyle}" FontSize="11" TextTrimming="CharacterEllipsis"
                         Visibility="{Binding FasteningStateVisible, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
             </Border>
 
-            <Grid Canvas.Left="{Binding BoltPickupFeederMapPosition.X, TargetNullValue={x:Static ui:MachineDiagramLayout.HeaderInset}, FallbackValue={x:Static ui:MachineDiagramLayout.HeaderInset}}"
+            <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}"
                 Canvas.Top="{x:Static ui:MachineDiagramLayout.DetailTop}"
                 Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54">
                 <Grid.Resources>
@@ -241,7 +241,7 @@
         </Canvas>
         <Grid Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="138" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,164,0,0">
             <Grid.RenderTransform>
-                <TranslateTransform X="{Binding BoltPickupFeederMapPosition.X, TargetNullValue={x:Static ui:MachineDiagramLayout.HeaderInset}, FallbackValue={x:Static ui:MachineDiagramLayout.HeaderInset}}"/>
+                <TranslateTransform X="{x:Static ui:MachineDiagramLayout.HeaderInset}"/>
             </Grid.RenderTransform>
             <Border Height="138" VerticalAlignment="Top" Style="{StaticResource DeviceBodyStyle}">
                 <Canvas Width="280" Height="134">

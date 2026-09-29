@@ -204,10 +204,19 @@ public partial class MainViewModel : ObservableObject
     {
         IsClosing = true;
         CloseError = null;
-        _windows.PrepareShutdown();
+        var preparation = Task.CompletedTask;
+        try
+        {
+            _windows.PrepareShutdown();
+        }
+        catch (Exception exception)
+        {
+            preparation = Task.FromException(exception);
+        }
         try
         {
             await CommandShutdown.WaitAsync(
+                preparation,
                 _machine.ShutdownAsync(),
                 _windows.ShutdownAsync(),
                 ShutdownAsync());
@@ -220,10 +229,10 @@ public partial class MainViewModel : ObservableObject
             var errors = exception is AggregateException aggregate
                 ? aggregate.Flatten().InnerExceptions.Select(error => error.Message).Distinct()
                 : [exception.Message];
-            CloseError = "Shutdown could not be completed.\n"
-                + "Check equipment stop and any unsaved PCB results before exiting.\n\n"
+            CloseError = UiText.Get("Shutdown could not be completed.\n")
+                + UiText.Get("Check equipment stop and any unsaved PCB results before exiting.\n\n")
                 + string.Join("\n", errors)
-                + "\n\nExit the application anyway? Full details are saved in the log.";
+                + UiText.Get("\n\nExit the application anyway? Full details are saved in the log.");
             IsClosing = false;
             return false;
         }
@@ -271,7 +280,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            ResetError = $"RESET failed: {exception.Message}";
+            ResetError = UiText.Format($"RESET failed: {exception.Message}");
             _log.LogError(exception, "On-screen RESET failed.");
         }
     }
@@ -322,7 +331,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            NavigationError = $"Page change failed: {exception.Message}";
+            NavigationError = UiText.Format($"Page change failed: {exception.Message}");
             _log.LogError(exception, "Page change failed while leaving {Page}.", SelectedPage);
             if (!_shuttingDown)
                 ActivateCurrentPage();

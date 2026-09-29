@@ -58,7 +58,7 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
             item is MotionAxisViewModel row
                 && (!EnabledOnly || row.Enabled)
                 && (string.IsNullOrWhiteSpace(Search)
-                    || $"{row.Address} {row.Group.GetDescription()} {row.Axis}".Contains(
+                    || $"{row.Address} {UiText.Get(row.Group)} {row.Axis}".Contains(
                         Search.Trim(),
                         StringComparison.OrdinalIgnoreCase));
     }
@@ -71,12 +71,12 @@ public partial class MotionDiagnosticsViewModel : ObservableObject
         get
         {
             if (!_state.Available)
-                return "Read only · machine status unavailable";
+                return UiText.Get("Read only · machine status unavailable");
             if (_state.AutoMode)
-                return "AUTO · monitoring only.";
+                return UiText.Get("AUTO · monitoring only.");
             if (_state.IsRunning)
-                return "Running · monitoring only";
-            return "MANUAL";
+                return UiText.Get("Running · monitoring only");
+            return UiText.Get("MANUAL");
         }
     }
 

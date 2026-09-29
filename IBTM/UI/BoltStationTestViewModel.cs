@@ -82,20 +82,20 @@ public partial class BoltStationTestViewModel : ObservableObject
         get
         {
             if (!State.ManualMode)
-                return "Manual mode required.";
+                return UiText.Get("Manual mode required.");
             if (RunCommand.IsRunning)
                 return string.Empty;
             if (!State.ManualSetupEnabled)
-                return "Stop the machine and clear alarms / safety blocks.";
+                return UiText.Get("Stop the machine and clear alarms / safety blocks.");
             if (!_machine.IsManualMotionReady(MotionGroup.BoltFastening, live: false))
-                return "Check station enablement, homing and servo feedback.";
+                return UiText.Get("Check station enablement, homing and servo feedback.");
             if (!_station.Station.CarrierSeated)
-                return "Load the S2 carrier and raise the backup plate.";
+                return UiText.Get("Load the S2 carrier and raise the backup plate.");
             if (Bolts.Any(row => row.IsSelected && !_station.Station.IsHeatSinkPresent(row.Bolt.HeatSink)))
-                return "Selected PCB not detected at S2.";
+                return UiText.Get("Selected PCB not detected at S2.");
             if (Bolts.Any(row => row.IsSelected && !row.Bolt.IsFasteningPositionDefined))
-                return "Selected bolt is not taught.";
-            return SelectedCount == 0 ? "Select a bolt." : string.Empty;
+                return UiText.Get("Selected bolt is not taught.");
+            return SelectedCount == 0 ? UiText.Get("Select a bolt.") : string.Empty;
         }
     }
 
@@ -199,22 +199,22 @@ public partial class BoltStationTestViewModel : ObservableObject
             row.Result = null;
             row.Status = "Queued";
         }
-        Message = $"Testing {selected.Length} selected bolts...";
+        Message = UiText.Format($"Testing {selected.Length} selected bolts...");
         var started = Stopwatch.GetTimestamp();
         try
         {
             var completed = await _machine.RunSelectedBoltsAsync(
                 selected.Select(row => row.Bolt.Id).ToArray(), OnResultReceived, cancellationToken);
-            Message = completed ? "Test completed." : "Test stopped.";
+            Message = completed ? UiText.Get("Test completed.") : UiText.Get("Test stopped.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            Message = "Test stopped.";
+            Message = UiText.Get("Test stopped.");
         }
         catch (Exception exception)
         {
             Error = exception.Message;
-            Message = "Test failed.";
+            Message = UiText.Get("Test failed.");
             _log.LogError(exception, "Selected-bolt test failed.");
             _machine.ReportManualFailure(MachineAlarm.BoltFastening, exception);
         }

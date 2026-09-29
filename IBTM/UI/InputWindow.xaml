@@ -23,23 +23,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Grid>
-            <TextBlock Text="{ui:Text 'Digital Inputs'}" Style="{StaticResource TitleStyle}"/>
-            <CheckBox Content="{ui:Text 'Auto Response'}" ToolTip="{ui:Text 'OFF: manual sensor simulation; motion still runs.'}"
-                HorizontalAlignment="Right" VerticalAlignment="Center"
-                IsChecked="{Binding VirtualIo.AutoResponseEnabled, Mode=TwoWay}"
-                Visibility="{Binding IsVirtual, Converter={StaticResource BoolToVis}}"/>
-        </Grid>
+        <TextBlock Text="{ui:Text 'Digital Inputs'}" Style="{StaticResource TitleStyle}"/>
 
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,4,0,18">
             <TextBlock.Style>
                 <Style TargetType="TextBlock" BasedOn="{StaticResource PageSubtitleStyle}">
                     <Setter Property="Visibility" Value="Collapsed"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsVirtual}" Value="True">
-                            <Setter Property="Visibility" Value="Visible"/>
-                            <Setter Property="Text" Value="{ui:Text 'Virtual inputs · click to toggle'}"/>
-                        </DataTrigger>
                         <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
                             <Setter Property="Visibility" Value="Visible"/>
                             <Setter Property="Text" Value="{ui:Text 'I/O disconnected · input states unknown'}"/>
@@ -75,7 +65,6 @@
                 <ColumnDefinition Width="64"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="110"/>
-                <ColumnDefinition Width="90"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="{ui:Text 'CH.'}" Style="{StaticResource SectionHeaderStyle}"/>
             <TextBlock Grid.Column="1" Text="{ui:Text 'INPUT'}" Style="{StaticResource SectionHeaderStyle}"/>
@@ -91,42 +80,38 @@
                     HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
             </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
-                <DataTemplate DataType="{x:Type ui:InputSignalRow}">
+                <DataTemplate DataType="{x:Type device:IoInputStatus}">
                     <Border x:Name="Row" Padding="11,7" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="64"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="110"/>
-                                <ColumnDefinition Width="90"/>
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Text="{Binding Io.Address}" Style="{StaticResource IoAddressStyle}"/>
+                            <TextBlock Text="{Binding Address}" Style="{StaticResource IoAddressStyle}"/>
                             <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                <TextBlock Text="{Binding Signal, Converter={StaticResource UiTextConverter}}"
                                     Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
                                 <TextBlock x:Name="SelectorHint" Text="{ui:Text 'ON = MANUAL / OFF = AUTO'}" FontSize="11"
                                     Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"
                                     Visibility="Collapsed"/>
                             </StackPanel>
                             <TextBlock Grid.Column="2"
-                                Tag="{Binding Io.IsOn}"
-                                Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
+                                Tag="{Binding IsOn}"
+                                Text="{Binding IsOn, Converter={StaticResource SignalTextConverter}}"
                                 Style="{StaticResource IoInputStateStyle}"/>
-                            <Button Grid.Column="3" Content="{ui:Text 'Toggle'}" Style="{StaticResource IoToggleButtonStyle}"
-                                Visibility="{Binding IsVirtual, Converter={StaticResource BoolToVis}}"
-                                Command="{Binding ToggleCommand}"/>
                         </Grid>
                     </Border>
                     <DataTemplate.Triggers>
-                        <DataTrigger Binding="{Binding Io.IsOn}" Value="True">
+                        <DataTrigger Binding="{Binding IsOn}" Value="True">
                             <Setter TargetName="Row" Property="Background" Value="#173B50"/>
                             <Setter TargetName="Row" Property="BorderBrush" Value="{StaticResource IoInputOnBrush}"/>
                             <Setter TargetName="Row" Property="BorderThickness" Value="3,0,0,1"/>
                             <Setter TargetName="Row" Property="Padding" Value="8,7,11,7"/>
                             <Setter TargetName="Row" Property="TextElement.FontWeight" Value="SemiBold"/>
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding Io.Signal}" Value="{x:Static device:InputIo.AutoMode}">
+                        <DataTrigger Binding="{Binding Signal}" Value="{x:Static device:InputIo.AutoMode}">
                             <Setter TargetName="SelectorHint" Property="Visibility" Value="Visible"/>
                         </DataTrigger>
                     </DataTemplate.Triggers>

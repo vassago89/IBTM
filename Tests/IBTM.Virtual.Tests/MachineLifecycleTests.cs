@@ -570,7 +570,7 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -857,7 +857,7 @@ public sealed partial class MachineLifecycleTests
         settings.BoltFastening.ShootingArrivalDelaySeconds = 0.5;
         var head = new StoppingBoltHead();
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .AddKeyedSingleton<IBoltHead>(FasteningHead.Shooting, head)
             .BuildServiceProvider();
         PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
@@ -1063,7 +1063,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units.ShootingBoltFeeder = true;
         var head = new WaitingBoltHead();
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .AddKeyedSingleton<IBoltHead>(FasteningHead.Shooting, head)
             .AddKeyedSingleton<IBoltHead>(FasteningHead.Pickup, head)
             .BuildServiceProvider();
@@ -1854,8 +1854,8 @@ public sealed partial class MachineLifecycleTests
         row.ToggleServoCommand.Execute(null);
         Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.MotionUnavailable, state.Alarm);
         Assert.Contains("Servo feedback failed", state.AlarmDetail);
-        await WaitUntilAsync(() => row.Diagnostics.Snapshot.State?.ServoOn == false);
-        Assert.False(row.Diagnostics.Snapshot.State?.ServoOn);
+        await WaitUntilAsync(() => row.Diagnostics.Sample.State?.ServoOn == false);
+        Assert.False(row.Diagnostics.Sample.State?.ServoOn);
     }
 
     [Fact]
@@ -1937,7 +1937,6 @@ public sealed partial class MachineLifecycleTests
         bool pickupEnabled, bool shootingEnabled, bool repeat)
     {
         var settings = FlowSettings();
-        settings.Drivers.Bolt = BoltDriver.Virtual;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = pickupEnabled;
         settings.Units.ShootingBoltFeeder = shootingEnabled;
@@ -2082,15 +2081,14 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(FasteningHead.Shooting, BoltDriver.Virtual, DryRunEnd.Completed)]
-    [InlineData(FasteningHead.Shooting, BoltDriver.Virtual, DryRunEnd.Cancelled)]
-    [InlineData(FasteningHead.Shooting, BoltDriver.Virtual, DryRunEnd.MissingUpFeedback)]
-    [InlineData(FasteningHead.Pickup, BoltDriver.Virtual, DryRunEnd.Completed)]
+    [InlineData(FasteningHead.Shooting, DryRunEnd.Completed)]
+    [InlineData(FasteningHead.Shooting, DryRunEnd.Cancelled)]
+    [InlineData(FasteningHead.Shooting, DryRunEnd.MissingUpFeedback)]
+    [InlineData(FasteningHead.Pickup, DryRunEnd.Completed)]
     public async Task FasteningWithoutDownFeedbackStillRequiresUpFeedbackAndStopsOnCancellation(
-        FasteningHead head, BoltDriver driver, DryRunEnd end)
+        FasteningHead head, DryRunEnd end)
     {
         var settings = FlowSettings();
-        settings.Drivers.Bolt = driver;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         var stopDuringDescent = end == DryRunEnd.Cancelled;
         var missingUpFeedback = end == DryRunEnd.MissingUpFeedback;
@@ -2178,7 +2176,6 @@ public sealed partial class MachineLifecycleTests
     public async Task DisabledPickupFeederKeepsLiftInterlockBeforeNewCarrier()
     {
         var settings = FlowSettings();
-        settings.Drivers.Bolt = BoltDriver.Virtual;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         await using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<RecipeManager>().Current;
@@ -4447,7 +4444,7 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.False(row.ToggleServoCommand.CanExecute(null));
             Assert.False(row.HomeCommand.CanExecute(null));
-            Assert.Null(row.Diagnostics.Snapshot.State);
+            Assert.Null(row.Diagnostics.Sample.State);
             // Bypassing CanExecute still must not command a disabled drive.
             row.ToggleServoCommand.Execute(null);
             await row.HomeCommand.ExecuteAsync(null);

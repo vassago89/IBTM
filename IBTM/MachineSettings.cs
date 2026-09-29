@@ -25,7 +25,6 @@ public sealed class MachineSettings
 
     private MachineSettings(SavedSettings values)
     {
-        Drivers = values.Get<DriverSettings>();
         Units = values.Get<UnitSettings>();
         Options = values.Get<MachineOptions>();
         RecipeSelection = values.Get<RecipeSelectionSettings>();
@@ -61,7 +60,6 @@ public sealed class MachineSettings
         NgConveyorHardware = values.Get<NgConveyorHardwareSettings>();
     }
 
-    public DriverSettings Drivers { get; set; }
     public UnitSettings Units { get; set; }
     public MachineOptions Options { get; set; }
     public RecipeSelectionSettings RecipeSelection { get; set; }
@@ -140,7 +138,6 @@ public sealed class MachineSettings
         {
             return [
                 .. HardwareSections,
-                Drivers,
                 Units,
                 Options,
                 // Recipe selection is committed by RecipeManager with the recipe operation.

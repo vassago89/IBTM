@@ -1,3 +1,4 @@
+using IBTM.Core;
 using System;
 using System.ComponentModel;
 using System.Windows;
@@ -34,7 +35,7 @@ public partial class AdcProtocolWindow : Window
         }
         else
         {
-            MessageBox.Show(this, _viewModel.CloseError, "ADC Shutdown Failed",
+            MessageBox.Show(this, _viewModel.CloseError, UiText.Get("ADC Shutdown Failed"),
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

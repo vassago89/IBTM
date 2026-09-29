@@ -751,7 +751,7 @@ public partial class TeachingViewModel : ObservableObject
                     NotifyManualTeachingCommands();
                     break;
                 case { Position.Mode: not TeachMode.Image }:
-                    SaveError = "Home the selected axes and wait for them to stop.";
+                    SaveError = UiText.Get("Home the selected axes and wait for them to stop.");
                     break;
             }
         }
@@ -817,8 +817,8 @@ public partial class TeachingViewModel : ObservableObject
                     _settings.InspectionGantry, _settings.CarrierReference, _settings.NgCarrierTransfer)
                 && !await RecipeEditor.SaveAsync(cancellationToken: operation.Token))
             {
-                SaveError = "Settings saved; recipe was not saved. "
-                    + (RecipeEditor.Error ?? "Save cancelled. Retry Save.");
+                SaveError = UiText.Get("Settings saved; recipe was not saved. ")
+                    + (RecipeEditor.Error ?? UiText.Get("Save cancelled. Retry Save."));
             }
             NotifyManualTeachingCommands();
         }
@@ -850,14 +850,14 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            SaveError = "Save cancelled; teaching not saved.";
+            SaveError = UiText.Get("Save cancelled; teaching not saved.");
             throw;
         }
         catch (Exception exception)
         {
             _logger.LogError(exception,
                 "Teaching settings save failed: {Group}.", ActiveMotionGroup);
-            SaveError = $"Teaching values were not saved: {exception.GetBaseException().Message}";
+            SaveError = UiText.Format($"Teaching values were not saved: {exception.GetBaseException().Message}");
             return false;
         }
     }
@@ -875,7 +875,7 @@ public partial class TeachingViewModel : ObservableObject
 
     public TeachingMoveMode[] MoveModes { get; }
 
-    public string ManualSpeedLabel => MoveMode == TeachingMoveMode.Step ? "Step speed" : "Jog speed";
+    public string ManualSpeedLabel => MoveMode == TeachingMoveMode.Step ? UiText.Get("Step speed") : UiText.Get("Jog speed");
 
     public MotionStatus Motion => State.GetMotionStatus(ActiveMotionGroup);
 
@@ -886,11 +886,11 @@ public partial class TeachingViewModel : ObservableObject
             switch (ActiveMotionGroup)
             {
                 case MotionGroup.PcbSupply:
-                    return "Z → PCB Rotation Height";
+                    return UiText.Get("Z → PCB Rotation Height");
                 case MotionGroup.PcbPlacementHandler:
-                    return "Z → PCB Handoff Height";
+                    return UiText.Get("Z → PCB Handoff Height");
                 default:
-                    return "Z → Common Safe Z";
+                    return UiText.Get("Z → Common Safe Z");
             }
         }
     }
@@ -1026,7 +1026,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1092,7 +1092,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1200,7 +1200,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1238,7 +1238,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1313,7 +1313,7 @@ public partial class TeachingViewModel : ObservableObject
         }
         catch (ArgumentException exception)
         {
-            SaveError = $"Motion settings or target are invalid: {exception.Message}";
+            SaveError = UiText.Format($"Motion settings or target are invalid: {exception.Message}");
             _logger.LogWarning(exception, "Teaching motion rejected invalid settings or target.");
         }
         catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
@@ -1369,7 +1369,7 @@ public partial class TeachingViewModel : ObservableObject
     partial void OnLiveLightLevelChanging(int value)
     {
         if (value is < 0 or > 255)
-            throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 255.");
+            throw new ArgumentOutOfRangeException(nameof(value), UiText.Get("Use 0 to 255."));
     }
 
     [ObservableProperty]
@@ -1483,17 +1483,17 @@ public partial class TeachingViewModel : ObservableObject
                 cancellationToken,
                 viewToken);
             if (operation is null)
-                throw new InvalidOperationException("Recording was not started because another operation is active. Try again after it finishes.");
+                throw new InvalidOperationException(UiText.Get("Recording was not started because another operation is active. Try again after it finishes."));
             activeToken = operation.Token;
             if (State.IsRunningFor(includeOperations: false))
-                throw new InvalidOperationException("Recording was not started because the machine is busy. Wait for motion to stop, then record again.");
+                throw new InvalidOperationException(UiText.Get("Recording was not started because the machine is busy. Wait for motion to stop, then record again."));
             operation.Token.ThrowIfCancellationRequested();
             await _recipeImageUpdate;
             operation.Token.ThrowIfCancellationRequested();
             if (CarrierImages.Count != Recipes.Current.CarrierImages.Count)
-                throw new InvalidOperationException("Wait for the saved teaching images to load before capturing.");
+                throw new InvalidOperationException(UiText.Get("Wait for the saved teaching images to load before capturing."));
             if (point.Inspection!.ImageCount > 1)
-                throw new InvalidOperationException("Multiple reference images are linked to this point. Resolve the duplicate before capturing.");
+                throw new InvalidOperationException(UiText.Get("Multiple reference images are linked to this point. Resolve the duplicate before capturing."));
             await _cameraStop;
             operation.Token.ThrowIfCancellationRequested();
             var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, lightLevel);
@@ -1505,7 +1505,7 @@ public partial class TeachingViewModel : ObservableObject
             var index = images.FindIndex(tile => point.Inspection.Matches(tile.Metadata));
             var previous = index >= 0 ? images[index].Metadata : null;
             if (!recordPosition && previous is null)
-                throw new InvalidOperationException("No reference image. Use Move to Selected Point, then Save X/Y + Image.");
+                throw new InvalidOperationException(UiText.Get("No reference image. Use Move to Selected Point, then Save X/Y + Image."));
             var metadata = new CarrierImageTile
             {
                 Number = previous?.Number ?? (images.Count == 0 ? 1 : images.Max(tile => tile.Metadata.Number) + 1),
@@ -1562,7 +1562,7 @@ public partial class TeachingViewModel : ObservableObject
                     bolt.FasteningX = previousFasteningX;
                     bolt.FasteningY = previousFasteningY;
                 }
-                CameraError = RecipeEditor.Error ?? "Recording cancelled; point not saved. Record again.";
+                CameraError = RecipeEditor.Error ?? UiText.Get("Recording cancelled; point not saved. Record again.");
                 _logger.LogInformation("Teaching image was not saved: PCB={Pcb}, point={Point}, reason={Reason}.",
                     pcb, point.Name, CameraError);
             }

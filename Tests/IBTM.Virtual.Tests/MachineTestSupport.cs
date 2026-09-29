@@ -8,6 +8,8 @@ using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using IBTM.Hantas;
+using IBTM.Storage;
 using IBTM.UI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +18,92 @@ namespace IBTM.Virtual.Tests;
 // Shared virtual machine setup and fault injection for lifecycle, home and teaching tests.
 public static class MachineTestSupport
 {
+    public static IServiceCollection AddVirtualApplication(
+        this IServiceCollection services,
+        MachineSettings settings)
+    {
+        services.AddIbtmApplication(settings)
+            .AddSingleton<VirtualIoService>()
+            .AddSingleton(provider =>
+            {
+                var io = provider.GetRequiredService<VirtualIoService>();
+                var motions = settings.MotionSections.ToDictionary(
+                    section => section.Hardware.Group,
+                    section => (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(section.Hardware.Group));
+                var machine = new VirtualMachine(io, motions.Values.ToArray(),
+                    () => provider.GetRequiredService<MachineState>().RepeatEnabled);
+                var recipes = provider.GetRequiredService<RecipeManager>();
+                motions[MotionGroup.PcbSupply].PositionChanged += (x, y, z) => machine.UpdateSupplyPosition(
+                    x, y, z,
+                    (recipes.Current.PcbSupply.Pcb1PickPosition.X,
+                        recipes.Current.PcbSupply.Pcb1PickPosition.Y,
+                        recipes.Current.PcbSupply.Pcb1PickPosition.Z),
+                    (recipes.Current.PcbSupply.Pcb2PickPosition.X,
+                        recipes.Current.PcbSupply.Pcb2PickPosition.Y,
+                        recipes.Current.PcbSupply.Pcb2PickPosition.Z),
+                    settings.PcbSupply.HandoffPosition);
+                motions[MotionGroup.PcbPlacementHandler].PositionChanged += (x, y, z) => machine.UpdatePlacementPosition(
+                    x, y, z, settings.PcbPlacementHandler.HandoffPosition,
+                    settings.PcbPlacementHandler.ReceiveZ,
+                    recipes.Current.PcbPlacement.HeatSink1PcbPlacementPosition,
+                    recipes.Current.PcbPlacement.HeatSink2PcbPlacementPosition);
+                motions[MotionGroup.InspectionGantry].PositionChanged += (x, y, _) => machine.UpdateInspectionPosition(
+                    x, y, settings.NgCarrierTransfer.CarrierPickupPosition,
+                    settings.NgCarrierTransfer.ShuttlePlacePosition);
+                return machine;
+            })
+            .AddSingleton<IIoService>(provider =>
+            {
+                _ = provider.GetRequiredService<VirtualMachine>();
+                return provider.GetRequiredService<VirtualIoService>();
+            })
+            .AddKeyedSingleton<IAdcBus>(FasteningHead.Pickup,
+                (provider, _) => new VirtualAdcBus(
+                    provider.GetRequiredService<IIoService>(), FasteningHead.Pickup, settings.Hantas.PickupSlaveAddress))
+            .AddKeyedSingleton<IAdcBus>(FasteningHead.Shooting,
+                (provider, _) => new VirtualAdcBus(
+                    provider.GetRequiredService<IIoService>(), FasteningHead.Shooting, settings.Hantas.ShootingSlaveAddress))
+            .AddSingleton<VirtualCamera>(provider =>
+            {
+                var recipes = provider.GetRequiredService<RecipeManager>();
+                var motion = provider.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>()
+                    [MotionGroup.InspectionGantry];
+                return new VirtualCamera(
+                    () => motion.Position,
+                    () => recipes.Current.Pcb.BoltPoints
+                        .Select(bolt => bolt.InspectionPosition).OfType<AxisPosition>(),
+                    () => [
+                        new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
+                        new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2"),
+                    ]);
+            })
+            .AddSingleton<ICamera>(provider => provider.GetRequiredService<VirtualCamera>())
+            .AddSingleton<ILightController, VirtualLightController>();
+
+        foreach (var (motionSettings, motionHardware) in settings.MotionSections)
+        {
+            services.AddKeyedSingleton<IXyMotion>(motionHardware.Group, (provider, _) =>
+            {
+                var x = motionHardware.GetAxis(MotionAxis.X)!;
+                var y = motionHardware.GetAxis(MotionAxis.Y);
+                var z = motionHardware.GetAxis(MotionAxis.Z);
+                var io = provider.GetRequiredService<VirtualIoService>();
+                return new VirtualMotionService(
+                    motionSettings,
+                    provider.GetRequiredService<OperationCancellation>(),
+                    hasY: y is not null,
+                    hasZ: z is not null,
+                    servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn),
+                    axisResolutionMillimeters: (
+                        x.MoveUnit / x.MovePulse / 1000,
+                        (y?.MoveUnit ?? 1) / (y?.MovePulse ?? 1) / 1000,
+                        (z?.MoveUnit ?? 1) / (z?.MovePulse ?? 1) / 1000));
+            });
+        }
+
+        return services;
+    }
+
     public static ServiceProvider CreateDisplayServices(
         out DisplayReadMotion feedback,
         MachineSettings? settings = null)
@@ -24,7 +112,7 @@ public static class MachineTestSupport
         var probe = (DisplayReadMotion)motion;
         feedback = probe;
         return new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings ?? FlowSettings())
+            .AddVirtualApplication(settings ?? FlowSettings())
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
             {
                 var motions = Enum.GetValues<MotionGroup>().ToDictionary(
@@ -44,10 +132,9 @@ public static class MachineTestSupport
         collection.AddSingleton(
             VirtualTestSupport.OpenMachineStore(
                 Path.Combine(Path.GetTempPath(), $"IBTM-diagnostic-{Guid.NewGuid():N}.db")))
-            .AddIbtmApplication(
+            .AddVirtualApplication(
                 new MachineSettings
                 {
-                    Drivers = new() { Light = LightDriver.Virtual },
                     Units = new()
                     {
                         MainConveyor = true,
@@ -69,7 +156,7 @@ public static class MachineTestSupport
     public static ServiceProvider CreateServices(MachineSettings settings)
     {
         return new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .BuildServiceProvider(
                 new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true, });
     }
@@ -82,7 +169,7 @@ public static class MachineTestSupport
         var captured = new Dictionary<MotionGroup, ScopedMotionProbe>();
         probes = captured;
         var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(group => group,
                     group =>

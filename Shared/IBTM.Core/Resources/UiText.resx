@@ -12,6 +12,15 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
   </resheader>
+  <data name="&#10;&#10;exit the application anyway? full details are saved in the log." xml:space="preserve">
+    <value>
+
+Exit the application anyway? Full details are saved in the log.</value>
+  </data>
+  <data name="&#10;operation failed. check controller status." xml:space="preserve">
+    <value>
+Operation failed. Check controller status.</value>
+  </data>
   <data name="  preset " xml:space="preserve">
     <value>  Preset </value>
   </data>
@@ -30,6 +39,9 @@
   <data name="+limit" xml:space="preserve">
     <value>+LIMIT</value>
   </data>
+  <data name="a background task failed." xml:space="preserve">
+    <value>A background task failed.</value>
+  </data>
   <data name="a3 ÷ 360 ≥ minimum" xml:space="preserve">
     <value>A3 ÷ 360 ≥ minimum</value>
   </data>
@@ -42,14 +54,20 @@
   <data name="active connection: " xml:space="preserve">
     <value>Active connection: </value>
   </data>
-  <data name="active: " xml:space="preserve">
-    <value>Active: </value>
-  </data>
   <data name="actual / min" xml:space="preserve">
     <value>ACTUAL / MIN</value>
   </data>
+  <data name="ad 매뉴얼 2017-03-21, 27-30쪽 기준. 문서에 없는 코드는 컨트롤러 모델·펌웨어별 확인이 필요합니다." xml:space="preserve">
+    <value>AD manual, 2017-03-21, pp. 27–30. Verify unlisted codes for the controller model / firmware.</value>
+  </data>
   <data name="adc communication log" xml:space="preserve">
     <value>ADC communication log</value>
+  </data>
+  <data name="adc response timeout must be greater than 0 s." xml:space="preserve">
+    <value>ADC response timeout must be greater than 0 s.</value>
+  </data>
+  <data name="adc shutdown failed" xml:space="preserve">
+    <value>ADC Shutdown Failed</value>
   </data>
   <data name="adc test" xml:space="preserve">
     <value>ADC TEST</value>
@@ -87,6 +105,9 @@
   <data name="air pressure low" xml:space="preserve">
     <value>Air Pressure Low</value>
   </data>
+  <data name="al · 드라이브" xml:space="preserve">
+    <value>AL · Drive</value>
+  </data>
   <data name="alarm" xml:space="preserve">
     <value>Alarm</value>
   </data>
@@ -99,8 +120,20 @@
   <data name="alarm reset" xml:space="preserve">
     <value>Alarm Reset</value>
   </data>
+  <data name="all units" xml:space="preserve">
+    <value>All Units</value>
+  </data>
   <data name="alphamotion · tmc-ae16dioe" xml:space="preserve">
     <value>AlphaMotion · TMC-AE16DIOe</value>
+  </data>
+  <data name="an unhandled application error occurred." xml:space="preserve">
+    <value>An unhandled application error occurred.</value>
+  </data>
+  <data name="an unhandled error occurred. the application will close." xml:space="preserve">
+    <value>An unhandled error occurred. The application will close.</value>
+  </data>
+  <data name="an unhandled ui error occurred. the application will remain open." xml:space="preserve">
+    <value>An unhandled UI error occurred. The application will remain open.</value>
   </data>
   <data name="angle 1" xml:space="preserve">
     <value>Angle 1</value>
@@ -126,11 +159,17 @@
   <data name="approach speed (mm/s)" xml:space="preserve">
     <value>Approach speed (mm/s)</value>
   </data>
+  <data name="auto" xml:space="preserve">
+    <value>AUTO</value>
+  </data>
   <data name="auto / manual selector" xml:space="preserve">
     <value>Auto / Manual Selector</value>
   </data>
-  <data name="auto response" xml:space="preserve">
-    <value>Auto Response</value>
+  <data name="auto · monitoring only." xml:space="preserve">
+    <value>AUTO · monitoring only.</value>
+  </data>
+  <data name="automatic binary unavailable · set a threshold" xml:space="preserve">
+    <value>Automatic binary unavailable · set a threshold</value>
   </data>
   <data name="available from front 1 (pcb)" xml:space="preserve">
     <value>Available From Front 1 (PCB)</value>
@@ -179,6 +218,15 @@
   </data>
   <data name="binary (0–255; blank = auto)" xml:space="preserve">
     <value>Binary (0–255; blank = auto)</value>
+  </data>
+  <data name="binary roi · automatic" xml:space="preserve">
+    <value>Binary ROI · automatic</value>
+  </data>
+  <data name="binary roi · no inspection target" xml:space="preserve">
+    <value>Binary ROI · no inspection target</value>
+  </data>
+  <data name="binary roi · threshold {0}" xml:space="preserve">
+    <value>Binary ROI · threshold {0}</value>
   </data>
   <data name="bolt" xml:space="preserve">
     <value>BOLT</value>
@@ -264,11 +312,20 @@
   <data name="bolt supply command" xml:space="preserve">
     <value>Bolt supply command</value>
   </data>
+  <data name="bolt test shutdown failed" xml:space="preserve">
+    <value>Bolt test shutdown failed</value>
+  </data>
+  <data name="bolt {0}" xml:space="preserve">
+    <value>Bolt {0}</value>
+  </data>
   <data name="bolt · ?" xml:space="preserve">
     <value>BOLT · ?</value>
   </data>
   <data name="bolts &amp; feeders" xml:space="preserve">
     <value>Bolts &amp; feeders</value>
+  </data>
+  <data name="bright {0:p2} · required ≥ {1:p2}" xml:space="preserve">
+    <value>Bright {0:P2} · Required ≥ {1:P2}</value>
   </data>
   <data name="brightness (0–255)" xml:space="preserve">
     <value>Brightness (0–255)</value>
@@ -285,11 +342,23 @@
   <data name="camera &amp; lighting" xml:space="preserve">
     <value>Camera &amp; lighting</value>
   </data>
+  <data name="camera disconnection failed during application exit." xml:space="preserve">
+    <value>Camera disconnection failed during application exit.</value>
+  </data>
   <data name="cancel · esc" xml:space="preserve">
     <value>Cancel · Esc</value>
   </data>
+  <data name="cannot load pcb history. open logs for details." xml:space="preserve">
+    <value>Cannot load PCB history. Open Logs for details.</value>
+  </data>
   <data name="capture rx (3s)" xml:space="preserve">
     <value>Capture RX (3s)</value>
+  </data>
+  <data name="captured {0} bytes over {1} ms. {2}" xml:space="preserve">
+    <value>Captured {0} bytes over {1} ms. {2}</value>
+  </data>
+  <data name="capturing raw rx · 3 s" xml:space="preserve">
+    <value>Capturing raw RX · 3 s</value>
   </data>
   <data name="card number" xml:space="preserve">
     <value>Card number</value>
@@ -330,8 +399,22 @@
   <data name="change recipe..." xml:space="preserve">
     <value>Change recipe...</value>
   </data>
+  <data name="check equipment stop and any unsaved pcb results before exiting.&#10;&#10;" xml:space="preserve">
+    <value>Check equipment stop and any unsaved PCB results before exiting.
+
+</value>
+  </data>
+  <data name="check station enablement, homing and servo feedback." xml:space="preserve">
+    <value>Check station enablement, homing and servo feedback.</value>
+  </data>
   <data name="check the highlighted input." xml:space="preserve">
     <value>Check the highlighted input.</value>
+  </data>
+  <data name="choose an absolute folder path for logs." xml:space="preserve">
+    <value>Choose an absolute folder path for logs.</value>
+  </data>
+  <data name="choose an absolute folder path for pcb results." xml:space="preserve">
+    <value>Choose an absolute folder path for PCB results.</value>
   </data>
   <data name="clear axis alarm / e-stop" xml:space="preserve">
     <value>Clear axis alarm / E-stop</value>
@@ -353,6 +436,9 @@
   </data>
   <data name="clear the motion fault, then press reset" xml:space="preserve">
     <value>Clear the motion fault, then press RESET</value>
+  </data>
+  <data name="clipboard is unavailable: {0}" xml:space="preserve">
+    <value>Clipboard is unavailable: {0}</value>
   </data>
   <data name="close doors" xml:space="preserve">
     <value>Close doors</value>
@@ -392,6 +478,12 @@
   </data>
   <data name="completing carrier" xml:space="preserve">
     <value>Completing Carrier</value>
+  </data>
+  <data name="connect" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="connecting: {0}…" xml:space="preserve">
+    <value>Connecting: {0}…</value>
   </data>
   <data name="control i/o communication" xml:space="preserve">
     <value>Control I/O Communication</value>
@@ -465,6 +557,9 @@
   <data name="data matrix inspection" xml:space="preserve">
     <value>Data Matrix Inspection</value>
   </data>
+  <data name="data matrix not read" xml:space="preserve">
+    <value>Data Matrix not read</value>
+  </data>
   <data name="data matrix · " xml:space="preserve">
     <value>Data Matrix · </value>
   </data>
@@ -477,8 +572,26 @@
   <data name="detection acceleration (s)" xml:space="preserve">
     <value>Detection acceleration (s)</value>
   </data>
+  <data name="device cleanup failed during application exit." xml:space="preserve">
+    <value>Device cleanup failed during application exit.</value>
+  </data>
+  <data name="device data: {0}" xml:space="preserve">
+    <value>Device data: {0}</value>
+  </data>
   <data name="device id / serial number" xml:space="preserve">
     <value>Device ID / serial number</value>
+  </data>
+  <data name="device stop failed after an unhandled application error." xml:space="preserve">
+    <value>Device STOP failed after an unhandled application error.</value>
+  </data>
+  <data name="device stop failed after an unhandled ui error." xml:space="preserve">
+    <value>Device STOP failed after an unhandled UI error.</value>
+  </data>
+  <data name="device stop failed during application exit." xml:space="preserve">
+    <value>Device STOP failed during application exit.</value>
+  </data>
+  <data name="diagnostic window could not be opened or closed." xml:space="preserve">
+    <value>Diagnostic window could not be opened or closed.</value>
   </data>
   <data name="diagnostics" xml:space="preserve">
     <value>Diagnostics</value>
@@ -501,23 +614,47 @@
   <data name="discharging s3" xml:space="preserve">
     <value>Discharging S3</value>
   </data>
+  <data name="disconnect" xml:space="preserve">
+    <value>Disconnect</value>
+  </data>
+  <data name="disconnected" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
   <data name="do" xml:space="preserve">
     <value>DO</value>
+  </data>
+  <data name="door 1" xml:space="preserve">
+    <value>DOOR 1</value>
   </data>
   <data name="door 1 closed" xml:space="preserve">
     <value>Door 1 Closed</value>
   </data>
+  <data name="door 2" xml:space="preserve">
+    <value>DOOR 2</value>
+  </data>
   <data name="door 2 closed" xml:space="preserve">
     <value>Door 2 Closed</value>
+  </data>
+  <data name="door 3" xml:space="preserve">
+    <value>DOOR 3</value>
   </data>
   <data name="door 3 closed" xml:space="preserve">
     <value>Door 3 Closed</value>
   </data>
+  <data name="door 4" xml:space="preserve">
+    <value>DOOR 4</value>
+  </data>
   <data name="door 4 closed" xml:space="preserve">
     <value>Door 4 Closed</value>
   </data>
+  <data name="door 5" xml:space="preserve">
+    <value>DOOR 5</value>
+  </data>
   <data name="door 5 closed" xml:space="preserve">
     <value>Door 5 Closed</value>
+  </data>
+  <data name="door 6" xml:space="preserve">
+    <value>DOOR 6</value>
   </data>
   <data name="door 6 closed" xml:space="preserve">
     <value>Door 6 Closed</value>
@@ -540,8 +677,11 @@
   <data name="down" xml:space="preserve">
     <value>Down</value>
   </data>
+  <data name="draw the fov roi before inspecting." xml:space="preserve">
+    <value>Draw the FOV ROI before inspecting.</value>
+  </data>
   <data name="dry run" xml:space="preserve">
-    <value>DRY RUN</value>
+    <value>Dry run</value>
   </data>
   <data name="dry run motor duration (s)" xml:space="preserve">
     <value>Dry run motor duration (s)</value>
@@ -585,8 +725,17 @@
   <data name="enabled units" xml:space="preserve">
     <value>Enabled units</value>
   </data>
+  <data name="enter a recipe name before saving." xml:space="preserve">
+    <value>Enter a recipe name before saving.</value>
+  </data>
   <data name="entry carrier sensor" xml:space="preserve">
     <value>Entry carrier sensor</value>
+  </data>
+  <data name="er · 공정" xml:space="preserve">
+    <value>Er · Process</value>
+  </data>
+  <data name="er · 시스템" xml:space="preserve">
+    <value>Er · System</value>
   </data>
   <data name="error" xml:space="preserve">
     <value>Error</value>
@@ -660,8 +809,14 @@
   <data name="fastening time (ms)" xml:space="preserve">
     <value>FASTENING TIME (ms)</value>
   </data>
+  <data name="fastening timeout must be greater than 0 s." xml:space="preserve">
+    <value>Fastening timeout must be greater than 0 s.</value>
+  </data>
   <data name="fastening z: conveyor clearance required" xml:space="preserve">
     <value>Fastening Z: conveyor clearance required</value>
+  </data>
+  <data name="fastening..." xml:space="preserve">
+    <value>Fastening...</value>
   </data>
   <data name="fault" xml:space="preserve">
     <value>Fault</value>
@@ -714,8 +869,14 @@
   <data name="h1 pickup" xml:space="preserve">
     <value>H1 Pickup</value>
   </data>
+  <data name="h1 · pickup" xml:space="preserve">
+    <value>H1 · Pickup</value>
+  </data>
   <data name="h2 shooting" xml:space="preserve">
     <value>H2 Shooting</value>
+  </data>
+  <data name="h2 · shooting" xml:space="preserve">
+    <value>H2 · Shooting</value>
   </data>
   <data name="handing pcb to placement" xml:space="preserve">
     <value>Handing PCB to Placement</value>
@@ -777,6 +938,9 @@
   <data name="home signal" xml:space="preserve">
     <value>Home signal</value>
   </data>
+  <data name="home the selected axes and wait for them to stop." xml:space="preserve">
+    <value>Home the selected axes and wait for them to stop.</value>
+  </data>
   <data name="home this unit first" xml:space="preserve">
     <value>Home this unit first</value>
   </data>
@@ -798,14 +962,20 @@
   <data name="i/o communication unavailable" xml:space="preserve">
     <value>I/O communication unavailable</value>
   </data>
-  <data name="i/o control + adc results" xml:space="preserve">
-    <value>I/O control + ADC results</value>
-  </data>
   <data name="i/o disconnected · input states unknown" xml:space="preserve">
     <value>I/O disconnected · input states unknown</value>
   </data>
   <data name="i/o mapping" xml:space="preserve">
     <value>I/O mapping</value>
+  </data>
+  <data name="i/o reset confirmed" xml:space="preserve">
+    <value>I/O reset confirmed</value>
+  </data>
+  <data name="ibtm error" xml:space="preserve">
+    <value>IBTM Error</value>
+  </data>
+  <data name="ibtm is already running." xml:space="preserve">
+    <value>IBTM is already running.</value>
   </data>
   <data name="id · " xml:space="preserve">
     <value>ID · </value>
@@ -815,6 +985,18 @@
   </data>
   <data name="image" xml:space="preserve">
     <value>Image</value>
+  </data>
+  <data name="image could not be decoded." xml:space="preserve">
+    <value>Image could not be decoded.</value>
+  </data>
+  <data name="image dimensions do not match the recipe image." xml:space="preserve">
+    <value>Image dimensions do not match the recipe image.</value>
+  </data>
+  <data name="image unavailable: {0}" xml:space="preserve">
+    <value>Image unavailable: {0}</value>
+  </data>
+  <data name="images" xml:space="preserve">
+    <value>Images</value>
   </data>
   <data name="input" xml:space="preserve">
     <value>INPUT</value>
@@ -879,6 +1061,12 @@
   <data name="inspection images" xml:space="preserve">
     <value>Inspection images</value>
   </data>
+  <data name="inspection images could not be loaded: {0}" xml:space="preserve">
+    <value>Inspection images could not be loaded: {0}</value>
+  </data>
+  <data name="inspection light channel must be from 1 to 9." xml:space="preserve">
+    <value>Inspection light channel must be from 1 to 9.</value>
+  </data>
   <data name="inspection s3 support" xml:space="preserve">
     <value>Inspection S3 Support</value>
   </data>
@@ -918,6 +1106,19 @@
   <data name="jog (hold)" xml:space="preserve">
     <value>Jog (hold)</value>
   </data>
+  <data name="jog speed" xml:space="preserve">
+    <value>Jog speed</value>
+  </data>
+  <data name="keep the travel path clear before moving." xml:space="preserve">
+    <value>Keep the travel path clear before moving.</value>
+  </data>
+  <data name="language / hardware / logs: save + restart" xml:space="preserve">
+    <value>Language / hardware / logs: Save + restart</value>
+  </data>
+  <data name="last result: {0}  event {1}&#10;" xml:space="preserve">
+    <value>Last result: {0}  Event {1}
+</value>
+  </data>
   <data name="latest fastening" xml:space="preserve">
     <value>Latest fastening</value>
   </data>
@@ -948,6 +1149,9 @@
   <data name="lighting controller" xml:space="preserve">
     <value>Lighting controller</value>
   </data>
+  <data name="lighting test cancelled." xml:space="preserve">
+    <value>Lighting test cancelled.</value>
+  </data>
   <data name="load for reinspection" xml:space="preserve">
     <value>Load for Reinspection</value>
   </data>
@@ -960,8 +1164,8 @@
   <data name="load recipe" xml:space="preserve">
     <value>Load Recipe</value>
   </data>
-  <data name="load test image" xml:space="preserve">
-    <value>Load Test Image</value>
+  <data name="load the s2 carrier and raise the backup plate." xml:space="preserve">
+    <value>Load the S2 carrier and raise the backup plate.</value>
   </data>
   <data name="loading images…" xml:space="preserve">
     <value>Loading images…</value>
@@ -983,6 +1187,9 @@
   </data>
   <data name="loosening" xml:space="preserve">
     <value>Loosening</value>
+  </data>
+  <data name="loosening · release to stop" xml:space="preserve">
+    <value>Loosening · release to stop</value>
   </data>
   <data name="lowering ng shuttle" xml:space="preserve">
     <value>Lowering NG Shuttle</value>
@@ -1024,13 +1231,16 @@
     <value>Main Conveyor Run</value>
   </data>
   <data name="manual" xml:space="preserve">
-    <value>Manual</value>
+    <value>MANUAL</value>
   </data>
   <data name="manual adjustment" xml:space="preserve">
     <value>Manual Adjustment</value>
   </data>
   <data name="manual mode only" xml:space="preserve">
     <value>Manual mode only</value>
+  </data>
+  <data name="manual mode required." xml:space="preserve">
+    <value>Manual mode required.</value>
   </data>
   <data name="manual test" xml:space="preserve">
     <value>MANUAL TEST</value>
@@ -1089,11 +1299,20 @@
   <data name="motion monitor" xml:space="preserve">
     <value>Motion Monitor</value>
   </data>
+  <data name="motion settings or target are invalid: {0}" xml:space="preserve">
+    <value>Motion settings or target are invalid: {0}</value>
+  </data>
+  <data name="motion shutdown failed" xml:space="preserve">
+    <value>Motion Shutdown Failed</value>
+  </data>
   <data name="motion unavailable" xml:space="preserve">
     <value>Motion Unavailable</value>
   </data>
   <data name="motor run" xml:space="preserve">
     <value>Motor Run</value>
+  </data>
+  <data name="move machine axes?" xml:space="preserve">
+    <value>Move machine axes?</value>
   </data>
   <data name="move mode" xml:space="preserve">
     <value>Move mode</value>
@@ -1122,14 +1341,14 @@
   <data name="movs (serial)" xml:space="preserve">
     <value>MOVS (Serial)</value>
   </data>
+  <data name="multiple reference images are linked to this point. resolve the duplicate before capturing." xml:space="preserve">
+    <value>Multiple reference images are linked to this point. Resolve the duplicate before capturing.</value>
+  </data>
   <data name="negative limit" xml:space="preserve">
     <value>Negative Limit</value>
   </data>
   <data name="new recipe" xml:space="preserve">
     <value>New Recipe</value>
-  </data>
-  <data name="next virtual result" xml:space="preserve">
-    <value>Next Virtual Result</value>
   </data>
   <data name="ng carrier detected" xml:space="preserve">
     <value>NG Carrier Detected</value>
@@ -1224,6 +1443,15 @@
   <data name="ng transfer pending" xml:space="preserve">
     <value>NG transfer pending</value>
   </data>
+  <data name="ng · not read" xml:space="preserve">
+    <value>NG · Not Read</value>
+  </data>
+  <data name="no bytes received." xml:space="preserve">
+    <value>No bytes received.</value>
+  </data>
+  <data name="no data" xml:space="preserve">
+    <value>No data</value>
+  </data>
   <data name="no fastening results recorded" xml:space="preserve">
     <value>No fastening results recorded</value>
   </data>
@@ -1242,8 +1470,20 @@
   <data name="no reference image" xml:space="preserve">
     <value>No reference image</value>
   </data>
+  <data name="no reference image. use move to selected point, then save x/y + image." xml:space="preserve">
+    <value>No reference image. Use Move to Selected Point, then Save X/Y + Image.</value>
+  </data>
+  <data name="no result read" xml:space="preserve">
+    <value>No result read</value>
+  </data>
   <data name="no saved image for this point" xml:space="preserve">
     <value>No saved image for this point</value>
+  </data>
+  <data name="no saved images for this pcb." xml:space="preserve">
+    <value>No saved images for this PCB.</value>
+  </data>
+  <data name="no serial ports found" xml:space="preserve">
+    <value>No serial ports found</value>
   </data>
   <data name="no." xml:space="preserve">
     <value>NO.</value>
@@ -1269,8 +1509,14 @@
   <data name="not recorded" xml:space="preserve">
     <value>Not recorded</value>
   </data>
+  <data name="not run" xml:space="preserve">
+    <value>Not run</value>
+  </data>
   <data name="not set" xml:space="preserve">
     <value>Not set</value>
+  </data>
+  <data name="not taught" xml:space="preserve">
+    <value>Not taught</value>
   </data>
   <data name="number" xml:space="preserve">
     <value>Number</value>
@@ -1278,8 +1524,11 @@
   <data name="off (dec)" xml:space="preserve">
     <value>OFF (dec)</value>
   </data>
-  <data name="off: manual sensor simulation; motion still runs." xml:space="preserve">
-    <value>OFF: manual sensor simulation; motion still runs.</value>
+  <data name="off command sent · channel {0}." xml:space="preserve">
+    <value>OFF command sent · channel {0}.</value>
+  </data>
+  <data name="off failed on channel {0}; light state is unknown. press off to retry. {1}" xml:space="preserve">
+    <value>OFF failed on channel {0}; light state is unknown. Press OFF to retry. {1}</value>
   </data>
   <data name="older →" xml:space="preserve">
     <value>Older →</value>
@@ -1290,6 +1539,9 @@
   <data name="on = manual / off = auto" xml:space="preserve">
     <value>ON = MANUAL / OFF = AUTO</value>
   </data>
+  <data name="on command sent · channel {0}, level {1}." xml:space="preserve">
+    <value>ON command sent · channel {0}, level {1}.</value>
+  </data>
   <data name="open" xml:space="preserve">
     <value>Open</value>
   </data>
@@ -1298,6 +1550,9 @@
   </data>
   <data name="operation &amp; safety" xml:space="preserve">
     <value>Operation &amp; safety</value>
+  </data>
+  <data name="operation canceled. check controller status." xml:space="preserve">
+    <value>Operation canceled. Check controller status.</value>
   </data>
   <data name="operation or stop cleanup in progress" xml:space="preserve">
     <value>Operation or stop cleanup in progress</value>
@@ -1329,6 +1584,9 @@
   <data name="p3 lift" xml:space="preserve">
     <value>P3 LIFT</value>
   </data>
+  <data name="page change failed: {0}" xml:space="preserve">
+    <value>Page change failed: {0}</value>
+  </data>
   <data name="pause display" xml:space="preserve">
     <value>Pause display</value>
   </data>
@@ -1343,6 +1601,9 @@
   </data>
   <data name="pcb 2 pickup" xml:space="preserve">
     <value>PCB 2 Pickup</value>
+  </data>
+  <data name="pcb details could not be opened or closed." xml:space="preserve">
+    <value>PCB details could not be opened or closed.</value>
   </data>
   <data name="pcb detected" xml:space="preserve">
     <value>PCB Detected</value>
@@ -1410,6 +1671,12 @@
   <data name="pcb results" xml:space="preserve">
     <value>PCB Results</value>
   </data>
+  <data name="pcb results folder" xml:space="preserve">
+    <value>PCB results folder</value>
+  </data>
+  <data name="pcb rotation z" xml:space="preserve">
+    <value>PCB Rotation Z</value>
+  </data>
   <data name="pcb secured" xml:space="preserve">
     <value>PCB Secured</value>
   </data>
@@ -1442,9 +1709,6 @@
   </data>
   <data name="pending saves: {0}" xml:space="preserve">
     <value>Pending saves: {0}</value>
-  </data>
-  <data name="physical" xml:space="preserve">
-    <value>Physical</value>
   </data>
   <data name="pick" xml:space="preserve">
     <value>Pick</value>
@@ -1599,6 +1863,9 @@
   <data name="position (mm)" xml:space="preserve">
     <value>POSITION (mm)</value>
   </data>
+  <data name="position ambiguous · multiple reference images" xml:space="preserve">
+    <value>Position ambiguous · multiple reference images</value>
+  </data>
   <data name="position unknown" xml:space="preserve">
     <value>Position unknown</value>
   </data>
@@ -1638,14 +1905,24 @@
   <data name="preset" xml:space="preserve">
     <value>Preset</value>
   </data>
+  <data name="preset 1 selected" xml:space="preserve">
+    <value>Preset 1 selected</value>
+  </data>
   <data name="preset changed" xml:space="preserve">
     <value>Preset Changed</value>
+  </data>
+  <data name="preset {0}  torque {1:f2} / {2:f2}&#10;" xml:space="preserve">
+    <value>Preset {0}  Torque {1:F2} / {2:F2}
+</value>
   </data>
   <data name="press reset to restore servo power" xml:space="preserve">
     <value>Press RESET to restore servo power</value>
   </data>
   <data name="pure barcode" xml:space="preserve">
     <value>Pure barcode</value>
+  </data>
+  <data name="queued" xml:space="preserve">
+    <value>Queued</value>
   </data>
   <data name="raise both fastening heads" xml:space="preserve">
     <value>Raise both fastening heads</value>
@@ -1677,6 +1954,9 @@
   <data name="raising s3" xml:space="preserve">
     <value>Raising S3</value>
   </data>
+  <data name="raw start is not available. use start fastening or reverse (hold)." xml:space="preserve">
+    <value>Raw Start is not available. Use Start Fastening or Reverse (Hold).</value>
+  </data>
   <data name="read device info" xml:space="preserve">
     <value>Read Device Info</value>
   </data>
@@ -1688,6 +1968,9 @@
   </data>
   <data name="read last result" xml:space="preserve">
     <value>Read Last Result</value>
+  </data>
+  <data name="read only · machine status unavailable" xml:space="preserve">
+    <value>Read only · machine status unavailable</value>
   </data>
   <data name="reading data matrix" xml:space="preserve">
     <value>Reading Data Matrix</value>
@@ -1728,8 +2011,23 @@
   <data name="recipe" xml:space="preserve">
     <value>Recipe</value>
   </data>
+  <data name="recipe operation failed: {0}" xml:space="preserve">
+    <value>Recipe operation failed: {0}</value>
+  </data>
+  <data name="recipe · {0} · {1}" xml:space="preserve">
+    <value>Recipe · {0} · {1}</value>
+  </data>
+  <data name="record current position?" xml:space="preserve">
+    <value>Record current position?</value>
+  </data>
+  <data name="record image positions with the camera capture command." xml:space="preserve">
+    <value>Record image positions with the camera capture command.</value>
+  </data>
   <data name="record position" xml:space="preserve">
     <value>Record Position</value>
+  </data>
+  <data name="record the selected teaching position before moving." xml:space="preserve">
+    <value>Record the selected teaching position before moving.</value>
   </data>
   <data name="record x/y" xml:space="preserve">
     <value>Record X/Y</value>
@@ -1739,6 +2037,18 @@
   </data>
   <data name="record z" xml:space="preserve">
     <value>Record Z</value>
+  </data>
+  <data name="recorded {0} · {1}" xml:space="preserve">
+    <value>Recorded {0} · {1}</value>
+  </data>
+  <data name="recording cancelled; point not saved. record again." xml:space="preserve">
+    <value>Recording cancelled; point not saved. Record again.</value>
+  </data>
+  <data name="recording was not started because another operation is active. try again after it finishes." xml:space="preserve">
+    <value>Recording was not started because another operation is active. Try again after it finishes.</value>
+  </data>
+  <data name="recording was not started because the machine is busy. wait for motion to stop, then record again." xml:space="preserve">
+    <value>Recording was not started because the machine is busy. Wait for motion to stop, then record again.</value>
   </data>
   <data name="reference image unavailable" xml:space="preserve">
     <value>Reference image unavailable</value>
@@ -1785,6 +2095,18 @@
   <data name="repeat" xml:space="preserve">
     <value>REPEAT</value>
   </data>
+  <data name="replace the recorded x/y with the current coordinates." xml:space="preserve">
+    <value>Replace the recorded X/Y with the current coordinates.</value>
+  </data>
+  <data name="replace the recorded x/y, reference image and light level with the current values." xml:space="preserve">
+    <value>Replace the recorded X/Y, reference image and light level with the current values.</value>
+  </data>
+  <data name="replace the recorded x/y/z with the current coordinates." xml:space="preserve">
+    <value>Replace the recorded X/Y/Z with the current coordinates.</value>
+  </data>
+  <data name="replace the recorded z with the current coordinate." xml:space="preserve">
+    <value>Replace the recorded Z with the current coordinate.</value>
+  </data>
   <data name="request device information" xml:space="preserve">
     <value>Request Device Information</value>
   </data>
@@ -1793,6 +2115,12 @@
   </data>
   <data name="reset button" xml:space="preserve">
     <value>Reset Button</value>
+  </data>
+  <data name="reset failed: {0}" xml:space="preserve">
+    <value>RESET failed: {0}</value>
+  </data>
+  <data name="reset; 반복되면 점검" xml:space="preserve">
+    <value>RESET; inspect if repeated</value>
   </data>
   <data name="resetting..." xml:space="preserve">
     <value>RESETTING...</value>
@@ -1808,6 +2136,9 @@
   </data>
   <data name="result" xml:space="preserve">
     <value>RESULT</value>
+  </data>
+  <data name="result error: {0}" xml:space="preserve">
+    <value>Result error: {0}</value>
   </data>
   <data name="result torque" xml:space="preserve">
     <value>RESULT TORQUE</value>
@@ -1845,6 +2176,9 @@
   <data name="returning to waiting position" xml:space="preserve">
     <value>Returning to Waiting Position</value>
   </data>
+  <data name="roi changed · not saved" xml:space="preserve">
+    <value>ROI changed · not saved</value>
+  </data>
   <data name="rotated" xml:space="preserve">
     <value>Rotated</value>
   </data>
@@ -1860,6 +2194,15 @@
   <data name="running" xml:space="preserve">
     <value>Running</value>
   </data>
+  <data name="running · monitoring only" xml:space="preserve">
+    <value>Running · monitoring only</value>
+  </data>
+  <data name="rx does not start with the tx frame." xml:space="preserve">
+    <value>RX does not start with the TX frame.</value>
+  </data>
+  <data name="rx starts with the tx frame; {0} byte(s) follow it." xml:space="preserve">
+    <value>RX starts with the TX frame; {0} byte(s) follow it.</value>
+  </data>
   <data name="safe z → raise pickup head" xml:space="preserve">
     <value>Safe Z → Raise Pickup Head</value>
   </data>
@@ -1872,11 +2215,17 @@
   <data name="safety stop" xml:space="preserve">
     <value>Safety Stop</value>
   </data>
-  <data name="save + restart" xml:space="preserve">
-    <value>Save + restart</value>
+  <data name="save cancelled. retry save." xml:space="preserve">
+    <value>Save cancelled. Retry Save.</value>
+  </data>
+  <data name="save cancelled; teaching not saved." xml:space="preserve">
+    <value>Save cancelled; teaching not saved.</value>
   </data>
   <data name="save inspection settings" xml:space="preserve">
     <value>Save Inspection Settings</value>
+  </data>
+  <data name="save position and image?" xml:space="preserve">
+    <value>Save position and image?</value>
   </data>
   <data name="save settings" xml:space="preserve">
     <value>Save Settings</value>
@@ -1889,6 +2238,15 @@
   </data>
   <data name="saved results" xml:space="preserve">
     <value>Saved results</value>
+  </data>
+  <data name="saved to recipe '{0}'." xml:space="preserve">
+    <value>Saved to recipe '{0}'.</value>
+  </data>
+  <data name="saved · applies from the next inspection point." xml:space="preserve">
+    <value>Saved · applies from the next inspection point.</value>
+  </data>
+  <data name="saving settings..." xml:space="preserve">
+    <value>Saving settings...</value>
   </data>
   <data name="saving..." xml:space="preserve">
     <value>Saving...</value>
@@ -1920,14 +2278,38 @@
   <data name="securing pcb and moving to handoff" xml:space="preserve">
     <value>Securing PCB and Moving to Handoff</value>
   </data>
+  <data name="select a bolt before changing its required bright percentage." xml:space="preserve">
+    <value>Select a bolt before changing its required bright percentage.</value>
+  </data>
+  <data name="select a bolt before changing its threshold." xml:space="preserve">
+    <value>Select a bolt before changing its threshold.</value>
+  </data>
+  <data name="select a bolt." xml:space="preserve">
+    <value>Select a bolt.</value>
+  </data>
+  <data name="select a data matrix before changing its threshold." xml:space="preserve">
+    <value>Select a Data Matrix before changing its threshold.</value>
+  </data>
+  <data name="select a serial port" xml:space="preserve">
+    <value>Select a serial port</value>
+  </data>
   <data name="select all" xml:space="preserve">
     <value>Select all</value>
+  </data>
+  <data name="select an image linked to a data matrix or bolt before inspecting." xml:space="preserve">
+    <value>Select an image linked to a Data Matrix or bolt before inspecting.</value>
   </data>
   <data name="select preset 1" xml:space="preserve">
     <value>Select Preset 1</value>
   </data>
   <data name="select teaching (manual) mode for repeat" xml:space="preserve">
     <value>Select TEACHING (MANUAL) mode for REPEAT</value>
+  </data>
+  <data name="selected bolt is not taught." xml:space="preserve">
+    <value>Selected bolt is not taught.</value>
+  </data>
+  <data name="selected pcb not detected at s2." xml:space="preserve">
+    <value>Selected PCB not detected at S2.</value>
   </data>
   <data name="send command" xml:space="preserve">
     <value>Send Command</value>
@@ -1946,6 +2328,15 @@
   </data>
   <data name="settings" xml:space="preserve">
     <value>Settings</value>
+  </data>
+  <data name="settings not saved: {0}" xml:space="preserve">
+    <value>Settings not saved: {0}</value>
+  </data>
+  <data name="settings saved." xml:space="preserve">
+    <value>Settings saved.</value>
+  </data>
+  <data name="settings saved; recipe was not saved. " xml:space="preserve">
+    <value>Settings saved; recipe was not saved. </value>
   </data>
   <data name="shared status monitor" xml:space="preserve">
     <value>Shared status monitor</value>
@@ -2064,6 +2455,13 @@
   <data name="show reference image" xml:space="preserve">
     <value>Show Reference Image</value>
   </data>
+  <data name="shutdown could not be completed.&#10;" xml:space="preserve">
+    <value>Shutdown could not be completed.
+</value>
+  </data>
+  <data name="shutdown incomplete" xml:space="preserve">
+    <value>Shutdown Incomplete</value>
+  </data>
   <data name="shutting down" xml:space="preserve">
     <value>Shutting down</value>
   </data>
@@ -2103,6 +2501,17 @@
   <data name="start live" xml:space="preserve">
     <value>Start Live</value>
   </data>
+  <data name="start off sent; see controller feedback." xml:space="preserve">
+    <value>START OFF sent; see controller feedback.</value>
+  </data>
+  <data name="startup configuration could not be prepared. hardware was not initialized.&#10;&#10;{0}" xml:space="preserve">
+    <value>Startup configuration could not be prepared. Hardware was not initialized.
+
+{0}</value>
+  </data>
+  <data name="startup configuration failed" xml:space="preserve">
+    <value>Startup Configuration Failed</value>
+  </data>
   <data name="state" xml:space="preserve">
     <value>STATE</value>
   </data>
@@ -2133,6 +2542,9 @@
   <data name="step distance" xml:space="preserve">
     <value>Step distance</value>
   </data>
+  <data name="step speed" xml:space="preserve">
+    <value>Step speed</value>
+  </data>
   <data name="stop" xml:space="preserve">
     <value>STOP</value>
   </data>
@@ -2141,6 +2553,12 @@
   </data>
   <data name="stop live" xml:space="preserve">
     <value>Stop Live</value>
+  </data>
+  <data name="stop the current operation before changing the recipe." xml:space="preserve">
+    <value>Stop the current operation before changing the recipe.</value>
+  </data>
+  <data name="stop the machine and clear alarms / safety blocks." xml:space="preserve">
+    <value>Stop the machine and clear alarms / safety blocks.</value>
   </data>
   <data name="stopped" xml:space="preserve">
     <value>Stopped</value>
@@ -2232,14 +2650,26 @@
   <data name="teaching unit" xml:space="preserve">
     <value>Teaching Unit</value>
   </data>
+  <data name="teaching values were not saved: {0}" xml:space="preserve">
+    <value>Teaching values were not saved: {0}</value>
+  </data>
   <data name="test bolts" xml:space="preserve">
     <value>Test bolts</value>
   </data>
   <data name="test channel (1–9)" xml:space="preserve">
     <value>Test channel (1–9)</value>
   </data>
-  <data name="text selection pauses updates" xml:space="preserve">
-    <value>Text selection pauses updates</value>
+  <data name="test completed." xml:space="preserve">
+    <value>Test completed.</value>
+  </data>
+  <data name="test failed." xml:space="preserve">
+    <value>Test failed.</value>
+  </data>
+  <data name="test stopped." xml:space="preserve">
+    <value>Test stopped.</value>
+  </data>
+  <data name="testing {0} selected bolts..." xml:space="preserve">
+    <value>Testing {0} selected bolts...</value>
   </data>
   <data name="threshold (0–255)" xml:space="preserve">
     <value>Threshold (0–255)</value>
@@ -2249,6 +2679,10 @@
   </data>
   <data name="time not recorded" xml:space="preserve">
     <value>Time not recorded</value>
+  </data>
+  <data name="time {0} ms&#10;" xml:space="preserve">
+    <value>Time {0} ms
+</value>
   </data>
   <data name="toggle" xml:space="preserve">
     <value>Toggle</value>
@@ -2298,6 +2732,9 @@
   <data name="tube on / off timeout (s)" xml:space="preserve">
     <value>Tube ON / OFF timeout (s)</value>
   </data>
+  <data name="turning start off..." xml:space="preserve">
+    <value>Turning START OFF...</value>
+  </data>
   <data name="turns" xml:space="preserve">
     <value>TURNS</value>
   </data>
@@ -2316,11 +2753,25 @@
   <data name="unit" xml:space="preserve">
     <value>UNIT</value>
   </data>
+  <data name="unit      {0}&#10;point     {1}&#10;recorded (mm)  {2}" xml:space="preserve">
+    <value>Unit      {0}
+Point     {1}
+Recorded (mm)  {2}</value>
+  </data>
+  <data name="unit    {0}&#10;point   {1}&#10;target  {2} mm&#10;speed   configured axis speed" xml:space="preserve">
+    <value>Unit    {0}
+Point   {1}
+Target  {2} mm
+Speed   Configured axis speed</value>
+  </data>
   <data name="unit disabled in settings" xml:space="preserve">
     <value>Unit disabled in Settings</value>
   </data>
   <data name="unknown" xml:space="preserve">
     <value>Unknown</value>
+  </data>
+  <data name="unnamed bolt" xml:space="preserve">
+    <value>Unnamed bolt</value>
   </data>
   <data name="unrotated" xml:space="preserve">
     <value>Unrotated</value>
@@ -2349,26 +2800,17 @@
   <data name="updated {0:hh:mm:ss}" xml:space="preserve">
     <value>Updated {0:HH:mm:ss}</value>
   </data>
-  <data name="use for next test" xml:space="preserve">
-    <value>Use for Next Test</value>
+  <data name="usb 통신 포트 오류" xml:space="preserve">
+    <value>USB port error</value>
   </data>
-  <data name="use test pattern" xml:space="preserve">
-    <value>Use Test Pattern</value>
+  <data name="use 0 to 255." xml:space="preserve">
+    <value>Use 0 to 255.</value>
+  </data>
+  <data name="use a single channel (1–9) and brightness 0–255." xml:space="preserve">
+    <value>Use a single channel (1–9) and brightness 0–255.</value>
   </data>
   <data name="value" xml:space="preserve">
     <value>VALUE</value>
-  </data>
-  <data name="virtual" xml:space="preserve">
-    <value>Virtual</value>
-  </data>
-  <data name="virtual build" xml:space="preserve">
-    <value>Virtual build</value>
-  </data>
-  <data name="virtual camera image" xml:space="preserve">
-    <value>Virtual Camera Image</value>
-  </data>
-  <data name="virtual inputs · click to toggle" xml:space="preserve">
-    <value>Virtual inputs · click to toggle</value>
   </data>
   <data name="vision" xml:space="preserve">
     <value>VISION</value>
@@ -2381,6 +2823,15 @@
   </data>
   <data name="wait for operation to stop" xml:space="preserve">
     <value>Wait for operation to stop</value>
+  </data>
+  <data name="wait for the adc operation to stop before changing the selected head." xml:space="preserve">
+    <value>Wait for the ADC operation to stop before changing the selected head.</value>
+  </data>
+  <data name="wait for the current machine operation to finish." xml:space="preserve">
+    <value>Wait for the current machine operation to finish.</value>
+  </data>
+  <data name="wait for the saved teaching images to load before capturing." xml:space="preserve">
+    <value>Wait for the saved teaching images to load before capturing.</value>
   </data>
   <data name="wait supply" xml:space="preserve">
     <value>WAIT SUPPLY</value>
@@ -2517,11 +2968,66 @@
   <data name="z offset (mm)" xml:space="preserve">
     <value>Z offset (mm)</value>
   </data>
+  <data name="z → common safe z" xml:space="preserve">
+    <value>Z → Common Safe Z</value>
+  </data>
+  <data name="z → pcb handoff height" xml:space="preserve">
+    <value>Z → PCB Handoff Height</value>
+  </data>
+  <data name="z → pcb rotation height" xml:space="preserve">
+    <value>Z → PCB Rotation Height</value>
+  </data>
   <data name="z+" xml:space="preserve">
     <value>Z+</value>
   </data>
   <data name="z−" xml:space="preserve">
     <value>Z−</value>
+  </data>
+  <data name="{0}&#10;&#10;{1}&#10;&#10;see the application log for details." xml:space="preserve">
+    <value>{0}
+
+{1}
+
+See the application log for details.</value>
+  </data>
+  <data name="{0}  torque {1:f2}" xml:space="preserve">
+    <value>{0}  Torque {1:F2}</value>
+  </data>
+  <data name="{0} bolts selected" xml:space="preserve">
+    <value>{0} bolts selected</value>
+  </data>
+  <data name="{0} fastening · {1}" xml:space="preserve">
+    <value>{0} Fastening · {1}</value>
+  </data>
+  <data name="{0} images" xml:space="preserve">
+    <value>{0} images</value>
+  </data>
+  <data name="{0} inspection" xml:space="preserve">
+    <value>{0} Inspection</value>
+  </data>
+  <data name="{0} items" xml:space="preserve">
+    <value>{0} items</value>
+  </data>
+  <data name="{0} reference image(s) unavailable." xml:space="preserve">
+    <value>{0} reference image(s) unavailable.</value>
+  </data>
+  <data name="{0} results" xml:space="preserve">
+    <value>{0} results</value>
+  </data>
+  <data name="{0} unlinked image(s) excluded." xml:space="preserve">
+    <value>{0} unlinked image(s) excluded.</value>
+  </data>
+  <data name="{0} · bright {1:0.###}%" xml:space="preserve">
+    <value>{0} · Bright {1:0.###}%</value>
+  </data>
+  <data name="{0} · data matrix" xml:space="preserve">
+    <value>{0} · Data Matrix</value>
+  </data>
+  <data name="{0} · multiple reference images" xml:space="preserve">
+    <value>{0} · Multiple reference images</value>
+  </data>
+  <data name="{0} · no reference image" xml:space="preserve">
+    <value>{0} · No reference image</value>
   </data>
   <data name="← newer" xml:space="preserve">
     <value>← Newer</value>
@@ -2559,17 +3065,260 @@
   <data name="−limit" xml:space="preserve">
     <value>−LIMIT</value>
   </data>
+  <data name="걸림·부하 확인" xml:space="preserve">
+    <value>Check jamming and load</value>
+  </data>
+  <data name="결과 토크 허용범위 이탈" xml:space="preserve">
+    <value>Result torque out of tolerance</value>
+  </data>
+  <data name="공장 설정 필요" xml:space="preserve">
+    <value>Factory setup required</value>
+  </data>
+  <data name="과속" xml:space="preserve">
+    <value>Overspeed</value>
+  </data>
+  <data name="과전압" xml:space="preserve">
+    <value>Overvoltage</value>
+  </data>
+  <data name="누락 확인" xml:space="preserve">
+    <value>Check for missing screws</value>
+  </data>
+  <data name="동기화 확인" xml:space="preserve">
+    <value>Check synchronization</value>
+  </data>
+  <data name="드라이버 인식 실패" xml:space="preserve">
+    <value>Driver identification failed</value>
+  </data>
+  <data name="드라이브 과열" xml:space="preserve">
+    <value>Drive overheat</value>
+  </data>
+  <data name="드라이브/스핀들 조합 오류" xml:space="preserve">
+    <value>Drive / spindle combination error</value>
+  </data>
+  <data name="멀티시퀀스 설정 오류" xml:space="preserve">
+    <value>Multi-sequence setting error</value>
+  </data>
+  <data name="메모리·통신 점검" xml:space="preserve">
+    <value>Check memory and communication</value>
+  </data>
+  <data name="모델 동작 취소" xml:space="preserve">
+    <value>Model operation cancelled</value>
+  </data>
+  <data name="모델 설정 확인" xml:space="preserve">
+    <value>Check model settings</value>
+  </data>
+  <data name="모델 프로그램 설정 오류" xml:space="preserve">
+    <value>Model program setting error</value>
+  </data>
+  <data name="모델·엔코더 확인" xml:space="preserve">
+    <value>Check model and encoder</value>
+  </data>
+  <data name="모터 배선 단선/단락" xml:space="preserve">
+    <value>Motor wiring open / short circuit</value>
+  </data>
+  <data name="모터 점검·reset" xml:space="preserve">
+    <value>Check motor; RESET</value>
+  </data>
+  <data name="모터 회전 미감지" xml:space="preserve">
+    <value>Motor rotation not detected</value>
+  </data>
+  <data name="모터·엔코더·드라이브 점검" xml:space="preserve">
+    <value>Check motor, encoder and drive</value>
+  </data>
+  <data name="목표각도 설정 오류" xml:space="preserve">
+    <value>Target angle setting error</value>
+  </data>
+  <data name="목표각도 확인" xml:space="preserve">
+    <value>Check target angle</value>
+  </data>
+  <data name="목표토크 도달 전 정지" xml:space="preserve">
+    <value>Stopped before target torque</value>
+  </data>
+  <data name="문서에 없는 코드. 컨트롤러 모델·펌웨어별 오류표 확인 필요." xml:space="preserve">
+    <value>Unknown code. Check the controller model / firmware error table.</value>
+  </data>
+  <data name="문서에 중복 기재; 온도·모델 확인" xml:space="preserve">
+    <value>Manual has duplicate entries; check temperature and model</value>
+  </data>
+  <data name="물림 조건 확인" xml:space="preserve">
+    <value>Check engagement conditions</value>
+  </data>
+  <data name="물림 토크 미감지" xml:space="preserve">
+    <value>Engagement torque not detected</value>
+  </data>
+  <data name="배선·모터 점검" xml:space="preserve">
+    <value>Check wiring and motor</value>
+  </data>
+  <data name="부하·케이블 점검" xml:space="preserve">
+    <value>Check load and cables</value>
+  </data>
   <data name="분류" xml:space="preserve">
     <value>Category</value>
+  </data>
+  <data name="비트 소켓 트레이 오류" xml:space="preserve">
+    <value>Bit socket tray error</value>
+  </data>
+  <data name="설정 토크 범위 초과" xml:space="preserve">
+    <value>Torque setting out of range</value>
+  </data>
+  <data name="설정 확인·reset" xml:space="preserve">
+    <value>Check settings; RESET</value>
+  </data>
+  <data name="소프트웨어 과전류" xml:space="preserve">
+    <value>Software overcurrent</value>
+  </data>
+  <data name="스크루 수량 부족" xml:space="preserve">
+    <value>Insufficient screw count</value>
+  </data>
+  <data name="스크루 카운트 시간 초과" xml:space="preserve">
+    <value>Screw count timeout</value>
+  </data>
+  <data name="스핀들 파라미터 읽기 실패" xml:space="preserve">
+    <value>Spindle parameter read failed</value>
+  </data>
+  <data name="스핀들/드라이브 인식 불일치" xml:space="preserve">
+    <value>Spindle / drive identification mismatch</value>
+  </data>
+  <data name="엔코더 데이터 오류" xml:space="preserve">
+    <value>Encoder data error</value>
+  </data>
+  <data name="엔코더 배선 단선" xml:space="preserve">
+    <value>Encoder wiring open circuit</value>
+  </data>
+  <data name="엔코더 케이블·드라이브 점검" xml:space="preserve">
+    <value>Check encoder cables and drive</value>
+  </data>
+  <data name="엔코더 통신 오류" xml:space="preserve">
+    <value>Encoder communication error</value>
+  </data>
+  <data name="연결 확인·전원 재인가" xml:space="preserve">
+    <value>Check connection and power cycle</value>
+  </data>
+  <data name="연속 과부하" xml:space="preserve">
+    <value>Continuous overload</value>
+  </data>
+  <data name="오류 없음" xml:space="preserve">
+    <value>No error</value>
   </data>
   <data name="오류 코드 / 조치" xml:space="preserve">
     <value>Error codes / actions</value>
   </data>
+  <data name="온도·드라이브 점검" xml:space="preserve">
+    <value>Check temperature and drive</value>
+  </data>
+  <data name="온도·부하·케이블 점검" xml:space="preserve">
+    <value>Check temperature, load and cables</value>
+  </data>
+  <data name="온도성 과부하" xml:space="preserve">
+    <value>Thermal overload</value>
+  </data>
+  <data name="온도성 과부하/드라이브 과열" xml:space="preserve">
+    <value>Thermal overload / drive overheat</value>
+  </data>
   <data name="의미" xml:space="preserve">
     <value>Meaning</value>
   </data>
+  <data name="입력전원 점검" xml:space="preserve">
+    <value>Check input power</value>
+  </data>
+  <data name="저전압" xml:space="preserve">
+    <value>Undervoltage</value>
+  </data>
+  <data name="전류 오프셋 오류" xml:space="preserve">
+    <value>Current offset error</value>
+  </data>
+  <data name="전류 제한 초과" xml:space="preserve">
+    <value>Current limit exceeded</value>
+  </data>
+  <data name="전원 재인가·점검" xml:space="preserve">
+    <value>Power cycle and inspect</value>
+  </data>
+  <data name="전원·가감속 설정 점검" xml:space="preserve">
+    <value>Check power and acceleration / deceleration settings</value>
+  </data>
+  <data name="제어전원 이상" xml:space="preserve">
+    <value>Control power fault</value>
+  </data>
+  <data name="제조사 확인" xml:space="preserve">
+    <value>Contact manufacturer</value>
+  </data>
+  <data name="주전원 이상" xml:space="preserve">
+    <value>Main power fault</value>
+  </data>
+  <data name="중단 원인 확인" xml:space="preserve">
+    <value>Check stop cause</value>
+  </data>
+  <data name="착좌 전 동기화 시간 초과" xml:space="preserve">
+    <value>Synchronization timeout before seating</value>
+  </data>
+  <data name="착좌 후 동기화 시간 초과" xml:space="preserve">
+    <value>Synchronization timeout after seating</value>
+  </data>
+  <data name="체결 상태·시간 설정 확인" xml:space="preserve">
+    <value>Check fastening and time setting</value>
+  </data>
+  <data name="체결 시간 초과" xml:space="preserve">
+    <value>Fastening timeout</value>
+  </data>
+  <data name="체결 오류는 stop 후 ng로 기록합니다. 다음 볼트 전에 알람이 남아 있으면 reset을 1회 실행합니다. alarm=0, ready=on, run=off 확인 시 진행하며, 실패하면 설비 알람으로 정지합니다." xml:space="preserve">
+    <value>Fastening errors are stopped and recorded as NG. A remaining alarm gets one RESET before the next bolt. Continue only with Alarm=0, Ready=ON and RUN=OFF; otherwise stop with a machine alarm.</value>
+  </data>
+  <data name="체결·각도 조건 확인" xml:space="preserve">
+    <value>Check fastening and angle limits</value>
+  </data>
+  <data name="체결·토크 조건 확인" xml:space="preserve">
+    <value>Check fastening and torque limits</value>
+  </data>
+  <data name="최대각도 초과" xml:space="preserve">
+    <value>Maximum angle exceeded</value>
+  </data>
+  <data name="최소각도 미달" xml:space="preserve">
+    <value>Below minimum angle</value>
+  </data>
+  <data name="취소 원인 확인" xml:space="preserve">
+    <value>Check cancellation cause</value>
+  </data>
+  <data name="카운트 조건 확인" xml:space="preserve">
+    <value>Check count conditions</value>
+  </data>
+  <data name="컨트롤러 인식 실패" xml:space="preserve">
+    <value>Controller identification failed</value>
+  </data>
+  <data name="케이블·모터·부하 점검" xml:space="preserve">
+    <value>Check cables, motor and load</value>
+  </data>
   <data name="코드 · 10진수 (16진수)" xml:space="preserve">
     <value>Code · decimal (hex)</value>
+  </data>
+  <data name="토크 상한 초과" xml:space="preserve">
+    <value>Torque upper limit exceeded</value>
+  </data>
+  <data name="토크 설정 확인·reset" xml:space="preserve">
+    <value>Check torque setting; RESET</value>
+  </data>
+  <data name="트레이 확인" xml:space="preserve">
+    <value>Check tray</value>
+  </data>
+  <data name="파라미터 범위 오류" xml:space="preserve">
+    <value>Parameter range error</value>
+  </data>
+  <data name="파라미터 읽기 실패" xml:space="preserve">
+    <value>Parameter read failed</value>
+  </data>
+  <data name="파라미터 체크섬 오류" xml:space="preserve">
+    <value>Parameter checksum error</value>
+  </data>
+  <data name="풀림 상태·시간 설정 확인" xml:space="preserve">
+    <value>Check loosening and time setting</value>
+  </data>
+  <data name="풀림 시간 초과" xml:space="preserve">
+    <value>Loosening timeout</value>
+  </data>
+  <data name="풀림 중 모터 스톨" xml:space="preserve">
+    <value>Motor stalled during loosening</value>
+  </data>
+  <data name="하드웨어 과전류" xml:space="preserve">
+    <value>Hardware overcurrent</value>
   </data>
   <data name="확인 / 조치" xml:space="preserve">
     <value>Check / action</value>

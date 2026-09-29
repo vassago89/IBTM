@@ -4,9 +4,9 @@
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="clr-namespace:IBTM.UI">
     <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-    <ui:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
-    <DataTemplate x:Key="EnumItemTemplate" DataType="{x:Type sys:Enum}">
-        <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
+    <ui:UiTextConverter x:Key="UiTextConverter"/>
+    <DataTemplate DataType="{x:Type sys:Enum}">
+        <TextBlock Text="{Binding Converter={StaticResource UiTextConverter}}"/>
     </DataTemplate>
 
     <SolidColorBrush x:Key="AppBgBrush" Color="#1F252A"/>
@@ -146,7 +146,6 @@
     <Style TargetType="TextBox" BasedOn="{StaticResource FieldTextBoxStyle}"/>
 
     <Style x:Key="FieldComboBoxStyle" TargetType="ComboBox">
-        <Setter Property="ItemTemplate" Value="{StaticResource EnumItemTemplate}"/>
         <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}"/>

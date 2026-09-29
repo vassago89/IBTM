@@ -1849,7 +1849,7 @@ public sealed class TeachingTests
         var store = VirtualTestSupport.OpenMachineStore(
             Path.Combine(Path.GetTempPath(), $"IBTM-buffer-teaching-{Guid.NewGuid():N}.db"));
         await using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings)
+            .AddVirtualApplication(settings)
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();

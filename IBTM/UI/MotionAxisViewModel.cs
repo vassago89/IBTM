@@ -55,7 +55,7 @@ public sealed class MotionAxisViewModel : ObservableObject
     {
         get
         {
-            return Diagnostics.Snapshot.State is not null
+            return Diagnostics.Sample.State is not null
                 && _machine.IsSetServoAllowed(Group);
         }
     }

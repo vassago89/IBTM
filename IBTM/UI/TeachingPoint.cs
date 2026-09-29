@@ -151,16 +151,16 @@ public class TeachingPoint : ObservableObject
             if (_definition.Bolt is { } bolt)
             {
                 return _definition.Target == TeachingTarget.BoltPosition
-                    ? $"{BoltLabel} Fastening · {bolt.Head.GetDescription()}"
-                    : $"{BoltLabel} Inspection";
+                    ? UiText.Format($"{BoltLabel} Fastening · {UiText.Get(bolt.Head)}")
+                    : UiText.Format($"{BoltLabel} Inspection");
             }
 
             switch ((_definition.Target, _definition.MotionGroup))
             {
                 case (TeachingTarget.SafeZ, MotionGroup.PcbSupply):
-                    return "PCB Rotation Z";
+                    return UiText.Get("PCB Rotation Z");
                 default:
-                    return _definition.Target.GetDescription();
+                    return UiText.Get(_definition.Target);
             }
         }
     }
@@ -194,7 +194,7 @@ public class TeachingPoint : ObservableObject
             if (Inspection is { } inspection)
                 return inspection.PositionLabel;
             if (Coordinates is not { } position)
-                return "Not taught";
+                return UiText.Get("Not taught");
             if (_definition.Target == TeachingTarget.BoltPosition)
                 return $"X {position.X:F3}  Y {position.Y:F3}  Z {position.Z:F3}";
             switch (_definition.Mode)
@@ -302,7 +302,7 @@ public class TeachingPoint : ObservableObject
                 _settings.NgCarrierTransfer.ShuttlePlacePosition = position;
                 break;
             default:
-                throw new InvalidOperationException("Record image positions with the camera capture command.");
+                throw new InvalidOperationException(UiText.Get("Record image positions with the camera capture command."));
         }
         Refresh();
     }
@@ -312,7 +312,7 @@ public class TeachingPoint : ObservableObject
         get
         {
             var position = Coordinates ?? throw new MotionInterlockException(
-                "Record the selected teaching position before moving.");
+                UiText.Get("Record the selected teaching position before moving."));
             return new()
             {
                 X = position.X,

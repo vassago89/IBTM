@@ -22,9 +22,9 @@
                         <TextBlock Text="{ui:Text 'SUPPLY'}" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
                         <TextBlock
                             Text="{Binding SupplyStatus,
-                                                  Converter={StaticResource EnumDescriptionConverter}}"
+                                                  Converter={StaticResource UiTextConverter}}"
                             Margin="0,2,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
-                            ToolTip="{Binding SupplyStatus, Converter={StaticResource EnumDescriptionConverter}}"/>
+                            ToolTip="{Binding SupplyStatus, Converter={StaticResource UiTextConverter}}"/>
                     </StackPanel>
                 </Border>
                 <Border Tag="{Binding PlacementDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54">
@@ -32,9 +32,9 @@
                         <TextBlock Text="{ui:Text 'PLACEMENT'}" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
                         <TextBlock
                             Text="{Binding PlacementStatus,
-                                                  Converter={StaticResource EnumDescriptionConverter}}"
+                                                  Converter={StaticResource UiTextConverter}}"
                             Margin="0,2,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
-                            ToolTip="{Binding PlacementStatus, Converter={StaticResource EnumDescriptionConverter}}"/>
+                            ToolTip="{Binding PlacementStatus, Converter={StaticResource UiTextConverter}}"/>
                     </StackPanel>
                 </Border>
             </StackPanel>

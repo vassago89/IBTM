@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Threading;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
 using IBTM.Core;
@@ -207,9 +208,35 @@ public sealed class UiBindingTests
                 {
                     Source = new Uri($"pack://application:,,,/IBTM;component/UI/{resource}.xaml"),
                 });
+        var originalLanguage = UiText.Culture.Name == "ko" ? UiLanguage.Korean : UiLanguage.English;
+        try
+        {
+            UiText.Apply(UiLanguage.Korean);
+            var selector = new ComboBox();
+            selector.ItemsSource = new object[] { "Settings", FasteningHead.Pickup };
+            foreach (var item in selector.ItemsSource)
+            {
+                selector.SelectedItem = item;
+                selector.ApplyTemplate();
+                var presenter = new ContentPresenter
+                {
+                    Resources = selector.Resources,
+                    Content = selector.SelectionBoxItem,
+                    ContentTemplate = selector.SelectionBoxItemTemplate,
+                };
+                presenter.ApplyTemplate();
+                presenter.Dispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
+                var text = (TextBlock)VisualTreeHelper.GetChild(presenter, 0);
+                Assert.Equal(item is string ? "Settings" : "헤드 1 픽업", text.Text);
+            }
+        }
+        finally
+        {
+            UiText.Apply(originalLanguage);
+        }
         await VerifyLogBindingsAsync();
         await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
-            .AddIbtmApplication(
+            .AddVirtualApplication(
                 new MachineSettings
                 {
                     Units = new()
@@ -390,6 +417,30 @@ public sealed class UiBindingTests
             Assert.DoesNotContain(
                 log.Snapshot(),
                 entry => entry.Message.Contains("Display worker stopped"));
+
+            var owner = new Window { ShowInTaskbar = false, Opacity = 0 };
+            var child = new Window { ShowInTaskbar = false, Opacity = 0 };
+            var windows = services.GetRequiredService<DiagnosticWindowManager>();
+            CancelEventHandler failClose = (_, _) => throw new InvalidOperationException("Child close failed");
+            try
+            {
+                owner.Show();
+                child.Owner = owner;
+                child.Closing += failClose;
+                windows.Owner = owner;
+                io.SetOutput(output, true);
+
+                Assert.False(await main.TryCloseAsync());
+                Assert.Contains("Child close failed", main.CloseError);
+                Assert.False(main.IsClosing);
+                Assert.False(io.GetOutput(output));
+            }
+            finally
+            {
+                child.Closing -= failClose;
+                windows.Owner = null;
+                owner.Close();
+            }
         }
         finally
         {
@@ -406,18 +457,19 @@ public sealed class UiBindingTests
     {
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var input = new InputWindow(new InputViewModel(io, services.GetRequiredService<IoSignals>()));
+        var input = new InputWindow(new InputViewModel(services.GetRequiredService<IoSignals>()));
         var response = new CheckBox();
         response.SetBinding(
             System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
-            new Binding("VirtualIo.AutoResponseEnabled") { Source = input.DataContext });
+            new Binding("Signals.Inputs[MainConveyorEntryCarrierDetected].IsOn")
+            { Source = input.DataContext, Mode = BindingMode.OneWay });
         try
         {
-            await Task.Run(() => io.AutoResponseEnabled = true);
+            await Task.Run(() => io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true));
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => response.IsChecked == true,
                 TimeSpan.FromSeconds(2)));
-            await Task.Run(() => io.AutoResponseEnabled = false);
+            await Task.Run(() => io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false));
             Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => response.IsChecked == false,
                 TimeSpan.FromSeconds(2)));
@@ -425,6 +477,43 @@ public sealed class UiBindingTests
         finally
         {
             input.Close();
+        }
+
+        var settingsModel = services.GetRequiredService<SettingsViewModel>();
+        var settingsView = new SettingsView { DataContext = settingsModel };
+        var settingsWindow = new Window { Content = settingsView, Width = 1600, Height = 900,
+            ShowActivated = false, ShowInTaskbar = false, Opacity = 0 };
+        var originalTimeout = settingsModel.Settings.Options.TimeoutMilliseconds;
+        var originalLanguage = settingsModel.Settings.Options.Language;
+        try
+        {
+            settingsWindow.Show();
+            var timeout = (TextBox)settingsView.FindName("IoTimeoutInput");
+            var save = (Button)settingsView.FindName("SaveSettingsButton");
+            var language = (ComboBox)settingsView.FindName("LanguageSelector");
+            language.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, UiLanguage.Korean);
+            Assert.Equal(UiLanguage.Korean, settingsModel.Settings.Options.Language);
+            language.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, originalLanguage);
+            Assert.True(save.IsEnabled);
+            timeout.Text = "invalid";
+            timeout.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.True(Validation.GetHasError(timeout));
+            Assert.True(Validation.GetHasError(settingsView));
+            Assert.False(save.IsEnabled);
+            Assert.Equal(originalTimeout, settingsModel.Settings.Options.TimeoutMilliseconds);
+            timeout.Text = "1.25";
+            timeout.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+            await Dispatcher.Yield(DispatcherPriority.DataBind);
+            Assert.False(Validation.GetHasError(settingsView));
+            Assert.True(save.IsEnabled);
+            Assert.Equal(1250, settingsModel.Settings.Options.TimeoutMilliseconds);
+        }
+        finally
+        {
+            settingsModel.Settings.Options.TimeoutMilliseconds = originalTimeout;
+            settingsModel.Settings.Options.Language = originalLanguage;
+            settingsWindow.Close();
         }
 
         var operation = services.GetRequiredService<OperationViewModel>();

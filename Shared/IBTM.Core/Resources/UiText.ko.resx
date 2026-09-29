@@ -12,6 +12,15 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
   </resheader>
+  <data name="&#10;&#10;exit the application anyway? full details are saved in the log." xml:space="preserve">
+    <value>
+
+그래도 종료하시겠습니까? 자세한 내용은 로그에 기록됩니다.</value>
+  </data>
+  <data name="&#10;operation failed. check controller status." xml:space="preserve">
+    <value>
+동작 실패. 체결기 상태를 확인하세요.</value>
+  </data>
   <data name="  preset " xml:space="preserve">
     <value>  프리셋 </value>
   </data>
@@ -30,6 +39,9 @@
   <data name="+limit" xml:space="preserve">
     <value>+리밋</value>
   </data>
+  <data name="a background task failed." xml:space="preserve">
+    <value>백그라운드 작업 실패.</value>
+  </data>
   <data name="a3 ÷ 360 ≥ minimum" xml:space="preserve">
     <value>A3 ÷ 360 ≥ 최소값</value>
   </data>
@@ -42,14 +54,20 @@
   <data name="active connection: " xml:space="preserve">
     <value>적용 중인 연결: </value>
   </data>
-  <data name="active: " xml:space="preserve">
-    <value>적용 중: </value>
-  </data>
   <data name="actual / min" xml:space="preserve">
     <value>측정 / 최소</value>
   </data>
+  <data name="ad 매뉴얼 2017-03-21, 27-30쪽 기준. 문서에 없는 코드는 컨트롤러 모델·펌웨어별 확인이 필요합니다." xml:space="preserve">
+    <value>AD 매뉴얼 2017-03-21, 27-30쪽 기준. 문서에 없는 코드는 컨트롤러 모델·펌웨어별 확인이 필요합니다.</value>
+  </data>
   <data name="adc communication log" xml:space="preserve">
     <value>ADC 통신 로그</value>
+  </data>
+  <data name="adc response timeout must be greater than 0 s." xml:space="preserve">
+    <value>ADC 응답 타임아웃은 0초보다 커야 합니다.</value>
+  </data>
+  <data name="adc shutdown failed" xml:space="preserve">
+    <value>ADC 종료 실패</value>
   </data>
   <data name="adc test" xml:space="preserve">
     <value>ADC 시험</value>
@@ -87,6 +105,9 @@
   <data name="air pressure low" xml:space="preserve">
     <value>공압 부족</value>
   </data>
+  <data name="al · 드라이브" xml:space="preserve">
+    <value>AL · 드라이브</value>
+  </data>
   <data name="alarm" xml:space="preserve">
     <value>알람</value>
   </data>
@@ -99,8 +120,20 @@
   <data name="alarm reset" xml:space="preserve">
     <value>알람 리셋</value>
   </data>
+  <data name="all units" xml:space="preserve">
+    <value>전체 유닛</value>
+  </data>
   <data name="alphamotion · tmc-ae16dioe" xml:space="preserve">
     <value>AlphaMotion · TMC-AE16DIOe</value>
+  </data>
+  <data name="an unhandled application error occurred." xml:space="preserve">
+    <value>처리되지 않은 프로그램 오류가 발생했습니다.</value>
+  </data>
+  <data name="an unhandled error occurred. the application will close." xml:space="preserve">
+    <value>처리되지 않은 오류가 발생하여 프로그램이 종료됩니다.</value>
+  </data>
+  <data name="an unhandled ui error occurred. the application will remain open." xml:space="preserve">
+    <value>UI 오류가 발생했습니다. 프로그램은 열린 상태로 유지됩니다.</value>
   </data>
   <data name="angle 1" xml:space="preserve">
     <value>각도 1</value>
@@ -126,11 +159,17 @@
   <data name="approach speed (mm/s)" xml:space="preserve">
     <value>접근 속도 (mm/s)</value>
   </data>
+  <data name="auto" xml:space="preserve">
+    <value>자동</value>
+  </data>
   <data name="auto / manual selector" xml:space="preserve">
     <value>자동 / 수동 선택 스위치</value>
   </data>
-  <data name="auto response" xml:space="preserve">
-    <value>자동 응답</value>
+  <data name="auto · monitoring only." xml:space="preserve">
+    <value>자동 · 조회 전용</value>
+  </data>
+  <data name="automatic binary unavailable · set a threshold" xml:space="preserve">
+    <value>자동 이진화 불가 · 임계값을 지정하세요</value>
   </data>
   <data name="available from front 1 (pcb)" xml:space="preserve">
     <value>전단 1 공급 가능 (PCB)</value>
@@ -179,6 +218,15 @@
   </data>
   <data name="binary (0–255; blank = auto)" xml:space="preserve">
     <value>이진화 (0–255; 빈칸 = 자동)</value>
+  </data>
+  <data name="binary roi · automatic" xml:space="preserve">
+    <value>이진 ROI · 자동</value>
+  </data>
+  <data name="binary roi · no inspection target" xml:space="preserve">
+    <value>이진 ROI · 검사 대상 없음</value>
+  </data>
+  <data name="binary roi · threshold {0}" xml:space="preserve">
+    <value>이진 ROI · 임계값 {0}</value>
   </data>
   <data name="bolt" xml:space="preserve">
     <value>볼트</value>
@@ -264,11 +312,20 @@
   <data name="bolt supply command" xml:space="preserve">
     <value>볼트 공급 명령</value>
   </data>
+  <data name="bolt test shutdown failed" xml:space="preserve">
+    <value>볼트 시험 종료 실패</value>
+  </data>
+  <data name="bolt {0}" xml:space="preserve">
+    <value>볼트 {0}</value>
+  </data>
   <data name="bolt · ?" xml:space="preserve">
     <value>볼트 · ?</value>
   </data>
   <data name="bolts &amp; feeders" xml:space="preserve">
     <value>볼트 · 피더</value>
+  </data>
+  <data name="bright {0:p2} · required ≥ {1:p2}" xml:space="preserve">
+    <value>밝은 영역 {0:P2} · 기준 ≥ {1:P2}</value>
   </data>
   <data name="brightness (0–255)" xml:space="preserve">
     <value>밝기 (0–255)</value>
@@ -285,11 +342,23 @@
   <data name="camera &amp; lighting" xml:space="preserve">
     <value>카메라 · 조명</value>
   </data>
+  <data name="camera disconnection failed during application exit." xml:space="preserve">
+    <value>종료 중 카메라 연결 해제 실패.</value>
+  </data>
   <data name="cancel · esc" xml:space="preserve">
     <value>취소 · Esc</value>
   </data>
+  <data name="cannot load pcb history. open logs for details." xml:space="preserve">
+    <value>PCB 이력 조회 실패. 로그를 확인하세요.</value>
+  </data>
   <data name="capture rx (3s)" xml:space="preserve">
     <value>수신 캡처 (3초)</value>
+  </data>
+  <data name="captured {0} bytes over {1} ms. {2}" xml:space="preserve">
+    <value>{1} ms 동안 {0}바이트 수신. {2}</value>
+  </data>
+  <data name="capturing raw rx · 3 s" xml:space="preserve">
+    <value>원본 수신 캡처 중 · 3초</value>
   </data>
   <data name="card number" xml:space="preserve">
     <value>카드 번호</value>
@@ -330,8 +399,22 @@
   <data name="change recipe..." xml:space="preserve">
     <value>레시피 변경...</value>
   </data>
+  <data name="check equipment stop and any unsaved pcb results before exiting.&#10;&#10;" xml:space="preserve">
+    <value>장비 정지 상태와 미저장 PCB 결과를 확인하세요.
+
+</value>
+  </data>
+  <data name="check station enablement, homing and servo feedback." xml:space="preserve">
+    <value>유닛 사용 설정·원점·서보 상태를 확인하세요.</value>
+  </data>
   <data name="check the highlighted input." xml:space="preserve">
     <value>표시된 입력값을 확인하세요.</value>
+  </data>
+  <data name="choose an absolute folder path for logs." xml:space="preserve">
+    <value>로그 폴더의 절대 경로를 지정하세요.</value>
+  </data>
+  <data name="choose an absolute folder path for pcb results." xml:space="preserve">
+    <value>PCB 결과 폴더의 절대 경로를 지정하세요.</value>
   </data>
   <data name="clear axis alarm / e-stop" xml:space="preserve">
     <value>축 알람 / 비상정지 해제 필요</value>
@@ -353,6 +436,9 @@
   </data>
   <data name="clear the motion fault, then press reset" xml:space="preserve">
     <value>모션 오류 해소 후 리셋하세요</value>
+  </data>
+  <data name="clipboard is unavailable: {0}" xml:space="preserve">
+    <value>클립보드 사용 불가: {0}</value>
   </data>
   <data name="close doors" xml:space="preserve">
     <value>도어를 닫으세요</value>
@@ -392,6 +478,12 @@
   </data>
   <data name="completing carrier" xml:space="preserve">
     <value>캐리어 작업 마무리</value>
+  </data>
+  <data name="connect" xml:space="preserve">
+    <value>연결</value>
+  </data>
+  <data name="connecting: {0}…" xml:space="preserve">
+    <value>연결 중: {0}…</value>
   </data>
   <data name="control i/o communication" xml:space="preserve">
     <value>제어 I/O 통신</value>
@@ -465,6 +557,9 @@
   <data name="data matrix inspection" xml:space="preserve">
     <value>데이터 매트릭스 검사</value>
   </data>
+  <data name="data matrix not read" xml:space="preserve">
+    <value>데이터 매트릭스 미판독</value>
+  </data>
   <data name="data matrix · " xml:space="preserve">
     <value>데이터 매트릭스 · </value>
   </data>
@@ -477,8 +572,26 @@
   <data name="detection acceleration (s)" xml:space="preserve">
     <value>감지 가속 시간 (s)</value>
   </data>
+  <data name="device cleanup failed during application exit." xml:space="preserve">
+    <value>종료 중 장치 정리 실패.</value>
+  </data>
+  <data name="device data: {0}" xml:space="preserve">
+    <value>장치 데이터: {0}</value>
+  </data>
   <data name="device id / serial number" xml:space="preserve">
     <value>장치 ID / 시리얼 번호</value>
+  </data>
+  <data name="device stop failed after an unhandled application error." xml:space="preserve">
+    <value>프로그램 오류 후 장비 정지 실패.</value>
+  </data>
+  <data name="device stop failed after an unhandled ui error." xml:space="preserve">
+    <value>UI 오류 후 장비 정지 실패.</value>
+  </data>
+  <data name="device stop failed during application exit." xml:space="preserve">
+    <value>종료 중 장비 정지 실패.</value>
+  </data>
+  <data name="diagnostic window could not be opened or closed." xml:space="preserve">
+    <value>진단 창 열기 / 닫기 실패.</value>
   </data>
   <data name="diagnostics" xml:space="preserve">
     <value>진단</value>
@@ -501,23 +614,47 @@
   <data name="discharging s3" xml:space="preserve">
     <value>S3 배출 중</value>
   </data>
+  <data name="disconnect" xml:space="preserve">
+    <value>연결 해제</value>
+  </data>
+  <data name="disconnected" xml:space="preserve">
+    <value>연결 끊김</value>
+  </data>
   <data name="do" xml:space="preserve">
     <value>DO</value>
+  </data>
+  <data name="door 1" xml:space="preserve">
+    <value>도어 1</value>
   </data>
   <data name="door 1 closed" xml:space="preserve">
     <value>도어 1 닫힘</value>
   </data>
+  <data name="door 2" xml:space="preserve">
+    <value>도어 2</value>
+  </data>
   <data name="door 2 closed" xml:space="preserve">
     <value>도어 2 닫힘</value>
+  </data>
+  <data name="door 3" xml:space="preserve">
+    <value>도어 3</value>
   </data>
   <data name="door 3 closed" xml:space="preserve">
     <value>도어 3 닫힘</value>
   </data>
+  <data name="door 4" xml:space="preserve">
+    <value>도어 4</value>
+  </data>
   <data name="door 4 closed" xml:space="preserve">
     <value>도어 4 닫힘</value>
   </data>
+  <data name="door 5" xml:space="preserve">
+    <value>도어 5</value>
+  </data>
   <data name="door 5 closed" xml:space="preserve">
     <value>도어 5 닫힘</value>
+  </data>
+  <data name="door 6" xml:space="preserve">
+    <value>도어 6</value>
   </data>
   <data name="door 6 closed" xml:space="preserve">
     <value>도어 6 닫힘</value>
@@ -539,6 +676,9 @@
   </data>
   <data name="down" xml:space="preserve">
     <value>하강</value>
+  </data>
+  <data name="draw the fov roi before inspecting." xml:space="preserve">
+    <value>검사할 ROI를 먼저 지정하세요.</value>
   </data>
   <data name="dry run" xml:space="preserve">
     <value>공회전</value>
@@ -585,8 +725,17 @@
   <data name="enabled units" xml:space="preserve">
     <value>사용 유닛</value>
   </data>
+  <data name="enter a recipe name before saving." xml:space="preserve">
+    <value>레시피 이름을 입력하세요.</value>
+  </data>
   <data name="entry carrier sensor" xml:space="preserve">
     <value>입구 캐리어 센서</value>
+  </data>
+  <data name="er · 공정" xml:space="preserve">
+    <value>Er · 공정</value>
+  </data>
+  <data name="er · 시스템" xml:space="preserve">
+    <value>Er · 시스템</value>
   </data>
   <data name="error" xml:space="preserve">
     <value>오류</value>
@@ -660,8 +809,14 @@
   <data name="fastening time (ms)" xml:space="preserve">
     <value>체결 시간 (ms)</value>
   </data>
+  <data name="fastening timeout must be greater than 0 s." xml:space="preserve">
+    <value>체결 타임아웃은 0초보다 커야 합니다.</value>
+  </data>
   <data name="fastening z: conveyor clearance required" xml:space="preserve">
     <value>체결 Z: 컨베이어 간섭 해제 위치 필요</value>
+  </data>
+  <data name="fastening..." xml:space="preserve">
+    <value>체결 중...</value>
   </data>
   <data name="fault" xml:space="preserve">
     <value>오류</value>
@@ -714,8 +869,14 @@
   <data name="h1 pickup" xml:space="preserve">
     <value>H1 픽업</value>
   </data>
+  <data name="h1 · pickup" xml:space="preserve">
+    <value>H1 · 픽업</value>
+  </data>
   <data name="h2 shooting" xml:space="preserve">
     <value>H2 슈팅</value>
+  </data>
+  <data name="h2 · shooting" xml:space="preserve">
+    <value>H2 · 슈팅</value>
   </data>
   <data name="handing pcb to placement" xml:space="preserve">
     <value>안착측으로 PCB 인계</value>
@@ -777,6 +938,9 @@
   <data name="home signal" xml:space="preserve">
     <value>원점 신호</value>
   </data>
+  <data name="home the selected axes and wait for them to stop." xml:space="preserve">
+    <value>선택 축의 원점 복귀 후 정지를 기다리세요.</value>
+  </data>
   <data name="home this unit first" xml:space="preserve">
     <value>이 유닛의 원점을 먼저 실행하세요</value>
   </data>
@@ -798,14 +962,20 @@
   <data name="i/o communication unavailable" xml:space="preserve">
     <value>I/O 통신 불가</value>
   </data>
-  <data name="i/o control + adc results" xml:space="preserve">
-    <value>I/O 제어 + ADC 결과</value>
-  </data>
   <data name="i/o disconnected · input states unknown" xml:space="preserve">
     <value>I/O 연결 끊김 · 입력 상태 미확인</value>
   </data>
   <data name="i/o mapping" xml:space="preserve">
     <value>I/O 매핑</value>
+  </data>
+  <data name="i/o reset confirmed" xml:space="preserve">
+    <value>I/O 리셋 확인됨</value>
+  </data>
+  <data name="ibtm error" xml:space="preserve">
+    <value>IBTM 오류</value>
+  </data>
+  <data name="ibtm is already running." xml:space="preserve">
+    <value>IBTM이 이미 실행 중입니다.</value>
   </data>
   <data name="id · " xml:space="preserve">
     <value>ID · </value>
@@ -814,6 +984,18 @@
     <value>대기</value>
   </data>
   <data name="image" xml:space="preserve">
+    <value>이미지</value>
+  </data>
+  <data name="image could not be decoded." xml:space="preserve">
+    <value>이미지 형식을 읽을 수 없습니다.</value>
+  </data>
+  <data name="image dimensions do not match the recipe image." xml:space="preserve">
+    <value>레시피 이미지와 크기가 다릅니다.</value>
+  </data>
+  <data name="image unavailable: {0}" xml:space="preserve">
+    <value>이미지 불러오기 실패: {0}</value>
+  </data>
+  <data name="images" xml:space="preserve">
     <value>이미지</value>
   </data>
   <data name="input" xml:space="preserve">
@@ -879,6 +1061,12 @@
   <data name="inspection images" xml:space="preserve">
     <value>검사 이미지</value>
   </data>
+  <data name="inspection images could not be loaded: {0}" xml:space="preserve">
+    <value>검사 이미지 불러오기 실패: {0}</value>
+  </data>
+  <data name="inspection light channel must be from 1 to 9." xml:space="preserve">
+    <value>검사 조명 채널: 1–9.</value>
+  </data>
   <data name="inspection s3 support" xml:space="preserve">
     <value>검사 S3 지지대</value>
   </data>
@@ -918,6 +1106,19 @@
   <data name="jog (hold)" xml:space="preserve">
     <value>조그 (누르는 동안)</value>
   </data>
+  <data name="jog speed" xml:space="preserve">
+    <value>조그 속도</value>
+  </data>
+  <data name="keep the travel path clear before moving." xml:space="preserve">
+    <value>이동 경로에 간섭이 없는지 확인하세요.</value>
+  </data>
+  <data name="language / hardware / logs: save + restart" xml:space="preserve">
+    <value>언어 / 하드웨어 / 로그: 저장 후 재시작</value>
+  </data>
+  <data name="last result: {0}  event {1}&#10;" xml:space="preserve">
+    <value>최근 결과: {0}  이벤트 {1}
+</value>
+  </data>
   <data name="latest fastening" xml:space="preserve">
     <value>최근 체결</value>
   </data>
@@ -948,11 +1149,14 @@
   <data name="lighting controller" xml:space="preserve">
     <value>조명 제어기</value>
   </data>
+  <data name="lighting test cancelled." xml:space="preserve">
+    <value>조명 시험 취소됨.</value>
+  </data>
   <data name="load for reinspection" xml:space="preserve">
     <value>재검사 이미지로 선택</value>
   </data>
   <data name="load older" xml:space="preserve">
-    <value>이전 결과 불러오기</value>
+    <value>이전 결과</value>
   </data>
   <data name="load pcb images" xml:space="preserve">
     <value>PCB 이미지 불러오기</value>
@@ -960,8 +1164,8 @@
   <data name="load recipe" xml:space="preserve">
     <value>레시피 불러오기</value>
   </data>
-  <data name="load test image" xml:space="preserve">
-    <value>시험 이미지 불러오기</value>
+  <data name="load the s2 carrier and raise the backup plate." xml:space="preserve">
+    <value>S2 캐리어 투입 후 백업 플레이트를 올리세요.</value>
   </data>
   <data name="loading images…" xml:space="preserve">
     <value>이미지 불러오는 중…</value>
@@ -983,6 +1187,9 @@
   </data>
   <data name="loosening" xml:space="preserve">
     <value>풀기</value>
+  </data>
+  <data name="loosening · release to stop" xml:space="preserve">
+    <value>풀기 중 · 놓으면 정지</value>
   </data>
   <data name="lowering ng shuttle" xml:space="preserve">
     <value>NG 셔틀 하강 중</value>
@@ -1031,6 +1238,9 @@
   </data>
   <data name="manual mode only" xml:space="preserve">
     <value>수동 모드 전용</value>
+  </data>
+  <data name="manual mode required." xml:space="preserve">
+    <value>수동 모드가 필요합니다.</value>
   </data>
   <data name="manual test" xml:space="preserve">
     <value>수동 시험</value>
@@ -1089,11 +1299,20 @@
   <data name="motion monitor" xml:space="preserve">
     <value>모션 모니터</value>
   </data>
+  <data name="motion settings or target are invalid: {0}" xml:space="preserve">
+    <value>모션 설정 또는 목표값 오류: {0}</value>
+  </data>
+  <data name="motion shutdown failed" xml:space="preserve">
+    <value>모션 종료 실패</value>
+  </data>
   <data name="motion unavailable" xml:space="preserve">
     <value>모션 상태 미확인</value>
   </data>
   <data name="motor run" xml:space="preserve">
     <value>모터 가동</value>
+  </data>
+  <data name="move machine axes?" xml:space="preserve">
+    <value>축을 이동하시겠습니까?</value>
   </data>
   <data name="move mode" xml:space="preserve">
     <value>이동 방식</value>
@@ -1122,14 +1341,14 @@
   <data name="movs (serial)" xml:space="preserve">
     <value>MOVS (시리얼)</value>
   </data>
+  <data name="multiple reference images are linked to this point. resolve the duplicate before capturing." xml:space="preserve">
+    <value>기준 이미지가 중복 연결되어 있습니다. 중복 해소 후 촬영하세요.</value>
+  </data>
   <data name="negative limit" xml:space="preserve">
     <value>음의 리밋</value>
   </data>
   <data name="new recipe" xml:space="preserve">
     <value>새 레시피</value>
-  </data>
-  <data name="next virtual result" xml:space="preserve">
-    <value>다음 가상 결과</value>
   </data>
   <data name="ng carrier detected" xml:space="preserve">
     <value>NG 캐리어 감지</value>
@@ -1224,6 +1443,15 @@
   <data name="ng transfer pending" xml:space="preserve">
     <value>NG 이송 미완료</value>
   </data>
+  <data name="ng · not read" xml:space="preserve">
+    <value>NG · 미판독</value>
+  </data>
+  <data name="no bytes received." xml:space="preserve">
+    <value>수신된 바이트 없음.</value>
+  </data>
+  <data name="no data" xml:space="preserve">
+    <value>데이터 없음</value>
+  </data>
   <data name="no fastening results recorded" xml:space="preserve">
     <value>체결 결과 없음</value>
   </data>
@@ -1242,8 +1470,20 @@
   <data name="no reference image" xml:space="preserve">
     <value>기준 이미지 없음</value>
   </data>
+  <data name="no reference image. use move to selected point, then save x/y + image." xml:space="preserve">
+    <value>기준 이미지가 없습니다. 선택 위치로 이동한 후 X/Y + 이미지를 저장하세요.</value>
+  </data>
+  <data name="no result read" xml:space="preserve">
+    <value>조회된 결과 없음</value>
+  </data>
   <data name="no saved image for this point" xml:space="preserve">
     <value>저장된 이미지 없음</value>
+  </data>
+  <data name="no saved images for this pcb." xml:space="preserve">
+    <value>이 PCB의 저장 이미지가 없습니다.</value>
+  </data>
+  <data name="no serial ports found" xml:space="preserve">
+    <value>시리얼 포트 없음</value>
   </data>
   <data name="no." xml:space="preserve">
     <value>번호</value>
@@ -1269,8 +1509,14 @@
   <data name="not recorded" xml:space="preserve">
     <value>기록 없음</value>
   </data>
+  <data name="not run" xml:space="preserve">
+    <value>미실행</value>
+  </data>
   <data name="not set" xml:space="preserve">
     <value>미설정</value>
+  </data>
+  <data name="not taught" xml:space="preserve">
+    <value>미티칭</value>
   </data>
   <data name="number" xml:space="preserve">
     <value>번호</value>
@@ -1278,8 +1524,11 @@
   <data name="off (dec)" xml:space="preserve">
     <value>OFF (10진수)</value>
   </data>
-  <data name="off: manual sensor simulation; motion still runs." xml:space="preserve">
-    <value>OFF: 센서는 수동으로 변경하며 모션은 계속 동작합니다.</value>
+  <data name="off command sent · channel {0}." xml:space="preserve">
+    <value>OFF 명령 전송 · 채널 {0}.</value>
+  </data>
+  <data name="off failed on channel {0}; light state is unknown. press off to retry. {1}" xml:space="preserve">
+    <value>채널 {0} OFF 실패 · 조명 상태 미확인. OFF로 재시도하세요. {1}</value>
   </data>
   <data name="older →" xml:space="preserve">
     <value>이전 →</value>
@@ -1290,6 +1539,9 @@
   <data name="on = manual / off = auto" xml:space="preserve">
     <value>ON = 수동 / OFF = 자동</value>
   </data>
+  <data name="on command sent · channel {0}, level {1}." xml:space="preserve">
+    <value>ON 명령 전송 · 채널 {0}, 밝기 {1}.</value>
+  </data>
   <data name="open" xml:space="preserve">
     <value>열림</value>
   </data>
@@ -1298,6 +1550,9 @@
   </data>
   <data name="operation &amp; safety" xml:space="preserve">
     <value>운전 · 안전</value>
+  </data>
+  <data name="operation canceled. check controller status." xml:space="preserve">
+    <value>동작 취소됨. 체결기 상태를 확인하세요.</value>
   </data>
   <data name="operation or stop cleanup in progress" xml:space="preserve">
     <value>동작 또는 정지 처리 중</value>
@@ -1329,6 +1584,9 @@
   <data name="p3 lift" xml:space="preserve">
     <value>P3 리프트</value>
   </data>
+  <data name="page change failed: {0}" xml:space="preserve">
+    <value>화면 전환 실패: {0}</value>
+  </data>
   <data name="pause display" xml:space="preserve">
     <value>표시 일시정지</value>
   </data>
@@ -1343,6 +1601,9 @@
   </data>
   <data name="pcb 2 pickup" xml:space="preserve">
     <value>PCB 2 픽업</value>
+  </data>
+  <data name="pcb details could not be opened or closed." xml:space="preserve">
+    <value>PCB 상세 창 열기 / 닫기 실패.</value>
   </data>
   <data name="pcb detected" xml:space="preserve">
     <value>PCB 감지</value>
@@ -1410,6 +1671,12 @@
   <data name="pcb results" xml:space="preserve">
     <value>PCB 결과</value>
   </data>
+  <data name="pcb results folder" xml:space="preserve">
+    <value>PCB 결과 폴더</value>
+  </data>
+  <data name="pcb rotation z" xml:space="preserve">
+    <value>PCB 회전 Z</value>
+  </data>
   <data name="pcb secured" xml:space="preserve">
     <value>PCB 고정됨</value>
   </data>
@@ -1442,9 +1709,6 @@
   </data>
   <data name="pending saves: {0}" xml:space="preserve">
     <value>저장 대기: {0}</value>
-  </data>
-  <data name="physical" xml:space="preserve">
-    <value>실장비</value>
   </data>
   <data name="pick" xml:space="preserve">
     <value>픽업</value>
@@ -1599,6 +1863,9 @@
   <data name="position (mm)" xml:space="preserve">
     <value>위치 (mm)</value>
   </data>
+  <data name="position ambiguous · multiple reference images" xml:space="preserve">
+    <value>위치 불명확 · 기준 이미지 중복</value>
+  </data>
   <data name="position unknown" xml:space="preserve">
     <value>위치 미확인</value>
   </data>
@@ -1638,14 +1905,24 @@
   <data name="preset" xml:space="preserve">
     <value>프리셋</value>
   </data>
+  <data name="preset 1 selected" xml:space="preserve">
+    <value>프리셋 1 선택됨</value>
+  </data>
   <data name="preset changed" xml:space="preserve">
     <value>프리셋 변경</value>
+  </data>
+  <data name="preset {0}  torque {1:f2} / {2:f2}&#10;" xml:space="preserve">
+    <value>프리셋 {0}  토크 {1:F2} / {2:F2}
+</value>
   </data>
   <data name="press reset to restore servo power" xml:space="preserve">
     <value>리셋으로 서보 전원을 복구하세요</value>
   </data>
   <data name="pure barcode" xml:space="preserve">
     <value>바코드 전용 이미지</value>
+  </data>
+  <data name="queued" xml:space="preserve">
+    <value>실행 대기</value>
   </data>
   <data name="raise both fastening heads" xml:space="preserve">
     <value>체결 헤드 양쪽 상승 필요</value>
@@ -1677,6 +1954,9 @@
   <data name="raising s3" xml:space="preserve">
     <value>S3 상승 중</value>
   </data>
+  <data name="raw start is not available. use start fastening or reverse (hold)." xml:space="preserve">
+    <value>체결 시작 또는 풀기 버튼을 사용하세요.</value>
+  </data>
   <data name="read device info" xml:space="preserve">
     <value>장치 정보 읽기</value>
   </data>
@@ -1688,6 +1968,9 @@
   </data>
   <data name="read last result" xml:space="preserve">
     <value>최근 결과 읽기</value>
+  </data>
+  <data name="read only · machine status unavailable" xml:space="preserve">
+    <value>조회 전용 · 설비 상태 미확인</value>
   </data>
   <data name="reading data matrix" xml:space="preserve">
     <value>데이터 매트릭스 판독 중</value>
@@ -1728,8 +2011,23 @@
   <data name="recipe" xml:space="preserve">
     <value>레시피</value>
   </data>
+  <data name="recipe operation failed: {0}" xml:space="preserve">
+    <value>레시피 작업 실패: {0}</value>
+  </data>
+  <data name="recipe · {0} · {1}" xml:space="preserve">
+    <value>레시피 · {0} · {1}</value>
+  </data>
+  <data name="record current position?" xml:space="preserve">
+    <value>현재 위치를 기록하시겠습니까?</value>
+  </data>
+  <data name="record image positions with the camera capture command." xml:space="preserve">
+    <value>카메라 촬영으로 이미지 위치를 기록하세요.</value>
+  </data>
   <data name="record position" xml:space="preserve">
     <value>위치 기록</value>
+  </data>
+  <data name="record the selected teaching position before moving." xml:space="preserve">
+    <value>선택 위치를 먼저 티칭하세요.</value>
   </data>
   <data name="record x/y" xml:space="preserve">
     <value>X/Y 기록</value>
@@ -1739,6 +2037,18 @@
   </data>
   <data name="record z" xml:space="preserve">
     <value>Z 기록</value>
+  </data>
+  <data name="recorded {0} · {1}" xml:space="preserve">
+    <value>기록 {0} · {1}</value>
+  </data>
+  <data name="recording cancelled; point not saved. record again." xml:space="preserve">
+    <value>기록 취소됨; 위치 미저장. 다시 기록하세요.</value>
+  </data>
+  <data name="recording was not started because another operation is active. try again after it finishes." xml:space="preserve">
+    <value>다른 작업이 진행 중입니다. 완료 후 다시 기록하세요.</value>
+  </data>
+  <data name="recording was not started because the machine is busy. wait for motion to stop, then record again." xml:space="preserve">
+    <value>설비 동작 중입니다. 모션 정지 후 다시 기록하세요.</value>
   </data>
   <data name="reference image unavailable" xml:space="preserve">
     <value>기준 이미지 없음</value>
@@ -1785,6 +2095,18 @@
   <data name="repeat" xml:space="preserve">
     <value>반복</value>
   </data>
+  <data name="replace the recorded x/y with the current coordinates." xml:space="preserve">
+    <value>현재 X/Y로 덮어씁니다.</value>
+  </data>
+  <data name="replace the recorded x/y, reference image and light level with the current values." xml:space="preserve">
+    <value>현재 X/Y, 이미지와 조명 값으로 덮어씁니다.</value>
+  </data>
+  <data name="replace the recorded x/y/z with the current coordinates." xml:space="preserve">
+    <value>현재 X/Y/Z로 덮어씁니다.</value>
+  </data>
+  <data name="replace the recorded z with the current coordinate." xml:space="preserve">
+    <value>현재 Z로 덮어씁니다.</value>
+  </data>
   <data name="request device information" xml:space="preserve">
     <value>장치 정보 요청</value>
   </data>
@@ -1793,6 +2115,12 @@
   </data>
   <data name="reset button" xml:space="preserve">
     <value>리셋 버튼</value>
+  </data>
+  <data name="reset failed: {0}" xml:space="preserve">
+    <value>리셋 실패: {0}</value>
+  </data>
+  <data name="reset; 반복되면 점검" xml:space="preserve">
+    <value>RESET; 반복되면 점검</value>
   </data>
   <data name="resetting..." xml:space="preserve">
     <value>리셋 중...</value>
@@ -1808,6 +2136,9 @@
   </data>
   <data name="result" xml:space="preserve">
     <value>결과</value>
+  </data>
+  <data name="result error: {0}" xml:space="preserve">
+    <value>결과 오류: {0}</value>
   </data>
   <data name="result torque" xml:space="preserve">
     <value>결과 토크</value>
@@ -1845,6 +2176,9 @@
   <data name="returning to waiting position" xml:space="preserve">
     <value>대기 위치로 복귀 중</value>
   </data>
+  <data name="roi changed · not saved" xml:space="preserve">
+    <value>ROI 변경됨 · 미저장</value>
+  </data>
   <data name="rotated" xml:space="preserve">
     <value>회전 후</value>
   </data>
@@ -1860,6 +2194,15 @@
   <data name="running" xml:space="preserve">
     <value>가동 중</value>
   </data>
+  <data name="running · monitoring only" xml:space="preserve">
+    <value>가동 중 · 조회 전용</value>
+  </data>
+  <data name="rx does not start with the tx frame." xml:space="preserve">
+    <value>수신 시작이 송신 프레임과 다릅니다.</value>
+  </data>
+  <data name="rx starts with the tx frame; {0} byte(s) follow it." xml:space="preserve">
+    <value>수신 시작이 송신 프레임과 일치하며 뒤에 {0}바이트가 있습니다.</value>
+  </data>
   <data name="safe z → raise pickup head" xml:space="preserve">
     <value>Safe Z → 픽업 헤드 상승</value>
   </data>
@@ -1872,11 +2215,17 @@
   <data name="safety stop" xml:space="preserve">
     <value>안전 정지</value>
   </data>
-  <data name="save + restart" xml:space="preserve">
-    <value>저장 후 재시작</value>
+  <data name="save cancelled. retry save." xml:space="preserve">
+    <value>저장 취소됨. 다시 저장하세요.</value>
+  </data>
+  <data name="save cancelled; teaching not saved." xml:space="preserve">
+    <value>저장 취소됨; 티칭 미저장.</value>
   </data>
   <data name="save inspection settings" xml:space="preserve">
     <value>검사 설정 저장</value>
+  </data>
+  <data name="save position and image?" xml:space="preserve">
+    <value>위치와 이미지를 저장하시겠습니까?</value>
   </data>
   <data name="save settings" xml:space="preserve">
     <value>설정 저장</value>
@@ -1889,6 +2238,15 @@
   </data>
   <data name="saved results" xml:space="preserve">
     <value>저장 결과</value>
+  </data>
+  <data name="saved to recipe '{0}'." xml:space="preserve">
+    <value>레시피 '{0}'에 저장됨.</value>
+  </data>
+  <data name="saved · applies from the next inspection point." xml:space="preserve">
+    <value>저장됨 · 다음 검사 위치부터 적용됩니다.</value>
+  </data>
+  <data name="saving settings..." xml:space="preserve">
+    <value>설정 저장 중...</value>
   </data>
   <data name="saving..." xml:space="preserve">
     <value>저장 중...</value>
@@ -1920,14 +2278,38 @@
   <data name="securing pcb and moving to handoff" xml:space="preserve">
     <value>PCB 고정 및 인계 위치 이동</value>
   </data>
+  <data name="select a bolt before changing its required bright percentage." xml:space="preserve">
+    <value>볼트를 먼저 선택하세요.</value>
+  </data>
+  <data name="select a bolt before changing its threshold." xml:space="preserve">
+    <value>볼트를 먼저 선택하세요.</value>
+  </data>
+  <data name="select a bolt." xml:space="preserve">
+    <value>볼트를 선택하세요.</value>
+  </data>
+  <data name="select a data matrix before changing its threshold." xml:space="preserve">
+    <value>데이터 매트릭스를 먼저 선택하세요.</value>
+  </data>
+  <data name="select a serial port" xml:space="preserve">
+    <value>시리얼 포트를 선택하세요</value>
+  </data>
   <data name="select all" xml:space="preserve">
     <value>전체 선택</value>
+  </data>
+  <data name="select an image linked to a data matrix or bolt before inspecting." xml:space="preserve">
+    <value>검사 대상에 연결된 이미지를 선택하세요.</value>
   </data>
   <data name="select preset 1" xml:space="preserve">
     <value>프리셋 1 선택</value>
   </data>
   <data name="select teaching (manual) mode for repeat" xml:space="preserve">
     <value>반복 운전은 수동 모드에서 가능합니다</value>
+  </data>
+  <data name="selected bolt is not taught." xml:space="preserve">
+    <value>선택 볼트 티칭 필요.</value>
+  </data>
+  <data name="selected pcb not detected at s2." xml:space="preserve">
+    <value>S2에서 선택 PCB 미감지.</value>
   </data>
   <data name="send command" xml:space="preserve">
     <value>명령 전송</value>
@@ -1946,6 +2328,15 @@
   </data>
   <data name="settings" xml:space="preserve">
     <value>설정</value>
+  </data>
+  <data name="settings not saved: {0}" xml:space="preserve">
+    <value>설정 저장 실패: {0}</value>
+  </data>
+  <data name="settings saved." xml:space="preserve">
+    <value>설정 저장됨.</value>
+  </data>
+  <data name="settings saved; recipe was not saved. " xml:space="preserve">
+    <value>설정 저장됨; 레시피 미저장. </value>
   </data>
   <data name="shared status monitor" xml:space="preserve">
     <value>공통 상태 모니터</value>
@@ -2064,6 +2455,13 @@
   <data name="show reference image" xml:space="preserve">
     <value>기준 이미지 보기</value>
   </data>
+  <data name="shutdown could not be completed.&#10;" xml:space="preserve">
+    <value>종료를 완료하지 못했습니다.
+</value>
+  </data>
+  <data name="shutdown incomplete" xml:space="preserve">
+    <value>종료 미완료</value>
+  </data>
   <data name="shutting down" xml:space="preserve">
     <value>종료 중</value>
   </data>
@@ -2103,6 +2501,17 @@
   <data name="start live" xml:space="preserve">
     <value>라이브 시작</value>
   </data>
+  <data name="start off sent; see controller feedback." xml:space="preserve">
+    <value>START OFF 전송됨. 체결기 상태를 확인하세요.</value>
+  </data>
+  <data name="startup configuration could not be prepared. hardware was not initialized.&#10;&#10;{0}" xml:space="preserve">
+    <value>시작 설정 준비 실패. 하드웨어는 초기화되지 않았습니다.
+
+{0}</value>
+  </data>
+  <data name="startup configuration failed" xml:space="preserve">
+    <value>시작 설정 실패</value>
+  </data>
   <data name="state" xml:space="preserve">
     <value>상태</value>
   </data>
@@ -2133,6 +2542,9 @@
   <data name="step distance" xml:space="preserve">
     <value>스텝 거리</value>
   </data>
+  <data name="step speed" xml:space="preserve">
+    <value>스텝 속도</value>
+  </data>
   <data name="stop" xml:space="preserve">
     <value>정지</value>
   </data>
@@ -2141,6 +2553,12 @@
   </data>
   <data name="stop live" xml:space="preserve">
     <value>라이브 정지</value>
+  </data>
+  <data name="stop the current operation before changing the recipe." xml:space="preserve">
+    <value>현재 동작을 멈춘 후 레시피를 변경하세요.</value>
+  </data>
+  <data name="stop the machine and clear alarms / safety blocks." xml:space="preserve">
+    <value>설비 정지 후 알람 / 안전 제한을 해제하세요.</value>
   </data>
   <data name="stopped" xml:space="preserve">
     <value>정지됨</value>
@@ -2232,14 +2650,26 @@
   <data name="teaching unit" xml:space="preserve">
     <value>티칭 유닛</value>
   </data>
+  <data name="teaching values were not saved: {0}" xml:space="preserve">
+    <value>티칭 저장 실패: {0}</value>
+  </data>
   <data name="test bolts" xml:space="preserve">
     <value>볼트 시험</value>
   </data>
   <data name="test channel (1–9)" xml:space="preserve">
     <value>시험 채널 (1–9)</value>
   </data>
-  <data name="text selection pauses updates" xml:space="preserve">
-    <value>텍스트 선택 중에는 표시가 멈춥니다</value>
+  <data name="test completed." xml:space="preserve">
+    <value>시험 완료.</value>
+  </data>
+  <data name="test failed." xml:space="preserve">
+    <value>시험 실패.</value>
+  </data>
+  <data name="test stopped." xml:space="preserve">
+    <value>시험 정지됨.</value>
+  </data>
+  <data name="testing {0} selected bolts..." xml:space="preserve">
+    <value>선택 볼트 {0}개 시험 중...</value>
   </data>
   <data name="threshold (0–255)" xml:space="preserve">
     <value>임계값 (0–255)</value>
@@ -2249,6 +2679,10 @@
   </data>
   <data name="time not recorded" xml:space="preserve">
     <value>시간 기록 없음</value>
+  </data>
+  <data name="time {0} ms&#10;" xml:space="preserve">
+    <value>시간 {0} ms
+</value>
   </data>
   <data name="toggle" xml:space="preserve">
     <value>전환</value>
@@ -2298,6 +2732,9 @@
   <data name="tube on / off timeout (s)" xml:space="preserve">
     <value>튜브 ON / OFF 타임아웃 (s)</value>
   </data>
+  <data name="turning start off..." xml:space="preserve">
+    <value>START OFF 처리 중...</value>
+  </data>
   <data name="turns" xml:space="preserve">
     <value>회전수</value>
   </data>
@@ -2316,11 +2753,25 @@
   <data name="unit" xml:space="preserve">
     <value>유닛</value>
   </data>
+  <data name="unit      {0}&#10;point     {1}&#10;recorded (mm)  {2}" xml:space="preserve">
+    <value>유닛      {0}
+위치      {1}
+기록 (mm)  {2}</value>
+  </data>
+  <data name="unit    {0}&#10;point   {1}&#10;target  {2} mm&#10;speed   configured axis speed" xml:space="preserve">
+    <value>유닛    {0}
+위치    {1}
+목표    {2} mm
+속도    설정된 축 속도</value>
+  </data>
   <data name="unit disabled in settings" xml:space="preserve">
     <value>설정에서 유닛 사용 안 함</value>
   </data>
   <data name="unknown" xml:space="preserve">
     <value>미확인</value>
+  </data>
+  <data name="unnamed bolt" xml:space="preserve">
+    <value>이름 없는 볼트</value>
   </data>
   <data name="unrotated" xml:space="preserve">
     <value>회전 전</value>
@@ -2349,26 +2800,17 @@
   <data name="updated {0:hh:mm:ss}" xml:space="preserve">
     <value>갱신 {0:HH:mm:ss}</value>
   </data>
-  <data name="use for next test" xml:space="preserve">
-    <value>다음 시험에 적용</value>
+  <data name="usb 통신 포트 오류" xml:space="preserve">
+    <value>USB 통신 포트 오류</value>
   </data>
-  <data name="use test pattern" xml:space="preserve">
-    <value>시험 패턴 사용</value>
+  <data name="use 0 to 255." xml:space="preserve">
+    <value>0–255를 입력하세요.</value>
+  </data>
+  <data name="use a single channel (1–9) and brightness 0–255." xml:space="preserve">
+    <value>채널: 1–9, 밝기: 0–255.</value>
   </data>
   <data name="value" xml:space="preserve">
     <value>값</value>
-  </data>
-  <data name="virtual" xml:space="preserve">
-    <value>가상</value>
-  </data>
-  <data name="virtual build" xml:space="preserve">
-    <value>가상 빌드</value>
-  </data>
-  <data name="virtual camera image" xml:space="preserve">
-    <value>가상 카메라 이미지</value>
-  </data>
-  <data name="virtual inputs · click to toggle" xml:space="preserve">
-    <value>가상 입력 · 클릭으로 전환</value>
   </data>
   <data name="vision" xml:space="preserve">
     <value>비전</value>
@@ -2381,6 +2823,15 @@
   </data>
   <data name="wait for operation to stop" xml:space="preserve">
     <value>동작이 멈출 때까지 대기하세요</value>
+  </data>
+  <data name="wait for the adc operation to stop before changing the selected head." xml:space="preserve">
+    <value>ADC 동작이 멈춘 후 헤드를 변경하세요.</value>
+  </data>
+  <data name="wait for the current machine operation to finish." xml:space="preserve">
+    <value>현재 동작이 끝날 때까지 대기하세요.</value>
+  </data>
+  <data name="wait for the saved teaching images to load before capturing." xml:space="preserve">
+    <value>기준 이미지 로딩 후 촬영하세요.</value>
   </data>
   <data name="wait supply" xml:space="preserve">
     <value>공급 대기</value>
@@ -2517,11 +2968,66 @@
   <data name="z offset (mm)" xml:space="preserve">
     <value>Z 오프셋 (mm)</value>
   </data>
+  <data name="z → common safe z" xml:space="preserve">
+    <value>Z → 공통 Safe Z</value>
+  </data>
+  <data name="z → pcb handoff height" xml:space="preserve">
+    <value>Z → PCB 인계 높이</value>
+  </data>
+  <data name="z → pcb rotation height" xml:space="preserve">
+    <value>Z → PCB 회전 높이</value>
+  </data>
   <data name="z+" xml:space="preserve">
     <value>Z+</value>
   </data>
   <data name="z−" xml:space="preserve">
     <value>Z−</value>
+  </data>
+  <data name="{0}&#10;&#10;{1}&#10;&#10;see the application log for details." xml:space="preserve">
+    <value>{0}
+
+{1}
+
+자세한 내용은 설비 로그를 확인하세요.</value>
+  </data>
+  <data name="{0}  torque {1:f2}" xml:space="preserve">
+    <value>{0}  토크 {1:F2}</value>
+  </data>
+  <data name="{0} bolts selected" xml:space="preserve">
+    <value>볼트 {0}개 선택</value>
+  </data>
+  <data name="{0} fastening · {1}" xml:space="preserve">
+    <value>{0} 체결 · {1}</value>
+  </data>
+  <data name="{0} images" xml:space="preserve">
+    <value>{0}장</value>
+  </data>
+  <data name="{0} inspection" xml:space="preserve">
+    <value>{0} 검사</value>
+  </data>
+  <data name="{0} items" xml:space="preserve">
+    <value>{0}개</value>
+  </data>
+  <data name="{0} reference image(s) unavailable." xml:space="preserve">
+    <value>기준 이미지 {0}개를 불러올 수 없습니다.</value>
+  </data>
+  <data name="{0} results" xml:space="preserve">
+    <value>{0}건</value>
+  </data>
+  <data name="{0} unlinked image(s) excluded." xml:space="preserve">
+    <value>연결되지 않은 이미지 {0}개 제외됨.</value>
+  </data>
+  <data name="{0} · bright {1:0.###}%" xml:space="preserve">
+    <value>{0} · 밝은 영역 {1:0.###}%</value>
+  </data>
+  <data name="{0} · data matrix" xml:space="preserve">
+    <value>{0} · 데이터 매트릭스</value>
+  </data>
+  <data name="{0} · multiple reference images" xml:space="preserve">
+    <value>{0} · 기준 이미지 중복</value>
+  </data>
+  <data name="{0} · no reference image" xml:space="preserve">
+    <value>{0} · 기준 이미지 없음</value>
   </data>
   <data name="← newer" xml:space="preserve">
     <value>← 최근</value>
@@ -2559,17 +3065,260 @@
   <data name="−limit" xml:space="preserve">
     <value>−리밋</value>
   </data>
+  <data name="걸림·부하 확인" xml:space="preserve">
+    <value>걸림·부하 확인</value>
+  </data>
+  <data name="결과 토크 허용범위 이탈" xml:space="preserve">
+    <value>결과 토크 허용범위 이탈</value>
+  </data>
+  <data name="공장 설정 필요" xml:space="preserve">
+    <value>공장 설정 필요</value>
+  </data>
+  <data name="과속" xml:space="preserve">
+    <value>과속</value>
+  </data>
+  <data name="과전압" xml:space="preserve">
+    <value>과전압</value>
+  </data>
+  <data name="누락 확인" xml:space="preserve">
+    <value>누락 확인</value>
+  </data>
+  <data name="동기화 확인" xml:space="preserve">
+    <value>동기화 확인</value>
+  </data>
+  <data name="드라이버 인식 실패" xml:space="preserve">
+    <value>드라이버 인식 실패</value>
+  </data>
+  <data name="드라이브 과열" xml:space="preserve">
+    <value>드라이브 과열</value>
+  </data>
+  <data name="드라이브/스핀들 조합 오류" xml:space="preserve">
+    <value>드라이브/스핀들 조합 오류</value>
+  </data>
+  <data name="멀티시퀀스 설정 오류" xml:space="preserve">
+    <value>멀티시퀀스 설정 오류</value>
+  </data>
+  <data name="메모리·통신 점검" xml:space="preserve">
+    <value>메모리·통신 점검</value>
+  </data>
+  <data name="모델 동작 취소" xml:space="preserve">
+    <value>모델 동작 취소</value>
+  </data>
+  <data name="모델 설정 확인" xml:space="preserve">
+    <value>모델 설정 확인</value>
+  </data>
+  <data name="모델 프로그램 설정 오류" xml:space="preserve">
+    <value>모델 프로그램 설정 오류</value>
+  </data>
+  <data name="모델·엔코더 확인" xml:space="preserve">
+    <value>모델·엔코더 확인</value>
+  </data>
+  <data name="모터 배선 단선/단락" xml:space="preserve">
+    <value>모터 배선 단선/단락</value>
+  </data>
+  <data name="모터 점검·reset" xml:space="preserve">
+    <value>모터 점검·RESET</value>
+  </data>
+  <data name="모터 회전 미감지" xml:space="preserve">
+    <value>모터 회전 미감지</value>
+  </data>
+  <data name="모터·엔코더·드라이브 점검" xml:space="preserve">
+    <value>모터·엔코더·드라이브 점검</value>
+  </data>
+  <data name="목표각도 설정 오류" xml:space="preserve">
+    <value>목표각도 설정 오류</value>
+  </data>
+  <data name="목표각도 확인" xml:space="preserve">
+    <value>목표각도 확인</value>
+  </data>
+  <data name="목표토크 도달 전 정지" xml:space="preserve">
+    <value>목표토크 도달 전 정지</value>
+  </data>
+  <data name="문서에 없는 코드. 컨트롤러 모델·펌웨어별 오류표 확인 필요." xml:space="preserve">
+    <value>문서에 없는 코드. 컨트롤러 모델·펌웨어별 오류표 확인 필요.</value>
+  </data>
+  <data name="문서에 중복 기재; 온도·모델 확인" xml:space="preserve">
+    <value>문서에 중복 기재; 온도·모델 확인</value>
+  </data>
+  <data name="물림 조건 확인" xml:space="preserve">
+    <value>물림 조건 확인</value>
+  </data>
+  <data name="물림 토크 미감지" xml:space="preserve">
+    <value>물림 토크 미감지</value>
+  </data>
+  <data name="배선·모터 점검" xml:space="preserve">
+    <value>배선·모터 점검</value>
+  </data>
+  <data name="부하·케이블 점검" xml:space="preserve">
+    <value>부하·케이블 점검</value>
+  </data>
   <data name="분류" xml:space="preserve">
     <value>분류</value>
+  </data>
+  <data name="비트 소켓 트레이 오류" xml:space="preserve">
+    <value>비트 소켓 트레이 오류</value>
+  </data>
+  <data name="설정 토크 범위 초과" xml:space="preserve">
+    <value>설정 토크 범위 초과</value>
+  </data>
+  <data name="설정 확인·reset" xml:space="preserve">
+    <value>설정 확인·RESET</value>
+  </data>
+  <data name="소프트웨어 과전류" xml:space="preserve">
+    <value>소프트웨어 과전류</value>
+  </data>
+  <data name="스크루 수량 부족" xml:space="preserve">
+    <value>스크루 수량 부족</value>
+  </data>
+  <data name="스크루 카운트 시간 초과" xml:space="preserve">
+    <value>스크루 카운트 시간 초과</value>
+  </data>
+  <data name="스핀들 파라미터 읽기 실패" xml:space="preserve">
+    <value>스핀들 파라미터 읽기 실패</value>
+  </data>
+  <data name="스핀들/드라이브 인식 불일치" xml:space="preserve">
+    <value>스핀들/드라이브 인식 불일치</value>
+  </data>
+  <data name="엔코더 데이터 오류" xml:space="preserve">
+    <value>엔코더 데이터 오류</value>
+  </data>
+  <data name="엔코더 배선 단선" xml:space="preserve">
+    <value>엔코더 배선 단선</value>
+  </data>
+  <data name="엔코더 케이블·드라이브 점검" xml:space="preserve">
+    <value>엔코더 케이블·드라이브 점검</value>
+  </data>
+  <data name="엔코더 통신 오류" xml:space="preserve">
+    <value>엔코더 통신 오류</value>
+  </data>
+  <data name="연결 확인·전원 재인가" xml:space="preserve">
+    <value>연결 확인·전원 재인가</value>
+  </data>
+  <data name="연속 과부하" xml:space="preserve">
+    <value>연속 과부하</value>
+  </data>
+  <data name="오류 없음" xml:space="preserve">
+    <value>오류 없음</value>
   </data>
   <data name="오류 코드 / 조치" xml:space="preserve">
     <value>오류 코드 / 조치</value>
   </data>
+  <data name="온도·드라이브 점검" xml:space="preserve">
+    <value>온도·드라이브 점검</value>
+  </data>
+  <data name="온도·부하·케이블 점검" xml:space="preserve">
+    <value>온도·부하·케이블 점검</value>
+  </data>
+  <data name="온도성 과부하" xml:space="preserve">
+    <value>온도성 과부하</value>
+  </data>
+  <data name="온도성 과부하/드라이브 과열" xml:space="preserve">
+    <value>온도성 과부하/드라이브 과열</value>
+  </data>
   <data name="의미" xml:space="preserve">
     <value>의미</value>
   </data>
+  <data name="입력전원 점검" xml:space="preserve">
+    <value>입력전원 점검</value>
+  </data>
+  <data name="저전압" xml:space="preserve">
+    <value>저전압</value>
+  </data>
+  <data name="전류 오프셋 오류" xml:space="preserve">
+    <value>전류 오프셋 오류</value>
+  </data>
+  <data name="전류 제한 초과" xml:space="preserve">
+    <value>전류 제한 초과</value>
+  </data>
+  <data name="전원 재인가·점검" xml:space="preserve">
+    <value>전원 재인가·점검</value>
+  </data>
+  <data name="전원·가감속 설정 점검" xml:space="preserve">
+    <value>전원·가감속 설정 점검</value>
+  </data>
+  <data name="제어전원 이상" xml:space="preserve">
+    <value>제어전원 이상</value>
+  </data>
+  <data name="제조사 확인" xml:space="preserve">
+    <value>제조사 확인</value>
+  </data>
+  <data name="주전원 이상" xml:space="preserve">
+    <value>주전원 이상</value>
+  </data>
+  <data name="중단 원인 확인" xml:space="preserve">
+    <value>중단 원인 확인</value>
+  </data>
+  <data name="착좌 전 동기화 시간 초과" xml:space="preserve">
+    <value>착좌 전 동기화 시간 초과</value>
+  </data>
+  <data name="착좌 후 동기화 시간 초과" xml:space="preserve">
+    <value>착좌 후 동기화 시간 초과</value>
+  </data>
+  <data name="체결 상태·시간 설정 확인" xml:space="preserve">
+    <value>체결 상태·시간 설정 확인</value>
+  </data>
+  <data name="체결 시간 초과" xml:space="preserve">
+    <value>체결 시간 초과</value>
+  </data>
+  <data name="체결 오류는 stop 후 ng로 기록합니다. 다음 볼트 전에 알람이 남아 있으면 reset을 1회 실행합니다. alarm=0, ready=on, run=off 확인 시 진행하며, 실패하면 설비 알람으로 정지합니다." xml:space="preserve">
+    <value>체결 오류는 STOP 후 NG로 기록합니다. 다음 볼트 전에 알람이 남아 있으면 RESET을 1회 실행합니다. Alarm=0, Ready=ON, RUN=OFF 확인 시 진행하며, 실패하면 설비 알람으로 정지합니다.</value>
+  </data>
+  <data name="체결·각도 조건 확인" xml:space="preserve">
+    <value>체결·각도 조건 확인</value>
+  </data>
+  <data name="체결·토크 조건 확인" xml:space="preserve">
+    <value>체결·토크 조건 확인</value>
+  </data>
+  <data name="최대각도 초과" xml:space="preserve">
+    <value>최대각도 초과</value>
+  </data>
+  <data name="최소각도 미달" xml:space="preserve">
+    <value>최소각도 미달</value>
+  </data>
+  <data name="취소 원인 확인" xml:space="preserve">
+    <value>취소 원인 확인</value>
+  </data>
+  <data name="카운트 조건 확인" xml:space="preserve">
+    <value>카운트 조건 확인</value>
+  </data>
+  <data name="컨트롤러 인식 실패" xml:space="preserve">
+    <value>컨트롤러 인식 실패</value>
+  </data>
+  <data name="케이블·모터·부하 점검" xml:space="preserve">
+    <value>케이블·모터·부하 점검</value>
+  </data>
   <data name="코드 · 10진수 (16진수)" xml:space="preserve">
     <value>코드 · 10진수 (16진수)</value>
+  </data>
+  <data name="토크 상한 초과" xml:space="preserve">
+    <value>토크 상한 초과</value>
+  </data>
+  <data name="토크 설정 확인·reset" xml:space="preserve">
+    <value>토크 설정 확인·RESET</value>
+  </data>
+  <data name="트레이 확인" xml:space="preserve">
+    <value>트레이 확인</value>
+  </data>
+  <data name="파라미터 범위 오류" xml:space="preserve">
+    <value>파라미터 범위 오류</value>
+  </data>
+  <data name="파라미터 읽기 실패" xml:space="preserve">
+    <value>파라미터 읽기 실패</value>
+  </data>
+  <data name="파라미터 체크섬 오류" xml:space="preserve">
+    <value>파라미터 체크섬 오류</value>
+  </data>
+  <data name="풀림 상태·시간 설정 확인" xml:space="preserve">
+    <value>풀림 상태·시간 설정 확인</value>
+  </data>
+  <data name="풀림 시간 초과" xml:space="preserve">
+    <value>풀림 시간 초과</value>
+  </data>
+  <data name="풀림 중 모터 스톨" xml:space="preserve">
+    <value>풀림 중 모터 스톨</value>
+  </data>
+  <data name="하드웨어 과전류" xml:space="preserve">
+    <value>하드웨어 과전류</value>
   </data>
   <data name="확인 / 조치" xml:space="preserve">
     <value>확인 / 조치</value>

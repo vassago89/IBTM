@@ -15,7 +15,7 @@
                 <TextBlock Text="{Binding Number, StringFormat={ui:Text 'PCB {0}'}}" FontWeight="SemiBold"
                     Foreground="{StaticResource TextPrimaryBrush}"/>
                 <TextBlock x:Name="ResultText" Margin="0,4,0,0"
-                    Text="{Binding Result, Converter={StaticResource EnumDescriptionConverter}}"
+                    Text="{Binding Result, Converter={StaticResource UiTextConverter}}"
                     Foreground="{StaticResource TextMutedBrush}"/>
             </StackPanel>
             <DataTemplate.Triggers>
@@ -248,8 +248,8 @@
                                 </TextBlock>
                             </Grid>
                             <TextBlock Margin="0,3,0,8" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                <Run Text="{Binding RecentFastening.HeatSink, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
-                                <Run Text=" · "/><Run Text="{Binding RecentFastening.Head, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
+                                <Run Text="{Binding RecentFastening.HeatSink, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
+                                <Run Text=" · "/><Run Text="{Binding RecentFastening.Head, Converter={StaticResource UiTextConverter}, Mode=OneWay}"/>
                             </TextBlock>
                             <TextBlock Text="{ui:Text 'TURNS · A3 / 360'}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBlock Text="{Binding RecentFastening.Result.TotalTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
@@ -306,7 +306,7 @@
                                         Text="{Binding RecentFastening.Result.Controller.FasteningTimeMilliseconds, TargetNullValue=—, FallbackValue=—}"/>
                                 </StackPanel>
                             </UniformGrid>
-                            <TextBlock Text="{Binding RecentFastening.Result.Source, Converter={StaticResource EnumDescriptionConverter}}"
+                            <TextBlock Text="{Binding RecentFastening.Result.Source, Converter={StaticResource UiTextConverter}}"
                                 FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBlock Text="{Binding RecentFastening.Result.Error}" ToolTip="{Binding RecentFastening.Result.Error}"
                                 FontSize="11" MaxHeight="30" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
