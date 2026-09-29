@@ -47,13 +47,15 @@ public partial class PcbResultsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? ImageError { get; private set; }
 
-    public IReadOnlyList<PcbBoltPresenceView> PresenceResults
+    public IReadOnlyList<PcbBoltPresenceView> InspectionOnlyResults
     {
         get
         {
             if (Record is not { } record)
                 return [];
             return record.BoltPresenceResults
+                .Where(pair => !record.ShootingBoltResults.ContainsKey(pair.Key)
+                    && !record.PickupBoltResults.ContainsKey(pair.Key))
                 .Select(pair => new PcbBoltPresenceView(
                     pair.Key, record.GetBoltOrdinal(pair.Key), pair.Value, record.BoltNames?.GetValueOrDefault(pair.Key)))
                 .OrderBy(row => row.Ordinal)
@@ -63,7 +65,7 @@ public partial class PcbResultsViewModel : ObservableObject
 
     partial void OnRecordChanged(PcbRecord? oldValue, PcbRecord? newValue)
     {
-        OnPropertyChanged(nameof(PresenceResults));
+        OnPropertyChanged(nameof(InspectionOnlyResults));
         var selected = SelectedBolt;
         var selectedImage = SelectedImage;
         BoltResults = newValue is null ? [] : newValue.ShootingBoltResults

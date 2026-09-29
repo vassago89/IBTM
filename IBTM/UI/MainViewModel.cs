@@ -249,10 +249,6 @@ public partial class MainViewModel : ObservableObject
         {
             await _machine.ResetAsync();
         }
-        catch (OperationCanceledException)
-        {
-            _log.LogInformation("On-screen RESET cancelled.");
-        }
         catch (Exception exception)
         {
             ResetError = UiText.Format($"RESET failed: {exception.Message}");

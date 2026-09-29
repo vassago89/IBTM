@@ -168,7 +168,6 @@
                             </Border>
                             <Border Style="{StaticResource SettingCard}">
                                 <StackPanel>
-                                    <TextBlock Text="{ui:Text 'Common feedback wait'}" Style="{StaticResource SettingSectionTitle}"/>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -473,7 +472,7 @@
                                 <StackPanel Grid.Column="2">
                                     <Border Style="{StaticResource SettingCard}">
                                         <StackPanel>
-                                            <TextBlock Text="{ui:Text 'Homing'}" Style="{StaticResource SettingSectionTitle}"/>
+                                            <TextBlock Text="{ui:Text 'Home'}" Style="{StaticResource SettingSectionTitle}"/>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
@@ -820,7 +819,7 @@
                                     <UniformGrid Columns="2">
                                         <Button Content="{ui:Text 'Light ON'}" Command="{Binding TestLightCommand}"
                                             Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,4,0"/>
-                                        <Button Content="{ui:Text 'Light OFF'}" Command="{Binding OffTestLightCommand}" Style="{StaticResource DangerButtonStyle}"
+                                        <Button Content="{ui:Text 'Light OFF'}" Command="{Binding OffTestLightCommand}" Style="{StaticResource SecondaryButtonStyle}"
                                             MinWidth="100" Margin="4,0,0,0"/>
                                     </UniformGrid>
                                     <ScrollViewer Height="40" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"

@@ -72,7 +72,7 @@
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Padding="20,20,20,16" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
-                    <TextBlock Text="{ui:Text 'Menu'}" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="IBTM" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
@@ -242,15 +242,11 @@
 
                     <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{ui:Text 'RECIPE'}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBlock Text="{Binding RecipeEditor.ActiveName}"
-                            Foreground="{StaticResource TextPrimaryBrush}" FontSize="14" FontWeight="SemiBold"
-                            VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis"
-                            ToolTip="{Binding RecipeEditor.ActiveName}"/>
-                        <Grid Width="156" Margin="10,0,0,0" IsEnabled="{Binding RecipeEditingEnabled}">
+                        <Grid Width="240" IsEnabled="{Binding RecipeEditingEnabled}" ToolTip="{Binding RecipeEditor.ActiveName}">
                             <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" AutomationProperties.Name="{ui:Text 'Change recipe'}"
                                 SelectedItem="{Binding SelectedRecipeName, Mode=TwoWay}"/>
-                            <TextBlock Text="{ui:Text 'Change recipe...'}" Margin="10,0,28,0" VerticalAlignment="Center"
-                                Foreground="{StaticResource TextMutedBrush}" FontSize="12" IsHitTestVisible="False">
+                            <TextBlock Text="{Binding RecipeEditor.ActiveName}" Margin="10,0,28,0" VerticalAlignment="Center"
+                                Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" IsHitTestVisible="False">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed"/>

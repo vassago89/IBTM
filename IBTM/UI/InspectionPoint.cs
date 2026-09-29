@@ -20,7 +20,7 @@ public sealed class InspectionPoint
     public HeatSinkSlot HeatSink { get; }
     public BoltPoint? Bolt { get; }
     public bool IsDataMatrix => Bolt is null;
-    public string Name => IsDataMatrix ? UiText.Get("Data Matrix Inspection") : UiText.Format($"{_recipe.Pcb.GetBoltName(Bolt!.Id)} Inspection");
+    public string Name => IsDataMatrix ? UiText.Get("Data Matrix") : _recipe.Pcb.GetBoltName(Bolt!.Id);
     public string Title => $"{UiText.Get(HeatSink)} · {Name}";
     public int ImageCount => _recipe.CarrierImages.Count(image => image.IsForTarget(HeatSink, Bolt?.Id));
 

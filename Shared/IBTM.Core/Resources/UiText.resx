@@ -42,9 +42,6 @@ Operation failed. Check controller status.</value>
   <data name="a background task failed." xml:space="preserve">
     <value>A background task failed.</value>
   </data>
-  <data name="a3 ÷ 360 ≥ minimum" xml:space="preserve">
-    <value>A3 ÷ 360 ≥ minimum</value>
-  </data>
   <data name="acceleration (s)" xml:space="preserve">
     <value>Acceleration time (s)</value>
   </data>
@@ -52,7 +49,7 @@ Operation failed. Check controller status.</value>
     <value>Active</value>
   </data>
   <data name="active connection: " xml:space="preserve">
-    <value>Active connection: </value>
+    <value>Test port: </value>
   </data>
   <data name="actual / min" xml:space="preserve">
     <value>ACTUAL / MIN</value>
@@ -70,7 +67,7 @@ Operation failed. Check controller status.</value>
     <value>ADC Shutdown Failed</value>
   </data>
   <data name="adc test" xml:space="preserve">
-    <value>ADC TEST</value>
+    <value>ADC</value>
   </data>
   <data name="add bolt" xml:space="preserve">
     <value>Add Bolt</value>
@@ -298,7 +295,7 @@ Operation failed. Check controller status.</value>
     <value>Bolt station</value>
   </data>
   <data name="bolt station · selected bolt test" xml:space="preserve">
-    <value>Bolt Station · Selected Bolt Test</value>
+    <value>Bolt Fastening Test</value>
   </data>
   <data name="bolt supply" xml:space="preserve">
     <value>BOLT SUPPLY</value>
@@ -376,7 +373,7 @@ Operation failed. Check controller status.</value>
     <value>Carrier presence sensor · not grip feedback</value>
   </data>
   <data name="carrier stays at s2" xml:space="preserve">
-    <value>Carrier stays at S2 after the test</value>
+    <value>No carrier transfer</value>
   </data>
   <data name="carrier transfer positions" xml:space="preserve">
     <value>Carrier transfer positions</value>
@@ -389,9 +386,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="change recipe" xml:space="preserve">
     <value>Change recipe</value>
-  </data>
-  <data name="change recipe..." xml:space="preserve">
-    <value>Change recipe...</value>
   </data>
   <data name="check equipment stop and any unsaved pcb results before exiting.&#10;&#10;" xml:space="preserve">
     <value>Check equipment stop and any unsaved PCB results before exiting.
@@ -444,19 +438,16 @@ Operation failed. Check controller status.</value>
     <value>Closed</value>
   </data>
   <data name="cmd · ?" xml:space="preserve">
-    <value>CMD · ?</value>
+    <value>CMD: ?</value>
   </data>
   <data name="cmd ←" xml:space="preserve">
-    <value>CMD ←</value>
+    <value>CMD: BACK</value>
   </data>
   <data name="cmd →" xml:space="preserve">
-    <value>CMD →</value>
+    <value>CMD: FWD</value>
   </data>
   <data name="com port" xml:space="preserve">
     <value>COM port</value>
-  </data>
-  <data name="common feedback wait" xml:space="preserve">
-    <value>Common feedback wait</value>
   </data>
   <data name="common safe z" xml:space="preserve">
     <value>Common Safe Z</value>
@@ -531,7 +522,7 @@ Operation failed. Check controller status.</value>
     <value>Current Alarm</value>
   </data>
   <data name="current axis position" xml:space="preserve">
-    <value>Current axis position</value>
+    <value>Current position</value>
   </data>
   <data name="current direction" xml:space="preserve">
     <value>Current Direction</value>
@@ -870,13 +861,13 @@ Operation failed. Check controller status.</value>
     <value>Handoff setup</value>
   </data>
   <data name="hantas adc protocol" xml:space="preserve">
-    <value>HANTAS ADC Protocol</value>
+    <value>ADC Communication</value>
   </data>
   <data name="hardware / logs: save + restart" xml:space="preserve">
     <value>Hardware / logs: Save + restart</value>
   </data>
   <data name="hardware reset button" xml:space="preserve">
-    <value>Hardware reset button</value>
+    <value>External reset button</value>
   </data>
   <data name="head" xml:space="preserve">
     <value>HEAD</value>
@@ -918,7 +909,7 @@ Operation failed. Check controller status.</value>
     <value>Home Required</value>
   </data>
   <data name="home selected unit" xml:space="preserve">
-    <value>Home Selected Unit</value>
+    <value>Home Unit</value>
   </data>
   <data name="home signal" xml:space="preserve">
     <value>Home signal</value>
@@ -1098,7 +1089,7 @@ Operation failed. Check controller status.</value>
     <value>Keep the travel path clear before moving.</value>
   </data>
   <data name="language / hardware / logs: save + restart" xml:space="preserve">
-    <value>Language / hardware / logs: Save + restart</value>
+    <value>Restart after saving language, hardware or log settings.</value>
   </data>
   <data name="last result: {0}  event {1}&#10;" xml:space="preserve">
     <value>Last result: {0}  Event {1}
@@ -1227,9 +1218,6 @@ Operation failed. Check controller status.</value>
   <data name="manual mode required." xml:space="preserve">
     <value>Manual mode required.</value>
   </data>
-  <data name="manual test" xml:space="preserve">
-    <value>MANUAL TEST</value>
-  </data>
   <data name="match" xml:space="preserve">
     <value>MATCH</value>
   </data>
@@ -1238,9 +1226,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="measurements" xml:space="preserve">
     <value>Measurements</value>
-  </data>
-  <data name="menu" xml:space="preserve">
-    <value>Menu</value>
   </data>
   <data name="messages" xml:space="preserve">
     <value>Messages</value>
@@ -1282,7 +1267,7 @@ Operation failed. Check controller status.</value>
     <value>Motion group</value>
   </data>
   <data name="motion monitor" xml:space="preserve">
-    <value>Motion Monitor</value>
+    <value>Motion Diagnostics</value>
   </data>
   <data name="motion settings or target are invalid: {0}" xml:space="preserve">
     <value>Motion settings or target are invalid: {0}</value>
@@ -1303,7 +1288,7 @@ Operation failed. Check controller status.</value>
     <value>Move mode</value>
   </data>
   <data name="move to selected point" xml:space="preserve">
-    <value>Move to Selected Point</value>
+    <value>Move to Point</value>
   </data>
   <data name="moving" xml:space="preserve">
     <value>Moving</value>
@@ -1453,13 +1438,13 @@ Operation failed. Check controller status.</value>
     <value>No reference image</value>
   </data>
   <data name="no reference image. use move to selected point, then save x/y + image." xml:space="preserve">
-    <value>No reference image. Use Move to Selected Point, then Save X/Y + Image.</value>
+    <value>No reference image. Move to the point and record its position and image.</value>
   </data>
   <data name="no result read" xml:space="preserve">
     <value>No result read</value>
   </data>
   <data name="no saved image for this point" xml:space="preserve">
-    <value>No saved image for this point</value>
+    <value>No saved image</value>
   </data>
   <data name="no saved images for this pcb." xml:space="preserve">
     <value>No saved images for this PCB.</value>
@@ -1546,7 +1531,7 @@ Operation failed. Check controller status.</value>
     <value>ORIGINAL ADC REGISTERS · ADDRESS : HEX</value>
   </data>
   <data name="original · edit roi" xml:space="preserve">
-    <value>Original · edit ROI</value>
+    <value>Original · ROI</value>
   </data>
   <data name="output" xml:space="preserve">
     <value>OUTPUT</value>
@@ -1898,7 +1883,7 @@ Operation failed. Check controller status.</value>
     <value>Press RESET to restore servo power</value>
   </data>
   <data name="pure barcode" xml:space="preserve">
-    <value>Barcode-only image</value>
+    <value>Barcode only</value>
   </data>
   <data name="queued" xml:space="preserve">
     <value>Queued</value>
@@ -2045,7 +2030,7 @@ Operation failed. Check controller status.</value>
     <value>REGISTER READ / WRITE</value>
   </data>
   <data name="related i/o" xml:space="preserve">
-    <value>Related I/O</value>
+    <value>I/O</value>
   </data>
   <data name="release both e-stops" xml:space="preserve">
     <value>Release both E-stops</value>
@@ -2204,7 +2189,7 @@ Operation failed. Check controller status.</value>
     <value>Save Inspection Settings</value>
   </data>
   <data name="save position and image?" xml:space="preserve">
-    <value>Save position and image?</value>
+    <value>Record position and image?</value>
   </data>
   <data name="save settings" xml:space="preserve">
     <value>Save Settings</value>
@@ -2213,7 +2198,7 @@ Operation failed. Check controller status.</value>
     <value>Save Teaching</value>
   </data>
   <data name="save x/y + image" xml:space="preserve">
-    <value>Save X/Y + Image</value>
+    <value>Record Position and Image</value>
   </data>
   <data name="saved results" xml:space="preserve">
     <value>Saved results</value>
@@ -2246,10 +2231,10 @@ Operation failed. Check controller status.</value>
     <value>Search speed (mm/s)</value>
   </data>
   <data name="search · axis / number" xml:space="preserve">
-    <value>SEARCH · AXIS / NUMBER</value>
+    <value>Search axis / number</value>
   </data>
   <data name="search · signal / channel" xml:space="preserve">
-    <value>SEARCH · SIGNAL / CHANNEL</value>
+    <value>Search signal / channel</value>
   </data>
   <data name="seating s1 / s2 carriers" xml:space="preserve">
     <value>Seating S1 / S2 carriers</value>
@@ -2318,7 +2303,7 @@ Operation failed. Check controller status.</value>
     <value>Settings saved; recipe was not saved. </value>
   </data>
   <data name="shared status monitor" xml:space="preserve">
-    <value>Shared status monitor</value>
+    <value>Status polling</value>
   </data>
   <data name="shoot" xml:space="preserve">
     <value>Shoot</value>
@@ -2765,7 +2750,7 @@ Speed   Configured axis speed</value>
     <value>Up</value>
   </data>
   <data name="update image + light" xml:space="preserve">
-    <value>Update Image + Light</value>
+    <value>Capture Reference</value>
   </data>
   <data name="updated {0:hh:mm:ss}" xml:space="preserve">
     <value>Updated {0:HH:mm:ss}</value>
@@ -2896,11 +2881,8 @@ Speed   Configured axis speed</value>
   <data name="waiting: transfer release + pickup up" xml:space="preserve">
     <value>Waiting for release / pickup UP</value>
   </data>
-  <data name="warning" xml:space="preserve">
-    <value>WARNING</value>
-  </data>
   <data name="warning · confirm action" xml:space="preserve">
-    <value>Warning · Confirm action</value>
+    <value>Confirm Action</value>
   </data>
   <data name="work positions" xml:space="preserve">
     <value>Work positions</value>

@@ -797,6 +797,32 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task AdcDiagnosticStopDuringQueryAlsoTurnsStartOff()
+    {
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgConveyor) };
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        var io = new VirtualIoService(VirtualTestSupport.Outputs(), new());
+        using var pickup = new VirtualAdcBus();
+        using var shooting = new VirtualAdcBus();
+        using var diagnostics = new AdcProtocolViewModel(pickup, shooting, io, settings.Hantas, machine, state);
+        diagnostics.SelectedPort = "Virtual";
+        await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
+        // A diagnostic query does not own START, but the STOP button must still turn it off.
+        io.SetOutput(OutputIo.PickupBoltStart, true);
+        var reading = diagnostics.CaptureDeviceInformationCommand.ExecuteAsync(null);
+        Assert.False(reading.IsCompleted);
+
+        await diagnostics.StopCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.False(state.IsRunning);
+    }
+
+    [Fact]
     public async Task AdcDiagnosticsSelectsTheMatchingPortAndDisconnectsOnlyThatHead()
     {
         var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgConveyor) };
@@ -832,6 +858,11 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal((ushort)7, (await pickup.ReadControllerStatusAsync(1)).Status!.Preset);
             Assert.True(pickup.IsOpen);
             Assert.Equal(38400, shooting.BaudRate);
+            await diagnostics.ExecuteRegisterCommand.ExecuteAsync(null);
+            Assert.Contains(" = ", diagnostics.RegisterResult);
+            diagnostics.AddressText = "invalid";
+            await Assert.ThrowsAsync<FormatException>(() => diagnostics.ExecuteRegisterCommand.ExecuteAsync(null));
+            Assert.Equal("-", diagnostics.RegisterResult);
             await diagnostics.ToggleConnectionCommand.ExecuteAsync(null);
             Assert.False(shooting.IsOpen);
             Assert.True(pickup.IsOpen);

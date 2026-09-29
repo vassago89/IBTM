@@ -88,9 +88,11 @@ public partial class RecipeEditorViewModel : ObservableObject
         }
         Error = null;
         var name = Name.Trim();
+        var activeToken = cancellationToken;
         try
         {
             using var operation = _operations.Link(cancellationToken);
+            activeToken = operation.Token;
             await _recipes.SaveAsync(
                 name,
                 images?.Select(image => image.Metadata).ToList(),
@@ -114,7 +116,7 @@ public partial class RecipeEditorViewModel : ObservableObject
                 Recipes = Recipes.Append(Name).Order(StringComparer.Ordinal).ToArray();
             return true;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested || _operations.IsShuttingDown)
         {
         }
         catch (Exception exception)
@@ -126,21 +128,23 @@ public partial class RecipeEditorViewModel : ObservableObject
 
     public IAsyncRelayCommand<string> LoadCommand { get; }
 
-    private async Task LoadAsync(string? recipeName)
+    private async Task LoadAsync(string? recipeName, CancellationToken cancellationToken)
     {
         Error = null;
+        var activeToken = cancellationToken;
         try
         {
             ArgumentNullException.ThrowIfNull(recipeName);
-            using var operation = _operations.TryBegin();
+            using var operation = _operations.TryBegin(cancellationToken);
             if (operation is null)
             {
                 Error = UiText.Get("Stop the current operation before changing the recipe.");
                 return;
             }
+            activeToken = operation.Token;
             await _recipes.LoadAsync(recipeName, operation.Token);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested || _operations.IsShuttingDown)
         {
         }
         catch (Exception exception)
@@ -154,6 +158,7 @@ public partial class RecipeEditorViewModel : ObservableObject
     private void New()
     {
         Error = null;
+        var activeToken = CancellationToken.None;
         try
         {
             using var operation = _operations.TryBegin();
@@ -162,10 +167,11 @@ public partial class RecipeEditorViewModel : ObservableObject
                 Error = UiText.Get("Stop the current operation before changing the recipe.");
                 return;
             }
+            activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
             _recipes.New();
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested || _operations.IsShuttingDown)
         {
         }
         catch (Exception exception)

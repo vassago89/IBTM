@@ -906,20 +906,17 @@ public partial class TeachingViewModel : ObservableObject
         get
         {
             if (!State.Available)
-                return IsInspectionSelected ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable;
-            if (!IsInspectionSelected)
-            {
-                if (HomeBlock == HomeBlockReason.UnitDisabled)
-                    return TeachingMotionHint.UnitDisabled;
-                if (Motion.Axes.Values.Any(axis => axis.State is null))
-                    return TeachingMotionHint.MotionUnavailable;
-                if (Motion.Axes.Values.Any(axis => axis.State is { Alarm: true } or { Emergency: true }))
-                    return TeachingMotionHint.AxisFault;
-                if (Motion.Axes.Values.Any(axis => axis.State is { ServoOn: false }))
-                    return TeachingMotionHint.ServoOff;
-                if (Motion.Axes.Values.Any(axis => axis.State is { Homed: false }))
-                    return TeachingMotionHint.HomeRequired;
-            }
+                return TeachingMotionHint.MotionUnavailable;
+            if (HomeBlock == HomeBlockReason.UnitDisabled)
+                return TeachingMotionHint.UnitDisabled;
+            if (!Motion.IsFeedbackAvailable)
+                return TeachingMotionHint.MotionUnavailable;
+            if (Motion.Axes.Values.Any(axis => axis.State is { Alarm: true } or { Emergency: true }))
+                return TeachingMotionHint.AxisFault;
+            if (Motion.Axes.Values.Any(axis => axis.State is { ServoOn: false }))
+                return TeachingMotionHint.ServoOff;
+            if (Motion.Axes.Values.Any(axis => axis.State is { Homed: false }))
+                return TeachingMotionHint.HomeRequired;
             if (SelectedPoint?.Position.Target == TeachingTarget.NgCarrierPickup
                 && _settings.NgCarrierTransfer.CarrierPickupPosition is null)
                 return TeachingMotionHint.NgPickupPositionRequired;
@@ -937,7 +934,7 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    public HomeBlockReason HomeBlock => IsInspectionSelected ? HomeBlockReason.None : Machine.GetHomeBlock(ActiveMotionGroup);
+    public HomeBlockReason HomeBlock => Machine.GetHomeBlock(ActiveMotionGroup);
 
     public MotionGroup ActiveMotionGroup
     {
@@ -1658,7 +1655,7 @@ public partial class TeachingViewModel : ObservableObject
             _logger.LogInformation("Teaching images: UI collection updated, elapsed={ElapsedMs:F1} ms, total={TotalMs:F1} ms.",
                 Stopwatch.GetElapsedTime(publishStarted).TotalMilliseconds, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             _logger.LogInformation("Teaching images: cancelled, elapsed={ElapsedMs:F1} ms.",
                 Stopwatch.GetElapsedTime(started).TotalMilliseconds);

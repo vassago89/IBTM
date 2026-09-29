@@ -52,7 +52,7 @@
                     Text="{Binding Filter.SearchText, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <StackPanel Grid.Column="2">
-                <TextBlock Text="{ui:Text 'UNIT'}" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBlock Text="{ui:Text 'Unit'}" Style="{StaticResource SectionHeaderStyle}"/>
                 <ComboBox Margin="0,6,0,0"
                     ItemsSource="{Binding Filter.Areas}"
                     ItemTemplate="{x:Null}" DisplayMemberPath="Value"
@@ -67,8 +67,8 @@
                 <ColumnDefinition Width="110"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="{ui:Text 'CH.'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1" Text="{ui:Text 'INPUT'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="{ui:Text 'STATE'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="1" Text="{ui:Text 'Input'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2" Text="{ui:Text 'State'}" Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
 
         <ListBox Grid.Row="4"

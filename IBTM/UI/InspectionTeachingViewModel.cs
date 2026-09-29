@@ -280,6 +280,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         if (!IsLoaded)
             return;
         Error = null;
+        Message = null;
         try
         {
             await _recipes.SaveInspectionAsync(Draft, token);

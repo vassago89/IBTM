@@ -199,7 +199,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return State.AutomaticRunning && FasteningState is not null
+            return Fastening.IsRunning && FasteningState is not null
                 ? Fastening.ActiveBolt : null;
         }
     }
@@ -254,7 +254,12 @@ public partial class OperationViewModel : ObservableObject
                 if (bolt.Id == active?.Id)
                     state = BoltTargetState.Active;
                 else if (results is not null && results.TryGetValue(bolt.Id, out var result))
-                    state = result.Success ? BoltTargetState.Ok : BoltTargetState.Ng;
+                    state = result switch
+                    {
+                        { Success: false } or { TurnsResult: AssemblyResult.Ng } => BoltTargetState.Ng,
+                        { TurnsResult: AssemblyResult.Pending } => BoltTargetState.Pending,
+                        _ => BoltTargetState.Ok,
+                    };
                 targets.Add(new(_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)!.Value, bolt.Head, position.X, position.Y, state));
             }
             return targets;
@@ -416,11 +421,12 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
-        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(AxisStatus.State))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
             OnPcbSupplyChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
+            OnPropertyChanged(nameof(SupplyPositionKnown));
             OnPropertyChanged(nameof(PcbSupplyMapPosition));
         }
     }
@@ -430,11 +436,12 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
-        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(AxisStatus.State))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
             OnPcbPlacementChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
+            OnPropertyChanged(nameof(PlacementPositionKnown));
             OnPropertyChanged(nameof(PcbPlacementMapPosition));
         }
     }
@@ -444,11 +451,12 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
-        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(AxisStatus.State))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
             OnBoltFasteningChanged();
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
+            OnPropertyChanged(nameof(FasteningPositionKnown));
             OnPropertyChanged(nameof(ShootingHeadMapPosition));
             OnPropertyChanged(nameof(PickupHeadMapPosition));
         }
@@ -459,7 +467,7 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
-        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(MotionStatus.Position) or nameof(AxisStatus.State))
+        if (e.PropertyName is nameof(MotionStatus.IsMoving) or nameof(AxisStatus.State))
         {
             OnInspectionChanged();
             OnMainConveyorChanged();
@@ -467,6 +475,7 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
+            OnPropertyChanged(nameof(InspectionPositionKnown));
             OnPropertyChanged(nameof(InspectionGantryMapPosition));
             OnPropertyChanged(nameof(NgPickupMapPosition));
         }
@@ -823,7 +832,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return State.AutomaticRunning
+            return Fastening.IsRunning
                 && FasteningState is not null and not BoltFasteningState.Waiting;
         }
     }
@@ -832,7 +841,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return State.AutomaticRunning
+            return Inspection.IsRunning
                 && InspectionState is not null and not InspectionStationState.Waiting;
         }
     }

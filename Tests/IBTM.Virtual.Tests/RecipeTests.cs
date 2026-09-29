@@ -875,6 +875,42 @@ public sealed class RecipeTests
     }
 
     [Fact]
+    public async Task CancelledRecipeLoadKeepsSelectionAndReleasesOwnershipForRetry()
+    {
+        var database = VirtualTestSupport.OpenMachineStore();
+        database.SaveRecipe(new Recipe { Name = "Other" });
+        var selection = new RecipeSelectionSettings();
+        var recipes = new RecipeManager(database, selection) { Current = { Name = "Active" } };
+        var operations = new OperationCancellation();
+        var editor = new RecipeEditorViewModel(recipes, database, operations);
+        void CancelLoad()
+        {
+            if (operations.HasActiveOperations)
+                editor.LoadCommand.Cancel();
+        }
+        operations.ActivityChanged += CancelLoad;
+        try
+        {
+            await editor.LoadCommand.ExecuteAsync("Other");
+            Assert.True(editor.LoadCommand.IsCancellationRequested);
+            Assert.Equal("Active", recipes.Current.Name);
+            Assert.Null(selection.LastRecipeName);
+            Assert.Null(editor.Error);
+            Assert.False(operations.HasActiveOperations);
+        }
+        finally
+        {
+            operations.ActivityChanged -= CancelLoad;
+        }
+
+        await editor.LoadCommand.ExecuteAsync("Other");
+        Assert.Equal("Other", recipes.Current.Name);
+        Assert.Equal("Other", selection.LastRecipeName);
+        Assert.Null(editor.Error);
+        Assert.False(operations.HasActiveOperations);
+    }
+
+    [Fact]
     public async Task RecipeSaveAndLoadKeepTheirOperationActive()
     {
         var recipe = new Recipe

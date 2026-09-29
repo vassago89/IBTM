@@ -370,9 +370,12 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             if (_operationCancellation is not null)
             {
+                // Tighten/reverse turn START off in their cleanup; read commands do not.
+                var stopsHead = StartCommand.IsRunning || ReverseCommand.IsRunning;
                 await CommandShutdown.CancelAndWaitAsync(
                     _commands.Where(command => command != StopCommand).ToArray());
-                return;
+                if (stopsHead || !Bus.IsOpen)
+                    return;
             }
             operation = BeginCommand(cancellationToken);
             operation.Token.ThrowIfCancellationRequested();
@@ -583,6 +586,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         try
         {
             operation = BeginCommand(cancellationToken);
+            RegisterResult = "-";
             var access = RegisterAccess;
             var address = ushort.Parse(AddressText);
             var bus = Bus;

@@ -170,6 +170,7 @@ public sealed class PcbHistoryTests
         var details = services.GetRequiredService<PcbResultsViewModel>();
         details.Record = record;
         Assert.Equal(6, details.BoltResults.Count);
+        Assert.Empty(details.InspectionOnlyResults);
         for (var index = 0; index < bolts.Length; index++)
         {
             var row = details.BoltResults[index];
@@ -180,11 +181,7 @@ public sealed class PcbHistoryTests
             Assert.Equal(index == 4 ? null : (double?)(8 + index), row.Result.Torque);
             Assert.Equal(index == 5 ? null : "고정", record.BoltNames[bolts[index].Id]);
             Assert.Equal(index == 5 ? "Bolt 6" : "고정", row.BoltLabel);
-            var presence = details.PresenceResults[index];
-            Assert.Equal(row.BoltId, presence.BoltId);
-            Assert.Equal(row.Ordinal, presence.Ordinal);
-            Assert.Equal(row.BoltLabel, presence.BoltLabel);
-            Assert.Equal(index != 4, presence.Present);
+            Assert.Equal(index != 4, row.Present);
         }
         details.SelectedBolt = details.BoltResults[4];
         Assert.Equal("ADC response error", details.SelectedBolt.Result.Error);
@@ -208,9 +205,17 @@ public sealed class PcbHistoryTests
         details.Record = record with { UpdatedAt = record.UpdatedAt.AddSeconds(1) };
         Assert.Equal(bolts[4].Id, details.SelectedBolt?.BoltId);
         Assert.Equal("고정", details.SelectedBolt?.BoltLabel);
-        Assert.Equal("고정", details.PresenceResults.Single(row => row.BoltId == bolts[4].Id).BoltLabel);
         await details.LoadImagesCommand.ExecuteAsync(null);
         Assert.Equal("고정", details.SelectedImage?.Title);
+
+        details.Record = record with
+        {
+            ShootingBoltResults = new Dictionary<Guid, BoltResult>(),
+            PickupBoltResults = new Dictionary<Guid, BoltResult>(),
+        };
+        Assert.Empty(details.BoltResults);
+        Assert.Equal(6, details.InspectionOnlyResults.Count);
+        Assert.Equal("고정", details.InspectionOnlyResults.Single(row => row.BoltId == bolts[4].Id).BoltLabel);
 
         // Records saved before display names were added retain their own GUID order.
         var legacyJson = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(record))!;
@@ -219,10 +224,17 @@ public sealed class PcbHistoryTests
         details.Record = legacy with { Number = record.Number, DatabaseFile = record.DatabaseFile };
         Assert.Equal(Enumerable.Range(1, 6).Select(number => $"Bolt {number}"),
             details.BoltResults.Select(row => row.BoltLabel));
-        Assert.Equal(details.BoltResults.Select(row => row.BoltLabel), details.PresenceResults.Select(row => row.BoltLabel));
+        Assert.Empty(details.InspectionOnlyResults);
         await details.LoadImagesCommand.ExecuteAsync(null);
         Assert.Equal(bolts[4].Id, details.SelectedImage?.Record.BoltId);
         Assert.Equal("Bolt 5", details.SelectedImage?.Title);
+        details.Record = legacy with
+        {
+            ShootingBoltResults = new Dictionary<Guid, BoltResult>(),
+            PickupBoltResults = new Dictionary<Guid, BoltResult>(),
+        };
+        Assert.Equal(Enumerable.Range(1, 6).Select(number => $"Bolt {number}"),
+            details.InspectionOnlyResults.Select(row => row.BoltLabel));
     }
 
     [Fact]

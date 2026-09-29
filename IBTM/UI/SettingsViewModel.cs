@@ -310,7 +310,7 @@ public partial class SettingsViewModel : ObservableObject
             var failure = await TurnTestLightOffAsync(channel);
             LightTestMessage = failure?.Message ?? UiText.Format($"OFF command sent · channel {channel}.");
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (_operations.IsShuttingDown)
         {
         }
         finally
@@ -370,7 +370,7 @@ public partial class SettingsViewModel : ObservableObject
                 return;
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _operations.IsShuttingDown)
         {
             LightTestMessage = UiText.Get("Lighting test cancelled.");
             RefreshCommands();

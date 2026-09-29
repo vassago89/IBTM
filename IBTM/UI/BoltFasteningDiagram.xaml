@@ -219,7 +219,7 @@
                             Y="{Binding PickupHeadMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                     </Grid.RenderTransform>
                     <Canvas>
-                        <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Canvas.Top="65"
+                        <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Canvas.Top="125"
                             Text="{ui:Text 'Pick'}" FontSize="11" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                         <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.PickupHeadLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeadTop}"
                             Width="{x:Static ui:MachineDiagramLayout.HeadSize}" Height="{x:Static ui:MachineDiagramLayout.HeadSize}">

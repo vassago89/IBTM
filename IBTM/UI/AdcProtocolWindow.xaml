@@ -62,7 +62,7 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Text="{ui:Text 'PORT'}" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBlock Text="{ui:Text 'Port'}" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
                 <ComboBox Grid.Column="1" Margin="10,0,8,0"
                     ItemsSource="{Binding PortNames}"
                     SelectedItem="{Binding SelectedPort, Mode=TwoWay}" IsEnabled="{Binding PortSelectionEnabled}"/>
@@ -71,7 +71,7 @@
 
                 <ComboBox IsEnabled="{Binding PortSelectionEnabled}" SelectedItem="{Binding SelectedBaudRate, Mode=TwoWay}" Grid.Column="3" Margin="16,0,0,0" ItemsSource="{Binding BaudRates}"/>
 
-                <TextBlock Grid.Column="4" Margin="16,0,0,0" Text="{ui:Text 'SLAVE'}" VerticalAlignment="Center"
+                <TextBlock Grid.Column="4" Margin="16,0,0,0" Text="{ui:Text 'Slave'}" VerticalAlignment="Center"
                     Style="{StaticResource SectionHeaderStyle}"/>
                 <TextBox IsEnabled="{Binding SlaveSelectionEnabled}" Grid.Column="5" Margin="10,0,0,0" Text="{Binding SlaveText, UpdateSourceTrigger=PropertyChanged}"/>
 
@@ -94,7 +94,7 @@
             <Border Padding="18,16" Style="{StaticResource CardStyle}">
                 <DockPanel>
                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                        <TextBlock Text="{ui:Text 'CONTROLLER'}" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="{ui:Text 'Controller'}" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                             <ui:HoldButton Content="{ui:Text 'Loosen (hold)'}" Margin="0,0,8,0"
                                 PressCommand="{Binding ReverseCommand}"
@@ -146,7 +146,7 @@
             <Border Grid.Column="2" Padding="18,16" Style="{StaticResource CardStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel IsEnabled="{Binding ProtocolEnabled}">
-                        <TextBlock Text="{ui:Text 'REGISTER ACCESS'}" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="{ui:Text 'Register access'}" Style="{StaticResource SectionHeaderStyle}"/>
 
                         <ComboBox SelectedItem="{Binding RegisterAccess, Mode=TwoWay}" Margin="0,14,0,12" ItemsSource="{Binding RegisterAccesses}"/>
 
@@ -159,15 +159,15 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="{ui:Text 'ADDRESS'}" Style="{StaticResource SectionHeaderStyle}"/>
+                                <TextBlock Text="{ui:Text 'Address'}" Style="{StaticResource SectionHeaderStyle}"/>
                                 <TextBox Margin="0,6,0,0" Text="{Binding AddressText, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="{ui:Text 'COUNT'}" Style="{StaticResource SectionHeaderStyle}"/>
+                                <TextBlock Text="{ui:Text 'Count'}" Style="{StaticResource SectionHeaderStyle}"/>
                                 <TextBox Margin="0,6,0,0" Text="{Binding CountText, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="4">
-                                <TextBlock Text="{ui:Text 'VALUE'}" Style="{StaticResource SectionHeaderStyle}"/>
+                                <TextBlock Text="{ui:Text 'Value'}" Style="{StaticResource SectionHeaderStyle}"/>
                                 <TextBox Margin="0,6,0,0" Text="{Binding ValueText, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                         </Grid>
@@ -175,7 +175,7 @@
                         <Button Content="{ui:Text 'Send Command'}" Margin="0,14,0,14" HorizontalAlignment="Left"
                             Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ExecuteRegisterCommand}"/>
 
-                        <TextBlock Text="{ui:Text 'RESPONSE'}" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="{ui:Text 'Response'}" Style="{StaticResource SectionHeaderStyle}"/>
                         <TextBlock Margin="0,10,0,0"
                             Text="{Binding RegisterResult}"
                             TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" Foreground="{StaticResource TextPrimaryBrush}"/>
@@ -214,14 +214,14 @@
             <Grid Margin="12,8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBlock Text="{Binding Source={x:Static hantas:AdcControllerError.ReferenceNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
-                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
-                <TextBlock Grid.Row="1" Text="{Binding Source={x:Static hantas:AdcControllerError.OperationNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
-                    Foreground="{StaticResource AccentAmberBrush}" FontSize="12" Margin="0,4,0,8"/>
-                <DataGrid Grid.Row="2" ItemsSource="{x:Static hantas:AdcControllerError.All}" IsReadOnly="True"
+                <TextBlock Grid.Row="2" Text="{Binding Source={x:Static hantas:AdcControllerError.ReferenceNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
+                    Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,8,0,0"/>
+                <TextBlock Text="{Binding Source={x:Static hantas:AdcControllerError.OperationNote}, Converter={StaticResource UiTextConverter}}" TextWrapping="Wrap"
+                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,8"/>
+                <DataGrid Grid.Row="1" ItemsSource="{x:Static hantas:AdcControllerError.All}" IsReadOnly="True"
                     AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                     HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0"
                     Background="{StaticResource ControlBgBrush}" Foreground="{StaticResource TextPrimaryBrush}">

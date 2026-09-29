@@ -104,7 +104,15 @@ public partial class App : System.Windows.Application
         _serviceProvider = serviceProvider;
         _camera = serviceProvider.GetRequiredService<ICamera>() as IDisposable;
 
-        await serviceProvider.GetRequiredService<MachineController>().InitializeAsync();
+        try
+        {
+            await serviceProvider.GetRequiredService<MachineController>().InitializeAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // STOP during initialization must still leave the operator a screen for recovery.
+            _log.LogInformation("Machine initialization was canceled. Opening the main window with current equipment status.");
+        }
         var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
         _ = serviceProvider.GetRequiredService<RecipeEditorViewModel>().RefreshCommand.ExecuteAsync(null);

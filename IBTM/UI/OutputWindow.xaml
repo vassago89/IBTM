@@ -40,7 +40,7 @@
                     Text="{Binding Filter.SearchText, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <StackPanel Grid.Column="2">
-                <TextBlock Text="{ui:Text 'UNIT'}" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBlock Text="{ui:Text 'Unit'}" Style="{StaticResource SectionHeaderStyle}"/>
                 <ComboBox Margin="0,6,0,0"
                     ItemsSource="{Binding Filter.Areas}"
                     ItemTemplate="{x:Null}" DisplayMemberPath="Value"
@@ -58,10 +58,11 @@
                 <ColumnDefinition Width="90"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="{ui:Text 'NO. (ON/OFF)'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1" Text="{ui:Text 'OUTPUT'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="1" Text="{ui:Text 'Output'}" Style="{StaticResource SectionHeaderStyle}"/>
             <TextBlock Grid.Column="2" Text="{ui:Text 'DO'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="3" Text="{ui:Text 'FEEDBACK INPUTS'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="4" Text="{ui:Text 'MATCH'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="3" Text="{ui:Text 'Feedback inputs'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="4" Text="{ui:Text 'Match'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="5" Text="{ui:Text 'Manual'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
         </Grid>
 
         <ListBox Grid.Row="3"

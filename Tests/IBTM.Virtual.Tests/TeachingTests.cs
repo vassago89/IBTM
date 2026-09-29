@@ -1668,7 +1668,7 @@ public sealed class TeachingTests
         Assert.Equal(TeachingMotionHint.UnitDisabled, teaching.MotionHint);
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
-        Assert.Equal(TeachingMotionHint.None, teaching.MotionHint);
+        Assert.Equal(TeachingMotionHint.HomeRequired, teaching.MotionHint);
         Assert.True(teaching.HomeCommand.CanExecute(null));
     }
 

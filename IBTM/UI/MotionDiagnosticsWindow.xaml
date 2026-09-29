@@ -96,20 +96,21 @@
                 <ColumnDefinition Width="196"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="{ui:Text 'NO.'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1" Text="{ui:Text 'AXIS'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="{ui:Text 'POSITION (mm)'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="3" Text="{ui:Text 'STATE'}" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="4" Text="{ui:Text 'SERVO'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
-            <TextBlock Grid.Column="5" Text="{ui:Text 'HOMED'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
-            <TextBlock Grid.Column="6" Text="{ui:Text 'HOME IN'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="1" Text="{ui:Text 'Axis'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2" Text="{ui:Text 'Position (mm)'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="3" Text="{ui:Text 'State'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="4" Text="{ui:Text 'Servo'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="5" Text="{ui:Text 'Homed'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="6" Text="{ui:Text 'Home in'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
             <TextBlock Grid.Column="7" Text="{ui:Text '−LIMIT'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
             <TextBlock Grid.Column="8" Text="{ui:Text '+LIMIT'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
-            <TextBlock Grid.Column="9" Text="{ui:Text 'ALARM'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="9" Text="{ui:Text 'Alarm'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="10" Text="{ui:Text 'Manual'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
         </Grid>
         <ListBox Grid.Row="4" ItemsSource="{Binding View}" Style="{StaticResource IoListStyle}">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource FlatListItemStyle}">
-                    <Setter Property="Padding" Value="12,6"/>
+                    <Setter Property="Padding" Value="12,4"/>
                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                 </Style>
             </ListBox.ItemContainerStyle>

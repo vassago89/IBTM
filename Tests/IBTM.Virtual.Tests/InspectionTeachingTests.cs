@@ -111,7 +111,7 @@ public sealed class InspectionTeachingTests
         Assert.Equal(teaching.Name, editor.SelectedPoint.Name);
         Assert.Equal(teaching.PositionLabel, editor.SelectedPoint.PositionLabel);
         Assert.Equal((10d, 20d), (editor.SelectedPoint.Position!.X, editor.SelectedPoint.Position.Y));
-        Assert.Equal("Connector bolt Inspection", editor.SelectedPoint.Name);
+        Assert.Equal("Connector bolt", editor.SelectedPoint.Name);
         Assert.Equal(91, editor.Preview.BrightnessThreshold);
         Assert.False(editor.Preview.HasImage);
         Assert.False(editor.InspectCommand.CanExecute(null));
@@ -507,6 +507,9 @@ public sealed class InspectionTeachingTests
         await recipes.LoadAsync("Inspection");
         var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.LoadRecipeCommand.ExecuteAsync(null);
+        await editor.SaveCommand.ExecuteAsync(null);
+        Assert.Null(editor.Error);
+        Assert.NotNull(editor.Message);
         var before = JsonSerializer.Serialize(recipes.Current);
         editor.DataMatrix!.BinaryThreshold = 17;
         using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
@@ -518,6 +521,7 @@ public sealed class InspectionTeachingTests
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.NotNull(editor.Error);
+        Assert.Null(editor.Message);
         Assert.Equal(before, JsonSerializer.Serialize(recipes.Current));
         Assert.Equal(before, JsonSerializer.Serialize(store.LoadRecipe("Inspection")));
     }

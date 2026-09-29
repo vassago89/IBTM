@@ -4,9 +4,10 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:BoltStationTestViewModel, IsDesignTimeCreatable=False}"
-    Title="{ui:Text 'Bolt Station · Selected Bolt Test'}" Width="1080" Height="800"
+    Title="{ui:Text 'Bolt Station · Selected Bolt Test'}" Width="1080" Height="960"
     MinWidth="940" MinHeight="600" WindowStartupLocation="CenterOwner"
     Background="{StaticResource AppBgBrush}">
     <Window.Style>
@@ -40,12 +41,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <DockPanel>
-            <Border DockPanel.Dock="Right" Background="{StaticResource AccentAmberBrush}" Padding="14,6" CornerRadius="4">
-                <TextBlock Text="{ui:Text 'MANUAL TEST'}" Foreground="#192025" FontWeight="Bold"/>
-            </Border>
-            <TextBlock Text="{ui:Text 'Bolt Station'}" Style="{StaticResource TitleStyle}"/>
-        </DockPanel>
+        <TextBlock Text="{ui:Text 'Bolt Station · Selected Bolt Test'}" Style="{StaticResource TitleStyle}"/>
         <StackPanel Grid.Row="1" Margin="0,8,0,18">
             <TextBlock Text="{ui:Text 'Axes and heads move. Keep clear.'}"
                 Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
@@ -53,7 +49,7 @@
         <Border Grid.Row="2" Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}"
             BorderThickness="1" CornerRadius="4" Padding="14" Margin="0,0,0,16">
             <StackPanel>
-                <TextBlock Text="{ui:Text 'BOLT SUPPLY'}" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBlock Text="{ui:Text 'Bolt supply'}" Style="{StaticResource SectionHeaderStyle}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                     <TextBlock Margin="0,0,30,0">
                         <TextBlock.Style>
@@ -95,7 +91,7 @@
                 <TextBlock Text="{Binding SelectedCount, StringFormat={ui:Text '{}{0} bolts selected'}}" Style="{StaticResource TestCell}" FontWeight="SemiBold"/>
                 <Border Background="{StaticResource EquipBgBrush}" Padding="12,6" Margin="20,0,0,0" CornerRadius="4">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{ui:Text 'TOTAL RUN'}" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <TextBlock Text="{ui:Text 'Total run'}" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
                         <TextBlock Text="{Binding TotalRunSeconds, StringFormat={}{0:0.000} s, TargetNullValue=—}"
                             Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     </StackPanel>
@@ -111,14 +107,14 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="44"/><ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
-                    <ColumnDefinition Width="90"/><ColumnDefinition Width="90"/><ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="140"/><ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="1" Text="{ui:Text 'BOLT'}" Style="{StaticResource TestCell}"/>
-                <TextBlock Grid.Column="2" Text="{ui:Text 'HEAD'}" Style="{StaticResource TestCell}"/>
-                <TextBlock Grid.Column="3" Text="{ui:Text 'RESULT'}" Style="{StaticResource TestCell}"/>
-                <TextBlock Grid.Column="4" Text="{ui:Text 'TORQUE'}" Style="{StaticResource TestCell}"/>
-                <TextBlock Grid.Column="5" Text="{ui:Text 'TARGET'}" Style="{StaticResource TestCell}"/>
-                <TextBlock Grid.Column="6" Text="{ui:Text 'TIME (ms)'}" Style="{StaticResource TestCell}"/>
+                <TextBlock Grid.Column="2" Text="{ui:Text 'Head'}" Style="{StaticResource TestCell}"/>
+                <TextBlock Grid.Column="3" Text="{ui:Text 'Fasten'}" Style="{StaticResource TestCell}"/>
+                <TextBlock Grid.Column="4" Text="{ui:Text 'Torque / target'}" Style="{StaticResource TestCell}"/>
+                <TextBlock Grid.Column="5" Text="{ui:Text 'Turns'}" Style="{StaticResource TestCell}"/>
+                <TextBlock Grid.Column="6" Text="{ui:Text 'Time (ms)'}" Style="{StaticResource TestCell}"/>
             </Grid>
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding Source={StaticResource BoltsByPcb}}">
@@ -145,13 +141,13 @@
                     </ItemsControl.GroupStyle>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type ui:BoltTestRow}">
-                            <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="0,2">
                                 <StackPanel>
                                     <Grid MinHeight="34">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="44"/><ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
-                                            <ColumnDefinition Width="90"/><ColumnDefinition Width="90"/><ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="140"/><ColumnDefinition Width="140"/><ColumnDefinition Width="100"/>
                                         </Grid.ColumnDefinitions>
                                         <CheckBox IsChecked="{Binding IsSelected}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                             AutomationProperties.Name="{Binding Label}"/>
@@ -170,8 +166,28 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Grid.Column="4" Text="{Binding Result.Torque, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}" Style="{StaticResource TestCell}"/>
-                                        <TextBlock Grid.Column="5" Text="{Binding Result.Controller.TargetTorque, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}" Style="{StaticResource TestCell}"/>
+                                        <TextBlock Grid.Column="4" Style="{StaticResource TestCell}">
+                                            <Run Text="{Binding Result.Torque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
+                                            <Run Text=" / "/>
+                                            <Run Text="{Binding Result.Controller.TargetTorque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
+                                        </TextBlock>
+                                        <StackPanel Grid.Column="5" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Result.TotalTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource TestCell}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Ok}"><Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/></DataTrigger>
+                                                            <DataTrigger Binding="{Binding Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Ng}"><Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/></DataTrigger>
+                                                            <DataTrigger Binding="{Binding Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Pending}"><Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/></DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Style="{StaticResource TestCell}" FontSize="11" Foreground="{StaticResource TextMutedBrush}">
+                                                <Run Text="{ui:Text 'Minimum '}"/>
+                                                <Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
+                                            </TextBlock>
+                                        </StackPanel>
                                         <TextBlock Grid.Column="6" Text="{Binding Result.Controller.FasteningTimeMilliseconds, TargetNullValue=—, FallbackValue=—}" Style="{StaticResource TestCell}"/>
                                     </Grid>
                                     <TextBlock Text="{Binding Result.Error}" Foreground="{StaticResource AccentRedBrush}"

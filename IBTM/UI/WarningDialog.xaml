@@ -19,10 +19,8 @@
                     <Path Data="M 24,16 L 24,29 M 24,35 L 24,36" Stroke="{StaticResource AppBgBrush}"
                         StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                 </Grid>
-                <StackPanel Grid.Column="1">
-                    <TextBlock Text="{ui:Text 'WARNING'}" Foreground="{StaticResource AccentAmberBrush}" FontSize="12" FontWeight="Bold"/>
-                    <TextBlock Text="{Binding Heading}" FontSize="23" FontWeight="SemiBold" Margin="0,5,0,0" TextWrapping="Wrap"/>
-                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding Heading}" FontSize="20" FontWeight="SemiBold"
+                    VerticalAlignment="Center" TextWrapping="Wrap"/>
             </Grid>
             <TextBlock Text="{Binding Message}" FontSize="14" LineHeight="22" TextWrapping="Wrap" Margin="0,0,0,18"/>
             <Border Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}"
