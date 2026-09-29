@@ -268,8 +268,14 @@ internal sealed class AdcControllerStub : IAdcBus, IDisposable
         return Task.FromResult(received);
     }
 
-    private ushort[] ResultRegisters => [
-        (ushort)StartWrites, 250, ResultPreset ?? CurrentPreset, 100, 100, 1000, 0, 0, 0, (ushort)StartWrites, ResultError,
-        (ushort)(ResultDirection ?? CurrentDirection), (ushort)(StartWrites == 0 ? AdcEventStatus.None : ResultStatus), 0,
-    ];
+    private ushort[] ResultRegisters
+    {
+        get
+        {
+            return [
+                (ushort)StartWrites, 250, ResultPreset ?? CurrentPreset, 100, 100, 1000, 0, 0, 0, (ushort)StartWrites, ResultError,
+                (ushort)(ResultDirection ?? CurrentDirection), (ushort)(StartWrites == 0 ? AdcEventStatus.None : ResultStatus), 0,
+            ];
+        }
+    }
 }

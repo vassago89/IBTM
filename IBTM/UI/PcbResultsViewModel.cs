@@ -47,10 +47,19 @@ public partial class PcbResultsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? ImageError { get; private set; }
 
-    public IReadOnlyList<PcbBoltPresenceView> PresenceResults => Record is { } record
-        ? record.BoltPresenceResults.Select(pair => new PcbBoltPresenceView(
-            pair.Key, record.GetBoltOrdinal(pair.Key), pair.Value, record.BoltNames?.GetValueOrDefault(pair.Key)))
-            .OrderBy(row => row.Ordinal).ToArray() : [];
+    public IReadOnlyList<PcbBoltPresenceView> PresenceResults
+    {
+        get
+        {
+            if (Record is not { } record)
+                return [];
+            return record.BoltPresenceResults
+                .Select(pair => new PcbBoltPresenceView(
+                    pair.Key, record.GetBoltOrdinal(pair.Key), pair.Value, record.BoltNames?.GetValueOrDefault(pair.Key)))
+                .OrderBy(row => row.Ordinal)
+                .ToArray();
+        }
+    }
 
     partial void OnRecordChanged(PcbRecord? oldValue, PcbRecord? newValue)
     {
@@ -142,19 +151,53 @@ public sealed record PcbBoltResultView(
     public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => Result.Source == BoltResultSource.DryRun ? UiText.Get("DRY RUN") : Result.Success ? "OK" : "NG";
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
-    public string TurnsVerdict => Result.TurnsResult switch
+    public string TurnsVerdict
     {
-        AssemblyResult.Ok => "OK",
-        AssemblyResult.Ng => "NG",
-        AssemblyResult.Pending => UiText.Get("No data"),
-        _ => UiText.Get("Not set"),
-    };
-    public string? ControllerStatus => Result.Controller is { } data
-        ? $"{UiText.Get((AdcEventStatus)data.StatusCode)} ({data.StatusCode})" : null;
-    public string? Direction => Result.Controller is { } data
-        ? $"{UiText.Get((AdcDirection)data.DirectionCode)} ({data.DirectionCode})" : null;
-    public string? ControllerErrorDescription => Result.Controller is { } data
-        ? AdcControllerError.Describe(data.ErrorCode) : null;
-    public string RegisterText => Result.Controller?.Registers is { } registers
-        ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}")) : UiText.Get("Not recorded");
+        get
+        {
+            switch (Result.TurnsResult)
+            {
+                case AssemblyResult.Ok:
+                    return "OK";
+                case AssemblyResult.Ng:
+                    return "NG";
+                case AssemblyResult.Pending:
+                    return UiText.Get("No data");
+                default:
+                    return UiText.Get("Not set");
+            }
+        }
+    }
+    public string? ControllerStatus
+    {
+        get
+        {
+            return Result.Controller is { } data
+                ? $"{UiText.Get((AdcEventStatus)data.StatusCode)} ({data.StatusCode})" : null;
+        }
+    }
+    public string? Direction
+    {
+        get
+        {
+            return Result.Controller is { } data
+                ? $"{UiText.Get((AdcDirection)data.DirectionCode)} ({data.DirectionCode})" : null;
+        }
+    }
+    public string? ControllerErrorDescription
+    {
+        get
+        {
+            return Result.Controller is { } data
+                ? AdcControllerError.Describe(data.ErrorCode) : null;
+        }
+    }
+    public string RegisterText
+    {
+        get
+        {
+            return Result.Controller?.Registers is { } registers
+                ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}")) : UiText.Get("Not recorded");
+        }
+    }
 }

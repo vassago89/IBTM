@@ -204,21 +204,9 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public BoltPoint? InspectionActiveBolt
-    {
-        get
-        {
-            return InspectionStateVisible ? Inspection.ActiveBolt : null;
-        }
-    }
+    public BoltPoint? InspectionActiveBolt => InspectionStateVisible ? Inspection.ActiveBolt : null;
 
-    public HeatSinkSlot? InspectionActivePcb
-    {
-        get
-        {
-            return InspectionStateVisible ? Inspection.ActivePcb : null;
-        }
-    }
+    public HeatSinkSlot? InspectionActivePcb => InspectionStateVisible ? Inspection.ActivePcb : null;
 
     public string? InspectionActiveBarcode => InspectionActivePcb is { } pcb ? InspectionBarcode(pcb) : null;
 
@@ -226,11 +214,23 @@ public partial class OperationViewModel : ObservableObject
 
     public string? InspectionPcb2Barcode => InspectionBarcode(HeatSinkSlot.HeatSink2);
 
-    public int? BoltFasteningActiveOrdinal => BoltFasteningActiveBolt is { } bolt
-        ? _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
+    public int? BoltFasteningActiveOrdinal
+    {
+        get
+        {
+            return BoltFasteningActiveBolt is { } bolt
+                ? _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
+        }
+    }
 
-    public int? InspectionActiveOrdinal => InspectionActiveBolt is { } bolt
-        ? _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
+    public int? InspectionActiveOrdinal
+    {
+        get
+        {
+            return InspectionActiveBolt is { } bolt
+                ? _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
+        }
+    }
 
     public IReadOnlyList<BoltDiagramMarker> BoltTargets
     {

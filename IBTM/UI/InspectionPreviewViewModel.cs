@@ -33,15 +33,33 @@ public partial class InspectionPreviewViewModel : ObservableObject
 
     public bool HasImage => _frame is not null;
 
-    public Rect? Region => _sourceRegion is { } region
-        ? new Rect(region.X, region.Y, region.Width, region.Height)
-        : null;
+    public Rect? Region
+    {
+        get
+        {
+            return _sourceRegion is { } region
+                ? new Rect(region.X, region.Y, region.Width, region.Height)
+                : null;
+        }
+    }
 
-    public string BinaryDescription => _dataMatrixHeatSink is null
-        ? _bolt is null ? UiText.Get("Binary ROI · no inspection target") : UiText.Format($"Binary ROI · threshold {BrightnessThreshold}")
-        : DataMatrixThreshold is { } threshold ? UiText.Format($"Binary ROI · threshold {threshold}")
-        : HasImage && Overlay is null ? UiText.Get("Automatic binary unavailable · set a threshold")
-        : UiText.Get("Binary ROI · automatic");
+    public string BinaryDescription
+    {
+        get
+        {
+            if (_dataMatrixHeatSink is null)
+            {
+                return _bolt is null
+                    ? UiText.Get("Binary ROI · no inspection target")
+                    : UiText.Format($"Binary ROI · threshold {BrightnessThreshold}");
+            }
+            if (DataMatrixThreshold is { } threshold)
+                return UiText.Format($"Binary ROI · threshold {threshold}");
+            if (HasImage && Overlay is null)
+                return UiText.Get("Automatic binary unavailable · set a threshold");
+            return UiText.Get("Binary ROI · automatic");
+        }
+    }
 
     public int? DataMatrixThreshold
     {

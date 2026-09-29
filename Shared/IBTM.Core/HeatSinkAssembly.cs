@@ -63,10 +63,17 @@ public sealed class HeatSinkAssembly
         }
     }
 
-    public AssemblyResult Result => FasteningResult == AssemblyResult.Ng || TurnsResult == AssemblyResult.Ng
-        ? AssemblyResult.Ng
-        : TurnsResult == AssemblyResult.Pending && InspectionResult == AssemblyResult.Ok
-            ? AssemblyResult.Pending : InspectionResult;
+    public AssemblyResult Result
+    {
+        get
+        {
+            if (FasteningResult == AssemblyResult.Ng || TurnsResult == AssemblyResult.Ng)
+                return AssemblyResult.Ng;
+            if (TurnsResult == AssemblyResult.Pending && InspectionResult == AssemblyResult.Ok)
+                return AssemblyResult.Pending;
+            return InspectionResult;
+        }
+    }
 
     public void RecordBolt(FasteningHead head, Guid boltId, BoltResult result)
     {

@@ -1042,9 +1042,15 @@ public partial class TeachingViewModel : ObservableObject
         CancelTeaching();
     }
 
-    private bool IsMoveToHorizontalZAllowed => IsJogAllowed(MotionAxis.Z)
-        && (ActiveMotionGroup != MotionGroup.PcbPlacementHandler
-            || _pcbPlacement.Lift == StationCylinderState.Up);
+    private bool IsMoveToHorizontalZAllowed
+    {
+        get
+        {
+            return IsJogAllowed(MotionAxis.Z)
+                && (ActiveMotionGroup != MotionGroup.PcbPlacementHandler
+                    || _pcbPlacement.Lift == StationCylinderState.Up);
+        }
+    }
 
     public IAsyncRelayCommand MoveToHorizontalZCommand { get; }
 
@@ -1388,8 +1394,14 @@ public partial class TeachingViewModel : ObservableObject
         private set => SetProperty(ref field, value);
     }
 
-    public BitmapSource? CameraImage => Inspection.IsLiveView ? LiveImage
-        : SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Image;
+    public BitmapSource? CameraImage
+    {
+        get
+        {
+            return Inspection.IsLiveView ? LiveImage
+                : SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Image;
+        }
+    }
 
     public IAsyncRelayCommand GrabCommand { get; }
 
@@ -1399,8 +1411,14 @@ public partial class TeachingViewModel : ObservableObject
             await CaptureTeachingImageAsync(recordPosition: false, cancellationToken);
     }
 
-    private bool IsGrabAllowed => IsRecordImagePositionAllowed && SelectedPoint?.Position.HasPosition == true
-        && SelectedPoint.Inspection?.FindImage(CarrierImages) is not null;
+    private bool IsGrabAllowed
+    {
+        get
+        {
+            return IsRecordImagePositionAllowed && SelectedPoint?.Position.HasPosition == true
+                && SelectedPoint.Inspection?.FindImage(CarrierImages) is not null;
+        }
+    }
 
     public IAsyncRelayCommand ApplyLightCommand { get; }
 
@@ -1457,8 +1475,14 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsToggleLiveViewAllowed => Inspection.IsLiveView
-        || IsInspectionSelected && State.ManualMode && !TeachCurrentPositionCommand.IsRunning && !GrabCommand.IsRunning;
+    private bool IsToggleLiveViewAllowed
+    {
+        get
+        {
+            return Inspection.IsLiveView
+                || IsInspectionSelected && State.ManualMode && !TeachCurrentPositionCommand.IsRunning && !GrabCommand.IsRunning;
+        }
+    }
 
     private async Task CaptureTeachingImageAsync(bool recordPosition, CancellationToken cancellationToken)
     {

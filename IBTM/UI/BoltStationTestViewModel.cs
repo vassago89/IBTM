@@ -71,11 +71,17 @@ public partial class BoltStationTestViewModel : ObservableObject
 
     public int SelectedCount => Bolts.Count(row => row.IsSelected);
 
-    public bool IsRunAllowed => !IsClosing && State.ManualSetupEnabled
-        && _machine.IsManualMotionReady(MotionGroup.BoltFastening, live: false)
-        && _station.Station.CarrierSeated && SelectedCount > 0
-        && Bolts.Where(row => row.IsSelected).All(row => row.Bolt.IsFasteningPositionDefined
-            && _station.Station.IsHeatSinkPresent(row.Bolt.HeatSink));
+    public bool IsRunAllowed
+    {
+        get
+        {
+            return !IsClosing && State.ManualSetupEnabled
+                && _machine.IsManualMotionReady(MotionGroup.BoltFastening, live: false)
+                && _station.Station.CarrierSeated && SelectedCount > 0
+                && Bolts.Where(row => row.IsSelected).All(row => row.Bolt.IsFasteningPositionDefined
+                    && _station.Station.IsHeatSinkPresent(row.Bolt.HeatSink));
+        }
+    }
 
     public string Readiness
     {

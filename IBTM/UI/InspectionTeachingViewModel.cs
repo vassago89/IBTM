@@ -92,8 +92,14 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public bool IsBusy => _commands.Any(command => command.IsRunning);
     public bool IsIdle => !IsBusy;
     public bool IsDataMatrixSelected => SelectedPoint?.IsDataMatrix == true;
-    public DataMatrixInspectionRecipe? DataMatrix => IsDataMatrixSelected
-        ? Draft.BoltInspection.GetDataMatrix(SelectedPoint!.HeatSink) : null;
+    public DataMatrixInspectionRecipe? DataMatrix
+    {
+        get
+        {
+            return IsDataMatrixSelected
+                ? Draft.BoltInspection.GetDataMatrix(SelectedPoint!.HeatSink) : null;
+        }
+    }
 
     public void Activate()
     {

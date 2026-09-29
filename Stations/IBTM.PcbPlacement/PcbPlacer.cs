@@ -48,10 +48,16 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         StepChanged += NotifyChanged;
     }
 
-    public HeatSinkSlot? ReturningPcb => _units.PcbPlacement && IsRunning && _repeatTrip is { } trip
-        && Phase is PcbPlacementState.ReturningToSupply or PcbPlacementState.WaitingForSupplyReceipt
-            or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
-        ? trip.HeatSink : null;
+    public HeatSinkSlot? ReturningPcb
+    {
+        get
+        {
+            return _units.PcbPlacement && IsRunning && _repeatTrip is { } trip
+                && Phase is PcbPlacementState.ReturningToSupply or PcbPlacementState.WaitingForSupplyReceipt
+                    or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
+                ? trip.HeatSink : null;
+        }
+    }
 
     private sealed record RepeatPcbTrip(ConveyorStation.Job Job, HeatSinkSlot HeatSink);
 

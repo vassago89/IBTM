@@ -34,14 +34,28 @@ public sealed record BoltResult(
     public double? MinimumTurns { get; init; }
 
     [JsonIgnore]
-    public double? TotalTurns => Source == BoltResultSource.Controller
-        && Controller is { Angle3: >= 0 } data && double.IsFinite(data.Angle3)
-        ? data.Angle3 / 360.0 : null;
+    public double? TotalTurns
+    {
+        get
+        {
+            return Source == BoltResultSource.Controller
+                && Controller is { Angle3: >= 0 } data && double.IsFinite(data.Angle3)
+                ? data.Angle3 / 360.0 : null;
+        }
+    }
 
     [JsonIgnore]
-    public AssemblyResult? TurnsResult => MinimumTurns is not { } minimum ? null
-        : TotalTurns is not { } turns ? AssemblyResult.Pending
-        : turns >= minimum ? AssemblyResult.Ok : AssemblyResult.Ng;
+    public AssemblyResult? TurnsResult
+    {
+        get
+        {
+            if (MinimumTurns is not { } minimum)
+                return null;
+            if (TotalTurns is not { } turns)
+                return AssemblyResult.Pending;
+            return turns >= minimum ? AssemblyResult.Ok : AssemblyResult.Ng;
+        }
+    }
 }
 
 // The complete ADC result payload. Codes and original registers are retained as received.

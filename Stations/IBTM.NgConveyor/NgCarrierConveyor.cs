@@ -55,18 +55,30 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         }
     }
 
-    public int CarrierCount => (_io.GetInput(InputIo.NgConveyorPosition1Occupied) ? 1 : 0)
-        + (_io.GetInput(InputIo.NgConveyorPosition2Occupied) ? 1 : 0)
-        + (_io.GetInput(InputIo.NgShuttleCarrierDetected) ? 1 : 0);
+    public int CarrierCount
+    {
+        get
+        {
+            return (_io.GetInput(InputIo.NgConveyorPosition1Occupied) ? 1 : 0)
+                + (_io.GetInput(InputIo.NgConveyorPosition2Occupied) ? 1 : 0)
+                + (_io.GetInput(InputIo.NgShuttleCarrierDetected) ? 1 : 0);
+        }
+    }
 
     public bool AlarmRequired => CarrierCount >= _settings.AlarmCarrierCount;
 
     public bool Full => CarrierCount == 3;
 
     // Pending ownership is cleared by the release operation, never by presence DI.
-    private bool IsTransferClear => _transfer?.IsClear == true
-        && _io.GetInput(InputIo.NgCarrierGripperOpen)
-        && !_io.GetInput(InputIo.NgCarrierGripperClosed);
+    private bool IsTransferClear
+    {
+        get
+        {
+            return _transfer?.IsClear == true
+                && _io.GetInput(InputIo.NgCarrierGripperOpen)
+                && !_io.GetInput(InputIo.NgCarrierGripperClosed);
+        }
+    }
 
     public bool IsReceiveAllowed
     {
@@ -79,9 +91,15 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         }
     }
 
-    private bool NeedsCompaction => _movement == Movement.Compacting
-        || !_io.GetInput(InputIo.NgConveyorPosition1Occupied)
-            && _io.GetInput(InputIo.NgConveyorPosition2Occupied);
+    private bool NeedsCompaction
+    {
+        get
+        {
+            return _movement == Movement.Compacting
+                || !_io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                    && _io.GetInput(InputIo.NgConveyorPosition2Occupied);
+        }
+    }
 
     private bool IsCarrierPositionUnknown
     {

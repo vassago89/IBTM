@@ -40,22 +40,43 @@ public class TeachingPoint : ObservableObject
 
     public TeachingPosition Position => _definition with { HasPosition = Coordinates is not null };
 
-    public TeachingStorage Storage => _definition.Target is TeachingTarget.SupplyHandoff or TeachingTarget.PlacementHandoff
-        ? TeachingStorage.Handoff : Setting is null ? TeachingStorage.Recipe : TeachingStorage.Machine;
-
-    public Setting? Setting => _definition.Target switch
+    public TeachingStorage Storage
     {
-        TeachingTarget.SupplyHandoff => _settings.PcbSupply,
-        TeachingTarget.PlacementHandoff or TeachingTarget.PlacementReceiveZ => _settings.PcbPlacementHandler,
-        TeachingTarget.SafeZ => _definition.MotionGroup == MotionGroup.PcbSupply
-            ? _settings.PcbSupply : _settings.BoltFastening,
-        TeachingTarget.ShootingSafeZ or TeachingTarget.BoltPickup or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
-            or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
-            or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin => _settings.BoltFastening,
-        TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin => _settings.CarrierReference,
-        TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace => _settings.NgCarrierTransfer,
-        _ => null,
-    };
+        get
+        {
+            if (_definition.Target is TeachingTarget.SupplyHandoff or TeachingTarget.PlacementHandoff)
+                return TeachingStorage.Handoff;
+            return Setting is null ? TeachingStorage.Recipe : TeachingStorage.Machine;
+        }
+    }
+
+    public Setting? Setting
+    {
+        get
+        {
+            switch (_definition.Target)
+            {
+                case TeachingTarget.SupplyHandoff:
+                    return _settings.PcbSupply;
+                case TeachingTarget.PlacementHandoff or TeachingTarget.PlacementReceiveZ:
+                    return _settings.PcbPlacementHandler;
+                case TeachingTarget.SafeZ:
+                    return _definition.MotionGroup == MotionGroup.PcbSupply
+                        ? _settings.PcbSupply : _settings.BoltFastening;
+                case TeachingTarget.ShootingSafeZ or TeachingTarget.BoltPickup
+                    or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
+                    or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
+                    or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin:
+                    return _settings.BoltFastening;
+                case TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin:
+                    return _settings.CarrierReference;
+                case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
+                    return _settings.NgCarrierTransfer;
+                default:
+                    return null;
+            }
+        }
+    }
 
     public AxisPosition? Coordinates
     {

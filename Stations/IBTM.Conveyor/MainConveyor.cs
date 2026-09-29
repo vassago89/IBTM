@@ -48,10 +48,16 @@ public sealed partial class MainConveyor : AutoUnit
 
     private bool IsNgTransferRequired => _units.Inspection && _inspection.RouteToNg;
 
-    private bool IsRearDischargeAllowed => !_repeat
-        && !IsNgTransferRequired
-        && _inspection.IsTransferAllowed
-        && _inspection.IsTransferAtWaitingPosition;
+    private bool IsRearDischargeAllowed
+    {
+        get
+        {
+            return !_repeat
+                && !IsNgTransferRequired
+                && _inspection.IsTransferAllowed
+                && _inspection.IsTransferAtWaitingPosition;
+        }
+    }
 
     public bool UpstreamCarrierAvailable
     {

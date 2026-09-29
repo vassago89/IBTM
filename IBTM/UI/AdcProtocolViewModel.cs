@@ -65,9 +65,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     public partial string SelectedLogText { get; set; } = "";
 
     [ObservableProperty]
-    public partial string ConnectionStatus { get; set; } = UiText.Get("Disconnected");
+    public partial string ConnectionStatus { get; set; }
     [ObservableProperty]
-    public partial string ResultMessage { get; set; } = UiText.Get("No result read");
+    public partial string ResultMessage { get; set; }
     [ObservableProperty]
     public partial string RegisterResult { get; set; } = "-";
     [ObservableProperty]
@@ -138,6 +138,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         _state = state;
         _log = log;
         _headLog = headLog;
+        ConnectionStatus = UiText.Get("Disconnected");
+        ResultMessage = UiText.Get("No result read");
         BindingOperations.EnableCollectionSynchronization(_frameLog, _frameLogGate);
         _frameLogView = new ListCollectionView(_frameLog);
         ((INotifyCollectionChanged)_frameLogView).CollectionChanged += OnFrameLogChanged;
@@ -173,8 +175,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     public bool PortSelectionEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && !Bus.IsOpen;
 
-    public bool SlaveSelectionEnabled => ConnectionControlsEnabled && !Bus.IsOpen
-        && _machine.IsUseAdcProtocolAllowed;
+    public bool SlaveSelectionEnabled => ConnectionControlsEnabled && !Bus.IsOpen && _machine.IsUseAdcProtocolAllowed;
 
     public bool ProtocolEnabled => ConnectionControlsEnabled && _machine.IsUseAdcProtocolAllowed && Bus.IsOpen;
 

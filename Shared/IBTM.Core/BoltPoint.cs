@@ -52,15 +52,27 @@ public sealed class BoltPoint
     public double? Y { get; set; }
 
     [JsonIgnore]
-    public AxisPosition? InspectionPosition => X is { } x && Y is { } y
-        && double.IsFinite(x) && double.IsFinite(y) ? new() { X = x, Y = y } : null;
+    public AxisPosition? InspectionPosition
+    {
+        get
+        {
+            return X is { } x && Y is { } y
+                && double.IsFinite(x) && double.IsFinite(y) ? new() { X = x, Y = y } : null;
+        }
+    }
 
     // Seeded from inspection once, then taught independently at the fastening station.
     public double? FasteningX { get; set; }
     public double? FasteningY { get; set; }
     [JsonIgnore]
-    public bool IsFasteningPositionDefined => FasteningX is { } x && double.IsFinite(x)
-        && FasteningY is { } y && double.IsFinite(y);
+    public bool IsFasteningPositionDefined
+    {
+        get
+        {
+            return FasteningX is { } x && double.IsFinite(x)
+                && FasteningY is { } y && double.IsFinite(y);
+        }
+    }
 
     public double FasteningZOffset
     {

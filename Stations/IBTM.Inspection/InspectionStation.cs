@@ -156,8 +156,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
     }
 
-    public bool IsRaised => _io.GetInput(InputIo.NgCarrierPickupUp)
-        && !_io.GetInput(InputIo.NgCarrierPickupDown);
+    public bool IsRaised => _io.GetInput(InputIo.NgCarrierPickupUp) && !_io.GetInput(InputIo.NgCarrierPickupDown);
 
     public bool IsClear => IsRaised && !IsTransferPending;
 
@@ -202,8 +201,14 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         }
     }
 
-    internal bool IsWaitingForConveyor => Station.CarrierPresent && !Station.Completed
-        && _units.MainConveyor && !InspectionRequested;
+    internal bool IsWaitingForConveyor
+    {
+        get
+        {
+            return Station.CarrierPresent && !Station.Completed
+                && _units.MainConveyor && !InspectionRequested;
+        }
+    }
 
     private bool IsReadyToInspect
     {
