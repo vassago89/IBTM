@@ -7,7 +7,7 @@ using IBTM.PcbSupply;
 using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -212,7 +212,7 @@ public sealed class PcbSupplyHandoffTests
         rig.Motion.SetServo(MotionAxis.X, false);
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
         rig.Motion.SetServo(MotionAxis.X, true);
-        Assert.True(MotionService.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
 
         await rig.Supplier.PrepareHandoffAsync(CancellationToken.None);
@@ -234,7 +234,7 @@ public sealed class PcbSupplyHandoffTests
         await rig.Motion.MoveToXYAsync(target.X, target.Y, rig.Settings.Motion.HorizontalSpeed);
         await rig.Motion.MoveAxisAsync(MotionAxis.Z, target.Z, rig.Settings.Motion.ZSpeed);
 
-        Assert.True(MotionService.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
         Assert.True(rig.Supplier.PcbSecured);
         Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.Phase);
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
@@ -289,7 +289,7 @@ public sealed class PcbSupplyHandoffTests
 
         Assert.False(commanded);
         Assert.True(rig.Supplier.PcbSecured);
-        Assert.True(MotionService.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public sealed class PcbSupplyHandoffTests
 
         Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
-        Assert.True(MotionService.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
     }
 
     [Theory]
@@ -378,7 +378,7 @@ public sealed class PcbSupplyHandoffTests
                 rig.Io.SetInputs((InputIo.PcbSupplyRotated, false), (InputIo.PcbSupplyUnrotated, true));
                 Assert.True(await WaitUntilAsync(
                     () => rig.Supplier.Handoff == PcbSupplyHandoff.Released, TimeSpan.FromSeconds(1)));
-                Assert.True(MotionService.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+                Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
             }
             else
             {
@@ -414,7 +414,7 @@ public sealed class PcbSupplyHandoffTests
             () => rig.Supplier.RunAsync(rig.Placement, timeout.Token, repeat: true));
 
         Assert.False(commanded);
-        Assert.True(MotionService.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
     }
 
     private sealed class HandoffRig : IDisposable
@@ -434,8 +434,8 @@ public sealed class PcbSupplyHandoffTests
             IMotionFeedback feedback = Motion;
             if (probeFeedback)
             {
-                feedback = System.Reflection.DispatchProxy.Create<IXyMotion, MachineTest.ScopedMotionProbe>();
-                FeedbackProbe = (MachineTest.ScopedMotionProbe)feedback;
+                feedback = System.Reflection.DispatchProxy.Create<IXyMotion, MachineTestSupport.ScopedMotionProbe>();
+                FeedbackProbe = (MachineTestSupport.ScopedMotionProbe)feedback;
                 FeedbackProbe.Motion = Motion;
                 FeedbackProbe.ReportReady = true;
             }
@@ -454,7 +454,7 @@ public sealed class PcbSupplyHandoffTests
         public VirtualIoService Io { get; }
         public VirtualMotionService Motion { get; }
         public PcbSupplier Supplier { get; }
-        public MachineTest.ScopedMotionProbe? FeedbackProbe { get; }
+        public MachineTestSupport.ScopedMotionProbe? FeedbackProbe { get; }
         public PlacementFeedback Placement { get; }
 
         public async Task InitializeAsync()

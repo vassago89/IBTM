@@ -417,7 +417,7 @@ button; operator confirmation has no automatic timeout.
 
 ## UI rules
 
-- `MachinePlan` owns shared workpiece dimensions and Station 3 layout metrics.
+- `MachineDiagramLayout` owns shared workpiece dimensions and Station 3 layout metrics.
   Tool centres are calculated from carrier size and camera spacing, not duplicated
   coordinate literals in the view model. The picker/camera use stacked layout;
   NG carriers and their labels share the same Grid rows.
@@ -441,8 +441,8 @@ button; operator confirmation has no automatic timeout.
   show text beside the NG conveyor only for an active move, full condition, or
   required eject action.
 - `OperationView` composes the plan in physical drawing order: lower NG conveyor,
-  main conveyor and backup plates, then moving handlers. `NgConveyorView` is
-  separate from `InspectionView` so the lower conveyor cannot obscure the main
+  main conveyor and backup plates, then moving handlers. `NgConveyorDiagram` is
+  separate from `InspectionStationDiagram` so the lower conveyor cannot obscure the main
   lane while the shared inspection camera and NG gripper remain above both.
 - NG position labels and eject instructions stay outside carrier footprints.
 - Shared PCB and carrier XAML resources define their display size. Fixed-size

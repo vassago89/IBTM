@@ -11,7 +11,7 @@ using IBTM.PcbSupply;
 using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -192,7 +192,7 @@ public sealed class PcbPlacementRepeatTests
             if (output != OutputIo.PcbPlacementHandlerDown || !on)
                 return;
             var position = rig.Recipe.HeatSink1PcbPlacementPosition;
-            descendedAtPickup = MotionService.IsAt(rig.Placer.Motion.Feedback, position);
+            descendedAtPickup = MotionServiceBase.IsAt(rig.Placer.Motion.Feedback, position);
             stop.Cancel();
         };
         await rig.Placer.RunAsync(stop.Token, repeat: true);
@@ -514,7 +514,7 @@ public sealed class PcbPlacementRepeatTests
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
         Assert.False(rig.Io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
-        Assert.True(MotionService.IsSettled(rig.Placer.Motion.Feedback, MotionAxis.X, MotionAxis.Y));
+        Assert.True(MotionServiceBase.IsSettled(rig.Placer.Motion.Feedback, MotionAxis.X, MotionAxis.Y));
         var position = rig.Placer.Motion.Feedback.Position;
         Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.X, position.X);
         Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.Y, position.Y);

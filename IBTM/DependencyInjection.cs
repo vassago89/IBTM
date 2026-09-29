@@ -330,9 +330,9 @@ public static class DependencyInjection
         services
             .AddSingleton<MachineFeedbackMonitor>()
             .AddSingleton<MachineState>()
-            .AddSingleton<PcbHistory>()
-            .AddSingleton<InspectionImages>()
-            .AddSingleton<PcbDetailsViewModel>()
+            .AddSingleton<PcbHistoryWriter>()
+            .AddSingleton<InspectionImageLoader>()
+            .AddSingleton<PcbResultsViewModel>()
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(
                     group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group)))
@@ -372,16 +372,16 @@ public static class DependencyInjection
             });
 
         services
-            .AddSingleton<RecipeEditor>()
-            .AddSingleton<MachineMap>()
+            .AddSingleton<RecipeEditorViewModel>()
+            .AddSingleton<MachineDiagramMapper>()
             .AddSingleton<OperationViewModel>()
             .AddSingleton<BoltStationTestViewModel>()
             .AddSingleton<SettingsViewModel>()
             .AddSingleton<ManualHardwareViewModel>()
-            .AddSingleton<MotionWindowViewModel>()
+            .AddSingleton<MotionDiagnosticsViewModel>()
             .AddSingleton<TeachingViewModel>()
             .AddSingleton<InspectionTeachingViewModel>()
-            .AddSingleton<DiagnosticWindows>()
+            .AddSingleton<DiagnosticWindowManager>()
             .AddSingleton<MainViewModel>()
             .AddSingleton<MainWindow>();
 

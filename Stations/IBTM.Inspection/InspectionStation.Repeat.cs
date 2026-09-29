@@ -17,7 +17,7 @@ public sealed partial class InspectionStation
         {
             while (Step is not InspectionStationState.HoldingAtDestination
                 || !IsTransferPending || !IsRaised || Gripper != NgTransferGripperState.Closed
-                || _settings.ShuttlePlacePosition is not { } position || !MotionService.IsAt(_motion, position))
+                || _settings.ShuttlePlacePosition is not { } position || !MotionServiceBase.IsAt(_motion, position))
                 await changed.WaitAsync(cancellationToken);
         }
         finally
@@ -44,7 +44,7 @@ public sealed partial class InspectionStation
             || !IsRaised)
             throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the waiting position.");
 
-        if (!MotionService.IsAt(_motion, waitingPosition))
+        if (!MotionServiceBase.IsAt(_motion, waitingPosition))
             await MoveToAsync(waitingPosition, cancellationToken: cancellationToken);
     }
 }

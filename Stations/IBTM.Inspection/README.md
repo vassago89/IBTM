@@ -12,7 +12,7 @@
 `NgCarrierConveyor.cs`는 셔틀·벨트 순서와 장치 동작을, `NgCarrierConveyor.Repeat.cs`는 반복 역송을 처리한다.
 빈 셔틀이 내려가 있으면 인계 해제와 픽업 상승·그리퍼 열림을 확인한 뒤 상승시켜 다음 캐리어를 받는다.
 
-볼트 검사는 `BinaryChecker.Check`에서 저장된 사각형 ROI를 원본 크기로 처리한다.
+볼트 검사는 `BinaryRegionAnalyzer.Check`에서 저장된 사각형 ROI를 원본 크기로 처리한다.
 
 1. BGR 픽셀을 밝기 `(299R + 587G + 114B + 500) / 1000`으로 변환한다.
 2. 밝기가 `BrightnessThreshold` 이상이면 흰색, 미만이면 검은색으로 만든다.

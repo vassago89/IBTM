@@ -22,10 +22,10 @@ public partial class InspectionTeachingViewModel : ObservableObject
     private readonly RecipeManager _recipes;
     private readonly ILogger<InspectionTeachingViewModel> _log;
     private readonly IAsyncRelayCommand[] _commands;
-    private readonly InspectionImages _images;
-    private IReadOnlyList<CarrierImageTileView> _carrierImages;
+    private readonly InspectionImageLoader _images;
+    private IReadOnlyList<RecipeImageItem> _carrierImages;
 
-    public InspectionTeachingViewModel(MachineStore store, RecipeManager recipes, InspectionImages images,
+    public InspectionTeachingViewModel(MachineStore store, RecipeManager recipes, InspectionImageLoader images,
         PcbHistorySettings history, ILogger<InspectionTeachingViewModel> log)
     {
         _store = store;
@@ -58,7 +58,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     }
 
     public Recipe Draft { get; }
-    public InspectionPreview Preview { get; }
+    public InspectionPreviewViewModel Preview { get; }
     public ObservableCollection<PcbRecord> Records { get; }
     public IAsyncRelayCommand LoadRecipeCommand { get; }
     public IAsyncRelayCommand RefreshRecipesCommand { get; }
@@ -85,10 +85,10 @@ public partial class InspectionTeachingViewModel : ObservableObject
     [ObservableProperty] public partial bool HasOlder { get; private set; } = true;
     [ObservableProperty] public partial PcbRecord? SelectedRecord { get; set; }
     [ObservableProperty] public partial PcbRecord? LoadedRecord { get; private set; }
-    [ObservableProperty] public partial IReadOnlyList<PcbInspectionImageView> HistoryImages { get; private set; }
+    [ObservableProperty] public partial IReadOnlyList<PcbInspectionImageItem> HistoryImages { get; private set; }
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UseHistoryImageCommand))]
-    public partial PcbInspectionImageView? SelectedHistoryImage { get; set; }
+    public partial PcbInspectionImageItem? SelectedHistoryImage { get; set; }
 
     public bool IsBusy => _commands.Any(command => command.IsRunning);
     public bool IsIdle => !IsBusy;

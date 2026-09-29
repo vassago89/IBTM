@@ -11,7 +11,7 @@ using IBTM.NgConveyor;
 using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -70,7 +70,7 @@ public sealed class InspectionTests
         var io = new VirtualIoService(Outputs(new NgCarrierTransferHardwareSettings(), new ConveyorHardwareSettings()), new());
         io.Initialize();
         var recipes = new RecipeManager(OpenMachineStore(), new());
-        recipes.Current.Pcb.BoltPoints = [new() { Id = VirtualTest.BoltId(1), X = 0, Y = 0 }];
+        recipes.Current.Pcb.BoltPoints = [new() { Id = VirtualTestSupport.BoltId(1), X = 0, Y = 0 }];
         recipes.Current.CarrierImages = [new() { Number = 1, IsBarcode = true, Center = new(), Region = new(0, 0, 20, 20) }];
         var settings = new InspectionGantrySettings();
         var transfer = new NgCarrierTransferSettings { WaitingPosition = new(), CarrierPickupPosition = new() };
@@ -117,14 +117,14 @@ public sealed class InspectionTests
         io.Initialize();
         var recipes = new RecipeManager(OpenMachineStore(), new());
         recipes.Current.Pcb.BoltPoints = [
-            new() { Id = VirtualTest.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 0, Y = 0 },
-            new() { Id = VirtualTest.BoltId(2), HeatSink = HeatSinkSlot.HeatSink2, X = 0, Y = 0 },
+            new() { Id = VirtualTestSupport.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 0, Y = 0 },
+            new() { Id = VirtualTestSupport.BoltId(2), HeatSink = HeatSinkSlot.HeatSink2, X = 0, Y = 0 },
         ];
         recipes.Current.CarrierImages = [
             new() { Number = 1, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
-            new() { Number = 2, BoltId = VirtualTest.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
+            new() { Number = 2, BoltId = VirtualTestSupport.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
             new() { Number = 3, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
-            new() { Number = 4, BoltId = VirtualTest.BoltId(2), HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
+            new() { Number = 4, BoltId = VirtualTestSupport.BoltId(2), HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
         ];
         var settings = new InspectionGantrySettings();
         var transfer = new NgCarrierTransferSettings
@@ -167,7 +167,7 @@ public sealed class InspectionTests
                 return;
             var bolt = station.ActiveBolt?.Id;
             visited.Add((station.ActivePcb, bolt));
-            if (interrupt && bolt == VirtualTest.BoltId(2))
+            if (interrupt && bolt == VirtualTestSupport.BoltId(2))
                 firstStop.Cancel();
         };
         work.Changed += () =>
@@ -177,8 +177,8 @@ public sealed class InspectionTests
         };
         await station.RunAsync(firstStop.Token);
         Assert.Equal(new (HeatSinkSlot?, Guid?)[] {
-            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTest.BoltId(1)),
-            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTest.BoltId(2)),
+            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTestSupport.BoltId(1)),
+            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTestSupport.BoltId(2)),
         }, visited);
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
         Assert.Empty(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
@@ -189,8 +189,8 @@ public sealed class InspectionTests
         interrupt = false;
         await station.RunAsync(secondStop.Token);
         Assert.Equal(new (HeatSinkSlot?, Guid?)[] {
-            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTest.BoltId(1)),
-            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTest.BoltId(2)),
+            (HeatSinkSlot.HeatSink1, null), (HeatSinkSlot.HeatSink1, VirtualTestSupport.BoltId(1)),
+            (HeatSinkSlot.HeatSink2, null), (HeatSinkSlot.HeatSink2, VirtualTestSupport.BoltId(2)),
         }, visited);
         Assert.True(work.Completed);
         Assert.Single(work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults);
@@ -269,10 +269,10 @@ public sealed class InspectionTests
         var store = OpenMachineStore();
         var recipes = new RecipeManager(store, new());
         recipes.Current.Name = "Teaching wait";
-        recipes.Current.Pcb.BoltPoints = [new() { Id = VirtualTest.BoltId(1), X = 0, Y = 0 }];
+        recipes.Current.Pcb.BoltPoints = [new() { Id = VirtualTestSupport.BoltId(1), X = 0, Y = 0 }];
         recipes.Current.CarrierImages = [
             new() { Number = 1, IsBarcode = true, Center = new(), Region = barcode ? null : new(0, 0, 20, 20) },
-            new() { Number = 2, BoltId = VirtualTest.BoltId(1), Center = new(), Region = barcode ? new(0, 0, 20, 20) : null },
+            new() { Number = 2, BoltId = VirtualTestSupport.BoltId(1), Center = new(), Region = barcode ? new(0, 0, 20, 20) : null },
         ];
         store.SaveRecipe(recipes.Current);
         var settings = new InspectionGantrySettings();
@@ -362,7 +362,7 @@ public sealed class InspectionTests
         Assert.All(binary.Pixels, pixel => Assert.True(pixel is 0 or 255));
         Assert.Equal("PCB-000123", DataMatrixReader.Read(binary, new(0, 0, 80, 80), new()));
         var manual = DataMatrixReader.CreateBinaryImage(padded, new(180, 40, 80, 80), threshold: 128);
-        Assert.Equal(BinaryChecker.Check(padded, new(180, 40, 80, 80), 128).Image.Pixels, manual!.Pixels);
+        Assert.Equal(BinaryRegionAnalyzer.Check(padded, new(180, 40, 80, 80), 128).Image.Pixels, manual!.Pixels);
         Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80), new()));
         Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80),
             new() { BinaryThreshold = 128, AutoRotate = true }));
@@ -376,7 +376,7 @@ public sealed class InspectionTests
     {
         var image = new ImageFrame(5, 1, 15,
             [127, 127, 127, 128, 128, 128, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
-        var result = BinaryChecker.Check(image, new(0, 0, 5, 1), 128);
+        var result = BinaryRegionAnalyzer.Check(image, new(0, 0, 5, 1), 128);
 
         Assert.Equal(0.4, result.BrightRatio);
         Assert.Equal(new byte[] { 0, 0, 0, 255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0 }, result.Image.Pixels);
@@ -395,15 +395,15 @@ public sealed class InspectionTests
                     pixels[y * 14 + x * 3 + channel] = y == 2 ? (byte)200 : (byte)20;
         var image = new ImageFrame(4, 5, 14, pixels);
 
-        var result = BinaryChecker.Check(image, region, 128);
+        var result = BinaryRegionAnalyzer.Check(image, region, 128);
 
         Assert.Equal((2, 3, 6), (result.Image.Width, result.Image.Height, result.Image.Stride));
         Assert.Equal(1.0 / 3, result.BrightRatio);
         Assert.Equal(6, result.Image.Pixels.Count(value => value == 255));
-        Assert.Throws<ArgumentOutOfRangeException>(() => BinaryChecker.Check(image, region with { X = 3 }, 128));
-        Assert.Throws<ArgumentOutOfRangeException>(() => BinaryChecker.Check(image, region, 256));
-        Assert.Throws<ArgumentException>(() => BinaryChecker.Check(image with { Stride = 11 }, region, 128));
-        Assert.Throws<ArgumentException>(() => BinaryChecker.Check(image with { Pixels = new byte[14] }, region, 128));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BinaryRegionAnalyzer.Check(image, region with { X = 3 }, 128));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BinaryRegionAnalyzer.Check(image, region, 256));
+        Assert.Throws<ArgumentException>(() => BinaryRegionAnalyzer.Check(image with { Stride = 11 }, region, 128));
+        Assert.Throws<ArgumentException>(() => BinaryRegionAnalyzer.Check(image with { Pixels = new byte[14] }, region, 128));
     }
 
     [Theory]
@@ -429,7 +429,7 @@ public sealed class InspectionTests
             Number = 1,
             Center = new() { X = 12, Y = 9 },
             Region = new(200, 30, 60, 80),
-            BoltId = VirtualTest.BoltId(1),
+            BoltId = VirtualTestSupport.BoltId(1),
             HeatSink = HeatSinkSlot.HeatSink1,
         };
         var units = new UnitSettings();
@@ -467,18 +467,18 @@ public sealed class InspectionTests
             movements = 0;
             var image = await inspector.CaptureCarrierImageAsync();
             Assert.Equal((center.X, center.Y), (image.Center.X, image.Center.Y));
-            Assert.True(MotionService.IsAt(inspector.Motion.Feedback, center));
+            Assert.True(MotionServiceBase.IsAt(inspector.Motion.Feedback, center));
             Assert.Equal(live, inspector.IsLiveView);
             Assert.Equal(0, movements);
             Assert.NotEmpty(image.Frame.Pixels);
         }
 
-        var bolt = new BoltPoint { Id = VirtualTest.BoltId(1), X = 12, Y = 9 };
+        var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1), X = 12, Y = 9 };
         recipes.Current.Pcb.BoltPoints.Add(bolt);
         var taughtPosition = fov.Center!;
         fov.Center = null;
         var capturedFov = await inspector.InspectAsync(bolt);
-        Assert.True(MotionService.IsAt(inspector.Motion.Feedback, taughtPosition)); // ROI pixels do not alter the taught camera XY.
+        Assert.True(MotionServiceBase.IsAt(inspector.Motion.Feedback, taughtPosition)); // ROI pixels do not alter the taught camera XY.
         Assert.Equal(fov.Region, capturedFov.Region);
         Assert.NotEmpty(capturedFov.Frame.Pixels);
         Assert.NotNull(bolt.InspectionPosition);
@@ -501,7 +501,7 @@ public sealed class InspectionTests
         fov.BoltId = null;
         fov.Region = new(180, 40, 80, 80);
         var barcodeResult = await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
-        Assert.True(MotionService.IsAt(inspector.Motion.Feedback, fov.Center));
+        Assert.True(MotionServiceBase.IsAt(inspector.Motion.Feedback, fov.Center));
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-000123", barcodeResult.Barcode);
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
@@ -546,10 +546,10 @@ public sealed class InspectionTests
         var recipes = new RecipeManager(OpenMachineStore(), new());
         var work = ConveyorStation.CreateInspection(io);
         BoltPoint[] bolts = [
-            new() { Id = VirtualTest.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 9 },
-            new() { Id = VirtualTest.BoltId(2), HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 21 },
-            new() { Id = VirtualTest.BoltId(3), HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 9 },
-            new() { Id = VirtualTest.BoltId(4), HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 21 },
+            new() { Id = VirtualTestSupport.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 9 },
+            new() { Id = VirtualTestSupport.BoltId(2), HeatSink = HeatSinkSlot.HeatSink1, X = 9, Y = 21 },
+            new() { Id = VirtualTestSupport.BoltId(3), HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 9 },
+            new() { Id = VirtualTestSupport.BoltId(4), HeatSink = HeatSinkSlot.HeatSink2, X = 31, Y = 21 },
         ];
         var camera = new MissingBoltCamera(
             new VirtualCamera(
@@ -604,7 +604,7 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
         io.SetInput(InputIo.InspectionStopperDown, false);
         io.SetInput(InputIo.InspectionStopperUp, true);
-        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
 
         Assert.Empty(work.Assemblies);
         Assert.Null(station.ActivePcb);
@@ -616,11 +616,11 @@ public sealed class InspectionTests
 
         await station.HomeHorizontalAsync();
         var barcodeResult = await station.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None);
-        Assert.True(MotionService.IsAt(station.Motion.Feedback, recipes.Current.GetInspectionPosition(station.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
+        Assert.True(MotionServiceBase.IsAt(station.Motion.Feedback, recipes.Current.GetInspectionPosition(station.GetBarcodeFov(HeatSinkSlot.HeatSink2))));
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-2", barcodeResult.Barcode);
         var boltResult = await station.InspectAsync(bolts[0]);
-        Assert.True(MotionService.IsAt(station.Motion.Feedback, bolts[0].InspectionPosition!));
+        Assert.True(MotionServiceBase.IsAt(station.Motion.Feedback, bolts[0].InspectionPosition!));
         Assert.NotEmpty(boltResult.Frame.Pixels);
         Assert.Empty(work.Assemblies);
 
@@ -650,32 +650,32 @@ public sealed class InspectionTests
         Assert.Equal(firstBarcode, work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
         Assert.Equal(2, work.GetAssembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Count);
         Assert.Equal(AssemblyResult.Ok, work.GetAssembly(HeatSinkSlot.HeatSink2).InspectionResult);
-        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
         Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
 
         var heatSink1 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1);
         var heatSink2 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2);
         Assert.Equal(AssemblyResult.Ng, heatSink1.InspectionResult);
-        Assert.True(heatSink1.BoltPresenceResults[VirtualTest.BoltId(1)]);
-        Assert.False(heatSink1.BoltPresenceResults[VirtualTest.BoltId(2)]);
+        Assert.True(heatSink1.BoltPresenceResults[VirtualTestSupport.BoltId(1)]);
+        Assert.False(heatSink1.BoltPresenceResults[VirtualTestSupport.BoltId(2)]);
         Assert.Equal(AssemblyResult.Ok, heatSink2.InspectionResult);
         Assert.All(heatSink2.BoltPresenceResults.Values, Assert.True);
 
-        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         Assert.False(work.CarrierPresent);
 
         HeatSinkAssembly[] interruptedAssemblies = [];
         camera.AfterCapture = () =>
         {
             interruptedAssemblies = work.Assemblies.ToArray();
-            VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-            VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+            VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+            VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
             cancellation.Cancel();
         };
-        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
-        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+        VirtualTestSupport.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         await run.WaitAsync(TimeSpan.FromSeconds(2));
 
         var interruptedAssembly = Assert.Single(interruptedAssemblies);
@@ -786,8 +786,8 @@ public sealed class InspectionTests
         {
             var image = await _camera.CaptureAsync(cancellationToken);
             var current = _position();
-            var missing = Math.Abs(current.X - _missingPosition.X) <= MotionService.PositionToleranceMillimeters
-                && Math.Abs(current.Y - _missingPosition.Y) <= MotionService.PositionToleranceMillimeters;
+            var missing = Math.Abs(current.X - _missingPosition.X) <= MotionServiceBase.PositionToleranceMillimeters
+                && Math.Abs(current.Y - _missingPosition.Y) <= MotionServiceBase.PositionToleranceMillimeters;
             var captured = missing
                 ? image with
                 {

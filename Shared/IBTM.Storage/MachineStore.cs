@@ -35,17 +35,17 @@ public sealed class SavedSettings
 
 public sealed class MachineStore
 {
-    private readonly DbContextOptions<MachineDb> _options;
+    private readonly DbContextOptions<MachineDbContext> _options;
 
     public MachineStore(string? databaseFile = null)
     {
         DatabaseFile = Path.GetFullPath(
             databaseFile ?? Path.Combine(AppContext.BaseDirectory, "Data", "Machine.db"));
         Directory.CreateDirectory(Path.GetDirectoryName(DatabaseFile)!);
-        _options = new DbContextOptionsBuilder<MachineDb>().UseSqlite(
+        _options = new DbContextOptionsBuilder<MachineDbContext>().UseSqlite(
             new SqliteConnectionStringBuilder { DataSource = DatabaseFile }.ToString())
             .Options;
-        using var db = new MachineDb(_options);
+        using var db = new MachineDbContext(_options);
         // Settings and recipes evolve inside JSON, not as database columns.
         db.Database.EnsureCreated();
         // EnsureCreated does not add tables to an existing settings/recipe database.
@@ -64,14 +64,14 @@ public sealed class MachineStore
     {
         get
         {
-            using var db = new MachineDb(_options);
+            using var db = new MachineDbContext(_options);
             return db.Settings.Any() || db.Recipes.Any();
         }
     }
 
     public SavedSettings LoadSettings()
     {
-        using var db = new MachineDb(_options);
+        using var db = new MachineDbContext(_options);
         return new(db.Settings.AsNoTracking().ToDictionary(row => row.Key, row => row.Value));
     }
 
@@ -79,7 +79,7 @@ public sealed class MachineStore
         IEnumerable<Setting> settings,
         CancellationToken cancellationToken = default)
     {
-        using var db = new MachineDb(_options);
+        using var db = new MachineDbContext(_options);
         var saved = db.Settings.ToDictionary(row => row.Key);
         foreach (var setting in settings.Distinct())
         {
@@ -105,7 +105,7 @@ public sealed class MachineStore
     {
         get
         {
-            using var db = new MachineDb(_options);
+            using var db = new MachineDbContext(_options);
             return db.Recipes.OrderBy(row => row.Name).Select(row => row.Name).ToArray();
         }
     }
@@ -133,7 +133,7 @@ public sealed class MachineStore
 
     public Recipe LoadRecipe(string name)
     {
-        using var db = new MachineDb(_options);
+        using var db = new MachineDbContext(_options);
         var json = db.Recipes.Where(row => row.Name == name).Select(row => row.Value).Single();
         var recipe = JsonSerializer.Deserialize<Recipe>(json) ?? throw new InvalidDataException(
             $"Recipe '{name}' is empty.");
@@ -165,7 +165,7 @@ public sealed class MachineStore
     public void SaveInspectionSettings(Recipe edited, CancellationToken cancellationToken = default)
     {
         edited.ValidateBoltIds();
-        using var db = new MachineDb(_options);
+        using var db = new MachineDbContext(_options);
         using var transaction = db.Database.BeginTransaction();
         var row = db.Recipes.Single(item => item.Name == edited.Name);
         var saved = JsonSerializer.Deserialize<Recipe>(row.Value)
@@ -189,7 +189,7 @@ public sealed class MachineStore
         recipe.ValidateBoltIds();
         var name = recipe.Name;
         var imageNumbers = recipe.CarrierImages.Select(tile => tile.Number).ToArray();
-        using var db = new MachineDb(_options);
+        using var db = new MachineDbContext(_options);
         using var transaction = db.Database.BeginTransaction();
         var copyImages = images is null
             && sourceRecipe is not null
@@ -251,7 +251,7 @@ public sealed class MachineStore
 
     public byte[] LoadRecipeImage(string name, int number)
     {
-        using var db = new MachineDb(_options);
+        using var db = new MachineDbContext(_options);
         return db.RecipeImages.Where(row => row.RecipeName == name && row.Number == number)
             .Select(row => row.Image)
             .SingleOrDefault() ?? throw new FileNotFoundException($"Recipe '{name}', image {number} is missing.");
@@ -259,7 +259,7 @@ public sealed class MachineStore
 
     public long NextPcbNumber()
     {
-        using var db = new MachineDb(_options);
+        using var db = new MachineDbContext(_options);
         db.Database.OpenConnection();
         using var command = db.Database.GetDbConnection().CreateCommand();
         command.CommandText = "UPDATE PcbCounter SET Number = Number + 1 WHERE Id = 1 RETURNING Number";

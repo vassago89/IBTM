@@ -6,7 +6,7 @@ using IBTM.Device;
 
 namespace IBTM.Virtual;
 
-public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDiagnostics
+public sealed class VirtualMotionService : MotionServiceBase, IDisposable, IMotionDiagnostics
 {
     private readonly Func<bool>? _servoPowerOn;
     private static readonly TimeSpan s_updateInterval;

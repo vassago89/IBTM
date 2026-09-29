@@ -8,7 +8,7 @@ using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Virtual;
 using Xunit;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -189,10 +189,10 @@ public sealed class MotionSafetyTests
         var io = CreateIo();
         using var supply = new VirtualMotionService(settings, operations);
         using var placement = new VirtualMotionService(settings, operations);
-        var placementHandler = VirtualTest.CreatePlacer(placement, io,
+        var placementHandler = VirtualTestSupport.CreatePlacer(placement, io,
             new PcbPlacementHandlerSettings { HandoffPosition = handoff });
         var supplyHandoff = new AxisPosition { X = handoff.X, Y = handoff.Y, Z = 3 };
-        var supplyHandler = VirtualTest.CreateSupplier(supply, io,
+        var supplyHandler = VirtualTestSupport.CreateSupplier(supply, io,
             new PcbSupplySettings { HandoffPosition = supplyHandoff });
 
         io.Initialize();
@@ -205,27 +205,27 @@ public sealed class MotionSafetyTests
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
-        Assert.False(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.False(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
 
         await supply.MoveToXYAsync(10, 10, settings.HorizontalSpeed);
         await supply.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.False(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff));
-        Assert.False(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.False(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff));
+        Assert.False(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
         await supply.MoveAxisAsync(MotionAxis.Z, 3, settings.ZSpeed);
-        Assert.True(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.True(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, true);
-        Assert.False(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.False(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
         io.SetInput(InputIo.PcbSupplyGripperOpen, false);
-        Assert.True(MotionService.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
+        Assert.True(MotionServiceBase.IsAt(supplyHandler.Motion.Feedback, supplyHandoff) && supplyHandler.PcbSecured);
 
         await placement.MoveToXYAsync(10, 10, settings.HorizontalSpeed);
         await placement.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.True(MotionService.IsAt(placementHandler.Motion.Feedback, handoff));
-        Assert.False(MotionService.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
+        Assert.True(MotionServiceBase.IsAt(placementHandler.Motion.Feedback, handoff));
+        Assert.False(MotionServiceBase.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
         io.SetInputs(
             (InputIo.PcbPlacementPcbDetected, true),
             (InputIo.PcbPlacementVacuumDetected, true));
-        Assert.True(MotionService.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
+        Assert.True(MotionServiceBase.IsAt(placementHandler.Motion.Feedback, handoff) && placementHandler.PcbSecured);
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public sealed class MotionSafetyTests
         using var motion = new VirtualMotionService(
             settings.Motion,
             new OperationCancellation());
-        var supply = VirtualTest.CreateSupplier(
+        var supply = VirtualTestSupport.CreateSupplier(
             motion,
             io,
             settings);
@@ -282,18 +282,18 @@ public sealed class MotionSafetyTests
         var movedAtWrongZ = false;
         motion.PositionChanged += (x, y, z) =>
         {
-            if (x > MotionService.PositionToleranceMillimeters
-                && x < 20 - MotionService.PositionToleranceMillimeters
-                && y > MotionService.PositionToleranceMillimeters
-                && System.Math.Abs(y - 15) > MotionService.PositionToleranceMillimeters)
+            if (x > MotionServiceBase.PositionToleranceMillimeters
+                && x < 20 - MotionServiceBase.PositionToleranceMillimeters
+                && y > MotionServiceBase.PositionToleranceMillimeters
+                && System.Math.Abs(y - 15) > MotionServiceBase.PositionToleranceMillimeters)
             {
                 xyMovedTogether = true;
             }
 
             yMovedAtHandoff |= x is >= 10 and <= 30
-                && Math.Abs(y - 15) > MotionService.PositionToleranceMillimeters;
+                && Math.Abs(y - 15) > MotionServiceBase.PositionToleranceMillimeters;
             movedAtWrongZ |= motion.IsMovingHorizontal
-                && Math.Abs(z - settings.HandoffPosition.Z) > MotionService.PositionToleranceMillimeters;
+                && Math.Abs(z - settings.HandoffPosition.Z) > MotionServiceBase.PositionToleranceMillimeters;
         };
 
         await supply.SetRotatedAsync(false);
@@ -326,10 +326,10 @@ public sealed class MotionSafetyTests
 
         // The station uses the current teaching value, not a value retained by the device.
         settings.RotationZ = 4;
-        Assert.False(MotionService.IsAtZ(supply.Motion.Feedback, settings.RotationZ));
+        Assert.False(MotionServiceBase.IsAtZ(supply.Motion.Feedback, settings.RotationZ));
         await supply.MoveAxisAsync(MotionAxis.Z, settings.RotationZ);
         Assert.Equal(4, motion.Position.Z);
-        Assert.True(MotionService.IsAtZ(supply.Motion.Feedback, settings.RotationZ));
+        Assert.True(MotionServiceBase.IsAtZ(supply.Motion.Feedback, settings.RotationZ));
     }
 
     [Theory]
@@ -347,7 +347,7 @@ public sealed class MotionSafetyTests
         using var motion = new VirtualMotionService(
             settings.Motion,
             new OperationCancellation());
-        var placement = VirtualTest.CreatePlacer(motion, io, settings);
+        var placement = VirtualTestSupport.CreatePlacer(motion, io, settings);
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 1_000);
@@ -412,7 +412,7 @@ public sealed class MotionSafetyTests
         using var motion = new VirtualMotionService(
             settings.Motion,
             new OperationCancellation());
-        var placement = VirtualTest.CreatePlacer(motion, io, settings);
+        var placement = VirtualTestSupport.CreatePlacer(motion, io, settings);
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 1_000);

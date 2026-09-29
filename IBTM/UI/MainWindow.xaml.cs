@@ -8,7 +8,7 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel;
     private bool _closeApproved;
 
-    public MainWindow(MainViewModel viewModel, DiagnosticWindows windows)
+    public MainWindow(MainViewModel viewModel, DiagnosticWindowManager windows)
     {
         _viewModel = viewModel;
         InitializeComponent();

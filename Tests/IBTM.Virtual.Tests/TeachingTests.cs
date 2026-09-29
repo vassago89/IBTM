@@ -14,8 +14,8 @@ using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
 using IBTM.UI;
-using static IBTM.Virtual.Tests.MachineTest;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.MachineTestSupport;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -758,7 +758,7 @@ public sealed class TeachingTests
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipes.Current));
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
-        teaching.CarrierImages = await services.GetRequiredService<InspectionImages>().LoadRecipeAsync(recipes.Current);
+        teaching.CarrierImages = await services.GetRequiredService<InspectionImageLoader>().LoadRecipeAsync(recipes.Current);
         var previousImage = RecordedImage(teaching);
         settings.CarrierReference.UpperLeftLocatingPin = null;
         settings.CarrierReference.LowerRightLocatingPin = null;
@@ -1090,7 +1090,7 @@ public sealed class TeachingTests
 
             Assert.True(axesMovedTogether);
             Assert.Empty(feedback.AxisMoves);
-            Assert.True(MotionService.IsAt(gantry.Motion.Feedback, shuttlePosition));
+            Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, shuttlePosition));
         }
         finally
         {
@@ -1112,10 +1112,10 @@ public sealed class TeachingTests
         try
         {
             var recipe = services.GetRequiredService<RecipeManager>().Current;
-            var bolt = new BoltPoint { Id = VirtualTest.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 12, Y = 9 };
+            var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1), HeatSink = HeatSinkSlot.HeatSink1, X = 12, Y = 9 };
             recipe.Pcb.BoltPoints.Add(bolt);
             recipe.CarrierImages.AddRange([
-                new() { Number = 1, BoltId = VirtualTest.BoltId(1), Region = new(0, 0, 20, 20) },
+                new() { Number = 1, BoltId = VirtualTestSupport.BoltId(1), Region = new(0, 0, 20, 20) },
                 new() { Number = 2, IsBarcode = true, Center = new() { X = 25, Y = 16 }, Region = new(0, 0, 20, 20) },
                 new() { Number = 3, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
             ]);
@@ -1138,7 +1138,7 @@ public sealed class TeachingTests
 
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
 
-                Assert.True(MotionService.IsAt(gantry.Motion.Feedback, recipe.GetInspectionPosition(fov)));
+                Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, recipe.GetInspectionPosition(fov)));
                 Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipe));
             }
 
@@ -1170,7 +1170,7 @@ public sealed class TeachingTests
                 await gantry.MoveToAsync(new() { X = 1, Y = 2 });
                 await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
                 await teaching.MoveToPointCommand.ExecuteAsync(null);
-                Assert.True(MotionService.IsAt(gantry.Motion.Feedback, bolt.InspectionPosition!));
+                Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, bolt.InspectionPosition!));
 
                 bolt.X = null;
                 Assert.False(teaching.SelectedPoint.Position.HasPosition);
@@ -1194,13 +1194,13 @@ public sealed class TeachingTests
         Assert.Null(untaughtBolt.FasteningY);
         Assert.Equal(0, untaughtBolt.FasteningZOffset);
         var inspector = services.GetRequiredService<InspectionStation>();
-        var editor = services.GetRequiredService<RecipeEditor>();
-        var preview = new InspectionPreview(recipes.Current);
+        var editor = services.GetRequiredService<RecipeEditorViewModel>();
+        var preview = new InspectionPreviewViewModel(recipes.Current);
         var frame = new ImageFrame(1, 1, 3, [160, 160, 160]);
         var region = new PixelRegion(0, 0, 1, 1);
         recipes.Current.BoltInspection.BrightnessThreshold = 128;
         preview.Clear(bolt: new());
-        preview.SetSavedImage(InspectionPreview.CreateBitmap(frame), region);
+        preview.SetSavedImage(InspectionPreviewViewModel.CreateBitmap(frame), region);
         await preview.InspectAsync(CancellationToken.None);
         Assert.StartsWith("OK", preview.Result);
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
@@ -1489,7 +1489,7 @@ public sealed class TeachingTests
             Assert.False(machine.IsSetTeachingOutputAllowed(rotation));
             await machine.ToggleTeachingOutputAsync(rotation, CancellationToken.None, CancellationToken.None);
             Assert.False(io.GetOutput(OutputIo.PcbPlacementHandlerRotate));
-            var output = new OutputWindowRow(
+            var output = new OutputSignalRow(
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.PcbPlacementHandlerRotate], machine);
             Assert.False(output.ToggleCommand.CanExecute(null));
             Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.PcbPlacementHandlerRotate));
@@ -1724,8 +1724,8 @@ public sealed class TeachingTests
             await machine.HomeAsync(CancellationToken.None);
             await supply.PrepareHandoffAsync(CancellationToken.None);
             await placement.PrepareHandoffAsync();
-            Assert.True(MotionService.IsAt(supply.Motion.Feedback, settings.PcbSupply.HandoffPosition));
-            Assert.True(MotionService.IsAt(placement.Motion.Feedback, settings.PcbPlacementHandler.HandoffPosition));
+            Assert.True(MotionServiceBase.IsAt(supply.Motion.Feedback, settings.PcbSupply.HandoffPosition));
+            Assert.True(MotionServiceBase.IsAt(placement.Motion.Feedback, settings.PcbPlacementHandler.HandoffPosition));
 
             foreach (var group in new[] { HardwareArea.PcbSupply, HardwareArea.PcbPlacementHandler })
             {
@@ -1741,7 +1741,7 @@ public sealed class TeachingTests
             }
 
             var supplyPosition = supply.Motion.Feedback.Position;
-            var manual = services.GetRequiredService<MotionWindowViewModel>();
+            var manual = services.GetRequiredService<MotionDiagnosticsViewModel>();
             var placementX = manual.Axes.Single(
                 row => row.Group == MotionGroup.PcbPlacementHandler && row.Axis == MotionAxis.X);
             await WaitUntilAsync(() => placementX.HomeCommand.CanExecute(null));
@@ -1846,7 +1846,7 @@ public sealed class TeachingTests
     public async Task TeachingSavePersistsHandoffAndRecipeUnderIdleManualControl()
     {
         var settings = FlowSettings();
-        var store = VirtualTest.OpenMachineStore(
+        var store = VirtualTestSupport.OpenMachineStore(
             Path.Combine(Path.GetTempPath(), $"IBTM-buffer-teaching-{Guid.NewGuid():N}.db"));
         await using var services = new ServiceCollection().AddSingleton(store)
             .AddIbtmApplication(settings)
@@ -2180,7 +2180,7 @@ public sealed class TeachingTests
     [Fact]
     public async Task InspectionStepUsesSelectedManualSpeed()
     {
-        await using var services = MachineTest.CreateDiagnosticServices();
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
         services.GetRequiredService<UnitSettings>().Inspection = true;
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<TeachingViewModel>();

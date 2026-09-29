@@ -79,7 +79,7 @@
                             Margin="0,6,0,0"
                             Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
-                    <ui:TeachingPointList Grid.Row="1"
+                    <ui:TeachingPointListBox Grid.Row="1"
                         ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                         ItemsSource="{Binding Source={StaticResource TeachingPoints}}"
                         SelectedItem="{Binding SelectedPoint, UpdateSourceTrigger=PropertyChanged}"
@@ -137,7 +137,7 @@
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
-                    </ui:TeachingPointList>
+                    </ui:TeachingPointListBox>
                     <UniformGrid Grid.Row="2" Columns="2" Margin="0,8,0,0"
                         Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}">
                         <Button Content="↑ Earlier" Command="{Binding MoveFasteningEarlierCommand}"
@@ -239,7 +239,7 @@
                                 </WrapPanel>
                                 <Border Grid.Row="2" Background="{StaticResource ImageBackgroundBrush}">
                                     <Grid>
-                                        <ui:ImageTeachingView Source="{Binding CameraImage}" ShowCrosshair="True"/>
+                                        <ui:InspectionImageView Source="{Binding CameraImage}" ShowCrosshair="True"/>
                                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
                                             Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False">
                                             <TextBlock.Style>

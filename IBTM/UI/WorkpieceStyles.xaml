@@ -65,7 +65,7 @@
         <Setter Property="CornerRadius" Value="3"/>
     </Style>
 
-    <DataTemplate x:Key="BoltTargetTemplate" DataType="{x:Type ui:BoltTargetView}">
+    <DataTemplate x:Key="BoltTargetTemplate" DataType="{x:Type ui:BoltDiagramMarker}">
         <Border Tag="{Binding State}"
             Style="{StaticResource BoltTargetStyle}"
             ToolTip="{Binding Head, Converter={StaticResource EnumDescriptionConverter}}">
@@ -101,11 +101,11 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ui:CarrierView}">
                     <Border Background="{StaticResource CarrierBodyBrush}" BorderBrush="{StaticResource CarrierBrush}"
-                        BorderThickness="{x:Static ui:MachinePlan.CarrierBorderThickness}" CornerRadius="4">
-                        <Grid Margin="{x:Static ui:MachinePlan.CarrierContentMargin}">
+                        BorderThickness="{x:Static ui:MachineDiagramLayout.CarrierBorderThickness}" CornerRadius="4">
+                        <Grid Margin="{x:Static ui:MachineDiagramLayout.CarrierContentMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="{x:Static ui:MachinePlan.HeatSinkGapWidth}"/>
+                                <ColumnDefinition Width="{x:Static ui:MachineDiagramLayout.HeatSinkGapWidth}"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border x:Name="HeatSink1" Grid.Column="0" Tag="{TemplateBinding HeatSink1Present}"

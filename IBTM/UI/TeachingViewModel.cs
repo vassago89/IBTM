@@ -88,7 +88,7 @@ public partial class TeachingViewModel : ObservableObject
     private readonly PcbPlacer _pcbPlacement;
     private readonly BoltFasteningStation _fasteningStation;
     private readonly MachineStore _store;
-    private readonly InspectionImages _images;
+    private readonly InspectionImageLoader _images;
     private CancellationTokenSource _viewCancellation;
     private readonly IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]> _teachingIoGroups;
     private int _manualCommandRefreshQueued;
@@ -110,10 +110,10 @@ public partial class TeachingViewModel : ObservableObject
         MachineState state,
         MachineController machine,
         OperationCancellation operations,
-        RecipeEditor recipeEditor,
+        RecipeEditorViewModel recipeEditor,
         RecipeManager recipes,
         MachineStore store,
-        InspectionImages images,
+        InspectionImageLoader images,
         IReadOnlyDictionary<HardwareArea, TeachingIoGroup[]> teachingIoGroups,
         ILogger<TeachingViewModel> logger)
     {
@@ -226,7 +226,7 @@ public partial class TeachingViewModel : ObservableObject
 
     public InspectionStation Inspection { get; }
 
-    public RecipeEditor RecipeEditor { get; }
+    public RecipeEditorViewModel RecipeEditor { get; }
 
     public RecipeManager Recipes { get; }
 
@@ -1380,7 +1380,7 @@ public partial class TeachingViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CameraImage))]
     [NotifyPropertyChangedFor(nameof(CameraError))]
     [NotifyCanExecuteChangedFor(nameof(GrabCommand))]
-    public partial IReadOnlyList<CarrierImageTileView> CarrierImages { get; set; }
+    public partial IReadOnlyList<RecipeImageItem> CarrierImages { get; set; }
 
     public string? CameraError
     {
@@ -1499,7 +1499,7 @@ public partial class TeachingViewModel : ObservableObject
             var captured = await Inspection.CaptureCarrierImageAsync(operation.Token, lightLevel);
             _logger.LogInformation("Teaching image captured: PCB={Pcb}, point={Point}, X={X}, Y={Y}.",
                 pcb, point.Name, captured.Center.X, captured.Center.Y);
-            var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
+            var image = await Task.Run(() => InspectionPreviewViewModel.CreateBitmap(captured.Frame), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             var images = CarrierImages.ToList();
             var index = images.FindIndex(tile => point.Inspection.Matches(tile.Metadata));
@@ -1516,7 +1516,7 @@ public partial class TeachingViewModel : ObservableObject
                 Region = previous?.Region ?? PixelRegion.CenteredSquare(
                     image.PixelWidth, image.PixelHeight, Math.Min(image.PixelWidth, image.PixelHeight) / 4),
             };
-            var replacement = new CarrierImageTileView(metadata, image);
+            var replacement = new RecipeImageItem(metadata, image);
             if (index >= 0)
                 images[index] = replacement;
             else
@@ -1750,7 +1750,7 @@ public partial class TeachingViewModel : ObservableObject
                     _pendingLiveFrame = null;
                 }
 
-                var image = InspectionPreview.CreateBitmap(frame);
+                var image = InspectionPreviewViewModel.CreateBitmap(frame);
                 // Frozen frames can cross threads; WPF marshals the scalar binding.
                 lock (_liveImageGate)
                 {

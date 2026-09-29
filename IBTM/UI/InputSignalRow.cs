@@ -1,0 +1,29 @@
+using CommunityToolkit.Mvvm.Input;
+using IBTM.Device;
+using IBTM.Virtual;
+
+namespace IBTM.UI;
+
+public sealed class InputSignalRow
+{
+    private readonly VirtualIoService? _virtualIo;
+
+    public InputSignalRow(IoInputStatus io, VirtualIoService? virtualIo)
+    {
+        ToggleCommand = new RelayCommand(Toggle, () => IsVirtual);
+
+        _virtualIo = virtualIo;
+        Io = io;
+    }
+
+    public IoInputStatus Io { get; }
+
+    public bool IsVirtual => _virtualIo is not null;
+
+    public IRelayCommand ToggleCommand { get; }
+
+    private void Toggle()
+    {
+        _virtualIo?.SetInput(Io.Signal, Io.IsOn != true);
+    }
+}

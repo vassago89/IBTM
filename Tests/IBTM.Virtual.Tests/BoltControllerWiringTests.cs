@@ -21,7 +21,7 @@ public sealed class BoltControllerWiringTests
     {
         var settings = new IoBoltHardwareSettings();
         var io = new VirtualIoService(settings.Outputs, new());
-        var head = VirtualTest.CreateAdcHead(new AdcControllerStub(), io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
+        var head = VirtualTestSupport.CreateAdcHead(new AdcControllerStub(), io, FasteningHead.Pickup, new(), 1, "Virtual", 115200);
         await head.SelectPresetAsync(1);
         var failure = new IOException("START write failed.");
         io.OutputChanged += (output, on) =>
@@ -61,15 +61,15 @@ public sealed class BoltControllerWiringTests
         Assert.Null(services.GetService<IAdcBus>());
         var io = services.GetRequiredService<IIoService>();
         var machine = services.GetRequiredService<MachineController>();
-        var inputs = new InputWindowViewModel(io, signals);
-        var outputs = new OutputWindowViewModel(signals, machine);
+        var inputs = new InputViewModel(io, signals);
+        var outputs = new OutputViewModel(signals, machine);
         Assert.Empty(settings.IoBoltHardware.Inputs);
-        Assert.DoesNotContain(inputs.Filter.FilteredRows.Cast<InputControlRow>(),
+        Assert.DoesNotContain(inputs.Filter.FilteredRows.Cast<InputSignalRow>(),
             row => (int)row.Io.Signal is >= 83 and <= 88);
         foreach (var signal in settings.IoBoltHardware.Outputs.Keys)
         {
             Assert.Contains(
-                outputs.Filter.FilteredRows.Cast<OutputWindowRow>(),
+                outputs.Filter.FilteredRows.Cast<OutputSignalRow>(),
                 row => row.Io.Signal == signal);
         }
 
@@ -85,7 +85,7 @@ public sealed class BoltControllerWiringTests
             Assert.False(io.GetOutput(signal));
         }
         // Diagnostics and manual outputs remain available with ADC result collection.
-        Assert.NotNull(services.GetRequiredService<DiagnosticWindows>());
+        Assert.NotNull(services.GetRequiredService<DiagnosticWindowManager>());
     }
 
     [Fact]

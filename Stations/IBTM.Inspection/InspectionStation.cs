@@ -224,7 +224,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             if (!_units.Inspection)
                 return true;
             return _settings.WaitingPosition is { } position
-                && MotionService.IsAt(_motion, position);
+                && MotionServiceBase.IsAt(_motion, position);
         }
     }
 
@@ -564,7 +564,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         cancellationToken.ThrowIfCancellationRequested();
         var position = _settings.WaitingPosition
             ?? throw new InvalidOperationException("Record Inspection Waiting X/Y before moving to the inspection waiting position.");
-        if (!MotionService.IsAt(_motion, position))
+        if (!MotionServiceBase.IsAt(_motion, position))
             await MoveToAsync(position, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (_waitingForShuttleDown)
@@ -584,8 +584,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         var source = GetOppositeDestination(destination);
         var destinationPosition = GetTransferPosition(destination);
         var sourcePosition = GetTransferPosition(source);
-        var atDestination = destinationPosition is not null && MotionService.IsAt(_motion, destinationPosition);
-        var atSource = sourcePosition is not null && MotionService.IsAt(_motion, sourcePosition);
+        var atDestination = destinationPosition is not null && MotionServiceBase.IsAt(_motion, destinationPosition);
+        var atSource = sourcePosition is not null && MotionServiceBase.IsAt(_motion, sourcePosition);
         // Repeat turns around above the shuttle with the carrier still raised and gripped.
         var holdAtShuttle = holdAtDestination && destination == NgTransferDestination.Shuttle;
         var destinationPresent = !holdAtShuttle && IsCarrierPresent(destination);
@@ -700,7 +700,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         || !allowEmpty && !IsCarrierPresent(source)
                         || Lift != StationCylinderState.Down
                         || GetTransferPosition(source) is not { } gripPosition
-                        || !MotionService.IsAt(_motion, gripPosition)))
+                        || !MotionServiceBase.IsAt(_motion, gripPosition)))
                 {
                     throw new InvalidOperationException("NG transfer grip is uncertain away from its supported pickup position. Check the carrier before resuming.");
                 }
@@ -722,7 +722,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 EnterStep(state, destination.ToString());
                 var position = GetTransferPosition(destination)
                     ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before returning to Station 3.");
-                var supported = MotionService.IsAt(_motion, position) && Lift == StationCylinderState.Down
+                var supported = MotionServiceBase.IsAt(_motion, position) && Lift == StationCylinderState.Down
                     && IsSupportReady(destination) && (allowEmpty || IsCarrierPresent(destination));
                 if (IsTransferPending && (!supported || holdAtDestination))
                 {
@@ -739,7 +739,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         carrying.Token.ThrowIfCancellationRequested();
                         if (destination == NgTransferDestination.Station && !IsSupportReady(destination))
                             await SeatStationAsync(carrying.Token);
-                        else if (!MotionService.IsAt(_motion, position))
+                        else if (!MotionServiceBase.IsAt(_motion, position))
                             await MoveToAsync(position, cancellationToken: carrying.Token);
                         CheckGrip();
                         carrying.Token.ThrowIfCancellationRequested();
@@ -763,7 +763,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
                 if (holdAtDestination && IsTransferPending)
                     break;
-                if (!MotionService.IsAt(_motion, position) || !IsSupportReady(destination))
+                if (!MotionServiceBase.IsAt(_motion, position) || !IsSupportReady(destination))
                     return false;
                 if (IsTransferPending || Gripper != NgTransferGripperState.Open)
                 {
@@ -870,7 +870,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         cancellationToken.ThrowIfCancellationRequested();
         var position = GetTransferPosition(source)
             ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before moving to a carrier.");
-        if (MotionService.IsAt(_motion, position))
+        if (MotionServiceBase.IsAt(_motion, position))
             return;
         await MoveToAsync(position, cancellationToken: cancellationToken);
     }
@@ -1120,7 +1120,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var ratio = BinaryChecker.Check(image, settings.Region, settings.Threshold).BrightRatio;
+                var ratio = BinaryRegionAnalyzer.Check(image, settings.Region, settings.Threshold).BrightRatio;
                 cancellationToken.ThrowIfCancellationRequested();
                 return new InspectionCapture(point.Id, capturedAt, image, settings.Region, ratio >= settings.Minimum,
                     BrightRatio: ratio, MinimumBrightRatio: settings.Minimum);
@@ -1146,7 +1146,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     var position = _motion.Position;
                     var center = new AxisPosition { X = position.X, Y = position.Y };
                     var frame = await CaptureWithLightAsync(lightLevel, cancellationToken, keepLiveView: true).ConfigureAwait(false);
-                    if (!MotionService.IsAt(_motion, center))
+                    if (!MotionServiceBase.IsAt(_motion, center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);
                 },

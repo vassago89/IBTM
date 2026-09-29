@@ -21,8 +21,8 @@ public sealed class AdcBoltHeadTests
     private static (VirtualIoService Io, AdcBoltHead Head) Create(
         IAdcBus bus, HantasSettings? settings = null, FasteningHead head = FasteningHead.Pickup)
     {
-        var io = new VirtualIoService(VirtualTest.Outputs(), new());
-        var controller = VirtualTest.CreateAdcHead(bus, io, head, settings ?? new(), 1, "Virtual", 115200);
+        var io = new VirtualIoService(VirtualTestSupport.Outputs(), new());
+        var controller = VirtualTestSupport.CreateAdcHead(bus, io, head, settings ?? new(), 1, "Virtual", 115200);
         return (io, controller);
     }
 
@@ -99,16 +99,16 @@ public sealed class AdcBoltHeadTests
         await Task.WhenAll(bus.Monitor.StartAsync(1, CancellationToken.None),
             bus.Monitor.StartAsync(1, CancellationToken.None));
         var reads = bus.StatusReads;
-        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads >= reads + 3, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads >= reads + 3, TimeSpan.FromSeconds(2)));
         Assert.False(bus.ConcurrentStatusReadsDetected);
         Assert.Equal(0, bus.ResultReads);
         Assert.Equal(0, bus.StartWrites);
         Assert.True(head.Monitor.Sample?.Status!.Ready);
         bus.StatusReadFailure = new IOException("Status disconnected");
-        Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Sample?.Error is not null, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => head.Monitor.Sample?.Error is not null, TimeSpan.FromSeconds(2)));
         Assert.Null(head.Monitor.Sample?.Status);
         bus.StatusReadFailure = null;
-        Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Sample?.Status is not null, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => head.Monitor.Sample?.Status is not null, TimeSpan.FromSeconds(2)));
         using var disconnectTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var pending = head.Monitor.WaitForSampleAsync(Stopwatch.GetTimestamp(), disconnectTimeout.Token);
         bus.Close();
@@ -152,7 +152,7 @@ public sealed class AdcBoltHeadTests
         try
         {
             await rejected.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads >= 2, TimeSpan.FromSeconds(2)));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads >= 2, TimeSpan.FromSeconds(2)));
             Assert.Null(head.Monitor.Sample?.Status);
             Assert.False(checking.IsCompleted);
             Assert.Equal(0, bus.StartWrites);
@@ -215,7 +215,7 @@ public sealed class AdcBoltHeadTests
         try
         {
             await bus.Monitor.StartAsync(1, CancellationToken.None);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads >= 4, TimeSpan.FromSeconds(2)));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads >= 4, TimeSpan.FromSeconds(2)));
             bus.Monitor.IntervalMilliseconds = 10_000;
             var queued = bus.Monitor.EnqueueAsync(token => Task.FromResult(42));
             Assert.Equal(42, await queued.WaitAsync(TimeSpan.FromSeconds(2)));
@@ -238,7 +238,7 @@ public sealed class AdcBoltHeadTests
         bus.Open("Virtual", 115200);
         bus.Monitor.IntervalMilliseconds = 10;
         await bus.Monitor.StartAsync(1, CancellationToken.None);
-        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
         var first = bus.Monitor.EnqueueAsync(async token =>
         {
             firstEntered.TrySetResult();
@@ -265,7 +265,7 @@ public sealed class AdcBoltHeadTests
             await second.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal(1, bus.EventReads);
             Assert.Equal(1, bus.ResultReads);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads > statusReads, TimeSpan.FromSeconds(2)));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads > statusReads, TimeSpan.FromSeconds(2)));
         }
         finally
         {
@@ -282,7 +282,7 @@ public sealed class AdcBoltHeadTests
         using var bus = new AdcControllerStub { StatusReadBarrier = statusResponse.Task };
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
-        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
         using var cancellation = new CancellationTokenSource();
         var cancelled = bus.Monitor.EnqueueAsync(token => bus.ReadFasteningResultAsync(1, token), cancellation.Token);
         var next = bus.Monitor.EnqueueAsync(token => bus.ReadRegistersAsync(1, AdcFunctionCode.ReadInputRegisters,
@@ -301,7 +301,7 @@ public sealed class AdcBoltHeadTests
         using var bus = new AdcControllerStub { StatusReadBarrier = new TaskCompletionSource().Task };
         bus.Open("Virtual", 115200);
         await bus.Monitor.StartAsync(1, CancellationToken.None);
-        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StatusReads == 1, TimeSpan.FromSeconds(2)));
         var first = bus.Monitor.EnqueueAsync(token => bus.ReadFasteningResultAsync(1, token));
         var second = bus.Monitor.EnqueueAsync(token => bus.ReadFasteningResultAsync(1, token));
         bus.Close();
@@ -324,7 +324,7 @@ public sealed class AdcBoltHeadTests
         var (io, head) = Create(bus, new() { StatusPollMilliseconds = 10 });
         await head.SelectPresetAsync(1);
         var cycle = head.TightenAsync();
-        Assert.True(await VirtualTest.WaitUntilAsync(() => head.Monitor.Sample?.Status?.Running == true, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => head.Monitor.Sample?.Status?.Running == true, TimeSpan.FromSeconds(2)));
         bus.StatusReadFailure = new IOException("Status lost");
         Assert.Same(bus.StatusReadFailure, await Assert.ThrowsAsync<IOException>(() => cycle));
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
@@ -342,7 +342,7 @@ public sealed class AdcBoltHeadTests
         using var bus = new AdcControllerStub { SuppressCompletion = true, ResultStatus = resultStatus };
         var log = new ApplicationLog();
         using var factory = log.CreateLoggerFactory();
-        var io = new VirtualIoService(VirtualTest.Outputs(), new());
+        var io = new VirtualIoService(VirtualTestSupport.Outputs(), new());
         bus.BindIo(io, FasteningHead.Pickup);
         var head = new AdcBoltHead(bus, io, FasteningHead.Pickup,
             new() { StatusPollMilliseconds = 10 }, 1, "Virtual", 115200, factory.CreateLogger<AdcBoltHead>());
@@ -447,7 +447,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         var startedAt = Environment.TickCount64;
         var cycle = head.TightenAsync();
-        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StartWrites == 1, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StartWrites == 1, TimeSpan.FromSeconds(2)));
         Assert.False(cycle.IsCompleted);
         Assert.False(head.Monitor.Sample?.Status!.Running); // Initial OFF cannot finish a new cycle.
         Assert.Equal(1, bus.EventReads);
@@ -489,7 +489,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         using var stop = new CancellationTokenSource();
         var running = head.TightenAsync(stop.Token);
-        Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StartWrites == 1, TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => bus.StartWrites == 1, TimeSpan.FromSeconds(2)));
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
         Assert.Equal(0, bus.ResultReads);
@@ -838,7 +838,7 @@ public sealed class AdcBoltHeadTests
         await head.SelectPresetAsync(1);
         using var stop = new CancellationTokenSource();
         var operation = reverse ? head.RunReverseAsync(stop.Token) : head.TightenAsync(stop.Token);
-        Assert.True(await VirtualTest.WaitUntilAsync(
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(
             () => io.GetOutput(OutputIo.PickupBoltStart), TimeSpan.FromSeconds(2)));
         var fault = Task.Run(() => io.IsReady = false);
         try
@@ -1021,7 +1021,7 @@ public sealed class AdcBoltHeadTests
         var (io, head) = Create(bus);
         using var release = new CancellationTokenSource();
         var cycle = head.RunReverseAsync(release.Token);
-        Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(OutputIo.PickupBoltStart), TimeSpan.FromSeconds(2)));
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(() => io.GetOutput(OutputIo.PickupBoltStart), TimeSpan.FromSeconds(2)));
         Assert.True(io.GetOutput(OutputIo.PickupBoltDirection));
         Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
         release.Cancel();
@@ -1035,7 +1035,7 @@ public sealed class AdcBoltHeadTests
     [Fact]
     public async Task SeparatePortsWithSameSlaveNeverMixHeads()
     {
-        var io = new VirtualIoService(VirtualTest.Outputs(), new());
+        var io = new VirtualIoService(VirtualTestSupport.Outputs(), new());
         using var pickupBus = new VirtualAdcBus(io, FasteningHead.Pickup, 1);
         using var shootingBus = new VirtualAdcBus(io, FasteningHead.Shooting, 1);
         var pickup = new AdcBoltHead(pickupBus, io, FasteningHead.Pickup, new(), 1, "Pickup", 115200);

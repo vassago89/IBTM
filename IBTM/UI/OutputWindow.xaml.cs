@@ -4,7 +4,7 @@ namespace IBTM.UI;
 
 public partial class OutputWindow : Window
 {
-    public OutputWindow(OutputWindowViewModel viewModel)
+    public OutputWindow(OutputViewModel viewModel)
     {
         InitializeComponent();
         DataContext = viewModel;

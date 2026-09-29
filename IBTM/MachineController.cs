@@ -80,7 +80,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         BoltFasteningStation fasteningStation,
         InspectionStation inspectionStation,
         BoltFeederUnit boltFeeder,
-        PcbHistory pcbHistory,
+        PcbHistoryWriter pcbHistory,
         IReadOnlyDictionary<MotionGroup, IXyMotion> motions,
         ILogger<MachineController>? log = null)
     {
@@ -126,7 +126,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public PcbHistory PcbHistory { get; }
+    public PcbHistoryWriter PcbHistory { get; }
 
     private void OnRecipeChanged()
     {

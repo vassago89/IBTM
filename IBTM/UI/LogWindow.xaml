@@ -5,7 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
-    d:DataContext="{d:DesignInstance Type=ui:LogWindowViewModel, IsDesignTimeCreatable=False}"
+    d:DataContext="{d:DesignInstance Type=ui:LogViewModel, IsDesignTimeCreatable=False}"
     Title="Logs"
     Width="1100"
     Height="720"

@@ -46,7 +46,7 @@ public sealed class AdcProtocolTests
             },
         };
         await using var services = new ServiceCollection()
-            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddSingleton(VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(settings)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
         var pickupBus = services.GetRequiredKeyedService<IAdcBus>(FasteningHead.Pickup);

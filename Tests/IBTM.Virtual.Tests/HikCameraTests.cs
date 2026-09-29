@@ -172,7 +172,7 @@ public sealed class HikCameraTests
         var sdk = new CameraSdk();
         using var camera = sdk.CreateCamera();
         await using var services = new ServiceCollection()
-            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddSingleton(VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(new MachineSettings())
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
@@ -191,7 +191,7 @@ public sealed class HikCameraTests
         Assert.True(received.Wait(TimeSpan.FromSeconds(2)));
         Assert.True(inspector.IsLiveView);
         sdk.ConversionFails = true;
-        Assert.True(await VirtualTest.WaitUntilAsync(
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(
             () => !inspector.IsLiveView && inspector.LiveViewError is not null,
             TimeSpan.FromSeconds(2)));
         sdk.ConversionFails = false;
@@ -276,7 +276,7 @@ public sealed class HikCameraTests
             Assert.True(reading.Wait(TimeSpan.FromSeconds(2)));
             sdk.Connected = !connectionLost;
             disposing = Task.Run(camera.Dispose);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => !camera.IsLiveView, TimeSpan.FromSeconds(1)));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => !camera.IsLiveView, TimeSpan.FromSeconds(1)));
             Assert.False(disposing.IsCompleted);
             Assert.False(sdk.Disposed);
             Assert.DoesNotContain("Close", sdk.Calls);

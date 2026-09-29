@@ -125,7 +125,7 @@ public partial class App : System.Windows.Application
         await serviceProvider.GetRequiredService<MachineController>().InitializeAsync();
         var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
-        _ = serviceProvider.GetRequiredService<RecipeEditor>().RefreshCommand.ExecuteAsync(null);
+        _ = serviceProvider.GetRequiredService<RecipeEditorViewModel>().RefreshCommand.ExecuteAsync(null);
         _log.LogInformation("Main window opened.");
     }
 

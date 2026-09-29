@@ -14,7 +14,7 @@ using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.UI;
 using IBTM.Virtual;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -283,7 +283,7 @@ public sealed class IoTests
 
         var sensor = signals.Inputs[InputIo.PcbSupplyPcbDetected];
         Assert.Equal("999", sensor.Address);
-        var filter = new IoList<IoOutputStatus, OutputIo>(signals.Outputs.Values.ToArray(), row => row);
+        var filter = new IoListViewModel<IoOutputStatus, OutputIo>(signals.Outputs.Values.ToArray(), row => row);
         filter.SearchText = "069";
         Assert.Same(output, Assert.Single(filter.FilteredRows.Cast<IoOutputStatus>()));
         filter.SearchText = output.Feedback[0].Address;
@@ -430,7 +430,7 @@ public sealed class IoTests
     [Fact]
     public async Task DirectSmemaOutputRemainsAvailableInTeaching()
     {
-        await using var services = MachineTest.CreateDiagnosticServices();
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
@@ -440,7 +440,7 @@ public sealed class IoTests
             foreach (var output in new[] { OutputIo.PcbSupplyReadyToFront1,
                 OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear })
             {
-                var row = new OutputWindowRow(services.GetRequiredService<IoSignals>().Outputs[output], machine);
+                var row = new OutputSignalRow(services.GetRequiredService<IoSignals>().Outputs[output], machine);
                 row.ToggleCommand.Execute(null);
                 Assert.Null(row.ActionMessage);
                 Assert.True(io.GetOutput(output));
@@ -462,10 +462,10 @@ public sealed class IoTests
     [Fact]
     public async Task ManualConveyorSendsOffWhileUiContextIsBlocked()
     {
-        await using var services = MachineTest.CreateDiagnosticServices();
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var context = new VirtualTest.PausedSynchronizationContext();
+        var context = new VirtualTestSupport.PausedSynchronizationContext();
         ManualConveyorRow? row = null;
         Task? test = null;
         await machine.InitializeAsync();
@@ -493,7 +493,7 @@ public sealed class IoTests
             row.StopCommand.Execute(null);
             // No queued UI callback is allowed to run before OFF is observed.
             Assert.True(
-                await VirtualTest.WaitUntilAsync(
+                await VirtualTestSupport.WaitUntilAsync(
                     () => !io.GetOutput(OutputIo.MainConveyorRun),
                     TimeSpan.FromSeconds(2)));
             Assert.False(test.IsCompleted); // Only the UI command completion is still queued.

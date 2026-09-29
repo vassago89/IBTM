@@ -11,7 +11,7 @@ public static class DataMatrixReader
     {
         if (settings.BinaryThreshold is { } threshold)
         {
-            image = BinaryChecker.Check(image, region, threshold).Image;
+            image = BinaryRegionAnalyzer.Check(image, region, threshold).Image;
             region = new(0, 0, image.Width, image.Height);
         }
         var reader = new BarcodeReaderGeneric
@@ -31,7 +31,7 @@ public static class DataMatrixReader
     public static ImageFrame? CreateBinaryImage(ImageFrame image, PixelRegion region, int? threshold)
     {
         if (threshold is { } value)
-            return BinaryChecker.Check(image, region, value).Image;
+            return BinaryRegionAnalyzer.Check(image, region, value).Image;
         var matrix = new HybridBinarizer(CreateLuminanceSource(image, region)).BlackMatrix;
         if (matrix is null)
             return null;

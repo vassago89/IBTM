@@ -14,7 +14,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
     {
         Feedback = motion;
         Axes = motion.Axes.ToDictionary(axis => axis, _ => new AxisStatus());
-        MonitorAxes = motion.Axes.ToDictionary(axis => axis, _ => new MotionDiagnostics());
+        MonitorAxes = motion.Axes.ToDictionary(axis => axis, _ => new AxisDiagnostics());
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -23,7 +23,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
     // Enabled/initialized control feedback; unavailable control invalidates these axes.
     public IReadOnlyDictionary<MotionAxis, AxisStatus> Axes { get; }
     // Independent raw monitoring continues for disabled, servo-off and alarmed axes.
-    public IReadOnlyDictionary<MotionAxis, MotionDiagnostics> MonitorAxes { get; }
+    public IReadOnlyDictionary<MotionAxis, AxisDiagnostics> MonitorAxes { get; }
 
     public bool XyHomed
     {

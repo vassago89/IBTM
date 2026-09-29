@@ -9,7 +9,7 @@ using IBTM.NgConveyor;
 using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -101,7 +101,7 @@ public sealed class NgHandoffTests
         using var motion = system.Motion;
         var transfer = system.Inspection;
         transfer.Station.GetAssembly(HeatSinkSlot.HeatSink1)
-            .RecordBoltPresence(VirtualTest.BoltId(1), false);
+            .RecordBoltPresence(VirtualTestSupport.BoltId(1), false);
         transfer.Station.Complete(transfer.Station.CurrentJob);
 
         Assert.False(system.Conveyor.IsReceiveAllowed);
@@ -383,7 +383,7 @@ public sealed class NgHandoffTests
             Assert.Equal(InspectionStationState.WaitingForShuttleDown, transfer.GetNextStep());
             io.SetInput(InputIo.NgShuttleUp, false);
             Assert.True(await WaitUntilAsync(
-                () => MotionService.IsAt(transfer.Motion.Feedback, new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
+                () => MotionServiceBase.IsAt(transfer.Motion.Feedback, new()) && transfer.GetNextStep() == InspectionStationState.Waiting,
                 TimeSpan.FromSeconds(1)));
             Assert.False(movedBeforeDown);
         }
@@ -486,7 +486,7 @@ public sealed class NgHandoffTests
             Assert.False(run.IsCompleted);
             Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
             var assembly = system.Inspection.Station.GetAssembly(HeatSinkSlot.HeatSink1);
-            assembly.RecordBoltPresence(VirtualTest.BoltId(1), false);
+            assembly.RecordBoltPresence(VirtualTestSupport.BoltId(1), false);
             assembly.CompleteInspection();
             system.Inspection.Station.Complete(system.Inspection.Station.CurrentJob);
             // No transfer or carrier sensor changes: releasing the button alone must wake the loop.

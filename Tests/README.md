@@ -22,7 +22,7 @@
 | `IBTM.Virtual.Tests/IoTests.cs` | 수동 출력·SMEMA, UI 지연 중 컨베이어 정지 |
 | `IBTM.Virtual.Tests/ConveyorTests.cs` | 컨베이어 이송·인터록, 정지·리셋 중 속도 출력 유지 |
 
-`MachineTest`는 설비·진단 테스트들이 공유하는 가상 설정·DI 준비와 모션 오류 대역을 소유한다. 다른 테스트 클래스의 내부 대역을 참조하지 않는다. `VirtualTest`에는 공통 대기, STA 바인딩 실행과 UI 반영을 지연시키는 동기화 컨텍스트를 둔다.
+`MachineTestSupport`는 설비·진단 테스트들이 공유하는 가상 설정·DI 준비와 모션 오류 대역을 소유한다. 다른 테스트 클래스의 내부 대역을 참조하지 않는다. `VirtualTestSupport`에는 공통 대기, STA 바인딩 실행과 UI 반영을 지연시키는 동기화 컨텍스트를 둔다.
 
 분리한 설비 테스트는 `Machine integration` 컬렉션에서 기존처럼 직렬 실행한다. `UiBindingTests`는 한 프로세스에서 WPF `Application`을 한 번만 만들기 위해 하나의 테스트 진입점을 유지하며, 실제 `IBTM.App`은 실행하지 않는다.
 

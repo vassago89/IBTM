@@ -83,7 +83,7 @@
 다음 실행은 아래의 미검토 범위부터 이어간다:
 
 1. `AdcBus`의 통신 취소·포트 종료·타임아웃과 `BoltFasteningStation`의 나머지 헤드/피더 동작.
-2. `BinaryChecker`, `BoltInspector`, `InspectionStation`, 레시피 저장의 경계와 결과 귀속.
+2. `BinaryRegionAnalyzer`, `BoltInspector`, `InspectionStation`, 레시피 저장의 경계와 결과 귀속.
 3. NG 인계 및 Repeat의 전체 반환 연결. 이미 읽은 `NgCarrierMove.State`만 다시 반복하지 않는다.
 4. 최근 센서/버퍼/학습 프로젝트 제거 이후 남은 문서·테스트 전제 불일치.
 
@@ -101,7 +101,7 @@
 
 검사 확인 및 수정:
 
-- `BinaryChecker`, `PixelRegion`, 검사 레시피 값 검증, `InspectionStation`의 결과 기록·취소 경로를 읽었다.
+- `BinaryRegionAnalyzer`, `PixelRegion`, 검사 레시피 값 검증, `InspectionStation`의 결과 기록·취소 경로를 읽었다.
   밝기 임계값은 포함 비교이며 ROI 면적을 분모로 사용한다. 원본 stride와 영상 경계를 검사한다.
   검사 응답 후 취소 및 Job 소유권을 재확인한 뒤 결과를 기록한다.
 - `BoltInspector.HasPosition`은 ROI의 존재만 확인하여, 영상 밖 ROI도 준비 완료로 판단했다.
@@ -118,18 +118,18 @@
 
 다음 미검토 범위:
 
-1. `InspectionPreview`, 레시피/티칭 이미지 저장과 로드. 이진화 수치가 UI와 실제 판정에서 같은 의미인지 확인.
+1. `InspectionPreviewViewModel`, 레시피/티칭 이미지 저장과 로드. 이진화 수치가 UI와 실제 판정에서 같은 의미인지 확인.
 2. `BoltInspector`의 나머지 Live View/조명 오류 정리와 카메라 종료 연결.
 3. NG 인계 및 Repeat의 반환 전체 연결.
 4. 센서/버퍼/학습 프로젝트 제거 이후 문서·테스트 전제 불일치.
 
 ## 00:31 이후 네 번째 검토
 
-- `InspectionPreview`의 임계값 변경, 기존 프레임 재판정, 이진화 표시 및 최소 밝은 비율을 확인했다.
-  화면의 0~100%와 레시피의 0~1 사이 변환은 일치한다. 실제 검사와 미리보기가 같은 `BinaryChecker`를 사용한다.
+- `InspectionPreviewViewModel`의 임계값 변경, 기존 프레임 재판정, 이진화 표시 및 최소 밝은 비율을 확인했다.
+  화면의 0~100%와 레시피의 0~1 사이 변환은 일치한다. 실제 검사와 미리보기가 같은 `BinaryRegionAnalyzer`를 사용한다.
 - 티칭 화면은 `CanEditInspectionRecipe`로 값 편집을 제한한다. 선택 변경 때 진행 중 촬영/재판정을 취소하고
   미리보기를 비우며, 비동기 결과를 반영하기 전에 취소를 재확인한다.
-- `RecipeEditor`, `RecipeStore`, `MachineStore.SaveRecipe`, `MachineDb`의 저장·로드를 확인했다.
+- `RecipeEditorViewModel`, `RecipeStore`, `MachineStore.SaveRecipe`, `MachineDbContext`의 저장·로드를 확인했다.
   레시피·이미지·현재 선택은 트랜잭션으로 저장하며, 이미지 인코딩 실패/취소는 부분 저장을 남기지 않는다.
   다른 이름으로 저장할 때 이미지 복사를 포함하고, 이름 비교는 데이터베이스의 NOCASE 설정과 연결돼 있다.
   `RecipeImagesAndSaveAsAreAtomic`, `RecipeSaveAndLoadKeepTheirOperationActive`의 기존 기대값과 대조했다.
@@ -197,10 +197,10 @@ NG/반환 연결 확인:
 결과 흐름 확인:
 
 - `HeatSinkAssembly`, `InspectionWork`, `InspectionStation`의 기록/완료 경로와
-  `OperationViewModel`의 결과·바코드·볼트 표시, `InspectionView`/`ConveyorView`의 표시 조건을 대조했다.
+  `OperationViewModel`의 결과·바코드·볼트 표시, `InspectionStationDiagram`/`MainConveyorDiagram`의 표시 조건을 대조했다.
   이진화 결과는 볼트 유무 결과를 통해 기존 OK/NG 및 NG 이송 판단으로 연결된다.
   현재 재실/히트싱크 입력으로 표시 대상을 제한한다.
-- `MachineDb`의 저장 대상은 설정·레시피·티칭 이미지다. 자동 검사 결과는 작업 객체에 보관하며,
+- `MachineDbContext`의 저장 대상은 설정·레시피·티칭 이미지다. 자동 검사 결과는 작업 객체에 보관하며,
   검사 이미지/밝은 비율의 생산 이력 DB 저장 경로는 현재 없다. 이번 정리에서 새 이력 저장 기능은 추가하지 않았다.
 
 실행 검증: Virtual 구성 3건 통과.
@@ -232,7 +232,7 @@ NG/반환 연결 확인:
 
 수동 출력 경로 확인:
 
-- `MachineController.Outputs.cs`, `OutputWindowRow`, `OutputWindow`의 명령 및 표시를 읽었다.
+- `MachineController.Outputs.cs`, `OutputSignalRow`, `OutputWindow`의 명령 및 표시를 읽었다.
   OUTPUTS는 화면에 명시된 직접 IO 조작이며, 현재 최소 조건은 수동 모드·E-Stop·IO 준비·종료 여부다.
   이 경로를 임의로 자동 시퀀스나 위치 대기로 바꾸지 않았다.
 - 수동 컨베이어는 작업 소유권을 유지하고 OFF·모드 전환·E-Stop 시 취소하며 장치 정리를 기다린다.
@@ -283,16 +283,16 @@ NG/반환 연결 확인:
 
 다음 미검토 범위:
 
-1. `RecipeEditor` 외 나머지 UI 비동기 명령과 오류/취소 전달: 수동 모션 창, ADC 프로토콜 창, 로그 창.
+1. `RecipeEditorViewModel` 외 나머지 UI 비동기 명령과 오류/취소 전달: 수동 모션 창, ADC 프로토콜 창, 로그 창.
 2. 설정 수치 검증이 실제 모션 명령 경계에 도달하는 경로와 한계/속도 단위 처리.
 3. 최근 수정 외의 가상 하드웨어와 실제 하드웨어 간 동작 전제 차이 중 미검토 부분.
 
 ## 03:01 이후 아홉 번째 검토
 
-- `MotionWindowViewModel`과 `MotionWindow` 전체를 읽었다. 수동 축 원점은 기존 컨트롤러의 조건/취소를 사용하고,
+- `MotionDiagnosticsViewModel`과 `MotionDiagnosticsWindow` 전체를 읽었다. 수동 축 원점은 기존 컨트롤러의 조건/취소를 사용하고,
   창 닫기는 원점 작업 종료를 기다린다. 닫힌 창은 표시 이벤트 구독을 해제하며 이미 예약된 갱신도 `_closing`으로 제외한다.
   표시용 축 번호는 창이 아닌 ViewModel 생성 시 보관하여 미저장 매핑 편집과 섞이지 않는다.
-- `LogWindowViewModel`과 `LogWindow` 전체를 읽었다. 컬렉션 동기화, 선택 중 일시 정지, 복사 오류 표시,
+- `LogViewModel`과 `LogWindow` 전체를 읽었다. 컬렉션 동기화, 선택 중 일시 정지, 복사 오류 표시,
   화면 Clear와 원본 로그 구분, 닫기 시 소스 컬렉션/오류 이벤트 해제를 확인했다.
 - `AdcProtocolWindow` 전체와 `RunAdcProtocolAsync`, `RunBoltTestAsync` 연결을 읽었다.
   단일 진단 작업이 작업 소유권을 잡고, 닫기/Stop은 진행 중 작업을 취소하고 기다린다.
@@ -305,13 +305,13 @@ NG/반환 연결 확인:
 
 다음 미검토 범위:
 
-1. `MotionService`의 수치 검증·한계·속도 처리와 `AjinMotionService`의 단위 변환/축별 완료 판단.
+1. `MotionServiceBase`의 수치 검증·한계·속도 처리와 `AjinMotionService`의 단위 변환/축별 완료 판단.
 2. `VirtualMotionService`의 같은 명령/취소 동작과 실제 SDK 경계의 차이.
 3. 자동운전 밖 수동 볼트 테스트와 피더 테스트의 소유권/미수집 결과 처리.
 
 ## 03:30 이후 열 번째 검토
 
-- `MotionService` 전체와 `AjinMotionService`의 이동·원점·조그·정지 완료 및 단위 변환 경로를 읽었다.
+- `MotionServiceBase` 전체와 `AjinMotionService`의 이동·원점·조그·정지 완료 및 단위 변환 경로를 읽었다.
   실제 SDK 피드백으로 이동/인포지션/알람을 확인하며 명령 이력을 실제 축 상태로 대체하지 않는다.
   취소 후 정지는 취소되지 않은 완료 대기를 사용하고 여러 축의 정지를 각각 시도한다.
 - 이동 속도와 가감속 시간 검증이 없어 잘못된 XY 속도에도 Z 준비 이동이 먼저 실행됐다.
@@ -430,7 +430,7 @@ NG/반환 연결 확인:
 - 수동 Step 속도 차이는 화면 및 기존 테스트에 명시된 동작이었다.
   볼트 미세 조정은 지정한 수동 속도, 다른 유닛 Step은 설정된 축 속도를 사용하며,
   해당 화면에서는 수동 속도 입력을 숨기고 설정 속도 사용을 표시한다. 이 의도를 결함으로 바꾸지 않았다.
-- FOV/티칭 포인트 변경, 카메라 촬영, 저장 이미지 재검사, 바코드 읽기 및 `InspectionPreview`의
+- FOV/티칭 포인트 변경, 카메라 촬영, 저장 이미지 재검사, 바코드 읽기 및 `InspectionPreviewViewModel`의
   결과 적용을 읽었다. 촬영과 검사 결과의 최종 적용에는 취소 확인이 있었다.
 - `ReinspectImageAsync`는 저장 영상 변환을 기다린 직후 취소 확인 없이 `Preview.Clear`를 호출했다.
   변환 중 선택이 바뀌면 최종 영상 적용은 거부되더라도 옛 FOV의 바코드/볼트 구분을 다시 적용할 수 있었다.
@@ -445,7 +445,7 @@ HS1 감지 후 실제 안착 시간, 정상·불량 영상의 밝기/비율 기�
 
 ## 추가 검토 — 저장 중 STOP과 편집값/저장값의 구분
 
-- `RecipeEditor`, `RecipeStore`, `MachineStore.SaveRecipe/SaveSettings`, `MachineSettings.SaveAsync`를
+- `RecipeEditorViewModel`, `RecipeStore`, `MachineStore.SaveRecipe/SaveSettings`, `MachineSettings.SaveAsync`를
   저장 전 취소와 커밋 후 취소 관점에서 대조했다. 레시피·이미지·선택은 한 트랜잭션이며,
   커밋이 끝난 작업은 늦은 취소 때문에 화면 반영을 건너뛰지 않는다. 이 경로는 수정하지 않았다.
 - `TeachingPoint.Apply`, `TeachCurrentPositionAsync`, `SaveBufferSetupAsync`는 적용한 편집값을

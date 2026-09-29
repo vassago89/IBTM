@@ -15,7 +15,7 @@ public sealed class ApplicationLogTests
     [Fact]
     public async Task LogFolderAndRetentionPersistInMachineSettings()
     {
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         var settings = await MachineSettings.LoadAsync(store);
         Assert.Equal(30, settings.Logging.RetentionDays);
         settings.Logging.Directory = Path.Combine(Path.GetTempPath(), "IBTM configured logs");

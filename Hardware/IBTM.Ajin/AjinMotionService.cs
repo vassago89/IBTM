@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace IBTM.Ajin;
 
-public class AjinMotionService : MotionService, IMotionDiagnostics
+public class AjinMotionService : MotionServiceBase, IMotionDiagnostics
 {
     private const int PositiveLimitBit = 0;
     private const int NegativeLimitBit = 1;

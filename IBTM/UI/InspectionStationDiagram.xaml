@@ -1,0 +1,156 @@
+<UserControl x:Class="IBTM.UI.InspectionStationDiagram"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:IBTM.UI"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
+    Width="{x:Static ui:MachineDiagramLayout.InspectionWidth}"
+    Height="{x:Static ui:MachineDiagramLayout.PlanHeight}">
+    <Grid>
+        <Canvas>
+            <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeaderTop}"
+                Text="Inspection Station" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
+            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}"
+                Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54"
+                Tag="{Binding InspectionDisplayState}"
+                Style="{StaticResource StationStateBadgeStyle}">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock
+                        Text="{Binding InspectionStatus, Converter={StaticResource EnumDescriptionConverter}}"
+                        Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding InspectionStatus, Converter={StaticResource EnumDescriptionConverter}}"/>
+                    <TextBlock Margin="0,3,0,0" FontSize="14" TextTrimming="CharacterEllipsis"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        ToolTip="{Binding InspectionActiveBarcode}">
+                        <Run Text="ID · "/><Run Text="{Binding InspectionActiveBarcode, Mode=OneWay, TargetNullValue='Not Read'}"/>
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding InspectionActivePcb}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.DetailTop}"
+                Orientation="Horizontal">
+                <TextBlock x:Name="ActivePcb" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{Binding InspectionActivePcb, Converter={StaticResource EnumDescriptionConverter}}"/>
+                <TextBlock FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{Binding InspectionActiveOrdinal, StringFormat=' · Bolt {0}'}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding InspectionActiveBolt}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionResultsLeft}"
+                Canvas.Top="{x:Static ui:MachineDiagramLayout.InspectionResultsTop}" Width="214">
+                <StackPanel>
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Units.Inspection}" Value="True"/>
+                                        <Condition Binding="{Binding Inspection.Station.CarrierPresent}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <Grid Margin="0,0,0,8"
+                        Visibility="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="PCB 1" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{Binding InspectionPcb1Barcode, TargetNullValue='Not Read'}"
+                            ToolTip="{Binding InspectionPcb1Barcode}"/>
+                    </Grid>
+                    <Grid Margin="0,0,0,8"
+                        Visibility="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="PCB 2" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{Binding InspectionPcb2Barcode, TargetNullValue='Not Read'}"
+                            ToolTip="{Binding InspectionPcb2Barcode}"/>
+                    </Grid>
+                </StackPanel>
+                <TextBlock
+                    Text="{Binding AlarmMessage}"
+                    ToolTip="{Binding AlarmDetail}"
+                    TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource AccentRedBrush}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding InspectionDisplayState}" Value="{x:Static ui:StationDisplayState.IoAlarm}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <StackPanel Width="{StaticResource CarrierWidth}"
+                Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}"
+                Panel.ZIndex="20">
+                <StackPanel.RenderTransform>
+                    <TranslateTransform X="{Binding NgPickupMapPosition.X, TargetNullValue=0, FallbackValue=0}"
+                        Y="{Binding NgPickupMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
+                </StackPanel.RenderTransform>
+                <Grid Width="{StaticResource CarrierWidth}" Height="{StaticResource CarrierHeight}"
+                    VerticalAlignment="Top">
+                    <ui:CarrierView Visibility="{Binding Signals.Inputs[NgCarrierDetected].IsOn, Converter={StaticResource BoolToVis}}"
+                        ToolTip="Carrier presence sensor · not grip feedback" Opacity="0.5"/>
+                    <Grid Width="{x:Static ui:MachineDiagramLayout.NgPickerWidth}" HorizontalAlignment="Center">
+                        <Border Margin="-8,-6" Background="{StaticResource MachineGhostBrush}"
+                            Tag="{Binding Inspection.Motion.IsMoving}"
+                            Style="{StaticResource OverheadBodyStyle}"/>
+                        <Border Tag="{Binding Inspection.Lift}" Style="{StaticResource DownFootprintStyle}"/>
+                        <Border Tag="{Binding Inspection.Gripper}" Style="{StaticResource CarrierPickerTopJawStyle}"/>
+                        <Border Tag="{Binding Inspection.Gripper}" Style="{StaticResource CarrierPickerBottomJawStyle}"/>
+                        <TextBlock Margin="0,5,0,0" VerticalAlignment="Top" Text="NG Pick" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    </Grid>
+                </Grid>
+            </StackPanel>
+            <Canvas Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
+                <Canvas.RenderTransform>
+                    <TranslateTransform X="{Binding InspectionGantryMapPosition.X, TargetNullValue=0, FallbackValue=0}"
+                        Y="{Binding InspectionGantryMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
+                </Canvas.RenderTransform>
+                <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.CameraLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CameraTop}">
+                    <Grid x:Name="InspectionCamera" Width="{x:Static ui:MachineDiagramLayout.CameraSize}" Height="{x:Static ui:MachineDiagramLayout.CameraSize}">
+                        <Ellipse Width="42" Height="42" Fill="{StaticResource MachineGhostBrush}" Stroke="{StaticResource AccentBlueBrush}"
+                            StrokeThickness="2"/>
+                        <Ellipse Width="16" Height="16" Fill="Transparent" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1"/>
+                    </Grid>
+                    <TextBlock Margin="0,2,0,0" Text="Camera" HorizontalAlignment="Center" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                </StackPanel>
+            </Canvas>
+        </Canvas>
+    </Grid>
+</UserControl>

@@ -30,7 +30,7 @@ public partial class OperationViewModel : ObservableObject
 {
     private readonly MachineOptions _options;
     private readonly RecipeManager _recipes;
-    private readonly MachineMap _map;
+    private readonly MachineDiagramMapper _map;
     private volatile bool _active;
     private const int PcbHistoryPageSize = 100;
     private readonly MachineStore _store;
@@ -47,7 +47,7 @@ public partial class OperationViewModel : ObservableObject
         UnitSettings units,
         MachineOptions options,
         RecipeManager recipes,
-        MachineMap map,
+        MachineDiagramMapper map,
         MainConveyor conveyor,
         NgCarrierConveyor ngConveyor,
         PcbSupplier supply,
@@ -56,8 +56,8 @@ public partial class OperationViewModel : ObservableObject
         InspectionStation inspectionStation,
         MachineStore store,
         PcbHistorySettings historySettings,
-        PcbDetailsViewModel pcbDetails,
-        DiagnosticWindows windows,
+        PcbResultsViewModel pcbDetails,
+        DiagnosticWindowManager windows,
         ILogger<OperationViewModel> log)
     {
         OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest);
@@ -235,7 +235,7 @@ public partial class OperationViewModel : ObservableObject
     public int? InspectionActiveOrdinal => InspectionActiveBolt is { } bolt
         ? _recipes.Current.Pcb.GetBoltOrdinal(bolt.Id) : null;
 
-    public IReadOnlyList<BoltTargetView> BoltTargets
+    public IReadOnlyList<BoltDiagramMarker> BoltTargets
     {
         get
         {
@@ -244,7 +244,7 @@ public partial class OperationViewModel : ObservableObject
 
             var active = BoltFasteningActiveBolt;
             var assemblies = Fastening.Station.Assemblies;
-            var targets = new List<BoltTargetView>();
+            var targets = new List<BoltDiagramMarker>();
             foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
                 if (!Fastening.Station.IsHeatSinkPresent(bolt.HeatSink)
@@ -264,7 +264,7 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public IReadOnlyList<BoltTargetView> InspectionTargets
+    public IReadOnlyList<BoltDiagramMarker> InspectionTargets
     {
         get
         {
@@ -273,7 +273,7 @@ public partial class OperationViewModel : ObservableObject
 
             var active = InspectionActiveBolt;
             var assemblies = Inspection.Station.Assemblies;
-            var targets = new List<BoltTargetView>();
+            var targets = new List<BoltDiagramMarker>();
             foreach (var bolt in _recipes.Current.Pcb.BoltPoints)
             {
                 if (!Inspection.Station.IsHeatSinkPresent(bolt.HeatSink)
@@ -640,7 +640,7 @@ public partial class OperationViewModel : ObservableObject
         InspectionImageCaption = boltId is { } id
             ? $"{pcb.GetDescription()} · {_recipes.Current.Pcb.GetBoltName(id)}"
             : $"{pcb.GetDescription()} · Data Matrix";
-        InspectionImage = InspectionPreview.CreateBitmap(frame);
+        InspectionImage = InspectionPreviewViewModel.CreateBitmap(frame);
     }
 
     private void OnInspectionChanged()
@@ -1004,7 +1004,7 @@ public partial class OperationViewModel : ObservableObject
 
     public IRelayCommand ClosePcbDetailsCommand { get; }
 
-    public PcbDetailsViewModel PcbDetails { get; }
+    public PcbResultsViewModel PcbDetails { get; }
 
     [ObservableProperty]
     public partial PcbRecord? SelectedPcb { get; set; }

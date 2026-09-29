@@ -1,0 +1,240 @@
+<UserControl x:Class="IBTM.UI.MainConveyorDiagram"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:IBTM.UI"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
+    Width="1552"
+    Height="360">
+    <UserControl.Resources>
+        <Style x:Key="MainConveyorSensorStyle" TargetType="Ellipse" BasedOn="{StaticResource IoInputLedStyle}">
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="StrokeThickness" Value="2"/>
+            <Setter Property="Panel.ZIndex" Value="3"/>
+        </Style>
+        <Style x:Key="MainBeltDirectionStyle" TargetType="Path">
+            <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
+            <Setter Property="StrokeThickness" Value="3"/>
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Setter Property="ToolTip" Value="Main conveyor drive direction"/>
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Signals.Outputs[MainConveyorRun].IsOn}" Value="True"/>
+                        <Condition Binding="{Binding Signals.Outputs[MainConveyorForward].IsOn}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="Data" Value="M 0,0 L 9,8 L 0,16 M 18,0 L 27,8 L 18,16 M 36,0 L 45,8 L 36,16"/>
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Signals.Outputs[MainConveyorRun].IsOn}" Value="True"/>
+                        <Condition Binding="{Binding Signals.Outputs[MainConveyorForward].IsOn}" Value="False"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Setter Property="Data" Value="M 9,0 L 0,8 L 9,16 M 27,0 L 18,8 L 27,16 M 45,0 L 36,8 L 45,16"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    <Grid>
+        <Canvas>
+            <Grid Canvas.Left="0" Canvas.Top="312" Width="1552">
+                <Border HorizontalAlignment="Center" Style="{StaticResource StateBadgeStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="CONVEYOR" Margin="0,0,9,0" VerticalAlignment="Center"
+                            Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                        <TextBlock Text="{Binding ConveyorStatus, Converter={StaticResource EnumDescriptionConverter}}"
+                            FontSize="15" FontWeight="SemiBold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource MapHintStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Units.MainConveyor}" Value="False">
+                                            <Setter Property="Opacity" Value="0.55"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Signals.Outputs[MainConveyorRun].IsOn}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Canvas.Left="18" Canvas.Top="64" Width="1516" Height="112"
+                Tag="{Binding Signals.Outputs[MainConveyorRun].IsOn}"
+                Style="{StaticResource ConveyorBedStyle}"/>
+
+            <Border Canvas.Left="18" Canvas.Top="-8" Width="170" Padding="10,4"
+                Style="{StaticResource DeviceBodyStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="40"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.ColumnSpan="2" Text="Front 2 · SMEMA"
+                        FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Grid.Row="1" Text="→ Available" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Inputs[MainConveyorAvailableFromFront2].IsOn}"/>
+                    <TextBlock Grid.Row="2" Text="← Ready" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Outputs[MainConveyorReadyToFront2].IsOn}"/>
+                </Grid>
+            </Border>
+            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.RearInterfaceLeft}" Canvas.Top="-8"
+                Width="214" Padding="10,4" Style="{StaticResource DeviceBodyStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="40"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.ColumnSpan="2" Text="Rear · SMEMA"
+                        FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Grid.Row="1" Text="→ Available" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Outputs[MainConveyorAvailableToRear].IsOn}"/>
+                    <TextBlock Grid.Row="2" Text="← Ready" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Inputs[MainConveyorReadyFromRear].IsOn}"/>
+                </Grid>
+            </Border>
+
+            <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StationLabelTop}"
+                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" Text="Station 1"
+                Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StationLabelTop}"
+                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" Text="Station 2"
+                Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StationLabelTop}"
+                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" Text="Station 3"
+                Style="{StaticResource EquipmentRoleLabelStyle}"/>
+
+            <Ellipse Canvas.Left="160" Canvas.Top="108"
+                Tag="{Binding Signals.Inputs[MainConveyorEntryCarrierDetected].IsOn}"
+                ToolTip="Entry carrier sensor" Style="{StaticResource MainConveyorSensorStyle}"/>
+            <TextBlock Canvas.Left="112" Canvas.Top="137" Width="80"
+                Text="IN"
+                Style="{StaticResource EquipmentRoleLabelStyle}"/>
+
+            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.PlateTop}"
+                Tag="{Binding Placement.Station.BackupPlate}"
+                ToolTip="Placement backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
+            <ui:CarrierView Canvas.Left="{x:Static ui:MachineDiagramLayout.PlacementCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
+                Panel.ZIndex="2"
+                HeatSink1Present="{Binding Signals.Inputs[PcbPlacementHeatSink1Present].IsOn}"
+                HeatSink2Present="{Binding Signals.Inputs[PcbPlacementHeatSink2Present].IsOn}"
+                Pcb1Placed="{Binding PcbPlacementHeatSink1Completed}"
+                Pcb2Placed="{Binding PcbPlacementHeatSink2Completed}"
+                ShowPcbSlots="True"
+                ActiveHeatSink="{Binding Placement.ActivePcb}">
+                <ui:CarrierView.Style>
+                    <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <Trigger Property="HeatSink1Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="HeatSink2Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:CarrierView.Style>
+            </ui:CarrierView>
+            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.PlacementStopperLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StopperTop}"
+                Tag="{Binding Placement.Station.Stopper}"
+                ToolTip="Placement stopper" Style="{StaticResource StopperVisualStyle}"/>
+            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.PlateTop}"
+                Tag="{Binding Fastening.Station.BackupPlate}"
+                ToolTip="Bolt fastening backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
+            <ui:CarrierView Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningCarrierLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}"
+                Panel.ZIndex="2"
+                HeatSink1Present="{Binding Signals.Inputs[BoltFasteningHeatSink1Present].IsOn}"
+                HeatSink2Present="{Binding Signals.Inputs[BoltFasteningHeatSink2Present].IsOn}"
+                HeatSink1Result="{Binding BoltFasteningHeatSink1Result}"
+                HeatSink2Result="{Binding BoltFasteningHeatSink2Result}"
+                BoltTargets="{Binding BoltTargets}">
+                <ui:CarrierView.Style>
+                    <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <Trigger Property="HeatSink1Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="HeatSink2Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:CarrierView.Style>
+            </ui:CarrierView>
+            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningStopperLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StopperTop}"
+                Tag="{Binding Fastening.Station.Stopper}"
+                ToolTip="Bolt fastening stopper" Style="{StaticResource StopperVisualStyle}"/>
+            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.PlateTop}"
+                Tag="{Binding Inspection.Station.BackupPlate}"
+                ToolTip="Inspection backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
+            <ui:CarrierView Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionCarrierLeft}"
+                Canvas.Top="{x:Static ui:MachineDiagramLayout.CarrierTop}" Panel.ZIndex="2"
+                HeatSink1Present="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn}"
+                HeatSink2Present="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn}"
+                HeatSink1Result="{Binding InspectionHeatSink1Result}"
+                HeatSink2Result="{Binding InspectionHeatSink2Result}"
+                ActiveHeatSink="{Binding InspectionActivePcb}"
+                BoltTargets="{Binding InspectionTargets}">
+                <ui:CarrierView.Style>
+                    <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <Trigger Property="HeatSink1Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="HeatSink2Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:CarrierView.Style>
+            </ui:CarrierView>
+            <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionStopperLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StopperTop}"
+                Tag="{Binding Inspection.Station.Stopper}"
+                ToolTip="Inspection stopper" Style="{StaticResource StopperVisualStyle}"/>
+            <TextBlock Canvas.Left="1358" Canvas.Top="137" Width="80"
+                Text="OUT"
+                Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FirstPlateLeft}" Canvas.Top="248" Width="284" Height="48">
+                <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
+                <Path Tag="{Binding Placement.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>
+                <Path Tag="{Binding Placement.Station.Stopper}" Style="{StaticResource StopperElevationStyle}"/>
+            </Canvas>
+            <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="248" Width="284" Height="48">
+                <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
+                <Path Tag="{Binding Fastening.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>
+                <Path Tag="{Binding Fastening.Station.Stopper}" Style="{StaticResource StopperElevationStyle}"/>
+            </Canvas>
+            <Canvas Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionPlateLeft}" Canvas.Top="248" Width="284" Height="48">
+                <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
+                <Path Tag="{Binding Inspection.Station.BackupPlate}" Style="{StaticResource PlateElevationStyle}"/>
+                <Path Tag="{Binding Inspection.Station.Stopper}" Style="{StaticResource StopperElevationStyle}"/>
+            </Canvas>
+            <Path Canvas.Left="508" Canvas.Top="110" Style="{StaticResource MainBeltDirectionStyle}"/>
+            <Path Canvas.Left="918" Canvas.Top="110" Style="{StaticResource MainBeltDirectionStyle}"/>
+        </Canvas>
+    </Grid>
+</UserControl>

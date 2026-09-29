@@ -1,0 +1,381 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Threading;
+using IBTM.BoltFastening;
+using IBTM.Core;
+using IBTM.Device;
+using IBTM.Inspection;
+using IBTM.UI;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace IBTM.Virtual.Tests;
+
+// Shared virtual machine setup and fault injection for lifecycle, home and teaching tests.
+public static class MachineTestSupport
+{
+    public static ServiceProvider CreateDisplayServices(
+        out DisplayReadMotion feedback,
+        MachineSettings? settings = null)
+    {
+        var motion = DispatchProxy.Create<IXyMotion, DisplayReadMotion>();
+        var probe = (DisplayReadMotion)motion;
+        feedback = probe;
+        return new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
+            .AddIbtmApplication(settings ?? FlowSettings())
+            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+            {
+                var motions = Enum.GetValues<MotionGroup>().ToDictionary(
+                    group => group, group => provider.GetRequiredKeyedService<IXyMotion>(group));
+                probe.Motion = motions[MotionGroup.InspectionGantry];
+                motions[MotionGroup.InspectionGantry] = motion;
+                return motions;
+            })
+            .BuildServiceProvider();
+    }
+
+    public static ServiceProvider CreateDiagnosticServices(
+        ILightController? light = null,
+        Action<ServiceCollection>? configure = null)
+    {
+        var collection = new ServiceCollection();
+        collection.AddSingleton(
+            VirtualTestSupport.OpenMachineStore(
+                Path.Combine(Path.GetTempPath(), $"IBTM-diagnostic-{Guid.NewGuid():N}.db")))
+            .AddIbtmApplication(
+                new MachineSettings
+                {
+                    Drivers = new() { Light = LightDriver.Virtual },
+                    Units = new()
+                    {
+                        MainConveyor = true,
+                        PcbSupply = false,
+                        PcbPlacement = false,
+                        PickupBoltFeeder = false,
+                        ShootingBoltFeeder = false,
+                        BoltFastening = false,
+                        Inspection = false,
+                        NgConveyor = false,
+                    },
+                });
+        if (light is not null)
+            collection.AddSingleton(light);
+        configure?.Invoke(collection);
+        return collection.BuildServiceProvider();
+    }
+
+    public static ServiceProvider CreateServices(MachineSettings settings)
+    {
+        return new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
+            .AddIbtmApplication(settings)
+            .BuildServiceProvider(
+                new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true, });
+    }
+
+    public static ServiceProvider CreateMotionScopeServices(
+        MachineSettings settings,
+        out Dictionary<MotionGroup, ScopedMotionProbe> probes,
+        Action<IServiceCollection>? configure = null)
+    {
+        var captured = new Dictionary<MotionGroup, ScopedMotionProbe>();
+        probes = captured;
+        var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
+            .AddIbtmApplication(settings)
+            .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+                Enum.GetValues<MotionGroup>().ToDictionary(group => group,
+                    group =>
+                    {
+                        var motion = DispatchProxy.Create<IXyMotion, ScopedMotionProbe>();
+                        var probe = (ScopedMotionProbe)motion;
+                        probe.Motion = provider.GetRequiredKeyedService<IXyMotion>(group);
+                        captured.Add(group, probe);
+                        return motion;
+                    }));
+        configure?.Invoke(services);
+        var provider = services.BuildServiceProvider();
+        // These tests replace the handler factories that normally initialize virtual feedback.
+        _ = provider.GetRequiredService<VirtualMachine>();
+        return provider;
+    }
+
+    public static UnitSettings EnableOnly(MachineUnit unit)
+    {
+        return new()
+        {
+            MainConveyor = unit == MachineUnit.MainConveyor,
+            PcbSupply = unit == MachineUnit.PcbSupply,
+            PcbPlacement = unit == MachineUnit.PcbPlacement,
+            PickupBoltFeeder = unit == MachineUnit.PickupBoltFeeder,
+            ShootingBoltFeeder = unit == MachineUnit.ShootingBoltFeeder,
+            BoltFastening = unit == MachineUnit.BoltFastening,
+            Inspection = unit == MachineUnit.Inspection,
+            NgConveyor = unit == MachineUnit.NgConveyor,
+        };
+    }
+
+    public static HomeSettings FastHome()
+    {
+        return new() { SearchSpeed = 10_000 };
+    }
+
+    public static void FastHomes(MachineSettings settings)
+    {
+        foreach (var (motion, _) in settings.MotionSections)
+        {
+            motion.HorizontalHome = FastHome();
+            motion.ZHome = FastHome();
+        }
+    }
+
+    public static MachineSettings FlowSettings()
+    {
+        var settings = new MachineSettings();
+        settings.PcbSupply.Motion = FastMotion();
+        settings.PcbSupply.RotationZ = 0;
+        settings.PcbSupply.HandoffPosition = new()
+        {
+            X = 80,
+            Y = 30,
+        };
+        settings.PcbPlacementHandler.Motion = FastMotion();
+        settings.PcbPlacementHandler.ReceiveZ = 12;
+        settings.PcbPlacementHandler.HandoffPosition = new()
+        {
+            X = 80,
+            Y = 30,
+            Z = 10,
+        };
+        settings.BoltFastening.Motion = FastMotion();
+        settings.BoltFastening.DryRunMilliseconds = 30;
+        // Virtual tube passage takes 200 ms after detection, while the blow output remains on.
+        settings.BoltFastening.ShootingArrivalDelaySeconds = 0.5;
+        settings.BoltFastening.SafeZ = 0;
+        settings.BoltFastening.PickupPosition = new()
+        {
+            X = 100,
+            Y = 50,
+            Z = 10,
+        };
+        settings.BoltFastening.PickupHead = HeadSettings();
+        settings.BoltFastening.ShootingHead = HeadSettings();
+        settings.InspectionGantry.Motion = FastMotion();
+        settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
+        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
+        settings.NgCarrierTransfer.WaitingPosition = new() { X = 5, Y = 20 };
+        settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 5, Y = 20 };
+        settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 150, Y = 20 };
+        return settings;
+    }
+
+    public static MotionSettings FastMotion()
+    {
+        return new()
+        {
+            HorizontalSpeed = 10_000,
+            ZSpeed = 10_000,
+            HorizontalHome = FastHome(),
+            ZHome = FastHome(),
+        };
+    }
+
+    public static BoltHeadSettings HeadSettings()
+    {
+        return new()
+        {
+            UpperLeftLocatingPin = new() { X = 0, Y = 0 },
+            LowerRightLocatingPin = new() { X = 100, Y = 100 },
+        };
+    }
+
+    public class DisplayReadMotion : DispatchProxy, IMotionDiagnostics
+    {
+        public Action? BeforeRead;
+        public Action? BeforePositionRead;
+        public Action? BeforeHome;
+        public Exception? DiagnosticReadError;
+        public Action<MotionAxis>? AfterDiagnosticStateRead;
+
+        public DisplayReadMotion()
+        {
+            AxisMoves = [];
+        }
+
+        public IXyMotion Motion { get; set; } = null!;
+        public MotionAxis? LastMovedAxis { get; private set; }
+        public double? LastMoveVelocity { get; private set; }
+        public List<(MotionAxis Axis, double Position)> AxisMoves { get; }
+
+        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
+        {
+            if (DiagnosticReadError is { } error)
+                return (null, error);
+            var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
+            AfterDiagnosticStateRead?.Invoke(axis);
+            return read;
+        }
+
+        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
+        {
+            return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
+        }
+
+        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
+        {
+            if (method!.Name is nameof(IAxisMotion.HomeAsync) or nameof(IXyMotion.HomeHorizontalAsync))
+                BeforeHome?.Invoke();
+            if (method!.Name == nameof(IMotionFeedback.GetAxisState))
+                BeforeRead?.Invoke();
+            if (method.Name == $"get_{nameof(IMotionFeedback.Position)}")
+                BeforePositionRead?.Invoke();
+            if (method.Name == nameof(IAxisMotion.MoveAxisAsync))
+            {
+                LastMovedAxis = (MotionAxis)arguments![0]!;
+                AxisMoves.Add(((MotionAxis)arguments![0]!, (double)arguments[1]!));
+            }
+            if (method.Name is nameof(IAxisMotion.MoveAxisAsync) or nameof(IXyMotion.MoveToXYAsync))
+                LastMoveVelocity = (double)arguments![2]!;
+            return method.Invoke(Motion, arguments);
+        }
+    }
+
+    public class ScopedMotionProbe : DispatchProxy, IMotionDiagnostics
+    {
+        private bool _initialized;
+        public IAxisMotion Motion = null!;
+        public bool ReportReady;
+        public bool FailHardwareCalls;
+        public bool AllowStop;
+        public int HardwareCalls;
+        public int InitializationCalls;
+        public int ResetCalls;
+        public int StopCalls;
+        public Action? BeforeHardwareRead;
+        public Action? BeforeAxisStateRead;
+        public Func<MotionAxis, AxisState, AxisState>? OverrideState;
+        public Exception? DiagnosticReadError;
+
+        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
+        {
+            if (DiagnosticReadError is { } error)
+                return (null, error);
+            if (FailHardwareCalls)
+                return (null, new IOException("Unavailable diagnostic state."));
+            var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
+            return (read.State is { } state ? OverrideState?.Invoke(axis, state) ?? state : null, read.Error);
+        }
+
+        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
+        {
+            if (DiagnosticReadError is { } error)
+                return (null, error);
+            if (FailHardwareCalls)
+                return (null, new IOException("Unavailable diagnostic position."));
+            return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
+        }
+
+        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
+        {
+            var name = method!.Name;
+            if (name == nameof(IMotionFeedback.GetAxisState))
+                BeforeAxisStateRead?.Invoke();
+            if (name == nameof(IAxisMotion.Stop))
+                Interlocked.Increment(ref StopCalls);
+            // A disabled device may reject acquisition while still accepting an explicit STOP.
+            if (name == nameof(IAxisMotion.Stop) && AllowStop)
+            {
+                Motion.Stop();
+                return null;
+            }
+            if (name == "get_IsReady")
+            {
+                BeforeHardwareRead?.Invoke();
+                return ReportReady || _initialized;
+            }
+            if (!method.IsSpecialName
+                || name is "get_IsMoving" or "get_IsMovingHorizontal")
+            {
+                BeforeHardwareRead?.Invoke();
+                Interlocked.Increment(ref HardwareCalls);
+                if (name == nameof(IAxisMotion.ResetAsync))
+                    Interlocked.Increment(ref ResetCalls);
+                if (FailHardwareCalls)
+                    throw new IOException($"Unavailable motion: {name}");
+            }
+
+            var result = method.Invoke(Motion, arguments);
+            if (name == nameof(IAxisMotion.Initialize))
+            {
+                _initialized = true;
+                Interlocked.Increment(ref InitializationCalls);
+            }
+            if (name == nameof(IMotionFeedback.GetAxisState)
+                && OverrideState is { } transform)
+                return transform((MotionAxis)arguments![0]!, (AxisState)result!);
+            if (OverrideState is { } feedback && name is "get_IsMoving" or "get_IsMovingHorizontal")
+                return Motion.Axes.Any(axis => (name == "get_IsMoving" || axis != MotionAxis.Z)
+                    && feedback(axis, Motion.GetAxisState(axis)).InMotion);
+            return result;
+        }
+    }
+
+    public enum MachineUnit
+    {
+        MainConveyor,
+        PcbSupply,
+        PcbPlacement,
+        PickupBoltFeeder,
+        ShootingBoltFeeder,
+        BoltFastening,
+        Inspection,
+        NgConveyor,
+    }
+
+    public static Dictionary<OutputIo, TeachingOutputRow> TeachingRows(TeachingViewModel teaching)
+    {
+        return teaching.TeachingIoGroups.SelectMany(group => group.Outputs)
+            .Where(row => row.IsSupported)
+            .ToDictionary(row => row.Io.Signal);
+    }
+
+    public static void PrepareCarrierTeaching(MachineSettings settings, Recipe recipe)
+    {
+        recipe.PcbSupply.Pcb1PickPosition.Y = 10;
+        recipe.PcbSupply.Pcb2PickPosition.Y = 10;
+        settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
+        settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 100 };
+        settings.BoltFastening.PickupHead = HeadSettings();
+        settings.BoltFastening.ShootingHead = HeadSettings();
+        recipe.Pcb = new();
+        recipe.Pcb.BoltPoints.Add(
+            new BoltPoint { Id = VirtualTestSupport.BoltId(1), Head = FasteningHead.Shooting, X = 10, Y = 10, });
+        recipe.Pcb.BoltPoints.Add(
+            new BoltPoint { Id = VirtualTestSupport.BoltId(1, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 28, Y = 10 });
+        foreach (var bolt in recipe.Pcb.BoltPoints)
+            settings.BoltFastening.InitializeBoltPosition(bolt, settings.CarrierReference);
+        TeachInspectionFovs(recipe);
+    }
+
+    public static void TeachInspectionFovs(Recipe recipe)
+    {
+        recipe.CarrierImages = recipe.Pcb.BoltPoints.Select((bolt, index) => new CarrierImageTile
+        {
+            Number = index + 1,
+            Region = new(128, 88, 64, 64),
+            BoltId = bolt.Id,
+            HeatSink = bolt.HeatSink,
+        }).ToList();
+        foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
+        {
+            recipe.CarrierImages.Add(new()
+            {
+                Number = recipe.CarrierImages.Count + 1,
+                Center = new() { X = pcb == HeatSinkSlot.HeatSink1 ? 10 : 28, Y = 17 },
+                Region = new(180, 40, 80, 80),
+                IsBarcode = true,
+                HeatSink = pcb,
+            });
+        }
+    }
+}

@@ -24,23 +24,23 @@ public sealed class MotionStatusTests
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         var target = new AxisPosition { X = 12 };
-        Assert.True(MotionService.IsHoldingPosition(motion, target));
+        Assert.True(MotionServiceBase.IsHoldingPosition(motion, target));
 
         motion.ReportedPosition = (15, 0, 0); // External encoder change, without an application move event.
         Assert.Equal(12, status.Position.X);
-        Assert.False(MotionService.IsHoldingPosition(motion, target));
+        Assert.False(MotionServiceBase.IsHoldingPosition(motion, target));
         motion.ReportedPosition = (12, 0, 0);
         motion.State = motion.State with { ServoOn = false };
         Assert.True(status.Axes[MotionAxis.X].State?.ServoOn);
-        Assert.False(MotionService.IsHoldingPosition(motion, target));
+        Assert.False(MotionServiceBase.IsHoldingPosition(motion, target));
         motion.State = motion.State with { ServoOn = true, Alarm = true };
-        Assert.False(MotionService.IsHoldingPosition(motion, target));
+        Assert.False(MotionServiceBase.IsHoldingPosition(motion, target));
         motion.State = motion.State with { Alarm = false, InMotion = true };
-        Assert.False(MotionService.IsHoldingPosition(motion, target));
+        Assert.False(MotionServiceBase.IsHoldingPosition(motion, target));
         motion.State = motion.State with { InMotion = false };
-        Assert.True(MotionService.IsHoldingPosition(motion, target));
+        Assert.True(MotionServiceBase.IsHoldingPosition(motion, target));
         motion.Failure = new IOException("Current feedback is unavailable.");
-        Assert.Throws<IOException>(() => MotionService.IsHoldingPosition(motion, target));
+        Assert.Throws<IOException>(() => MotionServiceBase.IsHoldingPosition(motion, target));
     }
 
     [Theory]
@@ -52,22 +52,22 @@ public sealed class MotionStatusTests
         var status = new MotionStatus(motion);
         motion.Initialize();
         var target = new AxisPosition { X = 0, Y = hasY ? 0 : 123, Z = 456 };
-        Assert.False(MotionService.IsAt(motion, target));
+        Assert.False(MotionServiceBase.IsAt(motion, target));
         Assert.False(status.IsFeedbackAvailable);
         await motion.HomeAsync(MotionAxis.X, 1_000);
         if (hasY)
         {
-            Assert.False(MotionService.IsAt(motion, target));
+            Assert.False(MotionServiceBase.IsAt(motion, target));
             await motion.HomeAsync(MotionAxis.Y, 1_000);
         }
-        Assert.True(MotionService.IsAt(motion, target));
+        Assert.True(MotionServiceBase.IsAt(motion, target));
         status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         Assert.True(status.IsFeedbackAvailable);
         Assert.True(status.XyHomed);
         Assert.Equal(0, status.Position.X);
         target.X = 10;
-        Assert.False(MotionService.IsAt(motion, target));
+        Assert.False(MotionServiceBase.IsAt(motion, target));
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public sealed class MotionStatusTests
     [Fact]
     public async Task StationsAndMonitorUseTheRegisteredMotionAndStatusInstances()
     {
-        await using var services = MachineTest.CreateDiagnosticServices();
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
         var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
         var statuses = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>();
         var monitor = services.GetRequiredService<MachineFeedbackMonitor>();
@@ -223,7 +223,7 @@ public sealed class MotionStatusTests
     [Fact]
     public async Task MotionMonitorShowsFeedbackWithAxisAlarmServoOffAndLatchedMachineAlarm()
     {
-        await using var services = MachineTest.CreateDiagnosticServices();
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
         var settings = services.GetRequiredService<MachineSettings>();
         settings.Units.Inspection = true;
         var machine = services.GetRequiredService<MachineController>();
@@ -238,12 +238,12 @@ public sealed class MotionStatusTests
             state.SetError(MachineAlarm.MotionUnavailable, new IOException("Axis alarm is latched."));
             state.Refresh();
             Assert.True(
-                await VirtualTest.WaitUntilAsync(
+                await VirtualTestSupport.WaitUntilAsync(
                     () => state.Available
                         && state.FeedbackReadiness.Faulted
                         && !state.ServoPowerOn,
                     TimeSpan.FromSeconds(2)));
-            var view = new MotionWindowViewModel(machine, state, settings);
+            var view = new MotionDiagnosticsViewModel(machine, state, settings);
             var axes = view.Axes.Where(row => row.Group == MotionGroup.InspectionGantry).ToArray();
             Assert.All(
                 axes,
@@ -256,7 +256,7 @@ public sealed class MotionStatusTests
             var x = Assert.Single(axes, row => row.Axis == MotionAxis.X);
             var y = Assert.Single(axes, row => row.Axis == MotionAxis.Y);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(
+                await VirtualTestSupport.WaitUntilAsync(
                     () => x.Diagnostics.Snapshot.Faulted == true
                         && y.Diagnostics.Snapshot.State?.ServoOn == false,
                     TimeSpan.FromSeconds(2)));
@@ -277,7 +277,7 @@ public sealed class MotionStatusTests
     {
         var probe = System.Reflection.DispatchProxy.Create<IXyMotion, DiagnosticMotionProbe>();
         var diagnostics = (DiagnosticMotionProbe)probe;
-        await using var services = MachineTest.CreateDiagnosticServices(
+        await using var services = MachineTestSupport.CreateDiagnosticServices(
             configure: collection =>
                 collection
                     .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
@@ -291,7 +291,7 @@ public sealed class MotionStatusTests
         await machine.InitializeAsync();
         try
         {
-            var view = new MotionWindowViewModel(machine, state, settings) { EnabledOnly = false };
+            var view = new MotionDiagnosticsViewModel(machine, state, settings) { EnabledOnly = false };
             var x = Assert.Single(
                 view.Axes,
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
@@ -308,7 +308,7 @@ public sealed class MotionStatusTests
             diagnostics.Position = 42;
             diagnostics.Alarmed = true;
             Assert.True(
-                await VirtualTest.WaitUntilAsync(
+                await VirtualTestSupport.WaitUntilAsync(
                     () => diagnostics.Reads > reads
                         && x.Diagnostics.Snapshot.Position == 42
                         && x.Diagnostics.Snapshot.Faulted == true,
@@ -320,12 +320,12 @@ public sealed class MotionStatusTests
             // Movement started outside the application still makes the machine busy.
             diagnostics.InMotion = true;
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => state.IsRunning, TimeSpan.FromSeconds(2)));
+                await VirtualTestSupport.WaitUntilAsync(() => state.IsRunning, TimeSpan.FromSeconds(2)));
             Assert.False(machine.IsResetAllowed);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
             Assert.True(state.SetupEditingEnabled);
             Assert.True(services.GetRequiredService<SettingsViewModel>().IsSettingsEditAllowed);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => state.IsRunning && state.SetupEditingEnabled,
                 TimeSpan.FromSeconds(2)));
             Assert.False(state.ManualSetupEnabled);
@@ -333,7 +333,7 @@ public sealed class MotionStatusTests
             await view.StopCommand.ExecuteAsync(null);
             Assert.Equal(1, diagnostics.Stops);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => !state.IsRunning, TimeSpan.FromSeconds(2)));
+                await VirtualTestSupport.WaitUntilAsync(() => !state.IsRunning, TimeSpan.FromSeconds(2)));
 
             using (services.GetRequiredService<OperationCancellation>().TryBegin())
             {
@@ -345,7 +345,7 @@ public sealed class MotionStatusTests
             diagnostics.FailX = true;
             diagnostics.Position = 43;
             Assert.True(
-                await VirtualTest.WaitUntilAsync(
+                await VirtualTestSupport.WaitUntilAsync(
                     () => x.Diagnostics.Snapshot.State is null
                         && x.Diagnostics.Snapshot.Position == 43
                         && y.Diagnostics.Snapshot.State is not null,
@@ -354,7 +354,7 @@ public sealed class MotionStatusTests
             Assert.Equal(43, position.Position.X); // A state-query failure does not hide a readable coordinate.
             Assert.True(state.Available);
             diagnostics.FailPosition = true;
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => position.Position.X is null && x.Diagnostics.Snapshot.Position is null,
                 TimeSpan.FromSeconds(2)));
             var readErrors = Assert.IsType<AggregateException>(x.Diagnostics.Snapshot.ReadError);
@@ -370,14 +370,14 @@ public sealed class MotionStatusTests
             Assert.True(x.Enabled);
             Assert.True(x.Refresh());
             Assert.False(x.Refresh());
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => state.FeedbackReadiness.Faulted && state.ReadError is not null && !y.ToggleServoCommand.CanExecute(null),
                 TimeSpan.FromSeconds(2)));
             Assert.NotNull(state.ReadError); // Explicit failure without another throwing control read.
             diagnostics.FailX = false;
             diagnostics.FailControl = true;
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => !state.Available, TimeSpan.FromSeconds(2)));
+                await VirtualTestSupport.WaitUntilAsync(() => !state.Available, TimeSpan.FromSeconds(2)));
             Assert.NotNull(y.Diagnostics.Snapshot.State);
             Assert.NotNull(y.Diagnostics.Snapshot.Position);
             Assert.True(machine.IsResetAllowed);
@@ -392,7 +392,7 @@ public sealed class MotionStatusTests
             diagnostics.Alarmed = false;
             diagnostics.Position = 44;
             Assert.True(
-                await VirtualTest.WaitUntilAsync(
+                await VirtualTestSupport.WaitUntilAsync(
                     () => x.Diagnostics.Snapshot.Position == 44
                         && x.Diagnostics.Snapshot.Faulted == false,
                     TimeSpan.FromSeconds(2)));

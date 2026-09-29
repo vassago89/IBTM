@@ -284,7 +284,7 @@ public partial class SettingsViewModel : ObservableObject
                         stream,
                         System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
                         System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
-                    return InspectionPreview.CreateFrame(decoder.Frames[0]);
+                    return InspectionPreviewViewModel.CreateFrame(decoder.Frames[0]);
                 },
                 cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();

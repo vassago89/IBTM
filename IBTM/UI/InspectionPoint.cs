@@ -57,7 +57,7 @@ public sealed class InspectionPoint
         return image.IsForTarget(HeatSink, Bolt?.Id);
     }
 
-    public CarrierImageTileView? FindImage(IReadOnlyList<CarrierImageTileView> images)
+    public RecipeImageItem? FindImage(IReadOnlyList<RecipeImageItem> images)
     {
         return Metadata is { } metadata
             ? images.FirstOrDefault(image => image.Metadata.Number == metadata.Number && Matches(image.Metadata))

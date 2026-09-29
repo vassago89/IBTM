@@ -22,7 +22,7 @@ public sealed class CarrierView : Control
     {
         BoltTargetsProperty = DependencyProperty.Register(
             nameof(BoltTargets),
-            typeof(IReadOnlyList<BoltTargetView>),
+            typeof(IReadOnlyList<BoltDiagramMarker>),
             typeof(CarrierView));
         HeatSink1PresentProperty = DependencyProperty.Register(
             nameof(HeatSink1Present),
@@ -58,9 +58,9 @@ public sealed class CarrierView : Control
             typeof(CarrierView));
     }
 
-    public IReadOnlyList<BoltTargetView>? BoltTargets
+    public IReadOnlyList<BoltDiagramMarker>? BoltTargets
     {
-        get => (IReadOnlyList<BoltTargetView>?)GetValue(BoltTargetsProperty);
+        get => (IReadOnlyList<BoltDiagramMarker>?)GetValue(BoltTargetsProperty);
         set => SetValue(BoltTargetsProperty, value);
     }
 

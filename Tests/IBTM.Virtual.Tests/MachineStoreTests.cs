@@ -25,7 +25,7 @@ public sealed class MachineStoreTests
     [Fact]
     public async Task InspectionWaitingAndPickupAreSavedIndependently()
     {
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         var legacy = JsonSerializer.Deserialize<NgCarrierTransferSettings>(
             """{"PickupSafeX":157.283,"CarrierPickupPosition":{"X":999,"Y":456.789}}""")!;
         store.SaveSettings([legacy]);
@@ -34,9 +34,9 @@ public sealed class MachineStoreTests
         var transfer = settings.NgCarrierTransfer;
         Assert.NotSame(transfer.CarrierPickupPosition, transfer.WaitingPosition);
         Assert.Equal((157.283, 456.789), (transfer.WaitingPosition!.X, transfer.WaitingPosition.Y));
-        var waiting = VirtualTest.CreateTeachingPoint(
+        var waiting = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.InspectionWaiting, MotionGroup.InspectionGantry, TeachMode.XYOnly), settings);
-        var pickup = VirtualTest.CreateTeachingPoint(
+        var pickup = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.NgCarrierPickup, MotionGroup.InspectionGantry, TeachMode.XYOnly), settings);
 
         pickup.Teach(160, 460, 0);
@@ -179,7 +179,7 @@ public sealed class MachineStoreTests
         {
             AutoResponseEnabled = false,
         };
-        var transfer = VirtualTest.CreateNgTransfer(io);
+        var transfer = VirtualTestSupport.CreateNgTransfer(io);
         io.SetInput(InputIo.NgCarrierPickupUp, true);
         io.SetInput(InputIo.NgCarrierPickupDown, false);
         var lowering = transfer.SetLiftUpAsync(false);
@@ -421,7 +421,7 @@ public sealed class MachineStoreTests
     [Fact]
     public async Task SettingsSaveDoesNotReplaceACommittedRecipeWithItsPreviousSelection()
     {
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         var settings = new MachineSettings();
         var recipes = new RecipeManager(store, settings.RecipeSelection);
         store.SaveRecipe(new Recipe { Name = "First" });
@@ -441,7 +441,7 @@ public sealed class MachineStoreTests
     [Fact]
     public async Task VirtualDefaultsReopenWithTheirInitialRecipeSelected()
     {
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         await DevelopmentProfile.PrepareAsync(store);
         var loaded = await MachineSettings.LoadAsync(store);
         Assert.Equal("Virtual Development", loaded.RecipeSelection.LastRecipeName);

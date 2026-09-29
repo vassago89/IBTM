@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="IBTM.UI.OperationView"
+<UserControl x:Class="IBTM.UI.OperationView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -155,13 +155,13 @@
                     </UniformGrid>
                 </Border>
                 <Viewbox Grid.Row="1" Margin="8" Stretch="Uniform">
-                    <Canvas Width="1600" Height="{x:Static ui:MachinePlan.PlanHeight}">
-                        <ui:NgConveyorView Canvas.Left="{x:Static ui:MachinePlan.InspectionLeft}" Canvas.Top="0" Panel.ZIndex="-10"/>
-                        <ui:ConveyorView Canvas.Left="{x:Static ui:MachinePlan.MainLeft}" Canvas.Top="{x:Static ui:MachinePlan.MainTop}"
+                    <Canvas Width="1600" Height="{x:Static ui:MachineDiagramLayout.PlanHeight}">
+                        <ui:NgConveyorDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionLeft}" Canvas.Top="0" Panel.ZIndex="-10"/>
+                        <ui:MainConveyorDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.MainTop}"
                             Panel.ZIndex="0"/>
-                        <ui:PcbPlacementView Canvas.Left="{x:Static ui:MachinePlan.MainLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
-                        <ui:BoltFasteningView Canvas.Left="{x:Static ui:MachinePlan.FasteningLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
-                        <ui:InspectionView Canvas.Left="{x:Static ui:MachinePlan.InspectionLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
+                        <ui:PcbTransferDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.MainLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
+                        <ui:BoltFasteningDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
+                        <ui:InspectionStationDiagram Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionLeft}" Canvas.Top="0" Panel.ZIndex="10"/>
                     </Canvas>
                 </Viewbox>
             </Grid>

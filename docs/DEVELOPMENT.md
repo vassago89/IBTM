@@ -91,7 +91,7 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
   NG 배출 여부도 컨베이어가 검사 결과와 유닛 설정으로 판단한다. DI에는 객체 연결만 둔다.
 - `ConveyorStation`은 현재 캐리어의 작업·결과 소유권을 관리한다. 위치와 착좌 여부는 현재 I/O로 판단한다.
   사용 설정, 실행 중 명령, 결과 소유권을 물리 위치나 완료 피드백으로 대신하지 않는다.
-- `PcbHistory`는 PCB 결과 객체가 만들어질 때 기존 `Machine.db`의 `PcbCounter`를 증가시켜 번호를 발급한다.
+- `PcbHistoryWriter`는 PCB 결과 객체가 만들어질 때 기존 `Machine.db`의 `PcbCounter`를 증가시켜 번호를 발급한다.
   결과는 Settings → Data & logs → PCB result database의 폴더에 `PCB-yyyy-MM.db`로 저장한다.
   공정 이송·STOP/START는 같은 번호를 유지하며, Repeat의 새 작업은 새 번호를 받는다.
   월 또는 저장 폴더가 바뀌어도 이미 등록된 PCB의 결과는 최초 파일에 누적한다.
@@ -117,14 +117,14 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | 전체·유닛·축 Home / 실린더 상승 / Home 차단 이유 | `IBTM/MachineController.cs` |
 | 수동 축 이동 / 티칭 저장 / 서보·ADC·볼트 테스트 | `IBTM/MachineController.cs` |
 | Repeat 왕복 경로와 마지막 유닛 | `IBTM/MachineController.Repeat.cs` |
-| 수동 DO 조작 | `IBTM/MachineController.cs`, `IBTM/UI/OutputWindowRow.cs` |
+| 수동 DO 조작 | `IBTM/MachineController.cs`, `IBTM/UI/OutputSignalRow.cs` |
 | 화면 표시 상태 | `IBTM/MachineState.cs`, `IBTM/UI/OperationViewModel.cs` |
 | 메인 창 명령·레시피 파일 선택·종료 대기 | `IBTM/UI/MainViewModel.cs` |
-| 진단 창 생성·재활성화·Owner 관리 | `IBTM/UI/DiagnosticWindows.cs` |
+| 진단 창 생성·재활성화·Owner 관리 | `IBTM/UI/DiagnosticWindowManager.cs` |
 | ADC 진단 명령·입력값·취소·정지 확인 | `IBTM/UI/AdcProtocolViewModel.cs` |
-| 입력·출력 목록과 새로고침 | `IBTM/UI/InputWindowViewModel.cs`, `OutputWindowViewModel.cs` |
-| 모션 진단 구독·축 명령·창 종료 대기 | `IBTM/UI/MotionWindowViewModel.cs` |
-| 로그 표시·복사·일시정지 | `IBTM/UI/LogWindowViewModel.cs`, `LogTextBox.cs` |
+| 입력·출력 목록과 새로고침 | `IBTM/UI/InputViewModel.cs`, `OutputViewModel.cs` |
+| 모션 진단 구독·축 명령·창 종료 대기 | `IBTM/UI/MotionDiagnosticsViewModel.cs` |
+| 로그 표시·복사·일시정지 | `IBTM/UI/LogViewModel.cs`, `LogTextBox.cs` |
 | 표준 로거 연결·파일 저장·최근 로그 수신 | `Shared/IBTM.Core/ApplicationLog.cs`, `IBTM/ApplicationTraceListener.cs` |
 | 메인 컨베이어 이송·감지 후 밀착 시간 | `Stations/IBTM.Conveyor/MainConveyor.cs`, `ConveyorSettings.cs` |
 | 메인 컨베이어 수동 운전·모터·정지·SMEMA 출력 | `Stations/IBTM.Conveyor/MainConveyor.cs` |
@@ -142,7 +142,7 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | Grab / Live / 촬영 이미지 저장·로딩 | `IBTM/UI/TeachingViewModel.cs` |
 | 설비 시작 초기화 | `IBTM/MachineController.cs` |
 | 저장 이미지 / ROI / Data Matrix / 과거 결과 재검사 | `IBTM/UI/InspectionTeachingViewModel.cs` |
-| 이미지 위 ROI·십자선 그리기 | `IBTM/UI/ImageTeachingView.cs` |
+| 이미지 위 ROI·십자선 그리기 | `IBTM/UI/InspectionImageView.cs` |
 | 실제 검사 이동·촬영·판정 | `Stations/IBTM.Inspection/InspectionStation.cs` |
 | 카메라 연결·수신 | `Hardware/IBTM.Hik/HikCamera.cs` |
 | ADC 시리얼·파서 | `Hardware/IBTM.Hantas/` |
@@ -153,8 +153,8 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | IO 번호·축 번호 기본값 | 각 유닛의 `*HardwareSettings.cs` |
 | 설정 구성·편집 화면 | `IBTM/MachineSettings.cs`, `IBTM/UI/SettingsViewModel.cs` |
 | DB JSON 저장 | `Shared/IBTM.Storage/MachineStore.cs` |
-| PCB 번호·월별 결과 DB / 하단 결과 목록 | `IBTM/PcbHistory.cs`, `Shared/IBTM.Storage/MachineStore.cs`, `IBTM/UI/OperationViewModel.cs` |
-| 현재 레시피·저장·이미지 교체 | `Shared/IBTM.Storage/RecipeManager.cs`, `IBTM/UI/RecipeEditor.cs` |
+| PCB 번호·월별 결과 DB / 하단 결과 목록 | `IBTM/PcbHistoryWriter.cs`, `Shared/IBTM.Storage/MachineStore.cs`, `IBTM/UI/OperationViewModel.cs` |
+| 현재 레시피·저장·이미지 교체 | `Shared/IBTM.Storage/RecipeManager.cs`, `IBTM/UI/RecipeEditorViewModel.cs` |
 
 ## 화면과 ViewModel 경계
 
@@ -184,7 +184,7 @@ STOP과 창 닫기는 현재 작업을 취소하고 정리를 기다린다. 헤�
 
 `.xaml.cs`에는 `InitializeComponent`, 루트 DataContext 연결, WPF Closing/Closed 이벤트와
 종료 오류 대화상자 표시만 둔다. 비동기 종료 허용 여부와 오류 정보는 ViewModel의 `TryCloseAsync`에서 결정한다.
-메인의 진단 창 열기 명령은 `DiagnosticWindows`로 이어지며, 이 클래스는 창 생성·재활성화·Owner를 관리한다.
+메인의 진단 창 열기 명령은 `DiagnosticWindowManager`로 이어지며, 이 클래스는 창 생성·재활성화·Owner를 관리한다.
 운전 화면의 RESUME WORK와 완료 항목을 지정하는 복구창은 제거했다.
 
 텍스트 선택과 마우스 캡처, 컨트롤 템플릿 동작은 WPF 컨트롤 책임이다.
@@ -375,7 +375,7 @@ XY·체결 Z 이동 중 테이블 피드백이 달라지면 이동을 취소하�
 상단 `Save`는 Supply·Placement·볼트·검사·기준핀·NG Transfer 티칭 설정과 레시피를 저장하므로,
 축을 다시 움직이거나 좌표를 재기록하지 않고 저장을 재시도할 수 있다.
 
-`MotionService.MoveAxisAsync` / `MoveToXYAsync`는 지정한 축만 움직인다.
+`MotionServiceBase.MoveAxisAsync` / `MoveToXYAsync`는 지정한 축만 움직인다.
 Supply·Placement의 공정 `State`는 동작 완료 시 갱신한다. 현재 좌표와 티칭 좌표가 같다는 이유로
 픽업·수취·안착 단계를 추정하거나 생략하지 않는다. 재시작을 위한 별도 이력 저장이나 단계 전환은 하지 않는다.
 조그도 현재 높이에서 지정 축을 움직이며, Z 높이 제한이나 우회 플래그를 두지 않는다.
@@ -772,7 +772,7 @@ SDK 대역 프로젝트는 실제 드라이버 파일을 링크해 동명 SDK �
 - IO·모션 읽기는 장치 루프가 담당한다. 화면 갱신용 타이머를 추가하지 않는다.
 - BitmapSource를 다른 스레드로 넘길 때는 Freeze된 이미지를 사용한다.
 - Missing feedback은 unknown이다. false/0/완료로 바꾸지 않는다.
-- 이동 속도·가감속 시간·원점 검색 수치는 `MotionService` 진입부에서 확인한다.
+- 이동 속도·가감속 시간·원점 검색 수치는 `MotionServiceBase` 진입부에서 확인한다.
   잘못된 XY 명령 때문에 Z 준비 이동이 먼저 나가지 않도록 준비 동작 전에 확인하며, 조그 방향의 부호는 유지한다.
 - Stop은 취소 요청만이 아니라 진행 중 명령의 정리 완료까지 고려한다.
 - IO 기본값을 코드에서 바꿔도 이미 저장된 DB 값이 자동으로 바뀌지는 않는다.

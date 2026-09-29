@@ -111,11 +111,11 @@ public sealed class UiBindingTests
             teaching.Activate();
             var jog = new Button { Command = teaching.JogCommand, CommandParameter = TeachingDirection.XPlus };
             var step = new Button { Command = teaching.StepCommand, CommandParameter = TeachingDirection.XPlus };
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => teaching.Motion.Position.Z == 9 && jog.IsEnabled && step.IsEnabled,
                 TimeSpan.FromSeconds(2)));
             z.SetValue(unrelated, 10d);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => jog.IsEnabled && step.IsEnabled, TimeSpan.FromSeconds(2)),
                 $"Position={teaching.Motion.Position}; hint={teaching.MotionHint}; busy={state.IsRunning}; "
                 + $"predicate={teaching.JogCommand.CanExecute(TeachingDirection.XPlus)}");
@@ -123,12 +123,12 @@ public sealed class UiBindingTests
             teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
             z.SetValue(unrelated, 9d);
             teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => teaching.Motion.Position.Z == 9 && jog.IsEnabled && step.IsEnabled,
                 TimeSpan.FromSeconds(2)));
             teaching.Deactivate();
             z.SetValue(unrelated, 10d);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => teaching.Motion.Position.Z == 10, TimeSpan.FromSeconds(2)));
             teaching.Activate();
             Assert.True(jog.IsEnabled);
@@ -138,7 +138,7 @@ public sealed class UiBindingTests
             unrelated.SetAlarm(MotionAxis.X, true);
             unrelated.SetServo(MotionAxis.X, false);
             state.SetError(MachineAlarm.MotionUnavailable, new IOException("Supply axis alarm."));
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => teaching.StepCommand.CanExecute(TeachingDirection.XPlus),
                 TimeSpan.FromSeconds(2)));
             var before = inspection.Position;
@@ -146,10 +146,10 @@ public sealed class UiBindingTests
             Assert.Equal(before.X + teaching.StepDistance, inspection.Position.X, 3);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
 
-            var monitor = services.GetRequiredService<MotionWindowViewModel>();
+            var monitor = services.GetRequiredService<MotionDiagnosticsViewModel>();
             var axis = monitor.Axes.Single(
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
-            var motionWindow = new MotionWindow(monitor);
+            var motionWindow = new MotionDiagnosticsWindow(monitor);
             try
             {
                 var axisList = ((Grid)motionWindow.Content).Children.OfType<ListBox>().Single();
@@ -165,22 +165,22 @@ public sealed class UiBindingTests
             {
                 motionWindow.Close();
             }
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => axis.HomeCommand.CanExecute(null), TimeSpan.FromSeconds(2)));
             await axis.HomeCommand.ExecuteAsync(null);
             Assert.True(inspection.GetAxisState(MotionAxis.X).Homed);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
 
             inspection.SetServo(MotionAxis.X, false);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => !jog.IsEnabled && !step.IsEnabled, TimeSpan.FromSeconds(2)));
             teaching.SelectedPoint = teaching.FilteredPoints.Single(
                 point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
             var taughtPoint = teaching.SelectedPoint;
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => !teaching.StepCommand.CanExecute(TeachingDirection.XPlus),
                 TimeSpan.FromSeconds(2)));
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => teaching.TeachCurrentPositionCommand.CanExecute(null),
                 TimeSpan.FromSeconds(2)));
             Assert.False(teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
@@ -208,7 +208,7 @@ public sealed class UiBindingTests
                     Source = new Uri($"pack://application:,,,/IBTM;component/UI/{resource}.xaml"),
                 });
         await VerifyLogBindingsAsync();
-        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(
                 new MachineSettings
                 {
@@ -242,12 +242,12 @@ public sealed class UiBindingTests
         {
             var resetButton = new Button { Command = main.ResetCommand };
             io.SetInput(InputIo.EmergencyStop1Pressed, true);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.Buzzer), TimeSpan.FromSeconds(2)));
             Assert.False(machine.IsResetAllowed);
             Assert.True(resetButton.IsEnabled);
             await main.ResetCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => !io.GetOutput(OutputIo.Buzzer), TimeSpan.FromSeconds(2)));
             Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
             Assert.True(io.GetOutput(OutputIo.TowerLampRed));
@@ -292,10 +292,10 @@ public sealed class UiBindingTests
             for (var reopen = 0; reopen < 2; reopen++)
             {
                 Assert.True(openButton.IsEnabled);
-                window = new OutputWindow(new OutputWindowViewModel(signals, machine));
+                window = new OutputWindow(new OutputViewModel(signals, machine));
                 if (reopen == 0)
                     await VerifyDirectBindingsAsync(services, window);
-                var row = ((OutputWindowViewModel)window.DataContext).Rows.Single(candidate => candidate.Io.Signal == output);
+                var row = ((OutputViewModel)window.DataContext).Rows.Single(candidate => candidate.Io.Signal == output);
                 var manualRow = manual.Conveyors.Single(candidate => candidate.Io.Signal == output);
                 // These are real WPF command subscribers with the production bindings.
                 var outputButton = BindOutputRow(window, row).Button;
@@ -309,13 +309,13 @@ public sealed class UiBindingTests
                 var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 window.Closed += (_, _) => closed.TrySetResult();
                 Assert.True(
-                    await VirtualTest.WaitUntilAsync(
+                    await VirtualTestSupport.WaitUntilAsync(
                         () => outputButton.IsEnabled,
                         TimeSpan.FromSeconds(2)));
 
                 outputButton.Command.Execute(null);
                 Assert.True(
-                    await VirtualTest.WaitUntilAsync(
+                    await VirtualTestSupport.WaitUntilAsync(
                         () => io.GetOutput(output)
                             && (string?)outputButton.Content == "OFF"
                             && manualStop.IsEnabled,
@@ -327,7 +327,7 @@ public sealed class UiBindingTests
                 else
                     manualStop.Command.Execute(null);
                 Assert.True(
-                    await VirtualTest.WaitUntilAsync(
+                    await VirtualTestSupport.WaitUntilAsync(
                         () => !io.GetOutput(output)
                             && (string?)outputButton.Content == "ON"
                             && outputButton.IsEnabled,
@@ -340,7 +340,7 @@ public sealed class UiBindingTests
                     () => io.SetOutput(OutputIo.MachineLight, !io.GetOutput(OutputIo.MachineLight)));
                 var feedback = BindOutputRow(
                     window,
-                    ((OutputWindowViewModel)window.DataContext).Rows.Single(candidate => candidate.Io.Signal == OutputIo.PcbPlacementStopperUp)).Feedback;
+                    ((OutputViewModel)window.DataContext).Rows.Single(candidate => candidate.Io.Signal == OutputIo.PcbPlacementStopperUp)).Feedback;
                 await Task.Run(
                     () =>
                     {
@@ -348,13 +348,13 @@ public sealed class UiBindingTests
                         io.SetInput(InputIo.PcbPlacementStopperDown, true);
                     });
                 Assert.True(
-                    await VirtualTest.WaitUntilAsync(
+                    await VirtualTestSupport.WaitUntilAsync(
                         () => feedback.Text == "Input conflict",
                         TimeSpan.FromSeconds(2)));
                 await Task.Run(() => io.SetInput(InputIo.PcbPlacementStopperUp, false));
                 state.Refresh();
                 Assert.True(
-                    await VirtualTest.WaitUntilAsync(
+                    await VirtualTestSupport.WaitUntilAsync(
                         () => state.Available,
                         TimeSpan.FromSeconds(2)));
                 Assert.True(state.Available);
@@ -406,7 +406,7 @@ public sealed class UiBindingTests
     {
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var input = new InputWindow(new InputWindowViewModel(io, services.GetRequiredService<IoSignals>()));
+        var input = new InputWindow(new InputViewModel(io, services.GetRequiredService<IoSignals>()));
         var response = new CheckBox();
         response.SetBinding(
             System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
@@ -414,11 +414,11 @@ public sealed class UiBindingTests
         try
         {
             await Task.Run(() => io.AutoResponseEnabled = true);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => response.IsChecked == true,
                 TimeSpan.FromSeconds(2)));
             await Task.Run(() => io.AutoResponseEnabled = false);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => response.IsChecked == false,
                 TimeSpan.FromSeconds(2)));
         }
@@ -434,17 +434,17 @@ public sealed class UiBindingTests
         operationView.Arrange(new Rect(0, 0, 1600, 900));
         operationView.UpdateLayout();
 
-        var normalStyle = new Style(typeof(PcbDetailsWindow));
+        var normalStyle = new Style(typeof(PcbResultsWindow));
         normalStyle.Setters.Add(new Setter(Window.ShowActivatedProperty, false));
         normalStyle.Setters.Add(new Setter(Window.ShowInTaskbarProperty, false));
         normalStyle.Setters.Add(new Setter(UIElement.OpacityProperty, 0d));
-        var failedStyle = new Style(typeof(PcbDetailsWindow), normalStyle);
-        failedStyle.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(PcbDetailsWindow))
+        var failedStyle = new Style(typeof(PcbResultsWindow), normalStyle);
+        failedStyle.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(PcbResultsWindow))
         {
             VisualTree = new FrameworkElementFactory(typeof(FailedDetailsLayout)),
         }));
         var resources = Application.Current.Resources;
-        var originalStyle = resources[typeof(PcbDetailsWindow)];
+        var originalStyle = resources[typeof(PcbResultsWindow)];
         var selectionHandler = typeof(OperationView).GetMethod("OnPcbSelectionChanged",
             BindingFlags.Instance | BindingFlags.NonPublic)!;
         var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Test", HeatSinkSlot.HeatSink1,
@@ -454,18 +454,18 @@ public sealed class UiBindingTests
             Array.Empty<PcbRecord>(), new[] { record });
         try
         {
-            resources[typeof(PcbDetailsWindow)] = failedStyle;
+            resources[typeof(PcbResultsWindow)] = failedStyle;
             var exception = Assert.Throws<TargetInvocationException>(() =>
                 selectionHandler.Invoke(operationView, [operationView, selection]));
             Assert.Equal("Simulated PCB details layout failure.", exception.GetBaseException().Message);
             Assert.Null(operation.SelectedPcb);
-            Assert.Empty(Application.Current.Windows.OfType<PcbDetailsWindow>());
+            Assert.Empty(Application.Current.Windows.OfType<PcbResultsWindow>());
 
-            resources[typeof(PcbDetailsWindow)] = normalStyle;
+            resources[typeof(PcbResultsWindow)] = normalStyle;
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 selectionHandler.Invoke(operationView, [operationView, selection]);
-                var detailsWindow = Assert.Single(Application.Current.Windows.OfType<PcbDetailsWindow>());
+                var detailsWindow = Assert.Single(Application.Current.Windows.OfType<PcbResultsWindow>());
                 Assert.True(detailsWindow.IsVisible);
                 Assert.Same(record, operation.SelectedPcb);
                 detailsWindow.Close();
@@ -474,20 +474,20 @@ public sealed class UiBindingTests
         }
         finally
         {
-            foreach (var detailsWindow in Application.Current.Windows.OfType<PcbDetailsWindow>().ToArray())
+            foreach (var detailsWindow in Application.Current.Windows.OfType<PcbResultsWindow>().ToArray())
                 detailsWindow.Close();
             if (originalStyle is null)
-                resources.Remove(typeof(PcbDetailsWindow));
+                resources.Remove(typeof(PcbResultsWindow));
             else
-                resources[typeof(PcbDetailsWindow)] = originalStyle;
+                resources[typeof(PcbResultsWindow)] = originalStyle;
         }
 
-        var diagnostics = services.GetRequiredService<DiagnosticWindows>();
+        var diagnostics = services.GetRequiredService<DiagnosticWindowManager>();
         foreach (var (windowType, open) in new (Type Type, Action Open)[]
         {
             (typeof(InputWindow), diagnostics.OpenInputs),
             (typeof(OutputWindow), diagnostics.OpenOutputs),
-            (typeof(MotionWindow), diagnostics.OpenMotion),
+            (typeof(MotionDiagnosticsWindow), diagnostics.OpenMotion),
             (typeof(AdcProtocolWindow), diagnostics.OpenAdcProtocol),
             (typeof(LogWindow), diagnostics.OpenLogs),
             (typeof(BoltStationTestWindow), diagnostics.OpenBoltStationTest),
@@ -505,7 +505,7 @@ public sealed class UiBindingTests
             var previousStyle = resources[windowType];
             // These windows declare a local Style. Exercise their owner-assignment
             // failure instead of replacing the shutdown style used by the window.
-            var invalidOwner = windowType == typeof(MotionWindow) || windowType == typeof(BoltStationTestWindow)
+            var invalidOwner = windowType == typeof(MotionDiagnosticsWindow) || windowType == typeof(BoltStationTestWindow)
                 ? new Window() : null;
             try
             {
@@ -516,7 +516,7 @@ public sealed class UiBindingTests
                     $"{windowType.Name}: {failure?.ToString() ?? "No exception"}; manual={services.GetRequiredService<MachineState>().ManualMode}");
                 if (invalidOwner is null)
                     Assert.Equal("Simulated PCB details layout failure.", failure!.Message);
-                Assert.True(await VirtualTest.WaitUntilAsync(
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
                     () => !Application.Current.Windows.Cast<Window>().Any(window => window.GetType() == windowType),
                     TimeSpan.FromSeconds(2)));
 
@@ -539,7 +539,7 @@ public sealed class UiBindingTests
                     reopened.Close();
                 }
                 Assert.NotNull(reopened);
-                Assert.True(await VirtualTest.WaitUntilAsync(() => !reopened.IsVisible, TimeSpan.FromSeconds(2)));
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(() => !reopened.IsVisible, TimeSpan.FromSeconds(2)));
             }
             finally
             {
@@ -563,7 +563,7 @@ public sealed class UiBindingTests
         {
             operation.Units.MainConveyor = enabled;
             operation.Activate();
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => conveyorEnabled.IsChecked == enabled,
                 TimeSpan.FromSeconds(2)));
         }
@@ -586,7 +586,7 @@ public sealed class UiBindingTests
             foreach (var detected in new[] { true, false })
             {
                 await Task.Run(() => io.SetInput(signal, detected));
-                Assert.True(await VirtualTest.WaitUntilAsync(
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
                     () => sensor.IsChecked == detected,
                     TimeSpan.FromSeconds(2)));
             }
@@ -601,7 +601,7 @@ public sealed class UiBindingTests
             foreach (var on in new[] { true, false })
             {
                 await Task.Run(() => io.SetOutput(signal, on));
-                Assert.True(await VirtualTest.WaitUntilAsync(
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
                     () => running.IsChecked == on,
                     TimeSpan.FromSeconds(2)));
             }
@@ -624,7 +624,7 @@ public sealed class UiBindingTests
             Assert.True(BindingOperations.IsDataBound(frames, TextBox.TextProperty));
             Assert.True(frames.IsReadOnly);
             await Task.Run(() => bus.ReadDeviceInformationAsync(0));
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => frames.Text.Contains("RX RAW") && frames.Text.Contains("TX"),
                 TimeSpan.FromSeconds(2)));
             Assert.True(frames.Text.IndexOf("RX RAW") < frames.Text.IndexOf("TX"));
@@ -636,19 +636,19 @@ public sealed class UiBindingTests
             await adc.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             Assert.Equal(selectedFrames, frames.SelectedText);
             adcModel.IsLogPaused = false;
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => frames.Text.Length > selectedFrames.Length,
                 TimeSpan.FromSeconds(2)));
             Assert.All(updates, thread => Assert.Equal(uiThread, thread));
 
             var connect = (Button)adc.FindName("ConnectButton");
             connect.Command.Execute(connect.CommandParameter);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => !bus.IsOpen && connect.IsEnabled,
                 TimeSpan.FromSeconds(2)));
             Assert.Equal("Disconnected", adcModel.ConnectionStatus);
             connect.Command.Execute(connect.CommandParameter);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => bus.IsOpen && connect.IsEnabled,
                 TimeSpan.FromSeconds(2)));
             Assert.Equal("Virtual | 19200", adcModel.ConnectionStatus);
@@ -690,7 +690,7 @@ public sealed class UiBindingTests
         try
         {
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => preview.Source is System.Windows.Media.Imaging.BitmapSource { IsFrozen: true },
                 TimeSpan.FromSeconds(2)));
             light.BeforeOff = () =>
@@ -707,7 +707,7 @@ public sealed class UiBindingTests
             Assert.False(page.IsEnabled);
             Assert.False(main.RecipeEditingEnabled);
             Assert.False(main.NavigateCommand.CanExecute(AppPage.Settings));
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => preview.Source is null,
                 TimeSpan.FromSeconds(2)));
             releaseStop.Set();
@@ -715,12 +715,12 @@ public sealed class UiBindingTests
             Assert.False(teaching.Inspection.IsLiveView);
             Assert.Equal(AppPage.Teaching, main.SelectedPage);
             Assert.Contains(light.OffFailure.Message, main.NavigationError);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => page.IsEnabled, TimeSpan.FromSeconds(2)));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => page.IsEnabled, TimeSpan.FromSeconds(2)));
             var failure = await Assert.ThrowsAsync<IOException>(teaching.ShutdownAsync);
             Assert.Same(light.OffFailure, failure);
             Assert.Contains(nameof(TestLight.TurnOff), failure.StackTrace);
             var deactivateFailure = new InvalidOperationException("Teaching deactivation failed.");
-            teaching.CarrierImages = new List<CarrierImageTileView>();
+            teaching.CarrierImages = new List<RecipeImageItem>();
             void FailDeactivation(object? sender, PropertyChangedEventArgs args)
             {
                 if (args.PropertyName == nameof(TeachingViewModel.CarrierImages))
@@ -746,7 +746,7 @@ public sealed class UiBindingTests
 
             var settings = services.GetRequiredService<SettingsViewModel>();
             var lightTest = settings.TestLightCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
             releaseStop.Reset();
             stopEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
             var returning = main.NavigateCommand.ExecuteAsync(AppPage.Teaching);
@@ -775,7 +775,7 @@ public sealed class UiBindingTests
             foreach (var hardwareReset in new[] { false, true })
             {
                 await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
-                Assert.True(await VirtualTest.WaitUntilAsync(
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
                     () => live.IsChecked == true && preview.Source is not null,
                     TimeSpan.FromSeconds(2)));
                 Assert.True(light.IsOn);
@@ -786,7 +786,7 @@ public sealed class UiBindingTests
                 else
                     await main.ResetCommand.ExecuteAsync(null);
 
-                Assert.True(await VirtualTest.WaitUntilAsync(
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
                     () => live.IsChecked == false && preview.Source is null
                         && !state.IsRunning && state.Alarm == MachineAlarm.None,
                     TimeSpan.FromSeconds(2)));
@@ -840,7 +840,7 @@ public sealed class UiBindingTests
             var next = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
             void SelectNextOnSave(object? sender, PropertyChangedEventArgs args)
             {
-                if (args.PropertyName == nameof(RecipeEditor.ActiveName))
+                if (args.PropertyName == nameof(RecipeEditorViewModel.ActiveName))
                     teaching.SelectedPoint = next;
             }
             teaching.RecipeEditor.PropertyChanged += SelectNextOnSave;
@@ -848,9 +848,9 @@ public sealed class UiBindingTests
             teaching.RecipeEditor.PropertyChanged -= SelectNextOnSave;
             Assert.Same(next, teaching.SelectedPoint);
             Assert.Single(teaching.CarrierImages);
-            Assert.Null(VirtualTest.RecordedImage(teaching));
+            Assert.Null(VirtualTestSupport.RecordedImage(teaching));
             teaching.SelectedPoint = firstBolt;
-            var firstImage = VirtualTest.RecordedImage(teaching)!;
+            var firstImage = VirtualTestSupport.RecordedImage(teaching)!;
             Assert.NotNull(firstImage.Image);
             Assert.True(firstImage.Image.IsFrozen);
             // Only Record Position replaces the selected point's image, capture XY and bolt coordinates.
@@ -867,7 +867,7 @@ public sealed class UiBindingTests
             Assert.Equal(liveLightOnCalls + 1, light.OnCalls);
             Assert.Equal(liveLightOffCalls, light.OffCalls);
             Assert.Single(teaching.CarrierImages);
-            var recordedImage = VirtualTest.RecordedImage(teaching)!;
+            var recordedImage = VirtualTestSupport.RecordedImage(teaching)!;
             Assert.NotSame(firstImage.Image, recordedImage.Image);
             Assert.Equal(firstImage.Metadata.Number, recordedImage.Metadata.Number);
             Assert.Equal(10, firstBolt.Coordinates!.X);
@@ -879,19 +879,19 @@ public sealed class UiBindingTests
             teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
             teaching.AddBoltPointCommand.Execute(null);
             var secondBolt = teaching.SelectedPoint!;
-            Assert.Null(VirtualTest.RecordedImage(teaching));
+            Assert.Null(VirtualTestSupport.RecordedImage(teaching));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Equal(2, teaching.CarrierImages.Count);
             Assert.NotNull(firstBolt.Position.Bolt!.InspectionPosition);
             Assert.NotNull(secondBolt.Position.Bolt!.InspectionPosition);
             teaching.SelectedPcb = HeatSinkSlot.HeatSink1;
             teaching.SelectedPoint = firstBolt;
-            Assert.Same(firstMetadata, VirtualTest.RecordedImage(teaching)!.Metadata);
+            Assert.Same(firstMetadata, VirtualTestSupport.RecordedImage(teaching)!.Metadata);
             foreach (var heatSink in Enum.GetValues<HeatSinkSlot>())
             {
                 teaching.SelectedPcb = heatSink;
                 teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
-                Assert.Null(VirtualTest.RecordedImage(teaching));
+                Assert.Null(VirtualTestSupport.RecordedImage(teaching));
                 await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
                 Assert.True(teaching.Inspection.HasBarcodeRegion(heatSink));
             }
@@ -903,10 +903,10 @@ public sealed class UiBindingTests
             teaching.RecipeEditor.Name = "ThreadingScanCopy";
             await teaching.RecipeEditor.SaveAsync();
             await teaching.RecipeEditor.LoadCommand.ExecuteAsync("ThreadingScanCopy");
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => teaching.CarrierImages.Count == 4, TimeSpan.FromSeconds(2)));
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
-            var unchanged = teaching.CarrierImages.Where(image => image != VirtualTest.RecordedImage(teaching)).ToArray();
+            var unchanged = teaching.CarrierImages.Where(image => image != VirtualTestSupport.RecordedImage(teaching)).ToArray();
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
             Assert.Null(teaching.CameraError);
@@ -923,7 +923,7 @@ public sealed class UiBindingTests
                     captureStarted.TrySetResult();
                     Assert.True(releaseStop.Wait(TimeSpan.FromSeconds(2)));
                 };
-                var previous = VirtualTest.RecordedImage(teaching);
+                var previous = VirtualTestSupport.RecordedImage(teaching);
                 var capture = teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
                 await captureStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
                 var closing = closeTeaching ? teaching.ShutdownAsync() : Task.CompletedTask;
@@ -939,7 +939,7 @@ public sealed class UiBindingTests
                 light.BeforeOn = null;
                 io.SetInput(InputIo.AutoMode, true);
                 teaching.Activate();
-                Assert.True(await VirtualTest.WaitUntilAsync(
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
                     () => teaching.CarrierImages.Count == 4 && teaching.TeachCurrentPositionCommand.CanExecute(null),
                     TimeSpan.FromSeconds(2)));
             }
@@ -956,7 +956,7 @@ public sealed class UiBindingTests
         }
     }
 
-    private static (Button Button, TextBlock Feedback) BindOutputRow(OutputWindow window, OutputWindowRow row)
+    private static (Button Button, TextBlock Feedback) BindOutputRow(OutputWindow window, OutputSignalRow row)
     {
         var list = ((Grid)window.Content).Children.OfType<ListBox>().Single();
         var presenter = new ContentPresenter { Content = row, ContentTemplate = list.ItemTemplate };
@@ -972,26 +972,26 @@ public sealed class UiBindingTests
         using var loggerFactory = log.CreateLoggerFactory();
         var logger = loggerFactory.CreateLogger<UiBindingTests>();
         logger.LogInformation("Before opening logs");
-        var window = new LogWindow(new LogWindowViewModel(log));
-        var model = Assert.IsType<LogWindowViewModel>(window.DataContext);
+        var window = new LogWindow(new LogViewModel(log));
+        var model = Assert.IsType<LogViewModel>(window.DataContext);
         var text = (TextBox)window.FindName("LogText");
         var uiThread = Environment.CurrentManagedThreadId;
         var updateThreads = new List<int>();
         model.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(LogWindowViewModel.Text))
+            if (args.PropertyName == nameof(LogViewModel.Text))
                 updateThreads.Add(Environment.CurrentManagedThreadId);
         };
         try
         {
             Assert.True(BindingOperations.IsDataBound(text, TextBox.TextProperty));
             Assert.True(text.IsReadOnly);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => text.Text.Contains("Before opening logs"),
                 TimeSpan.FromSeconds(2)));
 
             await Task.Run(() => logger.LogInformation("Newest background entry"));
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => text.Text.Contains("Newest background entry"),
                 TimeSpan.FromSeconds(2)));
             Assert.StartsWith(log.Snapshot().Last().Text, text.Text);
@@ -1006,16 +1006,16 @@ public sealed class UiBindingTests
             Assert.Equal(paused, text.Text);
             Assert.Equal(paused, text.SelectedText);
             model.IsPaused = false;
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => text.Text.Contains("Entry while paused"),
                 TimeSpan.FromSeconds(2)));
 
             model.ClearCommand.Execute(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => text.Text.Length == 0,
                 TimeSpan.FromSeconds(2)));
             await Task.Run(() => logger.LogInformation("Entry after clear"));
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => text.Text.Contains("Entry after clear"),
                 TimeSpan.FromSeconds(2)));
             Assert.Equal(log.Snapshot().Last().Text, text.Text);
@@ -1031,11 +1031,11 @@ public sealed class UiBindingTests
         model.PropertyChanged += (_, _) => notificationsAfterClose++;
         await Task.Run(() => logger.LogInformation("After closing logs"));
         Assert.Equal(0, notificationsAfterClose);
-        var reopened = new LogWindow(new LogWindowViewModel(log));
+        var reopened = new LogWindow(new LogViewModel(log));
         try
         {
             var reopenedText = (TextBox)reopened.FindName("LogText");
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => reopenedText.Text.Contains("After closing logs"),
                 TimeSpan.FromSeconds(2)));
             Assert.StartsWith(log.Snapshot().Last().Text, reopenedText.Text);
@@ -1054,7 +1054,7 @@ public sealed class UiBindingTests
         var signals = services.GetRequiredService<IoSignals>();
         // These rows have no owning view refreshing commands. The production template
         // must follow their nested IO objects without relayed row notifications.
-        var light = new OutputWindowRow(signals.Outputs[OutputIo.MachineLight], machine);
+        var light = new OutputSignalRow(signals.Outputs[OutputIo.MachineLight], machine);
         var button = BindOutputRow(window, light).Button;
         var notifications = 0;
         light.PropertyChanged += (_, _) => notifications++;
@@ -1062,14 +1062,14 @@ public sealed class UiBindingTests
         {
             await Task.Run(() => io.SetOutput(OutputIo.MachineLight, on));
             Assert.True(
-                await VirtualTest.WaitUntilAsync(
+                await VirtualTestSupport.WaitUntilAsync(
                     () => (string?)button.Content == (on ? "OFF" : "ON"),
                     TimeSpan.FromSeconds(2)));
         }
 
         Assert.Equal(0, notifications);
 
-        var stopper = new OutputWindowRow(signals.Outputs[OutputIo.PcbPlacementStopperUp], machine);
+        var stopper = new OutputSignalRow(signals.Outputs[OutputIo.PcbPlacementStopperUp], machine);
         var feedback = BindOutputRow(window, stopper).Feedback;
         await Task.Run(
             () =>
@@ -1079,10 +1079,10 @@ public sealed class UiBindingTests
                 io.SetInput(InputIo.PcbPlacementStopperDown, false);
             });
         Assert.True(
-            await VirtualTest.WaitUntilAsync(() => feedback.Text == "Matched", TimeSpan.FromSeconds(2)));
+            await VirtualTestSupport.WaitUntilAsync(() => feedback.Text == "Matched", TimeSpan.FromSeconds(2)));
         await Task.Run(() => io.SetInput(InputIo.PcbPlacementStopperUp, false));
         Assert.True(
-            await VirtualTest.WaitUntilAsync(
+            await VirtualTestSupport.WaitUntilAsync(
                 () => feedback.Text == "Not matched",
                 TimeSpan.FromSeconds(2)));
         stopper.ToggleCommand.Execute(null);
@@ -1093,7 +1093,7 @@ public sealed class UiBindingTests
         Assert.Equal("Not matched", feedback.Text);
         // A second click reads the device even before the first DO snapshot arrives.
         var signal = signals.Outputs[OutputIo.MainConveyorRun];
-        var pending = new OutputWindowRow(
+        var pending = new OutputSignalRow(
             new IoOutputStatus(signal.Signal, signal.Area, signal.Section, io, signals.Inputs),
             machine);
         var pendingButton = BindOutputRow(window, pending).Button;

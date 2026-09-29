@@ -24,7 +24,7 @@ public sealed class LightingTests
     {
         var camera = new TestCamera();
         await using var services = new ServiceCollection()
-            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddSingleton(VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(new MachineSettings
             {
                 Drivers = new() { Light = LightDriver.Virtual }
@@ -74,7 +74,7 @@ public sealed class LightingTests
         settings.Lighting.StabilizationDelayMilliseconds = 250;
         light.OnStarted = () => settings.Lighting.InspectionChannel++;
         await using var services = new ServiceCollection().AddSingleton(
-            VirtualTest.OpenMachineStore(
+            VirtualTestSupport.OpenMachineStore(
                 Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
             .AddIbtmApplication(settings)
             .AddSingleton<ILightController>(light)
@@ -164,7 +164,7 @@ public sealed class LightingTests
         var settings = new MachineSettings();
         settings.Lighting.StabilizationDelayMilliseconds = 0;
         await using var services = new ServiceCollection()
-            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddSingleton(VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddSingleton<ILightController>(light)
             .BuildServiceProvider();
@@ -176,12 +176,12 @@ public sealed class LightingTests
         recipe.BoltInspection.LightLevel = 91;
         recipe.BoltInspection.DataMatrix1.LightLevel = 31;
         recipe.BoltInspection.DataMatrix2.LightLevel = 62;
-        var bolt = new BoltPoint { Id = VirtualTest.BoltId(1), X = 0, Y = 0, LightLevel = 123 };
+        var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1), X = 0, Y = 0, LightLevel = 123 };
         recipe.Pcb.BoltPoints.Add(bolt);
         recipe.CarrierImages = [
             new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new(), Region = new(0, 0, 20, 20) },
             new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Center = new(), Region = new(0, 0, 20, 20) },
-            new() { BoltId = VirtualTest.BoltId(1), Region = new(0, 0, 20, 20) },
+            new() { BoltId = VirtualTestSupport.BoltId(1), Region = new(0, 0, 20, 20) },
         ];
 
         await inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None);
@@ -219,7 +219,7 @@ public sealed class LightingTests
         var settings = new MachineSettings();
         settings.Lighting.StabilizationDelayMilliseconds = 0;
         await using var services = new ServiceCollection()
-            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddSingleton(VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddSingleton<ILightController>(light)
             .AddSingleton<ICamera>(camera)
@@ -229,12 +229,12 @@ public sealed class LightingTests
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
         motion.Initialize();
         Assert.True(await inspector.HomeHorizontalAsync());
-        var bolt = new BoltPoint { Id = VirtualTest.BoltId(1), X = 0, Y = 0, LightLevel = 23, BrightnessThreshold = 128, MinimumBrightRatio = 0.5 };
+        var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1), X = 0, Y = 0, LightLevel = 23, BrightnessThreshold = 128, MinimumBrightRatio = 0.5 };
         recipes.Current.Pcb.BoltPoints.Add(bolt);
-        recipes.Current.CarrierImages = [new() { BoltId = VirtualTest.BoltId(1), Region = new(0, 0, 1, 1) }];
+        recipes.Current.CarrierImages = [new() { BoltId = VirtualTestSupport.BoltId(1), Region = new(0, 0, 1, 1) }];
         var edited = new Recipe();
-        edited.Pcb.BoltPoints.Add(new(bolt.Id) { Id = VirtualTest.BoltId(1), LightLevel = 87, BrightnessThreshold = 0, MinimumBrightRatio = 0 });
-        edited.CarrierImages = [new() { BoltId = VirtualTest.BoltId(1), Region = new(0, 0, 1, 1) }];
+        edited.Pcb.BoltPoints.Add(new(bolt.Id) { Id = VirtualTestSupport.BoltId(1), LightLevel = 87, BrightnessThreshold = 0, MinimumBrightRatio = 0 });
+        edited.CarrierImages = [new() { BoltId = VirtualTestSupport.BoltId(1), Region = new(0, 0, 1, 1) }];
         camera.OnCapture = () =>
         {
             lock (recipes.InspectionSync)
@@ -258,7 +258,7 @@ public sealed class LightingTests
         var light = new RecordingLight { FailOn = false, Connected = false };
         var camera = new TestCamera();
         await using var services = new ServiceCollection()
-            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddSingleton(VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(new MachineSettings())
             .AddSingleton<ILightController>(light)
             .AddSingleton<ICamera>(camera)
@@ -367,7 +367,7 @@ public sealed class LightingTests
         Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOn(channel));
         Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOff(channel));
 
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         var settings = new MachineSettings();
         settings.Lighting.InspectionChannel = channel;
         await using var services = new ServiceCollection()
@@ -442,7 +442,7 @@ public sealed class LightingTests
     public async Task LightTestOwnsOperationUntilOffAndStopsOnAuto()
     {
         var light = new RecordingLight { FailOn = false };
-        await using var services = MachineTest.CreateDiagnosticServices(light);
+        await using var services = MachineTestSupport.CreateDiagnosticServices(light);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -454,7 +454,7 @@ public sealed class LightingTests
             settings.LightTestLevel = 43;
             var test = settings.TestLightCommand.ExecuteAsync(null);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
+                await VirtualTestSupport.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
             Assert.True(state.IsRunning);
             Assert.False(settings.IsSettingsEditAllowed);
             Assert.False(machine.IsStartAllowed);
@@ -470,7 +470,7 @@ public sealed class LightingTests
 
             test = settings.TestLightCommand.ExecuteAsync(null);
             Assert.True(
-                await VirtualTest.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
+                await VirtualTestSupport.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
             io.SetInput(InputIo.AutoMode, false);
             await test.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal("off:2", light.Calls.Last());
@@ -488,7 +488,7 @@ public sealed class LightingTests
     public async Task LightTestCleansUpPartialOnFailureAndReportsOffFailure()
     {
         var light = new RecordingLight { FailOn = true, FailOff = true };
-        await using var services = MachineTest.CreateDiagnosticServices(light);
+        await using var services = MachineTestSupport.CreateDiagnosticServices(light);
         var machine = services.GetRequiredService<MachineController>();
         var settings = services.GetRequiredService<SettingsViewModel>();
         await machine.InitializeAsync();

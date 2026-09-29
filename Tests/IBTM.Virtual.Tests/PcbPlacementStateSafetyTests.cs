@@ -9,7 +9,7 @@ using IBTM.PcbPlacement;
 using IBTM.Storage;
 using IBTM.Virtual;
 using Xunit;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -244,7 +244,7 @@ public sealed class PcbPlacementStateSafetyTests
         rig.Motion.SetAlarm(MotionAxis.Y, true);
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
         rig.Motion.SetAlarm(MotionAxis.Y, false);
-        Assert.True(MotionService.IsAt(rig.Placer.Motion.Feedback, new() { X = 50, Y = 10, Z = 12 }));
+        Assert.True(MotionServiceBase.IsAt(rig.Placer.Motion.Feedback, new() { X = 50, Y = 10, Z = 12 }));
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
 
         await rig.Placer.PrepareReceiptAsync();
@@ -494,7 +494,7 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.True(await rig.Placer.ExecuteStepAsync(
             rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token));
         Assert.True(rig.Placer.IsAtHorizontalZ);
-        Assert.True(MotionService.IsSettled(rig.Placer.Motion.Feedback, MotionAxis.Y));
+        Assert.True(MotionServiceBase.IsSettled(rig.Placer.Motion.Feedback, MotionAxis.Y));
         Assert.Equal(rig.Position.Y, rig.Motion.Position.Y);
         Assert.Equal(50, rig.Motion.Position.X);
         Assert.True(rig.Placer.PcbSecured);
@@ -662,8 +662,8 @@ public sealed class PcbPlacementStateSafetyTests
             IMotionFeedback feedback = Motion;
             if (probeFeedback)
             {
-                feedback = System.Reflection.DispatchProxy.Create<IXyMotion, MachineTest.ScopedMotionProbe>();
-                FeedbackProbe = (MachineTest.ScopedMotionProbe)feedback;
+                feedback = System.Reflection.DispatchProxy.Create<IXyMotion, MachineTestSupport.ScopedMotionProbe>();
+                FeedbackProbe = (MachineTestSupport.ScopedMotionProbe)feedback;
                 FeedbackProbe.Motion = Motion;
                 FeedbackProbe.ReportReady = true;
             }
@@ -686,7 +686,7 @@ public sealed class PcbPlacementStateSafetyTests
         public VirtualMotionService Motion { get; }
         public ConveyorStation Work { get; }
         public PcbPlacer Placer { get; }
-        public MachineTest.ScopedMotionProbe? FeedbackProbe { get; }
+        public MachineTestSupport.ScopedMotionProbe? FeedbackProbe { get; }
         public SupplyFeedback Supply { get; }
 
         public async Task ReceiveAsync()

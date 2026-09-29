@@ -59,7 +59,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     private void OnMotionStateChanged()
     {
-        if (_handoffPosition is { } position && !MotionService.IsHoldingPosition(_motion, position))
+        if (_handoffPosition is { } position && !MotionServiceBase.IsHoldingPosition(_motion, position))
             _handoffPosition = null;
         NotifyChanged();
     }
@@ -119,8 +119,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         get
         {
-            return MotionService.IsAtZ(_motion, _settings.HandoffPosition.Z)
-                && MotionService.IsSettled(_motion, MotionAxis.Z);
+            return MotionServiceBase.IsAtZ(_motion, _settings.HandoffPosition.Z)
+                && MotionServiceBase.IsSettled(_motion, MotionAxis.Z);
         }
     }
 
@@ -159,7 +159,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         get
         {
             var position = _handoffPosition;
-            if (position is null || !MotionService.IsHoldingPosition(_motion, position))
+            if (position is null || !MotionServiceBase.IsHoldingPosition(_motion, position))
                 return PcbPlacementHandoff.Unavailable;
             if (!_units.PcbPlacement
                 || Lift != StationCylinderState.Up
@@ -254,7 +254,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             _supply.Changed += WakeRun;
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (_units.PcbPlacement && _handoffPosition is { } handoff && !MotionService.IsHoldingPosition(_motion, handoff))
+                if (_units.PcbPlacement && _handoffPosition is { } handoff && !MotionServiceBase.IsHoldingPosition(_motion, handoff))
                 {
                     _handoffPosition = null;
                     NotifyChanged();

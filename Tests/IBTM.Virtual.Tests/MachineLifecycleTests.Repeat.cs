@@ -14,8 +14,8 @@ using IBTM.PcbSupply;
 using IBTM.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using static IBTM.Virtual.Tests.MachineTest;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.MachineTestSupport;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -37,7 +37,7 @@ public sealed partial class MachineLifecycleTests
         foreach (var heatSink in Enum.GetValues<HeatSinkSlot>())
             recipe.Pcb.BoltPoints.Add(new()
             {
-                Id = VirtualTest.BoltId(2, heatSink),
+                Id = VirtualTestSupport.BoltId(2, heatSink),
                 HeatSink = heatSink,
                 Head = FasteningHead.Pickup,
                 X = 15,
@@ -126,7 +126,7 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync(timeout.Token);
         try
         {
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => mainReturns >= 2 || state.IsError, TimeSpan.FromSeconds(55)),
                 $"Returns={mainReturns}; Phase={machine.RepeatDisplayPhase}; Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().Step}; {state.AlarmDetail}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
@@ -212,7 +212,7 @@ public sealed partial class MachineLifecycleTests
             await machine.HomeAsync(CancellationToken.None);
             state.RepeatEnabled = repeat;
             Assert.Equal(repeat, state.RepeatEnabled);
-            VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
+            VirtualTestSupport.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
             io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
 
             // The physical selector is ON in TEACHING/MANUAL, OFF in AUTO.
@@ -235,7 +235,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             await WaitUntilAsync(() => machine.IsStartAllowed);
             run = machine.StartAsync();
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(3)),
                 state.AlarmDetail);
             Assert.True(state.AutomaticRunning);
@@ -329,7 +329,7 @@ public sealed partial class MachineLifecycleTests
             await services.GetRequiredService<PcbPlacer>().Station.SeatAsync(CancellationToken.None);
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             run = machine.StartAsync();
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(3)),
                 state.AlarmDetail);
             Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -511,7 +511,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(
-                await VirtualTest.WaitUntilAsync(
+                await VirtualTestSupport.WaitUntilAsync(
                     () => mainReturns >= 2 || state.IsError,
                     TimeSpan.FromSeconds(22)),
                 $"Repeat timed out. Returns={mainReturns}, Phase={machine.RepeatDisplayPhase}, Main={services.GetRequiredService<IBTM.Conveyor.MainConveyor>().Step}, Alarm={state.AlarmMessage}");
@@ -730,7 +730,7 @@ public sealed partial class MachineLifecycleTests
                     inspection.Gripper == NgTransferGripperState.Closed));
             }
             if (output == OutputIo.NgCarrierGripperClose && !on
-                && MotionService.IsAt(inspection.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition))
+                && MotionServiceBase.IsAt(inspection.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition))
                 releasedAtShuttle = true;
             mainRan |= output == OutputIo.MainConveyorRun && on;
             ngConveyorRan |= output == OutputIo.NgConveyorRun && on;
@@ -742,13 +742,13 @@ public sealed partial class MachineLifecycleTests
             if (args.PropertyName != nameof(MachineController.RepeatDisplayPhase))
                 return;
             if (machine.RepeatDisplayPhase == RepeatPhase.ReturnToStation3
-                && MotionService.IsAt(inspection.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition)
+                && MotionServiceBase.IsAt(inspection.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition)
                 && inspection.IsRaised && inspection.Gripper == NgTransferGripperState.Closed)
                 raisedShuttleVisits++;
             if (machine.RepeatDisplayPhase != RepeatPhase.Automatic
                 || descents.Count != expectedDescents.Length || stop.IsCancellationRequested)
                 return;
-            returnedTwice = MotionService.IsAt(inspection.Motion.Feedback, settings.NgCarrierTransfer.WaitingPosition)
+            returnedTwice = MotionServiceBase.IsAt(inspection.Motion.Feedback, settings.NgCarrierTransfer.WaitingPosition)
                 && inspection.Station.CarrierPresent == startsWithCarrierHeld
                 && inspection.Station.BackupPlate == StationCylinderState.Up && inspection.IsClear
                 && inspection.Gripper == NgTransferGripperState.Open;
@@ -816,7 +816,7 @@ public sealed partial class MachineLifecycleTests
             await machine.StartAsync(stop.Token);
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.False(lowered);
-            Assert.True(MotionService.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition));
+            Assert.True(MotionServiceBase.IsAt(gantry.Motion.Feedback, settings.NgCarrierTransfer.ShuttlePlacePosition));
             Assert.True(gantry.IsRaised);
             Assert.True(gantry.IsTransferPending);
             Assert.True(io.GetInput(InputIo.NgCarrierDetected));
@@ -944,7 +944,7 @@ public sealed partial class MachineLifecycleTests
             if (!on && output == OutputIo.PcbSupplyGripperClosed
                 && supply.Rotation == PcbSupplyRotationState.Rotated)
                 returns++;
-            if (!on && output == OutputIo.PcbPlacementVacuumEjector && MotionService.IsAt(placement.Motion.Feedback, receivePosition))
+            if (!on && output == OutputIo.PcbPlacementVacuumEjector && MotionServiceBase.IsAt(placement.Motion.Feedback, receivePosition))
             {
                 reverseHandoffs++;
                 unsafeRelease |= !supply.PcbSecured;
@@ -962,12 +962,12 @@ public sealed partial class MachineLifecycleTests
                     && supply.Motion.Feedback.Position.X < settings.PcbSupply.HandoffPosition.X - 1
                     && supply.Motion.Feedback.Position.X > recipe.PcbSupply.Pcb2PickPosition.X + 1,
                 PcbRepeatStopPoint.BothHolding => supply.PcbSecured && placement.PcbSecured
-                    && MotionService.IsAt(placement.Motion.Feedback, receivePosition),
+                    && MotionServiceBase.IsAt(placement.Motion.Feedback, receivePosition),
                 PcbRepeatStopPoint.SupplyReleasing => reverseHandoffs > 0
                     && !io.GetInput(InputIo.PcbSupplyIpmFixerForward) && supply.Gripper == PcbSupplyCylinderState.Forward
-                    && placement.PcbSecured && MotionService.IsAt(placement.Motion.Feedback, receivePosition),
+                    && placement.PcbSecured && MotionServiceBase.IsAt(placement.Motion.Feedback, receivePosition),
                 PcbRepeatStopPoint.PlacementHolding => reverseHandoffs > 0 && supply.PcbReleased
-                    && placement.PcbSecured && MotionService.IsAt(placement.Motion.Feedback, receivePosition),
+                    && placement.PcbSecured && MotionServiceBase.IsAt(placement.Motion.Feedback, receivePosition),
                 _ => false,
             };
             if (reached)
@@ -999,7 +999,7 @@ public sealed partial class MachineLifecycleTests
         supply.Motion.Feedback.StateChanged += () =>
         {
             if (supply.PcbSecured && supply.Rotation == PcbSupplyRotationState.Rotated
-                && !MotionService.IsAtZ(supply.Motion.Feedback, settings.PcbSupply.RotationZ))
+                && !MotionServiceBase.IsAtZ(supply.Motion.Feedback, settings.PcbSupply.RotationZ))
                 descendedToSourceSlot = true;
             StopAtHandoff();
         };
@@ -1017,7 +1017,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(supply.PcbSecured || placement.PcbSecured);
                 run = machine.StartAsync(timeout.Token);
             }
-            Assert.True(await VirtualTest.WaitUntilAsync(
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(
                 () => mainReturned || state.IsError, TimeSpan.FromSeconds(27)),
                 $"Supply={supply.Phase}/{supply.Handoff}/{supply.Pcb}/{supply.Rotation}/{supply.Motion.Feedback.Position}, "
                     + $"Placement={placement.Phase}/{placement.Handoff}/{placement.Pcb}/{placement.IpmLift}/{placement.Motion.Feedback.Position}, "

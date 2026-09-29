@@ -6,7 +6,7 @@ using IBTM.Device;
 using IBTM.PcbSupply;
 using IBTM.Storage;
 using Xunit;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -129,7 +129,7 @@ public sealed class PcbSupplyRepeatTests
             if (input != InputIo.PcbSupplyGripperClosed || !on)
                 return;
             var pickup = recipe.Pcb1PickPosition;
-            grippedAtPickup = MotionService.IsAt(supplier.Motion.Feedback, new() { X = pickup.X, Y = pickup.Y!.Value, Z = pickup.Z })
+            grippedAtPickup = MotionServiceBase.IsAt(supplier.Motion.Feedback, new() { X = pickup.X, Y = pickup.Y!.Value, Z = pickup.Z })
                 && supplier.Rotation == PcbSupplyRotationState.Rotated;
         };
 
@@ -148,7 +148,7 @@ public sealed class PcbSupplyRepeatTests
         };
         motion.StateChanged += () =>
         {
-            if (!MotionService.IsAt(supplier.Motion.Feedback, settings.HandoffPosition) || !supplier.PcbSecured)
+            if (!MotionServiceBase.IsAt(supplier.Motion.Feedback, settings.HandoffPosition) || !supplier.PcbSecured)
                 return;
             reachedHandoff = true;
             finish.Cancel();
@@ -225,14 +225,14 @@ public sealed class PcbSupplyRepeatTests
         };
         motion.StateChanged += () =>
         {
-            if (!returning && MotionService.IsAt(supplier.Motion.Feedback, settings.HandoffPosition) && supplier.PcbSecured)
+            if (!returning && MotionServiceBase.IsAt(supplier.Motion.Feedback, settings.HandoffPosition) && supplier.PcbSecured)
             {
                 visits++;
                 returning = true;
                 io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             }
             if (returning && supplier.Rotation == PcbSupplyRotationState.Rotated
-                && MotionService.IsAt(supplier.Motion.Feedback, returnPosition))
+                && MotionServiceBase.IsAt(supplier.Motion.Feedback, returnPosition))
             {
                 returning = false;
                 returns++;

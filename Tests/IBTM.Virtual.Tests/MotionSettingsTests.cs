@@ -66,7 +66,7 @@ public sealed class MotionSettingsTests
     [Fact]
     public async Task ZTimeBindingAcceptsIndependentValuesAndBlankFallback()
     {
-        await VirtualTest.RunOnStaAsync(() =>
+        await VirtualTestSupport.RunOnStaAsync(() =>
         {
             var settings = new MotionSettings { AccelerationSeconds = 1, DecelerationSeconds = 1 };
             foreach (var property in new[] { nameof(settings.ZAccelerationSeconds), nameof(settings.ZDecelerationSeconds) })
@@ -101,7 +101,7 @@ public sealed class MotionSettingsTests
     [Fact]
     public async Task InvalidSpeedBindingShowsSavedAndEditedErrorsUntilCorrected()
     {
-        await VirtualTest.RunOnStaAsync(() =>
+        await VirtualTestSupport.RunOnStaAsync(() =>
         {
             var settings = new MotionSettings { ZSpeed = 0 };
             var input = new TextBox();
@@ -126,7 +126,7 @@ public sealed class MotionSettingsTests
     [Fact]
     public async Task LegacyInvalidSettingsCanBeLoadedAndCorrectedWithoutChangingOtherValues()
     {
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         var legacy = new MachineSettings();
         legacy.InspectionGantry.Motion.ZSpeed = 0; // No Z axis in this group.
         legacy.PcbSupply.Motion.HorizontalSpeed = 0;

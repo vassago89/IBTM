@@ -27,7 +27,7 @@ public sealed class RecipeTests
     [Fact]
     public async Task RecipeListQueriesDoNotBlockEntryAndDiscardCancelledResults()
     {
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         store.SaveRecipe(new Recipe { Name = "Stored recipe" });
         var recipes = new RecipeManager(store, new());
         using var connection = new SqliteConnection(
@@ -38,9 +38,9 @@ public sealed class RecipeTests
         command.CommandTimeout = 5;
         command.CommandText = "PRAGMA journal_mode=DELETE; BEGIN EXCLUSIVE";
         command.ExecuteNonQuery();
-        var editor = new RecipeEditor(recipes, store, new());
+        var editor = new RecipeEditorViewModel(recipes, store, new());
         var inspection = new InspectionTeachingViewModel(store, recipes,
-            new InspectionImages(store, NullLogger<InspectionImages>.Instance), new(),
+            new InspectionImageLoader(store, NullLogger<InspectionImageLoader>.Instance), new(),
             NullLogger<InspectionTeachingViewModel>.Instance);
         var refresh = editor.RefreshCommand.ExecuteAsync(null);
         inspection.Activate();
@@ -65,14 +65,14 @@ public sealed class RecipeTests
         Assert.Equal(new[] { "Stored recipe" }, editor.Recipes);
         Assert.Equal(editor.Recipes, inspection.RecipeNames);
 
-        var paused = new VirtualTest.PausedSynchronizationContext();
+        var paused = new VirtualTestSupport.PausedSynchronizationContext();
         var context = SynchronizationContext.Current;
         try
         {
             SynchronizationContext.SetSynchronizationContext(paused);
             var pending = editor.RefreshCommand.ExecuteAsync(null);
             SynchronizationContext.SetSynchronizationContext(context);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
+            Assert.True(await VirtualTestSupport.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
             editor.Name = "New recipe";
             Assert.True(await editor.SaveAsync(), editor.Error);
             paused.Release();
@@ -102,7 +102,7 @@ public sealed class RecipeTests
         first.MinimumTurns = 3.5;
         second.MinimumTurns = 10;
         var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         store.SaveRecipe(recipe);
 
         var loaded = store.LoadRecipe(recipe.Name);
@@ -150,7 +150,7 @@ public sealed class RecipeTests
                 new() { Number = 2, IsBarcode = true, Center = new() { X = 30, Y = 40 } },
             ],
         };
-        var point = VirtualTest.CreateTeachingPoint(
+        var point = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.DataMatrix, MotionGroup.InspectionGantry, TeachMode.Image), new(), recipe);
 
         Assert.Null(point.Coordinates);
@@ -167,9 +167,9 @@ public sealed class RecipeTests
         var first = new BoltPoint { X = 148.637, Y = 244.938 };
         var second = new BoltPoint { X = 160, Y = 250 };
         var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
-        var firstPoint = VirtualTest.CreateTeachingPoint(
+        var firstPoint = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.BoltReference, MotionGroup.InspectionGantry, TeachMode.Image) { Bolt = first }, new(), recipe);
-        var secondPoint = VirtualTest.CreateTeachingPoint(
+        var secondPoint = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.BoltReference, MotionGroup.InspectionGantry, TeachMode.Image) { Bolt = second }, new(), recipe);
 
         Assert.Equal("Bolt 1 Inspection", firstPoint.Name);
@@ -180,7 +180,7 @@ public sealed class RecipeTests
         Assert.Contains("No reference image", firstPoint.PositionLabel);
 
         firstPoint.BoltName = "좌상단 고정";
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         store.SaveRecipe(recipe);
         var saved = store.LoadRecipe(recipe.Name);
         Assert.Equal("좌상단 고정", saved.Pcb.BoltPoints[0].Name);
@@ -193,7 +193,7 @@ public sealed class RecipeTests
     [Fact]
     public async Task DuplicateBoltIdsCannotReplaceActiveRecipeOrOverwriteSavedData()
     {
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         var recipes = new RecipeManager(store, new());
         var active = new Recipe { Name = "Active", Pcb = new() { BoltPoints = [new()] } };
         store.SaveRecipe(active);
@@ -231,7 +231,7 @@ public sealed class RecipeTests
     [InlineData(true)]
     public async Task LoadingEmptyBoltGuidsPersistsUniqueIdsWithoutUsingLegacyNumbers(bool explicitEmpty)
     {
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         var preservedId = Guid.NewGuid();
         var identity = explicitEmpty ? $"\"Id\":\"{Guid.Empty}\"," : "";
         var json = $$"""
@@ -292,7 +292,7 @@ public sealed class RecipeTests
     [Fact]
     public void LoadingEmptyBoltGuidsWithoutLegacyNumbersKeepsImagesUnlinked()
     {
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         var json = $$"""
             {"Name":"Empty","Pcb":{"TaughtBolts":[{"Id":"{{Guid.Empty}}"},{"Id":"{{Guid.Empty}}"}]},
             "CarrierImages":[{"Number":1,"BoltId":"{{Guid.Empty}}"}]}
@@ -346,7 +346,7 @@ public sealed class RecipeTests
         Assert.Equal(2, recipe.Pcb.GetBoltOrdinal(first.Id));
         Assert.Equal(11, recipe.GetInspectionPosition(recipe.CarrierImages[0]).X);
         Assert.Equal(101, first.FasteningX);
-        var store = VirtualTest.OpenMachineStore();
+        var store = VirtualTestSupport.OpenMachineStore();
         store.SaveRecipe(recipe);
         var saved = store.LoadRecipe(recipe.Name);
         Assert.Equal(new[] { second.Id, first.Id }, saved.Pcb.BoltPoints.Select(bolt => bolt.Id));
@@ -475,11 +475,11 @@ public sealed class RecipeTests
     [Fact]
     public async Task InvalidInspectionRecipeKeepsTheActiveRecipeUntilCorrected()
     {
-        var database = VirtualTest.OpenMachineStore();
+        var database = VirtualTestSupport.OpenMachineStore();
         var selection = new RecipeSelectionSettings();
         var recipes = new RecipeManager(database, selection) { Current = { Name = "Active" } };
         var recipe = recipes.Current;
-        var editor = new RecipeEditor(recipes, database, new());
+        var editor = new RecipeEditorViewModel(recipes, database, new());
         await editor.SaveAsync();
         var currentInspection = recipe.BoltInspection;
         var corrected = new Recipe
@@ -518,7 +518,7 @@ public sealed class RecipeTests
         var layout = recipe.Pcb;
         layout.BoltPoints.Add(new()
         {
-            Id = VirtualTest.BoltId(1),
+            Id = VirtualTestSupport.BoltId(1),
             HeatSink = HeatSinkSlot.HeatSink1,
             X = 13,
             Y = 24,
@@ -527,7 +527,7 @@ public sealed class RecipeTests
         });
         layout.BoltPoints.Add(new()
         {
-            Id = VirtualTest.BoltId(1, HeatSinkSlot.HeatSink2),
+            Id = VirtualTestSupport.BoltId(1, HeatSinkSlot.HeatSink2),
             HeatSink = HeatSinkSlot.HeatSink2,
             X = 73,
             Y = 29,
@@ -563,10 +563,10 @@ public sealed class RecipeTests
         Assert.Equal(375, secondHead.X, 6);
         Assert.Equal(430, secondHead.Y, 6);
 
-        var database = VirtualTest.OpenMachineStore();
+        var database = VirtualTestSupport.OpenMachineStore();
         var recipes = new RecipeManager(database, new());
         recipes.Current.ReplaceWith(recipe);
-        var editor = new RecipeEditor(recipes, database, new());
+        var editor = new RecipeEditorViewModel(recipes, database, new());
         await editor.SaveAsync();
         var loaded = database.LoadRecipe(recipe.Name);
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count);
@@ -589,7 +589,7 @@ public sealed class RecipeTests
     {
         var supply = System.Text.Json.JsonSerializer.Deserialize<PcbSupplySettings>(
             """{"RotationZ":3,"BufferHandoffPosition":{"X":50,"Y":10,"Z":8},"BufferClearZ":12}""")!;
-        var definition = VirtualTest.CreateTeachingPoint(
+        var definition = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full), new() { PcbSupply = supply });
         Assert.Equal(TeachMode.Full, definition.Position.Mode);
         Assert.Equal(8, supply.HandoffPosition.Z);
@@ -608,14 +608,14 @@ public sealed class RecipeTests
     {
         var placement = System.Text.Json.JsonSerializer.Deserialize<PcbPlacementHandlerSettings>(
             """{"BufferEntryZ":3,"BufferHandoffPosition":{"X":50,"Y":10,"Z":8}}""")!;
-        var definition = VirtualTest.CreateTeachingPoint(
+        var definition = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.PlacementHandoff, MotionGroup.PcbPlacementHandler, TeachMode.Full), new() { PcbPlacementHandler = placement });
         Assert.Equal(TeachMode.Full, definition.Position.Mode);
         Assert.Equal(8, placement.HandoffPosition.Z);
         definition.Teach(60, 20, 9);
         Assert.Equal(9, placement.HandoffPosition.Z);
 
-        var receive = VirtualTest.CreateTeachingPoint(
+        var receive = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.PlacementReceiveZ, MotionGroup.PcbPlacementHandler, TeachMode.ZOnly), new() { PcbPlacementHandler = placement });
         Assert.Null(placement.ReceiveZ);
         Assert.False(receive.Position.HasPosition);
@@ -647,7 +647,7 @@ public sealed class RecipeTests
             new(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full),
             new(TeachingTarget.PlacementHandoff, MotionGroup.PcbPlacementHandler, TeachMode.Full),
         ];
-        var points = definitions.Select(p => VirtualTest.CreateTeachingPoint(p,
+        var points = definitions.Select(p => VirtualTestSupport.CreateTeachingPoint(p,
             new() { PcbSupply = supply, PcbPlacementHandler = placement }, new() { PcbSupply = recipe })).ToArray();
         Assert.Equal(5, points.Length);
         var handoffs = points.Where(p => p.Storage == TeachingStorage.Handoff).ToArray();
@@ -690,10 +690,10 @@ public sealed class RecipeTests
         var settings = System.Text.Json.JsonSerializer.Deserialize<NgCarrierTransferSettings>(
             """{"PickupSafeX":157.283,"CarrierPickupPosition":{"X":999,"Y":456.789,"Z":12},"ShuttlePlacePosition":{"X":146.46,"Y":1085.274}}""")!;
         var before = System.Text.Json.JsonSerializer.Serialize(settings);
-        var database = VirtualTest.OpenMachineStore();
+        var database = VirtualTestSupport.OpenMachineStore();
         database.SaveSettings([settings]);
         settings = database.LoadSettings().Get<NgCarrierTransferSettings>();
-        var point = VirtualTest.CreateTeachingPoint(
+        var point = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.NgCarrierPickup, MotionGroup.InspectionGantry, TeachMode.XYOnly),
             new() { NgCarrierTransfer = settings });
 
@@ -757,11 +757,11 @@ public sealed class RecipeTests
                 LowerRightLocatingPin = new() { X = 400, Y = 500 },
             },
         };
-        var bolt = new BoltPoint { Id = VirtualTest.BoltId(1) };
+        var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1) };
         var recipe = new PcbLayout();
         recipe.BoltPoints = [bolt];
         var settings = new MachineSettings { BoltFastening = fastening, CarrierReference = reference };
-        var position = VirtualTest.CreateTeachingPoint(
+        var position = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.BoltPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = bolt }, settings);
         Assert.False(position.Position.HasPosition);
         Assert.Null(position.Coordinates);
@@ -777,7 +777,7 @@ public sealed class RecipeTests
         fastening.SafeZ = 7;
         position.Refresh();
         Assert.Equal(12, position.Coordinates!.Z);
-        var shootingZ = VirtualTest.CreateTeachingPoint(
+        var shootingZ = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.ShootingHeadFasteningZ, MotionGroup.BoltFastening, TeachMode.ZOnly), settings);
         Assert.Equal(TeachMode.ZOnly, shootingZ.Position.Mode);
         Assert.Same(fastening, shootingZ.Setting);
@@ -795,7 +795,7 @@ public sealed class RecipeTests
         Assert.Equal(14, fastening.ShootingHead.FasteningZ);
 
         var lowerRight = reference.LowerRightLocatingPin;
-        var upperLeft = VirtualTest.CreateTeachingPoint(
+        var upperLeft = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.CarrierUpperLeftLocatingPin, MotionGroup.InspectionGantry, TeachMode.XYOnly), settings);
         upperLeft.Teach(105, 205, 0);
         Assert.Same(lowerRight, reference.LowerRightLocatingPin);
@@ -805,13 +805,13 @@ public sealed class RecipeTests
         Assert.Same(reference, upperLeft.Setting);
 
         recipe.BoltPoints = [
-            new() { Id = VirtualTest.BoltId(2), Head = FasteningHead.Pickup, X = 10, Y = 20 },
+            new() { Id = VirtualTestSupport.BoltId(2), Head = FasteningHead.Pickup, X = 10, Y = 20 },
             bolt,
-            new() { Id = VirtualTest.BoltId(3), Head = FasteningHead.Pickup, X = 20, Y = 30 },
+            new() { Id = VirtualTestSupport.BoltId(3), Head = FasteningHead.Pickup, X = 20, Y = 30 },
         ];
         foreach (var target in recipe.BoltPoints)
             fastening.InitializeBoltPosition(target, reference);
-        var pickupZ = VirtualTest.CreateTeachingPoint(
+        var pickupZ = VirtualTestSupport.CreateTeachingPoint(
             new(TeachingTarget.PickupHeadFasteningZ, MotionGroup.BoltFastening, TeachMode.ZOnly), settings);
         Assert.Equal(TeachMode.ZOnly, pickupZ.Position.Mode);
         Assert.Same(fastening, pickupZ.Setting);
@@ -823,7 +823,7 @@ public sealed class RecipeTests
         Assert.All(recipe.BoltPoints, target => Assert.Equal(
             (target.Head == FasteningHead.Pickup ? 18 : 14) + target.FasteningZOffset,
             fastening.GetBoltPosition(target).Z));
-        Assert.Equal(new[] { VirtualTest.BoltId(2), VirtualTest.BoltId(1), VirtualTest.BoltId(3) }, recipe.BoltPoints.Select(point => point.Id));
+        Assert.Equal(new[] { VirtualTestSupport.BoltId(2), VirtualTestSupport.BoltId(1), VirtualTestSupport.BoltId(3) }, recipe.BoltPoints.Select(point => point.Id));
     }
 
     [Theory]
@@ -831,11 +831,11 @@ public sealed class RecipeTests
     [InlineData(true)]
     public async Task RecipeSelectionCannotChangeWhileAnotherOperationOwnsMachine(bool createNew)
     {
-        var database = VirtualTest.OpenMachineStore();
+        var database = VirtualTestSupport.OpenMachineStore();
         database.SaveRecipe(new Recipe { Name = "Other" });
         var recipes = new RecipeManager(database, new()) { Current = { Name = "Active" } };
         var operations = new OperationCancellation();
-        var editor = new RecipeEditor(recipes, database, operations);
+        var editor = new RecipeEditorViewModel(recipes, database, operations);
 
         using var running = operations.Link();
         if (createNew)
@@ -858,17 +858,17 @@ public sealed class RecipeTests
         };
         var savedName = recipe.Name;
         var operations = new OperationCancellation();
-        var database = VirtualTest.OpenMachineStore();
+        var database = VirtualTestSupport.OpenMachineStore();
         var selection = new RecipeSelectionSettings();
         var recipes = new RecipeManager(database, selection);
         recipes.Current.ReplaceWith(recipe);
         recipe = recipes.Current;
-        var editor = new RecipeEditor(recipes, database, operations);
+        var editor = new RecipeEditorViewModel(recipes, database, operations);
         bool? activeAtChange = null;
         string? selectedAtChange = null;
         editor.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(RecipeEditor.ActiveName))
+            if (args.PropertyName == nameof(RecipeEditorViewModel.ActiveName))
             {
                 activeAtChange = operations.HasActiveOperations;
                 selectedAtChange = database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName;
@@ -961,16 +961,16 @@ public sealed class RecipeTests
     [Fact]
     public async Task RecipeImagesAndSaveAsAreAtomic()
     {
-        var database = VirtualTest.OpenMachineStore();
+        var database = VirtualTestSupport.OpenMachineStore();
         var sourceRecipes = new RecipeManager(database, new()) { Current = { Name = "Source" } };
         var source = sourceRecipes.Current;
-        var sourceEditor = new RecipeEditor(sourceRecipes, database, new());
-        var imagesLoader = new InspectionImages(database, Microsoft.Extensions.Logging.Abstractions.NullLogger<InspectionImages>.Instance);
+        var sourceEditor = new RecipeEditorViewModel(sourceRecipes, database, new());
+        var imagesLoader = new InspectionImageLoader(database, Microsoft.Extensions.Logging.Abstractions.NullLogger<InspectionImageLoader>.Instance);
         var targetSelection = new RecipeSelectionSettings();
         var targetRecipes = new RecipeManager(database, targetSelection) { Current = { Name = "Target" } };
         var target = targetRecipes.Current;
-        var targetEditor = new RecipeEditor(targetRecipes, database, new());
-        CarrierImageTileView[] Images(double x, byte value)
+        var targetEditor = new RecipeEditorViewModel(targetRecipes, database, new());
+        RecipeImageItem[] Images(double x, byte value)
         {
             return [
                 new(new CarrierImageTile
@@ -978,7 +978,7 @@ public sealed class RecipeTests
                     Number = 1,
                     Center = new() { X = x },
                     Region = new(0, 0, 1, 1),
-                    BoltId = VirtualTest.BoltId(3),
+                    BoltId = VirtualTestSupport.BoltId(3),
                     HeatSink = HeatSinkSlot.HeatSink2,
                 }, Image(value)),
                 new(new CarrierImageTile
@@ -1029,7 +1029,7 @@ public sealed class RecipeTests
         Assert.Equal(new byte[] { 10, 11, 12 }, pixels);
         var savedFov = database.LoadRecipe("Source").CarrierImages[0];
         Assert.Equal(new PixelRegion(0, 0, 1, 1), savedFov.Region);
-        Assert.Equal(VirtualTest.BoltId(3), savedFov.BoltId);
+        Assert.Equal(VirtualTestSupport.BoltId(3), savedFov.BoltId);
         Assert.Equal(HeatSinkSlot.HeatSink2, savedFov.HeatSink);
         var loadedImages = await imagesLoader.LoadRecipeAsync(sourceRecipes.Current);
         Assert.Same(source.CarrierImages[0], loadedImages[0].Metadata);

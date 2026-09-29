@@ -7,7 +7,7 @@ namespace IBTM.UI;
 
 public partial class OperationView : UserControl
 {
-    private PcbDetailsWindow? _pcbDetails;
+    private PcbResultsWindow? _pcbDetails;
 
     public OperationView()
     {
@@ -53,7 +53,7 @@ public partial class OperationView : UserControl
 
     private void OnPcbDetailsClosed(object? sender, EventArgs e)
     {
-        if (sender is PcbDetailsWindow window)
+        if (sender is PcbResultsWindow window)
             window.Closed -= OnPcbDetailsClosed;
         _pcbDetails = null;
         if (DataContext is OperationViewModel viewModel)

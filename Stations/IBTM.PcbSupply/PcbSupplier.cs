@@ -46,7 +46,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     private void OnMotionStateChanged()
     {
-        if (_handoffPosition is { } position && !MotionService.IsHoldingPosition(_motion, position))
+        if (_handoffPosition is { } position && !MotionServiceBase.IsHoldingPosition(_motion, position))
             _handoffPosition = null;
         NotifyChanged();
     }
@@ -190,7 +190,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         get
         {
             var position = _handoffPosition;
-            if (position is null || !MotionService.IsHoldingPosition(_motion, position))
+            if (position is null || !MotionServiceBase.IsHoldingPosition(_motion, position))
                 return PcbSupplyHandoff.Unavailable;
             if (!_units.PcbSupply || Rotation != PcbSupplyRotationState.Unrotated
                 || Phase is not (PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear
@@ -240,7 +240,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             placement.Changed += WakeRun;
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (_units.PcbSupply && _handoffPosition is { } previousHandoff && !MotionService.IsHoldingPosition(_motion, previousHandoff))
+                if (_units.PcbSupply && _handoffPosition is { } previousHandoff && !MotionServiceBase.IsHoldingPosition(_motion, previousHandoff))
                 {
                     _handoffPosition = null;
                     NotifyChanged();
@@ -300,7 +300,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, cancellationToken);
                         }
                         if (_handoffPosition is not { } handoffPosition
-                            || !MotionService.IsHoldingPosition(_motion, handoffPosition)
+                            || !MotionServiceBase.IsHoldingPosition(_motion, handoffPosition)
                             || Rotation != PcbSupplyRotationState.Unrotated)
                         {
                             await SetRotatedAsync(false, cancellationToken);

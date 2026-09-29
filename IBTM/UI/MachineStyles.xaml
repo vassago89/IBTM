@@ -21,14 +21,14 @@
     <SolidColorBrush x:Key="ActiveStateBackgroundBrush" Color="#1B2B38"/>
     <SolidColorBrush x:Key="MapActiveBackgroundBrush" Color="#26333D"/>
 
-    <x:Static x:Key="PcbWidth" Member="ui:MachinePlan.PcbWidth"/>
-    <x:Static x:Key="PcbHeight" Member="ui:MachinePlan.PcbHeight"/>
-    <x:Static x:Key="PcbSlotWidth" Member="ui:MachinePlan.PcbSlotWidth"/>
-    <x:Static x:Key="PcbSlotHeight" Member="ui:MachinePlan.PcbSlotHeight"/>
-    <x:Static x:Key="CarrierWidth" Member="ui:MachinePlan.CarrierWidth"/>
-    <x:Static x:Key="CarrierHeight" Member="ui:MachinePlan.CarrierHeight"/>
-    <x:Static x:Key="BackupPlateWidth" Member="ui:MachinePlan.PlateWidth"/>
-    <x:Static x:Key="BackupPlateHeight" Member="ui:MachinePlan.PlateHeight"/>
+    <x:Static x:Key="PcbWidth" Member="ui:MachineDiagramLayout.PcbWidth"/>
+    <x:Static x:Key="PcbHeight" Member="ui:MachineDiagramLayout.PcbHeight"/>
+    <x:Static x:Key="PcbSlotWidth" Member="ui:MachineDiagramLayout.PcbSlotWidth"/>
+    <x:Static x:Key="PcbSlotHeight" Member="ui:MachineDiagramLayout.PcbSlotHeight"/>
+    <x:Static x:Key="CarrierWidth" Member="ui:MachineDiagramLayout.CarrierWidth"/>
+    <x:Static x:Key="CarrierHeight" Member="ui:MachineDiagramLayout.CarrierHeight"/>
+    <x:Static x:Key="BackupPlateWidth" Member="ui:MachineDiagramLayout.PlateWidth"/>
+    <x:Static x:Key="BackupPlateHeight" Member="ui:MachineDiagramLayout.PlateHeight"/>
 
     <GeometryGroup x:Key="BackupPlatePinGeometry">
         <EllipseGeometry Center="5,5" RadiusX="3" RadiusY="3"/>
@@ -178,7 +178,7 @@
     </Style>
 
     <Style x:Key="HandlerStateBadgeStyle" TargetType="Border" BasedOn="{StaticResource StateBadgeStyle}">
-        <Setter Property="Width" Value="{x:Static ui:MachinePlan.SupplyRailWidth}"/>
+        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.SupplyRailWidth}"/>
         <Setter Property="MinHeight" Value="42"/>
         <Setter Property="Padding" Value="10,7"/>
         <Style.Triggers>
@@ -298,11 +298,11 @@
     </Style>
 
     <Style x:Key="BoltTargetStyle" TargetType="Border">
-        <Setter Property="Width" Value="{x:Static ui:MachinePlan.BoltTargetSize}"/>
-        <Setter Property="Height" Value="{x:Static ui:MachinePlan.BoltTargetSize}"/>
+        <Setter Property="Width" Value="{x:Static ui:MachineDiagramLayout.BoltTargetSize}"/>
+        <Setter Property="Height" Value="{x:Static ui:MachineDiagramLayout.BoltTargetSize}"/>
         <Setter Property="RenderTransform">
             <Setter.Value>
-                <TranslateTransform X="{x:Static ui:MachinePlan.BoltTargetOffset}" Y="{x:Static ui:MachinePlan.BoltTargetOffset}"/>
+                <TranslateTransform X="{x:Static ui:MachineDiagramLayout.BoltTargetOffset}" Y="{x:Static ui:MachineDiagramLayout.BoltTargetOffset}"/>
             </Setter.Value>
         </Setter>
         <Setter Property="CornerRadius" Value="10"/>

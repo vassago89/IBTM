@@ -5,9 +5,9 @@ namespace IBTM.UI;
 
 public partial class LogWindow : Window
 {
-    private readonly LogWindowViewModel _viewModel;
+    private readonly LogViewModel _viewModel;
 
-    public LogWindow(LogWindowViewModel viewModel)
+    public LogWindow(LogViewModel viewModel)
     {
         _viewModel = viewModel;
         InitializeComponent();

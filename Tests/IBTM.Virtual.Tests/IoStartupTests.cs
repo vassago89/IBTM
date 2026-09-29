@@ -18,7 +18,7 @@ using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -150,7 +150,7 @@ public sealed class IoStartupTests
     [Fact]
     public async Task ReleasingReverseDuringReadyCheckDoesNotPulseMotorStart()
     {
-        var virtualIo = new VirtualIoService(VirtualTest.Outputs(), new());
+        var virtualIo = new VirtualIoService(VirtualTestSupport.Outputs(), new());
         var io = new StartupIo(virtualIo);
         io.Initialize();
         using var bus = new AdcControllerStub();
@@ -623,7 +623,7 @@ public sealed class IoStartupTests
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
         IAsyncRelayCommand stop = motionWindow
-            ? services.GetRequiredService<MotionWindowViewModel>().StopCommand
+            ? services.GetRequiredService<MotionDiagnosticsViewModel>().StopCommand
             : services.GetRequiredService<OperationViewModel>().StopCommand;
         io.SetOutput(OutputIo.MainConveyorRun, true);
         io.SetOutput(OutputIo.NgConveyorRun, true);
@@ -1016,7 +1016,7 @@ public sealed class IoStartupTests
         services.GetRequiredService<UnitSettings>().Inspection = false;
         io.Initialize();
         physicalIo.SetInput(InputIo.AutoMode, false);
-        VirtualTest.SetCarrier(physicalIo, InputIo.InspectionHeatSink1Present, true);
+        VirtualTestSupport.SetCarrier(physicalIo, InputIo.InspectionHeatSink1Present, true);
         await inspection.Station.SeatAsync(CancellationToken.None);
         inspection.Station.Complete(inspection.Station.CurrentJob);
         physicalIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
@@ -1304,7 +1304,7 @@ public sealed class IoStartupTests
         if (step == TransferFailureStep.Transfer)
         {
             var work = services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>().Station;
-            VirtualTest.SetCarrier(physicalIo, InputIo.PcbPlacementHeatSink1Present, true);
+            VirtualTestSupport.SetCarrier(physicalIo, InputIo.PcbPlacementHeatSink1Present, true);
             await work.SeatAsync(CancellationToken.None);
             work.Complete(work.CurrentJob);
         }
@@ -1312,13 +1312,13 @@ public sealed class IoStartupTests
         {
             services.GetRequiredService<UnitSettings>().Inspection = false;
             var work = services.GetRequiredService<InspectionStation>();
-            VirtualTest.SetCarrier(physicalIo, InputIo.InspectionHeatSink1Present, true);
+            VirtualTestSupport.SetCarrier(physicalIo, InputIo.InspectionHeatSink1Present, true);
             await work.Station.SeatAsync(CancellationToken.None);
             work.Station.Complete(work.Station.CurrentJob);
             physicalIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
         }
         if (step == TransferFailureStep.Return)
-            VirtualTest.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
+            VirtualTestSupport.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
         if (step == TransferFailureStep.BoltFeeder)
             physicalIo.SetInput(InputIo.ShootingEscapeBackward, true);
         if (step == TransferFailureStep.ShootBolt)
@@ -1430,7 +1430,7 @@ public sealed class IoStartupTests
         var physicalIo = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<BoltFasteningStation>().Station;
         io.Initialize();
-        VirtualTest.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
+        VirtualTestSupport.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
         var runError = new IOException("Fastening carrier feedback failed.");
         var stopError = new IOException("Shooting output OFF failed.");
@@ -1659,7 +1659,7 @@ public sealed class IoStartupTests
         {
             var output = services.GetRequiredService<IoSignals>().Outputs[OutputIo.ShootBolt];
             if (diagnostic)
-                new OutputWindowRow(output, machine).ToggleCommand.Execute(null);
+                new OutputSignalRow(output, machine).ToggleCommand.Execute(null);
             else
                 await machine.ToggleTeachingOutputAsync(output, default, default);
 
@@ -1796,7 +1796,7 @@ public sealed class IoStartupTests
         var io = services.GetRequiredService<StartupIo>();
         await machine.InitializeAsync();
         await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
-        var headIo = new VirtualIoService(VirtualTest.Outputs(), new());
+        var headIo = new VirtualIoService(VirtualTestSupport.Outputs(), new());
         using var bus = new AdcControllerStub { SuppressCompletion = true };
         bus.BindIo(headIo, FasteningHead.Pickup);
         using var diagnostics = new AdcProtocolViewModel(

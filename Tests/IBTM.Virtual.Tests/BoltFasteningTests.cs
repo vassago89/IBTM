@@ -15,7 +15,7 @@ using IBTM.Hantas;
 using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -255,7 +255,7 @@ public sealed class BoltFasteningTests
         };
         assembly.ResultsChanged += updated =>
         {
-            if (!updated.ShootingBoltResults.ContainsKey(VirtualTest.BoltId(1)))
+            if (!updated.ShootingBoltResults.ContainsKey(VirtualTestSupport.BoltId(1)))
                 return;
             Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
             Assert.False(bus.Running);
@@ -276,10 +276,10 @@ public sealed class BoltFasteningTests
         {
             Assert.Same(storageFailure, await Assert.ThrowsAsync<IOException>(() => station.RunAsync(stop.Token)));
         }
-        Assert.True(assembly.ShootingBoltResults[VirtualTest.BoltId(1)].Success);
-        Assert.NotNull(assembly.ShootingBoltResults[VirtualTest.BoltId(1)].Torque);
-        Assert.NotNull(assembly.ShootingBoltResults[VirtualTest.BoltId(1)].Controller);
-        Assert.Equal(3, assembly.ShootingBoltResults[VirtualTest.BoltId(1)].MinimumTurns);
+        Assert.True(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Success);
+        Assert.NotNull(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Torque);
+        Assert.NotNull(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Controller);
+        Assert.Equal(3, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].MinimumTurns);
         Assert.Equal(1, bus.StartWrites);
         Assert.False(work.Completed);
     }
@@ -333,7 +333,7 @@ public sealed class BoltFasteningTests
         };
         assembly.ResultsChanged += updated =>
         {
-            if (updated.ShootingBoltResults.ContainsKey(VirtualTest.BoltId(1)))
+            if (updated.ShootingBoltResults.ContainsKey(VirtualTestSupport.BoltId(1)))
             {
                 Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
                 Assert.False(bus.Running);
@@ -351,13 +351,13 @@ public sealed class BoltFasteningTests
             Assert.True(work.Completed, run.Exception?.ToString());
             Assert.True(raisedAfterTimeout);
             Assert.Equal(2, bus.StartWrites);
-            var failed = assembly.ShootingBoltResults[VirtualTest.BoltId(1)];
+            var failed = assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)];
             Assert.False(failed.Success);
             Assert.Null(failed.Torque);
             Assert.Null(failed.Controller);
             Assert.Contains("timed out", failed.Error);
             Assert.NotNull(failed.RecordedAt);
-            Assert.True(assembly.ShootingBoltResults[VirtualTest.BoltId(2)].Success);
+            Assert.True(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(2)].Success);
             Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
             Assert.Equal(StationCylinderState.Up, station.ShootingHeadPosition);
         }
@@ -858,7 +858,7 @@ public sealed class BoltFasteningTests
         };
         assembly.ResultsChanged += updated =>
         {
-            if (updated.ShootingBoltResults.ContainsKey(VirtualTest.BoltId(1)))
+            if (updated.ShootingBoltResults.ContainsKey(VirtualTestSupport.BoltId(1)))
             {
                 Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
                 Assert.False(bus.Running);
@@ -893,18 +893,18 @@ public sealed class BoltFasteningTests
             if (rejectedResponse)
             {
                 Assert.Equal(2, bus.ResultReads); // One result read per bolt, without retrying the rejected read.
-                Assert.False(assembly.ShootingBoltResults[VirtualTest.BoltId(1)].Success);
-                Assert.Null(assembly.ShootingBoltResults[VirtualTest.BoltId(1)].Torque);
-                Assert.Contains("0x03", assembly.ShootingBoltResults[VirtualTest.BoltId(1)].Error);
-                Assert.True(assembly.ShootingBoltResults[VirtualTest.BoltId(2)].Success);
-                Assert.NotNull(assembly.ShootingBoltResults[VirtualTest.BoltId(2)].Controller);
+                Assert.False(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Success);
+                Assert.Null(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Torque);
+                Assert.Contains("0x03", assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
+                Assert.True(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(2)].Success);
+                Assert.NotNull(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(2)].Controller);
                 Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
             }
             else
             {
-                Assert.False(assembly.ShootingBoltResults[VirtualTest.BoltId(1)].Success);
-                Assert.Contains("42", assembly.ShootingBoltResults[VirtualTest.BoltId(1)].Error);
-                Assert.False(assembly.ShootingBoltResults[VirtualTest.BoltId(2)].Success); // A second START must occur, not reuse the old Error event.
+                Assert.False(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Success);
+                Assert.Contains("42", assembly.ShootingBoltResults[VirtualTestSupport.BoltId(1)].Error);
+                Assert.False(assembly.ShootingBoltResults[VirtualTestSupport.BoltId(2)].Success); // A second START must occur, not reuse the old Error event.
                 Assert.Equal(AssemblyResult.Ng, assembly.FasteningResult);
             }
             Assert.Equal(StationCylinderState.Up, station.ShootingHeadPosition);
@@ -965,7 +965,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         using var bus = new VirtualAdcBus();
         using var shootingBus = new VirtualAdcBus();
-        var gantry = VirtualTest.CreateFastening(
+        var gantry = VirtualTestSupport.CreateFastening(
             CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new(), 2, "Virtual", 115200),
             CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200),
             io, motion, settings, new());
@@ -998,7 +998,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         using var bus = new VirtualAdcBus();
         using var shootingBus = new VirtualAdcBus();
-        var station = VirtualTest.CreateFastening(
+        var station = VirtualTestSupport.CreateFastening(
             CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new(), 2, "Virtual", 115200),
             CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200), io, motion, settings, new());
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
@@ -1037,7 +1037,7 @@ public sealed class BoltFasteningTests
         using var motion = new VirtualMotionService(settings.Motion, new());
         using var bus = new VirtualAdcBus();
         using var shootingBus = new VirtualAdcBus();
-        var gantry = VirtualTest.CreateFastening(
+        var gantry = VirtualTestSupport.CreateFastening(
             CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new(), 2, "Virtual", 115200), CreateAdcHead(bus, io, FasteningHead.Pickup, new(), 1, "Virtual", 115200),
             io, motion, settings, new());
         io.Initialize();
@@ -1573,9 +1573,9 @@ public sealed class BoltFasteningTests
             }
             else
             {
-                Assert.True(results[VirtualTest.BoltId(1)].Success);
-                Assert.NotNull(results[VirtualTest.BoltId(1)].Controller);
-                Assert.NotNull(results[VirtualTest.BoltId(1)].Torque);
+                Assert.True(results[VirtualTestSupport.BoltId(1)].Success);
+                Assert.NotNull(results[VirtualTestSupport.BoltId(1)].Controller);
+                Assert.NotNull(results[VirtualTestSupport.BoltId(1)].Torque);
                 if (selectedHead == FasteningHead.Shooting)
                 {
                     Assert.False(io.GetOutput(OutputIo.ShootingHeadVacuumPump));
@@ -1686,7 +1686,7 @@ public sealed class BoltFasteningTests
         };
         assembly.ResultsChanged += updated =>
         {
-            if (updated.PickupBoltResults.ContainsKey(VirtualTest.BoltId(1)))
+            if (updated.PickupBoltResults.ContainsKey(VirtualTestSupport.BoltId(1)))
                 finish.Cancel();
         };
         await station.RunAsync(finish.Token);
@@ -1696,8 +1696,8 @@ public sealed class BoltFasteningTests
         Assert.True(work.CarrierPresent);
         Assert.Equal(
             BoltResultSource.DryRun,
-            assembly.PickupBoltResults[VirtualTest.BoltId(1)].Source);
-        Assert.True(assembly.PickupBoltResults[VirtualTest.BoltId(1)].Success);
+            assembly.PickupBoltResults[VirtualTestSupport.BoltId(1)].Source);
+        Assert.True(assembly.PickupBoltResults[VirtualTestSupport.BoltId(1)].Success);
         Assert.Equal(2, bus.StartWrites);
     }
 
@@ -1742,9 +1742,9 @@ public sealed class BoltFasteningTests
         {
             BoltPoints = [Bolt(1, FasteningHead.Shooting, 20, 30), Bolt(2, FasteningHead.Shooting, 40, 30),
                 Bolt(3, FasteningHead.Pickup, 60, 30),
-                new() { Id = VirtualTest.BoltId(4, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2 }],
-            FasteningOrder = [VirtualTest.BoltId(2), VirtualTest.BoltId(4, HeatSinkSlot.HeatSink2),
-                VirtualTest.BoltId(1), VirtualTest.BoltId(3)],
+                new() { Id = VirtualTestSupport.BoltId(4, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2 }],
+            FasteningOrder = [VirtualTestSupport.BoltId(2), VirtualTestSupport.BoltId(4, HeatSinkSlot.HeatSink2),
+                VirtualTestSupport.BoltId(1), VirtualTestSupport.BoltId(3)],
         };
         station = new(head, head, io, motion, new(motion), settings,
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
@@ -1753,10 +1753,10 @@ public sealed class BoltFasteningTests
         SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
         await station.RunAsync(firstStop.Token);
-        Assert.Equal(new[] { VirtualTest.BoltId(2), VirtualTest.BoltId(1) }, starts);
+        Assert.Equal(new[] { VirtualTestSupport.BoltId(2), VirtualTestSupport.BoltId(1) }, starts);
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         Assert.Single(assembly.ShootingBoltResults);
-        var firstResult = assembly.ShootingBoltResults[VirtualTest.BoltId(2)];
+        var firstResult = assembly.ShootingBoltResults[VirtualTestSupport.BoltId(2)];
 
         // The next run must ignore the recorded first bolt when choosing where to start.
         io.SetOutput(OutputIo.PickupHeadVacuumPump, pickupAlreadyLoaded);
@@ -1772,7 +1772,7 @@ public sealed class BoltFasteningTests
             if (x == settings.PickupPosition.X && y == settings.PickupPosition.Y)
             {
                 visitedPickup = true;
-                Assert.Equal(VirtualTest.BoltId(3), station.ActiveBolt!.Id);
+                Assert.Equal(VirtualTestSupport.BoltId(3), station.ActiveBolt!.Id);
             }
         };
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -1785,8 +1785,8 @@ public sealed class BoltFasteningTests
         Assert.True(work.Completed,
             $"State={station.NextStep}, starts={string.Join(',', starts)}, pickup={station.PickupHeadPosition}, "
             + $"vacuum={io.GetInput(InputIo.PickupHeadVacuumDetected)}, XY={motion.Position}, visitedPickup={visitedPickup}");
-        Assert.Equal(new[] { VirtualTest.BoltId(2), VirtualTest.BoltId(1), VirtualTest.BoltId(2), VirtualTest.BoltId(1), VirtualTest.BoltId(3) }, starts);
-        Assert.NotSame(firstResult, assembly.ShootingBoltResults[VirtualTest.BoltId(2)]);
+        Assert.Equal(new[] { VirtualTestSupport.BoltId(2), VirtualTestSupport.BoltId(1), VirtualTestSupport.BoltId(2), VirtualTestSupport.BoltId(1), VirtualTestSupport.BoltId(3) }, starts);
+        Assert.NotSame(firstResult, assembly.ShootingBoltResults[VirtualTestSupport.BoltId(2)]);
         Assert.Equal(!pickupAlreadyLoaded, visitedPickup);
         Assert.Single(assembly.PickupBoltResults);
         Assert.Equal(StationCylinderState.Up, station.PickupHeadPosition);
@@ -1832,7 +1832,7 @@ public sealed class BoltFasteningTests
             work,
             new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = layout } },
             new());
-        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
@@ -1884,8 +1884,8 @@ public sealed class BoltFasteningTests
 
         if (replaceCarrier)
         {
-            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         }
         else
         {
@@ -1898,11 +1898,11 @@ public sealed class BoltFasteningTests
         var assembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
         assembly.ResultsChanged += updated =>
         {
-            if (updated.PickupBoltResults.ContainsKey(VirtualTest.BoltId(1)))
+            if (updated.PickupBoltResults.ContainsKey(VirtualTestSupport.BoltId(1)))
                 resumedStop.Cancel();
         };
         await station.RunAsync(resumedStop.Token);
-        Assert.True(assembly.PickupBoltResults[VirtualTest.BoltId(1)].Success);
+        Assert.True(assembly.PickupBoltResults[VirtualTestSupport.BoltId(1)].Success);
         Assert.Equal(2, starts);
         if (replaceCarrier)
         {
@@ -1947,7 +1947,7 @@ public sealed class BoltFasteningTests
         }
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupTableDown, true);
         await motion.MoveAxisAsync(MotionAxis.Z, 20, 20_000);
-        Guid[]? selectedBolts = selectedTest ? [VirtualTest.BoltId(1)] : null;
+        Guid[]? selectedBolts = selectedTest ? [VirtualTestSupport.BoltId(1)] : null;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         void StopDuringRetraction(double x, double y, double z)
         {
@@ -2024,13 +2024,13 @@ public sealed class BoltFasteningTests
         var layout = new PcbLayout
         {
             BoltPoints = [
-                new() { Id = VirtualTest.BoltId(1), Head = FasteningHead.Shooting, X = 110, Y = 220 },
-                new() { Id = VirtualTest.BoltId(2), Head = FasteningHead.Pickup, X = 115, Y = 225 },
-                new() { Id = VirtualTest.BoltId(1, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 120, Y = 230 },
-                new() { Id = VirtualTest.BoltId(2, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 125, Y = 235 },
+                new() { Id = VirtualTestSupport.BoltId(1), Head = FasteningHead.Shooting, X = 110, Y = 220 },
+                new() { Id = VirtualTestSupport.BoltId(2), Head = FasteningHead.Pickup, X = 115, Y = 225 },
+                new() { Id = VirtualTestSupport.BoltId(1, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 120, Y = 230 },
+                new() { Id = VirtualTestSupport.BoltId(2, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 125, Y = 235 },
             ],
-            FasteningOrder = [VirtualTest.BoltId(1, HeatSinkSlot.HeatSink2), VirtualTest.BoltId(1),
-                VirtualTest.BoltId(2, HeatSinkSlot.HeatSink2), VirtualTest.BoltId(2)],
+            FasteningOrder = [VirtualTestSupport.BoltId(1, HeatSinkSlot.HeatSink2), VirtualTestSupport.BoltId(1),
+                VirtualTestSupport.BoltId(2, HeatSinkSlot.HeatSink2), VirtualTestSupport.BoltId(2)],
         };
         var work = ConveyorStation.CreateBoltFastening(io);
         var station = new BoltFasteningStation(CreateAdcHead(shootingBus, io, FasteningHead.Shooting, new HantasSettings(), 2, "Virtual", 115200),
@@ -2194,8 +2194,8 @@ public sealed class BoltFasteningTests
             BoltPoints = [
                 Bolt(1, FasteningHead.Pickup, 20, 30),
                 Bolt(2, FasteningHead.Shooting, 20, 30),
-                new() { Id = VirtualTest.BoltId(1, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 30, Y = 40 },
-                new() { Id = VirtualTest.BoltId(2, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 30, Y = 40 },
+                new() { Id = VirtualTestSupport.BoltId(1, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 30, Y = 40 },
+                new() { Id = VirtualTestSupport.BoltId(2, HeatSinkSlot.HeatSink2), HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 30, Y = 40 },
             ],
         };
         var station = new BoltFasteningStation(shootingHead,
@@ -2248,11 +2248,11 @@ public sealed class BoltFasteningTests
         await station.MoveZAsync(settings.SafeZ);
         motion.PositionChanged += (_, _, z) =>
             movedBelowTravelZ |= motion.IsMovingHorizontal
-                && Math.Abs(z - settings.SafeZ) > MotionService.PositionToleranceMillimeters;
+                && Math.Abs(z - settings.SafeZ) > MotionServiceBase.PositionToleranceMillimeters;
         await station.CheckReadyAsync();
         shootingBus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
-        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+        VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         await work.SeatAsync(CancellationToken.None);
         Assert.True(work.CarrierSeated);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
@@ -2307,10 +2307,10 @@ public sealed class BoltFasteningTests
             var heatSink2 = work.GetAssembly(HeatSinkSlot.HeatSink2);
             Assert.Equal(AssemblyResult.Ng, heatSink1.FasteningResult);
             Assert.Equal(AssemblyResult.Ok, heatSink2.FasteningResult);
-            Assert.False(heatSink1.ShootingBoltResults[VirtualTest.BoltId(2)].Success);
-            Assert.True(heatSink1.PickupBoltResults[VirtualTest.BoltId(1)].Success);
-            Assert.True(heatSink2.ShootingBoltResults[VirtualTest.BoltId(2)].Success);
-            Assert.True(heatSink2.PickupBoltResults[VirtualTest.BoltId(1)].Success);
+            Assert.False(heatSink1.ShootingBoltResults[VirtualTestSupport.BoltId(2)].Success);
+            Assert.True(heatSink1.PickupBoltResults[VirtualTestSupport.BoltId(1)].Success);
+            Assert.True(heatSink2.ShootingBoltResults[VirtualTestSupport.BoltId(2)].Success);
+            Assert.True(heatSink2.PickupBoltResults[VirtualTestSupport.BoltId(1)].Success);
             Assert.False(movedWithLoweredCylinder);
             Assert.False(movedBelowTravelZ);
             Assert.Equal(4, fasteningHeights.Count);
@@ -2324,16 +2324,16 @@ public sealed class BoltFasteningTests
                 new (byte Head, ushort Preset)[] { (2, 1), (2, 1), (1, 1), (1, 1) },
                 tightenings);
             // A replaced carrier must never inherit the previous carrier's in-flight result.
-            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
             io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
-            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+            VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             var previousAssembly = work.GetAssembly(HeatSinkSlot.HeatSink1);
             var carrierReplaced = false;
             using var carrierChange = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             afterStop = () =>
             {
-                VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-                VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
+                VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+                VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
                 carrierReplaced = true;
                 carrierChange.Cancel();
             };
@@ -2705,7 +2705,7 @@ public sealed class BoltFasteningTests
     {
         return new()
         {
-            Id = VirtualTest.BoltId(number),
+            Id = VirtualTestSupport.BoltId(number),
             Head = head,
             X = x,
             Y = y,
@@ -2748,7 +2748,7 @@ public sealed class BoltFasteningTests
     [Fact]
     public async Task BoltTestMatchesRecreatedPointsByGuidRatherThanNameOrReference()
     {
-        await using var services = MachineTest.CreateDiagnosticServices();
+        await using var services = MachineTestSupport.CreateDiagnosticServices();
         var recipes = services.GetRequiredService<RecipeManager>();
         var first = new BoltPoint { Name = "Same name" };
         var second = new BoltPoint { Name = "Same name" };

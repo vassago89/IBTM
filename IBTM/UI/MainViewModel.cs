@@ -41,7 +41,7 @@ public partial class MainViewModel : ObservableObject
     private readonly MachineController _machine;
     private int _stateRefreshQueued;
     private bool _shuttingDown;
-    private readonly DiagnosticWindows _windows;
+    private readonly DiagnosticWindowManager _windows;
     private readonly ILogger<MainViewModel> _log;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(OpenOutputsCommand))]
@@ -63,10 +63,10 @@ public partial class MainViewModel : ObservableObject
         InspectionTeachingViewModel inspectionTeachingViewModel,
         SettingsViewModel settingsViewModel,
         ManualHardwareViewModel manualHardwareViewModel,
-        RecipeEditor recipeEditor,
+        RecipeEditorViewModel recipeEditor,
         MachineState state,
         MachineController machine,
-        DiagnosticWindows windows,
+        DiagnosticWindowManager windows,
         ILogger<MainViewModel> log)
     {
         OpenInputsCommand = new RelayCommand(OpenInputs, () => IsOpenDiagnosticAllowed);
@@ -97,7 +97,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     public OperationViewModel Operation { get; }
-    public RecipeEditor RecipeEditor { get; }
+    public RecipeEditorViewModel RecipeEditor { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage), nameof(CurrentPageEnabled))]

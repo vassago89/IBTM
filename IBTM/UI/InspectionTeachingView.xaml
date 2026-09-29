@@ -110,7 +110,7 @@
                                 ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                 Background="{StaticResource EquipBgBrush}" BorderThickness="0">
                                 <ListBox.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type ui:PcbInspectionImageView}">
+                                    <DataTemplate DataType="{x:Type ui:PcbInspectionImageItem}">
                                         <Grid Margin="4,5">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="52"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                             <Image Source="{Binding Image}" Width="48" Height="40" Stretch="Uniform"/>
@@ -210,12 +210,12 @@
                         <TextBlock Text="Original · edit ROI" FontWeight="SemiBold" Margin="0,0,6,6"/>
                         <TextBlock Grid.Column="1" Text="{Binding Preview.BinaryDescription}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="6,0,0,6"/>
                         <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}" Margin="0,0,6,0">
-                            <ui:ImageTeachingView x:Name="InspectionImage" Source="{Binding Preview.Image}"
+                            <ui:InspectionImageView x:Name="InspectionImage" Source="{Binding Preview.Image}"
                                 SourceRegion="{Binding Preview.Region}" RegionCommand="{Binding DrawRegionCommand}"
                                 IsEnabled="{Binding IsIdle}" ShowCrosshair="True" Cursor="Cross"/>
                         </Border>
                         <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource ImageBackgroundBrush}" Margin="6,0,0,0">
-                            <ui:ImageTeachingView Source="{Binding Preview.Image}" SourceRegion="{Binding Preview.Region}"
+                            <ui:InspectionImageView Source="{Binding Preview.Image}" SourceRegion="{Binding Preview.Region}"
                                 SourceOverlay="{Binding Preview.Overlay}" ShowCrosshair="False"
                                 RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                         </Border>

@@ -59,7 +59,7 @@ Virtual 구성의 직접 관련 테스트 **20개 통과**. 테스트가 의존 
 
 작업자가 재시작할 작업을 확인한 뒤 레시피를 다시 불러오거나 새로 만들면, 센서 변화가 없는 한 이전 확인이 그대로 유효했다. 기존 복구 창 테스트에 저장·로드 경로를 연결해 수정 전 `Prepared == true`가 남는 것을 재현했다.
 
-기존 `RecipeEditor.Changed` 이벤트를 복구 확인 무효화에 연결했다. 불러오기 성공·새 레시피 생성 후에는 Placement와 Fastening 모두 다시 확인한다. 저장 또는 불러오기 실패만으로 확인을 취소하지 않는다. 캐리어 작업 ID와 실제 작업 결과는 보존하며, 이 변경이 결과를 새 레시피에 맞게 자동 변환하거나 재체결 여부를 판단하지는 않는다.
+기존 `RecipeEditorViewModel.Changed` 이벤트를 복구 확인 무효화에 연결했다. 불러오기 성공·새 레시피 생성 후에는 Placement와 Fastening 모두 다시 확인한다. 저장 또는 불러오기 실패만으로 확인을 취소하지 않는다. 캐리어 작업 ID와 실제 작업 결과는 보존하며, 이 변경이 결과를 새 레시피에 맞게 자동 변환하거나 재체결 여부를 판단하지는 않는다.
 
 직접 관련 Virtual 테스트 8개 통과: 실제 복구 창을 포함한 기존 UI 테스트 1, 저장·로드 작업 수명 1, 잘못된 검사 레시피 로드 3, 중단된 체결 결과 귀속 3. UI 테스트에서 저장 직후 표시 상태를 즉시 검사하던 한 곳은 기존 비동기 표시 갱신을 기다리도록 수정했다. 실장비 앱이나 네이티브 하드웨어 API는 실행하지 않았고 전체 MachineFlow도 실행하지 않았다.
 
@@ -269,9 +269,9 @@ Clear Z 설정·티칭 항목과 전용 X 단독 이동 API를 삭제했다. 옛
 UI의 XAML code-behind 19개를 검토했다. 이미 ViewModel을 사용하던 작업 화면은 유지하고, 남아 있던 메인·ADC 진단·입력·출력·모션·로그·두 복구창의 화면 로직을 ViewModel과 명령 바인딩으로 옮겼다.
 
 - ADC: `AdcProtocolViewModel`이 포트·속도·슬레이브·프리셋·레지스터 입력, 통신 명령, 역회전 Hold 취소, STOP 확인, 프레임 로그를 소유한다. 기존 `RunAdcProtocolAsync`/`RunBoltTestAsync` 진입과 실행 중 작업·취소 수명을 유지했다.
-- 메인: 진단창 명령, 레시피 파일 선택, 전체 종료 대기를 `MainViewModel`로 옮겼다. 창 생성·재활성화·Owner 처리는 `DiagnosticWindows`에 둔다. 출력창 열기는 기존처럼 실제 선택기를 실행 시 다시 확인한다.
+- 메인: 진단창 명령, 레시피 파일 선택, 전체 종료 대기를 `MainViewModel`로 옮겼다. 창 생성·재활성화·Owner 처리는 `DiagnosticWindowManager`에 둔다. 출력창 열기는 기존처럼 실제 선택기를 실행 시 다시 확인한다.
 - 입력·출력: 목록·필터·새로고침은 각 WindowViewModel에 둔다. 실제 I/O와 기존 행 명령을 그대로 바인딩하며 OUTPUTS의 직접 출력 동작은 유지한다.
-- 모션·로그·복구: 모션 상태 구독과 종료 대기는 `MotionWindowViewModel`, 로그 복사는 `LogWindowViewModel`, 복구 Apply는 각 복구 ViewModel의 명령으로 연결했다.
+- 모션·로그·복구: 모션 상태 구독과 종료 대기는 `MotionDiagnosticsViewModel`, 로그 복사는 `LogViewModel`, 복구 Apply는 각 복구 ViewModel의 명령으로 연결했다.
 
 `.xaml.cs`에는 뷰 초기화·루트 DataContext·WPF 창 수명 이벤트와 종료 오류 대화상자 연결만 남겼다. `LogTextBox`의 텍스트 선택, 드롭다운 버튼의 템플릿 조작, `DialogResultBinding`의 창 결과 적용은 WPF 어댑터다. 앱의 DI 구성·시작/종료 진입점은 `App.xaml.cs`에 유지한다. 새 감시 타이머나 일반 이벤트 디스패처는 추가하지 않았다.
 

@@ -20,8 +20,8 @@ using IBTM.Storage;
 using IBTM.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using static IBTM.Virtual.Tests.MachineTest;
-using static IBTM.Virtual.Tests.VirtualTest;
+using static IBTM.Virtual.Tests.MachineTestSupport;
+using static IBTM.Virtual.Tests.VirtualTestSupport;
 
 namespace IBTM.Virtual.Tests;
 
@@ -222,7 +222,7 @@ public sealed class MachineHomeTests
             return motion;
         }
 
-        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(group => group,
@@ -297,7 +297,7 @@ public sealed class MachineHomeTests
                         }
                         else
                         {
-                            var manual = services.GetRequiredService<MotionWindowViewModel>();
+                            var manual = services.GetRequiredService<MotionDiagnosticsViewModel>();
                             var axis = manual.Axes.Single(
                                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
                             command = axis.HomeCommand;
@@ -369,7 +369,7 @@ public sealed class MachineHomeTests
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
-        var monitor = services.GetRequiredService<MotionWindowViewModel>();
+        var monitor = services.GetRequiredService<MotionDiagnosticsViewModel>();
         await machine.InitializeAsync();
         try
         {
@@ -410,7 +410,7 @@ public sealed class MachineHomeTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var manual = services.GetRequiredService<MotionWindowViewModel>();
+        var manual = services.GetRequiredService<MotionDiagnosticsViewModel>();
         await machine.InitializeAsync();
         Assert.True(machine.IsHomeAllowed);
         Assert.False(state.Ready);
@@ -473,7 +473,7 @@ public sealed class MachineHomeTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<InspectionStation>();
-        var manual = services.GetRequiredService<MotionWindowViewModel>();
+        var manual = services.GetRequiredService<MotionDiagnosticsViewModel>();
         await machine.InitializeAsync();
         try
         {
@@ -902,7 +902,7 @@ public sealed class MachineHomeTests
         // The command can finish before the motion scan publishes stopped feedback.
         await WaitUntilAsync(() => machine.IsHomeAllowed);
         var homing = machine.HomeAsync(CancellationToken.None);
-        Assert.True(await VirtualTest.WaitUntilAsync(
+        Assert.True(await VirtualTestSupport.WaitUntilAsync(
             () => supply.IsMoving && fastening.IsMoving, TimeSpan.FromSeconds(2)),
             $"Home completed={homing.IsCompleted}, IsHomeAllowed={machine.IsHomeAllowed}, "
                 + $"block={machine.HomeBlock}, alarm={state.Alarm}, detail={state.AlarmDetail}");
@@ -937,7 +937,7 @@ public sealed class MachineHomeTests
             return motion;
         }
 
-        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(group => group,
@@ -996,7 +996,7 @@ public sealed class MachineHomeTests
         foreach (var (motionSettings, _) in settings.MotionSections)
             motionSettings.ZHome.SearchSpeed = 1;
         HomeResultMotion? homeResult = null;
-        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+        await using var services = new ServiceCollection().AddSingleton(_ => VirtualTestSupport.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
             {
@@ -1014,7 +1014,7 @@ public sealed class MachineHomeTests
         var state = services.GetRequiredService<MachineState>();
         var placement = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler);
         var supply = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
-        var manual = services.GetRequiredService<MotionWindowViewModel>();
+        var manual = services.GetRequiredService<MotionDiagnosticsViewModel>();
         await machine.InitializeAsync();
         await supply.MoveAxisAsync(MotionAxis.Z, 50, 10_000);
 

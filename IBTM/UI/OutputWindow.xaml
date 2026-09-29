@@ -5,7 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
-    d:DataContext="{d:DesignInstance Type=ui:OutputWindowViewModel, IsDesignTimeCreatable=False}"
+    d:DataContext="{d:DesignInstance Type=ui:OutputViewModel, IsDesignTimeCreatable=False}"
     Title="Digital Outputs"
     Width="1120"
     Height="720"
@@ -73,7 +73,7 @@
                     HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
             </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
-                <DataTemplate DataType="{x:Type ui:OutputWindowRow}">
+                <DataTemplate DataType="{x:Type ui:OutputSignalRow}">
                     <Border x:Name="Row" Padding="11,7" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
                         <Grid>
                             <Grid.ColumnDefinitions>

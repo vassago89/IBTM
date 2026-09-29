@@ -202,7 +202,7 @@ public sealed class VirtualMachine
         AxisPosition? heatSink2 = null)
     {
         _placementAtReceive = receiveZ is { } targetZ && IsAt(x, y, handoffPosition)
-            && Math.Abs(z - targetZ) <= MotionService.PositionToleranceMillimeters;
+            && Math.Abs(z - targetZ) <= MotionServiceBase.PositionToleranceMillimeters;
         _placementHeatSink = heatSink1 is not null && IsAt(x, y, z, heatSink1)
             ? 0
             : heatSink2 is not null && IsAt(x, y, z, heatSink2) ? 1 : null;
@@ -864,8 +864,8 @@ public sealed class VirtualMachine
 
     private static bool IsAt(double x, double y, AxisPosition position)
     {
-        return Math.Abs(x - position.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(y - position.Y) <= MotionService.PositionToleranceMillimeters;
+        return Math.Abs(x - position.X) <= MotionServiceBase.PositionToleranceMillimeters
+            && Math.Abs(y - position.Y) <= MotionServiceBase.PositionToleranceMillimeters;
     }
 
     private static bool IsAt(double x, double y, double z, AxisPosition position)
@@ -881,8 +881,8 @@ public sealed class VirtualMachine
         double targetY,
         double targetZ)
     {
-        return Math.Abs(x - targetX) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(y - targetY) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(z - targetZ) <= MotionService.PositionToleranceMillimeters;
+        return Math.Abs(x - targetX) <= MotionServiceBase.PositionToleranceMillimeters
+            && Math.Abs(y - targetY) <= MotionServiceBase.PositionToleranceMillimeters
+            && Math.Abs(z - targetZ) <= MotionServiceBase.PositionToleranceMillimeters;
     }
 }

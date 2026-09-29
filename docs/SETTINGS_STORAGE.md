@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | 장비 설정, 레시피, 촬영 이미지 | 실행 폴더의 `Data/Machine.db` | `Shared/IBTM.Storage/MachineStore.cs` |
 | PCB 번호 | `Data/Machine.db`의 `PcbCounter` | 월별 결과 파일과 무관하게 계속 증가 |
-| PCB 결과·검사 이미지 | `PcbHistorySettings.Directory`의 `PCB-yyyy-MM.db` | `IBTM/PcbHistory.cs`가 작업 결과를 큐에 받아 저장 |
+| PCB 결과·검사 이미지 | `PcbHistorySettings.Directory`의 `PCB-yyyy-MM.db` | `IBTM/PcbHistoryWriter.cs`가 작업 결과를 큐에 받아 저장 |
 | 현재 레시피·불러오기·저장·이미지 교체 | 레시피 관리 | `Shared/IBTM.Storage/RecipeManager.cs` |
-| 화면 명령·오류 표시·BitmapSource ↔ PNG | UI와 이미지 경계 | `IBTM/UI/RecipeEditor.cs` |
+| 화면 명령·오류 표시·BitmapSource ↔ PNG | UI와 이미지 경계 | `IBTM/UI/RecipeEditorViewModel.cs` |
 
 레시피를 사용하는 클래스에는 `RecipeManager` 싱글턴을 DI로 주입하고 `Current`에서 값을 읽는다.
 레시피 데이터와 조회용 `Func`를 별도로 등록하지 않는다. 레시피 모델은 `Shared/IBTM.Storage/Recipes`에 모았다.

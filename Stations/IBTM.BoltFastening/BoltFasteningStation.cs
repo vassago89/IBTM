@@ -904,8 +904,8 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         get
         {
-            return MotionService.IsSettled(_motion, MotionAxis.Z)
-                && MotionService.IsAtZ(_motion, _settings.SafeZ);
+            return MotionServiceBase.IsSettled(_motion, MotionAxis.Z)
+                && MotionServiceBase.IsAtZ(_motion, _settings.SafeZ);
         }
     }
 
@@ -914,7 +914,7 @@ public sealed class BoltFasteningStation : AutoUnit
         var position = _settings.GetBoltPosition(bolt);
         if (atSafeZ)
             position.Z = _settings.SafeZ;
-        return MotionService.IsAt(_motion, position);
+        return MotionServiceBase.IsAt(_motion, position);
     }
 
     internal bool IsAtPickupXY
@@ -923,9 +923,9 @@ public sealed class BoltFasteningStation : AutoUnit
         {
             var target = _settings.PickupPosition;
             var current = _motion.Position;
-            return MotionService.IsSettled(_motion, MotionAxis.X, MotionAxis.Y)
-                && Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
-                && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters;
+            return MotionServiceBase.IsSettled(_motion, MotionAxis.X, MotionAxis.Y)
+                && Math.Abs(current.X - target.X) <= MotionServiceBase.PositionToleranceMillimeters
+                && Math.Abs(current.Y - target.Y) <= MotionServiceBase.PositionToleranceMillimeters;
         }
     }
 
@@ -1117,7 +1117,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     CheckTeachingTable();
                     EnsureCanMoveHorizontal(move.Token);
                     var safeZ = _settings.GetSafeZ(bolt.Head);
-                    if (!MotionService.IsAtZ(_motion, safeZ))
+                    if (!MotionServiceBase.IsAtZ(_motion, safeZ))
                         await MoveZAsync(safeZ, move.Token);
                     EnsureCanMoveHorizontal(move.Token);
                     _log?.LogInformation("Bolt teaching Move To: requesting XY, X={X}, Y={Y}.", position.X, position.Y);
