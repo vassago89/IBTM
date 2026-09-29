@@ -274,9 +274,15 @@ public sealed class BoltFasteningStation : AutoUnit
             {
                 await ClearCarrierOperationAsync();
             }
-            catch (Exception cleanupFailure) when (failure is not null)
+            catch (Exception cleanupFailure)
             {
-                throw new AggregateException(failure, cleanupFailure);
+                if (failure is not null)
+                {
+                    failure = new AggregateException(failure, cleanupFailure);
+                    throw failure;
+                }
+                failure = cleanupFailure;
+                throw;
             }
             finally
             {

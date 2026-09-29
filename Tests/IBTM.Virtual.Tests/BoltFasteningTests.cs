@@ -536,7 +536,9 @@ public sealed class BoltFasteningTests
     [InlineData(ShootingPreparationFailure.None)]
     [InlineData(ShootingPreparationFailure.None, 1.5)]
     [InlineData(ShootingPreparationFailure.Stop)]
+    [InlineData(ShootingPreparationFailure.StopAndCleanup)]
     [InlineData(ShootingPreparationFailure.Motion)]
+    [InlineData(ShootingPreparationFailure.MotionAndCleanup)]
     [InlineData(ShootingPreparationFailure.Supply)]
     [InlineData(ShootingPreparationFailure.SupplyBeforeTravel)]
     [InlineData(ShootingPreparationFailure.ClearanceLost)]
@@ -576,7 +578,8 @@ public sealed class BoltFasteningTests
             Bolt(2, FasteningHead.Shooting, 30, 40), Bolt(3, FasteningHead.Shooting, 40, 50),
             Bolt(4, FasteningHead.Pickup, 60, 50) };
         var work = ConveyorStation.CreateBoltFastening(io);
-        var station = new BoltFasteningStation(shooting, pickup, io, motion, new(motion), settings,
+        var stationIo = new FeederWriteNotifyingIo(io);
+        var station = new BoltFasteningStation(shooting, pickup, stationIo, motion, new(motion), settings,
             new() { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100, Y = 100 } },
             work, new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [.. bolts] } } },
             new() { PickupBoltFeeder = false });
@@ -590,7 +593,19 @@ public sealed class BoltFasteningTests
         long secondPassageAt = 0;
         var nextTravelStarted = false;
         var motionFailure = new IOException("Retraction failed while supplying the next bolt.");
+        var supplyCleanupFailure = new IOException("Pending shooting supply could not turn its output off.");
+        var finalCleanupFailure = new IOException("Final shooting output OFF failed.");
+        var cleanupWrites = 0;
         var failMotion = false;
+        stationIo.OutputChanged += (output, on) =>
+        {
+            if (failure is ShootingPreparationFailure.MotionAndCleanup or ShootingPreparationFailure.StopAndCleanup
+                && shots == 2 && output == OutputIo.ShootBolt && !on)
+            {
+                cleanupWrites++;
+                throw cleanupWrites == 1 ? supplyCleanupFailure : finalCleanupFailure;
+            }
+        };
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.ShootingEscapeForward)
@@ -707,6 +722,20 @@ public sealed class BoltFasteningTests
                     Assert.Same(motionFailure, await Assert.ThrowsAsync<IOException>(
                         () => run.WaitAsync(TimeSpan.FromSeconds(1))));
                     break;
+                case ShootingPreparationFailure.MotionAndCleanup or ShootingPreparationFailure.StopAndCleanup:
+                    if (failure == ShootingPreparationFailure.StopAndCleanup)
+                        stop.Cancel();
+                    else
+                        failMotion = true;
+                    var failures = (await Assert.ThrowsAsync<AggregateException>(
+                        () => run.WaitAsync(TimeSpan.FromSeconds(1)))).Flatten().InnerExceptions;
+                    if (failure == ShootingPreparationFailure.MotionAndCleanup)
+                        Assert.Contains(motionFailure, failures);
+                    Assert.Contains(supplyCleanupFailure, failures);
+                    Assert.Contains(finalCleanupFailure, failures);
+                    Assert.Equal(2, cleanupWrites);
+                    Assert.False(nextTravelStarted);
+                    break;
                 case ShootingPreparationFailure.Supply:
                     io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
                     var error = await Assert.ThrowsAsync<IoTimeoutException>(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
@@ -738,13 +767,16 @@ public sealed class BoltFasteningTests
             Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
             Assert.False(io.GetOutput(OutputIo.ShootBolt));
             Assert.False(io.GetOutput(OutputIo.ShootingEscapeForward));
+            Assert.False(station.IsRunning);
+            Assert.Null(station.Step);
+            Assert.False(work.Completed);
             Assert.True(results[bolts[0].Id].Success); // A next-supply failure cannot erase the completed bolt.
             if (failure != ShootingPreparationFailure.None)
             {
                 Assert.Equal(1, bus.StartWrites);
                 Assert.Single(results);
             }
-            if (failure == ShootingPreparationFailure.Stop)
+            if (failure is ShootingPreparationFailure.Stop or ShootingPreparationFailure.StopAndCleanup)
             {
                 io.SetInputs((InputIo.ShootingHeadUp, true), (InputIo.ShootingHeadDown, false));
                 settings.Motion.ZSpeed = 20_000;
@@ -2740,8 +2772,10 @@ public sealed class BoltFasteningTests
     {
         None,
         Motion,
+        MotionAndCleanup,
         Supply,
         Stop,
+        StopAndCleanup,
         SupplyBeforeTravel,
         ClearanceLost,
         CarrierLost,
