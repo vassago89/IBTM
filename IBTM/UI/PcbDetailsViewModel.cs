@@ -18,12 +18,14 @@ namespace IBTM.UI;
 public partial class PcbDetailsViewModel : ObservableObject
 {
     private readonly MachineStore _store;
+    private readonly RecipeManager _recipes;
     private readonly ILogger<PcbDetailsViewModel> _log;
     private int _imageRequest;
 
-    public PcbDetailsViewModel(MachineStore store, ILogger<PcbDetailsViewModel> log)
+    public PcbDetailsViewModel(MachineStore store, RecipeManager recipes, ILogger<PcbDetailsViewModel> log)
     {
         _store = store;
+        _recipes = recipes;
         _log = log;
         LoadImagesCommand = new AsyncRelayCommand(LoadImagesAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         BoltResults = [];
@@ -59,11 +61,16 @@ public partial class PcbDetailsViewModel : ObservableObject
         OnPropertyChanged(nameof(PresenceResults));
         var selected = SelectedBolt;
         var selectedImage = SelectedImage;
+        var recipe = _recipes.Current;
+        var points = newValue is not null && MachineStore.IsSameRecipeName(newValue.RecipeName, recipe.Name)
+            ? recipe.Pcb.BoltPoints : null;
         BoltResults = newValue is null ? [] : newValue.PcbBoltResults
             .Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Shooting, pair.Value,
-                newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null))
+                newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null,
+                points?.FirstOrDefault(bolt => bolt.Id == pair.Key)?.Name))
             .Concat(newValue.PickupBoltResults.Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Pickup, pair.Value,
-                newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null)))
+                newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null,
+                points?.FirstOrDefault(bolt => bolt.Id == pair.Key)?.Name)))
             .OrderBy(row => row.Number).ThenBy(row => row.Head).ToArray();
         SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
             ?? BoltResults.FirstOrDefault();
@@ -134,10 +141,13 @@ public partial class PcbDetailsViewModel : ObservableObject
     }
 }
 
-public sealed record PcbBoltResultView(Guid BoltId, int? Number, FasteningHead Head, BoltResult Result, bool? Present = null)
+public sealed record PcbBoltResultView(
+    Guid BoltId, int? Number, FasteningHead Head, BoltResult Result, bool? Present = null, string? Name = null)
 {
     public string HeadLabel => Head == FasteningHead.Pickup ? "H1 · Pickup" : "H2 · Shooting";
-    public string Title => $"Bolt {Number} · {HeadLabel}";
+    public string BoltLabel => !string.IsNullOrWhiteSpace(Name) ? Name
+        : Number is { } number ? $"Bolt {number}" : "Unnamed bolt";
+    public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => Result.Source == BoltResultSource.DryRun ? "DRY RUN" : Result.Success ? "OK" : "NG";
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
     public string TurnsVerdict => Result.TurnsResult switch
