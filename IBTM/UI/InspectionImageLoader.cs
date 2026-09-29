@@ -6,10 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Media.Imaging;
-using IBTM.Core;
-using IBTM.Inspection;
 using IBTM.Storage;
 using Microsoft.Extensions.Logging;
 

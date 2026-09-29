@@ -108,6 +108,11 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 
 경로는 저장소 루트 기준이다.
 
+파일명은 주요 타입명과 맞춘다. 화면 상태·명령은 `ViewModel`, 운전 화면의 설비 그림은
+`Diagram`, 목록 표시 데이터는 `Item` 또는 `Row`로 구분한다. 이미지 로딩은
+`InspectionImageLoader`, 결과 저장은 `PcbHistoryWriter`, 진단 창 수명은
+`DiagnosticWindowManager`가 담당한다. 클래스 이름을 바꿔도 DB 설정 키·JSON 속성명·I/O ID는 유지한다.
+
 | 바꾸려는 것 | 먼저 열 파일 |
 | --- | --- |
 | 장치 생성·연결 | `IBTM/App.xaml.cs`, `IBTM/DependencyInjection.cs` |
@@ -119,6 +124,8 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | Repeat 왕복 경로와 마지막 유닛 | `IBTM/MachineController.Repeat.cs` |
 | 수동 DO 조작 | `IBTM/MachineController.cs`, `IBTM/UI/OutputSignalRow.cs` |
 | 화면 표시 상태 | `IBTM/MachineState.cs`, `IBTM/UI/OperationViewModel.cs` |
+| 운전 화면 그림·좌표 변환 | `IBTM/UI/*Diagram.xaml`, `MachineDiagramLayout.cs`, `MachineDiagramMapper.cs` |
+| PCB 결과 상세 창 | `IBTM/UI/PcbResultsWindow.xaml`, `PcbResultsViewModel.cs` |
 | 메인 창 명령·레시피 파일 선택·종료 대기 | `IBTM/UI/MainViewModel.cs` |
 | 진단 창 생성·재활성화·Owner 관리 | `IBTM/UI/DiagnosticWindowManager.cs` |
 | ADC 진단 명령·입력값·취소·정지 확인 | `IBTM/UI/AdcProtocolViewModel.cs` |
@@ -142,6 +149,7 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | Grab / Live / 촬영 이미지 저장·로딩 | `IBTM/UI/TeachingViewModel.cs` |
 | 설비 시작 초기화 | `IBTM/MachineController.cs` |
 | 저장 이미지 / ROI / Data Matrix / 과거 결과 재검사 | `IBTM/UI/InspectionTeachingViewModel.cs` |
+| 공통 이미지 로딩·표시 데이터 | `IBTM/UI/InspectionImageLoader.cs`, `RecipeImageItem.cs`, `PcbInspectionImageItem.cs` |
 | 이미지 위 ROI·십자선 그리기 | `IBTM/UI/InspectionImageView.cs` |
 | 실제 검사 이동·촬영·판정 | `Stations/IBTM.Inspection/InspectionStation.cs` |
 | 카메라 연결·수신 | `Hardware/IBTM.Hik/HikCamera.cs` |
@@ -149,7 +157,9 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 | AJIN 단위·Home·축 이동 | `Hardware/IBTM.Ajin/AjinMotionService.cs` |
 | DI·DO·축 피드백 수집·감시 수명 | `IBTM/MachineFeedbackMonitor.cs` |
 | 축 진단값·화면 바인딩 데이터 | `Shared/IBTM.Device/MotionStatus.cs` |
-| DI/DO 화면용 상태 | `Shared/IBTM.Device/IoStatus.cs`, `IoSignals.cs` |
+| DI/DO 화면용 상태 | `Shared/IBTM.Device/IoSignal.cs`, `IoInputStatus.cs`, `IoOutputStatus.cs`, `IoSignals.cs` |
+| I/O·축 식별자 | `Shared/IBTM.Device/InputIo.cs`, `OutputIo.cs`, `MachineAxis.cs` |
+| 모션 계약·공통 구현 | `Shared/IBTM.Device/IMotionFeedback.cs`, `IAxisMotion.cs`, `IXyMotion.cs`, `MotionServiceBase.cs` |
 | IO 번호·축 번호 기본값 | 각 유닛의 `*HardwareSettings.cs` |
 | 설정 구성·편집 화면 | `IBTM/MachineSettings.cs`, `IBTM/UI/SettingsViewModel.cs` |
 | DB JSON 저장 | `Shared/IBTM.Storage/MachineStore.cs` |
