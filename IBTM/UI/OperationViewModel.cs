@@ -932,7 +932,8 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            switch (InspectionDisplayState)
+            var display = InspectionDisplayState;
+            switch (display)
             {
                 case StationDisplayState.Working when InspectionStateVisible:
                     return InspectionState ?? (Enum)MachineDisplayState.Unavailable;
@@ -942,7 +943,7 @@ public partial class OperationViewModel : ObservableObject
                         && ConveyorState == MainConveyorState.WaitingForRearEquipment:
                     return ConveyorState ?? (Enum)MachineDisplayState.Unavailable;
                 default:
-                    return InspectionDisplayState;
+                    return display;
             }
         }
     }

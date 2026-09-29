@@ -311,14 +311,17 @@ public sealed class BoltFasteningStation : AutoUnit
             || !ReferenceEquals(_runJob, Station.CurrentJob))
             return BoltFasteningState.PreparingCarrier;
 
-        switch (ActiveBolt?.Head)
+        var head = ActiveBolt?.Head;
+        switch (head)
         {
+            case null:
+                return BoltFasteningState.CompletingCarrier;
             case FasteningHead.Shooting:
                 return BoltFasteningState.FasteningShooting;
             case FasteningHead.Pickup:
                 return BoltFasteningState.FasteningPickup;
             default:
-                return BoltFasteningState.CompletingCarrier;
+                throw new ArgumentOutOfRangeException(nameof(BoltPoint.Head), head, "Unsupported fastening head.");
         }
     }
 

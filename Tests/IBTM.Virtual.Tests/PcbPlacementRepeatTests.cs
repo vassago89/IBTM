@@ -252,6 +252,8 @@ public sealed class PcbPlacementRepeatTests
             await rig.Placer.MoveToXYAsync(position);
             await rig.Placer.MoveAxisAsync(MotionAxis.Z, position.Z);
             await rig.Placer.SetLiftDownAsync(true);
+            // Lift completion and material detection are separate feedback updates.
+            await ((IIoService)rig.Io).WaitForInputAsync(InputIo.PcbPlacementPcbDetected, true, requireCurrent: true);
             Assert.Equal(PlacementPcbState.Detected, rig.Placer.Pcb);
             await rig.Placer.SetLiftDownAsync(false);
             await rig.Placer.MoveAxisAsync(MotionAxis.Z, rig.Settings.HandoffPosition.Z);

@@ -21,6 +21,46 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltFasteningTests
 {
+    [Fact]
+    public async Task UnsupportedBoltHeadDoesNotCompleteTheCarrierWithoutFastening()
+    {
+        var settings = new BoltFasteningSettings { SafeZ = 0 };
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()), new());
+        io.Initialize();
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        using var bus = new VirtualAdcBus();
+        var head = CreateAdcHead(bus, io, FasteningHead.Shooting, new(), 1, "Virtual", 115200);
+        var bolt = new BoltPoint { Head = (FasteningHead)123, FasteningX = 0, FasteningY = 0 };
+        var work = ConveyorStation.CreateBoltFastening(io);
+        var station = new BoltFasteningStation(head, head, io, motion, new(motion), settings, new(), work,
+            new RecipeManager(OpenMachineStore(), new()) { Current = { Pcb = new() { BoltPoints = [bolt] } } },
+            new() { ShootingBoltFeeder = false, PickupBoltFeeder = false });
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        await work.SeatAsync(CancellationToken.None);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        work.Changed += () =>
+        {
+            if (work.Completed)
+                stop.Cancel();
+        };
+        var started = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (on && output is OutputIo.ShootingBoltStart or OutputIo.PickupBoltStart)
+                started = true;
+        };
+
+        var failure = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => station.RunAsync(stop.Token));
+
+        Assert.Equal(bolt.Head, failure.ActualValue);
+        Assert.False(started);
+        Assert.False(work.Completed);
+        Assert.Empty(work.Assemblies);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
