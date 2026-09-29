@@ -496,9 +496,13 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         }
                         EnterStep(PcbSupplyState.WaitingForPlacementClear);
                         break;
-                    default:
+                    case PcbSupplyState.WaitingForCarrier or PcbSupplyState.WaitingForCarrierExit
+                        or PcbSupplyState.WaitingForPlacementClear or PcbSupplyState.WaitingForReturnedPcb
+                        or PcbSupplyState.WaitingForReturnedPcbGrip:
                         await WaitForChangeAsync(cancellationToken);
-                        continue;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(step), step, "Unsupported PCB supply step.");
                 }
             }
         }

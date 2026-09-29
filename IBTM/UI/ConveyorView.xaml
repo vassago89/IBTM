@@ -4,7 +4,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
-    xmlns:conveyor="clr-namespace:IBTM.Conveyor;assembly=IBTM.Conveyor"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
     Width="1552"
@@ -44,21 +43,7 @@
     <Grid>
         <Canvas>
             <Grid Canvas.Left="0" Canvas.Top="312" Width="1552">
-                <Border HorizontalAlignment="Center">
-                    <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource StateBadgeStyle}">
-                            <Style.Triggers>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding ConveyorState}"
-                                            Value="{x:Static conveyor:MainConveyorState.Idle}"/>
-                                        <Condition Binding="{Binding Units.MainConveyor}" Value="True"/>
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                </MultiDataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
+                <Border HorizontalAlignment="Center" Style="{StaticResource StateBadgeStyle}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="CONVEYOR" Margin="0,0,9,0" VerticalAlignment="Center"
                             Style="{StaticResource EquipmentRoleLabelStyle}"/>

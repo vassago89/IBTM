@@ -4,9 +4,6 @@ namespace IBTM.Conveyor;
 
 public enum MainConveyorState
 {
-    [Description("Idle")]
-    Idle,
-
     [Description("Waiting at infeed")]
     WaitingForFrontCarrier,
 

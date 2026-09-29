@@ -332,367 +332,373 @@ public sealed class BoltFasteningStation : AutoUnit
         var target = selectedBolt is null ? null
             : $"{selectedBolt.HeatSink}, bolt {_recipes.Current.Pcb.GetBoltOrdinal(selectedBolt.Id)}, {selectedBolt.Head}";
         EnterStep(step, target, Station.CurrentJob.Id);
-        switch (step)
-        {
-            case BoltFasteningState.Disabled:
-                if (Station.CarrierSeated)
-                    Station.Complete(Station.CurrentJob);
-                return false;
-            case BoltFasteningState.MovingToStandby:
-            {
-                var standby = selectedBolt!;
-                var position = _settings.GetBoltPosition(standby);
-                var standbyStarted = Stopwatch.GetTimestamp();
-                var started = standbyStarted;
-                await RaiseCylindersAsync(cancellationToken);
-                _log?.LogInformation("Bolt timing {Bolt}: standby heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
-                    standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                started = Stopwatch.GetTimestamp();
-                await MoveZAsync(_settings.SafeZ, cancellationToken);
-                _log?.LogInformation("Bolt timing {Bolt}: standby Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
-                    standby.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                started = Stopwatch.GetTimestamp();
-                await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
-                _log?.LogInformation("Bolt timing {Bolt}: standby pickup table UP confirmed, elapsed={ElapsedMs:F1} ms.",
-                    standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                started = Stopwatch.GetTimestamp();
-                EnsureCanMoveHorizontal(cancellationToken);
-                await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
-                _log?.LogInformation("Bolt timing {Bolt}: standby XY arrived, X={X}, Y={Y}, elapsed={ElapsedMs:F1} ms.",
-                    standby.Id, position.X, position.Y, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                _log?.LogInformation("Bolt timing {Bolt}: standby complete, total={ElapsedMs:F1} ms.",
-                    standby.Id, Stopwatch.GetElapsedTime(standbyStarted).TotalMilliseconds);
-                return true;
-            }
-            case BoltFasteningState.Waiting:
-                return false;
-            case BoltFasteningState.PreparingCarrier:
-                // Cancellation between bolts must not silently restart the same load.
-                if (_carrierOperation?.IsCancellationRequested == true
-                    && Station.CarrierSeated && ReferenceEquals(_runJob, Station.CurrentJob))
-                    throw new MotionInterlockException(
-                        "The fastening carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
-                await ClearCarrierOperationAsync();
-                _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
-                foreach (var heatSink in _runTargets)
-                {
-                    if (selectedBolts is null && !_recipes.Current.Pcb.GetBolts(heatSink).Any())
-                        throw new InvalidOperationException(
-                            $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
-                }
-                _runJob = Station.CurrentJob;
-                _runBolts = _recipes.Current.Pcb.FasteningPoints
-                    .Where(bolt => _runTargets.Contains(bolt.HeatSink)
-                        && (selectedBolts is null || selectedBolts.Contains(bolt.Id)))
-                    .ToArray();
-                _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                Station.Changed += CheckCarrier;
-                CheckCarrier();
-                NotifyChanged();
-                return true;
-            case BoltFasteningState.FasteningShooting or BoltFasteningState.FasteningPickup or BoltFasteningState.CompletingCarrier:
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(step));
-        }
-
-        var operation = _carrierOperation
-            ?? throw new InvalidOperationException("No fastening work is selected.");
+        var operation = _carrierOperation;
         var job = _runJob!;
-        var token = operation.Token;
         try
         {
-            CheckCarrier();
-            token.ThrowIfCancellationRequested();
-            Station.RequireCurrentJob(job);
-            if (step == BoltFasteningState.CompletingCarrier)
+            switch (step)
             {
-                var completionStarted = Stopwatch.GetTimestamp();
-                foreach (var heatSink in _runTargets!)
-                    Station.GetAssembly(job, heatSink).CompleteFastening();
-                await FinishFasteningAsync(FasteningHead.Pickup, token);
-                await FinishFasteningAsync(FasteningHead.Shooting, token);
-                var started = Stopwatch.GetTimestamp();
-                await MoveZAsync(_settings.SafeZ, token);
-                _log?.LogInformation("Bolt timing {Job}: completion Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
-                    job.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                token.ThrowIfCancellationRequested();
-                Station.Complete(job);
-                await ClearCarrierOperationAsync();
-                _log?.LogInformation("Bolt timing {Job}: carrier completion complete, total={ElapsedMs:F1} ms.",
-                    job.Id, Stopwatch.GetElapsedTime(completionStarted).TotalMilliseconds);
-                return true;
-            }
-
-            var bolt = selectedBolt ?? throw new InvalidOperationException("No bolt is selected.");
-            var cycleStarted = Stopwatch.GetTimestamp();
-            _log?.LogInformation("Bolt timing {Job}/{Bolt}: begin, PCB={Pcb}, head={Head}, safe Z={SafeZ}.",
-                job.Id, bolt.Id, bolt.HeatSink, bolt.Head, _settings.GetSafeZ(bolt.Head));
-            var feeding = !repeat && _units.IsBoltFeederEnabled(bolt.Head);
-            switch (bolt.Head)
-            {
-                case FasteningHead.Shooting:
+                case BoltFasteningState.Disabled:
+                    if (Station.CarrierSeated)
+                        Station.Complete(Station.CurrentJob);
+                    return false;
+                case BoltFasteningState.MovingToStandby:
                 {
-                    TraceStep(step, target, job.Id, "head/table clearance, shooting feed and point movement");
-                    if (_shootingFeed is not null)
-                    {
-                        // Do not release a supplied bolt by repeating vacuum-OFF clearance.
-                        if (!IsHorizontalMoveAllowed || PickupTablePosition != StationCylinderState.Up)
-                            throw new MotionInterlockException(
-                                "Head/table clearance was lost after starting supply for the next shooting bolt.");
-                    }
-                    else
-                    {
-                        if (PickupTablePosition != StationCylinderState.Up)
-                        {
-                            await RaiseCylindersAsync(token);
-                            await MoveZAsync(_settings.SafeZ, token);
-                            await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
-                        }
-                        if (ShootingHeadPosition != StationCylinderState.Up
-                            && (!IsAt(bolt) || feeding))
-                            await ClearHeadAsync(FasteningHead.Shooting, _settings.GetSafeZ(FasteningHead.Shooting), token);
-                    }
-                    var moveRequired = !IsAt(bolt);
-                    if (moveRequired || feeding)
-                        await RaiseCylindersAsync(token);
-
-                    if (feeding)
-                    {
-                        var pendingFeed = _shootingFeed;
-                        if (pendingFeed is { } pending && pending.BoltId != bolt.Id)
-                            throw new InvalidOperationException("The shooting supply belongs to a different bolt.");
-                        _shootingFeed = null;
-                        using var pendingCancellation = pendingFeed?.Cancellation;
-                        using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
-                        var shooting = pendingFeed?.Completion;
-                        if (shooting?.IsCompleted == true)
-                            await shooting;
-                        // XY travel and fastening-Z descent overlap the supply's arrival delay.
-                        var moving = moveRequired ? MoveToBoltAsync(bolt, preparation.Token) : Task.CompletedTask;
-                        if (moving.IsCompleted && pendingFeed is null)
-                            await moving;
-                        shooting ??= ShootBoltAsync(preparation.Token, bolt.Id);
-                        var supplyWaitStarted = Stopwatch.GetTimestamp();
-                        if (pendingFeed is not null)
-                            _log?.LogInformation("Bolt timing {Bolt}: using shooting supply started during previous retraction.", bolt.Id);
-                        var first = await Task.WhenAny(moving, shooting);
-                        if (!first.IsCompletedSuccessfully)
-                        {
-                            preparation.Cancel();
-                            pendingCancellation?.Cancel();
-                        }
-                        // Drain both operations, including STOP/air-OFF cleanup on failure.
-                        await Task.WhenAll(moving, shooting);
-                        _log?.LogInformation("Bolt timing {Bolt}: movement / shooting supply joined, elapsed={ElapsedMs:F1} ms, supplied during previous retraction={Prefed}.",
-                            bolt.Id, Stopwatch.GetElapsedTime(supplyWaitStarted).TotalMilliseconds, pendingFeed is not null);
-                    }
-                    else if (moveRequired)
-                        await MoveToBoltAsync(bolt, token);
-                    break;
+                    var standby = selectedBolt!;
+                    var position = _settings.GetBoltPosition(standby);
+                    var standbyStarted = Stopwatch.GetTimestamp();
+                    var started = standbyStarted;
+                    await RaiseCylindersAsync(cancellationToken);
+                    _log?.LogInformation("Bolt timing {Bolt}: standby heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
+                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    started = Stopwatch.GetTimestamp();
+                    await MoveZAsync(_settings.SafeZ, cancellationToken);
+                    _log?.LogInformation("Bolt timing {Bolt}: standby Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+                        standby.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    started = Stopwatch.GetTimestamp();
+                    await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, cancellationToken);
+                    _log?.LogInformation("Bolt timing {Bolt}: standby pickup table UP confirmed, elapsed={ElapsedMs:F1} ms.",
+                        standby.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    started = Stopwatch.GetTimestamp();
+                    EnsureCanMoveHorizontal(cancellationToken);
+                    await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, cancellationToken);
+                    _log?.LogInformation("Bolt timing {Bolt}: standby XY arrived, X={X}, Y={Y}, elapsed={ElapsedMs:F1} ms.",
+                        standby.Id, position.X, position.Y, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    _log?.LogInformation("Bolt timing {Bolt}: standby complete, total={ElapsedMs:F1} ms.",
+                        standby.Id, Stopwatch.GetElapsedTime(standbyStarted).TotalMilliseconds);
+                    return true;
                 }
-                case FasteningHead.Pickup:
-                {
-                    if (ShootingHeadPosition != StationCylinderState.Up)
-                        await ClearHeadAsync(FasteningHead.Shooting, _settings.GetSafeZ(FasteningHead.Shooting), token);
-                    if (PickupTablePosition != StationCylinderState.Down)
+                case BoltFasteningState.Waiting:
+                    return false;
+                case BoltFasteningState.PreparingCarrier:
+                    // Cancellation between bolts must not silently restart the same load.
+                    if (_carrierOperation?.IsCancellationRequested == true
+                        && Station.CarrierSeated && ReferenceEquals(_runJob, Station.CurrentJob))
+                        throw new MotionInterlockException(
+                            "The fastening carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
+                    await ClearCarrierOperationAsync();
+                    _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
+                    foreach (var heatSink in _runTargets)
                     {
-                        var started = Stopwatch.GetTimestamp();
-                        await RaiseCylindersAsync(token);
-                        _log?.LogInformation("Bolt timing {Bolt}: pickup changeover heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
-                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                        started = Stopwatch.GetTimestamp();
-                        await MoveZAsync(_settings.SafeZ, token);
-                        _log?.LogInformation("Bolt timing {Bolt}: pickup changeover Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
-                            bolt.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                        started = Stopwatch.GetTimestamp();
-                        await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, token);
-                        _log?.LogInformation("Bolt timing {Bolt}: pickup table DOWN confirmed, elapsed={ElapsedMs:F1} ms.",
-                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                        if (selectedBolts is null && !_recipes.Current.Pcb.GetBolts(heatSink).Any())
+                            throw new InvalidOperationException(
+                                $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
                     }
+                    _runJob = Station.CurrentJob;
+                    _runBolts = _recipes.Current.Pcb.FasteningPoints
+                        .Where(bolt => _runTargets.Contains(bolt.HeatSink)
+                            && (selectedBolts is null || selectedBolts.Contains(bolt.Id)))
+                        .ToArray();
+                    _carrierOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    Station.Changed += CheckCarrier;
+                    CheckCarrier();
+                    NotifyChanged();
+                    return true;
+                case BoltFasteningState.CompletingCarrier:
+                {
+                    var token = operation?.Token ?? throw new InvalidOperationException("No fastening work is selected.");
+                    CheckCarrier();
+                    token.ThrowIfCancellationRequested();
+                    Station.RequireCurrentJob(job);
+                    var completionStarted = Stopwatch.GetTimestamp();
+                    foreach (var heatSink in _runTargets!)
+                        Station.GetAssembly(job, heatSink).CompleteFastening();
+                    await FinishFasteningAsync(FasteningHead.Pickup, token);
+                    await FinishFasteningAsync(FasteningHead.Shooting, token);
+                    var started = Stopwatch.GetTimestamp();
+                    await MoveZAsync(_settings.SafeZ, token);
+                    _log?.LogInformation("Bolt timing {Job}: completion Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+                        job.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    token.ThrowIfCancellationRequested();
+                    Station.Complete(job);
+                    await ClearCarrierOperationAsync();
+                    _log?.LogInformation("Bolt timing {Job}: carrier completion complete, total={ElapsedMs:F1} ms.",
+                        job.Id, Stopwatch.GetElapsedTime(completionStarted).TotalMilliseconds);
+                    return true;
+                }
 
-                    if (!_io.GetInput(InputIo.PickupHeadVacuumDetected))
+                case BoltFasteningState.FasteningShooting or BoltFasteningState.FasteningPickup:
+                {
+                    var token = operation?.Token ?? throw new InvalidOperationException("No fastening work is selected.");
+                    CheckCarrier();
+                    token.ThrowIfCancellationRequested();
+                    Station.RequireCurrentJob(job);
+                    var bolt = selectedBolt ?? throw new InvalidOperationException("No bolt is selected.");
+                    var cycleStarted = Stopwatch.GetTimestamp();
+                    _log?.LogInformation("Bolt timing {Job}/{Bolt}: begin, PCB={Pcb}, head={Head}, safe Z={SafeZ}.",
+                        job.Id, bolt.Id, bolt.HeatSink, bolt.Head, _settings.GetSafeZ(bolt.Head));
+                    var feeding = !repeat && _units.IsBoltFeederEnabled(bolt.Head);
+                    switch (bolt.Head)
                     {
-                        TraceStep(step, target, job.Id, "pickup XY movement");
-                        await MoveToPickupXYAsync(token);
-                        var retryCount = _settings.PickupRetryCount;
-                        for (var retry = 0; ; retry++)
+                        case FasteningHead.Shooting:
                         {
-                            token.ThrowIfCancellationRequested();
+                            TraceStep(step, target, job.Id, "head/table clearance, shooting feed and point movement");
+                            if (_shootingFeed is not null)
+                            {
+                                // Do not release a supplied bolt by repeating vacuum-OFF clearance.
+                                if (!IsHorizontalMoveAllowed || PickupTablePosition != StationCylinderState.Up)
+                                    throw new MotionInterlockException(
+                                        "Head/table clearance was lost after starting supply for the next shooting bolt.");
+                            }
+                            else
+                            {
+                                if (PickupTablePosition != StationCylinderState.Up)
+                                {
+                                    await RaiseCylindersAsync(token);
+                                    await MoveZAsync(_settings.SafeZ, token);
+                                    await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, false, token);
+                                }
+                                if (ShootingHeadPosition != StationCylinderState.Up
+                                    && (!IsAt(bolt) || feeding))
+                                    await ClearHeadAsync(FasteningHead.Shooting, _settings.GetSafeZ(FasteningHead.Shooting), token);
+                            }
+                            var moveRequired = !IsAt(bolt);
+                            if (moveRequired || feeding)
+                                await RaiseCylindersAsync(token);
+
                             if (feeding)
                             {
-                                TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: waiting for feeder bolt detection");
+                                var pendingFeed = _shootingFeed;
+                                if (pendingFeed is { } pending && pending.BoltId != bolt.Id)
+                                    throw new InvalidOperationException("The shooting supply belongs to a different bolt.");
+                                _shootingFeed = null;
+                                using var pendingCancellation = pendingFeed?.Cancellation;
+                                using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
+                                var shooting = pendingFeed?.Completion;
+                                if (shooting?.IsCompleted == true)
+                                    await shooting;
+                                // XY travel and fastening-Z descent overlap the supply's arrival delay.
+                                var moving = moveRequired ? MoveToBoltAsync(bolt, preparation.Token) : Task.CompletedTask;
+                                if (moving.IsCompleted && pendingFeed is null)
+                                    await moving;
+                                shooting ??= ShootBoltAsync(preparation.Token, bolt.Id);
+                                var supplyWaitStarted = Stopwatch.GetTimestamp();
+                                if (pendingFeed is not null)
+                                    _log?.LogInformation("Bolt timing {Bolt}: using shooting supply started during previous retraction.", bolt.Id);
+                                var first = await Task.WhenAny(moving, shooting);
+                                if (!first.IsCompletedSuccessfully)
+                                {
+                                    preparation.Cancel();
+                                    pendingCancellation?.Cancel();
+                                }
+                                // Drain both operations, including STOP/air-OFF cleanup on failure.
+                                await Task.WhenAll(moving, shooting);
+                                _log?.LogInformation("Bolt timing {Bolt}: movement / shooting supply joined, elapsed={ElapsedMs:F1} ms, supplied during previous retraction={Prefed}.",
+                                    bolt.Id, Stopwatch.GetElapsedTime(supplyWaitStarted).TotalMilliseconds, pendingFeed is not null);
+                            }
+                            else if (moveRequired)
+                                await MoveToBoltAsync(bolt, token);
+                            break;
+                        }
+                        case FasteningHead.Pickup:
+                        {
+                            if (ShootingHeadPosition != StationCylinderState.Up)
+                                await ClearHeadAsync(FasteningHead.Shooting, _settings.GetSafeZ(FasteningHead.Shooting), token);
+                            if (PickupTablePosition != StationCylinderState.Down)
+                            {
                                 var started = Stopwatch.GetTimestamp();
-                                await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
-                                _log?.LogInformation("Bolt timing {Bolt}: pickup feeder detected, attempt={Attempt}, elapsed={ElapsedMs:F1} ms.",
-                                    bolt.Id, retry + 1, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                                await RaiseCylindersAsync(token);
+                                _log?.LogInformation("Bolt timing {Bolt}: pickup changeover heads UP confirmed, elapsed={ElapsedMs:F1} ms.",
+                                    bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                                started = Stopwatch.GetTimestamp();
+                                await MoveZAsync(_settings.SafeZ, token);
+                                _log?.LogInformation("Bolt timing {Bolt}: pickup changeover Safe Z={Z} arrived, elapsed={ElapsedMs:F1} ms.",
+                                    bolt.Id, _settings.SafeZ, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                                started = Stopwatch.GetTimestamp();
+                                await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, true, token);
+                                _log?.LogInformation("Bolt timing {Bolt}: pickup table DOWN confirmed, elapsed={ElapsedMs:F1} ms.",
+                                    bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                             }
-                            TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: descent");
-                            await MoveToPickupZAsync(token);
-                            if (feeding)
+
+                            if (!_io.GetInput(InputIo.PickupHeadVacuumDetected))
                             {
+                                TraceStep(step, target, job.Id, "pickup XY movement");
+                                await MoveToPickupXYAsync(token);
+                                var retryCount = _settings.PickupRetryCount;
+                                for (var retry = 0; ; retry++)
+                                {
+                                    token.ThrowIfCancellationRequested();
+                                    if (feeding)
+                                    {
+                                        TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: waiting for feeder bolt detection");
+                                        var started = Stopwatch.GetTimestamp();
+                                        await WaitForBoltSupplyAsync(FasteningHead.Pickup, token);
+                                        _log?.LogInformation("Bolt timing {Bolt}: pickup feeder detected, attempt={Attempt}, elapsed={ElapsedMs:F1} ms.",
+                                            bolt.Id, retry + 1, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                                    }
+                                    TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: descent");
+                                    await MoveToPickupZAsync(token);
+                                    if (feeding)
+                                    {
+                                        token.ThrowIfCancellationRequested();
+                                        _io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
+                                    }
+                                    TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: return to Safe Z");
+                                    await ReturnFromPickupAsync(token);
+                                    token.ThrowIfCancellationRequested();
+                                    if (!feeding)
+                                        break;
+                                    var vacuumDetected = _io.GetInput(InputIo.PickupHeadVacuumDetected);
+                                    _log?.LogInformation("Bolt timing {Bolt}: pickup vacuum at Safe Z, attempt={Attempt}, detected={Detected}.",
+                                        bolt.Id, retry + 1, vacuumDetected);
+                                    if (vacuumDetected)
+                                        break;
+                                    if (retry >= retryCount)
+                                        throw new InvalidOperationException(
+                                            $"Pickup bolt {bolt.Id}, {bolt.HeatSink}: vacuum not detected at Safe Z after {retry + 1} pickup attempts.");
+                                    _log?.LogWarning(
+                                        "Pickup bolt {Bolt}, {HeatSink}: vacuum not detected at Safe Z; retry {Retry}/{RetryCount}.",
+                                        bolt.Id, bolt.HeatSink, retry + 1, retryCount);
+                                }
                                 token.ThrowIfCancellationRequested();
-                                _io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
+                                Station.RequireCurrentJob(job);
                             }
-                            TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: return to Safe Z");
-                            await ReturnFromPickupAsync(token);
-                            token.ThrowIfCancellationRequested();
-                            if (!feeding)
-                                break;
-                            var vacuumDetected = _io.GetInput(InputIo.PickupHeadVacuumDetected);
-                            _log?.LogInformation("Bolt timing {Bolt}: pickup vacuum at Safe Z, attempt={Attempt}, detected={Detected}.",
-                                bolt.Id, retry + 1, vacuumDetected);
-                            if (vacuumDetected)
-                                break;
-                            if (retry >= retryCount)
-                                throw new InvalidOperationException(
-                                    $"Pickup bolt {bolt.Id}, {bolt.HeatSink}: vacuum not detected at Safe Z after {retry + 1} pickup attempts.");
-                            _log?.LogWarning(
-                                "Pickup bolt {Bolt}, {HeatSink}: vacuum not detected at Safe Z; retry {Retry}/{RetryCount}.",
-                                bolt.Id, bolt.HeatSink, retry + 1, retryCount);
+                            else if (IsAtPickupXY)
+                                await ReturnFromPickupAsync(token);
+                            if (!IsAt(bolt))
+                            {
+                                TraceStep(step, target, job.Id, "fastening point movement");
+                                await RaiseCylindersAsync(token);
+                                await MoveToBoltAsync(bolt, token);
+                            }
+                            break;
                         }
-                        token.ThrowIfCancellationRequested();
-                        Station.RequireCurrentJob(job);
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(bolt.Head));
                     }
-                    else if (IsAtPickupXY)
-                        await ReturnFromPickupAsync(token);
-                    if (!IsAt(bolt))
-                    {
-                        TraceStep(step, target, job.Id, "fastening point movement");
-                        await RaiseCylindersAsync(token);
-                        await MoveToBoltAsync(bolt, token);
-                    }
-                    break;
-                }
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(bolt.Head));
-            }
-            _log?.LogInformation("Bolt timing {Job}/{Bolt}: preparation ready, elapsed={ElapsedMs:F1} ms, feeding={Feeding}.",
-                job.Id, bolt.Id, Stopwatch.GetElapsedTime(cycleStarted).TotalMilliseconds, feeding);
-            var assembly = Station.GetAssembly(job, bolt.HeatSink);
-            TraceStep(step, target, job.Id, "fastening controller result");
-            BoltResult? result = null;
-            Exception? fasteningFailure = null;
-            var minimumTurns = bolt.MinimumTurns;
-            try
-            {
-                var head = bolt.Head switch
-                {
-                    FasteningHead.Shooting => ShootingHead,
-                    FasteningHead.Pickup => PickupHead,
-                    _ => throw new ArgumentOutOfRangeException(nameof(bolt.Head)),
-                };
-                var started = Stopwatch.GetTimestamp();
-                await head.SelectPresetAsync(1, token);
-                _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
-                    bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                started = Stopwatch.GetTimestamp();
-                // Raise before a new start, including a retry at the same XY.
-                await RaiseCylindersAsync(token);
-                _log?.LogInformation("Bolt timing {Bolt}: heads UP confirmed before START, elapsed={ElapsedMs:F1} ms.",
-                    bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                Station.RequireCurrentJob(job);
-                if (!IsAt(bolt))
-                    throw new InvalidOperationException("The head must be at the bolt's fastening XYZ before starting.");
-
-                using (var fastening = CancellationTokenSource.CreateLinkedTokenSource(token))
-                {
-                    void CheckPickupTable()
-                    {
-                        if (bolt.Head == FasteningHead.Shooting
-                            && PickupTablePosition != StationCylinderState.Up)
-                            OperationCancellation.CancelIfNotDisposed(fastening);
-                    }
-
-                    Task LowerHeadWhileFasteningAsync(CancellationToken feedToken)
-                    {
-                        feedToken.ThrowIfCancellationRequested();
-                        _log?.LogInformation("Bolt {Head}: motor START completed; requesting head DOWN.", bolt.Head);
-                        // Screw contact can stop the cylinder before its DOWN sensor.
-                        _io.SetOutput(bolt.Head == FasteningHead.Pickup
-                            ? OutputIo.PickupHeadDown : OutputIo.ShootingHeadDown, true);
-                        feedToken.ThrowIfCancellationRequested();
-                        _log?.LogInformation("Bolt {Head}: head DOWN output sent.", bolt.Head);
-                        return Task.CompletedTask;
-                    }
-
-                    Changed += CheckPickupTable;
+                    _log?.LogInformation("Bolt timing {Job}/{Bolt}: preparation ready, elapsed={ElapsedMs:F1} ms, feeding={Feeding}.",
+                        job.Id, bolt.Id, Stopwatch.GetElapsedTime(cycleStarted).TotalMilliseconds, feeding);
+                    var assembly = Station.GetAssembly(job, bolt.HeatSink);
+                    TraceStep(step, target, job.Id, "fastening controller result");
+                    BoltResult? result = null;
+                    Exception? fasteningFailure = null;
+                    var minimumTurns = bolt.MinimumTurns;
                     try
                     {
-                        CheckPickupTable();
-                        var dryRunMilliseconds = repeat || !_units.IsBoltFeederEnabled(bolt.Head)
-                            ? _settings.DryRunMilliseconds : 0;
-                        _log?.LogInformation(
-                            "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
-                            bolt.Head, bolt.HeatSink, bolt.Id, head.GetType().Name, dryRunMilliseconds);
+                        var head = bolt.Head switch
+                        {
+                            FasteningHead.Shooting => ShootingHead,
+                            FasteningHead.Pickup => PickupHead,
+                            _ => throw new ArgumentOutOfRangeException(nameof(bolt.Head)),
+                        };
+                        var started = Stopwatch.GetTimestamp();
+                        await head.SelectPresetAsync(1, token);
+                        _log?.LogInformation("Bolt timing {Bolt}: preset selection, elapsed={ElapsedMs:F1} ms.",
+                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                         started = Stopwatch.GetTimestamp();
-                        var completed = await head.TightenAsync(
-                            fastening.Token, LowerHeadWhileFasteningAsync, dryRunMilliseconds, received => result = received);
-                        _log?.LogInformation("Bolt timing {Bolt}: controller START/result/STOP, elapsed={ElapsedMs:F1} ms, controller time={ControllerMs} ms.",
-                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds, completed.Controller?.FasteningTimeMilliseconds);
-                        completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };
-                        _log?.LogInformation(
-                            "Bolt {Head}, {HeatSink}, point {Bolt}: cycle completed; success={Success}, source={Source}, error={Error}.",
-                            bolt.Head, bolt.HeatSink, bolt.Id, completed.Success, completed.Source, completed.Error);
+                        // Raise before a new start, including a retry at the same XY.
+                        await RaiseCylindersAsync(token);
+                        _log?.LogInformation("Bolt timing {Bolt}: heads UP confirmed before START, elapsed={ElapsedMs:F1} ms.",
+                            bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                         Station.RequireCurrentJob(job);
-                        result = completed;
+                        if (!IsAt(bolt))
+                            throw new InvalidOperationException("The head must be at the bolt's fastening XYZ before starting.");
+
+                        using (var fastening = CancellationTokenSource.CreateLinkedTokenSource(token))
+                        {
+                            void CheckPickupTable()
+                            {
+                                if (bolt.Head == FasteningHead.Shooting
+                                    && PickupTablePosition != StationCylinderState.Up)
+                                    OperationCancellation.CancelIfNotDisposed(fastening);
+                            }
+
+                            Task LowerHeadWhileFasteningAsync(CancellationToken feedToken)
+                            {
+                                feedToken.ThrowIfCancellationRequested();
+                                _log?.LogInformation("Bolt {Head}: motor START completed; requesting head DOWN.", bolt.Head);
+                                // Screw contact can stop the cylinder before its DOWN sensor.
+                                _io.SetOutput(bolt.Head == FasteningHead.Pickup
+                                    ? OutputIo.PickupHeadDown : OutputIo.ShootingHeadDown, true);
+                                feedToken.ThrowIfCancellationRequested();
+                                _log?.LogInformation("Bolt {Head}: head DOWN output sent.", bolt.Head);
+                                return Task.CompletedTask;
+                            }
+
+                            Changed += CheckPickupTable;
+                            try
+                            {
+                                CheckPickupTable();
+                                var dryRunMilliseconds = repeat || !_units.IsBoltFeederEnabled(bolt.Head)
+                                    ? _settings.DryRunMilliseconds : 0;
+                                _log?.LogInformation(
+                                    "Bolt {Head}, {HeatSink}, point {Bolt}: starting {Controller}; requesting head DOWN; dry run={DryRunMilliseconds} ms (0=wait for fastening result).",
+                                    bolt.Head, bolt.HeatSink, bolt.Id, head.GetType().Name, dryRunMilliseconds);
+                                started = Stopwatch.GetTimestamp();
+                                var completed = await head.TightenAsync(
+                                    fastening.Token, LowerHeadWhileFasteningAsync, dryRunMilliseconds, received => result = received);
+                                _log?.LogInformation("Bolt timing {Bolt}: controller START/result/STOP, elapsed={ElapsedMs:F1} ms, controller time={ControllerMs} ms.",
+                                    bolt.Id, Stopwatch.GetElapsedTime(started).TotalMilliseconds, completed.Controller?.FasteningTimeMilliseconds);
+                                completed = completed with { RecordedAt = completed.RecordedAt ?? DateTimeOffset.Now };
+                                _log?.LogInformation(
+                                    "Bolt {Head}, {HeatSink}, point {Bolt}: cycle completed; success={Success}, source={Source}, error={Error}.",
+                                    bolt.Head, bolt.HeatSink, bolt.Id, completed.Success, completed.Source, completed.Error);
+                                Station.RequireCurrentJob(job);
+                                result = completed;
+                            }
+                            catch (OperationCanceledException) when (fastening.IsCancellationRequested && !token.IsCancellationRequested)
+                            {
+                                throw new MotionInterlockException("Keep the pickup table raised during shooting fastening.");
+                            }
+                            finally
+                            {
+                                Changed -= CheckPickupTable;
+                            }
+                        }
+
+                        // Finish physical clearance before publishing the measured result.
+                        TraceStep(step, target, job.Id, "head retraction");
+                        var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1] : null;
+                        var nextShootingBolt = bolt.Head == FasteningHead.Shooting && feeding
+                            && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
+                        var safeZ = bolt.Head == FasteningHead.Shooting && nextBolt is { Head: FasteningHead.Pickup }
+                            ? _settings.SafeZ : _settings.GetSafeZ(bolt.Head);
+                        await ClearHeadAsync(bolt.Head, safeZ, token, nextShootingBolt);
                     }
-                    catch (OperationCanceledException) when (fastening.IsCancellationRequested && !token.IsCancellationRequested)
+                    catch (Exception exception)
                     {
-                        throw new MotionInterlockException("Keep the pickup table raised during shooting fastening.");
+                        fasteningFailure = exception;
+                        throw;
                     }
                     finally
                     {
-                        Changed -= CheckPickupTable;
+                        // Keep the measured result with its original carrier even if STOP or clearance
+                        // fails. A storage failure must not hide the original hardware failure.
+                        try
+                        {
+                            if (result is not null)
+                            {
+                                result = result with { MinimumTurns = minimumTurns };
+                                var recordStarted = Stopwatch.GetTimestamp();
+                                assembly.RecordBolt(bolt.Head, bolt.Id, result);
+                                resultReceived?.Invoke(bolt, result);
+                                _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}, minimum={MinimumTurns}, turns result={TurnsResult}.",
+                                    bolt.Id, result.Success, result.TotalTurns, result.MinimumTurns, result.TurnsResult);
+                                _log?.LogInformation("Bolt timing {Job}/{Bolt}: result published, elapsed={ElapsedMs:F1} ms.",
+                                    job.Id, bolt.Id, Stopwatch.GetElapsedTime(recordStarted).TotalMilliseconds);
+                            }
+                        }
+                        catch (Exception recordFailure) when (fasteningFailure is not null)
+                        {
+                            throw new AggregateException(fasteningFailure, recordFailure);
+                        }
                     }
-                }
 
-                // Finish physical clearance before publishing the measured result.
-                TraceStep(step, target, job.Id, "head retraction");
-                var nextBolt = _boltIndex + 1 < _runBolts!.Length ? _runBolts[_boltIndex + 1] : null;
-                var nextShootingBolt = bolt.Head == FasteningHead.Shooting && feeding
-                    && nextBolt is { Head: FasteningHead.Shooting } ? nextBolt.Id : (Guid?)null;
-                var safeZ = bolt.Head == FasteningHead.Shooting && nextBolt is { Head: FasteningHead.Pickup }
-                    ? _settings.SafeZ : _settings.GetSafeZ(bolt.Head);
-                await ClearHeadAsync(bolt.Head, safeZ, token, nextShootingBolt);
-            }
-            catch (Exception exception)
-            {
-                fasteningFailure = exception;
-                throw;
-            }
-            finally
-            {
-                // Keep the measured result with its original carrier even if STOP or clearance
-                // fails. A storage failure must not hide the original hardware failure.
-                try
-                {
-                    if (result is not null)
-                    {
-                        result = result with { MinimumTurns = minimumTurns };
-                        var recordStarted = Stopwatch.GetTimestamp();
-                        assembly.RecordBolt(bolt.Head, bolt.Id, result);
-                        resultReceived?.Invoke(bolt, result);
-                        _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}, minimum={MinimumTurns}, turns result={TurnsResult}.",
-                            bolt.Id, result.Success, result.TotalTurns, result.MinimumTurns, result.TurnsResult);
-                        _log?.LogInformation("Bolt timing {Job}/{Bolt}: result published, elapsed={ElapsedMs:F1} ms.",
-                            job.Id, bolt.Id, Stopwatch.GetElapsedTime(recordStarted).TotalMilliseconds);
-                    }
+                    token.ThrowIfCancellationRequested();
+                    Station.RequireCurrentJob(job);
+                    _boltIndex++;
+                    _log?.LogInformation("Bolt timing {Job}/{Bolt}: finished, total={ElapsedMs:F1} ms, success={Success}.",
+                        job.Id, bolt.Id, Stopwatch.GetElapsedTime(cycleStarted).TotalMilliseconds, result?.Success);
+                    NotifyChanged();
+                    return true;
                 }
-                catch (Exception recordFailure) when (fasteningFailure is not null)
-                {
-                    throw new AggregateException(fasteningFailure, recordFailure);
-                }
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(step));
             }
-
-            token.ThrowIfCancellationRequested();
-            Station.RequireCurrentJob(job);
-            _boltIndex++;
-            _log?.LogInformation("Bolt timing {Job}/{Bolt}: finished, total={ElapsedMs:F1} ms, success={Success}.",
-                job.Id, bolt.Id, Stopwatch.GetElapsedTime(cycleStarted).TotalMilliseconds, result?.Success);
-            NotifyChanged();
         }
-        catch (OperationCanceledException) when (operation.IsCancellationRequested
+        catch (OperationCanceledException) when (step is BoltFasteningState.FasteningShooting
+                or BoltFasteningState.FasteningPickup or BoltFasteningState.CompletingCarrier
+            && operation?.IsCancellationRequested == true
             && !cancellationToken.IsCancellationRequested)
         {
             if (selectedBolts is not null

@@ -332,10 +332,13 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                             $"shuttle={ShuttleLift}, accept={IsAcceptCarrierAllowed()}, movement={_movement}, ejection={_ejectionPhase}");
                         await WaitForChangeAsync(cancellationToken);
                         break;
-                    default:
+                    case NgConveyorState.WaitingForCarrier or NgConveyorState.Full
+                        or NgConveyorState.ReadyToEject or NgConveyorState.CarrierPositionUnknown:
                         EnterStep(state);
                         await WaitForChangeAsync(cancellationToken);
-                        continue;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported NG conveyor step.");
                 }
             }
         }

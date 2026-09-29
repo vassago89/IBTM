@@ -462,15 +462,14 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 }
                 case InspectionStationState.ReadingBarcode:
                 {
-                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    var pcb = InspectionTarget.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
+                    EnterStep(state, $"{pcb.GetDescription()} / Data Matrix", Station.CurrentJob.Id);
                     var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
                     var job = _runJob!;
                     CheckInspectionPosition();
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
-                    var pcb = InspectionTarget.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
                     var assembly = Station.GetAssembly(job, pcb);
-                    EnterStep(state, $"{pcb.GetDescription()} / Data Matrix", job.Id);
                     var barcode = await ReadBarcodeAsync(pcb, token);
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
@@ -482,17 +481,16 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 }
                 case InspectionStationState.InspectingBolt:
                 {
-                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    var target = InspectionTarget;
+                    var pcb = target.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
+                    var bolt = target.Bolt ?? throw new InvalidOperationException("No inspection bolt is selected.");
+                    EnterStep(state, $"{pcb.GetDescription()} / Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}", Station.CurrentJob.Id);
                     var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
                     var job = _runJob!;
                     CheckInspectionPosition();
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
-                    var target = InspectionTarget;
-                    var pcb = target.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
                     var assembly = Station.GetAssembly(job, pcb);
-                    var bolt = target.Bolt ?? throw new InvalidOperationException("No inspection bolt is selected.");
-                    EnterStep(state, $"{pcb.GetDescription()} / Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}", job.Id);
                     var capture = await InspectAsync(bolt, token);
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
@@ -793,9 +791,12 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                         + $"shuttle={_ngConveyor.ShuttleLift}, receive={_ngConveyor.IsReceiveAllowed}, "
                         + $"pickup={Lift}, gripper={Gripper}, pending={IsTransferPending}");
                 return false;
-            default:
+            case InspectionStationState.Waiting or InspectionStationState.TransferCompleted
+                or InspectionStationState.HoldingAtDestination:
                 EnterStep(state, destination.ToString());
                 return false;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported inspection transfer step.");
         }
         return true;
     }

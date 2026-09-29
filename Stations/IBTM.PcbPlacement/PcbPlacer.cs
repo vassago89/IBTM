@@ -550,8 +550,12 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     Station.Complete(job);
                     EnterStep(repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
                     break;
-                default:
+                case PcbPlacementState.WaitingForSupply or PcbPlacementState.WaitingForSupplyRelease
+                    or PcbPlacementState.WaitingForCarrier or PcbPlacementState.WaitingForSupplyReceipt
+                    or PcbPlacementState.WaitingForSupplyGrip or PcbPlacementState.WaitingForSupplyDeparture:
                     return false;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported PCB placement step.");
             }
             return true;
         }

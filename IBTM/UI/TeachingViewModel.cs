@@ -1160,10 +1160,10 @@ public partial class TeachingViewModel : ObservableObject
 
     private bool IsStepAllowed(TeachingDirection direction)
     {
-        if (!IsMoveDirectionAllowed(direction))
+        var (axis, sign) = Resolve(direction);
+        if (!IsJogAllowed(axis))
             return false;
         var position = Motion.Position;
-        var (axis, sign) = Resolve(direction);
         var current = axis switch
         {
             MotionAxis.X => position.X,

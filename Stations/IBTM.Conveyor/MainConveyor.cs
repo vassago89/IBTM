@@ -286,9 +286,11 @@ public sealed partial class MainConveyor : AutoUnit
                                 + $"S3 canReceive={_inspection.IsReceiveAllowed}, HS1={_inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)}, "
                                 + $"HS2={_inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)}");
                         break;
-                    default:
+                    case MainConveyorState.Running:
                         EnterStep(state);
                         break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(state), state, "Unsupported main conveyor step.");
                 }
 
                 if (state is MainConveyorState.WaitingForFrontCarrier
