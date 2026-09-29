@@ -268,7 +268,7 @@
                             </TextBlock>
                             <Grid>
                                 <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Minimum "/><Run Text="{Binding RecentFastening.Result.MinimumTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
+                                    <Run Text="Minimum "/><Run Text="{Binding RecentFastening.Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
                                 </TextBlock>
                                 <TextBlock HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold">
                                     <TextBlock.Style>
@@ -297,8 +297,8 @@
                                 <StackPanel>
                                     <TextBlock Text="TORQUE / TARGET" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                                     <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="14">
-                                        <Run Text="{Binding RecentFastening.Result.Torque, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
-                                        <Run Text=" / "/><Run Text="{Binding RecentFastening.Result.Controller.TargetTorque, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
+                                        <Run Text="{Binding RecentFastening.Result.Torque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
+                                        <Run Text=" / "/><Run Text="{Binding RecentFastening.Result.Controller.TargetTorque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                     </TextBlock>
                                 </StackPanel>
                                 <StackPanel>

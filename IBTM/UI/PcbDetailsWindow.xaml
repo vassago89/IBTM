@@ -203,7 +203,7 @@
                                 <TextBlock Text="{Binding TurnsVerdict}" Tag="{Binding TurnsVerdict}" Style="{StaticResource ResultBadge}" FontSize="11"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="ACTUAL / MIN" Width="*"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
-                                <TextBlock FontSize="11"><Run Text="{Binding Result.TotalTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding Result.MinimumTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
+                                <TextBlock FontSize="11"><Run Text="{Binding Result.TotalTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTextColumn Header="TORQUE" Binding="{Binding Result.Torque, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}" Width="*"/>
                         </DataGrid.Columns>
@@ -227,7 +227,7 @@
                             <DockPanel>
                                 <StackPanel DockPanel.Dock="Right" Margin="12,0,0,0" VerticalAlignment="Center">
                                     <TextBlock Text="MINIMUM TURNS" Style="{StaticResource MetricLabel}"/>
-                                    <TextBlock FontSize="14" Margin="0,3,0,0"><Run Text="{Binding SelectedBolt.Result.MinimumTurns, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" · "/><Run Text="{Binding SelectedBolt.TurnsVerdict}"/></TextBlock>
+                                    <TextBlock FontSize="14" Margin="0,3,0,0"><Run Text="{Binding SelectedBolt.Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" · "/><Run Text="{Binding SelectedBolt.TurnsVerdict, Mode=OneWay}"/></TextBlock>
                                 </StackPanel>
                                 <StackPanel>
                                     <TextBlock Text="{Binding SelectedBolt.Title, TargetNullValue='Controller details', FallbackValue='Controller details'}" FontWeight="SemiBold" FontSize="16"/>
@@ -256,7 +256,7 @@
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="STATUS" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBolt.ControllerStatus, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}" ToolTip="{Binding SelectedBolt.ControllerStatus}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="DIRECTION" Style="{StaticResource MetricLabel}"/><TextBlock Text="{Binding SelectedBolt.Direction, TargetNullValue='—', FallbackValue='—'}" Style="{StaticResource MetricValue}" ToolTip="{Binding SelectedBolt.Direction}"/></StackPanel>
                                         <StackPanel Style="{StaticResource Metric}"><TextBlock Text="PORT / ADDRESS" Style="{StaticResource MetricLabel}"/>
-                                            <TextBlock Style="{StaticResource MetricValue}"><Run Text="{Binding SelectedBolt.Result.Controller.Port, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding SelectedBolt.Result.Controller.SlaveAddress, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
+                                            <TextBlock Style="{StaticResource MetricValue}"><Run Text="{Binding SelectedBolt.Result.Controller.Port, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}"/><Run Text=" / "/><Run Text="{Binding SelectedBolt.Result.Controller.SlaveAddress, Mode=OneWay, TargetNullValue='—', FallbackValue='—'}"/></TextBlock>
                                         </StackPanel>
                                     </UniformGrid>
                                 </TabItem>
