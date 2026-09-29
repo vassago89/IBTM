@@ -171,8 +171,8 @@
                                     Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                                 <TextBlock Text="Minimum turns" Margin="0,12,0,4"/>
                                 <TextBox Width="110" HorizontalAlignment="Left"
-                                    Text="{Binding SelectedPoint.Position.Bolt.MinimumTurns, TargetNullValue='', UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                <TextBlock Text="For this bolt only. A3 ÷ 360 below this value is NG. Leave blank to disable. Save to keep the criterion in the recipe."
+                                    Text="{Binding SelectedPoint.Position.Bolt.MinimumTurns, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                <TextBlock Text="For this bolt only. Decimals allowed (e.g. 2.5). A3 ÷ 360 below this value is NG. 0 = no minimum check. Save to keep the criterion in the recipe."
                                     TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                             <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"

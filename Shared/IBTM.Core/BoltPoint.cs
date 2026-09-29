@@ -72,9 +72,9 @@ public sealed class BoltPoint
         get;
         set
         {
-            if (value is { } turns && (!double.IsFinite(turns) || turns <= 0))
-                throw new ArgumentOutOfRangeException(nameof(value), "Minimum turns must be greater than zero, or blank to disable the check.");
-            field = value;
+            if (value is { } turns && (!double.IsFinite(turns) || turns < 0))
+                throw new ArgumentOutOfRangeException(nameof(value), "Minimum turns must be zero or greater. Use 0 to disable the check.");
+            field = value == 0 ? null : value;
         }
     }
 

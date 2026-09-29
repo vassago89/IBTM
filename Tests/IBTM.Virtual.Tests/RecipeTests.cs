@@ -29,6 +29,8 @@ public sealed class RecipeTests
         var first = new BoltPoint();
         var second = new BoltPoint();
         Assert.Null(first.MinimumTurns);
+        first.MinimumTurns = 0;
+        Assert.Null(first.MinimumTurns);
         Assert.Throws<ArgumentOutOfRangeException>(() => first.MinimumTurns = -1);
         Assert.Throws<ArgumentOutOfRangeException>(() => first.MinimumTurns = double.NaN);
         first.MinimumTurns = 3.5;
@@ -41,7 +43,7 @@ public sealed class RecipeTests
         Assert.Equal(3.5, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns);
         Assert.Equal(10, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == second.Id).MinimumTurns);
         loaded.Pcb.BoltPoints.Move(0, 1);
-        loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns = null;
+        loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns = 0;
         store.SaveRecipe(loaded);
         var reopened = store.LoadRecipe(recipe.Name);
         Assert.Equal(second.Id, reopened.Pcb.BoltPoints[0].Id);
