@@ -53,7 +53,8 @@ public sealed class InspectionTeachingTests
         Assert.False(editor.Preview.HasImage);
         Assert.False(editor.InspectCommand.CanExecute(null));
         Assert.False(editor.DrawRegionCommand.CanExecute(new Rect(0, 0, 8, 8)));
-        Assert.Contains("1 saved image(s)", editor.Message);
+        Assert.Single(editor.Points, point => point.Metadata is not null);
+        Assert.False(string.IsNullOrWhiteSpace(editor.Message));
         await editor.InspectCommand.ExecuteAsync(null);
         Assert.Null(editor.Preview.Result);
         editor.Preview.BrightnessThreshold = 173;

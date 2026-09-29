@@ -48,7 +48,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         LoadOlderCommand = new AsyncRelayCommand(LoadOlderAsync);
         LoadRecordCommand = new AsyncRelayCommand(LoadRecordAsync);
         DrawRegionCommand = new RelayCommand<Rect>(DrawRegion, _ => IsDrawRegionAllowed);
-        UseHistoryImageCommand = new RelayCommand(UseHistoryImage, () => IsUseHistoryImageAllowed);
+        UseHistoryImageCommand = new RelayCommand(UseHistoryImage, () => HistoryImageTarget is not null);
         ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
         _commands = [LoadRecipeCommand, RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
         foreach (var command in _commands)
@@ -355,21 +355,22 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsUseHistoryImageAllowed => LoadedRecord is not null
-        && MachineStore.IsSameRecipeName(LoadedRecord.RecipeName, Draft.Name)
-        && SelectedHistoryImage is not null
-        && Points.Any(point => point.Metadata is not null && point.HeatSink == LoadedRecord.HeatSink
-            && point.Bolt?.Id == SelectedHistoryImage.Record.BoltId);
+    private InspectionPoint? HistoryImageTarget
+    {
+        get
+        {
+            if (LoadedRecord is not { } record || SelectedHistoryImage is not { } image
+                || !MachineStore.IsSameRecipeName(record.RecipeName, Draft.Name))
+                return null;
+            return Points.FirstOrDefault(point => point.Metadata?.IsForTarget(record.HeatSink, image.Record.BoltId) == true);
+        }
+    }
 
     private void UseHistoryImage()
     {
-        if (!IsUseHistoryImageAllowed)
+        if (HistoryImageTarget is not { } target)
             return;
         var saved = SelectedHistoryImage!;
-        var target = Points.FirstOrDefault(point => point.Metadata is not null && point.HeatSink == LoadedRecord!.HeatSink
-            && point.Bolt?.Id == saved.Record.BoltId);
-        if (target is null)
-            return;
         var reference = target.GetImage(_carrierImages);
         if (reference is null || reference.PixelWidth != saved.Image.PixelWidth || reference.PixelHeight != saved.Image.PixelHeight)
         {

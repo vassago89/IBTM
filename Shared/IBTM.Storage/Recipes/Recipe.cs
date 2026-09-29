@@ -46,7 +46,7 @@ public sealed class Recipe
     public AxisPosition GetInspectionPosition(CarrierImageTile tile)
     {
         var position = tile.IsBarcode ? tile.Center : Pcb.BoltPoints.SingleOrDefault(
-            bolt => bolt.Id == tile.BoltId)?.InspectionPosition;
+            bolt => tile.IsForTarget(bolt.HeatSink, bolt.Id))?.InspectionPosition;
         return position ?? throw new InvalidOperationException(
             $"Record an inspection position for {tile.HeatSink}, image {tile.Number}.");
     }

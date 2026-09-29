@@ -981,14 +981,14 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public bool HasBarcodePosition(HeatSinkSlot pcb)
     {
-        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsBarcode && fov.HeatSink == pcb).ToArray();
+        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsForTarget(pcb, boltId: null)).ToArray();
         return fovs.Length == 1 && fovs[0].Center is not null;
     }
 
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
     {
         var size = _camera.FrameSize;
-        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsBarcode && fov.HeatSink == pcb).ToArray();
+        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsForTarget(pcb, boltId: null)).ToArray();
         return fovs.Length == 1
             && fovs[0].Center is not null
             && fovs[0].Region is { } region
@@ -997,7 +997,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public CarrierImageTile GetBarcodeFov(HeatSinkSlot pcb)
     {
-        var fov = _recipes.Current.CarrierImages.SingleOrDefault(item => item.IsBarcode && item.HeatSink == pcb);
+        var fov = _recipes.Current.CarrierImages.SingleOrDefault(item => item.IsForTarget(pcb, boltId: null));
         if (fov is null)
             throw new InvalidOperationException($"Record a position for {pcb.GetDescription()} Data Matrix.");
         return fov;
@@ -1049,10 +1049,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     public bool HasRegion(BoltPoint point)
     {
         var size = _camera.FrameSize;
-        var fovs = _recipes.Current.CarrierImages.Where(fov =>
-            !fov.IsBarcode
-            && fov.BoltId == point.Id
-            && fov.HeatSink == point.HeatSink).ToArray();
+        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsForTarget(point.HeatSink, point.Id)).ToArray();
         return point.InspectionPosition is not null && fovs.Length == 1
             && fovs[0].Region is { } region
             && region.IsInside(size.Width, size.Height);
@@ -1060,10 +1057,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public CarrierImageTile GetFov(BoltPoint point)
     {
-        var fov = _recipes.Current.CarrierImages.SingleOrDefault(fov =>
-            !fov.IsBarcode
-            && fov.BoltId == point.Id
-            && fov.HeatSink == point.HeatSink);
+        var fov = _recipes.Current.CarrierImages.SingleOrDefault(fov => fov.IsForTarget(point.HeatSink, point.Id));
         if (fov is null)
             throw new InvalidOperationException(
                 $"Record a position for {point.HeatSink.GetDescription()} bolt {point.Id}.");

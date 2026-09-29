@@ -14,4 +14,11 @@ public sealed class CarrierImageTile
     public Guid? BoltId { get; set; }
     public bool IsBarcode { get; set; }
     public HeatSinkSlot HeatSink { get; set; }
+
+    // A null target selects Data Matrix, never an unlinked bolt image.
+    public bool IsForTarget(HeatSinkSlot heatSink, Guid? boltId)
+    {
+        return HeatSink == heatSink
+            && (boltId is { } id ? id != Guid.Empty && !IsBarcode && BoltId == id : IsBarcode);
+    }
 }

@@ -291,6 +291,46 @@ public sealed class RecipeTests
         Assert.NotEqual(first.Id, new BoltPoint().Id);
     }
 
+    [Fact]
+    public void InspectionImageIdentityRequiresMatchingPcbAndNonemptyBoltGuid()
+    {
+        var bolt = new BoltPoint { Name = "Same name", X = 11, Y = 22 };
+        var other = new BoltPoint { Name = "Same name", X = 33, Y = 44 };
+        var image = new CarrierImageTile { Number = 50, BoltId = bolt.Id };
+        var recipe = new Recipe { Pcb = new() { BoltPoints = [bolt, other] }, CarrierImages = [image] };
+        var point = new InspectionPoint(recipe, bolt.HeatSink, bolt);
+        var otherPoint = new InspectionPoint(recipe, other.HeatSink, other);
+
+        Assert.Same(image, point.Metadata);
+        Assert.Null(otherPoint.Metadata);
+        Assert.Equal(11, recipe.GetInspectionPosition(image).X);
+        bolt.Name = "Renamed";
+        recipe.Pcb.BoltPoints.Move(0, 1);
+        image.Number = 99;
+        Assert.Same(image, point.Metadata);
+        Assert.Equal(11, recipe.GetInspectionPosition(image).X);
+
+        image.HeatSink = HeatSinkSlot.HeatSink2;
+        Assert.Null(point.Metadata);
+        Assert.Throws<InvalidOperationException>(() => recipe.GetInspectionPosition(image));
+        image.HeatSink = bolt.HeatSink;
+        image.BoltId = null;
+        Assert.Null(point.Metadata);
+        Assert.False(image.IsForTarget(bolt.HeatSink, boltId: null));
+        Assert.Throws<InvalidOperationException>(() => recipe.GetInspectionPosition(image));
+        image.BoltId = Guid.Empty;
+        var emptyBolt = new BoltPoint { Id = Guid.Empty, X = 11, Y = 22 };
+        recipe.Pcb.BoltPoints.Add(emptyBolt);
+        Assert.Null(new InspectionPoint(recipe, emptyBolt.HeatSink, emptyBolt).Metadata);
+        Assert.Throws<InvalidOperationException>(() => recipe.GetInspectionPosition(image));
+
+        image.IsBarcode = true;
+        image.Center = new() { X = 55, Y = 66 };
+        Assert.Null(point.Metadata);
+        Assert.Same(image, new InspectionPoint(recipe, bolt.HeatSink).Metadata);
+        Assert.Equal(55, recipe.GetInspectionPosition(image).X);
+    }
+
     [Theory]
     [InlineData(340, 400, 310, 420)]
     [InlineData(300, 440, 280, 410)]

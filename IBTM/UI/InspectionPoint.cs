@@ -55,8 +55,7 @@ public sealed class InspectionPoint
 
     public bool Matches(CarrierImageTile image)
     {
-        return image.HeatSink == HeatSink
-            && (IsDataMatrix ? image.IsBarcode : !image.IsBarcode && image.BoltId == Bolt!.Id);
+        return image.IsForTarget(HeatSink, Bolt?.Id);
     }
 
     public BitmapSource? GetImage(IReadOnlyList<CarrierImageTileView> images)

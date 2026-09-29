@@ -16,7 +16,7 @@ public partial class InspectionPreview : ObservableObject
     private readonly Recipe _recipe;
     private ImageFrame? _frame;
     private double? _brightRatio;
-    private HeatSinkSlot? _pcb;
+    private HeatSinkSlot? _dataMatrixHeatSink;
     private BoltPoint? _bolt;
     private PixelRegion? _sourceRegion;
     [ObservableProperty]
@@ -37,7 +37,7 @@ public partial class InspectionPreview : ObservableObject
         ? new Rect(region.X, region.Y, region.Width, region.Height)
         : null;
 
-    public string BinaryDescription => _pcb is null
+    public string BinaryDescription => _dataMatrixHeatSink is null
         ? _bolt is null ? "Binary ROI · no inspection target" : $"Binary ROI · threshold {BrightnessThreshold}"
         : DataMatrixThreshold is { } threshold ? $"Binary ROI · threshold {threshold}"
         : HasImage && Overlay is null ? "Automatic binary unavailable · set a threshold"
@@ -45,12 +45,12 @@ public partial class InspectionPreview : ObservableObject
 
     public int? DataMatrixThreshold
     {
-        get => _pcb is { } pcb ? _recipe.BoltInspection.GetDataMatrix(pcb).BinaryThreshold : null;
+        get => _dataMatrixHeatSink is { } heatSink ? _recipe.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold : null;
         set
         {
-            if (_pcb is not { } pcb)
+            if (_dataMatrixHeatSink is not { } heatSink)
                 throw new InvalidOperationException("Select a Data Matrix before changing its threshold.");
-            _recipe.BoltInspection.GetDataMatrix(pcb).BinaryThreshold = value;
+            _recipe.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold = value;
             RefreshBinaryImage();
             OnPropertyChanged();
         }
@@ -86,9 +86,9 @@ public partial class InspectionPreview : ObservableObject
         }
     }
 
-    public void Clear(HeatSinkSlot? pcb = null, BoltPoint? bolt = null)
+    public void Clear(HeatSinkSlot? dataMatrixHeatSink = null, BoltPoint? bolt = null)
     {
-        _pcb = pcb;
+        _dataMatrixHeatSink = dataMatrixHeatSink;
         _bolt = bolt;
         _sourceRegion = null;
         _frame = null;
@@ -114,14 +114,14 @@ public partial class InspectionPreview : ObservableObject
 
     public async Task InspectAsync(CancellationToken token)
     {
-        if (_pcb is null && _bolt is null)
+        if (_dataMatrixHeatSink is null && _bolt is null)
             throw new InvalidOperationException("Select an image linked to a Data Matrix or bolt before inspecting.");
         Result = null;
         var frame = _frame!;
         var region = _sourceRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");
-        if (_pcb is not null)
+        if (_dataMatrixHeatSink is { } heatSink)
         {
-            var settings = _recipe.BoltInspection.GetDataMatrix(_pcb.Value);
+            var settings = _recipe.BoltInspection.GetDataMatrix(heatSink);
             var text = await Task.Run(() => DataMatrixReader.Read(frame, region, settings), token);
             token.ThrowIfCancellationRequested();
             Result = string.IsNullOrEmpty(text) ? "Not Read" : text;
@@ -153,7 +153,7 @@ public partial class InspectionPreview : ObservableObject
         ClearResult();
         if (_frame is not null && _sourceRegion is { } region)
         {
-            if (_pcb is not null)
+            if (_dataMatrixHeatSink is not null)
             {
                 var binary = DataMatrixReader.CreateBinaryImage(_frame, region, DataMatrixThreshold);
                 Overlay = binary is null ? null : CreateBitmap(binary);
