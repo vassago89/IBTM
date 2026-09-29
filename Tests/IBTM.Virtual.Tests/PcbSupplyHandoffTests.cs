@@ -434,8 +434,8 @@ public sealed class PcbSupplyHandoffTests
             IMotionFeedback feedback = Motion;
             if (probeFeedback)
             {
-                feedback = System.Reflection.DispatchProxy.Create<IXyMotion, MachineLifecycleTests.ScopedMotionProbe>();
-                FeedbackProbe = (MachineLifecycleTests.ScopedMotionProbe)feedback;
+                feedback = System.Reflection.DispatchProxy.Create<IXyMotion, MachineTest.ScopedMotionProbe>();
+                FeedbackProbe = (MachineTest.ScopedMotionProbe)feedback;
                 FeedbackProbe.Motion = Motion;
                 FeedbackProbe.ReportReady = true;
             }
@@ -454,7 +454,7 @@ public sealed class PcbSupplyHandoffTests
         public VirtualIoService Io { get; }
         public VirtualMotionService Motion { get; }
         public PcbSupplier Supplier { get; }
-        public MachineLifecycleTests.ScopedMotionProbe? FeedbackProbe { get; }
+        public MachineTest.ScopedMotionProbe? FeedbackProbe { get; }
         public PlacementFeedback Placement { get; }
 
         public async Task InitializeAsync()

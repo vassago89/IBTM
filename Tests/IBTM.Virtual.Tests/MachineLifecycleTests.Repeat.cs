@@ -1,20 +1,21 @@
-using IBTM.PcbSupply;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Core;
+using IBTM.BoltFastening;
 using IBTM.Conveyor;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
-using IBTM.BoltFastening;
-using IBTM.Virtual;
+using IBTM.PcbSupply;
+using IBTM.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using IBTM.Storage;
+using static IBTM.Virtual.Tests.MachineTest;
+using static IBTM.Virtual.Tests.VirtualTest;
 
 namespace IBTM.Virtual.Tests;
 
@@ -142,7 +143,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(2, assemblies.Length);
                 foreach (var assembly in assemblies)
                 {
-                    Assert.Equal(BoltResultSource.DryRun, Assert.Single(assembly.PcbBoltResults).Value.Source);
+                    Assert.Equal(BoltResultSource.DryRun, Assert.Single(assembly.ShootingBoltResults).Value.Source);
                     Assert.Equal(BoltResultSource.DryRun, Assert.Single(assembly.PickupBoltResults).Value.Source);
                     Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
                 }

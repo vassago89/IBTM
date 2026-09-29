@@ -57,14 +57,14 @@ public partial class PcbDetailsViewModel : ObservableObject
         OnPropertyChanged(nameof(PresenceResults));
         var selected = SelectedBolt;
         var selectedImage = SelectedImage;
-        BoltResults = newValue is null ? [] : newValue.PcbBoltResults
+        BoltResults = newValue is null ? [] : newValue.ShootingBoltResults
             .Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Shooting, pair.Value,
                 newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null,
                 newValue.BoltNames?.GetValueOrDefault(pair.Key)))
             .Concat(newValue.PickupBoltResults.Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Pickup, pair.Value,
                 newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null,
                 newValue.BoltNames?.GetValueOrDefault(pair.Key))))
-            .OrderBy(row => row.Number).ThenBy(row => row.Head).ToArray();
+            .OrderBy(row => row.Ordinal).ThenBy(row => row.Head).ToArray();
         SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
             ?? BoltResults.FirstOrDefault();
         if (oldValue?.Number != newValue?.Number || oldValue?.DatabaseFile != newValue?.DatabaseFile)
@@ -126,10 +126,10 @@ public partial class PcbDetailsViewModel : ObservableObject
 }
 
 public sealed record PcbBoltResultView(
-    Guid BoltId, int? Number, FasteningHead Head, BoltResult Result, bool? Present = null, string? Name = null)
+    Guid BoltId, int? Ordinal, FasteningHead Head, BoltResult Result, bool? Present = null, string? Name = null)
 {
     public string HeadLabel => Head == FasteningHead.Pickup ? "H1 · Pickup" : "H2 · Shooting";
-    public string BoltLabel => BoltPoint.GetDisplayName(Name, Number);
+    public string BoltLabel => BoltPoint.GetDisplayName(Name, Ordinal);
     public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => Result.Source == BoltResultSource.DryRun ? "DRY RUN" : Result.Success ? "OK" : "NG";
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";

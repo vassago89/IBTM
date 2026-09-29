@@ -255,7 +255,7 @@ public sealed class BoltFasteningStation : AutoUnit
                         break;
                     }
                 }
-                var step = GetNextStep();
+                var step = NextStep;
                 if (!await ExecuteStepAsync(step, repeat, cancellationToken, selectedBolts, resultReceived))
                     await WaitForChangeAsync(cancellationToken);
             }
@@ -299,35 +299,38 @@ public sealed class BoltFasteningStation : AutoUnit
         }
     }
 
-    internal BoltFasteningState GetNextStep()
+    internal BoltFasteningState NextStep
     {
-        if (!_units.BoltFastening)
-            return BoltFasteningState.Disabled;
-        if (!IsReadyToFasten)
+        get
         {
-            var standby = StandbyBolt;
-            return standby is not null && standby.IsFasteningPositionDefined
-                && (!IsHorizontalMoveAllowed || !IsAt(standby, atSafeZ: true)
-                    || PickupTablePosition != StationCylinderState.Up)
-                ? BoltFasteningState.MovingToStandby
-                : BoltFasteningState.Waiting;
-        }
+            if (!_units.BoltFastening)
+                return BoltFasteningState.Disabled;
+            if (!IsReadyToFasten)
+            {
+                var standby = StandbyBolt;
+                return standby is not null && standby.IsFasteningPositionDefined
+                    && (!IsHorizontalMoveAllowed || !IsAt(standby, atSafeZ: true)
+                        || PickupTablePosition != StationCylinderState.Up)
+                    ? BoltFasteningState.MovingToStandby
+                    : BoltFasteningState.Waiting;
+            }
 
-        if (_runJob is null || _carrierOperation?.IsCancellationRequested == true
-            || !ReferenceEquals(_runJob, Station.CurrentJob))
-            return BoltFasteningState.PreparingCarrier;
+            if (_runJob is null || _carrierOperation?.IsCancellationRequested == true
+                || !ReferenceEquals(_runJob, Station.CurrentJob))
+                return BoltFasteningState.PreparingCarrier;
 
-        var head = ActiveBolt?.Head;
-        switch (head)
-        {
-            case null:
-                return BoltFasteningState.CompletingCarrier;
-            case FasteningHead.Shooting:
-                return BoltFasteningState.FasteningShooting;
-            case FasteningHead.Pickup:
-                return BoltFasteningState.FasteningPickup;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(BoltPoint.Head), head, "Unsupported fastening head.");
+            var head = ActiveBolt?.Head;
+            switch (head)
+            {
+                case null:
+                    return BoltFasteningState.CompletingCarrier;
+                case FasteningHead.Shooting:
+                    return BoltFasteningState.FasteningShooting;
+                case FasteningHead.Pickup:
+                    return BoltFasteningState.FasteningPickup;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(BoltPoint.Head), head, "Unsupported fastening head.");
+            }
         }
     }
 

@@ -997,7 +997,7 @@ public sealed class ConveyorTests
         Assert.Equal(2, changes);
         Assert.True(source.Completed);
         Assert.True(source.HasNg);
-        Assert.Same(result, assembly.PcbBoltResults[VirtualTest.BoltId(1)]);
+        Assert.Same(result, assembly.ShootingBoltResults[VirtualTest.BoltId(1)]);
 
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
@@ -1525,7 +1525,7 @@ public sealed class ConveyorTests
 
             Assert.Equal(originalJob.Id, destination.Station.CurrentJob.Id);
             Assert.Same(assembly, Assert.Single(destination.Station.Assemblies));
-            Assert.Same(result, assembly.PcbBoltResults[VirtualTest.BoltId(1)]);
+            Assert.Same(result, assembly.ShootingBoltResults[VirtualTest.BoltId(1)]);
             Assert.True(destination.HasNg);
             Assert.Same(nextJob, source.CurrentJob);
             Assert.Empty(source.Assemblies);

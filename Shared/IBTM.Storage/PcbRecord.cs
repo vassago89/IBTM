@@ -15,7 +15,7 @@ public sealed record PcbRecord(
     AssemblyResult PcbBarcodeResult,
     AssemblyResult FasteningResult,
     AssemblyResult InspectionResult,
-    IReadOnlyDictionary<Guid, BoltResult> PcbBoltResults,
+    [property: JsonPropertyName("PcbBoltResults")] IReadOnlyDictionary<Guid, BoltResult> ShootingBoltResults,
     IReadOnlyDictionary<Guid, BoltResult> PickupBoltResults,
     IReadOnlyDictionary<Guid, bool> BoltPresenceResults,
     IReadOnlyList<Guid> BoltIds)

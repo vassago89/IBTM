@@ -142,7 +142,7 @@ public sealed partial class MainConveyor : AutoUnit
                         await _io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
                         if (!_inspection.InspectionRequested
-                            && GetNextTransfer() is MainConveyorState.DischargingInspectionCarrier
+                            && NextTransfer is MainConveyorState.DischargingInspectionCarrier
                                 or MainConveyorState.MovingPcbPlacementToBoltFastening
                                 or MainConveyorState.ReceivingFrontCarrier)
                             continue;
@@ -335,7 +335,7 @@ public sealed partial class MainConveyor : AutoUnit
             || _placement.CarrierPresent && !_placement.CarrierSeated)
             return MainConveyorState.SeatingCarriers;
 
-        var transfer = GetNextTransfer();
+        var transfer = NextTransfer;
         if (!_inspection.Station.CarrierPresent)
             return transfer;
         if (_inspection.Station.Completed)
@@ -378,29 +378,32 @@ public sealed partial class MainConveyor : AutoUnit
             : MainConveyorState.WaitingForInspectionTransfer;
     }
 
-    private MainConveyorState GetNextTransfer()
+    private MainConveyorState NextTransfer
     {
-        // 이송 우선순위: S3 배출 → S2→S3 → S1→S2 → 전단 반입.
-        if (IsRearDischargeAllowed && DownstreamReady)
-            return MainConveyorState.DischargingInspectionCarrier;
-        if ((!_repeat || ReferenceEquals(RepeatEndStation, _inspection.Station))
-            && _fastening.Completed && _inspection.IsReceiveAllowed)
-            return MainConveyorState.MovingBoltFasteningToInspection;
-        if ((!_repeat || !ReferenceEquals(RepeatEndStation, _placement))
-            && _placement.Completed && !_fastening.CarrierPresent)
-            return MainConveyorState.MovingPcbPlacementToBoltFastening;
-        if (!_placement.CarrierPresent
-            && (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable))
-            return MainConveyorState.ReceivingFrontCarrier;
-        if (IsRearDischargeAllowed)
-            return MainConveyorState.WaitingForRearEquipment;
-        if (_fastening.CarrierPresent)
-            return _fastening.Completed
-                ? MainConveyorState.WaitingForInspectionClear
-                : MainConveyorState.WaitingForBoltFastening;
-        return _placement.CarrierPresent
-            ? MainConveyorState.WaitingForPcbPlacement
-            : MainConveyorState.WaitingForFrontCarrier;
+        get
+        {
+            // 이송 우선순위: S3 배출 → S2→S3 → S1→S2 → 전단 반입.
+            if (IsRearDischargeAllowed && DownstreamReady)
+                return MainConveyorState.DischargingInspectionCarrier;
+            if ((!_repeat || ReferenceEquals(RepeatEndStation, _inspection.Station))
+                && _fastening.Completed && _inspection.IsReceiveAllowed)
+                return MainConveyorState.MovingBoltFasteningToInspection;
+            if ((!_repeat || !ReferenceEquals(RepeatEndStation, _placement))
+                && _placement.Completed && !_fastening.CarrierPresent)
+                return MainConveyorState.MovingPcbPlacementToBoltFastening;
+            if (!_placement.CarrierPresent
+                && (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected) || !_repeat && UpstreamCarrierAvailable))
+                return MainConveyorState.ReceivingFrontCarrier;
+            if (IsRearDischargeAllowed)
+                return MainConveyorState.WaitingForRearEquipment;
+            if (_fastening.CarrierPresent)
+                return _fastening.Completed
+                    ? MainConveyorState.WaitingForInspectionClear
+                    : MainConveyorState.WaitingForBoltFastening;
+            return _placement.CarrierPresent
+                ? MainConveyorState.WaitingForPcbPlacement
+                : MainConveyorState.WaitingForFrontCarrier;
+        }
     }
 
     public Task PrepareEmptyStationsAsync(CancellationToken cancellationToken)

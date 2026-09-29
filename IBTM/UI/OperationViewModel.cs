@@ -252,7 +252,7 @@ public partial class OperationViewModel : ObservableObject
                     continue;
 
                 var assembly = assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
-                var results = bolt.Head == FasteningHead.Shooting ? assembly?.PcbBoltResults : assembly?.PickupBoltResults;
+                var results = bolt.Head == FasteningHead.Shooting ? assembly?.ShootingBoltResults : assembly?.PickupBoltResults;
                 var state = BoltTargetState.Pending;
                 if (bolt.Id == active?.Id)
                     state = BoltTargetState.Active;
@@ -608,7 +608,7 @@ public partial class OperationViewModel : ObservableObject
         // Retain the latest completed measurement after the carrier leaves, including
         // results produced while another screen is open. Do not wait for DB persistence.
         var latest = Fastening.Station.Assemblies.SelectMany(assembly =>
-                assembly.PcbBoltResults.Select(pair =>
+                assembly.ShootingBoltResults.Select(pair =>
                     (assembly.HeatSink, Head: FasteningHead.Shooting, Id: pair.Key, Result: pair.Value))
                 .Concat(assembly.PickupBoltResults.Select(pair =>
                     (assembly.HeatSink, Head: FasteningHead.Pickup, Id: pair.Key, Result: pair.Value))))

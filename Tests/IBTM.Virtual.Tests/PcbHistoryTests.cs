@@ -101,7 +101,7 @@ public sealed class PcbHistoryTests
         Assert.Equal(AssemblyResult.Ok, record.InspectionResult);
         Assert.Equal(AssemblyResult.Ng, record.TurnsResult);
         Assert.Equal(AssemblyResult.Ng, record.Result);
-        Assert.Equal(3, Assert.Single(record.PcbBoltResults).Value.MinimumTurns);
+        Assert.Equal(3, Assert.Single(record.ShootingBoltResults).Value.MinimumTurns);
         Assert.Equal(10, Assert.Single(record.PickupBoltResults).Value.MinimumTurns);
         Assert.Equal(5, Assert.Single(record.PickupBoltResults).Value.TotalTurns);
         var details = services.GetRequiredService<PcbDetailsViewModel>();
@@ -158,7 +158,7 @@ public sealed class PcbHistoryTests
 
         var reopened = new MachineStore(store.DatabaseFile);
         var record = Assert.Single(reopened.LoadPcbs(settings.PcbHistory.Directory));
-        Assert.Equal(4, record.PcbBoltResults.Count);
+        Assert.Equal(4, record.ShootingBoltResults.Count);
         Assert.Equal(2, record.PickupBoltResults.Count);
         Assert.Equal(AssemblyResult.Ng, record.FasteningResult);
         Assert.Equal(bolts.Select(bolt => bolt.Id), record.BoltIds);
@@ -174,7 +174,8 @@ public sealed class PcbHistoryTests
             var json = (string)command.ExecuteScalar()!;
             Assert.DoesNotContain("BoltNumber", json);
             using var saved = System.Text.Json.JsonDocument.Parse(json);
-            Assert.All(saved.RootElement.GetProperty(nameof(PcbRecord.PcbBoltResults)).EnumerateObject(),
+            // Keep the existing database JSON name while the code names the shooting head explicitly.
+            Assert.All(saved.RootElement.GetProperty("PcbBoltResults").EnumerateObject(),
                 result => Assert.True(Guid.TryParse(result.Name, out var id) && id != Guid.Empty));
             Assert.All(saved.RootElement.GetProperty(nameof(PcbRecord.PickupBoltResults)).EnumerateObject(),
                 result => Assert.True(Guid.TryParse(result.Name, out var id) && id != Guid.Empty));
@@ -187,7 +188,7 @@ public sealed class PcbHistoryTests
         {
             var row = details.BoltResults[index];
             Assert.Equal(bolts[index].Id, row.BoltId);
-            Assert.Equal(index + 1, row.Number);
+            Assert.Equal(index + 1, row.Ordinal);
             Assert.Equal(bolts[index].Head, row.Head);
             Assert.Equal(index != 4, row.Result.Success);
             Assert.Equal(index == 4 ? null : (double?)(8 + index), row.Result.Torque);
@@ -438,7 +439,7 @@ public sealed class PcbHistoryTests
         {
             UpdatedAt = october, PcbBarcode = "PCB-A", PcbBarcodeResult = AssemblyResult.Ok,
             FasteningResult = AssemblyResult.Ng, InspectionResult = AssemblyResult.Ng,
-            PcbBoltResults = new System.Collections.Generic.Dictionary<Guid, BoltResult>
+            ShootingBoltResults = new System.Collections.Generic.Dictionary<Guid, BoltResult>
             {
                 [VirtualTest.BoltId(1)] = new(false, 0.75, Error: "Controller error 42")
                 {
@@ -460,11 +461,11 @@ public sealed class PcbHistoryTests
         Assert.Equal(october, saved.UpdatedAt);
         Assert.Equal("PCB-A", saved.PcbBarcode);
         Assert.Equal(AssemblyResult.Ng, saved.Result);
-        Assert.Equal("Controller error 42", saved.PcbBoltResults[VirtualTest.BoltId(1)].Error);
-        Assert.Equal(september, saved.PcbBoltResults[VirtualTest.BoltId(1)].RecordedAt);
-        Assert.Equal(19, saved.PcbBoltResults[VirtualTest.BoltId(1)].Controller!.Angle2);
+        Assert.Equal("Controller error 42", saved.ShootingBoltResults[VirtualTest.BoltId(1)].Error);
+        Assert.Equal(september, saved.ShootingBoltResults[VirtualTest.BoltId(1)].RecordedAt);
+        Assert.Equal(19, saved.ShootingBoltResults[VirtualTest.BoltId(1)].Controller!.Angle2);
         Assert.Equal(new ushort[] { 21, 876, 3, 120, 75, 950, 3156, 19, 3175, 9, 42, 0, 6, 87 },
-            saved.PcbBoltResults[VirtualTest.BoltId(1)].Controller!.Registers);
+            saved.ShootingBoltResults[VirtualTest.BoltId(1)].Controller!.Registers);
         Assert.Equal(1.2, saved.PickupBoltResults[VirtualTest.BoltId(2)].Torque);
         Assert.False(saved.BoltPresenceResults[VirtualTest.BoltId(1)]);
         Assert.Equal(2, Directory.GetFiles(directory, "*.db").Length);
@@ -510,7 +511,7 @@ public sealed class PcbHistoryTests
         await history.FlushAsync();
         Assert.Equal(first.PcbNumber, view.SelectedPcb!.Number);
         Assert.Equal(AssemblyResult.Ng, view.SelectedPcb.PcbBarcodeResult);
-        Assert.Equal("NG torque", view.SelectedPcb.PcbBoltResults[VirtualTest.BoltId(1)].Error);
+        Assert.Equal("NG torque", view.SelectedPcb.ShootingBoltResults[VirtualTest.BoltId(1)].Error);
         Assert.Equal(1.1, view.SelectedPcb.PickupBoltResults[VirtualTest.BoltId(2)].Torque);
         Assert.False(view.SelectedPcb.BoltPresenceResults[VirtualTest.BoltId(1)]);
         await view.LoadOlderPcbsCommand.ExecuteAsync(null);
@@ -555,7 +556,7 @@ public sealed class PcbHistoryTests
         Assert.Equal(new long[] { 3, 2, 1 }, reopenedView.PcbRecords.Select(record => record.Number));
         Assert.Empty(restarted.GetRequiredService<PcbPlacer>().Station.Assemblies);
         reopenedView.SelectedPcb = reopenedView.PcbRecords[^1];
-        Assert.Equal("NG torque", reopenedView.SelectedPcb.PcbBoltResults[VirtualTest.BoltId(1)].Error);
+        Assert.Equal("NG torque", reopenedView.SelectedPcb.ShootingBoltResults[VirtualTest.BoltId(1)].Error);
         await reopenedView.PcbDetails.LoadImagesCommand.ExecuteAsync(null);
         Assert.Single(reopenedView.PcbDetails.Images);
         Assert.Empty(store.LoadPcbImages(reopenedView.PcbRecords[1]));
@@ -582,7 +583,7 @@ public sealed class PcbHistoryTests
         var next = work.GetAssembly(HeatSinkSlot.HeatSink1);
         await history.FlushAsync();
         Assert.Equal(first.PcbNumber + 1, next.PcbNumber);
-        Assert.Empty(next.PcbBoltResults);
-        Assert.Equal("Timeout", store.LoadPcbs(settings.PcbHistory.Directory)[1].PcbBoltResults[VirtualTest.BoltId(1)].Error);
+        Assert.Empty(next.ShootingBoltResults);
+        Assert.Equal("Timeout", store.LoadPcbs(settings.PcbHistory.Directory)[1].ShootingBoltResults[VirtualTest.BoltId(1)].Error);
     }
 }

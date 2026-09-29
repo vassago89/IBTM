@@ -20,13 +20,13 @@ public enum AssemblyResult
 
 public sealed class HeatSinkAssembly
 {
-    private readonly ConcurrentDictionary<Guid, BoltResult> _pcbBoltResults;
+    private readonly ConcurrentDictionary<Guid, BoltResult> _shootingBoltResults;
     private readonly ConcurrentDictionary<Guid, BoltResult> _pickupBoltResults;
     private readonly ConcurrentDictionary<Guid, bool> _boltPresenceResults;
 
     public HeatSinkAssembly(HeatSinkSlot heatSink)
     {
-        _pcbBoltResults = new();
+        _shootingBoltResults = new();
         _pickupBoltResults = new();
         _boltPresenceResults = new();
         HeatSink = heatSink;
@@ -39,7 +39,7 @@ public sealed class HeatSinkAssembly
     public event Action<HeatSinkAssembly>? ResultsChanged;
     public event Action<InspectionCapture>? InspectionCaptured;
 
-    public IReadOnlyDictionary<Guid, BoltResult> PcbBoltResults => _pcbBoltResults;
+    public IReadOnlyDictionary<Guid, BoltResult> ShootingBoltResults => _shootingBoltResults;
 
     public IReadOnlyDictionary<Guid, BoltResult> PickupBoltResults => _pickupBoltResults;
 
@@ -72,7 +72,7 @@ public sealed class HeatSinkAssembly
     {
         var results = head switch
         {
-            FasteningHead.Shooting => _pcbBoltResults,
+            FasteningHead.Shooting => _shootingBoltResults,
             FasteningHead.Pickup => _pickupBoltResults,
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
@@ -96,7 +96,7 @@ public sealed class HeatSinkAssembly
         }
         if (TurnsResult != AssemblyResult.Ng)
         {
-            var checkedResults = _pcbBoltResults.Values.Concat(_pickupBoltResults.Values)
+            var checkedResults = _shootingBoltResults.Values.Concat(_pickupBoltResults.Values)
                 .Where(result => result.MinimumTurns.HasValue).ToArray();
             TurnsResult = checkedResults.Length == 0 ? null
                 : checkedResults.All(result => result.TurnsResult == AssemblyResult.Ok)

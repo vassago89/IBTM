@@ -4,17 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Core;
-using IBTM.Hantas;
-using IBTM.Device;
-using IBTM.Virtual;
-using IBTM.Inspection;
-using IBTM.Storage;
-using IBTM.PcbSupply;
-using IBTM.PcbPlacement;
 using IBTM.BoltFastening;
-using IBTM.BoltFeeder;
+using IBTM.Core;
+using IBTM.Device;
+using IBTM.Hantas;
+using IBTM.Inspection;
 using IBTM.NgConveyor;
+using IBTM.PcbPlacement;
+using IBTM.PcbSupply;
+using IBTM.Storage;
 
 namespace IBTM.Virtual.Tests;
 
@@ -167,5 +165,34 @@ internal static class VirtualTest
         }
 
         return true;
+    }
+
+    public static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (!condition())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+
+    public static async Task RunOnStaAsync(Action action)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                action();
+                completion.SetResult();
+            }
+            catch (Exception exception)
+            {
+                completion.SetException(exception);
+            }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 }

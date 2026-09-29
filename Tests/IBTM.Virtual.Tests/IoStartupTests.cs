@@ -18,6 +18,8 @@ using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
+using static IBTM.Virtual.Tests.VirtualTest;
+
 namespace IBTM.Virtual.Tests;
 
 public sealed class IoStartupTests
@@ -2239,13 +2241,6 @@ public sealed class IoStartupTests
             .AddSingleton<StartupIo>()
             .AddSingleton<IIoService>(provider => provider.GetRequiredService<StartupIo>())
             .BuildServiceProvider();
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (!condition())
-            await Task.Delay(10, timeout.Token);
     }
 
     // Physical I/O starts closed; the regular VirtualIoService starts ready and

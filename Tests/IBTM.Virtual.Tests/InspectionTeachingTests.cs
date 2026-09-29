@@ -8,8 +8,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Threading;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.Storage;
@@ -266,74 +266,62 @@ public sealed class InspectionTeachingTests
         await recipes.LoadAsync("Inspection");
         var editor = new InspectionTeachingViewModel(store, recipes, new InspectionImages(store, NullLogger<InspectionImages>.Instance), new(), NullLogger<InspectionTeachingViewModel>.Instance);
         await editor.LoadRecipeCommand.ExecuteAsync(null);
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
+        await VirtualTest.RunOnStaAsync(() =>
         {
-            try
+            var panel = new StackPanel();
+            var root = new UserControl { DataContext = editor, BindingGroup = new BindingGroup { Name = "InspectionInputs" }, Content = panel };
+            var list = new ListBox();
+            list.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(editor.Points)));
+            list.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedItemProperty,
+                new Binding(nameof(editor.SelectedPoint)) { BindingGroupName = null });
+            var threshold = new TextBox();
+            threshold.SetBinding(TextBox.TextProperty, new Binding("Preview.BrightnessThreshold")
             {
-                var panel = new StackPanel();
-                var root = new UserControl { DataContext = editor, BindingGroup = new BindingGroup { Name = "InspectionInputs" }, Content = panel };
-                var list = new ListBox();
-                list.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(editor.Points)));
-                list.SetBinding(System.Windows.Controls.Primitives.Selector.SelectedItemProperty,
-                    new Binding(nameof(editor.SelectedPoint)) { BindingGroupName = null });
-                var threshold = new TextBox();
-                threshold.SetBinding(TextBox.TextProperty, new Binding("Preview.BrightnessThreshold")
-                {
-                    BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
-                });
-                var minimum = new TextBox();
-                minimum.SetBinding(TextBox.TextProperty, new Binding("Preview.MinimumBrightPercent")
-                {
-                    BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
-                });
-                var matrixThreshold = new TextBox();
-                matrixThreshold.SetBinding(TextBox.TextProperty, new Binding("Preview.DataMatrixThreshold")
-                {
-                    BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
-                });
-                var inverted = new CheckBox();
-                inverted.SetBinding(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
-                    new Binding("DataMatrix.TryInverted") { BindingGroupName = null });
-                panel.Children.Add(list);
-                panel.Children.Add(threshold);
-                panel.Children.Add(minimum);
-                panel.Children.Add(matrixThreshold);
-                panel.Children.Add(inverted);
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                Assert.Equal("51", matrixThreshold.Text);
-                Assert.True(inverted.IsChecked);
-                inverted.IsChecked = false;
-                Assert.False(editor.Draft.BoltInspection.DataMatrix1.TryInverted);
-                matrixThreshold.Text = "73";
-                list.SelectedItem = editor.Points.Single(point => point.IsDataMatrix && point.HeatSink == HeatSinkSlot.HeatSink2);
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                Assert.Equal("180", matrixThreshold.Text);
-                Assert.Equal(73, editor.Draft.BoltInspection.DataMatrix1.BinaryThreshold);
-                Assert.False(inverted.IsChecked);
-                list.SelectedItem = editor.Points.Single(point => point.Bolt?.Id == VirtualTest.BoltId(1));
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                Assert.Equal(VirtualTest.BoltId(1), editor.SelectedPoint!.Bolt!.Id);
-                Assert.Equal("91", threshold.Text);
-                Assert.Equal("25", minimum.Text);
-                threshold.Text = "103";
-                list.SelectedItem = editor.Points.Single(point => point.Bolt?.Id == VirtualTest.BoltId(2));
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                Assert.Equal(VirtualTest.BoltId(2), editor.SelectedPoint!.Bolt!.Id);
-                Assert.Equal("172", threshold.Text);
-                Assert.Equal("75", minimum.Text);
-                Assert.Equal(103, editor.Draft.Pcb.BoltPoints[0].BrightnessThreshold);
-                GC.KeepAlive(root);
-                completion.SetResult();
-            }
-            catch (Exception exception)
+                BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+            });
+            var minimum = new TextBox();
+            minimum.SetBinding(TextBox.TextProperty, new Binding("Preview.MinimumBrightPercent")
             {
-                completion.SetException(exception);
-            }
-        }) { IsBackground = true };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+            });
+            var matrixThreshold = new TextBox();
+            matrixThreshold.SetBinding(TextBox.TextProperty, new Binding("Preview.DataMatrixThreshold")
+            {
+                BindingGroupName = "InspectionInputs", UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+            });
+            var inverted = new CheckBox();
+            inverted.SetBinding(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+                new Binding("DataMatrix.TryInverted") { BindingGroupName = null });
+            panel.Children.Add(list);
+            panel.Children.Add(threshold);
+            panel.Children.Add(minimum);
+            panel.Children.Add(matrixThreshold);
+            panel.Children.Add(inverted);
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Assert.Equal("51", matrixThreshold.Text);
+            Assert.True(inverted.IsChecked);
+            inverted.IsChecked = false;
+            Assert.False(editor.Draft.BoltInspection.DataMatrix1.TryInverted);
+            matrixThreshold.Text = "73";
+            list.SelectedItem = editor.Points.Single(point => point.IsDataMatrix && point.HeatSink == HeatSinkSlot.HeatSink2);
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Assert.Equal("180", matrixThreshold.Text);
+            Assert.Equal(73, editor.Draft.BoltInspection.DataMatrix1.BinaryThreshold);
+            Assert.False(inverted.IsChecked);
+            list.SelectedItem = editor.Points.Single(point => point.Bolt?.Id == VirtualTest.BoltId(1));
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Assert.Equal(VirtualTest.BoltId(1), editor.SelectedPoint!.Bolt!.Id);
+            Assert.Equal("91", threshold.Text);
+            Assert.Equal("25", minimum.Text);
+            threshold.Text = "103";
+            list.SelectedItem = editor.Points.Single(point => point.Bolt?.Id == VirtualTest.BoltId(2));
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Assert.Equal(VirtualTest.BoltId(2), editor.SelectedPoint!.Bolt!.Id);
+            Assert.Equal("172", threshold.Text);
+            Assert.Equal("75", minimum.Text);
+            Assert.Equal(103, editor.Draft.Pcb.BoltPoints[0].BrightnessThreshold);
+            GC.KeepAlive(root);
+        });
     }
 
     [Fact]

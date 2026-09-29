@@ -662,8 +662,8 @@ public sealed class PcbPlacementStateSafetyTests
             IMotionFeedback feedback = Motion;
             if (probeFeedback)
             {
-                feedback = System.Reflection.DispatchProxy.Create<IXyMotion, MachineLifecycleTests.ScopedMotionProbe>();
-                FeedbackProbe = (MachineLifecycleTests.ScopedMotionProbe)feedback;
+                feedback = System.Reflection.DispatchProxy.Create<IXyMotion, MachineTest.ScopedMotionProbe>();
+                FeedbackProbe = (MachineTest.ScopedMotionProbe)feedback;
                 FeedbackProbe.Motion = Motion;
                 FeedbackProbe.ReportReady = true;
             }
@@ -686,7 +686,7 @@ public sealed class PcbPlacementStateSafetyTests
         public VirtualMotionService Motion { get; }
         public ConveyorStation Work { get; }
         public PcbPlacer Placer { get; }
-        public MachineLifecycleTests.ScopedMotionProbe? FeedbackProbe { get; }
+        public MachineTest.ScopedMotionProbe? FeedbackProbe { get; }
         public SupplyFeedback Supply { get; }
 
         public async Task ReceiveAsync()

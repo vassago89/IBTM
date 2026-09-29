@@ -481,16 +481,16 @@ public sealed class InspectionTests
         Assert.True(MotionService.IsAt(inspector.Motion.Feedback, taughtPosition)); // ROI pixels do not alter the taught camera XY.
         Assert.Equal(fov.Region, capturedFov.Region);
         Assert.NotEmpty(capturedFov.Frame.Pixels);
-        Assert.True(inspector.HasPosition(bolt));
+        Assert.NotNull(bolt.InspectionPosition);
         Assert.True(inspector.HasRegion(bolt));
         fov.Region = new(310, 30, 60, 80);
-        Assert.True(inspector.HasPosition(bolt));
+        Assert.NotNull(bolt.InspectionPosition);
         Assert.False(inspector.HasRegion(bolt));
         movements = 0;
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.InspectAsync(bolt));
         Assert.Equal(0, movements);
         fov.Region = null;
-        Assert.True(inspector.HasPosition(bolt));
+        Assert.NotNull(bolt.InspectionPosition);
         Assert.False(inspector.HasRegion(bolt));
         movements = 0;
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.InspectAsync(bolt));
@@ -515,6 +515,13 @@ public sealed class InspectionTests
         movements = 0;
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None));
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None));
+        Assert.Equal(0, movements);
+
+        fov.Region = new(180, 40, 80, 80);
+        recipes.Current.CarrierImages.Add(new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1 });
+        Assert.False(inspector.HasBarcodePosition(HeatSinkSlot.HeatSink1));
+        Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None));
         Assert.Equal(0, movements);
     }
 

@@ -66,7 +66,7 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
         var directory = _settings.Directory;
         var initial = new PcbRecord(0, createdAt, createdAt, recipe.Name, assembly.HeatSink,
             assembly.PcbBarcode, assembly.PcbBarcodeResult, assembly.FasteningResult, assembly.InspectionResult,
-            assembly.PcbBoltResults.ToDictionary(), assembly.PickupBoltResults.ToDictionary(),
+            assembly.ShootingBoltResults.ToDictionary(), assembly.PickupBoltResults.ToDictionary(),
             assembly.BoltPresenceResults.ToDictionary(),
             bolts.Select(bolt => bolt.Id).ToArray())
         {
@@ -89,7 +89,7 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
                 FasteningResult = source.FasteningResult,
                 InspectionResult = source.InspectionResult,
                 TurnsResult = source.TurnsResult,
-                PcbBoltResults = source.PcbBoltResults.ToDictionary(),
+                ShootingBoltResults = source.ShootingBoltResults.ToDictionary(),
                 PickupBoltResults = source.PickupBoltResults.ToDictionary(),
                 BoltPresenceResults = source.BoltPresenceResults.ToDictionary(),
             };

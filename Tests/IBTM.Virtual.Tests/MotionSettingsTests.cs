@@ -1,13 +1,11 @@
 using System;
 using System.ComponentModel;
 using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Threading;
 using IBTM.Device;
-using IBTM.Virtual;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
@@ -68,85 +66,61 @@ public sealed class MotionSettingsTests
     [Fact]
     public async Task ZTimeBindingAcceptsIndependentValuesAndBlankFallback()
     {
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
+        await VirtualTest.RunOnStaAsync(() =>
         {
-            try
+            var settings = new MotionSettings { AccelerationSeconds = 1, DecelerationSeconds = 1 };
+            foreach (var property in new[] { nameof(settings.ZAccelerationSeconds), nameof(settings.ZDecelerationSeconds) })
             {
-                var settings = new MotionSettings { AccelerationSeconds = 1, DecelerationSeconds = 1 };
-                foreach (var property in new[] { nameof(settings.ZAccelerationSeconds), nameof(settings.ZDecelerationSeconds) })
+                var input = new TextBox();
+                input.SetBinding(TextBox.TextProperty, new Binding(property)
                 {
-                    var input = new TextBox();
-                    input.SetBinding(TextBox.TextProperty, new Binding(property)
-                    {
-                        Source = settings,
-                        TargetNullValue = string.Empty,
-                        UpdateSourceTrigger = UpdateSourceTrigger.LostFocus,
-                        ValidatesOnDataErrors = true,
-                    });
-                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                    Assert.Equal(string.Empty, input.Text);
-                    input.Text = "0";
-                    input.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
-                    Assert.True(Validation.GetHasError(input));
-                    input.Text = "0.2";
-                    input.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
-                    Assert.False(Validation.GetHasError(input));
-                    Assert.Equal(0.2, (double?)typeof(MotionSettings).GetProperty(property)!.GetValue(settings));
-                    input.Text = string.Empty;
-                    input.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
-                    Assert.False(Validation.GetHasError(input));
-                    Assert.Null(typeof(MotionSettings).GetProperty(property)!.GetValue(settings));
-                }
-                Assert.Equal(1, settings.AccelerationSeconds);
-                Assert.Equal(1, settings.DecelerationSeconds);
-                done.SetResult();
+                    Source = settings,
+                    TargetNullValue = string.Empty,
+                    UpdateSourceTrigger = UpdateSourceTrigger.LostFocus,
+                    ValidatesOnDataErrors = true,
+                });
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                Assert.Equal(string.Empty, input.Text);
+                input.Text = "0";
+                input.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+                Assert.True(Validation.GetHasError(input));
+                input.Text = "0.2";
+                input.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+                Assert.False(Validation.GetHasError(input));
+                Assert.Equal(0.2, (double?)typeof(MotionSettings).GetProperty(property)!.GetValue(settings));
+                input.Text = string.Empty;
+                input.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
+                Assert.False(Validation.GetHasError(input));
+                Assert.Null(typeof(MotionSettings).GetProperty(property)!.GetValue(settings));
             }
-            catch (Exception exception)
-            {
-                done.SetException(exception);
-            }
+            Assert.Equal(1, settings.AccelerationSeconds);
+            Assert.Equal(1, settings.DecelerationSeconds);
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]
     public async Task InvalidSpeedBindingShowsSavedAndEditedErrorsUntilCorrected()
     {
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
+        await VirtualTest.RunOnStaAsync(() =>
         {
-            try
+            var settings = new MotionSettings { ZSpeed = 0 };
+            var input = new TextBox();
+            input.SetBinding(TextBox.TextProperty, new Binding(nameof(settings.ZSpeed))
             {
-                var settings = new MotionSettings { ZSpeed = 0 };
-                var input = new TextBox();
-                input.SetBinding(TextBox.TextProperty, new Binding(nameof(settings.ZSpeed))
-                {
-                    Source = settings,
-                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
-                    ValidatesOnDataErrors = true,
-                });
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                Assert.True(Validation.GetHasError(input));
-                Assert.Equal("0", input.Text);
-                input.Text = "-1";
-                Assert.True(Validation.GetHasError(input));
-                Assert.Equal(-1, settings.ZSpeed);
-                input.Text = "25";
-                Assert.False(Validation.GetHasError(input));
-                Assert.Equal(25, settings.ZSpeed);
-                done.SetResult();
-            }
-            catch (Exception exception)
-            {
-                done.SetException(exception);
-            }
+                Source = settings,
+                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+                ValidatesOnDataErrors = true,
+            });
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Assert.True(Validation.GetHasError(input));
+            Assert.Equal("0", input.Text);
+            input.Text = "-1";
+            Assert.True(Validation.GetHasError(input));
+            Assert.Equal(-1, settings.ZSpeed);
+            input.Text = "25";
+            Assert.False(Validation.GetHasError(input));
+            Assert.Equal(25, settings.ZSpeed);
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]

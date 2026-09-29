@@ -981,7 +981,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public bool HasBarcodePosition(HeatSinkSlot pcb)
     {
-        return _recipes.Current.CarrierImages.Count(fov => fov.IsBarcode && fov.HeatSink == pcb && fov.Center is not null) == 1;
+        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsBarcode && fov.HeatSink == pcb).ToArray();
+        return fovs.Length == 1 && fovs[0].Center is not null;
     }
 
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
@@ -1043,11 +1044,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         var text = await Task.Run(() => DataMatrixReader.Read(image, settings.Region, settings.Decoder), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         return new(null, capturedAt, image, settings.Region, !string.IsNullOrEmpty(text), Barcode: text);
-    }
-
-    public bool HasPosition(BoltPoint point)
-    {
-        return point.InspectionPosition is not null;
     }
 
     public bool HasRegion(BoltPoint point)

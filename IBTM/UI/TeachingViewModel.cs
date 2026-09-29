@@ -538,7 +538,7 @@ public partial class TeachingViewModel : ObservableObject
             return Recipes.Current.CarrierImages.Count == 0
                 ? null
                 : FilteredPoints.FirstOrDefault(
-                    point => point.Position.Bolt is { } bolt && !Inspection.HasPosition(bolt));
+                    point => point.Position.Bolt is { InspectionPosition: null });
         }
     }
 

@@ -166,7 +166,7 @@ runnable transfers (including infeed) take priority: raise S3, finish those tran
 then lower S3 for inspection. After inspection the gantry returns to its separately taught
 waiting position. An OK carrier discharges immediately if rear ready. Otherwise Inspection
 moves to the S3 pickup position and raises S3 for waiting or NG pickup.
-`GetNextTransfer` selects transfers; `GetNextStep` applies these S3 conditions.
+`NextTransfer` selects transfers; `GetNextStep` applies these S3 conditions.
 
 Only the backup plates participating in a future transfer are lowered. Before
 lowering the source carrier onto the belt, the destination must have confirmed

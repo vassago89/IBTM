@@ -46,7 +46,9 @@ Data Matrix 판독 옵션(TryHarder, TryInverted, AutoRotate, PureBarcode, 선�
 | `Create...()` | 객체 생성 | `ConveyorStation.CreateInspection(io)` |
 | 동사 + `Async()` | 장치 동작 또는 비동기 대기 | `RunAsync()`, `MoveToCarrierAsync()`, `WaitForChangeAsync()` |
 
-각 유닛의 기본 클래스 파일에서 `RunAsync()` → `GetNextStep()` → `ExecuteStepAsync()`를 따라간다.
+각 유닛의 기본 클래스 파일에서 `RunAsync()` → 다음 상태 선택 → `ExecuteStepAsync()`를 따라간다.
+볼트 체결은 `NextStep`, 메인 컨베이어의 이송 우선순위는 `NextTransfer` 속성에서 판단한다.
+Repeat 등 호출 인자를 받는 유닛은 `GetNextStep(...)` 메서드를 사용한다.
 현재 실행 단계는 `Step`으로 확인한다. 단계 조회는 장치를 움직이거나 실행 이력을 바꾸지 않는다.
 반입·S1→S2·S2→S3는 `MainConveyor.cs`의 `TransferAsync()`에서 따라간다.
 메인 컨베이어 역복귀는 `ReturnToStartAsync()`에서 위치 확인·지지대 하강·역회전·입구 감지를 이어서 실행한다.
@@ -563,7 +565,7 @@ HS2 감지·추가 밀착 → 정지 → 결과 전달 → S1/S2 착좌 순서�
 지역 변수 `departingJob`의 결과는 모터 OFF 뒤 도착지에 전달한다. 취소 시 이벤트를 해제하므로
 늦게 들어온 도착 신호가 이전 결과를 다른 캐리어에 붙이지 않는다. 지지 출력은 유지한다.
 `Step`은 실행 중인 명령만 표시하고 종료·취소·오류 시 지운다. 재개 이력이 아니다.
-`GetNextTransfer`의 우선순위는 S3 배출 → S2→S3 → S1→S2 → 신규 반입이다.
+`NextTransfer`의 우선순위는 S3 배출 → S2→S3 → S1→S2 → 신규 반입이다.
 S1 작업 완료 대기는 `WaitingForPcbPlacement`, S2 작업 완료 대기는 `WaitingForBoltFastening`으로 표시한다.
 정방향 입구 감지·목적지 HS2 도착·배출 중 후단 Ready OFF 대기에는 `ConveyorSettings.TransferTimeoutSeconds`를 적용한다.
 Repeat 역송에는 이 시간제한을 적용하지 않는다. 입구 센서 ON 콜백에서 즉시 RUN을 OFF하고 종료하며 추가 밀착 시간은 없다.
@@ -748,7 +750,7 @@ dotnet test Tests/IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-r
 ```
 
 WPF 화면 바인딩/명령 수명 회귀는
-`OutputWindowThreadingTests.BoundConveyorButtonsUpdateAcrossOffCloseAndReopen`에
+`UiBindingTests.BindingsAndWindowsHandleBackgroundChangesFailuresAndReopening`에
 기존 티칭·FOV 검사도 묶여 있다. WPF Application을 여러 개 만드는 새 테스트 호스트를 추가하지 않는다.
 AJIN/AlphaMotion 래퍼는 각 SDK 대역 테스트 프로젝트에서 해당 테스트만 선택한다.
 장비 코드 수정은 `IBTM.slnx`, 테스트 프로젝트를 IDE에서 열 때는 `Tests/IBTM.Tests.slnx`를 사용한다.
