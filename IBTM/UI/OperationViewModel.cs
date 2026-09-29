@@ -169,8 +169,6 @@ public partial class OperationViewModel : ObservableObject
 
     public Point? PickupHeadMapPosition => _map.GetFasteningPosition(Fastening.Motion.Position, FasteningHead.Pickup);
 
-    public Point? BoltPickupFeederMapPosition => _map.PickupFeederPosition;
-
     public Point? InspectionGantryMapPosition => _map.GetInspectionPosition(Inspection.Motion.Position);
 
     public Point? NgPickupMapPosition => _map.GetNgPickupPosition(Inspection.Motion.Position);
@@ -548,7 +546,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(PickupHeadMapPosition));
         OnPropertyChanged(nameof(InspectionGantryMapPosition));
         OnPropertyChanged(nameof(NgPickupMapPosition));
-        OnPropertyChanged(nameof(BoltPickupFeederMapPosition));
         OnPcbSupplyChanged();
         OnPcbPlacementChanged();
         OnBoltFasteningChanged();

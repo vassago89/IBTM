@@ -115,11 +115,11 @@
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="52"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                             <Image Source="{Binding Image}" Width="48" Height="40" Stretch="Uniform"/>
                                             <StackPanel Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}">
-                                                    <Run Text="{Binding Title, Mode=OneWay}"/>
-                                                    <Run Text=" · "/><Run Text="{Binding Verdict, Mode=OneWay}"/>
-                                                </TextBlock>
-                                                <TextBlock Text="{Binding Details}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Details}"
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Verdict}" FontWeight="SemiBold" Margin="6,0,0,0"/>
+                                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}"/>
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Details}" TextWrapping="Wrap"
                                                     FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
                                                 <TextBlock Text="{Binding Error}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource AccentAmberBrush}"/>
                                             </StackPanel>

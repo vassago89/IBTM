@@ -276,9 +276,6 @@ Operation failed. Check controller status.</value>
   <data name="bolt fastening z" xml:space="preserve">
     <value>Bolt Fastening Z</value>
   </data>
-  <data name="bolt fastening · z" xml:space="preserve">
-    <value>Bolt Fastening · Z</value>
-  </data>
   <data name="bolt feeder" xml:space="preserve">
     <value>Bolt Feeder</value>
   </data>
@@ -1845,9 +1842,6 @@ Operation failed. Check controller status.</value>
   <data name="placement z: conveyor clearance required" xml:space="preserve">
     <value>Placement Z: conveyor clearance required</value>
   </data>
-  <data name="placement · z" xml:space="preserve">
-    <value>Placement · Z</value>
-  </data>
   <data name="placing and pressing pcb" xml:space="preserve">
     <value>Placing / pressing PCB</value>
   </data>
@@ -2610,9 +2604,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="supply · ?" xml:space="preserve">
     <value>SUPPLY · ?</value>
-  </data>
-  <data name="supply · z" xml:space="preserve">
-    <value>Supply · Z</value>
   </data>
   <data name="switch to manual" xml:space="preserve">
     <value>Switch to MANUAL</value>

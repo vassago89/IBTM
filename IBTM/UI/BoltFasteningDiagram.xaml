@@ -97,21 +97,9 @@
                 <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
             </Grid>
 
-            <Grid Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="{x:Static ui:MachineDiagramLayout.PickupFeederHeight}">
-                <Grid.Style>
-                    <Style TargetType="Grid">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding BoltPickupFeederMapPosition}" Value="{x:Null}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Grid.Style>
-                <Grid.RenderTransform>
-                    <TranslateTransform X="{Binding BoltPickupFeederMapPosition.X, TargetNullValue=0, FallbackValue=0}" Y="{Binding BoltPickupFeederMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
-                </Grid.RenderTransform>
+            <Grid Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="314"
+                Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="{x:Static ui:MachineDiagramLayout.PickupFeederHeight}">
                 <Border Style="{StaticResource DeviceBodyStyle}"/>
-                <!-- Keep the detected bolt at the mapped pickup point; the status extends to its right. -->
                 <Grid Width="{x:Static ui:MachineDiagramLayout.PickupFeederWidth}" HorizontalAlignment="Left">
                     <Border Height="26" Margin="12,0" VerticalAlignment="Center"
                         Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource MachineStructureBorderBrush}"

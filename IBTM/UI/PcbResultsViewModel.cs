@@ -84,6 +84,12 @@ public partial class PcbResultsViewModel : ObservableObject
             SelectedImage = Images.FirstOrDefault(image => image.Record.BoltId == value.BoltId);
     }
 
+    partial void OnSelectedImageChanged(PcbInspectionImageItem? value)
+    {
+        if (value is not null)
+            SelectedBolt = BoltResults.FirstOrDefault(bolt => bolt.BoltId == value.Record.BoltId);
+    }
+
     public void RefreshImages()
     {
         _ = LoadImagesCommand.ExecuteAsync(null);

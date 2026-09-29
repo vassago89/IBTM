@@ -99,7 +99,7 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type ui:TeachingPoint}">
                                 <StackPanel Margin="4,4">
-                                    <TextBlock TextTrimming="CharacterEllipsis" FontWeight="SemiBold">
+                                    <TextBlock TextWrapping="Wrap" FontWeight="SemiBold">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Text" Value="{Binding BoltLabel}"/>

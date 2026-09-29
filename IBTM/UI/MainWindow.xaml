@@ -193,7 +193,7 @@
                                                   Converter={StaticResource UiTextConverter}}"
                             ToolTip="{Binding Operation.AlarmDetail}"
                             Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}" FontSize="16"
-                            FontWeight="SemiBold" MaxWidth="180" TextTrimming="CharacterEllipsis"
+                            FontWeight="SemiBold" MaxWidth="180" TextWrapping="Wrap"
                             Visibility="{Binding Operation.HasAlarm,
                                                         Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
@@ -265,7 +265,8 @@
                         </Grid>
                     </StackPanel>
 
-                    <WrapPanel Grid.Column="6" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <WrapPanel Grid.Column="6" VerticalAlignment="Center" HorizontalAlignment="Right"
+                        Visibility="{Binding Operation.State.Available, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                             <Ellipse Tag="{Binding Operation.State.ServoPowerOn}" Style="{StaticResource SetupLedStyle}"/>
                             <TextBlock>

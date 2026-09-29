@@ -192,6 +192,16 @@ public sealed class PcbHistoryTests
         await details.LoadImagesCommand.ExecuteAsync(null);
         Assert.Equal(bolts[4].Id, details.SelectedImage?.Record.BoltId);
         Assert.Equal("고정", details.SelectedImage?.Title);
+        var selectedImage = details.SelectedImage;
+        details.SelectedBolt = details.BoltResults[0];
+        Assert.Null(details.SelectedImage);
+        details.SelectedImage = selectedImage;
+        Assert.Equal(bolts[4].Id, details.SelectedBolt?.BoltId);
+        var dataMatrix = selectedImage! with { Record = selectedImage.Record with { BoltId = null } };
+        details.SelectedImage = dataMatrix;
+        Assert.Null(details.SelectedBolt);
+        Assert.Same(dataMatrix, details.SelectedImage);
+        details.SelectedImage = selectedImage;
 
         store.SaveRecipe(new Recipe { Name = "Other" });
         await recipes.LoadAsync("Other");

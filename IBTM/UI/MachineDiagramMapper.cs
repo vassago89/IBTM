@@ -24,7 +24,6 @@ public sealed class MachineDiagramMapper
     private static readonly Point s_placementHandoff;
     private static readonly Point s_placementHeatSink1;
     private static readonly Point s_placementHeatSink2;
-    private static readonly Point s_pickupFeederOffset;
 
     static MachineDiagramMapper()
     {
@@ -46,9 +45,6 @@ public sealed class MachineDiagramMapper
         s_placementHeatSink2 = MachineDiagramLayout.Offset(
             MachineDiagramLayout.PlacementHeatSink2,
             MachineDiagramLayout.PlacementToolCenter);
-        s_pickupFeederOffset = new Point(
-            -MachineDiagramLayout.PickupFeederWidth / 2,
-            -MachineDiagramLayout.PickupFeederHeight / 2);
     }
 
     public MachineDiagramMapper(
@@ -168,19 +164,6 @@ public sealed class MachineDiagramMapper
             ? MapFastening(x, y, head, head == FasteningHead.Pickup
                 ? MachineDiagramLayout.PickupToolCenter : MachineDiagramLayout.ShootingToolCenter)
             : null;
-    }
-
-    public Point? PickupFeederPosition
-    {
-        get
-        {
-            var point = _fastening.PickupPosition;
-            if (MapFastening(point.X, point.Y, FasteningHead.Pickup, MachineDiagramLayout.PickupToolCenter) is not { } mapped)
-                return null;
-            return new Point(
-                mapped.X + MachineDiagramLayout.PickupToolCenter.X + s_pickupFeederOffset.X,
-                mapped.Y + MachineDiagramLayout.PickupToolCenter.Y + s_pickupFeederOffset.Y);
-        }
     }
 
     public Point? GetFasteningTargetPosition(BoltPoint bolt)

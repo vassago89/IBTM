@@ -19,8 +19,21 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="280"/>
+            <RowDefinition Height="2*"/>
+            <RowDefinition MinHeight="180">
+                <RowDefinition.Style>
+                    <Style TargetType="RowDefinition">
+                        <Setter Property="Height" Value="*"/>
+                        <Setter Property="MaxHeight" Value="280"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ElementName=ProtocolTabs, Path=SelectedIndex}" Value="1">
+                                <Setter Property="Height" Value="3*"/>
+                                <Setter Property="MaxHeight" Value="800"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </RowDefinition.Style>
+            </RowDefinition>
         </Grid.RowDefinitions>
 
         <StackPanel>
@@ -171,33 +184,29 @@
             </Border>
         </Grid>
 
-        <TabControl Grid.Row="3" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}">
+        <TabControl x:Name="ProtocolTabs" Grid.Row="3" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}">
         <TabItem Header="{ui:Text 'Frame Log'}">
         <Border Padding="18,14" Style="{StaticResource CardStyle}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <CheckBox Content="{ui:Text 'Pause display'}" IsChecked="{Binding IsLogPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                        <Button Content="{ui:Text 'Copy'}" Command="{Binding CopyLogCommand}" Padding="12,4" Margin="0,0,8,0"
-                            Style="{StaticResource SecondaryButtonStyle}"/>
-                        <Button Content="{ui:Text 'Copy all'}" Command="{Binding CopyAllLogCommand}" Padding="12,4" Margin="0,0,8,0"
-                            Style="{StaticResource SecondaryButtonStyle}"/>
-                        <Button Content="{ui:Text 'Clear Display'}" Command="{Binding ClearLogCommand}" Padding="12,4" Style="{StaticResource SecondaryButtonStyle}"/>
-                    </StackPanel>
-                    <TextBlock Text="{ui:Text 'FRAME LOG'}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center"/>
-                </DockPanel>
-                <ui:LogTextBox x:Name="FrameLogBox" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2" Margin="0,8,0,0"
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <CheckBox Content="{ui:Text 'Pause display'}" IsChecked="{Binding IsLogPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                    <Button Content="{ui:Text 'Copy'}" Command="{Binding CopyLogCommand}" Padding="12,4" Margin="0,0,8,0"
+                        Style="{StaticResource SecondaryButtonStyle}"/>
+                    <Button Content="{ui:Text 'Copy all'}" Command="{Binding CopyAllLogCommand}" Padding="12,4" Margin="0,0,8,0"
+                        Style="{StaticResource SecondaryButtonStyle}"/>
+                    <Button Content="{ui:Text 'Clear Display'}" Command="{Binding ClearLogCommand}" Padding="12,4" Style="{StaticResource SecondaryButtonStyle}"/>
+                </StackPanel>
+                <ui:LogTextBox x:Name="FrameLogBox" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="1" Margin="0,8,0,0"
                     Text="{Binding FrameLogText, Mode=OneWay}"
                     IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
                     SelectionText="{Binding SelectedLogText, Mode=TwoWay}" IsPaused="{Binding IsLogPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap"
                     Padding="8" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
-                <TextBlock Grid.Row="3" Text="{Binding ClipboardError}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap"/>
+                <TextBlock Grid.Row="2" Text="{Binding ClipboardError}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap"/>
             </Grid>
         </Border>
         </TabItem>
@@ -216,11 +225,17 @@
                     AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                     HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0"
                     Background="{StaticResource ControlBgBrush}" Foreground="{StaticResource TextPrimaryBrush}">
+                    <DataGrid.Resources>
+                        <Style x:Key="ErrorReferenceText" TargetType="TextBlock">
+                            <Setter Property="TextWrapping" Value="Wrap"/>
+                            <Setter Property="Margin" Value="0,4,8,4"/>
+                        </Style>
+                    </DataGrid.Resources>
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="{ui:Text '코드 · 10진수 (16진수)'}" Binding="{Binding CodeText}" Width="180"/>
                         <DataGridTextColumn Header="{ui:Text '분류'}" Binding="{Binding Group, Converter={StaticResource UiTextConverter}}" Width="115"/>
-                        <DataGridTextColumn Header="{ui:Text '의미'}" Binding="{Binding Description, Converter={StaticResource UiTextConverter}}" Width="*"/>
-                        <DataGridTextColumn Header="{ui:Text '확인 / 조치'}" Binding="{Binding Action, Converter={StaticResource UiTextConverter}}" Width="*"/>
+                        <DataGridTextColumn Header="{ui:Text '의미'}" Binding="{Binding Description, Converter={StaticResource UiTextConverter}}" ElementStyle="{StaticResource ErrorReferenceText}" Width="*"/>
+                        <DataGridTextColumn Header="{ui:Text '확인 / 조치'}" Binding="{Binding Action, Converter={StaticResource UiTextConverter}}" ElementStyle="{StaticResource ErrorReferenceText}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>

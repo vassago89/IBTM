@@ -414,7 +414,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
-                    <Border x:Name="Root" Padding="18,8" Background="{StaticResource ControlBgBrush}"
+                    <Border x:Name="Root" Padding="12,8" Background="{StaticResource ControlBgBrush}"
                         BorderBrush="{StaticResource ControlBorderBrush}" BorderThickness="1" CornerRadius="2">
                         <ContentPresenter ContentSource="Header"/>
                     </Border>

@@ -9,7 +9,7 @@
     d:DataContext="{d:DesignInstance Type=ui:MotionDiagnosticsViewModel, IsDesignTimeCreatable=False}"
     Title="{ui:Text 'Motion Monitor'}"
     Width="1240"
-    Height="720"
+    Height="900"
     MinWidth="1120"
     MinHeight="480"
     WindowStartupLocation="CenterOwner"
@@ -109,7 +109,7 @@
         <ListBox Grid.Row="4" ItemsSource="{Binding View}" Style="{StaticResource IoListStyle}">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource FlatListItemStyle}">
-                    <Setter Property="Padding" Value="12,8"/>
+                    <Setter Property="Padding" Value="12,6"/>
                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                 </Style>
             </ListBox.ItemContainerStyle>
