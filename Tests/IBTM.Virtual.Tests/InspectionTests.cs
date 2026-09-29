@@ -18,6 +18,29 @@ namespace IBTM.Virtual.Tests;
 public sealed class InspectionTests
 {
     [Theory]
+    [InlineData(null, false)]
+    [InlineData(10.0, true)]
+    public void CompletedInspectionCannotReleaseAnUnmeasuredRequiredTurnsCheck(double? minimumTurns, bool routeToNg)
+    {
+        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        io.Initialize();
+        using var motion = new VirtualMotionService(new(), new(), hasZ: false);
+        var station = CreateNgTransfer(io, motion);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        var assembly = station.Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordBolt(FasteningHead.Pickup, Guid.NewGuid(), new(true, null)
+        {
+            MinimumTurns = minimumTurns,
+        });
+        assembly.CompleteFastening();
+        assembly.CompleteInspection();
+        station.Station.Complete(station.Station.CurrentJob);
+
+        Assert.Equal(minimumTurns.HasValue ? AssemblyResult.Pending : null, assembly.TurnsResult);
+        Assert.Equal(routeToNg, station.RouteToNg);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task StartupNotificationFailureClearsInspectionRun(bool transferOnly)
@@ -174,6 +197,66 @@ public sealed class InspectionTests
         Assert.Null(station.Step);
         Assert.Null(station.ActivePcb);
         Assert.Null(station.ActiveBolt);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task PcbPresenceChangeDuringInspectionDoesNotCompleteTheOldPointList(bool secondPcbArrives, bool betweenPoints)
+    {
+        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
+        io.Initialize();
+        var recipes = new RecipeManager(OpenMachineStore(), new());
+        recipes.Current.Pcb.BoltPoints = [
+            new() { HeatSink = HeatSinkSlot.HeatSink1, X = 0, Y = 0 },
+            new() { HeatSink = HeatSinkSlot.HeatSink2, X = 0, Y = 0 },
+        ];
+        foreach (var bolt in recipes.Current.Pcb.BoltPoints)
+        {
+            recipes.Current.CarrierImages.Add(new()
+            {
+                IsBarcode = true, HeatSink = bolt.HeatSink, Center = new(), Region = new(0, 0, 20, 20),
+            });
+            recipes.Current.CarrierImages.Add(new()
+            {
+                BoltId = bolt.Id, HeatSink = bolt.HeatSink, Region = new(0, 0, 20, 20),
+            });
+        }
+        var operations = new OperationCancellation();
+        var settings = new InspectionGantrySettings();
+        using var motion = new VirtualMotionService(settings.Motion, operations, hasZ: false);
+        motion.Initialize();
+        var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
+        var carrier = ConveyorStation.CreateInspection(io);
+        var station = new InspectionStation(carrier, motion, new(motion), new NgCarrierConveyor(io, new(), units),
+            operations, settings, new() { WaitingPosition = new(), CarrierPickupPosition = new() }, io, units,
+            new VirtualCamera(() => motion.Position, () => []), new VirtualLightController(), new(), recipes);
+        Assert.True(await station.HomeHorizontalAsync());
+        io.SetInputs(
+            (InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, !secondPcbArrives),
+            (InputIo.InspectionBackupPlateUp, false), (InputIo.InspectionBackupPlateDown, true),
+            (InputIo.InspectionStopperDown, false), (InputIo.InspectionStopperUp, true),
+            (InputIo.NgCarrierPickupUp, true), (InputIo.NgCarrierPickupDown, false),
+            (InputIo.NgCarrierGripperOpen, true), (InputIo.NgCarrierGripperClosed, false));
+        var captures = 0;
+        var recorded = 0;
+        carrier.AssemblyCreated += assembly => assembly.InspectionCaptured += _ =>
+        {
+            if (++recorded == 1 && betweenPoints)
+                io.SetInput(InputIo.InspectionHeatSink2Present, secondPcbArrives);
+        };
+        station.InspectionCaptured += (image, pcb, bolt) =>
+        {
+            if (++captures == 1 && !betweenPoints)
+                io.SetInput(InputIo.InspectionHeatSink2Present, secondPcbArrives);
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => station.RunAsync(stop.Token));
+
+        Assert.False(carrier.Completed);
+        Assert.Equal(betweenPoints ? 1 : 0, recorded);
+        Assert.Equal(1, captures);
     }
 
     [Theory]
@@ -552,15 +635,6 @@ public sealed class InspectionTests
         Assert.Equal(firstBarcode, work.GetAssembly(HeatSinkSlot.HeatSink1).PcbBarcode);
 
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
-        camera.AfterCapture = () =>
-        {
-            if (station.ActiveBolt is null)
-                return;
-            camera.AfterCapture = null;
-            io.SetInput(InputIo.InspectionHeatSink1Present, true);
-            io.SetInput(InputIo.InspectionHeatSink2Present, false);
-            Assert.Equal(HeatSinkSlot.HeatSink2, station.ActiveBolt!.HeatSink);
-        };
         using var cancellation = new CancellationTokenSource();
         var run = station.RunAsync(cancellation.Token);
         Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));

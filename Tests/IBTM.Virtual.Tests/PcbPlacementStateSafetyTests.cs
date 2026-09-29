@@ -16,6 +16,34 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbPlacementStateSafetyTests
 {
     [Fact]
+    public async Task CancelledLiftDoesNotReportMovingAxesOrLowerHandler()
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        using var jogStop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var jogging = rig.Placer.JogAsync(MotionAxis.X, 1, jogStop.Token);
+        try
+        {
+            Assert.True(rig.Motion.IsMoving);
+            var lowered = false;
+            rig.Io.OutputChanged += (output, value) =>
+                lowered |= output == OutputIo.PcbPlacementHandlerDown && value;
+            using var stop = new CancellationTokenSource();
+            stop.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => rig.Placer.SetLiftDownAsync(true, stop.Token));
+
+            Assert.False(lowered);
+            await Assert.ThrowsAsync<MotionInterlockException>(() => rig.Placer.SetLiftDownAsync(true));
+        }
+        finally
+        {
+            jogStop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jogging);
+        }
+    }
+
+    [Fact]
     public async Task RepeatStepKeepsIpmRaisedWithoutDependingOnRunLoopState()
     {
         using var rig = new PlacementRig();
@@ -123,7 +151,7 @@ public sealed class PcbPlacementStateSafetyTests
         var changes = 0;
         rig.Placer.Changed += () => changes++;
 
-        rig.FeedbackProbe!.OverrideState = state => state with { InPosition = false };
+        rig.FeedbackProbe!.OverrideState = (_, state) => state with { InPosition = false };
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
         Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
         rig.FeedbackProbe.OverrideState = null;
@@ -226,6 +254,54 @@ public sealed class PcbPlacementStateSafetyTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => rig.Placer.ExecuteStepAsync(rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token));
         Assert.True(lost);
+        Assert.False(rig.Motion.IsMoving);
+        Assert.False(lowered);
+        Assert.False(released);
+        Assert.Empty(rig.Work.Assemblies);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementStopsBeforeDescentWhenItsHeatSinkDisappears(bool repeat)
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        rig.Io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+        if (repeat)
+            rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        else
+        {
+            await rig.ReceiveAsync();
+            await rig.Placer.ExecuteStepAsync(
+                PcbPlacementState.PreparingPlacement, HeatSinkSlot.HeatSink1, default);
+            rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+        }
+        var startingX = rig.Motion.Position.X;
+        var lost = false;
+        var lowered = false;
+        var released = false;
+        rig.Motion.PositionChanged += (x, y, z) =>
+        {
+            if (!lost && x > startingX + 0.1)
+            {
+                lost = true;
+                rig.Io.SetInput(InputIo.PcbPlacementHeatSink1Present, false);
+            }
+        };
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            lowered |= output == OutputIo.PcbPlacementHandlerDown && on;
+            released |= output == OutputIo.PcbPlacementVacuumEjector && !on;
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Placer.ExecuteStepAsync(
+            repeat ? PcbPlacementState.PickingPcb : PcbPlacementState.PlacingPcb,
+            HeatSinkSlot.HeatSink1, stop.Token, repeat));
+
+        Assert.True(lost);
+        Assert.True(rig.Work.CarrierSeated);
         Assert.False(rig.Motion.IsMoving);
         Assert.False(lowered);
         Assert.False(released);

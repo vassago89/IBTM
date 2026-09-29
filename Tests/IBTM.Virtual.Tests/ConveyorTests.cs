@@ -278,6 +278,50 @@ public sealed class ConveyorTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task TransferStopsWhenDestinationSupportFeedbackIsLost(bool duringSeatingPush)
+    {
+        var io = CreateIo();
+        io.Initialize();
+        var conveyor = CreateConveyor(io,
+            settings: new ConveyorSettings { CarrierStopDelaySeconds = 30 });
+        var pushing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        conveyor.Trace += message =>
+        {
+            if (message.Contains("target=seating push", StringComparison.Ordinal))
+                pushing.TrySetResult();
+        };
+        io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            if (duringSeatingPush)
+            {
+                io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+                await pushing.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            }
+            io.SetInput(duringSeatingPush
+                ? InputIo.PcbPlacementBackupPlateDown : InputIo.PcbPlacementStopperUp, false);
+
+            var error = await Assert.ThrowsAsync<MotionInterlockException>(
+                () => run.WaitAsync(TimeSpan.FromSeconds(1)));
+            Assert.Contains("backup plate DOWN and stopper UP", error.Message);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing
+                | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task StopCancelsCarrierArrivalOrSeatingDelayWithoutRaisingThePlate(bool arrived)
     {
         var io = CreateIo();
@@ -1969,15 +2013,11 @@ public sealed class ConveyorTests
         virtualIo.SetInput(InputIo.InspectionBackupPlateUp, true);
         virtualIo.SetInput(InputIo.InspectionHeatSink1Present, true);
         VirtualTest.SetCarrier(virtualIo, InputIo.InspectionHeatSink1Present, true);
-        var bothSmemaOutputsOn = false;
-        io.OutputChanged += (_, _) => bothSmemaOutputsOn |= io.GetOutput(
-            OutputIo.MainConveyorReadyToFront2)
-            && io.GetOutput(OutputIo.MainConveyorAvailableToRear);
 
         var run = conveyor.RunAsync(cancellation.Token);
         await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, true);
 
-        Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+        await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, true);
 
         virtualIo.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
         await io.WaitForInputAsync(InputIo.PcbPlacementBackupPlateUp, true);
@@ -1987,7 +2027,6 @@ public sealed class ConveyorTests
         Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
         Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
         Assert.True(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
-        Assert.False(bothSmemaOutputsOn);
 
         cancellation.Cancel();
         await run;
@@ -2191,6 +2230,129 @@ public sealed class ConveyorTests
         {
             restartStop.Cancel();
             await restarted.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
+    public async Task FrontReadyRequiresPreparedReceivingStopper()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io);
+        io.Initialize();
+        await conveyor.PrepareEmptyStationsAsync(default);
+        Assert.True(io.GetInput(InputIo.PcbPlacementStopperDown));
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, true);
+            Assert.True(io.GetInput(InputIo.PcbPlacementStopperUp),
+                "Front Ready is ON while S1 stopper is still DOWN.");
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+    }
+
+    [Fact]
+    public async Task FrontReadyAndRearAvailableFollowTheirOwnCarrierConditions()
+    {
+        var (io, conveyor) = await PrepareRearDischargeAsync();
+        io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, true);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+
+            SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, false);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+
+            SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, false);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+
+            SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, true);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+    }
+
+    [Fact]
+    public async Task RearReadyDropBeforeRunMustNotStartMotor()
+    {
+        var (io, conveyor) = await PrepareRearDischargeAsync();
+        io.SetOutput(OutputIo.MainConveyorNormalSpeed, false);
+        var started = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.MainConveyorNormalSpeed && on)
+                io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+            if (output == OutputIo.MainConveyorRun && on)
+                started = true;
+        };
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, false);
+            Assert.False(started, "RUN turned ON after Rear Ready had already turned OFF during motor setup.");
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+    }
+
+    [Fact]
+    public async Task EntryPulseAfterReadyIsNotLost()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io, settings: new ConveyorSettings
+        {
+            TransferTimeoutSeconds = 0.1,
+            CarrierStopDelaySeconds = 0,
+        });
+        io.Initialize();
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.MainConveyorReadyToFront2 && on)
+            {
+                io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+                io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
+            }
+            if (output == OutputIo.MainConveyorRun && on)
+                io.SetInputs((InputIo.PcbPlacementHeatSink1Present, true),
+                    (InputIo.PcbPlacementHeatSink2Present, true));
+        };
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            Assert.True(await WaitUntilAsync(
+                () => run.IsCompleted || io.GetInput(InputIo.PcbPlacementBackupPlateUp),
+                TimeSpan.FromSeconds(2)));
+            if (run.IsCompleted)
+                await run;
+            Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
+        }
+        finally
+        {
+            stop.Cancel();
+            if (!run.IsFaulted)
+                await run.WaitAsync(TimeSpan.FromSeconds(1));
         }
     }
 

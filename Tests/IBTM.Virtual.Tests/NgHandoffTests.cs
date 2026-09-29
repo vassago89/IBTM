@@ -16,6 +16,28 @@ namespace IBTM.Virtual.Tests;
 public sealed class NgHandoffTests
 {
     [Fact]
+    public async Task CancelledLiftDoesNotReportLostGripOrChangeTransferOwnership()
+    {
+        var system = await CreateAsync();
+        using var motion = system.Motion;
+        var transfer = system.Inspection;
+        await transfer.ExecuteTransferAsync(
+            NgTransferDestination.Shuttle, InspectionStationState.PickingCarrier, CancellationToken.None);
+        system.Io.SetInputs(
+            (InputIo.NgCarrierGripperClosed, false), (InputIo.NgCarrierGripperOpen, false));
+        var commanded = false;
+        system.Io.OutputChanged += (output, value) => commanded = true;
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => transfer.SetLiftUpAsync(true, stop.Token));
+
+        Assert.False(commanded);
+        Assert.True(transfer.IsTransferPending);
+        await Assert.ThrowsAsync<MotionInterlockException>(() => transfer.SetLiftUpAsync(true));
+    }
+
+    [Fact]
     public async Task InspectionRepeatEndRequiresActiveHoldingStepAndWakesOnStepChange()
     {
         var system = await CreateAsync();
@@ -69,6 +91,27 @@ public sealed class NgHandoffTests
             next.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => nextEnd);
         }
+    }
+
+    [Fact]
+    public async Task DisabledNgConveyorBlocksProductionHandoffButAllowsInspectionRepeat()
+    {
+        var units = new UnitSettings { MainConveyor = false, NgConveyor = false };
+        var system = await CreateAsync(units);
+        using var motion = system.Motion;
+        var transfer = system.Inspection;
+        transfer.Station.GetAssembly(HeatSinkSlot.HeatSink1)
+            .RecordBoltPresence(VirtualTest.BoltId(1), false);
+        transfer.Station.Complete(transfer.Station.CurrentJob);
+
+        Assert.False(system.Conveyor.IsReceiveAllowed);
+        Assert.Equal(InspectionStationState.WaitingForDestination, transfer.GetNextStep());
+        Assert.Equal(InspectionStationState.PickingCarrier, transfer.GetNextStep(repeat: true));
+        Assert.False(transfer.IsTransferPending);
+
+        units.NgConveyor = true;
+        Assert.True(system.Conveyor.IsReceiveAllowed);
+        Assert.Equal(InspectionStationState.PickingCarrier, transfer.GetNextStep());
     }
 
     [Fact]

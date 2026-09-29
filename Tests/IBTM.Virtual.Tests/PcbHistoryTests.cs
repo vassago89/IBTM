@@ -19,6 +19,102 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbHistoryTests
 {
+    [Theory]
+    [InlineData(3599, true, true, AssemblyResult.Ng, AssemblyResult.Ng)]
+    [InlineData(3600, true, true, AssemblyResult.Ok, AssemblyResult.Ok)]
+    [InlineData(3601, true, false, AssemblyResult.Ok, AssemblyResult.Ng)]
+    [InlineData(3600, false, true, AssemblyResult.Ok, AssemblyResult.Ng)]
+    public void MinimumTurnsIsIndependentOfControllerAndVisionResults(
+        double angle, bool controllerOk, bool visionOk, AssemblyResult turnsResult, AssemblyResult finalResult)
+    {
+        var id = Guid.NewGuid();
+        var result = new BoltResult(controllerOk, 8)
+        {
+            MinimumTurns = 10,
+            Controller = new("COM9", 1, 1, 1000, 1, 8, 800, 100, 200, angle, 1, 0, 0, 1, 0, null),
+        };
+        var assembly = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordBolt(FasteningHead.Pickup, id, result);
+        assembly.CompleteFastening();
+        assembly.RecordBoltPresence(id, visionOk);
+        assembly.CompleteInspection();
+
+        Assert.Equal(angle / 360, result.TotalTurns);
+        Assert.Equal(turnsResult, result.TurnsResult);
+        Assert.Equal(turnsResult, assembly.TurnsResult);
+        Assert.Equal(controllerOk ? AssemblyResult.Ok : AssemblyResult.Ng, assembly.FasteningResult);
+        Assert.Equal(visionOk ? AssemblyResult.Ok : AssemblyResult.Ng, assembly.InspectionResult);
+        Assert.Equal(finalResult, assembly.Result);
+    }
+
+    [Fact]
+    public void MissingMeasurementAndDisabledTurnsCheckAreNotMeasuredOk()
+    {
+        var measured = new BoltResult(true, 8)
+        {
+            Controller = new("COM9", 1, 1, 1000, 1, 8, 800, 100, 200, 3600, 1, 0, 0, 1, 0, null),
+        };
+        Assert.Null(measured.TurnsResult);
+        var missing = measured with { MinimumTurns = 10, Controller = null };
+        Assert.Null(missing.TotalTurns);
+        Assert.Equal(AssemblyResult.Pending, missing.TurnsResult);
+        var dryRun = measured with { MinimumTurns = 10, Source = BoltResultSource.DryRun };
+        Assert.Null(dryRun.TotalTurns);
+        Assert.Equal(AssemblyResult.Pending, dryRun.TurnsResult);
+
+        var assembly = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordBolt(FasteningHead.Pickup, Guid.NewGuid(), missing);
+        assembly.CompleteFastening();
+        assembly.CompleteInspection();
+        Assert.Equal(AssemblyResult.Pending, assembly.TurnsResult);
+        Assert.Equal(AssemblyResult.Pending, assembly.Result);
+    }
+
+    [Fact]
+    public async Task MinimumTurnsCriteriaAndIndependentVerdictsSurviveHistoryReload()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        var settings = new MachineSettings();
+        settings.PcbHistory.Directory = Path.Combine(Path.GetTempPath(), $"PCB-turns-{Guid.NewGuid():N}");
+        await using var services = new ServiceCollection().AddSingleton(store)
+            .AddIbtmApplication(settings).BuildServiceProvider();
+        var recipe = services.GetRequiredService<RecipeManager>().Current;
+        recipe.Pcb.BoltPoints = [new() { MinimumTurns = 3 }, new() { Head = FasteningHead.Pickup, MinimumTurns = 10 }];
+        var history = services.GetRequiredService<PcbHistory>();
+        var assembly = services.GetRequiredService<BoltFasteningStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        foreach (var bolt in recipe.Pcb.BoltPoints)
+        {
+            assembly.RecordBolt(bolt.Head, bolt.Id, new(true, 8)
+            {
+                MinimumTurns = bolt.MinimumTurns,
+                Controller = new("Virtual", 1, 1, 1000, 1, 8, 800, 100, 200, 1800, 1, 0, 0, 1, 0, null),
+            });
+            assembly.RecordBoltPresence(bolt.Id, true);
+        }
+        assembly.CompleteFastening();
+        assembly.CompleteInspection();
+        recipe.Pcb.BoltPoints[1].MinimumTurns = 2;
+        await history.FlushAsync();
+
+        var record = Assert.Single(new MachineStore(store.DatabaseFile).LoadPcbs(settings.PcbHistory.Directory));
+        Assert.Equal(AssemblyResult.Ok, record.FasteningResult);
+        Assert.Equal(AssemblyResult.Ok, record.InspectionResult);
+        Assert.Equal(AssemblyResult.Ng, record.TurnsResult);
+        Assert.Equal(AssemblyResult.Ng, record.Result);
+        Assert.Equal(3, Assert.Single(record.PcbBoltResults).Value.MinimumTurns);
+        Assert.Equal(10, Assert.Single(record.PickupBoltResults).Value.MinimumTurns);
+        Assert.Equal(5, Assert.Single(record.PickupBoltResults).Value.TotalTurns);
+        var details = services.GetRequiredService<PcbDetailsViewModel>();
+        details.Record = record;
+        Assert.Equal(new[] { "OK", "NG" }, details.BoltResults.Select(row => row.TurnsVerdict));
+        Assert.All(details.BoltResults, row =>
+        {
+            Assert.Equal("OK", row.Verdict);
+            Assert.Equal("OK", row.VisionVerdict);
+        });
+        await details.LoadImagesCommand.ExecuteAsync(null);
+    }
+
     [Fact]
     public async Task SixNamedBoltsKeepSeparateResultsAfterRecipeReloadAndReordering()
     {

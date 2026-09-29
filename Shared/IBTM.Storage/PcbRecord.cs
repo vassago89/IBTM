@@ -20,6 +20,8 @@ public sealed record PcbRecord(
     IReadOnlyDictionary<Guid, bool> BoltPresenceResults,
     IReadOnlyList<Guid> BoltIds)
 {
+    public AssemblyResult? TurnsResult { get; init; }
+
     // The order belongs to this recorded PCB, independent of later recipe edits.
     public int? GetBoltOrdinal(Guid boltId)
     {
@@ -35,6 +37,8 @@ public sealed record PcbRecord(
     public string? DatabaseFile { get; init; }
 
     [JsonIgnore]
-    public AssemblyResult Result => FasteningResult == AssemblyResult.Ng
-        ? AssemblyResult.Ng : InspectionResult;
+    public AssemblyResult Result => FasteningResult == AssemblyResult.Ng || TurnsResult == AssemblyResult.Ng
+        ? AssemblyResult.Ng
+        : TurnsResult == AssemblyResult.Pending && InspectionResult == AssemblyResult.Ok
+            ? AssemblyResult.Pending : InspectionResult;
 }

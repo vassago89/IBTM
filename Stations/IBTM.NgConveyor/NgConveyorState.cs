@@ -37,17 +37,11 @@ public enum NgConveyorState
     [Description("Ejecting NG Carrier")]
     EjectingCarrier,
 
-    [Description("Securing NG Conveyor Stopper")]
-    SecuringEjectStopper,
-
     [Description("Compacting NG Carriers")]
     CompactingCarriers,
 
-    [Description("Remove Carrier · Press EJECT COMPLETE")]
+    [Description("Remove Carrier · EJECT Next / COMPLETE to Resume")]
     WaitingForEjectConfirmation,
-
-    [Description("Release EJECT / COMPLETE Buttons")]
-    WaitingForEjectButtonRelease,
 
     [Description("Carrier Position Unknown")]
     CarrierPositionUnknown,

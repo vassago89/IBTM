@@ -15,6 +15,17 @@ namespace IBTM.Virtual.Tests;
 public sealed class MotionSettingsTests
 {
     [Fact]
+    public void ExistingAxisSettingsKeepControllerHomeSignal()
+    {
+        var settings = JsonSerializer.Deserialize<AxisHardware>(
+            """{"Number":9,"HomeDirection":"Positive","MoveUnit":1,"MovePulse":10}""")!;
+
+        Assert.Equal(HomeSignal.ControllerSetting, settings.HomeSignal);
+        Assert.Equal(HomeDirection.Positive, settings.HomeDirection);
+        Assert.Equal(10, settings.MovePulse);
+    }
+
+    [Fact]
     public void ExistingMotionTimesLoadWithoutZOverrides()
     {
         var settings = JsonSerializer.Deserialize<MotionSettings>(

@@ -174,7 +174,7 @@ public sealed class PcbSupplyHandoffTests
         rig.Supplier.Changed += () => changes++;
 
         // A Watch evaluation observes current feedback; it cannot commit a transition.
-        rig.FeedbackProbe!.OverrideState = state => state with { InPosition = false };
+        rig.FeedbackProbe!.OverrideState = (_, state) => state with { InPosition = false };
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
         Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
         rig.FeedbackProbe.OverrideState = null;
@@ -282,6 +282,10 @@ public sealed class PcbSupplyHandoffTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await Assert.ThrowsAsync<MotionInterlockException>(
             () => rig.Supplier.RunAsync(rig.Placement, timeout.Token));
+
+        timeout.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => rig.Supplier.PrepareHandoffAsync(timeout.Token));
 
         Assert.False(commanded);
         Assert.True(rig.Supplier.PcbSecured);

@@ -124,6 +124,12 @@
             <x:Static Member="device:HomeDirection.Negative"/>
             <x:Static Member="device:HomeDirection.Positive"/>
         </x:Array>
+        <x:Array x:Key="HomeSignals" Type="{x:Type device:HomeSignal}">
+            <x:Static Member="device:HomeSignal.ControllerSetting"/>
+            <x:Static Member="device:HomeSignal.HomeSensor"/>
+            <x:Static Member="device:HomeSignal.NegativeLimit"/>
+            <x:Static Member="device:HomeSignal.PositiveLimit"/>
+        </x:Array>
         <DataTemplate x:Key="AxisMappingTemplate" DataType="{x:Type ui:HardwareMappingRow}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -132,6 +138,7 @@
                     <ColumnDefinition Width="110"/>
                     <ColumnDefinition Width="110"/>
                     <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="190"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                     ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
@@ -144,6 +151,8 @@
                     Text="{Binding Axis.MovePulse, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Margin="4,0"/>
                 <ComboBox Grid.Column="4" ItemsSource="{StaticResource HomeDirections}"
                     SelectedItem="{Binding Axis.HomeDirection, Mode=TwoWay}" Margin="4,0"/>
+                <ComboBox Grid.Column="5" ItemsSource="{StaticResource HomeSignals}"
+                    SelectedItem="{Binding Axis.HomeSignal, Mode=TwoWay}" Margin="4,0"/>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -324,7 +333,14 @@
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     Text="{Binding Settings.NgConveyor.AlarmCarrierCount, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="Eject Run After S1 (s)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
+                                                    Text="{Binding Settings.NgConveyor.EjectRunSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                            </StackPanel>
                                         </UniformGrid>
+                                        <TextBlock Text="Each EJECT press runs for this time if S1 is occupied, or after the carrier reaches S1. Default: 5 s. Press EJECT again for the next carrier; COMPLETE resumes automatic loading."
+                                            Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -475,14 +491,16 @@
                                         <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="160"/>
+                                        <ColumnDefinition Width="190"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="Axis" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="1" Text="Axis Number" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="2" Text="SDK Unit" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="3" Text="SDK Pulse" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="4" Text="HOME Direction" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Grid.Column="5" Text="HOME Signal" Style="{StaticResource SettingFieldLabel}"/>
                                 </Grid>
-                                <TextBlock Text="Axis number, unit/pulse and HOME direction changes require Save and application restart." Style="{StaticResource SettingHelpText}"/>
+                                <TextBlock Text="Axis number, unit/pulse, HOME direction and signal changes require Save and application restart. Controller setting keeps the controller's existing HOME signal." Style="{StaticResource SettingHelpText}"/>
                                 <ListBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                     ItemsSource="{Binding CurrentAxisMappings}"
                                     Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}"

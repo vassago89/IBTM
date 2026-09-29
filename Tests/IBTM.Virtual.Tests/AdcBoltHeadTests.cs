@@ -127,6 +127,77 @@ public sealed class AdcBoltHeadTests
         Assert.Contains(notifiedSamples, sample => sample is { Status: null, Error: IOException });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReadinessWaitsForValidFeedbackAfterARejectedStatusSample(bool reset)
+    {
+        var rejected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var bus = new AdcControllerStub
+        {
+            StatusRejection = "RX=0184030301; status request rejected",
+            StatusReadBarrier = release.Task,
+        };
+        var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 1_000, StatusPollMilliseconds = 10 });
+        bus.Monitor.Sampled += sample =>
+        {
+            if (sample.Rejection is not null)
+            {
+                bus.StatusRejection = null;
+                rejected.TrySetResult();
+            }
+        };
+        var checking = reset ? head.ResetAsync() : head.SelectPresetAsync(1);
+        try
+        {
+            await rejected.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(await VirtualTest.WaitUntilAsync(() => bus.StatusReads >= 2, TimeSpan.FromSeconds(2)));
+            Assert.Null(head.Monitor.Sample?.Status);
+            Assert.False(checking.IsCompleted);
+            Assert.Equal(0, bus.StartWrites);
+            release.TrySetResult();
+            await checking.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(head.Monitor.Sample?.Status?.Ready);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        }
+        finally
+        {
+            release.TrySetResult();
+            await checking.ConfigureAwait(
+                ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        }
+    }
+
+    [Fact]
+    public async Task ReadinessCannotAcceptRepeatedStatusRejectionsAsReady()
+    {
+        using var bus = new AdcControllerStub { StatusRejection = "RX=0184030301; status request rejected" };
+        var (io, head) = Create(bus, new() { ResponseTimeoutMilliseconds = 100, StatusPollMilliseconds = 10 });
+
+        var error = await Assert.ThrowsAsync<TimeoutException>(() => head.CheckReadyAsync());
+
+        Assert.Contains(bus.StatusRejection, error.Message);
+        Assert.True(bus.StatusReads > 1);
+        Assert.Null(head.Monitor.Sample?.Status);
+        Assert.Equal(0, bus.StartWrites);
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+    }
+
+    [Fact]
+    public async Task CancelledStatusWaitDoesNotReturnAnAlreadyAvailableSample()
+    {
+        using var bus = new AdcControllerStub();
+        var (_, head) = Create(bus);
+        await head.CheckReadyAsync();
+        Assert.NotNull(bus.Monitor.Sample?.Status);
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => bus.Monitor.WaitForSampleAsync(0, stop.Token));
+    }
+
     [Fact]
     public async Task IdleMonitorSamplesAndAcceptsQueuedWorkWithoutCancellationExceptions()
     {

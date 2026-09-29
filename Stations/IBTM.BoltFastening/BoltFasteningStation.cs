@@ -367,6 +367,11 @@ public sealed class BoltFasteningStation : AutoUnit
             case BoltFasteningState.Waiting:
                 return false;
             case BoltFasteningState.PreparingCarrier:
+                // Cancellation between bolts must not silently restart the same load.
+                if (_carrierOperation?.IsCancellationRequested == true
+                    && Station.CarrierSeated && ReferenceEquals(_runJob, Station.CurrentJob))
+                    throw new MotionInterlockException(
+                        "The fastening carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
                 await ClearCarrierOperationAsync();
                 _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                 foreach (var heatSink in _runTargets)
@@ -568,6 +573,7 @@ public sealed class BoltFasteningStation : AutoUnit
             TraceStep(step, target, job.Id, "fastening controller result");
             BoltResult? result = null;
             Exception? fasteningFailure = null;
+            var minimumTurns = bolt.MinimumTurns;
             try
             {
                 var head = bolt.Head switch
@@ -663,9 +669,12 @@ public sealed class BoltFasteningStation : AutoUnit
                 {
                     if (result is not null)
                     {
+                        result = result with { MinimumTurns = minimumTurns };
                         var recordStarted = Stopwatch.GetTimestamp();
                         assembly.RecordBolt(bolt.Head, bolt.Id, result);
                         resultReceived?.Invoke(bolt, result);
+                        _log?.LogInformation("Bolt {Bolt}: controller OK={Success}, turns={Turns}, minimum={MinimumTurns}, turns result={TurnsResult}.",
+                            bolt.Id, result.Success, result.TotalTurns, result.MinimumTurns, result.TurnsResult);
                         _log?.LogInformation("Bolt timing {Job}/{Bolt}: result published, elapsed={ElapsedMs:F1} ms.",
                             job.Id, bolt.Id, Stopwatch.GetElapsedTime(recordStarted).TotalMilliseconds);
                     }
@@ -686,8 +695,10 @@ public sealed class BoltFasteningStation : AutoUnit
         catch (OperationCanceledException) when (operation.IsCancellationRequested
             && !cancellationToken.IsCancellationRequested)
         {
-            if (selectedBolts is not null)
-                throw new MotionInterlockException("The test carrier changed or lost its seated feedback.");
+            if (selectedBolts is not null
+                || Station.CarrierSeated && ReferenceEquals(job, Station.CurrentJob))
+                throw new MotionInterlockException(
+                    "The fastening carrier changed or lost its seated / PCB presence feedback. Check the carrier before restarting.");
             await ClearCarrierOperationAsync();
         }
         return true;
@@ -700,7 +711,9 @@ public sealed class BoltFasteningStation : AutoUnit
         lock (operation)
         {
             if (ReferenceEquals(operation, _carrierOperation)
-                && (!Station.CarrierSeated || !ReferenceEquals(_runJob, Station.CurrentJob)))
+                && (!Station.CarrierSeated
+                    || !ReferenceEquals(_runJob, Station.CurrentJob)
+                    || _runTargets!.Any(heatSink => !Station.IsHeatSinkPresent(heatSink))))
                 operation.Cancel();
         }
     }

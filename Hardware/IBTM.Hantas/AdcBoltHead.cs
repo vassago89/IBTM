@@ -91,7 +91,8 @@ public sealed class AdcBoltHead : IBoltHead
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             throw new TimeoutException(
-                $"ADC {_portName}/{_slaveAddress}: no fresh controller status from the monitor.");
+                $"ADC {_portName}/{_slaveAddress}: no fresh controller status from the monitor; "
+                + $"last rejection={Monitor.Sample?.Rejection ?? "none"}.");
         }
     }
 

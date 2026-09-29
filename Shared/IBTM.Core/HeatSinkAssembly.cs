@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 
 namespace IBTM.Core;
 
@@ -46,6 +47,7 @@ public sealed class HeatSinkAssembly
 
     public AssemblyResult FasteningResult { get; private set; }
     public AssemblyResult InspectionResult { get; private set; }
+    public AssemblyResult? TurnsResult { get; private set; }
     // Pending is untested; assigning a null barcode records a failed read.
     public AssemblyResult PcbBarcodeResult { get; private set; }
     public string? PcbBarcode
@@ -61,7 +63,10 @@ public sealed class HeatSinkAssembly
         }
     }
 
-    public AssemblyResult Result => FasteningResult == AssemblyResult.Ng ? AssemblyResult.Ng : InspectionResult;
+    public AssemblyResult Result => FasteningResult == AssemblyResult.Ng || TurnsResult == AssemblyResult.Ng
+        ? AssemblyResult.Ng
+        : TurnsResult == AssemblyResult.Pending && InspectionResult == AssemblyResult.Ok
+            ? AssemblyResult.Pending : InspectionResult;
 
     public void RecordBolt(FasteningHead head, Guid boltId, BoltResult result)
     {
@@ -76,6 +81,10 @@ public sealed class HeatSinkAssembly
         {
             FasteningResult = AssemblyResult.Ng;
         }
+        if (result.TurnsResult == AssemblyResult.Ng)
+            TurnsResult = AssemblyResult.Ng;
+        else if (result.MinimumTurns.HasValue && TurnsResult != AssemblyResult.Ng)
+            TurnsResult = AssemblyResult.Pending;
         ResultsChanged?.Invoke(this);
     }
 
@@ -84,6 +93,14 @@ public sealed class HeatSinkAssembly
         if (FasteningResult != AssemblyResult.Ng)
         {
             FasteningResult = AssemblyResult.Ok;
+        }
+        if (TurnsResult != AssemblyResult.Ng)
+        {
+            var checkedResults = _pcbBoltResults.Values.Concat(_pickupBoltResults.Values)
+                .Where(result => result.MinimumTurns.HasValue).ToArray();
+            TurnsResult = checkedResults.Length == 0 ? null
+                : checkedResults.All(result => result.TurnsResult == AssemblyResult.Ok)
+                    ? AssemblyResult.Ok : AssemblyResult.Pending;
         }
         ResultsChanged?.Invoke(this);
     }

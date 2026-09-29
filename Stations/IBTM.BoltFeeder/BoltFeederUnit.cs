@@ -43,17 +43,16 @@ public sealed class BoltFeederUnit : AutoUnit
                 var waitMilliseconds = double.PositiveInfinity;
                 if (pickupEnabled)
                     waitMilliseconds = CheckEmptyTimeout(InputIo.PickupFeederBoltDetected,
-                        _settings.PickupTimeoutMilliseconds, Volatile.Read(ref _pickupChangedAt));
+                        _settings.PickupTimeoutMilliseconds, cancellationToken);
                 if (shootingEnabled)
                 {
                     // Feed during escape travel; only the empty alarm waits for its return.
                     if (_io.GetInput(InputIo.ShootingEscapeBackward)
                         && !_io.GetInput(InputIo.ShootingEscapeForward))
                     {
-                        var emptySince = Math.Max(Volatile.Read(ref _shootingChangedAt), Volatile.Read(ref _escapeChangedAt));
                         waitMilliseconds = Math.Min(waitMilliseconds,
                             CheckEmptyTimeout(InputIo.ShootingFeederBoltDetected,
-                                _settings.ShootingTimeoutMilliseconds, emptySince));
+                                _settings.ShootingTimeoutMilliseconds, cancellationToken));
                     }
                     var runOnRemaining = _io.GetInput(InputIo.ShootingFeederBoltDetected)
                         ? _settings.ShootingRunOnMilliseconds
@@ -95,10 +94,16 @@ public sealed class BoltFeederUnit : AutoUnit
         }
     }
 
-    private double CheckEmptyTimeout(InputIo input, int timeoutMilliseconds, long changedAt)
+    private double CheckEmptyTimeout(InputIo input, int timeoutMilliseconds, CancellationToken cancellationToken)
     {
-        if (_io.GetInput(input) || timeoutMilliseconds == Timeout.Infinite)
+        var detected = _io.GetInput(input);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (detected || timeoutMilliseconds == Timeout.Infinite)
             return double.PositiveInfinity;
+        // Read the edge time after feedback: the bolt may have just been consumed.
+        var changedAt = input == InputIo.PickupFeederBoltDetected
+            ? Volatile.Read(ref _pickupChangedAt)
+            : Math.Max(Volatile.Read(ref _shootingChangedAt), Volatile.Read(ref _escapeChangedAt));
         var remaining = timeoutMilliseconds - Stopwatch.GetElapsedTime(changedAt).TotalMilliseconds;
         if (remaining <= 0)
             throw new IoTimeoutException(input, true, timeoutMilliseconds);

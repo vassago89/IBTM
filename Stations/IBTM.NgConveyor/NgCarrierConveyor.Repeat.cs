@@ -56,6 +56,9 @@ public sealed partial class NgCarrierConveyor
 
     public async Task ReturnFromConveyorAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_ejectionPhase != EjectionPhase.Idle || Volatile.Read(ref _ejectRequested) != 0)
+            throw new InvalidOperationException("Complete NG carrier ejection before returning the conveyor carrier.");
         if (!IsTransferClear)
             throw new InvalidOperationException("Release the NG transfer and raise the open pickup before returning the conveyor carrier.");
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -80,10 +83,9 @@ public sealed partial class NgCarrierConveyor
             if (ShuttleLift != StationCylinderState.Down && !_io.GetInput(InputIo.NgShuttleCarrierDetected))
                 throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
 
-            _ejectionPhase = EjectionPhase.Idle;
             await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, false, operation.Token);
             _movement = Movement.ReturningToShuttle;
-            await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, true, operation.Token);
+            await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, operation.Token);
             await SetShuttleDownAsync(false, operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             _movement = Movement.None;

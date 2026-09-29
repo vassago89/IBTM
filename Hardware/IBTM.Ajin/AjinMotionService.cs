@@ -61,6 +61,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             {
                 Number = axis.Number,
                 HomeDirection = axis.HomeDirection,
+                HomeSignal = axis.HomeSignal,
                 MoveUnit = axis.MoveUnit,
                 MovePulse = axis.MovePulse,
             });
@@ -352,6 +353,17 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                     HomeDirection.Positive => 1,
                     var value => throw new InvalidOperationException($"Invalid home direction for axis {axisNumber}: {value}."),
                 };
+                signal = _axisParameters[axisNumber].HomeSignal switch
+                {
+                    HomeSignal.ControllerSetting => signal,
+                    HomeSignal.HomeSensor => (uint)AXT_MOTION_HOME_DETECT.HomeSensor,
+                    HomeSignal.NegativeLimit => (uint)AXT_MOTION_HOME_DETECT.NegEndLimit,
+                    HomeSignal.PositiveLimit => (uint)AXT_MOTION_HOME_DETECT.PosEndLimit,
+                    var value => throw new InvalidOperationException($"Invalid home signal for axis {axisNumber}: {value}."),
+                };
+                _log?.LogInformation(
+                    "AJIN axis {Axis} home: direction={Direction}, signal={Signal} (configured={ConfiguredSignal}).",
+                    axisNumber, direction, signal, _axisParameters[axisNumber].HomeSignal);
                 
                 var setupFailed = CAXM.AxmStatusSetActPos(axisNumber, 0)
                         != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
@@ -380,7 +392,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
             return await Task.Run(async () =>
             {
-                await Task.Delay(100);
+                await Task.Delay(100, cancellationToken);
 
                 while (true)
                 {
@@ -392,6 +404,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                         AjinController.Check(
                             CAXM.AxmHomeGetResult(axisNumber, ref result),
                             $"{nameof(CAXM.AxmHomeGetResult)} (axis={axisNumber})");
+                        cancellationToken.ThrowIfCancellationRequested();
                         if (result == (uint)AXT_MOTION_HOME_RESULT.HOME_SUCCESS)
                             continue;
 
@@ -406,6 +419,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                     if (allHomed)
                     {
                         await WaitForStopAsync(axisNumbers).ConfigureAwait(false);
+                        cancellationToken.ThrowIfCancellationRequested();
                         return true;
                     }
                     await Task.Delay(100, cancellationToken).ConfigureAwait(false);
@@ -574,6 +588,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         {
             cancellationToken.ThrowIfCancellationRequested();
             var (moving, inPosition, faulted) = ReadMoveState(axes);
+            cancellationToken.ThrowIfCancellationRequested();
             if (faulted)
                 throw new MotionInterlockException("Motion stopped by an axis fault.");
             if (!moving && inPosition)

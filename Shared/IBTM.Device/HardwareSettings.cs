@@ -37,10 +37,27 @@ public enum HomeDirection
     Positive,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<HomeSignal>))]
+public enum HomeSignal
+{
+    [Description("Controller setting")]
+    ControllerSetting,
+
+    [Description("HOME")]
+    HomeSensor,
+
+    [Description("−LIMIT")]
+    NegativeLimit,
+
+    [Description("+LIMIT")]
+    PositiveLimit,
+}
+
 public sealed class AxisHardware
 {
     public int Number { get; set; }
     public HomeDirection HomeDirection { get; set; } = HomeDirection.Negative;
+    public HomeSignal HomeSignal { get; set; }
 
     public double MoveUnit
     {

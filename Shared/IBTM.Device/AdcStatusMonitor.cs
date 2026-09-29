@@ -239,9 +239,9 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
                 return;
             if (sample.Error is { } error)
                 received.TrySetException(error);
-            else if (sample.Rejection is { } rejection)
-                received.TrySetException(new IOException(rejection));
-            else if (sample.Status is { } status)
+            // Rejected replies carry no feedback. The shared monitor keeps sampling
+            // within the caller's existing deadline; transport failures still fail above.
+            else if (sample.Rejection is null && sample.Status is { } status)
                 received.TrySetResult(status);
         }
         Sampled += OnSampled;
@@ -249,7 +249,9 @@ public sealed class AdcStatusMonitor : INotifyPropertyChanged
         {
             if (Sample is { } sample)
                 OnSampled(sample);
-            return await received.Task.WaitAsync(token).ConfigureAwait(false);
+            var status = await received.Task.WaitAsync(token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            return status;
         }
         finally
         {

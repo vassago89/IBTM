@@ -9,8 +9,11 @@ public partial class PcbDetailsWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
-        Width = System.Math.Min(1360, SystemParameters.WorkArea.Width - 40);
-        Height = System.Math.Min(860, SystemParameters.WorkArea.Height - 40);
+        var workArea = SystemParameters.WorkArea;
+        MinWidth = System.Math.Min(MinWidth, workArea.Width - 32);
+        MinHeight = System.Math.Min(MinHeight, workArea.Height - 32);
+        Width = System.Math.Min(1600, workArea.Width - 32);
+        Height = System.Math.Min(960, workArea.Height - 32);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)

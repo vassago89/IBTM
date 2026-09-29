@@ -209,6 +209,10 @@ public partial class BoltStationTestViewModel : ObservableObject
                 selected.Select(row => row.Bolt.Id).ToArray(), OnResultReceived, cancellationToken);
             Message = completed ? "Selected-bolt test finished." : "Test stopped.";
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            Message = "Test stopped.";
+        }
         catch (Exception exception)
         {
             Error = exception.Message;

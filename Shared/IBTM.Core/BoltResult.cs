@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 namespace IBTM.Core;
 
@@ -29,6 +30,18 @@ public sealed record BoltResult(
 {
     public DateTimeOffset? RecordedAt { get; init; }
     public BoltControllerData? Controller { get; init; }
+    // Keep the bolt's applied criterion with the measurement, independent of later recipe edits.
+    public double? MinimumTurns { get; init; }
+
+    [JsonIgnore]
+    public double? TotalTurns => Source == BoltResultSource.Controller
+        && Controller is { Angle3: >= 0 } data && double.IsFinite(data.Angle3)
+        ? data.Angle3 / 360.0 : null;
+
+    [JsonIgnore]
+    public AssemblyResult? TurnsResult => MinimumTurns is not { } minimum ? null
+        : TotalTurns is not { } turns ? AssemblyResult.Pending
+        : turns >= minimum ? AssemblyResult.Ok : AssemblyResult.Ng;
 }
 
 // The complete ADC result payload. Codes and original registers are retained as received.

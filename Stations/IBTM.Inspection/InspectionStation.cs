@@ -195,8 +195,10 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         {
             return Station.CarrierPresent
                 && (Station.HasNg
-                    || _units.Inspection && Station.Completed
-                        && !Station.Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending));
+                    || Station.Completed
+                        && (Station.Assemblies.Any(assembly => assembly.TurnsResult == AssemblyResult.Pending)
+                            || _units.Inspection
+                                && !Station.Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending)));
         }
     }
 
@@ -288,6 +290,13 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 Station.Restart(Station.CurrentJob);
             while (!cancellationToken.IsCancellationRequested)
             {
+                if (_inspectionOperation?.IsCancellationRequested == true
+                    && IsReadyToInspect && ReferenceEquals(_runJob, Station.CurrentJob))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    throw new MotionInterlockException(
+                        "Inspection carrier feedback changed during inspection. Check the PCB presence and supports before restarting.");
+                }
                 var step = !_units.Inspection && !CarrierSeatingRequested
                     ? InspectionStationState.Disabled : GetNextStep(repeat);
                 if (!await ExecuteStepAsync(step, repeat, cancellationToken))
@@ -486,6 +495,12 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         catch (OperationCanceledException) when (operation.IsCancellationRequested
             && !cancellationToken.IsCancellationRequested)
         {
+            if (IsReadyToInspect && ReferenceEquals(_runJob, Station.CurrentJob))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                throw new MotionInterlockException(
+                    "Inspection carrier feedback changed during inspection. Check the PCB presence and supports before restarting.");
+            }
             ClearInspectionOperation();
         }
         return true;
@@ -498,7 +513,9 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         lock (operation)
         {
             if (ReferenceEquals(operation, _inspectionOperation)
-                && (!IsReadyToInspect || !ReferenceEquals(_runJob, Station.CurrentJob)))
+                && (!IsReadyToInspect || !ReferenceEquals(_runJob, Station.CurrentJob)
+                    || _runPoints is { } points && Enum.GetValues<HeatSinkSlot>().Any(pcb =>
+                        Station.IsHeatSinkPresent(pcb) != points.Any(point => point.Pcb == pcb))))
                 operation.Cancel();
         }
     }
@@ -796,6 +813,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public Task SetLiftUpAsync(bool up, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (up && IsTransferPending && Gripper != NgTransferGripperState.Closed)
             throw new MotionInterlockException("Confirm the NG gripper is closed before raising the pending transfer.");
         return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, !up, cancellationToken);

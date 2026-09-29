@@ -24,6 +24,33 @@ namespace IBTM.Virtual.Tests;
 public sealed class RecipeTests
 {
     [Fact]
+    public void MinimumTurnsFollowEachBoltThroughRecipeSaveReorderAndClear()
+    {
+        var first = new BoltPoint();
+        var second = new BoltPoint();
+        Assert.Null(first.MinimumTurns);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.MinimumTurns = -1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => first.MinimumTurns = double.NaN);
+        first.MinimumTurns = 3.5;
+        second.MinimumTurns = 10;
+        var recipe = new Recipe { Pcb = new() { BoltPoints = [first, second] } };
+        var store = VirtualTest.OpenMachineStore();
+        store.SaveRecipe(recipe);
+
+        var loaded = store.LoadRecipe(recipe.Name);
+        Assert.Equal(3.5, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns);
+        Assert.Equal(10, loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == second.Id).MinimumTurns);
+        loaded.Pcb.BoltPoints.Move(0, 1);
+        loaded.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).MinimumTurns = null;
+        store.SaveRecipe(loaded);
+        var reopened = store.LoadRecipe(recipe.Name);
+        Assert.Equal(second.Id, reopened.Pcb.BoltPoints[0].Id);
+        Assert.Equal(10, reopened.Pcb.BoltPoints[0].MinimumTurns);
+        Assert.Equal(first.Id, reopened.Pcb.BoltPoints[1].Id);
+        Assert.Null(reopened.Pcb.BoltPoints[1].MinimumTurns);
+    }
+
+    [Fact]
     public void PcbLayoutRegistersAndKeepsItsOwnBoltCollection()
     {
         var recipe = new Recipe();

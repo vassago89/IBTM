@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -42,8 +43,11 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly ILogger<MachineController>? _log;
     private readonly Lock _resetGate;
     private Task _resetTask;
+    private readonly ConcurrentQueue<(MachineAlarm Alarm, bool Running, bool NgAlarm, bool SilenceBuzzer)> _indicatorNotifications;
     // Last handled notification, not the physical lamp/buzzer state.
     private (MachineAlarm Alarm, bool Running, bool NgAlarm)? _lastIndicatorNotification;
+    // Device callbacks must not wait for the writer that may be using their device.
+    private int _indicatorWriterActive;
 
     static MachineController()
     {
@@ -82,6 +86,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
     {
         _resetGate = new();
         _resetTask = Task.CompletedTask;
+        _indicatorNotifications = new();
 
         _state = state;
         _feedback = feedback;
@@ -116,6 +121,7 @@ public sealed partial class MachineController : INotifyPropertyChanged
         pcbPlacement.Motion.Feedback.MovingChanged += _ => CheckMotionInterlocks();
         fasteningStation.Motion.Feedback.StateChanged += CheckMotionInterlocks;
         inspectionStation.Motion.Feedback.MovingChanged += _ => CheckMotionInterlocks();
+        feedback.Sampled += OnMotionFeedbackSampled;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -333,6 +339,16 @@ public sealed partial class MachineController : INotifyPropertyChanged
         {
             _ = ResetAsync();
         }
+    }
+
+    private void OnMotionFeedbackSampled(MotionGroup group, MotionFeedbackSample sample)
+    {
+        // Check every moving sample: XY can start while Z is already moving,
+        // without a local command or a change to the combined IsMoving value.
+        if (sample is { Enabled: true, IoReady: true, ReadError: null }
+            && group is MotionGroup.PcbPlacementHandler or MotionGroup.BoltFastening or MotionGroup.InspectionGantry
+            && _feedback.Motions[group].IsMoving)
+            CheckMotionInterlocks();
     }
 
     private void CheckMotionInterlocks()
@@ -779,13 +795,13 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     // Initialization can change drive feedback. Recheck once before motion;
                     // ongoing supervision then belongs to the shared acquisition loop.
                     var motion = _feedback.ReadLiveReadiness();
+                    operation.Token.ThrowIfCancellationRequested();
                     if (!motion.Homed || !motion.ServosOn || motion.Faulted)
                     {
                         _state.SetError(MachineAlarm.MotionUnavailable);
                         return;
                     }
 
-                    operation.Token.ThrowIfCancellationRequested();
                     await RaiseCylindersAsync(operation);
 
                     if (_units.MainConveyor)
@@ -1222,13 +1238,13 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     // Verify again after cylinder preparation, before issuing the first HOME.
                     failureAlarm = MachineAlarm.MotionUnavailable;
                     var motion = _feedback.ReadLiveReadiness();
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (motion.Faulted || !motion.ServosOn)
                     {
                         _state.SetError(MachineAlarm.MotionUnavailable);
                         return;
                     }
                     failureAlarm = MachineAlarm.HomeFailed;
-                    cancellationToken.ThrowIfCancellationRequested();
                     if (_units.PcbPlacement)
                     {
                         // Placement must finish homing before any other unit starts.
@@ -1677,11 +1693,13 @@ public sealed partial class MachineController : INotifyPropertyChanged
         try
         {
             var motion = _feedback.ReadLiveReadiness();
+            operation.Token.ThrowIfCancellationRequested();
             if (motion.Faulted || !motion.ServosOn)
                 throw new InvalidOperationException(
                     $"Motion reset is not confirmed by hardware feedback: faulted={motion.Faulted}, servosOn={motion.ServosOn}.");
         }
-        catch (Exception exception)
+        catch (Exception exception) when (
+            exception is not OperationCanceledException || !operation.Token.IsCancellationRequested)
         {
             RecordFailure(MachineAlarm.MotionUnavailable, "Motion feedback", exception);
         }
@@ -1698,49 +1716,60 @@ public sealed partial class MachineController : INotifyPropertyChanged
 
     internal void SilenceBuzzer()
     {
-        if (!_io.IsReady)
-            return;
-
-        try
-        {
-            _io.SetOutput(OutputIo.Buzzer, false);
-        }
-        catch (IOException exception)
-        {
-            _log?.LogError(exception, "Buzzer OFF failed.");
-        }
+        UpdateMachineIndicators(silenceBuzzer: true);
     }
 
     // Called by alarm/run/NG notifications, never by the display or acquisition loops.
-    private void UpdateMachineIndicators()
+    private void UpdateMachineIndicators(bool silenceBuzzer = false)
     {
         if (!_io.IsReady)
             return;
 
-        try
+        _indicatorNotifications.Enqueue((_state.Alarm, _state.AutomaticRunning, _ngConveyor.AlarmRequired, silenceBuzzer));
+        do
         {
-            var notification = (_state.Alarm, Running: _state.AutomaticRunning, NgAlarm: _ngConveyor.AlarmRequired);
-            var previous = _lastIndicatorNotification;
-            if (previous == notification)
+            if (Interlocked.CompareExchange(ref _indicatorWriterActive, 1, 0) != 0)
                 return;
+            try
+            {
+                while (_indicatorNotifications.TryDequeue(out var request))
+                {
+                    if (!_io.IsReady)
+                        continue;
+                    if (request.SilenceBuzzer)
+                    {
+                        _io.SetOutput(OutputIo.Buzzer, false);
+                        continue;
+                    }
+                    var notification = (request.Alarm, request.Running, request.NgAlarm);
+                    var previous = _lastIndicatorNotification;
+                    if (previous == notification)
+                        continue;
 
-            var attention = notification.Alarm != MachineAlarm.None || notification.NgAlarm;
-            var newAlarm = notification.Alarm != MachineAlarm.None
-                    && notification.Alarm != previous?.Alarm
-                || notification.NgAlarm && previous?.NgAlarm != true;
+                    var attention = notification.Alarm != MachineAlarm.None || notification.NgAlarm;
+                    var newAlarm = notification.Alarm != MachineAlarm.None
+                            && notification.Alarm != previous?.Alarm
+                        || notification.NgAlarm && previous?.NgAlarm != true;
 
-            _io.SetOutput(OutputIo.TowerLampGreen, notification.Running && !attention);
-            _io.SetOutput(OutputIo.TowerLampYellow, !notification.Running && !attention);
-            _io.SetOutput(OutputIo.TowerLampRed, attention);
-            if (!attention || newAlarm)
-                _io.SetOutput(OutputIo.Buzzer, newAlarm);
+                    _io.SetOutput(OutputIo.TowerLampGreen, notification.Running && !attention);
+                    _io.SetOutput(OutputIo.TowerLampYellow, !notification.Running && !attention);
+                    _io.SetOutput(OutputIo.TowerLampRed, attention);
+                    if (!attention || newAlarm)
+                        _io.SetOutput(OutputIo.Buzzer, newAlarm);
 
-            _lastIndicatorNotification = notification;
+                    _lastIndicatorNotification = notification;
+                }
+            }
+            catch (IOException exception)
+            {
+                _log?.LogError(exception, "Machine indicator output update failed.");
+            }
+            finally
+            {
+                Volatile.Write(ref _indicatorWriterActive, 0);
+            }
         }
-        catch (IOException exception)
-        {
-            _log?.LogError(exception, "Machine indicator output update failed.");
-        }
+        while (!_indicatorNotifications.IsEmpty);
     }
 
     // OUTPUTS writes just the selected logical output. Feedback is display-only;

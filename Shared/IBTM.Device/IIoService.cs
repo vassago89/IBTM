@@ -60,6 +60,7 @@ public interface IIoService
         cancellationToken.ThrowIfCancellationRequested();
         if (Matches())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return;
         }
 
@@ -92,15 +93,14 @@ public interface IIoService
                 cancellationToken.ThrowIfCancellationRequested();
             }
             while (requireCurrent && !Matches());
+            cancellationToken.ThrowIfCancellationRequested();
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            if (offInput is { } opposite && GetInput(input) == value)
-            {
-                throw new IoTimeoutException(opposite, false, timeoutMilliseconds);
-            }
-
-            throw new IoTimeoutException(input, value, timeoutMilliseconds);
+            var missingFeedback = offInput is { } opposite && GetInput(input) == value
+                ? (Input: opposite, Value: false) : (Input: input, Value: value);
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new IoTimeoutException(missingFeedback.Input, missingFeedback.Value, timeoutMilliseconds);
         }
         finally
         {

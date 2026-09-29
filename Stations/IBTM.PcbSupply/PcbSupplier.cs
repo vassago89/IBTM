@@ -137,10 +137,13 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
     }
 
-    public void SetUpstreamReady(bool ready)
+    public void SetUpstreamReady(bool ready, CancellationToken cancellationToken = default)
     {
         if (!_io.GetInput(InputIo.AutoMode))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, ready);
+        }
     }
 
     public void StopUpstream()
@@ -237,7 +240,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             placement.Changed += WakeRun;
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (_units.PcbSupply && _handoffPosition is { } handoff && !MotionService.IsHoldingPosition(_motion, handoff))
+                if (_units.PcbSupply && _handoffPosition is { } previousHandoff && !MotionService.IsHoldingPosition(_motion, previousHandoff))
                 {
                     _handoffPosition = null;
                     NotifyChanged();
@@ -253,8 +256,250 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         "Supply PCB grip is incomplete away from a confirmed support. Check gripper and IPM fixation before moving or releasing it.");
                 }
                 var step = GetNextStep(placement, repeat);
-                if (!await ExecuteStepAsync(step, placement, repeat, cancellationToken))
+                cancellationToken.ThrowIfCancellationRequested();
+                var recipe = _recipes.Current.PcbSupply;
+                if (step == PcbSupplyState.Disabled)
+                {
+                    EnterStep(step);
                     await WaitForChangeAsync(cancellationToken);
+                    continue;
+                }
+                if (!repeat && Phase is PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear
+                    && Rotation != PcbSupplyRotationState.Unrotated)
+                    throw new MotionInterlockException("Supply handoff requires confirmed Unrotated feedback.");
+
+                if ((!repeat || !_units.PcbPlacement) && _pickStep != PickStep.WaitingForCarrierExit)
+                {
+                    SetUpstreamReady(true, cancellationToken);
+                }
+                else if (Phase is PcbSupplyState.HandingOff or PcbSupplyState.WaitingForCarrierExit)
+                {
+                    // Keep Ready through both slot checks and the final pickup lift.
+                    // Its falling edge tells the upstream machine that pickup is complete.
+                    SetUpstreamReady(false, cancellationToken);
+                }
+
+                if (Phase == PcbSupplyState.WaitingForCarrierExit && step == PcbSupplyState.MovingToPickup)
+                    _pickStep = PickStep.Pcb1;
+                EnterStep(step, _pickStep.ToString());
+                switch (step)
+                {
+                    case PcbSupplyState.PreparingReturnReceipt:
+                        if (placement.ReturningPcb is not { } returnedPcb)
+                        {
+                            await WaitForChangeAsync(cancellationToken);
+                            continue;
+                        }
+                        _pickStep = returnedPcb == HeatSinkSlot.HeatSink2 ? PickStep.Pcb2 : PickStep.Pcb1;
+                        if (Rotation != PcbSupplyRotationState.Unrotated
+                            && placement.Handoff is PcbPlacementHandoff.Returning or PcbPlacementHandoff.Holding)
+                            throw new MotionInterlockException("Supply cannot prepare rotation while Placement holds the PCB at receive Z.");
+                        if (!PcbSecured)
+                        {
+                            await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, cancellationToken);
+                            await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, cancellationToken);
+                        }
+                        if (_handoffPosition is not { } handoffPosition
+                            || !MotionService.IsHoldingPosition(_motion, handoffPosition)
+                            || Rotation != PcbSupplyRotationState.Unrotated)
+                        {
+                            await SetRotatedAsync(false, cancellationToken);
+                            await PrepareHandoffAsync(cancellationToken);
+                        }
+                        EnterStep(PcbSupplyState.WaitingForReturnedPcbGrip);
+                        break;
+                    case PcbSupplyState.ReceivingReturnedPcb:
+                        if (placement.Handoff != PcbPlacementHandoff.Returning || Pcb == PcbSupplyPcbState.None)
+                            throw new InvalidOperationException("Supply must detect the returned PCB supported by placement before gripping it.");
+                        await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true, cancellationToken);
+                        await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true, cancellationToken);
+                        EnterStep(PcbSupplyState.WaitingForReturnClear);
+                        break;
+                    case PcbSupplyState.WaitingForReturnClear:
+                        if (!PcbSecured)
+                            throw new InvalidOperationException("Supply lost the returned PCB before placement cleared the handoff.");
+                        await WaitForChangeAsync(cancellationToken);
+                        continue;
+                    case PcbSupplyState.ReturningToPickup:
+                    {
+                        // Keep the returned PCB gripped; Repeat never places it upstream.
+                        var returnPosition = _pickStep == PickStep.Pcb1 ? recipe.Pcb1PickPosition : recipe.Pcb2PickPosition;
+                        using var returning = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        void CheckReturnHolding()
+                        {
+                            if (!PcbSecured)
+                                OperationCancellation.CancelIfNotDisposed(returning);
+                        }
+                        Changed += CheckReturnHolding;
+                        try
+                        {
+                            CheckReturnHolding();
+                            returning.Token.ThrowIfCancellationRequested();
+                            await MoveFromHandoffAsync(returnPosition, returning.Token);
+                            await SetRotatedAsync(true, returning.Token);
+                            await MoveToPickupAsync(returnPosition, returning.Token);
+                            _handoffPendingDeparture = false;
+                            EnterStep(PcbSupplyState.MovingToHandoff);
+                        }
+                        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                        {
+                            throw new InvalidOperationException("Supply lost PCB holding feedback during reverse travel.");
+                        }
+                        finally
+                        {
+                            Changed -= CheckReturnHolding;
+                        }
+                        break;
+                    }
+                    case PcbSupplyState.MovingToPickup:
+                        var nextPick = _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition;
+                        if (_handoffPendingDeparture)
+                        {
+                            await MoveFromHandoffAsync(nextPick, cancellationToken);
+                            await SetRotatedAsync(true, cancellationToken);
+                            _handoffPendingDeparture = false;
+                        }
+                        else
+                        {
+                            await SetRotatedAsync(true, cancellationToken);
+                            await MoveToPickupAsync(nextPick, cancellationToken);
+                        }
+                        EnterStep(_pickStep == PickStep.WaitingForCarrierExit
+                            ? PcbSupplyState.WaitingForCarrierExit : PcbSupplyState.WaitingForCarrier);
+                        break;
+                    case PcbSupplyState.PickingPcb:
+                    {
+                        var pickStep = _pickStep;
+                        var pickPosition = pickStep == PickStep.Pcb1
+                            ? recipe.Pcb1PickPosition
+                            : recipe.Pcb2PickPosition;
+                        using var pickup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        var carrierChanged = false;
+                        void CheckPickupFeedback()
+                        {
+                            if (!UpstreamCarrierAvailable)
+                                carrierChanged = true;
+                            if (carrierChanged || Rotation != PcbSupplyRotationState.Rotated)
+                                OperationCancellation.CancelIfNotDisposed(pickup);
+                        }
+
+                        Changed += CheckPickupFeedback;
+                        try
+                        {
+                            CheckPickupFeedback();
+                            EnterStep(PcbSupplyState.PickingPcb, pickStep.ToString());
+                            await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, pickup.Token);
+                            await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, pickup.Token);
+                            EnterStep(PcbSupplyState.MovingToPickup);
+                            await MoveToPickupAsync(pickPosition, pickup.Token);
+                            await _motion.MoveAxisAsync(MotionAxis.Z, pickPosition.Z, _settings.Motion.ZSpeed, pickup.Token);
+                            pickup.Token.ThrowIfCancellationRequested();
+                            EnterStep(PcbSupplyState.PickingPcb);
+                            if (Pcb == PcbSupplyPcbState.None)
+                            {
+                                await MoveAxisAsync(MotionAxis.Z, _settings.RotationZ, pickup.Token);
+                                EnterStep(PcbSupplyState.WaitingForCarrier);
+                            }
+                            else
+                            {
+                                // Presence can be ON before reaching the PCB; grip only at the taught pickup XYZ.
+                                await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true, pickup.Token);
+                                await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true, pickup.Token);
+                                pickup.Token.ThrowIfCancellationRequested();
+                                EnterStep(PcbSupplyState.MovingToHandoff);
+                            }
+
+                            // Never advance a replacement carrier.
+                            if (!carrierChanged)
+                            {
+                                if (repeat)
+                                {
+                                    if (PcbSecured)
+                                        await MoveAxisAsync(MotionAxis.Z, _settings.RotationZ, pickup.Token);
+                                    else
+                                        _pickStep = pickStep == PickStep.Pcb1 ? PickStep.Pcb2 : PickStep.Pcb1;
+                                }
+                                else
+                                    _pickStep = pickStep == PickStep.Pcb1 ? PickStep.Pcb2 : PickStep.WaitingForCarrierExit;
+                                if (!PcbSecured && _pickStep == PickStep.WaitingForCarrierExit)
+                                    EnterStep(PcbSupplyState.WaitingForCarrierExit);
+                            }
+                        }
+                        catch (OperationCanceledException) when (carrierChanged
+                            && !cancellationToken.IsCancellationRequested)
+                        {
+                            if (repeat)
+                                throw new InvalidOperationException("The upstream carrier left during the initial repeat pickup.");
+                            _pickStep = PickStep.Pcb1;
+                            EnterStep(PcbSupplyState.WaitingForCarrier);
+                        }
+                        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                        {
+                            throw new MotionInterlockException("Supply rotation must remain confirmed Rotated throughout PCB pickup.");
+                        }
+                        finally
+                        {
+                            Changed -= CheckPickupFeedback;
+                        }
+                        break;
+                    }
+                    case PcbSupplyState.MovingToHandoff:
+                    {
+                        using var handoff = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        void CheckHolding()
+                        {
+                            if (!PcbSecured)
+                                OperationCancellation.CancelIfNotDisposed(handoff);
+                        }
+                        Changed += CheckHolding;
+                        try
+                        {
+                            CheckHolding();
+                            handoff.Token.ThrowIfCancellationRequested();
+                            if (Rotation != PcbSupplyRotationState.Unrotated)
+                                await SetRotatedAsync(false, handoff.Token);
+                            await PrepareHandoffAsync(handoff.Token);
+                        }
+                        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                        {
+                            throw new InvalidOperationException("Supply lost PCB grip or IPM fixation during forward handoff.");
+                        }
+                        finally
+                        {
+                            Changed -= CheckHolding;
+                        }
+                        break;
+                    }
+                    case PcbSupplyState.HandingOff:
+                        if (repeat && !PcbSecured && placement.Handoff != PcbPlacementHandoff.Holding)
+                            throw new InvalidOperationException("Supply repeat lost PCB holding feedback during forward handoff.");
+                        if (PcbSecured && placement.Handoff != PcbPlacementHandoff.Holding)
+                        {
+                            await WaitForChangeAsync(cancellationToken);
+                            continue;
+                        }
+                        if (Rotation != PcbSupplyRotationState.Unrotated)
+                            throw new MotionInterlockException("Supply must remain Unrotated while releasing the PCB.");
+                        if (_io.GetInput(InputIo.PcbSupplyIpmFixerForward))
+                        {
+                            if (placement.Handoff != PcbPlacementHandoff.Holding)
+                                throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
+                            await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, cancellationToken);
+                        }
+                        if (Gripper != PcbSupplyCylinderState.Backward)
+                        {
+                            if (Rotation != PcbSupplyRotationState.Unrotated)
+                                throw new MotionInterlockException("Supply lost Unrotated feedback before opening its gripper.");
+                            if (placement.Handoff != PcbPlacementHandoff.Holding)
+                                throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
+                            await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, cancellationToken);
+                        }
+                        EnterStep(PcbSupplyState.WaitingForPlacementClear);
+                        break;
+                    default:
+                        await WaitForChangeAsync(cancellationToken);
+                        continue;
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -335,254 +580,9 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
         }
     }
 
-    private async Task<bool> ExecuteStepAsync(
-        PcbSupplyState step,
-        IPcbPlacementHandoff placement,
-        bool repeat,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var recipe = _recipes.Current.PcbSupply;
-        if (step == PcbSupplyState.Disabled)
-        {
-            EnterStep(step);
-            return false;
-        }
-        if (!repeat && Phase is PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear
-            && Rotation != PcbSupplyRotationState.Unrotated)
-            throw new MotionInterlockException("Supply handoff requires confirmed Unrotated feedback.");
-
-        if ((!repeat || !_units.PcbPlacement) && _pickStep != PickStep.WaitingForCarrierExit)
-        {
-            SetUpstreamReady(true);
-        }
-        else if (Phase is PcbSupplyState.HandingOff or PcbSupplyState.WaitingForCarrierExit)
-        {
-            // Keep Ready through both slot checks and the final pickup lift.
-            // Its falling edge tells the upstream machine that pickup is complete.
-            SetUpstreamReady(false);
-        }
-
-        if (Phase == PcbSupplyState.WaitingForCarrierExit && step == PcbSupplyState.MovingToPickup)
-            _pickStep = PickStep.Pcb1;
-        var wasAtHandoff = _handoffPosition is { } handoffPosition
-            && MotionService.IsHoldingPosition(_motion, handoffPosition)
-            && Rotation == PcbSupplyRotationState.Unrotated;
-        EnterStep(step, _pickStep.ToString());
-        switch (step)
-        {
-            case PcbSupplyState.PreparingReturnReceipt:
-                if (placement.ReturningPcb is not { } returnedPcb)
-                    return false;
-                _pickStep = returnedPcb == HeatSinkSlot.HeatSink2 ? PickStep.Pcb2 : PickStep.Pcb1;
-                if (Rotation != PcbSupplyRotationState.Unrotated
-                    && placement.Handoff is PcbPlacementHandoff.Returning or PcbPlacementHandoff.Holding)
-                    throw new MotionInterlockException("Supply cannot prepare rotation while Placement holds the PCB at receive Z.");
-                if (!PcbSecured)
-                {
-                    await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, cancellationToken);
-                    await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, cancellationToken);
-                }
-                if (!wasAtHandoff)
-                {
-                    await SetRotatedAsync(false, cancellationToken);
-                    await PrepareHandoffAsync(cancellationToken);
-                }
-                EnterStep(PcbSupplyState.WaitingForReturnedPcbGrip);
-                break;
-            case PcbSupplyState.ReceivingReturnedPcb:
-                if (placement.Handoff != PcbPlacementHandoff.Returning || Pcb == PcbSupplyPcbState.None)
-                    throw new InvalidOperationException("Supply must detect the returned PCB supported by placement before gripping it.");
-                await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true, cancellationToken);
-                await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true, cancellationToken);
-                EnterStep(PcbSupplyState.WaitingForReturnClear);
-                break;
-            case PcbSupplyState.WaitingForReturnClear:
-                if (!PcbSecured)
-                    throw new InvalidOperationException("Supply lost the returned PCB before placement cleared the handoff.");
-                return false;
-            case PcbSupplyState.ReturningToPickup:
-            {
-                // Keep the returned PCB gripped; Repeat never places it upstream.
-                var returnPosition = _pickStep == PickStep.Pcb1 ? recipe.Pcb1PickPosition : recipe.Pcb2PickPosition;
-                using var returning = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                void CheckReturnHolding()
-                {
-                    if (!PcbSecured)
-                        OperationCancellation.CancelIfNotDisposed(returning);
-                }
-                Changed += CheckReturnHolding;
-                try
-                {
-                    CheckReturnHolding();
-                    returning.Token.ThrowIfCancellationRequested();
-                    await MoveFromHandoffAsync(returnPosition, returning.Token);
-                    await SetRotatedAsync(true, returning.Token);
-                    await MoveToPickupAsync(returnPosition, returning.Token);
-                    _handoffPendingDeparture = false;
-                    EnterStep(PcbSupplyState.MovingToHandoff);
-                }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                {
-                    throw new InvalidOperationException("Supply lost PCB holding feedback during reverse travel.");
-                }
-                finally
-                {
-                    Changed -= CheckReturnHolding;
-                }
-                break;
-            }
-            case PcbSupplyState.MovingToPickup:
-                var nextPick = _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition;
-                if (_handoffPendingDeparture)
-                {
-                    await MoveFromHandoffAsync(nextPick, cancellationToken);
-                    await SetRotatedAsync(true, cancellationToken);
-                    _handoffPendingDeparture = false;
-                }
-                else
-                {
-                    await SetRotatedAsync(true, cancellationToken);
-                    await MoveToPickupAsync(nextPick, cancellationToken);
-                }
-                EnterStep(PcbSupplyState.WaitingForCarrier);
-                if (_pickStep == PickStep.WaitingForCarrierExit)
-                    EnterStep(PcbSupplyState.WaitingForCarrierExit);
-                break;
-            case PcbSupplyState.PickingPcb:
-            {
-                var pickStep = _pickStep;
-                var pickPosition = pickStep == PickStep.Pcb1
-                    ? recipe.Pcb1PickPosition
-                    : recipe.Pcb2PickPosition;
-                using var pickup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                var carrierChanged = false;
-                void CheckPickupFeedback()
-                {
-                    if (!UpstreamCarrierAvailable)
-                        carrierChanged = true;
-                    if (carrierChanged || Rotation != PcbSupplyRotationState.Rotated)
-                        OperationCancellation.CancelIfNotDisposed(pickup);
-                }
-
-                Changed += CheckPickupFeedback;
-                try
-                {
-                    CheckPickupFeedback();
-                    EnterStep(PcbSupplyState.PickingPcb, pickStep.ToString());
-                    await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, pickup.Token);
-                    await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, pickup.Token);
-                    EnterStep(PcbSupplyState.MovingToPickup);
-                    await MoveToPickupAsync(pickPosition, pickup.Token);
-                    await _motion.MoveAxisAsync(MotionAxis.Z, pickPosition.Z, _settings.Motion.ZSpeed, pickup.Token);
-                    pickup.Token.ThrowIfCancellationRequested();
-                    EnterStep(PcbSupplyState.PickingPcb);
-                    if (Pcb == PcbSupplyPcbState.None)
-                    {
-                        await MoveAxisAsync(MotionAxis.Z, _settings.RotationZ, pickup.Token);
-                        EnterStep(PcbSupplyState.WaitingForCarrier);
-                    }
-                    else
-                    {
-                        // Presence can be ON before reaching the PCB; grip only at the taught pickup XYZ.
-                        await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true, pickup.Token);
-                        await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true, pickup.Token);
-                        pickup.Token.ThrowIfCancellationRequested();
-                        EnterStep(PcbSupplyState.MovingToHandoff);
-                    }
-
-                    // Never advance a replacement carrier.
-                    if (!carrierChanged)
-                    {
-                        if (repeat)
-                        {
-                            if (PcbSecured)
-                                await MoveAxisAsync(MotionAxis.Z, _settings.RotationZ, pickup.Token);
-                            else
-                                _pickStep = pickStep == PickStep.Pcb1 ? PickStep.Pcb2 : PickStep.Pcb1;
-                        }
-                        else
-                            _pickStep = pickStep == PickStep.Pcb1 ? PickStep.Pcb2 : PickStep.WaitingForCarrierExit;
-                        if (!PcbSecured && _pickStep == PickStep.WaitingForCarrierExit)
-                            EnterStep(PcbSupplyState.WaitingForCarrierExit);
-                    }
-                }
-                catch (OperationCanceledException) when (carrierChanged
-                    && !cancellationToken.IsCancellationRequested)
-                {
-                    if (repeat)
-                        throw new InvalidOperationException("The upstream carrier left during the initial repeat pickup.");
-                    _pickStep = PickStep.Pcb1;
-                    EnterStep(PcbSupplyState.WaitingForCarrier);
-                }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                {
-                    throw new MotionInterlockException("Supply rotation must remain confirmed Rotated throughout PCB pickup.");
-                }
-                finally
-                {
-                    Changed -= CheckPickupFeedback;
-                }
-                break;
-            }
-            case PcbSupplyState.MovingToHandoff:
-            {
-                using var handoff = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                void CheckHolding()
-                {
-                    if (!PcbSecured)
-                        OperationCancellation.CancelIfNotDisposed(handoff);
-                }
-                Changed += CheckHolding;
-                try
-                {
-                    CheckHolding();
-                    handoff.Token.ThrowIfCancellationRequested();
-                    if (Rotation != PcbSupplyRotationState.Unrotated)
-                        await SetRotatedAsync(false, handoff.Token);
-                    await PrepareHandoffAsync(handoff.Token);
-                }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                {
-                    throw new InvalidOperationException("Supply lost PCB grip or IPM fixation during forward handoff.");
-                }
-                finally
-                {
-                    Changed -= CheckHolding;
-                }
-                break;
-            }
-            case PcbSupplyState.HandingOff:
-                if (repeat && !PcbSecured && placement.Handoff != PcbPlacementHandoff.Holding)
-                    throw new InvalidOperationException("Supply repeat lost PCB holding feedback during forward handoff.");
-                if (PcbSecured && placement.Handoff != PcbPlacementHandoff.Holding)
-                    return false;
-                if (Rotation != PcbSupplyRotationState.Unrotated)
-                    throw new MotionInterlockException("Supply must remain Unrotated while releasing the PCB.");
-                if (_io.GetInput(InputIo.PcbSupplyIpmFixerForward))
-                {
-                    if (placement.Handoff != PcbPlacementHandoff.Holding)
-                        throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
-                    await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false, cancellationToken);
-                }
-                if (Gripper != PcbSupplyCylinderState.Backward)
-                {
-                    if (Rotation != PcbSupplyRotationState.Unrotated)
-                        throw new MotionInterlockException("Supply lost Unrotated feedback before opening its gripper.");
-                    if (placement.Handoff != PcbPlacementHandoff.Holding)
-                        throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
-                    await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false, cancellationToken);
-                }
-                EnterStep(PcbSupplyState.WaitingForPlacementClear);
-                break;
-            default:
-                return false;
-        }
-        return true;
-    }
-
     public async Task PrepareHandoffAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (Rotation != PcbSupplyRotationState.Unrotated)
             throw new MotionInterlockException("Supply must be unrotated before moving to the handoff position.");
         var position = _settings.HandoffPosition;

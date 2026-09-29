@@ -22,6 +22,129 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class IoStartupTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BuzzerAcknowledgementFollowsTheAlarmWriteAndPreservesLaterAlarms(bool laterAlarm)
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        using var release = new ManualResetEventSlim();
+        var writingBuzzer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output != OutputIo.Buzzer || !on)
+                return;
+            io.BeforeOutputWrite = null;
+            writingBuzzer.TrySetResult();
+            Assert.True(release.Wait(TimeSpan.FromSeconds(2)));
+        };
+        var alarming = Task.Run(() => state.SetError(MachineAlarm.BoltFastening));
+        try
+        {
+            await writingBuzzer.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            machine.SilenceBuzzer();
+            if (laterAlarm)
+            {
+                state.ClearError();
+                state.SetError(MachineAlarm.BoltFastening);
+            }
+            release.Set();
+            await alarming.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Equal(laterAlarm, io.GetOutput(OutputIo.Buzzer));
+            Assert.True(io.GetOutput(OutputIo.TowerLampRed));
+        }
+        finally
+        {
+            release.Set();
+            await alarming;
+            io.BeforeOutputWrite = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task AlarmIndicatorsAreNotOverwrittenByAnEarlierRunNotification()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        using var release = new ManualResetEventSlim();
+        var writingRunLamp = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output != OutputIo.TowerLampGreen || !on)
+                return;
+            io.BeforeOutputWrite = null;
+            writingRunLamp.TrySetResult();
+            Assert.True(release.Wait(TimeSpan.FromSeconds(2)));
+        };
+        var running = Task.Run(() => state.AutomaticRunning = true);
+        try
+        {
+            await writingRunLamp.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            state.SetError(MachineAlarm.BoltFastening);
+            release.Set();
+            await running.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Equal(MachineAlarm.BoltFastening, state.Alarm);
+            Assert.True(io.GetOutput(OutputIo.TowerLampRed));
+            Assert.False(io.GetOutput(OutputIo.TowerLampGreen));
+            Assert.False(io.GetOutput(OutputIo.TowerLampYellow));
+            Assert.True(io.GetOutput(OutputIo.Buzzer));
+        }
+        finally
+        {
+            release.Set();
+            await running;
+            io.BeforeOutputWrite = null;
+            state.AutomaticRunning = false;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task IndicatorWriteFailureDoesNotBlockLaterAlarmNotification()
+    {
+        await using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        try
+        {
+            io.BeforeOutputWrite = (output, on) =>
+            {
+                if (output == OutputIo.TowerLampGreen && on)
+                    throw new IOException("Run lamp write failed.");
+            };
+            state.AutomaticRunning = true;
+            io.BeforeOutputWrite = null;
+
+            state.SetError(MachineAlarm.Inspection);
+
+            Assert.True(io.GetOutput(OutputIo.TowerLampRed));
+            Assert.False(io.GetOutput(OutputIo.TowerLampGreen));
+            Assert.False(io.GetOutput(OutputIo.TowerLampYellow));
+            Assert.True(io.GetOutput(OutputIo.Buzzer));
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            state.AutomaticRunning = false;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task ReleasingReverseDuringReadyCheckDoesNotPulseMotorStart()
     {
@@ -826,6 +949,134 @@ public sealed class IoStartupTests
         }
     }
 
+    [Fact]
+    public async Task SupplyStopDuringSmemaModeReadDoesNotTurnReadyBackOn()
+    {
+        await using var services = CreateServices();
+        var io = services.GetRequiredService<StartupIo>();
+        var physicalIo = services.GetRequiredService<VirtualIoService>();
+        var supply = services.GetRequiredService<PcbSupplier>();
+        io.Initialize();
+        physicalIo.SetInput(InputIo.AutoMode, false);
+        using var stop = new CancellationTokenSource();
+        var lateReady = false;
+        io.BeforeInputRead = input =>
+        {
+            if (input != InputIo.AutoMode)
+                return;
+            io.BeforeInputRead = null;
+            stop.Cancel();
+        };
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.PcbSupplyReadyToFront1 && on && stop.IsCancellationRequested)
+                lateReady = true;
+        };
+        await supply.RunAsync(services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>(), stop.Token);
+        Assert.True(stop.IsCancellationRequested);
+        Assert.False(lateReady);
+        Assert.False(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+    }
+
+    [Fact]
+    public async Task SupplyStopDuringCompletionModeReadKeepsReadyOn()
+    {
+        await using var services = CreateServices();
+        var io = services.GetRequiredService<StartupIo>();
+        var physicalIo = services.GetRequiredService<VirtualIoService>();
+        var supply = services.GetRequiredService<PcbSupplier>();
+        io.Initialize();
+        physicalIo.SetInput(InputIo.AutoMode, false);
+        physicalIo.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        io.SetOutput(OutputIo.PcbSupplyReadyToFront1, true);
+        using var stop = new CancellationTokenSource();
+        io.BeforeInputRead = input =>
+        {
+            if (input != InputIo.AutoMode)
+                return;
+            io.BeforeInputRead = null;
+            stop.Cancel();
+        };
+        Assert.Throws<OperationCanceledException>(() => supply.SetUpstreamReady(false, stop.Token));
+        Assert.True(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+        supply.StopUpstream();
+        Assert.True(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+    }
+
+    [Fact]
+    public async Task StopDuringRearReadyReadDoesNotRestartDischargeMotor()
+    {
+        await using var services = CreateServices();
+        var io = services.GetRequiredService<StartupIo>();
+        var physicalIo = services.GetRequiredService<VirtualIoService>();
+        var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
+        var inspection = services.GetRequiredService<InspectionStation>();
+        services.GetRequiredService<UnitSettings>().Inspection = false;
+        io.Initialize();
+        physicalIo.SetInput(InputIo.AutoMode, false);
+        VirtualTest.SetCarrier(physicalIo, InputIo.InspectionHeatSink1Present, true);
+        await inspection.Station.SeatAsync(CancellationToken.None);
+        inspection.Station.Complete(inspection.Station.CurrentJob);
+        physicalIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
+        using var stop = new CancellationTokenSource();
+        var stoppedDuringRead = false;
+        var lateRun = false;
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.MainConveyorRun && on && stop.IsCancellationRequested)
+                lateRun = true;
+            if (output != OutputIo.MainConveyorForward || !on)
+                return;
+            io.BeforeInputRead = input =>
+            {
+                if (input != InputIo.MainConveyorReadyFromRear)
+                    return;
+                io.BeforeInputRead = null;
+                stoppedDuringRead = true;
+                stop.Cancel();
+            };
+        };
+
+        await conveyor.RunAsync(stop.Token).WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.True(stoppedDuringRead);
+        Assert.False(lateRun);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+    }
+
+    [Fact]
+    public async Task ConveyorStopDuringSmemaModeReadDoesNotTurnReadyBackOn()
+    {
+        await using var services = CreateServices();
+        var io = services.GetRequiredService<StartupIo>();
+        var physicalIo = services.GetRequiredService<VirtualIoService>();
+        var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
+        io.Initialize();
+        physicalIo.SetInput(InputIo.AutoMode, false);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementStopperUp, true);
+        using var stop = new CancellationTokenSource();
+        var lateReady = false;
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.MainConveyorReadyToFront2 && on && stop.IsCancellationRequested)
+                lateReady = true;
+            if (output != OutputIo.MainConveyorAvailableToRear || on || !conveyor.IsRunning)
+                return;
+            io.BeforeInputRead = input =>
+            {
+                if (input != InputIo.AutoMode)
+                    return;
+                io.BeforeInputRead = null;
+                stop.Cancel();
+            };
+        };
+        await conveyor.RunAsync(stop.Token);
+        Assert.True(stop.IsCancellationRequested);
+        Assert.False(lateReady);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1074,7 +1325,7 @@ public sealed class IoStartupTests
             {
                 TransferFailureStep.Return => conveyor.ReturnToStartAsync(timeout.Token),
                 TransferFailureStep.NgConveyor => services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>()
-                    .RunUntilAsync(InputIo.NgConveyorPosition1Occupied, true, false, timeout.Token),
+                    .RunUntilAsync(InputIo.NgConveyorPosition1Occupied, false, timeout.Token),
                 TransferFailureStep.ShootBolt => services.GetRequiredService<IBTM.BoltFastening.BoltFasteningStation>()
                     .ShootBoltAsync(timeout.Token),
                 TransferFailureStep.PcbSupply => services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>()
@@ -1956,6 +2207,60 @@ public sealed class IoStartupTests
 
     // Physical I/O starts closed; the regular VirtualIoService starts ready and
     // permits output reads while disconnected, which cannot expose this bug.
+    [Fact]
+    public async Task StopDuringTimeoutFeedbackReadDoesNotBecomeACylinderAlarm()
+    {
+        var physicalIo = new VirtualIoService(new BoltFasteningHardwareSettings().Outputs, new() { TimeoutMilliseconds = 30 })
+        { AutoResponseEnabled = false };
+        var io = new StartupIo(physicalIo);
+        io.Initialize();
+        physicalIo.SetInputs((InputIo.ShootingEscapeForward, true), (InputIo.ShootingEscapeBackward, true));
+        using var stop = new CancellationTokenSource();
+        var reads = 0;
+        io.BeforeInputRead = input =>
+        {
+            // Two reads check completion; the third identifies the missing feedback after timeout.
+            if (input == InputIo.ShootingEscapeForward && ++reads == 3)
+                stop.Cancel();
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ((IIoService)io)
+            .WaitForOutputFeedbackAsync(OutputIo.ShootingEscapeForward, true, stop.Token));
+        Assert.True(stop.IsCancellationRequested);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MatchingInputReadCannotCompleteAfterStop(bool alreadyMatched)
+    {
+        await using var services = CreateServices();
+        var io = services.GetRequiredService<StartupIo>();
+        var physicalIo = services.GetRequiredService<VirtualIoService>();
+        io.Initialize();
+        physicalIo.SetInput(InputIo.ShootingEscapeForward, alreadyMatched);
+        using var stop = new CancellationTokenSource();
+        Task? waiting = null;
+        if (!alreadyMatched)
+            waiting = ((IIoService)io).WaitForInputAsync(
+                InputIo.ShootingEscapeForward, true, stop.Token, requireCurrent: true);
+        io.BeforeInputRead = input =>
+        {
+            if (input == InputIo.ShootingEscapeForward)
+            {
+                io.BeforeInputRead = null;
+                stop.Cancel();
+            }
+        };
+        waiting ??= ((IIoService)io).WaitForInputAsync(
+            InputIo.ShootingEscapeForward, true, stop.Token, requireCurrent: true);
+        if (!alreadyMatched)
+            physicalIo.SetInput(InputIo.ShootingEscapeForward, true);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
+        Assert.True(stop.IsCancellationRequested);
+    }
+
     private sealed class StartupIo : IIoService
     {
         private readonly VirtualIoService _inner;

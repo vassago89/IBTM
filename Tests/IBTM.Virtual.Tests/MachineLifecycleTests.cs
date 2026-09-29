@@ -1,4 +1,4 @@
-using IBTM.BoltFeeder;
+﻿using IBTM.BoltFeeder;
 using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -1626,7 +1626,7 @@ public sealed partial class MachineLifecycleTests
                 // Isolate the monitor: a simultaneous command read failure has its own unit alarm.
                 active.DiagnosticReadError = new IOException("Unavailable diagnostic feedback.");
             else
-                active.OverrideState = value => fault switch
+                active.OverrideState = (_, value) => fault switch
                 {
                     MotionFeedbackFault.Alarm => value with { Alarm = true },
                     MotionFeedbackFault.HomeLost => value with { Homed = false },
@@ -3755,6 +3755,45 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
+    [Fact]
+    public async Task SelectedBoltWindowCancellationBeforeAdmissionDoesNotRaiseAnAlarm()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        await using var services = CreateServices(settings);
+        services.GetRequiredService<RecipeManager>().Current.Pcb.BoltPoints = [new()];
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var viewModel = services.GetRequiredService<BoltStationTestViewModel>();
+        await machine.InitializeAsync();
+        viewModel.Activate();
+        var row = Assert.Single(viewModel.Bolts);
+        row.PropertyChanged += (sender, e) =>
+        {
+            if (e.PropertyName == nameof(BoltTestRow.Status) && row.Status == "Queued")
+                viewModel.RunCommand.Cancel();
+        };
+        try
+        {
+            await viewModel.RunCommand.ExecuteAsync(null);
+
+            Assert.Null(viewModel.Error);
+            Assert.Equal("Test stopped.", viewModel.Message);
+            Assert.Equal("Not run", row.Status);
+            Assert.False(state.IsError);
+            Assert.False(state.BoltTestRunning);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+        }
+        finally
+        {
+            viewModel.Deactivate();
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -3880,6 +3919,42 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
+    [Theory]
+    [InlineData(MachineUnit.PcbPlacement, MotionGroup.PcbPlacementHandler, InputIo.PcbPlacementHandlerUp, MachineAlarm.PcbPlacement)]
+    [InlineData(MachineUnit.BoltFastening, MotionGroup.BoltFastening, InputIo.PickupHeadUp, MachineAlarm.BoltFastening)]
+    [InlineData(MachineUnit.Inspection, MotionGroup.InspectionGantry, InputIo.NgCarrierPickupUp, MachineAlarm.NgCarrierTransfer)]
+    public async Task MonitoredExternalMovementChecksRaisedCylinderInterlocks(
+        MachineUnit unit, MotionGroup group, InputIo raised, MachineAlarm expectedAlarm)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(unit);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var probe = probes[group];
+        try
+        {
+            await machine.InitializeAsync();
+            await machine.HomeAsync(CancellationToken.None);
+            io.SetInput(raised, false);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            var stopsBeforeMove = probe.StopCalls;
+            // The controller starts moving without a local command or a device event.
+            probe.OverrideState = (_, value) => value with { InMotion = true, InPosition = false };
+
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.Alarm == expectedAlarm && probe.StopCalls > stopsBeforeMove,
+                TimeSpan.FromSeconds(2)));
+            Assert.Contains("Up", state.AlarmDetail);
+        }
+        finally
+        {
+            probe.OverrideState = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task CylinderInterlockDuringEmergencyStopKeepsTheEmergencyAlarm()
     {
@@ -3920,6 +3995,45 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
+    [Fact]
+    public async Task MonitoredHorizontalMovementChecksHeadClearanceWhileZIsAlreadyMoving()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        var probe = probes[MotionGroup.BoltFastening];
+        var horizontal = false;
+        try
+        {
+            await machine.InitializeAsync();
+            await machine.HomeAsync(CancellationToken.None);
+            io.SetInput(InputIo.PickupHeadUp, false);
+            probe.OverrideState = (axis, feedback) => feedback with
+            {
+                InMotion = axis == MotionAxis.Z || Volatile.Read(ref horizontal),
+                InPosition = false,
+            };
+            await WaitUntilAsync(() => station.Motion.IsMoving);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            var stopsBeforeHorizontal = probe.StopCalls;
+
+            Volatile.Write(ref horizontal, true);
+
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.Alarm == MachineAlarm.BoltFastening && probe.StopCalls > stopsBeforeHorizontal,
+                TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            probe.OverrideState = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -3935,7 +4049,7 @@ public sealed partial class MachineLifecycleTests
         if (unreadable)
             probe.FailHardwareCalls = true;
         else
-            probe.OverrideState = state => state with { InMotion = true };
+            probe.OverrideState = (_, state) => state with { InMotion = true };
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         try
         {
@@ -5011,6 +5125,46 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetInput(InputIo.ShootingHeadDown));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ManualOperationObservesServoLossWithoutADriverEvent(bool otherGroupAlreadyOff)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.Units.PcbPlacement = true;
+        await using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        try
+        {
+            await machine.InitializeAsync();
+            await machine.HomeAsync(CancellationToken.None);
+            await WaitUntilAsync(() => state.Ready);
+            if (otherGroupAlreadyOff)
+            {
+                probes[MotionGroup.PcbPlacementHandler].OverrideState = (_, feedback) => feedback with { ServoOn = false };
+                await WaitUntilAsync(() => !state.FeedbackReadiness.ServosOn);
+            }
+            using var operation = machine.BeginManualOperation(
+                () => machine.IsManualMotionReady(MotionGroup.InspectionGantry), CancellationToken.None);
+            Assert.NotNull(operation);
+            Assert.False(operation.IsCancellationRequested);
+
+            // A drive's external servo change is seen only by the shared monitor.
+            probes[MotionGroup.InspectionGantry].OverrideState = (_, feedback) => feedback with { ServoOn = false };
+
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => operation.IsCancellationRequested, TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            foreach (var probe in probes.Values)
+                probe.OverrideState = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task CylinderFeedbackIsRecheckedBetweenTravelZAndXy()
     {
@@ -5126,7 +5280,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var probe = probes[MotionGroup.PcbSupply];
         await machine.InitializeAsync();
-        probe.OverrideState = feedback => feedback with { Alarm = alarmRemains, ServoOn = alarmRemains };
+        probe.OverrideState = (_, feedback) => feedback with { Alarm = alarmRemains, ServoOn = alarmRemains };
         await WaitUntilAsync(() => machine.IsResetAllowed);
 
         await machine.ResetAsync();
@@ -5135,6 +5289,88 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         Assert.Contains("not confirmed by hardware feedback", state.AlarmDetail);
         Assert.False(state.Ready);
+    }
+
+    [Fact]
+    public async Task StopDuringResetFinalFeedbackKeepsTheExistingAlarm()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var probe = probes[MotionGroup.PcbSupply];
+        await machine.InitializeAsync();
+        state.SetError(MachineAlarm.PcbSupply, new InvalidOperationException("Original alarm."));
+        var stopped = false;
+        probe.BeforeAxisStateRead = () =>
+        {
+            probe.BeforeAxisStateRead = null;
+            Assert.Equal(1, probe.ResetCalls);
+            stopped = true;
+            machine.Stop();
+        };
+        try
+        {
+            await machine.ResetAsync();
+
+            Assert.True(stopped);
+            Assert.Equal(MachineAlarm.PcbSupply, state.Alarm);
+            Assert.Contains("Original alarm.", state.AlarmDetail);
+        }
+        finally
+        {
+            probe.BeforeAxisStateRead = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopDuringFinalStartOrHomeFeedbackDoesNotRaiseAMotionAlarm(bool home)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        await using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var probe = probes[MotionGroup.InspectionGantry];
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<RecipeManager>().Current);
+        var reads = 0;
+        var stopped = false;
+        probe.BeforeAxisStateRead = () =>
+        {
+            // Let initial admission see ready axes, then STOP during the final live check.
+            if (++reads <= probe.Motion.Axes.Count)
+                return;
+            probe.BeforeAxisStateRead = null;
+            stopped = true;
+            machine.Stop();
+            probe.OverrideState = (_, feedback) => feedback with { ServoOn = false };
+        };
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            if (home)
+                await machine.HomeAsync(timeout.Token);
+            else
+                await machine.StartAsync(timeout.Token);
+
+            Assert.True(stopped);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(state.AutomaticRunning);
+            Assert.False(state.IsHoming);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            probe.BeforeAxisStateRead = null;
+            probe.OverrideState = null;
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -5777,6 +6013,38 @@ public sealed partial class MachineLifecycleTests
         Assert.Contains("Teaching feedback read failed.", state.AlarmDetail);
         Assert.Equal(before, (point.Coordinates?.X, point.Coordinates?.Y, point.Coordinates?.Z));
         Assert.False(teaching.Motion.IsMoving);
+        Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+    }
+
+    [Fact]
+    public async Task StopDuringTeachingPositionReadDoesNotOverwriteThePoint()
+    {
+        await using var services = CreateDisplayServices(out var feedback);
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+        var point = teaching.SelectedPoint;
+        point.Teach(1, 2, 0);
+        await services.GetRequiredService<InspectionStation>().MoveToAsync(new() { X = 3, Y = 4 }, 10_000);
+        await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+        var stopped = false;
+        feedback.BeforePositionRead = () =>
+        {
+            feedback.BeforePositionRead = null;
+            stopped = true;
+            machine.Stop();
+        };
+
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+
+        Assert.True(stopped);
+        Assert.Equal(1, point.Coordinates!.X);
+        Assert.Equal(2, point.Coordinates.Y);
+        Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
     }
 
@@ -6714,7 +6982,7 @@ public sealed partial class MachineLifecycleTests
 
             await placement.MoveAxisAsync(MotionAxis.Z, 9);
             await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
-            probe.OverrideState = state => state with { Homed = false };
+            probe.OverrideState = (_, state) => state with { Homed = false };
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
 
             Assert.Equal(7, handoff.Coordinates!.Z);
@@ -8496,8 +8764,10 @@ public sealed partial class MachineLifecycleTests
         public int HardwareCalls;
         public int InitializationCalls;
         public int ResetCalls;
+        public int StopCalls;
         public Action? BeforeHardwareRead;
-        public Func<AxisState, AxisState>? OverrideState;
+        public Action? BeforeAxisStateRead;
+        public Func<MotionAxis, AxisState, AxisState>? OverrideState;
         public Exception? DiagnosticReadError;
 
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
@@ -8510,7 +8780,7 @@ public sealed partial class MachineLifecycleTests
                     return (null, new IOException("Unavailable diagnostic state."));
             }
             var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
-            return (read.State is { } state ? OverrideState?.Invoke(state) ?? state : null, read.Error);
+            return (read.State is { } state ? OverrideState?.Invoke(axis, state) ?? state : null, read.Error);
         }
 
         public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
@@ -8529,6 +8799,10 @@ public sealed partial class MachineLifecycleTests
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
             var name = method!.Name;
+            if (name == nameof(IMotionFeedback.GetAxisState))
+                BeforeAxisStateRead?.Invoke();
+            if (name == nameof(IAxisMotion.Stop))
+                Interlocked.Increment(ref StopCalls);
             // A disabled device may reject acquisition while still accepting an explicit STOP.
             switch (true)
             {
@@ -8558,7 +8832,10 @@ public sealed partial class MachineLifecycleTests
             }
             if (name == nameof(IMotionFeedback.GetAxisState)
                 && OverrideState is { } transform)
-                return transform((AxisState)result!);
+                return transform((MotionAxis)arguments![0]!, (AxisState)result!);
+            if (OverrideState is { } feedback && name is "get_IsMoving" or "get_IsMovingHorizontal")
+                return Motion.Axes.Any(axis => (name == "get_IsMoving" || axis != MotionAxis.Z)
+                    && feedback(axis, Motion.GetAxisState(axis)).InMotion);
             return result;
         }
     }

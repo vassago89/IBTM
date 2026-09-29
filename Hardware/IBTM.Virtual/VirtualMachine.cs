@@ -819,6 +819,12 @@ public sealed class VirtualMachine
                     {
                         _io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
                     }
+                    else if (position2)
+                    {
+                        _io.SetInputs((InputIo.NgConveyorPosition2Occupied, false),
+                            (InputIo.NgConveyorPosition1Occupied, true));
+                        _ = TransferNgCarrierAsync(version);
+                    }
 
                     return;
                 }

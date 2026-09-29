@@ -29,7 +29,9 @@ START에서 처음부터 선택한다. 그립이나 인계가 애매하면 현�
 Repeat에서도 사용하는 모션·인계·출력 동작은 기본 파일을 함께 사용한다.
 파일 길이만 줄이기 위한 partial 분리나 별도 실행 루프를 추가하지 않는다.
 
-공급·장착·볼트·검사·메인 컨베이어·NG 컨베이어의 실행 진입점은 아래 형태로 통일한다.
+실행 루프에서 다음 단계를 선택하고, 동작과 대기를 명시적으로 실행한다.
+메인/NG 컨베이어와 PCB 공급은 별도 `ExecuteStepAsync`로 전달하지 않고
+`RunAsync` 안의 `switch`에서 직접 처리한다.
 
 ```csharp
 try
@@ -38,8 +40,14 @@ try
     while (!cancellationToken.IsCancellationRequested)
     {
         var step = GetNextStep(/* 현재 작업·모드·피드백 */);
-        if (!await ExecuteStepAsync(step, /* 작업 인자 */, cancellationToken))
-            await WaitForChangeAsync(cancellationToken);
+        EnterStep(step);
+        switch (step)
+        {
+            // 동작 단계: 장치 명령과 완료 확인을 순서대로 await
+            default:
+                await WaitForChangeAsync(cancellationToken);
+                break;
+        }
     }
 }
 finally
@@ -50,10 +58,10 @@ finally
 ```
 
 `GetNextStep`은 단계 선택이며 장치 명령이나 단계 확정을 하지 않는다.
-`ExecuteStepAsync`는 각 스테이션의 구체적인 실행 경계다. `EnterStep`으로 실행 단계를
-확정한 뒤 `switch`와 명시적인 `await`로 동작한다. 반환값 `false`는 외부 조건을
-기다려야 한다는 뜻이며, 다음 대기는 `RunAsync`가 담당한다. 동작 도중 필요한
+`EnterStep`으로 실행 단계를 확정한 뒤 `switch`와 명시적인 `await`로 동작한다.
+외부 조건이 필요하면 해당 분기에서 `WaitForChangeAsync`로 기다린다. 동작 도중 필요한
 인계·장치 완료 대기는 그 동작 안에 유지한다. 동작을 끝내기 전에 다음 단계를 실행하지 않는다.
+장착·볼트·검사는 현재 별도 `ExecuteStepAsync`를 사용하며, 반환값 `false`이면 실행 루프에서 기다린다.
 
 단계 선택과 실행 함수는 유닛 내부에서만 사용하고, 외부에서는 `RunAsync`와 명시적인
 수동 동작을 호출한다. 회귀 테스트는 내부 함수에 접근해 단계별로 검증한다.
@@ -71,7 +79,7 @@ finally
 현재 PCB 표시를 유지하며, STOP 때 표시는 지우되 Repeat의 미완료 반환 소유권은 보존한다.
 검사 지지대 준비 역시 `RunAsync`에서 직접 움직이지 않고 선택된 단계에서 실행한다.
 
-공급·장착 Repeat의 역인계도 같은 `GetNextStep`/`ExecuteStepAsync` switch에서 선택·실행한다.
+공급·장착 Repeat의 역인계도 일반 운전과 같은 단계 선택과 실행 switch에서 처리한다.
 별도의 Repeat 실행 루프나 중복 State는 없다. 공급 준비 → 반환 PCB 제시 → 그립 확인 → 해제·이탈
 → 공급 복귀 → 정방향 재인계 순서이며, 상대 유닛 대기는 루프에 반환한다.
 장착의 Repeat 작업 정보에는 결과 소유 Job과 대상 HeatSink만 보관한다.

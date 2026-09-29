@@ -67,6 +67,17 @@ public sealed class BoltPoint
         }
     }
 
+    public double? MinimumTurns
+    {
+        get;
+        set
+        {
+            if (value is { } turns && (!double.IsFinite(turns) || turns <= 0))
+                throw new ArgumentOutOfRangeException(nameof(value), "Minimum turns must be greater than zero, or blank to disable the check.");
+            field = value;
+        }
+    }
+
     // Null retains the inspection defaults of recipes saved before per-bolt settings.
     public int? BrightnessThreshold
     {

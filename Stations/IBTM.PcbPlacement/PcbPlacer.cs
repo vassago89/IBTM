@@ -369,6 +369,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         void CheckRepeatFeedback()
         {
             if (!Station.CarrierSeated || !ReferenceEquals(job, Station.CurrentJob)
+                || _repeatTrip is { } trip && !Station.IsHeatSinkPresent(trip.HeatSink)
                 || requiresHolding && !PcbSecured)
                 OperationCancellation.CancelIfNotDisposed(repeatOperation);
         }
@@ -490,6 +491,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     void CheckPlacementFeedback()
                     {
                         if (!Station.CarrierSeated || !ReferenceEquals(job, Station.CurrentJob)
+                            || !Station.IsHeatSinkPresent(target)
                             || carryingPcb && !PcbSecured
                             || checkingPcbPresence && Pcb == PlacementPcbState.None)
                             OperationCancellation.CancelIfNotDisposed(operation);
@@ -532,7 +534,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     }
                     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                     {
-                        throw new InvalidOperationException("Placement lost PCB grip, PCB presence during pressing, or the original seated carrier.");
+                        throw new InvalidOperationException("Placement lost PCB grip, PCB presence during pressing, the target heat sink, or the original seated carrier.");
                     }
                     finally
                     {
@@ -554,7 +556,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         catch (OperationCanceledException) when (repeatOperation?.IsCancellationRequested == true
             && !callerToken.IsCancellationRequested)
         {
-            throw new InvalidOperationException("The repeat PCB lost its original seated carrier or holding feedback.");
+            throw new InvalidOperationException("The repeat PCB lost its original seated carrier, target heat sink, or holding feedback.");
         }
         finally
         {
@@ -721,6 +723,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
 
     public Task SetLiftDownAsync(bool down, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (down && _motion.IsMoving)
             throw new MotionInterlockException("Stop the placement axes before lowering the handler.");
         return _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, down, cancellationToken);

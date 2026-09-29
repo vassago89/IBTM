@@ -325,6 +325,7 @@ public sealed class MachineStoreTests
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MoveUnit = 0.1;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MovePulse = 10;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.HomeDirection = HomeDirection.Positive;
+        settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.HomeSignal = HomeSignal.NegativeLimit;
         var motion = settings.PcbPlacementHandler.Motion;
         motion.AccelerationSeconds = 0.3;
         motion.DecelerationSeconds = 0.7;
@@ -350,6 +351,10 @@ public sealed class MachineStoreTests
         settings.BoltFastening.ShootingArrivalDelaySeconds = 0.75;
         settings.BoltFastening.ShootingHead.FasteningZ = 14;
         settings.BoltFastening.PickupHead.FasteningZ = 18;
+        Assert.Equal(5, settings.NgConveyor.EjectRunSeconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.EjectRunSeconds = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => settings.NgConveyor.EjectRunSeconds = double.NaN);
+        settings.NgConveyor.EjectRunSeconds = 1.25;
         settings.Lighting.StabilizationDelayMilliseconds = 375;
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.IoBoltHardware.Outputs[OutputIo.ShootingBoltStart].Number = 115;

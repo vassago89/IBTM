@@ -67,7 +67,10 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
             assembly.PcbBarcode, assembly.PcbBarcodeResult, assembly.FasteningResult, assembly.InspectionResult,
             assembly.PcbBoltResults.ToDictionary(), assembly.PickupBoltResults.ToDictionary(),
             assembly.BoltPresenceResults.ToDictionary(),
-            _recipes.Current.Pcb.GetBolts(assembly.HeatSink).Select(bolt => bolt.Id).ToArray());
+            _recipes.Current.Pcb.GetBolts(assembly.HeatSink).Select(bolt => bolt.Id).ToArray())
+        {
+            TurnsResult = assembly.TurnsResult,
+        };
 
         // The station records results after this creation callback returns.
         assembly.ResultsChanged += QueueResults;
@@ -83,6 +86,7 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
                 PcbBarcodeResult = source.PcbBarcodeResult,
                 FasteningResult = source.FasteningResult,
                 InspectionResult = source.InspectionResult,
+                TurnsResult = source.TurnsResult,
                 PcbBoltResults = source.PcbBoltResults.ToDictionary(),
                 PickupBoltResults = source.PickupBoltResults.ToDictionary(),
                 BoltPresenceResults = source.BoltPresenceResults.ToDictionary(),

@@ -303,12 +303,14 @@ public sealed class MachineState : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new(nameof(FeedbackReadiness)));
         PropertyChanged?.Invoke(this, new(nameof(ServoPowerOn)));
         PropertyChanged?.Invoke(this, new(nameof(Ready)));
+        Changed?.Invoke();
     }
 
     private void OnReadErrorChanged()
     {
         PropertyChanged?.Invoke(this, new(nameof(ReadError)));
         NotifyAvailabilityChanged();
+        Changed?.Invoke();
     }
 
     private void NotifyAvailabilityChanged()

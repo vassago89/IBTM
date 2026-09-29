@@ -58,9 +58,12 @@ public partial class PcbDetailsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PresenceResults));
         var selected = SelectedBolt;
+        var selectedImage = SelectedImage;
         BoltResults = newValue is null ? [] : newValue.PcbBoltResults
-            .Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Shooting, pair.Value))
-            .Concat(newValue.PickupBoltResults.Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Pickup, pair.Value)))
+            .Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Shooting, pair.Value,
+                newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null))
+            .Concat(newValue.PickupBoltResults.Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Pickup, pair.Value,
+                newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null)))
             .OrderBy(row => row.Number).ThenBy(row => row.Head).ToArray();
         SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
             ?? BoltResults.FirstOrDefault();
@@ -69,6 +72,10 @@ public partial class PcbDetailsViewModel : ObservableObject
             Images = [];
             SelectedImage = null;
             RefreshImages();
+        }
+        else
+        {
+            SelectedImage = selectedImage;
         }
     }
 
@@ -127,12 +134,19 @@ public partial class PcbDetailsViewModel : ObservableObject
     }
 }
 
-public sealed record PcbBoltResultView(Guid BoltId, int? Number, FasteningHead Head, BoltResult Result)
+public sealed record PcbBoltResultView(Guid BoltId, int? Number, FasteningHead Head, BoltResult Result, bool? Present = null)
 {
     public string HeadLabel => Head == FasteningHead.Pickup ? "H1 · Pickup" : "H2 · Shooting";
     public string Title => $"Bolt {Number} · {HeadLabel}";
     public string Verdict => Result.Source == BoltResultSource.DryRun ? "DRY RUN" : Result.Success ? "OK" : "NG";
-    public double? TotalTurns => Result.Controller?.Angle3 / 360.0;
+    public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
+    public string TurnsVerdict => Result.TurnsResult switch
+    {
+        AssemblyResult.Ok => "OK",
+        AssemblyResult.Ng => "NG",
+        AssemblyResult.Pending => "No data",
+        _ => "Not set",
+    };
     public string? ControllerStatus => Result.Controller is { } data
         ? $"{((AdcEventStatus)data.StatusCode).GetDescription()} ({data.StatusCode})" : null;
     public string? Direction => Result.Controller is { } data

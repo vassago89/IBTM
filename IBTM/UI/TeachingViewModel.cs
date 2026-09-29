@@ -793,6 +793,7 @@ public partial class TeachingViewModel : ObservableObject
                     when Motion.Feedback.IsReady && IsReadTeachingPositionAllowed(point, live: true):
                     SaveError = null;
                     var current = Motion.Feedback.Position;
+                    operation.Token.ThrowIfCancellationRequested();
                     point.Teach(current.X, current.Y, current.Z);
                     RefreshPointPositions();
                     if (point.Storage == TeachingStorage.Machine

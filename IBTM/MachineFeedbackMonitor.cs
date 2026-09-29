@@ -302,28 +302,36 @@ public sealed class MachineFeedbackMonitor : IAsyncDisposable
 
         var previousReadiness = Readiness;
         var previousError = ReadError;
+        var previousSample = _samples.GetValueOrDefault(group);
         _samples[group] = sample;
         // Safety checks consume every sample, including its acquisition timestamp.
         Sampled?.Invoke(group, sample);
-        NotifyChanges(previousReadiness, previousError);
+        NotifyChanges(previousReadiness, previousError,
+            previousSample?.Enabled != sample.Enabled || previousSample?.IoReady != sample.IoReady
+                || previousSample?.Readiness != sample.Readiness);
     }
 
     private void FailMotion(MotionGroup group, MotionStatus motion, Exception error)
     {
         var previousReadiness = Readiness;
         var previousError = ReadError;
+        var previousSample = _samples.GetValueOrDefault(group);
         motion.InvalidateFeedback(error);
         var sample = new MotionFeedbackSample(
             Stopwatch.GetTimestamp(), _units.IsMotionEnabled(group), _io.IsReady,
             new(false, false, true), error);
         _samples[group] = sample;
         Sampled?.Invoke(group, sample);
-        NotifyChanges(previousReadiness, previousError);
+        NotifyChanges(previousReadiness, previousError,
+            previousSample?.Enabled != sample.Enabled || previousSample?.IoReady != sample.IoReady
+                || previousSample?.Readiness != sample.Readiness);
     }
 
-    private void NotifyChanges(MotionReadiness previousReadiness, Exception? previousError)
+    private void NotifyChanges(
+        MotionReadiness previousReadiness, Exception? previousError, bool groupReadinessChanged = false)
     {
-        if (previousReadiness != Readiness)
+        // One group's loss still matters when another group already made the aggregate unavailable.
+        if (groupReadinessChanged || previousReadiness != Readiness)
             ReadinessChanged?.Invoke();
         if (!ReferenceEquals(previousError, ReadError))
             ReadErrorChanged?.Invoke();
