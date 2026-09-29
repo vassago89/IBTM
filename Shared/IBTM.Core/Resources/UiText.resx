@@ -12,2665 +12,2551 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
   </resheader>
-  <data name="  Preset " xml:space="preserve">
+  <data name="  preset " xml:space="preserve">
     <value>  Preset </value>
   </data>
-  <data name="  Run " xml:space="preserve">
+  <data name="  run " xml:space="preserve">
     <value>  Run </value>
   </data>
-  <data name=" · Bolt {0}" xml:space="preserve">
+  <data name=" · bolt {0}" xml:space="preserve">
     <value> · Bolt {0}</value>
   </data>
-  <data name=" · Disabled" xml:space="preserve">
+  <data name=" · disabled" xml:space="preserve">
     <value> · Disabled</value>
   </data>
-  <data name="+ (Positive)" xml:space="preserve">
+  <data name="+ (positive)" xml:space="preserve">
     <value>+ (Positive)</value>
   </data>
-  <data name="+LIMIT" xml:space="preserve">
+  <data name="+limit" xml:space="preserve">
     <value>+LIMIT</value>
   </data>
-  <data name="A3 ÷ 360 ≥ minimum" xml:space="preserve">
+  <data name="a3 ÷ 360 ≥ minimum" xml:space="preserve">
     <value>A3 ÷ 360 ≥ minimum</value>
   </data>
-  <data name="ACTUAL / MIN" xml:space="preserve">
-    <value>ACTUAL / MIN</value>
-  </data>
-  <data name="ADC TEST" xml:space="preserve">
-    <value>ADC TEST</value>
-  </data>
-  <data name="ADC communication log" xml:space="preserve">
-    <value>ADC communication log</value>
-  </data>
-  <data name="ADC · HEAD" xml:space="preserve">
-    <value>ADC · HEAD</value>
-  </data>
-  <data name="ADDRESS" xml:space="preserve">
-    <value>ADDRESS</value>
-  </data>
-  <data name="AIR LOW" xml:space="preserve">
-    <value>AIR LOW</value>
-  </data>
-  <data name="AIR OK" xml:space="preserve">
-    <value>AIR OK</value>
-  </data>
-  <data name="ALARM" xml:space="preserve">
-    <value>ALARM</value>
-  </data>
-  <data name="ANGLE A1 (°)" xml:space="preserve">
-    <value>ANGLE A1 (°)</value>
-  </data>
-  <data name="ANGLE A2 (°)" xml:space="preserve">
-    <value>ANGLE A2 (°)</value>
-  </data>
-  <data name="ANGLE A3 (°)" xml:space="preserve">
-    <value>ANGLE A3 (°)</value>
-  </data>
-  <data name="AXIS" xml:space="preserve">
-    <value>AXIS</value>
-  </data>
-  <data name="Acceleration (s)" xml:space="preserve">
+  <data name="acceleration (s)" xml:space="preserve">
     <value>Acceleration (s)</value>
   </data>
-  <data name="Active" xml:space="preserve">
+  <data name="active" xml:space="preserve">
     <value>Active</value>
   </data>
-  <data name="Active connection: " xml:space="preserve">
+  <data name="active connection: " xml:space="preserve">
     <value>Active connection: </value>
   </data>
-  <data name="Active: " xml:space="preserve">
+  <data name="active: " xml:space="preserve">
     <value>Active: </value>
   </data>
-  <data name="Add Bolt" xml:space="preserve">
+  <data name="actual / min" xml:space="preserve">
+    <value>ACTUAL / MIN</value>
+  </data>
+  <data name="adc communication log" xml:space="preserve">
+    <value>ADC communication log</value>
+  </data>
+  <data name="adc test" xml:space="preserve">
+    <value>ADC TEST</value>
+  </data>
+  <data name="adc · head" xml:space="preserve">
+    <value>ADC · HEAD</value>
+  </data>
+  <data name="add bolt" xml:space="preserve">
     <value>Add Bolt</value>
   </data>
-  <data name="After arrival sensor (s)" xml:space="preserve">
+  <data name="address" xml:space="preserve">
+    <value>ADDRESS</value>
+  </data>
+  <data name="after arrival sensor (s)" xml:space="preserve">
     <value>After arrival sensor (s)</value>
   </data>
-  <data name="After bolt detection (s)" xml:space="preserve">
+  <data name="after bolt detection (s)" xml:space="preserve">
     <value>After bolt detection (s)</value>
   </data>
-  <data name="After detection (mm/s)" xml:space="preserve">
+  <data name="after detection (mm/s)" xml:space="preserve">
     <value>After detection (mm/s)</value>
   </data>
-  <data name="Air Pressure High" xml:space="preserve">
+  <data name="air low" xml:space="preserve">
+    <value>AIR LOW</value>
+  </data>
+  <data name="air ok" xml:space="preserve">
+    <value>AIR OK</value>
+  </data>
+  <data name="air pressure high" xml:space="preserve">
     <value>Air Pressure High</value>
   </data>
-  <data name="Air Pressure Low" xml:space="preserve">
-    <value>Air Pressure Low</value>
-  </data>
-  <data name="Air pressure interlock" xml:space="preserve">
+  <data name="air pressure interlock" xml:space="preserve">
     <value>Air pressure interlock</value>
   </data>
-  <data name="Alarm" xml:space="preserve">
+  <data name="air pressure low" xml:space="preserve">
+    <value>Air Pressure Low</value>
+  </data>
+  <data name="alarm" xml:space="preserve">
     <value>Alarm</value>
   </data>
-  <data name="Alarm " xml:space="preserve">
+  <data name="alarm " xml:space="preserve">
     <value>Alarm </value>
   </data>
-  <data name="Alarm / E-stop" xml:space="preserve">
+  <data name="alarm / e-stop" xml:space="preserve">
     <value>Alarm / E-stop</value>
   </data>
-  <data name="Alarm Reset" xml:space="preserve">
+  <data name="alarm reset" xml:space="preserve">
     <value>Alarm Reset</value>
   </data>
-  <data name="AlphaMotion · TMC-AE16DIOe" xml:space="preserve">
+  <data name="alphamotion · tmc-ae16dioe" xml:space="preserve">
     <value>AlphaMotion · TMC-AE16DIOe</value>
   </data>
-  <data name="Angle 1" xml:space="preserve">
+  <data name="angle 1" xml:space="preserve">
     <value>Angle 1</value>
   </data>
-  <data name="Angle 2" xml:space="preserve">
+  <data name="angle 2" xml:space="preserve">
     <value>Angle 2</value>
   </data>
-  <data name="Angle 3" xml:space="preserve">
+  <data name="angle 3" xml:space="preserve">
     <value>Angle 3</value>
   </data>
-  <data name="Apply Light" xml:space="preserve">
+  <data name="angle a1 (°)" xml:space="preserve">
+    <value>ANGLE A1 (°)</value>
+  </data>
+  <data name="angle a2 (°)" xml:space="preserve">
+    <value>ANGLE A2 (°)</value>
+  </data>
+  <data name="angle a3 (°)" xml:space="preserve">
+    <value>ANGLE A3 (°)</value>
+  </data>
+  <data name="apply light" xml:space="preserve">
     <value>Apply Light</value>
   </data>
-  <data name="Approach speed (mm/s)" xml:space="preserve">
+  <data name="approach speed (mm/s)" xml:space="preserve">
     <value>Approach speed (mm/s)</value>
   </data>
-  <data name="Auto / Manual Selector" xml:space="preserve">
+  <data name="auto / manual selector" xml:space="preserve">
     <value>Auto / Manual Selector</value>
   </data>
-  <data name="Auto Response" xml:space="preserve">
+  <data name="auto response" xml:space="preserve">
     <value>Auto Response</value>
   </data>
-  <data name="Available From Front 1 (PCB)" xml:space="preserve">
+  <data name="available from front 1 (pcb)" xml:space="preserve">
     <value>Available From Front 1 (PCB)</value>
   </data>
-  <data name="Available From Front 2 (Heat Sink)" xml:space="preserve">
+  <data name="available from front 2 (heat sink)" xml:space="preserve">
     <value>Available From Front 2 (Heat Sink)</value>
   </data>
-  <data name="Available To Rear" xml:space="preserve">
+  <data name="available to rear" xml:space="preserve">
     <value>Available To Rear</value>
   </data>
-  <data name="Axes and heads move. Keep clear." xml:space="preserve">
+  <data name="axes and heads move. keep clear." xml:space="preserve">
     <value>Axes and heads move. Keep clear.</value>
   </data>
-  <data name="Axis" xml:space="preserve">
+  <data name="axis" xml:space="preserve">
     <value>Axis</value>
   </data>
-  <data name="Axis mapping &amp; home signals" xml:space="preserve">
+  <data name="axis mapping &amp; home signals" xml:space="preserve">
     <value>Axis mapping &amp; home signals</value>
   </data>
-  <data name="Axis servo OFF" xml:space="preserve">
+  <data name="axis servo off" xml:space="preserve">
     <value>Axis servo OFF</value>
   </data>
-  <data name="BOLT" xml:space="preserve">
-    <value>BOLT</value>
-  </data>
-  <data name="BOLT FASTENING" xml:space="preserve">
-    <value>BOLT FASTENING</value>
-  </data>
-  <data name="BOLT NAME" xml:space="preserve">
-    <value>BOLT NAME</value>
-  </data>
-  <data name="BOLT READY" xml:space="preserve">
-    <value>BOLT READY</value>
-  </data>
-  <data name="BOLT SUPPLY" xml:space="preserve">
-    <value>BOLT SUPPLY</value>
-  </data>
-  <data name="BOLT · ?" xml:space="preserve">
-    <value>BOLT · ?</value>
-  </data>
-  <data name="Backup Plate Pin - Lower Right" xml:space="preserve">
-    <value>Backup Plate Pin - Lower Right</value>
-  </data>
-  <data name="Backup Plate Pin - Upper Left" xml:space="preserve">
-    <value>Backup Plate Pin - Upper Left</value>
-  </data>
-  <data name="Backup plate lowered" xml:space="preserve">
+  <data name="backup plate lowered" xml:space="preserve">
     <value>Backup plate lowered</value>
   </data>
-  <data name="Backup plate position unknown" xml:space="preserve">
+  <data name="backup plate pin - lower right" xml:space="preserve">
+    <value>Backup Plate Pin - Lower Right</value>
+  </data>
+  <data name="backup plate pin - upper left" xml:space="preserve">
+    <value>Backup Plate Pin - Upper Left</value>
+  </data>
+  <data name="backup plate position unknown" xml:space="preserve">
     <value>Backup plate position unknown</value>
   </data>
-  <data name="Backup plate raised" xml:space="preserve">
+  <data name="backup plate raised" xml:space="preserve">
     <value>Backup plate raised</value>
   </data>
-  <data name="Backward" xml:space="preserve">
+  <data name="backward" xml:space="preserve">
     <value>Backward</value>
   </data>
-  <data name="Baud rate" xml:space="preserve">
+  <data name="baud rate" xml:space="preserve">
     <value>Baud rate</value>
   </data>
-  <data name="Between" xml:space="preserve">
+  <data name="between" xml:space="preserve">
     <value>Between</value>
   </data>
-  <data name="Binary (0–255; blank = auto)" xml:space="preserve">
+  <data name="binary (0–255; blank = auto)" xml:space="preserve">
     <value>Binary (0–255; blank = auto)</value>
   </data>
-  <data name="Bolt Fastening" xml:space="preserve">
-    <value>Bolt Fastening</value>
+  <data name="bolt" xml:space="preserve">
+    <value>BOLT</value>
   </data>
-  <data name="Bolt Fastening Backup Plate Down" xml:space="preserve">
-    <value>Bolt Fastening Backup Plate Down</value>
-  </data>
-  <data name="Bolt Fastening Backup Plate Up" xml:space="preserve">
-    <value>Bolt Fastening Backup Plate Up</value>
-  </data>
-  <data name="Bolt Fastening Heat Sink 1 Present" xml:space="preserve">
-    <value>Bolt Fastening Heat Sink 1 Present</value>
-  </data>
-  <data name="Bolt Fastening Heat Sink 2 Present" xml:space="preserve">
-    <value>Bolt Fastening Heat Sink 2 Present</value>
-  </data>
-  <data name="Bolt Fastening Station" xml:space="preserve">
-    <value>Bolt Fastening Station</value>
-  </data>
-  <data name="Bolt Fastening Stopper Down" xml:space="preserve">
-    <value>Bolt Fastening Stopper Down</value>
-  </data>
-  <data name="Bolt Fastening Stopper Up" xml:space="preserve">
-    <value>Bolt Fastening Stopper Up</value>
-  </data>
-  <data name="Bolt Fastening Unit" xml:space="preserve">
-    <value>Bolt Fastening Unit</value>
-  </data>
-  <data name="Bolt Fastening X" xml:space="preserve">
-    <value>Bolt Fastening X</value>
-  </data>
-  <data name="Bolt Fastening Y" xml:space="preserve">
-    <value>Bolt Fastening Y</value>
-  </data>
-  <data name="Bolt Fastening Z" xml:space="preserve">
-    <value>Bolt Fastening Z</value>
-  </data>
-  <data name="Bolt Fastening · Z" xml:space="preserve">
-    <value>Bolt Fastening · Z</value>
-  </data>
-  <data name="Bolt Feeder" xml:space="preserve">
-    <value>Bolt Feeder</value>
-  </data>
-  <data name="Bolt Inspection" xml:space="preserve">
-    <value>Bolt Inspection</value>
-  </data>
-  <data name="Bolt Pickup (Feeder)" xml:space="preserve">
-    <value>Bolt Pickup (Feeder)</value>
-  </data>
-  <data name="Bolt Station" xml:space="preserve">
-    <value>Bolt Station</value>
-  </data>
-  <data name="Bolt Station · Selected Bolt Test" xml:space="preserve">
-    <value>Bolt Station · Selected Bolt Test</value>
-  </data>
-  <data name="Bolt controller / ADC" xml:space="preserve">
+  <data name="bolt controller / adc" xml:space="preserve">
     <value>Bolt controller / ADC</value>
   </data>
-  <data name="Bolt fastening" xml:space="preserve">
+  <data name="bolt fastening" xml:space="preserve">
     <value>Bolt fastening</value>
   </data>
-  <data name="Bolt fastening backup plate" xml:space="preserve">
+  <data name="bolt fastening backup plate" xml:space="preserve">
     <value>Bolt fastening backup plate</value>
   </data>
-  <data name="Bolt fastening stopper" xml:space="preserve">
+  <data name="bolt fastening backup plate down" xml:space="preserve">
+    <value>Bolt Fastening Backup Plate Down</value>
+  </data>
+  <data name="bolt fastening backup plate up" xml:space="preserve">
+    <value>Bolt Fastening Backup Plate Up</value>
+  </data>
+  <data name="bolt fastening heat sink 1 present" xml:space="preserve">
+    <value>Bolt Fastening Heat Sink 1 Present</value>
+  </data>
+  <data name="bolt fastening heat sink 2 present" xml:space="preserve">
+    <value>Bolt Fastening Heat Sink 2 Present</value>
+  </data>
+  <data name="bolt fastening station" xml:space="preserve">
+    <value>Bolt Fastening Station</value>
+  </data>
+  <data name="bolt fastening stopper" xml:space="preserve">
     <value>Bolt fastening stopper</value>
   </data>
-  <data name="Bolt name" xml:space="preserve">
+  <data name="bolt fastening stopper down" xml:space="preserve">
+    <value>Bolt Fastening Stopper Down</value>
+  </data>
+  <data name="bolt fastening stopper up" xml:space="preserve">
+    <value>Bolt Fastening Stopper Up</value>
+  </data>
+  <data name="bolt fastening unit" xml:space="preserve">
+    <value>Bolt Fastening Unit</value>
+  </data>
+  <data name="bolt fastening x" xml:space="preserve">
+    <value>Bolt Fastening X</value>
+  </data>
+  <data name="bolt fastening y" xml:space="preserve">
+    <value>Bolt Fastening Y</value>
+  </data>
+  <data name="bolt fastening z" xml:space="preserve">
+    <value>Bolt Fastening Z</value>
+  </data>
+  <data name="bolt fastening · z" xml:space="preserve">
+    <value>Bolt Fastening · Z</value>
+  </data>
+  <data name="bolt feeder" xml:space="preserve">
+    <value>Bolt Feeder</value>
+  </data>
+  <data name="bolt inspection" xml:space="preserve">
+    <value>Bolt Inspection</value>
+  </data>
+  <data name="bolt name" xml:space="preserve">
     <value>Bolt name</value>
   </data>
-  <data name="Bolt presence" xml:space="preserve">
+  <data name="bolt pickup (feeder)" xml:space="preserve">
+    <value>Bolt Pickup (Feeder)</value>
+  </data>
+  <data name="bolt presence" xml:space="preserve">
     <value>Bolt presence</value>
   </data>
-  <data name="Bolt ready" xml:space="preserve">
-    <value>Bolt ready</value>
+  <data name="bolt ready" xml:space="preserve">
+    <value>BOLT READY</value>
   </data>
-  <data name="Bolt results" xml:space="preserve">
+  <data name="bolt results" xml:space="preserve">
     <value>Bolt results</value>
   </data>
-  <data name="Bolt station" xml:space="preserve">
+  <data name="bolt station" xml:space="preserve">
     <value>Bolt station</value>
   </data>
-  <data name="Bolt supply command" xml:space="preserve">
+  <data name="bolt station · selected bolt test" xml:space="preserve">
+    <value>Bolt Station · Selected Bolt Test</value>
+  </data>
+  <data name="bolt supply" xml:space="preserve">
+    <value>BOLT SUPPLY</value>
+  </data>
+  <data name="bolt supply command" xml:space="preserve">
     <value>Bolt supply command</value>
   </data>
-  <data name="Bolts &amp; feeders" xml:space="preserve">
+  <data name="bolt · ?" xml:space="preserve">
+    <value>BOLT · ?</value>
+  </data>
+  <data name="bolts &amp; feeders" xml:space="preserve">
     <value>Bolts &amp; feeders</value>
   </data>
-  <data name="Brightness (0–255)" xml:space="preserve">
+  <data name="brightness (0–255)" xml:space="preserve">
     <value>Brightness (0–255)</value>
   </data>
-  <data name="Browse..." xml:space="preserve">
+  <data name="browse..." xml:space="preserve">
     <value>Browse...</value>
   </data>
-  <data name="Buzzer" xml:space="preserve">
+  <data name="buzzer" xml:space="preserve">
     <value>Buzzer</value>
   </data>
-  <data name="CH (dec)" xml:space="preserve">
-    <value>CH (dec)</value>
-  </data>
-  <data name="CH." xml:space="preserve">
-    <value>CH.</value>
-  </data>
-  <data name="CLOSED" xml:space="preserve">
-    <value>CLOSED</value>
-  </data>
-  <data name="CMD · ?" xml:space="preserve">
-    <value>CMD · ?</value>
-  </data>
-  <data name="CMD ←" xml:space="preserve">
-    <value>CMD ←</value>
-  </data>
-  <data name="CMD →" xml:space="preserve">
-    <value>CMD →</value>
-  </data>
-  <data name="COM port" xml:space="preserve">
-    <value>COM port</value>
-  </data>
-  <data name="CONTROLLER" xml:space="preserve">
-    <value>CONTROLLER</value>
-  </data>
-  <data name="CONTROLLER / LAST RESULT" xml:space="preserve">
-    <value>CONTROLLER / LAST RESULT</value>
-  </data>
-  <data name="CONVEYOR" xml:space="preserve">
-    <value>CONVEYOR</value>
-  </data>
-  <data name="COUNT" xml:space="preserve">
-    <value>COUNT</value>
-  </data>
-  <data name="Camera" xml:space="preserve">
+  <data name="camera" xml:space="preserve">
     <value>Camera</value>
   </data>
-  <data name="Camera &amp; lighting" xml:space="preserve">
+  <data name="camera &amp; lighting" xml:space="preserve">
     <value>Camera &amp; lighting</value>
   </data>
-  <data name="Cancel · Esc" xml:space="preserve">
+  <data name="cancel · esc" xml:space="preserve">
     <value>Cancel · Esc</value>
   </data>
-  <data name="Capture RX (3s)" xml:space="preserve">
+  <data name="capture rx (3s)" xml:space="preserve">
     <value>Capture RX (3s)</value>
   </data>
-  <data name="Card number" xml:space="preserve">
+  <data name="card number" xml:space="preserve">
     <value>Card number</value>
   </data>
-  <data name="Carrier Held at Destination" xml:space="preserve">
-    <value>Carrier Held at Destination</value>
-  </data>
-  <data name="Carrier Pickup (S3)" xml:space="preserve">
-    <value>Carrier Pickup (S3)</value>
-  </data>
-  <data name="Carrier Placement (Shuttle)" xml:space="preserve">
-    <value>Carrier Placement (Shuttle)</value>
-  </data>
-  <data name="Carrier Position Unknown" xml:space="preserve">
-    <value>Carrier Position Unknown</value>
-  </data>
-  <data name="Carrier count for alarm" xml:space="preserve">
+  <data name="carrier count for alarm" xml:space="preserve">
     <value>Carrier count for alarm</value>
   </data>
-  <data name="Carrier presence sensor · not grip feedback" xml:space="preserve">
+  <data name="carrier held at destination" xml:space="preserve">
+    <value>Carrier Held at Destination</value>
+  </data>
+  <data name="carrier pickup (s3)" xml:space="preserve">
+    <value>Carrier Pickup (S3)</value>
+  </data>
+  <data name="carrier placement (shuttle)" xml:space="preserve">
+    <value>Carrier Placement (Shuttle)</value>
+  </data>
+  <data name="carrier position unknown" xml:space="preserve">
+    <value>Carrier Position Unknown</value>
+  </data>
+  <data name="carrier presence sensor · not grip feedback" xml:space="preserve">
     <value>Carrier presence sensor · not grip feedback</value>
   </data>
-  <data name="Carrier stays at S2" xml:space="preserve">
+  <data name="carrier stays at s2" xml:space="preserve">
     <value>Carrier stays at S2</value>
   </data>
-  <data name="Carrier transfer positions" xml:space="preserve">
+  <data name="carrier transfer positions" xml:space="preserve">
     <value>Carrier transfer positions</value>
   </data>
-  <data name="Change recipe" xml:space="preserve">
+  <data name="ch (dec)" xml:space="preserve">
+    <value>CH (dec)</value>
+  </data>
+  <data name="ch." xml:space="preserve">
+    <value>CH.</value>
+  </data>
+  <data name="change recipe" xml:space="preserve">
     <value>Change recipe</value>
   </data>
-  <data name="Change recipe..." xml:space="preserve">
+  <data name="change recipe..." xml:space="preserve">
     <value>Change recipe...</value>
   </data>
-  <data name="Check the highlighted input." xml:space="preserve">
+  <data name="check the highlighted input." xml:space="preserve">
     <value>Check the highlighted input.</value>
   </data>
-  <data name="Clear Display" xml:space="preserve">
-    <value>Clear Display</value>
-  </data>
-  <data name="Clear Messages" xml:space="preserve">
-    <value>Clear Messages</value>
-  </data>
-  <data name="Clear axis alarm / E-stop" xml:space="preserve">
+  <data name="clear axis alarm / e-stop" xml:space="preserve">
     <value>Clear axis alarm / E-stop</value>
   </data>
-  <data name="Clear interrupted work, then RESET." xml:space="preserve">
+  <data name="clear display" xml:space="preserve">
+    <value>Clear Display</value>
+  </data>
+  <data name="clear interrupted work, then reset." xml:space="preserve">
     <value>Clear interrupted work, then RESET.</value>
   </data>
-  <data name="Clear selection" xml:space="preserve">
+  <data name="clear messages" xml:space="preserve">
+    <value>Clear Messages</value>
+  </data>
+  <data name="clear selection" xml:space="preserve">
     <value>Clear selection</value>
   </data>
-  <data name="Clear the cause, then press RESET" xml:space="preserve">
+  <data name="clear the cause, then press reset" xml:space="preserve">
     <value>Clear the cause, then press RESET</value>
   </data>
-  <data name="Clear the motion fault, then press RESET" xml:space="preserve">
+  <data name="clear the motion fault, then press reset" xml:space="preserve">
     <value>Clear the motion fault, then press RESET</value>
   </data>
-  <data name="Close doors" xml:space="preserve">
+  <data name="close doors" xml:space="preserve">
     <value>Close doors</value>
   </data>
-  <data name="Close doors, then press RESET" xml:space="preserve">
+  <data name="close doors, then press reset" xml:space="preserve">
     <value>Close doors, then press RESET</value>
   </data>
-  <data name="Closed" xml:space="preserve">
+  <data name="closed" xml:space="preserve">
     <value>Closed</value>
   </data>
-  <data name="Common Safe Z" xml:space="preserve">
-    <value>Common Safe Z</value>
+  <data name="cmd · ?" xml:space="preserve">
+    <value>CMD · ?</value>
   </data>
-  <data name="Common feedback wait" xml:space="preserve">
+  <data name="cmd ←" xml:space="preserve">
+    <value>CMD ←</value>
+  </data>
+  <data name="cmd →" xml:space="preserve">
+    <value>CMD →</value>
+  </data>
+  <data name="com port" xml:space="preserve">
+    <value>COM port</value>
+  </data>
+  <data name="common feedback wait" xml:space="preserve">
     <value>Common feedback wait</value>
   </data>
-  <data name="Communication logging disabled" xml:space="preserve">
+  <data name="common safe z" xml:space="preserve">
+    <value>Common Safe Z</value>
+  </data>
+  <data name="communication logging disabled" xml:space="preserve">
     <value>Communication logging disabled</value>
   </data>
-  <data name="Compacting NG Carriers" xml:space="preserve">
+  <data name="compacting ng carriers" xml:space="preserve">
     <value>Compacting NG Carriers</value>
   </data>
-  <data name="Complete bolt teaching" xml:space="preserve">
+  <data name="complete bolt teaching" xml:space="preserve">
     <value>Complete bolt teaching</value>
   </data>
-  <data name="Completing Carrier" xml:space="preserve">
+  <data name="completing carrier" xml:space="preserve">
     <value>Completing Carrier</value>
   </data>
-  <data name="Control I/O Communication" xml:space="preserve">
+  <data name="control i/o communication" xml:space="preserve">
     <value>Control I/O Communication</value>
   </data>
-  <data name="Control I/O unavailable" xml:space="preserve">
+  <data name="control i/o unavailable" xml:space="preserve">
     <value>Control I/O unavailable</value>
   </data>
-  <data name="Controller" xml:space="preserve">
+  <data name="controller" xml:space="preserve">
     <value>Controller</value>
   </data>
-  <data name="Controller details" xml:space="preserve">
+  <data name="controller / last result" xml:space="preserve">
+    <value>CONTROLLER / LAST RESULT</value>
+  </data>
+  <data name="controller details" xml:space="preserve">
     <value>Controller details</value>
   </data>
-  <data name="Controller setting" xml:space="preserve">
+  <data name="controller setting" xml:space="preserve">
     <value>Controller setting</value>
   </data>
-  <data name="Controllers" xml:space="preserve">
+  <data name="controllers" xml:space="preserve">
     <value>Controllers</value>
   </data>
-  <data name="Converted Torque" xml:space="preserve">
+  <data name="converted torque" xml:space="preserve">
     <value>Converted Torque</value>
   </data>
-  <data name="Conveyor / PCB" xml:space="preserve">
+  <data name="conveyor" xml:space="preserve">
+    <value>CONVEYOR</value>
+  </data>
+  <data name="conveyor / pcb" xml:space="preserve">
     <value>Conveyor / PCB</value>
   </data>
-  <data name="Conveyor RUN output ON" xml:space="preserve">
+  <data name="conveyor run output on" xml:space="preserve">
     <value>Conveyor RUN output ON</value>
   </data>
-  <data name="Conveyors" xml:space="preserve">
+  <data name="conveyors" xml:space="preserve">
     <value>Conveyors</value>
   </data>
-  <data name="Copy" xml:space="preserve">
+  <data name="copy" xml:space="preserve">
     <value>Copy</value>
   </data>
-  <data name="Copy all" xml:space="preserve">
+  <data name="copy all" xml:space="preserve">
     <value>Copy all</value>
   </data>
-  <data name="Created {0:yyyy-MM-dd HH:mm:ss}" xml:space="preserve">
+  <data name="count" xml:space="preserve">
+    <value>COUNT</value>
+  </data>
+  <data name="created {0:yyyy-mm-dd hh:mm:ss}" xml:space="preserve">
     <value>Created {0:yyyy-MM-dd HH:mm:ss}</value>
   </data>
-  <data name="Current Alarm" xml:space="preserve">
+  <data name="current alarm" xml:space="preserve">
     <value>Current Alarm</value>
   </data>
-  <data name="Current Direction" xml:space="preserve">
-    <value>Current Direction</value>
-  </data>
-  <data name="Current Preset" xml:space="preserve">
-    <value>Current Preset</value>
-  </data>
-  <data name="Current axis position" xml:space="preserve">
+  <data name="current axis position" xml:space="preserve">
     <value>Current axis position</value>
   </data>
-  <data name="Cylinder / stop timeout (s)" xml:space="preserve">
+  <data name="current direction" xml:space="preserve">
+    <value>Current Direction</value>
+  </data>
+  <data name="current preset" xml:space="preserve">
+    <value>Current Preset</value>
+  </data>
+  <data name="cylinder / stop timeout (s)" xml:space="preserve">
     <value>Cylinder / stop timeout (s)</value>
   </data>
-  <data name="DIRECTION" xml:space="preserve">
-    <value>DIRECTION</value>
-  </data>
-  <data name="DO" xml:space="preserve">
-    <value>DO</value>
-  </data>
-  <data name="DOORS" xml:space="preserve">
-    <value>DOORS</value>
-  </data>
-  <data name="DOORS CLOSED" xml:space="preserve">
-    <value>DOORS CLOSED</value>
-  </data>
-  <data name="DOORS OPEN" xml:space="preserve">
-    <value>DOORS OPEN</value>
-  </data>
-  <data name="DRY RUN" xml:space="preserve">
-    <value>DRY RUN</value>
-  </data>
-  <data name="Data &amp; logs" xml:space="preserve">
+  <data name="data &amp; logs" xml:space="preserve">
     <value>Data &amp; logs</value>
   </data>
-  <data name="Data Matrix" xml:space="preserve">
+  <data name="data matrix" xml:space="preserve">
     <value>Data Matrix</value>
   </data>
-  <data name="Data Matrix Inspection" xml:space="preserve">
+  <data name="data matrix inspection" xml:space="preserve">
     <value>Data Matrix Inspection</value>
   </data>
-  <data name="Data Matrix · " xml:space="preserve">
+  <data name="data matrix · " xml:space="preserve">
     <value>Data Matrix · </value>
   </data>
-  <data name="Database folder" xml:space="preserve">
+  <data name="database folder" xml:space="preserve">
     <value>Database folder</value>
   </data>
-  <data name="Deceleration (s)" xml:space="preserve">
+  <data name="deceleration (s)" xml:space="preserve">
     <value>Deceleration (s)</value>
   </data>
-  <data name="Detection acceleration (s)" xml:space="preserve">
+  <data name="detection acceleration (s)" xml:space="preserve">
     <value>Detection acceleration (s)</value>
   </data>
-  <data name="Device ID / serial number" xml:space="preserve">
+  <data name="device id / serial number" xml:space="preserve">
     <value>Device ID / serial number</value>
   </data>
-  <data name="Diagnostics" xml:space="preserve">
+  <data name="diagnostics" xml:space="preserve">
     <value>Diagnostics</value>
   </data>
-  <data name="Digital Inputs" xml:space="preserve">
-    <value>Digital Inputs</value>
-  </data>
-  <data name="Digital Outputs" xml:space="preserve">
-    <value>Digital Outputs</value>
-  </data>
-  <data name="Digital inputs" xml:space="preserve">
+  <data name="digital inputs" xml:space="preserve">
     <value>Digital inputs</value>
   </data>
-  <data name="Digital outputs" xml:space="preserve">
+  <data name="digital outputs" xml:space="preserve">
     <value>Digital outputs</value>
   </data>
-  <data name="Direction" xml:space="preserve">
+  <data name="direction" xml:space="preserve">
     <value>Direction</value>
   </data>
-  <data name="Direction Changed" xml:space="preserve">
+  <data name="direction changed" xml:space="preserve">
     <value>Direction Changed</value>
   </data>
-  <data name="Disabled" xml:space="preserve">
+  <data name="disabled" xml:space="preserve">
     <value>Disabled</value>
   </data>
-  <data name="Discharging S3" xml:space="preserve">
+  <data name="discharging s3" xml:space="preserve">
     <value>Discharging S3</value>
   </data>
-  <data name="Door 1 Closed" xml:space="preserve">
+  <data name="do" xml:space="preserve">
+    <value>DO</value>
+  </data>
+  <data name="door 1 closed" xml:space="preserve">
     <value>Door 1 Closed</value>
   </data>
-  <data name="Door 2 Closed" xml:space="preserve">
+  <data name="door 2 closed" xml:space="preserve">
     <value>Door 2 Closed</value>
   </data>
-  <data name="Door 3 Closed" xml:space="preserve">
+  <data name="door 3 closed" xml:space="preserve">
     <value>Door 3 Closed</value>
   </data>
-  <data name="Door 4 Closed" xml:space="preserve">
+  <data name="door 4 closed" xml:space="preserve">
     <value>Door 4 Closed</value>
   </data>
-  <data name="Door 5 Closed" xml:space="preserve">
+  <data name="door 5 closed" xml:space="preserve">
     <value>Door 5 Closed</value>
   </data>
-  <data name="Door 6 Closed" xml:space="preserve">
+  <data name="door 6 closed" xml:space="preserve">
     <value>Door 6 Closed</value>
   </data>
-  <data name="Door Open" xml:space="preserve">
-    <value>Door Open</value>
-  </data>
-  <data name="Door interlock" xml:space="preserve">
+  <data name="door interlock" xml:space="preserve">
     <value>Door interlock</value>
   </data>
-  <data name="Down" xml:space="preserve">
+  <data name="door open" xml:space="preserve">
+    <value>Door Open</value>
+  </data>
+  <data name="doors" xml:space="preserve">
+    <value>DOORS</value>
+  </data>
+  <data name="doors closed" xml:space="preserve">
+    <value>DOORS CLOSED</value>
+  </data>
+  <data name="doors open" xml:space="preserve">
+    <value>DOORS OPEN</value>
+  </data>
+  <data name="down" xml:space="preserve">
     <value>Down</value>
   </data>
-  <data name="Dry run motor duration (s)" xml:space="preserve">
+  <data name="dry run" xml:space="preserve">
+    <value>DRY RUN</value>
+  </data>
+  <data name="dry run motor duration (s)" xml:space="preserve">
     <value>Dry run motor duration (s)</value>
   </data>
-  <data name="Dry run · Not measured" xml:space="preserve">
-    <value>Dry run · Not measured</value>
-  </data>
-  <data name="Dry run · no bolt supply or pickup vacuum. Carrier returns to S3." xml:space="preserve">
+  <data name="dry run · no bolt supply or pickup vacuum. carrier returns to s3." xml:space="preserve">
     <value>Dry run · no bolt supply or pickup vacuum. Carrier returns to S3.</value>
   </data>
-  <data name="E-STOP OK" xml:space="preserve">
+  <data name="dry run · not measured" xml:space="preserve">
+    <value>Dry run · Not measured</value>
+  </data>
+  <data name="e-stop ok" xml:space="preserve">
     <value>E-STOP OK</value>
   </data>
-  <data name="E-STOP PRESSED" xml:space="preserve">
+  <data name="e-stop pressed" xml:space="preserve">
     <value>E-STOP PRESSED</value>
   </data>
-  <data name="ERROR / MESSAGE" xml:space="preserve">
-    <value>ERROR / MESSAGE</value>
-  </data>
-  <data name="ERROR CODE" xml:space="preserve">
-    <value>ERROR CODE</value>
-  </data>
-  <data name="ESC · ?" xml:space="preserve">
-    <value>ESC · ?</value>
-  </data>
-  <data name="ESC · BACK" xml:space="preserve">
-    <value>ESC · BACK</value>
-  </data>
-  <data name="ESC · CONFLICT" xml:space="preserve">
-    <value>ESC · CONFLICT</value>
-  </data>
-  <data name="ESC · FWD" xml:space="preserve">
-    <value>ESC · FWD</value>
-  </data>
-  <data name="ESC · NO LIMIT" xml:space="preserve">
-    <value>ESC · NO LIMIT</value>
-  </data>
-  <data name="EVENT COUNT" xml:space="preserve">
-    <value>EVENT COUNT</value>
-  </data>
-  <data name="Eject run after S1 (s)" xml:space="preserve">
+  <data name="eject run after s1 (s)" xml:space="preserve">
     <value>Eject run after S1 (s)</value>
   </data>
-  <data name="Ejecting NG Carrier" xml:space="preserve">
+  <data name="ejecting ng carrier" xml:space="preserve">
     <value>Ejecting NG Carrier</value>
   </data>
-  <data name="Emergency" xml:space="preserve">
+  <data name="emergency" xml:space="preserve">
     <value>Emergency</value>
   </data>
-  <data name="Emergency Stop" xml:space="preserve">
+  <data name="emergency stop" xml:space="preserve">
     <value>Emergency Stop</value>
   </data>
-  <data name="Emergency Stop 1 Pressed" xml:space="preserve">
+  <data name="emergency stop 1 pressed" xml:space="preserve">
     <value>Emergency Stop 1 Pressed</value>
   </data>
-  <data name="Emergency Stop 2 Pressed" xml:space="preserve">
+  <data name="emergency stop 2 pressed" xml:space="preserve">
     <value>Emergency Stop 2 Pressed</value>
   </data>
-  <data name="Emergency stop" xml:space="preserve">
-    <value>Emergency stop</value>
-  </data>
-  <data name="Enable a unit in Settings" xml:space="preserve">
+  <data name="enable a unit in settings" xml:space="preserve">
     <value>Enable a unit in Settings</value>
   </data>
-  <data name="Enabled axes only" xml:space="preserve">
+  <data name="enabled axes only" xml:space="preserve">
     <value>Enabled axes only</value>
   </data>
-  <data name="Enabled units" xml:space="preserve">
+  <data name="enabled units" xml:space="preserve">
     <value>Enabled units</value>
   </data>
-  <data name="Entry carrier sensor" xml:space="preserve">
+  <data name="entry carrier sensor" xml:space="preserve">
     <value>Entry carrier sensor</value>
   </data>
-  <data name="Error" xml:space="preserve">
+  <data name="error" xml:space="preserve">
     <value>Error</value>
   </data>
-  <data name="Escape backward sensor" xml:space="preserve">
+  <data name="error / message" xml:space="preserve">
+    <value>ERROR / MESSAGE</value>
+  </data>
+  <data name="error code" xml:space="preserve">
+    <value>ERROR CODE</value>
+  </data>
+  <data name="esc · ?" xml:space="preserve">
+    <value>ESC · ?</value>
+  </data>
+  <data name="esc · back" xml:space="preserve">
+    <value>ESC · BACK</value>
+  </data>
+  <data name="esc · conflict" xml:space="preserve">
+    <value>ESC · CONFLICT</value>
+  </data>
+  <data name="esc · fwd" xml:space="preserve">
+    <value>ESC · FWD</value>
+  </data>
+  <data name="esc · no limit" xml:space="preserve">
+    <value>ESC · NO LIMIT</value>
+  </data>
+  <data name="escape backward sensor" xml:space="preserve">
     <value>Escape backward sensor</value>
   </data>
-  <data name="Escape command · B/F = sensor feedback" xml:space="preserve">
+  <data name="escape command · b/f = sensor feedback" xml:space="preserve">
     <value>Escape command · B/F = sensor feedback</value>
   </data>
-  <data name="Escape forward sensor" xml:space="preserve">
+  <data name="escape forward sensor" xml:space="preserve">
     <value>Escape forward sensor</value>
   </data>
-  <data name="Event Count" xml:space="preserve">
+  <data name="event count" xml:space="preserve">
     <value>Event Count</value>
   </data>
-  <data name="Extended search" xml:space="preserve">
+  <data name="extended search" xml:space="preserve">
     <value>Extended search</value>
   </data>
-  <data name="FASTEN" xml:space="preserve">
+  <data name="fasten" xml:space="preserve">
     <value>FASTEN</value>
   </data>
-  <data name="FASTEN NG" xml:space="preserve">
+  <data name="fasten ng" xml:space="preserve">
     <value>FASTEN NG</value>
   </data>
-  <data name="FASTEN OK" xml:space="preserve">
+  <data name="fasten ok" xml:space="preserve">
     <value>FASTEN OK</value>
   </data>
-  <data name="FASTENING TIME (ms)" xml:space="preserve">
-    <value>FASTENING TIME (ms)</value>
-  </data>
-  <data name="FEEDBACK INPUTS" xml:space="preserve">
-    <value>FEEDBACK INPUTS</value>
-  </data>
-  <data name="FILE ERROR: {0}" xml:space="preserve">
-    <value>FILE ERROR: {0}</value>
-  </data>
-  <data name="FRAME LOG" xml:space="preserve">
-    <value>FRAME LOG</value>
-  </data>
-  <data name="Fasten Selected Bolts" xml:space="preserve">
+  <data name="fasten selected bolts" xml:space="preserve">
     <value>Fasten Selected Bolts</value>
   </data>
-  <data name="Fastening" xml:space="preserve">
+  <data name="fastening" xml:space="preserve">
     <value>Fastening</value>
   </data>
-  <data name="Fastening / dry run" xml:space="preserve">
+  <data name="fastening / dry run" xml:space="preserve">
     <value>Fastening / dry run</value>
   </data>
-  <data name="Fastening NG" xml:space="preserve">
+  <data name="fastening ng" xml:space="preserve">
     <value>Fastening NG</value>
   </data>
-  <data name="Fastening OK" xml:space="preserve">
+  <data name="fastening ok" xml:space="preserve">
     <value>Fastening OK</value>
   </data>
-  <data name="Fastening Time" xml:space="preserve">
-    <value>Fastening Time</value>
-  </data>
-  <data name="Fastening Z: conveyor clearance required" xml:space="preserve">
-    <value>Fastening Z: conveyor clearance required</value>
-  </data>
-  <data name="Fastening result timeout (s)" xml:space="preserve">
+  <data name="fastening result timeout (s)" xml:space="preserve">
     <value>Fastening result timeout (s)</value>
   </data>
-  <data name="Fault" xml:space="preserve">
+  <data name="fastening time" xml:space="preserve">
+    <value>Fastening Time</value>
+  </data>
+  <data name="fastening time (ms)" xml:space="preserve">
+    <value>FASTENING TIME (ms)</value>
+  </data>
+  <data name="fastening z: conveyor clearance required" xml:space="preserve">
+    <value>Fastening Z: conveyor clearance required</value>
+  </data>
+  <data name="fault" xml:space="preserve">
     <value>Fault</value>
   </data>
-  <data name="Feeder detection timeout (s)" xml:space="preserve">
+  <data name="feedback inputs" xml:space="preserve">
+    <value>FEEDBACK INPUTS</value>
+  </data>
+  <data name="feeder detection timeout (s)" xml:space="preserve">
     <value>Feeder detection timeout (s)</value>
   </data>
-  <data name="File logging disabled" xml:space="preserve">
+  <data name="file error: {0}" xml:space="preserve">
+    <value>FILE ERROR: {0}</value>
+  </data>
+  <data name="file logging disabled" xml:space="preserve">
     <value>File logging disabled</value>
   </data>
-  <data name="Fine / index speed (mm/s)" xml:space="preserve">
+  <data name="fine / index speed (mm/s)" xml:space="preserve">
     <value>Fine / index speed (mm/s)</value>
   </data>
-  <data name="Forward" xml:space="preserve">
+  <data name="forward" xml:space="preserve">
     <value>Forward</value>
   </data>
-  <data name="Forward repeat transfer" xml:space="preserve">
+  <data name="forward repeat transfer" xml:space="preserve">
     <value>Forward repeat transfer</value>
   </data>
-  <data name="Frame Log" xml:space="preserve">
-    <value>Frame Log</value>
+  <data name="frame log" xml:space="preserve">
+    <value>FRAME LOG</value>
   </data>
-  <data name="Frame timeout (s)" xml:space="preserve">
+  <data name="frame timeout (s)" xml:space="preserve">
     <value>Frame timeout (s)</value>
   </data>
-  <data name="Front 1 · PCB available" xml:space="preserve">
+  <data name="front 1 · pcb available" xml:space="preserve">
     <value>Front 1 · PCB available</value>
   </data>
-  <data name="Front 1 · PCB · SMEMA" xml:space="preserve">
+  <data name="front 1 · pcb · smema" xml:space="preserve">
     <value>Front 1 · PCB · SMEMA</value>
   </data>
-  <data name="Front 2 · Carrier available" xml:space="preserve">
+  <data name="front 2 · carrier available" xml:space="preserve">
     <value>Front 2 · Carrier available</value>
   </data>
-  <data name="Front 2 · SMEMA" xml:space="preserve">
+  <data name="front 2 · smema" xml:space="preserve">
     <value>Front 2 · SMEMA</value>
   </data>
-  <data name="Gantry Waiting Position" xml:space="preserve">
+  <data name="gantry waiting position" xml:space="preserve">
     <value>Gantry Waiting Position</value>
   </data>
-  <data name="Gripping Returned PCB" xml:space="preserve">
+  <data name="gripping returned pcb" xml:space="preserve">
     <value>Gripping Returned PCB</value>
   </data>
-  <data name="H1 Pickup" xml:space="preserve">
+  <data name="h1 pickup" xml:space="preserve">
     <value>H1 Pickup</value>
   </data>
-  <data name="H2 Shooting" xml:space="preserve">
+  <data name="h2 shooting" xml:space="preserve">
     <value>H2 Shooting</value>
   </data>
-  <data name="HANTAS ADC Protocol" xml:space="preserve">
-    <value>HANTAS ADC Protocol</value>
-  </data>
-  <data name="HEAD" xml:space="preserve">
-    <value>HEAD</value>
-  </data>
-  <data name="HIK" xml:space="preserve">
-    <value>HIK</value>
-  </data>
-  <data name="HOME" xml:space="preserve">
-    <value>HOME</value>
-  </data>
-  <data name="HOME ALL" xml:space="preserve">
-    <value>HOME ALL</value>
-  </data>
-  <data name="HOME IN" xml:space="preserve">
-    <value>HOME IN</value>
-  </data>
-  <data name="HOMED" xml:space="preserve">
-    <value>HOMED</value>
-  </data>
-  <data name="HOMING..." xml:space="preserve">
-    <value>HOMING...</value>
-  </data>
-  <data name="HS1" xml:space="preserve">
-    <value>HS1</value>
-  </data>
-  <data name="HS2" xml:space="preserve">
-    <value>HS2</value>
-  </data>
-  <data name="Handing PCB to Placement" xml:space="preserve">
+  <data name="handing pcb to placement" xml:space="preserve">
     <value>Handing PCB to Placement</value>
   </data>
-  <data name="Handoff setup" xml:space="preserve">
+  <data name="handoff setup" xml:space="preserve">
     <value>Handoff setup</value>
   </data>
-  <data name="Hardware / logs: Save + restart" xml:space="preserve">
+  <data name="hantas adc protocol" xml:space="preserve">
+    <value>HANTAS ADC Protocol</value>
+  </data>
+  <data name="hardware / logs: save + restart" xml:space="preserve">
     <value>Hardware / logs: Save + restart</value>
   </data>
-  <data name="Hardware reset button" xml:space="preserve">
+  <data name="hardware reset button" xml:space="preserve">
     <value>Hardware reset button</value>
   </data>
-  <data name="Head 1 Pickup" xml:space="preserve">
+  <data name="head" xml:space="preserve">
+    <value>HEAD</value>
+  </data>
+  <data name="head 1 pickup" xml:space="preserve">
     <value>Head 1 Pickup</value>
   </data>
-  <data name="Head 2 Shooting" xml:space="preserve">
+  <data name="head 2 shooting" xml:space="preserve">
     <value>Head 2 Shooting</value>
   </data>
-  <data name="Heat Sink 1" xml:space="preserve">
+  <data name="heat sink 1" xml:space="preserve">
     <value>Heat Sink 1</value>
   </data>
-  <data name="Heat Sink 2" xml:space="preserve">
+  <data name="heat sink 2" xml:space="preserve">
     <value>Heat Sink 2</value>
   </data>
-  <data name="Heat Sink Detected" xml:space="preserve">
+  <data name="heat sink detected" xml:space="preserve">
     <value>Heat Sink Detected</value>
   </data>
-  <data name="Home" xml:space="preserve">
-    <value>Home</value>
+  <data name="hik" xml:space="preserve">
+    <value>HIK</value>
   </data>
-  <data name="Home Failed" xml:space="preserve">
-    <value>Home Failed</value>
+  <data name="home" xml:space="preserve">
+    <value>HOME</value>
   </data>
-  <data name="Home Required" xml:space="preserve">
-    <value>Home Required</value>
+  <data name="home all" xml:space="preserve">
+    <value>HOME ALL</value>
   </data>
-  <data name="Home Selected Unit" xml:space="preserve">
-    <value>Home Selected Unit</value>
-  </data>
-  <data name="Home direction" xml:space="preserve">
+  <data name="home direction" xml:space="preserve">
     <value>Home direction</value>
   </data>
-  <data name="Home signal" xml:space="preserve">
+  <data name="home failed" xml:space="preserve">
+    <value>Home Failed</value>
+  </data>
+  <data name="home in" xml:space="preserve">
+    <value>HOME IN</value>
+  </data>
+  <data name="home required" xml:space="preserve">
+    <value>Home Required</value>
+  </data>
+  <data name="home selected unit" xml:space="preserve">
+    <value>Home Selected Unit</value>
+  </data>
+  <data name="home signal" xml:space="preserve">
     <value>Home signal</value>
   </data>
-  <data name="Home this unit first" xml:space="preserve">
+  <data name="home this unit first" xml:space="preserve">
     <value>Home this unit first</value>
   </data>
-  <data name="Homing" xml:space="preserve">
+  <data name="homed" xml:space="preserve">
+    <value>HOMED</value>
+  </data>
+  <data name="homing" xml:space="preserve">
     <value>Homing</value>
   </data>
-  <data name="I/O communication unavailable" xml:space="preserve">
+  <data name="homing..." xml:space="preserve">
+    <value>HOMING...</value>
+  </data>
+  <data name="hs1" xml:space="preserve">
+    <value>HS1</value>
+  </data>
+  <data name="hs2" xml:space="preserve">
+    <value>HS2</value>
+  </data>
+  <data name="i/o communication unavailable" xml:space="preserve">
     <value>I/O communication unavailable</value>
   </data>
-  <data name="I/O control + ADC results" xml:space="preserve">
+  <data name="i/o control + adc results" xml:space="preserve">
     <value>I/O control + ADC results</value>
   </data>
-  <data name="I/O disconnected · input states unknown" xml:space="preserve">
+  <data name="i/o disconnected · input states unknown" xml:space="preserve">
     <value>I/O disconnected · input states unknown</value>
   </data>
-  <data name="I/O mapping" xml:space="preserve">
+  <data name="i/o mapping" xml:space="preserve">
     <value>I/O mapping</value>
   </data>
-  <data name="ID · " xml:space="preserve">
+  <data name="id · " xml:space="preserve">
     <value>ID · </value>
   </data>
-  <data name="INPUT" xml:space="preserve">
-    <value>INPUT</value>
-  </data>
-  <data name="INPUTS" xml:space="preserve">
-    <value>INPUTS</value>
-  </data>
-  <data name="IO · Assumed OK" xml:space="preserve">
-    <value>IO · Assumed OK</value>
-  </data>
-  <data name="IO · Result unavailable" xml:space="preserve">
-    <value>IO · Result unavailable</value>
-  </data>
-  <data name="Idle" xml:space="preserve">
+  <data name="idle" xml:space="preserve">
     <value>Idle</value>
   </data>
-  <data name="Image" xml:space="preserve">
+  <data name="image" xml:space="preserve">
     <value>Image</value>
   </data>
-  <data name="Input conflict" xml:space="preserve">
+  <data name="input" xml:space="preserve">
+    <value>INPUT</value>
+  </data>
+  <data name="input conflict" xml:space="preserve">
     <value>Input conflict</value>
   </data>
-  <data name="Input signal" xml:space="preserve">
+  <data name="input signal" xml:space="preserve">
     <value>Input signal</value>
   </data>
-  <data name="Inputs" xml:space="preserve">
-    <value>Inputs</value>
+  <data name="inputs" xml:space="preserve">
+    <value>INPUTS</value>
   </data>
-  <data name="Inspect This Image" xml:space="preserve">
+  <data name="inspect this image" xml:space="preserve">
     <value>Inspect This Image</value>
   </data>
-  <data name="Inspecting Bolt" xml:space="preserve">
+  <data name="inspecting bolt" xml:space="preserve">
     <value>Inspecting Bolt</value>
   </data>
-  <data name="Inspection" xml:space="preserve">
+  <data name="inspection" xml:space="preserve">
     <value>Inspection</value>
   </data>
-  <data name="Inspection + NG transfer" xml:space="preserve">
+  <data name="inspection + ng transfer" xml:space="preserve">
     <value>Inspection + NG transfer</value>
   </data>
-  <data name="Inspection / NG" xml:space="preserve">
+  <data name="inspection / ng" xml:space="preserve">
     <value>Inspection / NG</value>
   </data>
-  <data name="Inspection Backup Plate Down" xml:space="preserve">
-    <value>Inspection Backup Plate Down</value>
-  </data>
-  <data name="Inspection Backup Plate Up" xml:space="preserve">
-    <value>Inspection Backup Plate Up</value>
-  </data>
-  <data name="Inspection Gantry X" xml:space="preserve">
-    <value>Inspection Gantry X</value>
-  </data>
-  <data name="Inspection Gantry Y" xml:space="preserve">
-    <value>Inspection Gantry Y</value>
-  </data>
-  <data name="Inspection Heat Sink 1 Present" xml:space="preserve">
-    <value>Inspection Heat Sink 1 Present</value>
-  </data>
-  <data name="Inspection Heat Sink 2 Present" xml:space="preserve">
-    <value>Inspection Heat Sink 2 Present</value>
-  </data>
-  <data name="Inspection Image" xml:space="preserve">
-    <value>Inspection Image</value>
-  </data>
-  <data name="Inspection S3 Support" xml:space="preserve">
-    <value>Inspection S3 Support</value>
-  </data>
-  <data name="Inspection Setup" xml:space="preserve">
-    <value>Inspection Setup</value>
-  </data>
-  <data name="Inspection Station" xml:space="preserve">
-    <value>Inspection Station</value>
-  </data>
-  <data name="Inspection Stopper Down" xml:space="preserve">
-    <value>Inspection Stopper Down</value>
-  </data>
-  <data name="Inspection Stopper Up" xml:space="preserve">
-    <value>Inspection Stopper Up</value>
-  </data>
-  <data name="Inspection backup plate" xml:space="preserve">
+  <data name="inspection backup plate" xml:space="preserve">
     <value>Inspection backup plate</value>
   </data>
-  <data name="Inspection camera" xml:space="preserve">
+  <data name="inspection backup plate down" xml:space="preserve">
+    <value>Inspection Backup Plate Down</value>
+  </data>
+  <data name="inspection backup plate up" xml:space="preserve">
+    <value>Inspection Backup Plate Up</value>
+  </data>
+  <data name="inspection camera" xml:space="preserve">
     <value>Inspection camera</value>
   </data>
-  <data name="Inspection capture" xml:space="preserve">
+  <data name="inspection capture" xml:space="preserve">
     <value>Inspection capture</value>
   </data>
-  <data name="Inspection channel (1–9)" xml:space="preserve">
+  <data name="inspection channel (1–9)" xml:space="preserve">
     <value>Inspection channel (1–9)</value>
   </data>
-  <data name="Inspection images" xml:space="preserve">
+  <data name="inspection gantry x" xml:space="preserve">
+    <value>Inspection Gantry X</value>
+  </data>
+  <data name="inspection gantry y" xml:space="preserve">
+    <value>Inspection Gantry Y</value>
+  </data>
+  <data name="inspection heat sink 1 present" xml:space="preserve">
+    <value>Inspection Heat Sink 1 Present</value>
+  </data>
+  <data name="inspection heat sink 2 present" xml:space="preserve">
+    <value>Inspection Heat Sink 2 Present</value>
+  </data>
+  <data name="inspection image" xml:space="preserve">
+    <value>Inspection Image</value>
+  </data>
+  <data name="inspection images" xml:space="preserve">
     <value>Inspection images</value>
   </data>
-  <data name="Inspection stopper" xml:space="preserve">
+  <data name="inspection s3 support" xml:space="preserve">
+    <value>Inspection S3 Support</value>
+  </data>
+  <data name="inspection setup" xml:space="preserve">
+    <value>Inspection Setup</value>
+  </data>
+  <data name="inspection station" xml:space="preserve">
+    <value>Inspection Station</value>
+  </data>
+  <data name="inspection stopper" xml:space="preserve">
     <value>Inspection stopper</value>
   </data>
-  <data name="Interface &amp; Drive" xml:space="preserve">
+  <data name="inspection stopper down" xml:space="preserve">
+    <value>Inspection Stopper Down</value>
+  </data>
+  <data name="inspection stopper up" xml:space="preserve">
+    <value>Inspection Stopper Up</value>
+  </data>
+  <data name="interface &amp; drive" xml:space="preserve">
     <value>Interface &amp; Drive</value>
   </data>
-  <data name="Interlocks &amp; reset input" xml:space="preserve">
+  <data name="interlocks &amp; reset input" xml:space="preserve">
     <value>Interlocks &amp; reset input</value>
   </data>
-  <data name="Interrupt number" xml:space="preserve">
+  <data name="interrupt number" xml:space="preserve">
     <value>Interrupt number</value>
   </data>
-  <data name="Inverted colors" xml:space="preserve">
+  <data name="inverted colors" xml:space="preserve">
     <value>Inverted colors</value>
   </data>
-  <data name="Jog (hold)" xml:space="preserve">
+  <data name="io · assumed ok" xml:space="preserve">
+    <value>IO · Assumed OK</value>
+  </data>
+  <data name="io · result unavailable" xml:space="preserve">
+    <value>IO · Result unavailable</value>
+  </data>
+  <data name="jog (hold)" xml:space="preserve">
     <value>Jog (hold)</value>
   </data>
-  <data name="LOGS" xml:space="preserve">
-    <value>LOGS</value>
-  </data>
-  <data name="Latest fastening" xml:space="preserve">
+  <data name="latest fastening" xml:space="preserve">
     <value>Latest fastening</value>
   </data>
-  <data name="Lift lowered" xml:space="preserve">
+  <data name="lift lowered" xml:space="preserve">
     <value>Lift lowered</value>
   </data>
-  <data name="Lift position unknown" xml:space="preserve">
+  <data name="lift position unknown" xml:space="preserve">
     <value>Lift position unknown</value>
   </data>
-  <data name="Lift raised" xml:space="preserve">
+  <data name="lift raised" xml:space="preserve">
     <value>Lift raised</value>
   </data>
-  <data name="Light (0–255)" xml:space="preserve">
+  <data name="light (0–255)" xml:space="preserve">
     <value>Light (0–255)</value>
   </data>
-  <data name="Light OFF" xml:space="preserve">
+  <data name="light off" xml:space="preserve">
     <value>Light OFF</value>
   </data>
-  <data name="Light ON" xml:space="preserve">
+  <data name="light on" xml:space="preserve">
     <value>Light ON</value>
   </data>
-  <data name="Light ON → capture delay (s)" xml:space="preserve">
+  <data name="light on → capture delay (s)" xml:space="preserve">
     <value>Light ON → capture delay (s)</value>
   </data>
-  <data name="Light test" xml:space="preserve">
+  <data name="light test" xml:space="preserve">
     <value>Light test</value>
   </data>
-  <data name="Lighting controller" xml:space="preserve">
+  <data name="lighting controller" xml:space="preserve">
     <value>Lighting controller</value>
   </data>
-  <data name="Load Older" xml:space="preserve">
-    <value>Load Older</value>
-  </data>
-  <data name="Load PCB Images" xml:space="preserve">
-    <value>Load PCB Images</value>
-  </data>
-  <data name="Load Recipe" xml:space="preserve">
-    <value>Load Recipe</value>
-  </data>
-  <data name="Load Test Image" xml:space="preserve">
-    <value>Load Test Image</value>
-  </data>
-  <data name="Load for Reinspection" xml:space="preserve">
+  <data name="load for reinspection" xml:space="preserve">
     <value>Load for Reinspection</value>
   </data>
-  <data name="Load older" xml:space="preserve">
+  <data name="load older" xml:space="preserve">
     <value>Load older</value>
   </data>
-  <data name="Loading PCB results..." xml:space="preserve">
-    <value>Loading PCB results...</value>
+  <data name="load pcb images" xml:space="preserve">
+    <value>Load PCB Images</value>
   </data>
-  <data name="Loading images…" xml:space="preserve">
+  <data name="load recipe" xml:space="preserve">
+    <value>Load Recipe</value>
+  </data>
+  <data name="load test image" xml:space="preserve">
+    <value>Load Test Image</value>
+  </data>
+  <data name="loading images…" xml:space="preserve">
     <value>Loading images…</value>
   </data>
-  <data name="Loading..." xml:space="preserve">
+  <data name="loading pcb results..." xml:space="preserve">
+    <value>Loading PCB results...</value>
+  </data>
+  <data name="loading..." xml:space="preserve">
     <value>Loading...</value>
   </data>
-  <data name="Log folder" xml:space="preserve">
+  <data name="log folder" xml:space="preserve">
     <value>Log folder</value>
   </data>
-  <data name="Logs" xml:space="preserve">
-    <value>Logs</value>
+  <data name="logs" xml:space="preserve">
+    <value>LOGS</value>
   </data>
-  <data name="Loosen (hold)" xml:space="preserve">
+  <data name="loosen (hold)" xml:space="preserve">
     <value>Loosen (hold)</value>
   </data>
-  <data name="Loosening" xml:space="preserve">
+  <data name="loosening" xml:space="preserve">
     <value>Loosening</value>
   </data>
-  <data name="Lowering NG Shuttle" xml:space="preserve">
+  <data name="lowering ng shuttle" xml:space="preserve">
     <value>Lowering NG Shuttle</value>
   </data>
-  <data name="Lowering PCB to Supply" xml:space="preserve">
+  <data name="lowering pcb to supply" xml:space="preserve">
     <value>Lowering PCB to Supply</value>
   </data>
-  <data name="MANUAL TEST" xml:space="preserve">
-    <value>MANUAL TEST</value>
-  </data>
-  <data name="MATCH" xml:space="preserve">
-    <value>MATCH</value>
-  </data>
-  <data name="MINIMUM TURNS" xml:space="preserve">
-    <value>MINIMUM TURNS</value>
-  </data>
-  <data name="MOTION" xml:space="preserve">
-    <value>MOTION</value>
-  </data>
-  <data name="MOVS (Serial)" xml:space="preserve">
-    <value>MOVS (Serial)</value>
-  </data>
-  <data name="Machine" xml:space="preserve">
+  <data name="machine" xml:space="preserve">
     <value>Machine</value>
   </data>
-  <data name="Machine &amp; communication logs" xml:space="preserve">
+  <data name="machine &amp; communication logs" xml:space="preserve">
     <value>Machine &amp; communication logs</value>
   </data>
-  <data name="Machine Light" xml:space="preserve">
+  <data name="machine light" xml:space="preserve">
     <value>Machine Light</value>
   </data>
-  <data name="Machine log" xml:space="preserve">
+  <data name="machine log" xml:space="preserve">
     <value>Machine log</value>
   </data>
-  <data name="Main Conveyor" xml:space="preserve">
+  <data name="main conveyor" xml:space="preserve">
     <value>Main Conveyor</value>
   </data>
-  <data name="Main Conveyor Entry Carrier Detected" xml:space="preserve">
-    <value>Main Conveyor Entry Carrier Detected</value>
-  </data>
-  <data name="Main Conveyor Forward" xml:space="preserve">
-    <value>Main Conveyor Forward</value>
-  </data>
-  <data name="Main Conveyor Manual Input" xml:space="preserve">
-    <value>Main Conveyor Manual Input</value>
-  </data>
-  <data name="Main Conveyor Normal Speed" xml:space="preserve">
-    <value>Main Conveyor Normal Speed</value>
-  </data>
-  <data name="Main Conveyor Run" xml:space="preserve">
-    <value>Main Conveyor Run</value>
-  </data>
-  <data name="Main conveyor" xml:space="preserve">
-    <value>Main conveyor</value>
-  </data>
-  <data name="Main conveyor drive direction" xml:space="preserve">
+  <data name="main conveyor drive direction" xml:space="preserve">
     <value>Main conveyor drive direction</value>
   </data>
-  <data name="Manual" xml:space="preserve">
+  <data name="main conveyor entry carrier detected" xml:space="preserve">
+    <value>Main Conveyor Entry Carrier Detected</value>
+  </data>
+  <data name="main conveyor forward" xml:space="preserve">
+    <value>Main Conveyor Forward</value>
+  </data>
+  <data name="main conveyor manual input" xml:space="preserve">
+    <value>Main Conveyor Manual Input</value>
+  </data>
+  <data name="main conveyor normal speed" xml:space="preserve">
+    <value>Main Conveyor Normal Speed</value>
+  </data>
+  <data name="main conveyor run" xml:space="preserve">
+    <value>Main Conveyor Run</value>
+  </data>
+  <data name="manual" xml:space="preserve">
     <value>Manual</value>
   </data>
-  <data name="Manual Adjustment" xml:space="preserve">
+  <data name="manual adjustment" xml:space="preserve">
     <value>Manual Adjustment</value>
   </data>
-  <data name="Manual mode only" xml:space="preserve">
+  <data name="manual mode only" xml:space="preserve">
     <value>Manual mode only</value>
   </data>
-  <data name="Matched" xml:space="preserve">
+  <data name="manual test" xml:space="preserve">
+    <value>MANUAL TEST</value>
+  </data>
+  <data name="match" xml:space="preserve">
+    <value>MATCH</value>
+  </data>
+  <data name="matched" xml:space="preserve">
     <value>Matched</value>
   </data>
-  <data name="Measurements" xml:space="preserve">
+  <data name="measurements" xml:space="preserve">
     <value>Measurements</value>
   </data>
-  <data name="Menu" xml:space="preserve">
+  <data name="menu" xml:space="preserve">
     <value>Menu</value>
   </data>
-  <data name="Messages" xml:space="preserve">
+  <data name="messages" xml:space="preserve">
     <value>Messages</value>
   </data>
-  <data name="Min. turns (0 = no check)" xml:space="preserve">
+  <data name="min. turns (0 = no check)" xml:space="preserve">
     <value>Min. turns (0 = no check)</value>
   </data>
-  <data name="Minimum " xml:space="preserve">
+  <data name="minimum " xml:space="preserve">
     <value>Minimum </value>
   </data>
-  <data name="Minimum bright (%)" xml:space="preserve">
+  <data name="minimum bright (%)" xml:space="preserve">
     <value>Minimum bright (%)</value>
   </data>
-  <data name="Minimum not set" xml:space="preserve">
+  <data name="minimum not set" xml:space="preserve">
     <value>Minimum not set</value>
   </data>
-  <data name="Mode &amp; Utility" xml:space="preserve">
+  <data name="minimum turns" xml:space="preserve">
+    <value>MINIMUM TURNS</value>
+  </data>
+  <data name="mode &amp; utility" xml:space="preserve">
     <value>Mode &amp; Utility</value>
   </data>
-  <data name="Mode feedback unavailable" xml:space="preserve">
+  <data name="mode feedback unavailable" xml:space="preserve">
     <value>Mode feedback unavailable</value>
   </data>
-  <data name="Motion" xml:space="preserve">
+  <data name="motion" xml:space="preserve">
     <value>Motion</value>
   </data>
-  <data name="Motion / I/O controller" xml:space="preserve">
+  <data name="motion / i/o controller" xml:space="preserve">
     <value>Motion / I/O controller</value>
   </data>
-  <data name="Motion Fault" xml:space="preserve">
+  <data name="motion fault" xml:space="preserve">
     <value>Motion Fault</value>
   </data>
-  <data name="Motion Monitor" xml:space="preserve">
-    <value>Motion Monitor</value>
-  </data>
-  <data name="Motion Unavailable" xml:space="preserve">
-    <value>Motion Unavailable</value>
-  </data>
-  <data name="Motion feedback unavailable" xml:space="preserve">
+  <data name="motion feedback unavailable" xml:space="preserve">
     <value>Motion feedback unavailable</value>
   </data>
-  <data name="Motion group" xml:space="preserve">
+  <data name="motion group" xml:space="preserve">
     <value>Motion group</value>
   </data>
-  <data name="Motor Run" xml:space="preserve">
+  <data name="motion monitor" xml:space="preserve">
+    <value>Motion Monitor</value>
+  </data>
+  <data name="motion unavailable" xml:space="preserve">
+    <value>Motion Unavailable</value>
+  </data>
+  <data name="motor run" xml:space="preserve">
     <value>Motor Run</value>
   </data>
-  <data name="Move mode" xml:space="preserve">
+  <data name="move mode" xml:space="preserve">
     <value>Move mode</value>
   </data>
-  <data name="Move to Selected Point" xml:space="preserve">
+  <data name="move to selected point" xml:space="preserve">
     <value>Move to Selected Point</value>
   </data>
-  <data name="Moving" xml:space="preserve">
+  <data name="moving" xml:space="preserve">
     <value>Moving</value>
   </data>
-  <data name="Moving S1 → S2" xml:space="preserve">
-    <value>Moving S1 → S2</value>
-  </data>
-  <data name="Moving S2 → S3" xml:space="preserve">
-    <value>Moving S2 → S3</value>
-  </data>
-  <data name="Moving and Placing Carrier" xml:space="preserve">
+  <data name="moving and placing carrier" xml:space="preserve">
     <value>Moving and Placing Carrier</value>
   </data>
-  <data name="Moving to Position 1" xml:space="preserve">
+  <data name="moving s1 → s2" xml:space="preserve">
+    <value>Moving S1 → S2</value>
+  </data>
+  <data name="moving s2 → s3" xml:space="preserve">
+    <value>Moving S2 → S3</value>
+  </data>
+  <data name="moving to position 1" xml:space="preserve">
     <value>Moving to Position 1</value>
   </data>
-  <data name="Moving to Position 2" xml:space="preserve">
+  <data name="moving to position 2" xml:space="preserve">
     <value>Moving to Position 2</value>
   </data>
-  <data name="NG Carrier Detected" xml:space="preserve">
-    <value>NG Carrier Detected</value>
+  <data name="movs (serial)" xml:space="preserve">
+    <value>MOVS (Serial)</value>
   </data>
-  <data name="NG Carrier Eject Button" xml:space="preserve">
-    <value>NG Carrier Eject Button</value>
-  </data>
-  <data name="NG Carrier Eject Complete Button" xml:space="preserve">
-    <value>NG Carrier Eject Complete Button</value>
-  </data>
-  <data name="NG Carrier Eject Complete Lamp" xml:space="preserve">
-    <value>NG Carrier Eject Complete Lamp</value>
-  </data>
-  <data name="NG Carrier Eject Lamp" xml:space="preserve">
-    <value>NG Carrier Eject Lamp</value>
-  </data>
-  <data name="NG Carrier Gripper Close" xml:space="preserve">
-    <value>NG Carrier Gripper Close</value>
-  </data>
-  <data name="NG Carrier Gripper Closed" xml:space="preserve">
-    <value>NG Carrier Gripper Closed</value>
-  </data>
-  <data name="NG Carrier Gripper Open" xml:space="preserve">
-    <value>NG Carrier Gripper Open</value>
-  </data>
-  <data name="NG Carrier Pickup Down" xml:space="preserve">
-    <value>NG Carrier Pickup Down</value>
-  </data>
-  <data name="NG Carrier Pickup Up" xml:space="preserve">
-    <value>NG Carrier Pickup Up</value>
-  </data>
-  <data name="NG Carrier Ready to Eject" xml:space="preserve">
-    <value>NG Carrier Ready to Eject</value>
-  </data>
-  <data name="NG Carrier Transfer" xml:space="preserve">
-    <value>NG Carrier Transfer</value>
-  </data>
-  <data name="NG Conveyor" xml:space="preserve">
-    <value>NG Conveyor</value>
-  </data>
-  <data name="NG Conveyor Full" xml:space="preserve">
-    <value>NG Conveyor Full</value>
-  </data>
-  <data name="NG Conveyor Manual Input" xml:space="preserve">
-    <value>NG Conveyor Manual Input</value>
-  </data>
-  <data name="NG Conveyor Normal Speed" xml:space="preserve">
-    <value>NG Conveyor Normal Speed</value>
-  </data>
-  <data name="NG Conveyor Position 1 Occupied" xml:space="preserve">
-    <value>NG Conveyor Position 1 Occupied</value>
-  </data>
-  <data name="NG Conveyor Position 2 Occupied" xml:space="preserve">
-    <value>NG Conveyor Position 2 Occupied</value>
-  </data>
-  <data name="NG Conveyor Reverse" xml:space="preserve">
-    <value>NG Conveyor Reverse</value>
-  </data>
-  <data name="NG Conveyor Run" xml:space="preserve">
-    <value>NG Conveyor Run</value>
-  </data>
-  <data name="NG Conveyor Stopper Down" xml:space="preserve">
-    <value>NG Conveyor Stopper Down</value>
-  </data>
-  <data name="NG Conveyor Stopper Up" xml:space="preserve">
-    <value>NG Conveyor Stopper Up</value>
-  </data>
-  <data name="NG Pick" xml:space="preserve">
-    <value>NG Pick</value>
-  </data>
-  <data name="NG Shuttle" xml:space="preserve">
-    <value>NG Shuttle</value>
-  </data>
-  <data name="NG Shuttle Carrier Detected (P3)" xml:space="preserve">
-    <value>NG Shuttle Carrier Detected (P3)</value>
-  </data>
-  <data name="NG Shuttle Down" xml:space="preserve">
-    <value>NG Shuttle Down</value>
-  </data>
-  <data name="NG Shuttle Up" xml:space="preserve">
-    <value>NG Shuttle Up</value>
-  </data>
-  <data name="NG conveyor" xml:space="preserve">
-    <value>NG conveyor</value>
-  </data>
-  <data name="NG conveyor drive direction" xml:space="preserve">
-    <value>NG conveyor drive direction</value>
-  </data>
-  <data name="NG pickup: move / raise carrier" xml:space="preserve">
-    <value>NG pickup: move / raise carrier</value>
-  </data>
-  <data name="NG shuttle + conveyor" xml:space="preserve">
-    <value>NG shuttle + conveyor</value>
-  </data>
-  <data name="NG transfer pending" xml:space="preserve">
-    <value>NG transfer pending</value>
-  </data>
-  <data name="NO." xml:space="preserve">
-    <value>NO.</value>
-  </data>
-  <data name="NO. (ON/OFF)" xml:space="preserve">
-    <value>NO. (ON/OFF)</value>
-  </data>
-  <data name="NOT HOMED" xml:space="preserve">
-    <value>NOT HOMED</value>
-  </data>
-  <data name="Negative Limit" xml:space="preserve">
+  <data name="negative limit" xml:space="preserve">
     <value>Negative Limit</value>
   </data>
-  <data name="New Recipe" xml:space="preserve">
+  <data name="new recipe" xml:space="preserve">
     <value>New Recipe</value>
   </data>
-  <data name="Next Virtual Result" xml:space="preserve">
+  <data name="next virtual result" xml:space="preserve">
     <value>Next Virtual Result</value>
   </data>
-  <data name="No PCB" xml:space="preserve">
-    <value>No PCB</value>
+  <data name="ng carrier detected" xml:space="preserve">
+    <value>NG Carrier Detected</value>
   </data>
-  <data name="No PCB loaded" xml:space="preserve">
-    <value>No PCB loaded</value>
+  <data name="ng carrier eject button" xml:space="preserve">
+    <value>NG Carrier Eject Button</value>
   </data>
-  <data name="No PCB results" xml:space="preserve">
-    <value>No PCB results</value>
+  <data name="ng carrier eject complete button" xml:space="preserve">
+    <value>NG Carrier Eject Complete Button</value>
   </data>
-  <data name="No fastening results recorded" xml:space="preserve">
+  <data name="ng carrier eject complete lamp" xml:space="preserve">
+    <value>NG Carrier Eject Complete Lamp</value>
+  </data>
+  <data name="ng carrier eject lamp" xml:space="preserve">
+    <value>NG Carrier Eject Lamp</value>
+  </data>
+  <data name="ng carrier gripper close" xml:space="preserve">
+    <value>NG Carrier Gripper Close</value>
+  </data>
+  <data name="ng carrier gripper closed" xml:space="preserve">
+    <value>NG Carrier Gripper Closed</value>
+  </data>
+  <data name="ng carrier gripper open" xml:space="preserve">
+    <value>NG Carrier Gripper Open</value>
+  </data>
+  <data name="ng carrier pickup down" xml:space="preserve">
+    <value>NG Carrier Pickup Down</value>
+  </data>
+  <data name="ng carrier pickup up" xml:space="preserve">
+    <value>NG Carrier Pickup Up</value>
+  </data>
+  <data name="ng carrier ready to eject" xml:space="preserve">
+    <value>NG Carrier Ready to Eject</value>
+  </data>
+  <data name="ng carrier transfer" xml:space="preserve">
+    <value>NG Carrier Transfer</value>
+  </data>
+  <data name="ng conveyor" xml:space="preserve">
+    <value>NG conveyor</value>
+  </data>
+  <data name="ng conveyor drive direction" xml:space="preserve">
+    <value>NG conveyor drive direction</value>
+  </data>
+  <data name="ng conveyor full" xml:space="preserve">
+    <value>NG Conveyor Full</value>
+  </data>
+  <data name="ng conveyor manual input" xml:space="preserve">
+    <value>NG Conveyor Manual Input</value>
+  </data>
+  <data name="ng conveyor normal speed" xml:space="preserve">
+    <value>NG Conveyor Normal Speed</value>
+  </data>
+  <data name="ng conveyor position 1 occupied" xml:space="preserve">
+    <value>NG Conveyor Position 1 Occupied</value>
+  </data>
+  <data name="ng conveyor position 2 occupied" xml:space="preserve">
+    <value>NG Conveyor Position 2 Occupied</value>
+  </data>
+  <data name="ng conveyor reverse" xml:space="preserve">
+    <value>NG Conveyor Reverse</value>
+  </data>
+  <data name="ng conveyor run" xml:space="preserve">
+    <value>NG Conveyor Run</value>
+  </data>
+  <data name="ng conveyor stopper down" xml:space="preserve">
+    <value>NG Conveyor Stopper Down</value>
+  </data>
+  <data name="ng conveyor stopper up" xml:space="preserve">
+    <value>NG Conveyor Stopper Up</value>
+  </data>
+  <data name="ng pick" xml:space="preserve">
+    <value>NG Pick</value>
+  </data>
+  <data name="ng pickup: move / raise carrier" xml:space="preserve">
+    <value>NG pickup: move / raise carrier</value>
+  </data>
+  <data name="ng shuttle" xml:space="preserve">
+    <value>NG Shuttle</value>
+  </data>
+  <data name="ng shuttle + conveyor" xml:space="preserve">
+    <value>NG shuttle + conveyor</value>
+  </data>
+  <data name="ng shuttle carrier detected (p3)" xml:space="preserve">
+    <value>NG Shuttle Carrier Detected (P3)</value>
+  </data>
+  <data name="ng shuttle down" xml:space="preserve">
+    <value>NG Shuttle Down</value>
+  </data>
+  <data name="ng shuttle up" xml:space="preserve">
+    <value>NG Shuttle Up</value>
+  </data>
+  <data name="ng transfer pending" xml:space="preserve">
+    <value>NG transfer pending</value>
+  </data>
+  <data name="no fastening results recorded" xml:space="preserve">
     <value>No fastening results recorded</value>
   </data>
-  <data name="No measurement" xml:space="preserve">
+  <data name="no measurement" xml:space="preserve">
     <value>No measurement</value>
   </data>
-  <data name="No reference image" xml:space="preserve">
+  <data name="no pcb" xml:space="preserve">
+    <value>No PCB</value>
+  </data>
+  <data name="no pcb loaded" xml:space="preserve">
+    <value>No PCB loaded</value>
+  </data>
+  <data name="no pcb results" xml:space="preserve">
+    <value>No PCB results</value>
+  </data>
+  <data name="no reference image" xml:space="preserve">
     <value>No reference image</value>
   </data>
-  <data name="No saved image for this point" xml:space="preserve">
+  <data name="no saved image for this point" xml:space="preserve">
     <value>No saved image for this point</value>
   </data>
-  <data name="None" xml:space="preserve">
+  <data name="no." xml:space="preserve">
+    <value>NO.</value>
+  </data>
+  <data name="no. (on/off)" xml:space="preserve">
+    <value>NO. (ON/OFF)</value>
+  </data>
+  <data name="none" xml:space="preserve">
     <value>None</value>
   </data>
-  <data name="Not In Position" xml:space="preserve">
+  <data name="not homed" xml:space="preserve">
+    <value>NOT HOMED</value>
+  </data>
+  <data name="not in position" xml:space="preserve">
     <value>Not In Position</value>
   </data>
-  <data name="Not Read" xml:space="preserve">
-    <value>Not Read</value>
-  </data>
-  <data name="Not matched" xml:space="preserve">
+  <data name="not matched" xml:space="preserve">
     <value>Not matched</value>
   </data>
-  <data name="Not read" xml:space="preserve">
+  <data name="not read" xml:space="preserve">
     <value>Not read</value>
   </data>
-  <data name="Not recorded" xml:space="preserve">
+  <data name="not recorded" xml:space="preserve">
     <value>Not recorded</value>
   </data>
-  <data name="Not set" xml:space="preserve">
+  <data name="not set" xml:space="preserve">
     <value>Not set</value>
   </data>
-  <data name="Number" xml:space="preserve">
+  <data name="number" xml:space="preserve">
     <value>Number</value>
   </data>
-  <data name="OFF (dec)" xml:space="preserve">
+  <data name="off (dec)" xml:space="preserve">
     <value>OFF (dec)</value>
   </data>
-  <data name="OFF: manual sensor simulation; motion still runs." xml:space="preserve">
+  <data name="off: manual sensor simulation; motion still runs." xml:space="preserve">
     <value>OFF: manual sensor simulation; motion still runs.</value>
   </data>
-  <data name="ON (dec)" xml:space="preserve">
-    <value>ON (dec)</value>
-  </data>
-  <data name="ON = MANUAL / OFF = AUTO" xml:space="preserve">
-    <value>ON = MANUAL / OFF = AUTO</value>
-  </data>
-  <data name="OPEN" xml:space="preserve">
-    <value>OPEN</value>
-  </data>
-  <data name="ORIGINAL ADC REGISTERS · ADDRESS : HEX" xml:space="preserve">
-    <value>ORIGINAL ADC REGISTERS · ADDRESS : HEX</value>
-  </data>
-  <data name="OUTPUT" xml:space="preserve">
-    <value>OUTPUT</value>
-  </data>
-  <data name="OUTPUTS" xml:space="preserve">
-    <value>OUTPUTS</value>
-  </data>
-  <data name="Older →" xml:space="preserve">
+  <data name="older →" xml:space="preserve">
     <value>Older →</value>
   </data>
-  <data name="Open" xml:space="preserve">
+  <data name="on (dec)" xml:space="preserve">
+    <value>ON (dec)</value>
+  </data>
+  <data name="on = manual / off = auto" xml:space="preserve">
+    <value>ON = MANUAL / OFF = AUTO</value>
+  </data>
+  <data name="open" xml:space="preserve">
     <value>Open</value>
   </data>
-  <data name="Operation" xml:space="preserve">
+  <data name="operation" xml:space="preserve">
     <value>Operation</value>
   </data>
-  <data name="Operation &amp; safety" xml:space="preserve">
+  <data name="operation &amp; safety" xml:space="preserve">
     <value>Operation &amp; safety</value>
   </data>
-  <data name="Operation or stop cleanup in progress" xml:space="preserve">
+  <data name="operation or stop cleanup in progress" xml:space="preserve">
     <value>Operation or stop cleanup in progress</value>
   </data>
-  <data name="Operator Eject" xml:space="preserve">
+  <data name="operator eject" xml:space="preserve">
     <value>Operator Eject</value>
   </data>
-  <data name="Original · edit ROI" xml:space="preserve">
+  <data name="original adc registers · address : hex" xml:space="preserve">
+    <value>ORIGINAL ADC REGISTERS · ADDRESS : HEX</value>
+  </data>
+  <data name="original · edit roi" xml:space="preserve">
     <value>Original · edit ROI</value>
   </data>
-  <data name="Output feedback unavailable" xml:space="preserve">
+  <data name="output" xml:space="preserve">
+    <value>OUTPUT</value>
+  </data>
+  <data name="output feedback unavailable" xml:space="preserve">
     <value>Output feedback unavailable</value>
   </data>
-  <data name="Output signal" xml:space="preserve">
+  <data name="output signal" xml:space="preserve">
     <value>Output signal</value>
   </data>
-  <data name="P1 / EJECT" xml:space="preserve">
+  <data name="outputs" xml:space="preserve">
+    <value>OUTPUTS</value>
+  </data>
+  <data name="p1 / eject" xml:space="preserve">
     <value>P1 / EJECT</value>
   </data>
-  <data name="P3 LIFT" xml:space="preserve">
+  <data name="p3 lift" xml:space="preserve">
     <value>P3 LIFT</value>
   </data>
-  <data name="PCB 1" xml:space="preserve">
-    <value>PCB 1</value>
-  </data>
-  <data name="PCB 1 Pickup" xml:space="preserve">
-    <value>PCB 1 Pickup</value>
-  </data>
-  <data name="PCB 2" xml:space="preserve">
-    <value>PCB 2</value>
-  </data>
-  <data name="PCB 2 Pickup" xml:space="preserve">
-    <value>PCB 2 Pickup</value>
-  </data>
-  <data name="PCB Detected" xml:space="preserve">
-    <value>PCB Detected</value>
-  </data>
-  <data name="PCB Handoff (Receive)" xml:space="preserve">
-    <value>PCB Handoff (Receive)</value>
-  </data>
-  <data name="PCB Handoff (Supply)" xml:space="preserve">
-    <value>PCB Handoff (Supply)</value>
-  </data>
-  <data name="PCB In" xml:space="preserve">
-    <value>PCB In</value>
-  </data>
-  <data name="PCB Placement" xml:space="preserve">
-    <value>PCB Placement</value>
-  </data>
-  <data name="PCB Placement - Heat Sink 1" xml:space="preserve">
-    <value>PCB Placement - Heat Sink 1</value>
-  </data>
-  <data name="PCB Placement - Heat Sink 2" xml:space="preserve">
-    <value>PCB Placement - Heat Sink 2</value>
-  </data>
-  <data name="PCB Placement Backup Plate Down" xml:space="preserve">
-    <value>PCB Placement Backup Plate Down</value>
-  </data>
-  <data name="PCB Placement Backup Plate Up" xml:space="preserve">
-    <value>PCB Placement Backup Plate Up</value>
-  </data>
-  <data name="PCB Placement Handler" xml:space="preserve">
-    <value>PCB Placement Handler</value>
-  </data>
-  <data name="PCB Placement Handler X" xml:space="preserve">
-    <value>PCB Placement Handler X</value>
-  </data>
-  <data name="PCB Placement Handler Y" xml:space="preserve">
-    <value>PCB Placement Handler Y</value>
-  </data>
-  <data name="PCB Placement Handler Z" xml:space="preserve">
-    <value>PCB Placement Handler Z</value>
-  </data>
-  <data name="PCB Placement Heat Sink 1 Present" xml:space="preserve">
-    <value>PCB Placement Heat Sink 1 Present</value>
-  </data>
-  <data name="PCB Placement Heat Sink 2 Present" xml:space="preserve">
-    <value>PCB Placement Heat Sink 2 Present</value>
-  </data>
-  <data name="PCB Placement Station" xml:space="preserve">
-    <value>PCB Placement Station</value>
-  </data>
-  <data name="PCB Placement Stopper Down" xml:space="preserve">
-    <value>PCB Placement Stopper Down</value>
-  </data>
-  <data name="PCB Placement Stopper Up" xml:space="preserve">
-    <value>PCB Placement Stopper Up</value>
-  </data>
-  <data name="PCB Receive Z" xml:space="preserve">
-    <value>PCB Receive Z</value>
-  </data>
-  <data name="PCB Results" xml:space="preserve">
-    <value>PCB Results</value>
-  </data>
-  <data name="PCB Secured" xml:space="preserve">
-    <value>PCB Secured</value>
-  </data>
-  <data name="PCB Supply" xml:space="preserve">
-    <value>PCB Supply</value>
-  </data>
-  <data name="PCB Supply / Placement" xml:space="preserve">
-    <value>PCB Supply / Placement</value>
-  </data>
-  <data name="PCB Supply Handler X" xml:space="preserve">
-    <value>PCB Supply Handler X</value>
-  </data>
-  <data name="PCB Supply Handler Y" xml:space="preserve">
-    <value>PCB Supply Handler Y</value>
-  </data>
-  <data name="PCB Supply Handler Z" xml:space="preserve">
-    <value>PCB Supply Handler Z</value>
-  </data>
-  <data name="PCB history unavailable" xml:space="preserve">
-    <value>PCB history unavailable</value>
-  </data>
-  <data name="PCB placement" xml:space="preserve">
-    <value>PCB placement</value>
-  </data>
-  <data name="PCB result database" xml:space="preserve">
-    <value>PCB result database</value>
-  </data>
-  <data name="PCB supply" xml:space="preserve">
-    <value>PCB supply</value>
-  </data>
-  <data name="PCB {0}" xml:space="preserve">
-    <value>PCB {0}</value>
-  </data>
-  <data name="PCB {0} · Results" xml:space="preserve">
-    <value>PCB {0} · Results</value>
-  </data>
-  <data name="PCB {0} · images" xml:space="preserve">
-    <value>PCB {0} · images</value>
-  </data>
-  <data name="PLACEMENT" xml:space="preserve">
-    <value>PLACEMENT</value>
-  </data>
-  <data name="PORT" xml:space="preserve">
-    <value>PORT</value>
-  </data>
-  <data name="PORT / ADDRESS" xml:space="preserve">
-    <value>PORT / ADDRESS</value>
-  </data>
-  <data name="POSITION (mm)" xml:space="preserve">
-    <value>POSITION (mm)</value>
-  </data>
-  <data name="PRESET" xml:space="preserve">
-    <value>PRESET</value>
-  </data>
-  <data name="Pause display" xml:space="preserve">
+  <data name="pause display" xml:space="preserve">
     <value>Pause display</value>
   </data>
-  <data name="Pending" xml:space="preserve">
+  <data name="pcb 1" xml:space="preserve">
+    <value>PCB 1</value>
+  </data>
+  <data name="pcb 1 pickup" xml:space="preserve">
+    <value>PCB 1 Pickup</value>
+  </data>
+  <data name="pcb 2" xml:space="preserve">
+    <value>PCB 2</value>
+  </data>
+  <data name="pcb 2 pickup" xml:space="preserve">
+    <value>PCB 2 Pickup</value>
+  </data>
+  <data name="pcb detected" xml:space="preserve">
+    <value>PCB Detected</value>
+  </data>
+  <data name="pcb handoff (receive)" xml:space="preserve">
+    <value>PCB Handoff (Receive)</value>
+  </data>
+  <data name="pcb handoff (supply)" xml:space="preserve">
+    <value>PCB Handoff (Supply)</value>
+  </data>
+  <data name="pcb history unavailable" xml:space="preserve">
+    <value>PCB history unavailable</value>
+  </data>
+  <data name="pcb in" xml:space="preserve">
+    <value>PCB In</value>
+  </data>
+  <data name="pcb placement" xml:space="preserve">
+    <value>PCB Placement</value>
+  </data>
+  <data name="pcb placement - heat sink 1" xml:space="preserve">
+    <value>PCB Placement - Heat Sink 1</value>
+  </data>
+  <data name="pcb placement - heat sink 2" xml:space="preserve">
+    <value>PCB Placement - Heat Sink 2</value>
+  </data>
+  <data name="pcb placement backup plate down" xml:space="preserve">
+    <value>PCB Placement Backup Plate Down</value>
+  </data>
+  <data name="pcb placement backup plate up" xml:space="preserve">
+    <value>PCB Placement Backup Plate Up</value>
+  </data>
+  <data name="pcb placement handler" xml:space="preserve">
+    <value>PCB Placement Handler</value>
+  </data>
+  <data name="pcb placement handler x" xml:space="preserve">
+    <value>PCB Placement Handler X</value>
+  </data>
+  <data name="pcb placement handler y" xml:space="preserve">
+    <value>PCB Placement Handler Y</value>
+  </data>
+  <data name="pcb placement handler z" xml:space="preserve">
+    <value>PCB Placement Handler Z</value>
+  </data>
+  <data name="pcb placement heat sink 1 present" xml:space="preserve">
+    <value>PCB Placement Heat Sink 1 Present</value>
+  </data>
+  <data name="pcb placement heat sink 2 present" xml:space="preserve">
+    <value>PCB Placement Heat Sink 2 Present</value>
+  </data>
+  <data name="pcb placement station" xml:space="preserve">
+    <value>PCB Placement Station</value>
+  </data>
+  <data name="pcb placement stopper down" xml:space="preserve">
+    <value>PCB Placement Stopper Down</value>
+  </data>
+  <data name="pcb placement stopper up" xml:space="preserve">
+    <value>PCB Placement Stopper Up</value>
+  </data>
+  <data name="pcb receive z" xml:space="preserve">
+    <value>PCB Receive Z</value>
+  </data>
+  <data name="pcb result database" xml:space="preserve">
+    <value>PCB result database</value>
+  </data>
+  <data name="pcb results" xml:space="preserve">
+    <value>PCB Results</value>
+  </data>
+  <data name="pcb secured" xml:space="preserve">
+    <value>PCB Secured</value>
+  </data>
+  <data name="pcb supply" xml:space="preserve">
+    <value>PCB Supply</value>
+  </data>
+  <data name="pcb supply / placement" xml:space="preserve">
+    <value>PCB Supply / Placement</value>
+  </data>
+  <data name="pcb supply handler x" xml:space="preserve">
+    <value>PCB Supply Handler X</value>
+  </data>
+  <data name="pcb supply handler y" xml:space="preserve">
+    <value>PCB Supply Handler Y</value>
+  </data>
+  <data name="pcb supply handler z" xml:space="preserve">
+    <value>PCB Supply Handler Z</value>
+  </data>
+  <data name="pcb {0}" xml:space="preserve">
+    <value>PCB {0}</value>
+  </data>
+  <data name="pcb {0} · images" xml:space="preserve">
+    <value>PCB {0} · images</value>
+  </data>
+  <data name="pcb {0} · results" xml:space="preserve">
+    <value>PCB {0} · Results</value>
+  </data>
+  <data name="pending" xml:space="preserve">
     <value>Pending</value>
   </data>
-  <data name="Pending saves: {0}" xml:space="preserve">
+  <data name="pending saves: {0}" xml:space="preserve">
     <value>Pending saves: {0}</value>
   </data>
-  <data name="Physical" xml:space="preserve">
+  <data name="physical" xml:space="preserve">
     <value>Physical</value>
   </data>
-  <data name="Pick" xml:space="preserve">
+  <data name="pick" xml:space="preserve">
     <value>Pick</value>
   </data>
-  <data name="Picking Carrier" xml:space="preserve">
+  <data name="picking carrier" xml:space="preserve">
     <value>Picking Carrier</value>
   </data>
-  <data name="Picking PCB" xml:space="preserve">
+  <data name="picking pcb" xml:space="preserve">
     <value>Picking PCB</value>
   </data>
-  <data name="Picking PCB for Repeat" xml:space="preserve">
+  <data name="picking pcb for repeat" xml:space="preserve">
     <value>Picking PCB for Repeat</value>
   </data>
-  <data name="Pickup" xml:space="preserve">
+  <data name="pickup" xml:space="preserve">
     <value>Pickup</value>
   </data>
-  <data name="Pickup Bolt Feeder" xml:space="preserve">
+  <data name="pickup bolt feeder" xml:space="preserve">
     <value>Pickup Bolt Feeder</value>
   </data>
-  <data name="Pickup Controller FWD/BWD (Head 1)" xml:space="preserve">
+  <data name="pickup controller fwd/bwd (head 1)" xml:space="preserve">
     <value>Pickup Controller FWD/BWD (Head 1)</value>
   </data>
-  <data name="Pickup Controller I/O (Head 1)" xml:space="preserve">
+  <data name="pickup controller i/o (head 1)" xml:space="preserve">
     <value>Pickup Controller I/O (Head 1)</value>
   </data>
-  <data name="Pickup Controller Lock (Head 1)" xml:space="preserve">
+  <data name="pickup controller lock (head 1)" xml:space="preserve">
     <value>Pickup Controller Lock (Head 1)</value>
   </data>
-  <data name="Pickup Controller Preset 1 (Head 1)" xml:space="preserve">
+  <data name="pickup controller preset 1 (head 1)" xml:space="preserve">
     <value>Pickup Controller Preset 1 (Head 1)</value>
   </data>
-  <data name="Pickup Controller Preset 2 (Head 1)" xml:space="preserve">
+  <data name="pickup controller preset 2 (head 1)" xml:space="preserve">
     <value>Pickup Controller Preset 2 (Head 1)</value>
   </data>
-  <data name="Pickup Controller Preset 3 (Head 1)" xml:space="preserve">
+  <data name="pickup controller preset 3 (head 1)" xml:space="preserve">
     <value>Pickup Controller Preset 3 (Head 1)</value>
   </data>
-  <data name="Pickup Controller Reset (Head 1)" xml:space="preserve">
+  <data name="pickup controller reset (head 1)" xml:space="preserve">
     <value>Pickup Controller Reset (Head 1)</value>
   </data>
-  <data name="Pickup Controller Start (Head 1)" xml:space="preserve">
+  <data name="pickup controller start (head 1)" xml:space="preserve">
     <value>Pickup Controller Start (Head 1)</value>
   </data>
-  <data name="Pickup Feeder Bolt Detected" xml:space="preserve">
-    <value>Pickup Feeder Bolt Detected</value>
-  </data>
-  <data name="Pickup Head" xml:space="preserve">
-    <value>Pickup Head</value>
-  </data>
-  <data name="Pickup Head Down (Head 1)" xml:space="preserve">
-    <value>Pickup Head Down (Head 1)</value>
-  </data>
-  <data name="Pickup Head Fastening Z" xml:space="preserve">
-    <value>Pickup Head Fastening Z</value>
-  </data>
-  <data name="Pickup Head Pin - Lower Right" xml:space="preserve">
-    <value>Pickup Head Pin - Lower Right</value>
-  </data>
-  <data name="Pickup Head Pin - Upper Left" xml:space="preserve">
-    <value>Pickup Head Pin - Upper Left</value>
-  </data>
-  <data name="Pickup Head Up (Head 1)" xml:space="preserve">
-    <value>Pickup Head Up (Head 1)</value>
-  </data>
-  <data name="Pickup Head Vacuum Detected (Head 1)" xml:space="preserve">
-    <value>Pickup Head Vacuum Detected (Head 1)</value>
-  </data>
-  <data name="Pickup Head Vacuum Pump (Head 1)" xml:space="preserve">
-    <value>Pickup Head Vacuum Pump (Head 1)</value>
-  </data>
-  <data name="Pickup Table Down (Head 1)" xml:space="preserve">
-    <value>Pickup Table Down (Head 1)</value>
-  </data>
-  <data name="Pickup Table Up (Head 1)" xml:space="preserve">
-    <value>Pickup Table Up (Head 1)</value>
-  </data>
-  <data name="Pickup feeder" xml:space="preserve">
+  <data name="pickup feeder" xml:space="preserve">
     <value>Pickup feeder</value>
   </data>
-  <data name="Pickup feeder / head" xml:space="preserve">
+  <data name="pickup feeder / head" xml:space="preserve">
     <value>Pickup feeder / head</value>
   </data>
-  <data name="Pickup retries (0 = off)" xml:space="preserve">
+  <data name="pickup feeder bolt detected" xml:space="preserve">
+    <value>Pickup Feeder Bolt Detected</value>
+  </data>
+  <data name="pickup head" xml:space="preserve">
+    <value>Pickup Head</value>
+  </data>
+  <data name="pickup head down (head 1)" xml:space="preserve">
+    <value>Pickup Head Down (Head 1)</value>
+  </data>
+  <data name="pickup head fastening z" xml:space="preserve">
+    <value>Pickup Head Fastening Z</value>
+  </data>
+  <data name="pickup head pin - lower right" xml:space="preserve">
+    <value>Pickup Head Pin - Lower Right</value>
+  </data>
+  <data name="pickup head pin - upper left" xml:space="preserve">
+    <value>Pickup Head Pin - Upper Left</value>
+  </data>
+  <data name="pickup head up (head 1)" xml:space="preserve">
+    <value>Pickup Head Up (Head 1)</value>
+  </data>
+  <data name="pickup head vacuum detected (head 1)" xml:space="preserve">
+    <value>Pickup Head Vacuum Detected (Head 1)</value>
+  </data>
+  <data name="pickup head vacuum pump (head 1)" xml:space="preserve">
+    <value>Pickup Head Vacuum Pump (Head 1)</value>
+  </data>
+  <data name="pickup retries (0 = off)" xml:space="preserve">
     <value>Pickup retries (0 = off)</value>
   </data>
-  <data name="Pickup · feed and fasten" xml:space="preserve">
+  <data name="pickup table down (head 1)" xml:space="preserve">
+    <value>Pickup Table Down (Head 1)</value>
+  </data>
+  <data name="pickup table up (head 1)" xml:space="preserve">
+    <value>Pickup Table Up (Head 1)</value>
+  </data>
+  <data name="pickup · feed and fasten" xml:space="preserve">
     <value>Pickup · feed and fasten</value>
   </data>
-  <data name="Pickup · supply bypassed / dry run" xml:space="preserve">
+  <data name="pickup · supply bypassed / dry run" xml:space="preserve">
     <value>Pickup · supply bypassed / dry run</value>
   </data>
-  <data name="Pickup: pick / fasten" xml:space="preserve">
+  <data name="pickup: pick / fasten" xml:space="preserve">
     <value>Pickup: pick / fasten</value>
   </data>
-  <data name="Placement Handler" xml:space="preserve">
-    <value>Placement Handler</value>
+  <data name="placement" xml:space="preserve">
+    <value>PLACEMENT</value>
   </data>
-  <data name="Placement Handler Down" xml:space="preserve">
-    <value>Placement Handler Down</value>
-  </data>
-  <data name="Placement Handler PCB Detected" xml:space="preserve">
-    <value>Placement Handler PCB Detected</value>
-  </data>
-  <data name="Placement Handler Rotate" xml:space="preserve">
-    <value>Placement Handler Rotate</value>
-  </data>
-  <data name="Placement Handler Rotated" xml:space="preserve">
-    <value>Placement Handler Rotated</value>
-  </data>
-  <data name="Placement Handler Unrotated" xml:space="preserve">
-    <value>Placement Handler Unrotated</value>
-  </data>
-  <data name="Placement Handler Up" xml:space="preserve">
-    <value>Placement Handler Up</value>
-  </data>
-  <data name="Placement IPM Down" xml:space="preserve">
-    <value>Placement IPM Down</value>
-  </data>
-  <data name="Placement IPM Up" xml:space="preserve">
-    <value>Placement IPM Up</value>
-  </data>
-  <data name="Placement Vacuum Detected" xml:space="preserve">
-    <value>Placement Vacuum Detected</value>
-  </data>
-  <data name="Placement Vacuum Ejector" xml:space="preserve">
-    <value>Placement Vacuum Ejector</value>
-  </data>
-  <data name="Placement Z: conveyor clearance required" xml:space="preserve">
-    <value>Placement Z: conveyor clearance required</value>
-  </data>
-  <data name="Placement backup plate" xml:space="preserve">
+  <data name="placement backup plate" xml:space="preserve">
     <value>Placement backup plate</value>
   </data>
-  <data name="Placement stopper" xml:space="preserve">
+  <data name="placement handler" xml:space="preserve">
+    <value>Placement Handler</value>
+  </data>
+  <data name="placement handler down" xml:space="preserve">
+    <value>Placement Handler Down</value>
+  </data>
+  <data name="placement handler pcb detected" xml:space="preserve">
+    <value>Placement Handler PCB Detected</value>
+  </data>
+  <data name="placement handler rotate" xml:space="preserve">
+    <value>Placement Handler Rotate</value>
+  </data>
+  <data name="placement handler rotated" xml:space="preserve">
+    <value>Placement Handler Rotated</value>
+  </data>
+  <data name="placement handler unrotated" xml:space="preserve">
+    <value>Placement Handler Unrotated</value>
+  </data>
+  <data name="placement handler up" xml:space="preserve">
+    <value>Placement Handler Up</value>
+  </data>
+  <data name="placement ipm down" xml:space="preserve">
+    <value>Placement IPM Down</value>
+  </data>
+  <data name="placement ipm up" xml:space="preserve">
+    <value>Placement IPM Up</value>
+  </data>
+  <data name="placement stopper" xml:space="preserve">
     <value>Placement stopper</value>
   </data>
-  <data name="Placement · Z" xml:space="preserve">
+  <data name="placement vacuum detected" xml:space="preserve">
+    <value>Placement Vacuum Detected</value>
+  </data>
+  <data name="placement vacuum ejector" xml:space="preserve">
+    <value>Placement Vacuum Ejector</value>
+  </data>
+  <data name="placement z: conveyor clearance required" xml:space="preserve">
+    <value>Placement Z: conveyor clearance required</value>
+  </data>
+  <data name="placement · z" xml:space="preserve">
     <value>Placement · Z</value>
   </data>
-  <data name="Placing and Pressing PCB" xml:space="preserve">
+  <data name="placing and pressing pcb" xml:space="preserve">
     <value>Placing and Pressing PCB</value>
   </data>
-  <data name="Position unknown" xml:space="preserve">
+  <data name="port" xml:space="preserve">
+    <value>PORT</value>
+  </data>
+  <data name="port / address" xml:space="preserve">
+    <value>PORT / ADDRESS</value>
+  </data>
+  <data name="position (mm)" xml:space="preserve">
+    <value>POSITION (mm)</value>
+  </data>
+  <data name="position unknown" xml:space="preserve">
     <value>Position unknown</value>
   </data>
-  <data name="Positioning" xml:space="preserve">
+  <data name="positioning" xml:space="preserve">
     <value>Positioning</value>
   </data>
-  <data name="Positive Limit" xml:space="preserve">
+  <data name="positive limit" xml:space="preserve">
     <value>Positive Limit</value>
   </data>
-  <data name="Preparing / moving to handoff" xml:space="preserve">
+  <data name="preparing / moving to handoff" xml:space="preserve">
     <value>Preparing / moving to handoff</value>
   </data>
-  <data name="Preparing Carrier Work" xml:space="preserve">
+  <data name="preparing carrier work" xml:space="preserve">
     <value>Preparing Carrier Work</value>
   </data>
-  <data name="Preparing Inspection Points" xml:space="preserve">
-    <value>Preparing Inspection Points</value>
-  </data>
-  <data name="Preparing Inspection Supports" xml:space="preserve">
-    <value>Preparing Inspection Supports</value>
-  </data>
-  <data name="Preparing Pickup" xml:space="preserve">
-    <value>Preparing Pickup</value>
-  </data>
-  <data name="Preparing Pickup / Standby" xml:space="preserve">
-    <value>Preparing Pickup / Standby</value>
-  </data>
-  <data name="Preparing S3: plate DOWN" xml:space="preserve">
-    <value>Preparing S3: plate DOWN</value>
-  </data>
-  <data name="Preparing first shooting point" xml:space="preserve">
+  <data name="preparing first shooting point" xml:space="preserve">
     <value>Preparing first shooting point</value>
   </data>
-  <data name="Preparing to Receive Returned PCB" xml:space="preserve">
+  <data name="preparing inspection points" xml:space="preserve">
+    <value>Preparing Inspection Points</value>
+  </data>
+  <data name="preparing inspection supports" xml:space="preserve">
+    <value>Preparing Inspection Supports</value>
+  </data>
+  <data name="preparing pickup" xml:space="preserve">
+    <value>Preparing Pickup</value>
+  </data>
+  <data name="preparing pickup / standby" xml:space="preserve">
+    <value>Preparing Pickup / Standby</value>
+  </data>
+  <data name="preparing s3: plate down" xml:space="preserve">
+    <value>Preparing S3: plate DOWN</value>
+  </data>
+  <data name="preparing to receive returned pcb" xml:space="preserve">
     <value>Preparing to Receive Returned PCB</value>
   </data>
-  <data name="Preset" xml:space="preserve">
+  <data name="preset" xml:space="preserve">
     <value>Preset</value>
   </data>
-  <data name="Preset Changed" xml:space="preserve">
+  <data name="preset changed" xml:space="preserve">
     <value>Preset Changed</value>
   </data>
-  <data name="Press RESET to restore servo power" xml:space="preserve">
+  <data name="press reset to restore servo power" xml:space="preserve">
     <value>Press RESET to restore servo power</value>
   </data>
-  <data name="Pure barcode" xml:space="preserve">
+  <data name="pure barcode" xml:space="preserve">
     <value>Pure barcode</value>
   </data>
-  <data name="READY" xml:space="preserve">
-    <value>READY</value>
-  </data>
-  <data name="RECIPE" xml:space="preserve">
-    <value>RECIPE</value>
-  </data>
-  <data name="REGISTER ACCESS" xml:space="preserve">
-    <value>REGISTER ACCESS</value>
-  </data>
-  <data name="REPEAT" xml:space="preserve">
-    <value>REPEAT</value>
-  </data>
-  <data name="RESET" xml:space="preserve">
-    <value>RESET</value>
-  </data>
-  <data name="RESETTING..." xml:space="preserve">
-    <value>RESETTING...</value>
-  </data>
-  <data name="RESPONSE" xml:space="preserve">
-    <value>RESPONSE</value>
-  </data>
-  <data name="RESULT" xml:space="preserve">
-    <value>RESULT</value>
-  </data>
-  <data name="RESULT TORQUE" xml:space="preserve">
-    <value>RESULT TORQUE</value>
-  </data>
-  <data name="RUN" xml:space="preserve">
-    <value>RUN</value>
-  </data>
-  <data name="Raise NG pickup" xml:space="preserve">
-    <value>Raise NG pickup</value>
-  </data>
-  <data name="Raise NG pickup (UP=ON, DOWN=OFF)" xml:space="preserve">
-    <value>Raise NG pickup (UP=ON, DOWN=OFF)</value>
-  </data>
-  <data name="Raise NG pickup before XY movement" xml:space="preserve">
-    <value>Raise NG pickup before XY movement</value>
-  </data>
-  <data name="Raise both fastening heads" xml:space="preserve">
+  <data name="raise both fastening heads" xml:space="preserve">
     <value>Raise both fastening heads</value>
   </data>
-  <data name="Raise placement cylinders" xml:space="preserve">
+  <data name="raise ng pickup" xml:space="preserve">
+    <value>Raise NG pickup</value>
+  </data>
+  <data name="raise ng pickup (up=on, down=off)" xml:space="preserve">
+    <value>Raise NG pickup (UP=ON, DOWN=OFF)</value>
+  </data>
+  <data name="raise ng pickup before xy movement" xml:space="preserve">
+    <value>Raise NG pickup before XY movement</value>
+  </data>
+  <data name="raise placement cylinders" xml:space="preserve">
     <value>Raise placement cylinders</value>
   </data>
-  <data name="Raise placement handler" xml:space="preserve">
+  <data name="raise placement handler" xml:space="preserve">
     <value>Raise placement handler</value>
   </data>
-  <data name="Raise placement handler and IPM lift" xml:space="preserve">
+  <data name="raise placement handler and ipm lift" xml:space="preserve">
     <value>Raise placement handler and IPM lift</value>
   </data>
-  <data name="Raising / leaving handoff" xml:space="preserve">
+  <data name="raising / leaving handoff" xml:space="preserve">
     <value>Raising / leaving handoff</value>
   </data>
-  <data name="Raising NG Shuttle" xml:space="preserve">
+  <data name="raising ng shuttle" xml:space="preserve">
     <value>Raising NG Shuttle</value>
   </data>
-  <data name="Raising S3" xml:space="preserve">
+  <data name="raising s3" xml:space="preserve">
     <value>Raising S3</value>
   </data>
-  <data name="Read Device Info" xml:space="preserve">
+  <data name="read device info" xml:space="preserve">
     <value>Read Device Info</value>
   </data>
-  <data name="Read Holding Registers" xml:space="preserve">
+  <data name="read holding registers" xml:space="preserve">
     <value>Read Holding Registers</value>
   </data>
-  <data name="Read Input Registers" xml:space="preserve">
+  <data name="read input registers" xml:space="preserve">
     <value>Read Input Registers</value>
   </data>
-  <data name="Read Last Result" xml:space="preserve">
+  <data name="read last result" xml:space="preserve">
     <value>Read Last Result</value>
   </data>
-  <data name="Reading Data Matrix" xml:space="preserve">
+  <data name="reading data matrix" xml:space="preserve">
     <value>Reading Data Matrix</value>
   </data>
-  <data name="Ready" xml:space="preserve">
+  <data name="ready" xml:space="preserve">
     <value>Ready</value>
   </data>
-  <data name="Ready " xml:space="preserve">
+  <data name="ready " xml:space="preserve">
     <value>Ready </value>
   </data>
-  <data name="Ready From Rear" xml:space="preserve">
+  <data name="ready from rear" xml:space="preserve">
     <value>Ready From Rear</value>
   </data>
-  <data name="Ready To Front 1 (PCB)" xml:space="preserve">
+  <data name="ready to front 1 (pcb)" xml:space="preserve">
     <value>Ready To Front 1 (PCB)</value>
   </data>
-  <data name="Ready To Front 2 (Heat Sink)" xml:space="preserve">
+  <data name="ready to front 2 (heat sink)" xml:space="preserve">
     <value>Ready To Front 2 (Heat Sink)</value>
   </data>
-  <data name="Rear Ready OFF extra run (s)" xml:space="preserve">
+  <data name="rear ready off extra run (s)" xml:space="preserve">
     <value>Rear Ready OFF extra run (s)</value>
   </data>
-  <data name="Rear · Ready to receive" xml:space="preserve">
+  <data name="rear · ready to receive" xml:space="preserve">
     <value>Rear · Ready to receive</value>
   </data>
-  <data name="Rear · SMEMA" xml:space="preserve">
+  <data name="rear · smema" xml:space="preserve">
     <value>Rear · SMEMA</value>
   </data>
-  <data name="Receive" xml:space="preserve">
+  <data name="receive" xml:space="preserve">
     <value>Receive</value>
   </data>
-  <data name="Receiving PCB" xml:space="preserve">
-    <value>Receiving PCB</value>
-  </data>
-  <data name="Receiving at infeed" xml:space="preserve">
+  <data name="receiving at infeed" xml:space="preserve">
     <value>Receiving at infeed</value>
   </data>
-  <data name="Recipe" xml:space="preserve">
+  <data name="receiving pcb" xml:space="preserve">
+    <value>Receiving PCB</value>
+  </data>
+  <data name="recipe" xml:space="preserve">
     <value>Recipe</value>
   </data>
-  <data name="Record Position" xml:space="preserve">
+  <data name="record position" xml:space="preserve">
     <value>Record Position</value>
   </data>
-  <data name="Record X/Y" xml:space="preserve">
+  <data name="record x/y" xml:space="preserve">
     <value>Record X/Y</value>
   </data>
-  <data name="Record X/Y/Z" xml:space="preserve">
+  <data name="record x/y/z" xml:space="preserve">
     <value>Record X/Y/Z</value>
   </data>
-  <data name="Record Z" xml:space="preserve">
+  <data name="record z" xml:space="preserve">
     <value>Record Z</value>
   </data>
-  <data name="Reference image unavailable" xml:space="preserve">
+  <data name="reference image unavailable" xml:space="preserve">
     <value>Reference image unavailable</value>
   </data>
-  <data name="Reference positions" xml:space="preserve">
+  <data name="reference positions" xml:space="preserve">
     <value>Reference positions</value>
   </data>
-  <data name="Refresh List" xml:space="preserve">
+  <data name="refresh list" xml:space="preserve">
     <value>Refresh List</value>
   </data>
-  <data name="Refresh Ports" xml:space="preserve">
+  <data name="refresh ports" xml:space="preserve">
     <value>Refresh Ports</value>
   </data>
-  <data name="Related I/O" xml:space="preserve">
+  <data name="register access" xml:space="preserve">
+    <value>REGISTER ACCESS</value>
+  </data>
+  <data name="related i/o" xml:space="preserve">
     <value>Related I/O</value>
   </data>
-  <data name="Release E-stop, then press RESET" xml:space="preserve">
-    <value>Release E-stop, then press RESET</value>
-  </data>
-  <data name="Release both E-stops" xml:space="preserve">
+  <data name="release both e-stops" xml:space="preserve">
     <value>Release both E-stops</value>
   </data>
-  <data name="Release held PCB before HOME (IPM lift down)" xml:space="preserve">
+  <data name="release e-stop, then press reset" xml:space="preserve">
+    <value>Release E-stop, then press RESET</value>
+  </data>
+  <data name="release held pcb before home (ipm lift down)" xml:space="preserve">
     <value>Release held PCB before HOME (IPM lift down)</value>
   </data>
-  <data name="Release or STOP to stop rotation." xml:space="preserve">
+  <data name="release or stop to stop rotation." xml:space="preserve">
     <value>Release or STOP to stop rotation.</value>
   </data>
-  <data name="Releasing PCB / leaving supply" xml:space="preserve">
+  <data name="releasing pcb / leaving supply" xml:space="preserve">
     <value>Releasing PCB / leaving supply</value>
   </data>
-  <data name="Remote Start" xml:space="preserve">
+  <data name="remote start" xml:space="preserve">
     <value>Remote Start</value>
   </data>
-  <data name="Remove Bolt" xml:space="preserve">
+  <data name="remove bolt" xml:space="preserve">
     <value>Remove Bolt</value>
   </data>
-  <data name="Remove Carrier · EJECT Next / COMPLETE to Resume" xml:space="preserve">
+  <data name="remove carrier · eject next / complete to resume" xml:space="preserve">
     <value>Remove Carrier · EJECT Next / COMPLETE to Resume</value>
   </data>
-  <data name="Request Device Information" xml:space="preserve">
+  <data name="repeat" xml:space="preserve">
+    <value>REPEAT</value>
+  </data>
+  <data name="request device information" xml:space="preserve">
     <value>Request Device Information</value>
   </data>
-  <data name="Reset Button" xml:space="preserve">
+  <data name="reset" xml:space="preserve">
+    <value>RESET</value>
+  </data>
+  <data name="reset button" xml:space="preserve">
     <value>Reset Button</value>
   </data>
-  <data name="Response timeout (s)" xml:space="preserve">
+  <data name="resetting..." xml:space="preserve">
+    <value>RESETTING...</value>
+  </data>
+  <data name="response" xml:space="preserve">
+    <value>RESPONSE</value>
+  </data>
+  <data name="response timeout (s)" xml:space="preserve">
     <value>Response timeout (s)</value>
   </data>
-  <data name="Restore air pressure, then press RESET" xml:space="preserve">
+  <data name="restore air pressure, then press reset" xml:space="preserve">
     <value>Restore air pressure, then press RESET</value>
   </data>
-  <data name="Results folder" xml:space="preserve">
+  <data name="result" xml:space="preserve">
+    <value>RESULT</value>
+  </data>
+  <data name="result torque" xml:space="preserve">
+    <value>RESULT TORQUE</value>
+  </data>
+  <data name="results folder" xml:space="preserve">
     <value>Results folder</value>
   </data>
-  <data name="Retention (days)" xml:space="preserve">
+  <data name="retention (days)" xml:space="preserve">
     <value>Retention (days)</value>
   </data>
-  <data name="Retry loading" xml:space="preserve">
+  <data name="retry loading" xml:space="preserve">
     <value>Retry loading</value>
   </data>
-  <data name="Retry save" xml:space="preserve">
+  <data name="retry save" xml:space="preserve">
     <value>Retry save</value>
   </data>
-  <data name="Returning / completing inspection" xml:space="preserve">
+  <data name="returning / completing inspection" xml:space="preserve">
     <value>Returning / completing inspection</value>
   </data>
-  <data name="Returning Above Pickup with PCB" xml:space="preserve">
+  <data name="returning above pickup with pcb" xml:space="preserve">
     <value>Returning Above Pickup with PCB</value>
   </data>
-  <data name="Returning PCB to Supply" xml:space="preserve">
-    <value>Returning PCB to Supply</value>
-  </data>
-  <data name="Returning carrier to entry" xml:space="preserve">
+  <data name="returning carrier to entry" xml:space="preserve">
     <value>Returning carrier to entry</value>
   </data>
-  <data name="Returning carrier to shuttle" xml:space="preserve">
+  <data name="returning carrier to shuttle" xml:space="preserve">
     <value>Returning carrier to shuttle</value>
   </data>
-  <data name="Returning to Waiting Position" xml:space="preserve">
-    <value>Returning to Waiting Position</value>
+  <data name="returning pcb to supply" xml:space="preserve">
+    <value>Returning PCB to Supply</value>
   </data>
-  <data name="Returning to entry sensor" xml:space="preserve">
+  <data name="returning to entry sensor" xml:space="preserve">
     <value>Returning to entry sensor</value>
   </data>
-  <data name="Rotated" xml:space="preserve">
+  <data name="returning to waiting position" xml:space="preserve">
+    <value>Returning to Waiting Position</value>
+  </data>
+  <data name="rotated" xml:space="preserve">
     <value>Rotated</value>
   </data>
-  <data name="Rotation" xml:space="preserve">
+  <data name="rotation" xml:space="preserve">
     <value>Rotation</value>
   </data>
-  <data name="Run" xml:space="preserve">
+  <data name="run" xml:space="preserve">
     <value>Run</value>
   </data>
-  <data name="Run HOME ALL" xml:space="preserve">
+  <data name="run home all" xml:space="preserve">
     <value>Run HOME ALL</value>
   </data>
-  <data name="Running" xml:space="preserve">
+  <data name="running" xml:space="preserve">
     <value>Running</value>
   </data>
-  <data name="SAFETY BYPASS" xml:space="preserve">
-    <value>SAFETY BYPASS</value>
-  </data>
-  <data name="SCREW COUNT" xml:space="preserve">
-    <value>SCREW COUNT</value>
-  </data>
-  <data name="SDK pulse" xml:space="preserve">
-    <value>SDK pulse</value>
-  </data>
-  <data name="SDK unit" xml:space="preserve">
-    <value>SDK unit</value>
-  </data>
-  <data name="SEARCH · AXIS / NUMBER" xml:space="preserve">
-    <value>SEARCH · AXIS / NUMBER</value>
-  </data>
-  <data name="SEARCH · SIGNAL / CHANNEL" xml:space="preserve">
-    <value>SEARCH · SIGNAL / CHANNEL</value>
-  </data>
-  <data name="SERVO" xml:space="preserve">
-    <value>SERVO</value>
-  </data>
-  <data name="SERVO OFF" xml:space="preserve">
-    <value>SERVO OFF</value>
-  </data>
-  <data name="SERVO ON" xml:space="preserve">
-    <value>SERVO ON</value>
-  </data>
-  <data name="SHOOT OFF" xml:space="preserve">
-    <value>SHOOT OFF</value>
-  </data>
-  <data name="SHOOT ON" xml:space="preserve">
-    <value>SHOOT ON</value>
-  </data>
-  <data name="SHOOT · ?" xml:space="preserve">
-    <value>SHOOT · ?</value>
-  </data>
-  <data name="SLAVE" xml:space="preserve">
-    <value>SLAVE</value>
-  </data>
-  <data name="SMEMA Test" xml:space="preserve">
-    <value>SMEMA Test</value>
-  </data>
-  <data name="SNUG ANGLE (°)" xml:space="preserve">
-    <value>SNUG ANGLE (°)</value>
-  </data>
-  <data name="START" xml:space="preserve">
-    <value>START</value>
-  </data>
-  <data name="STATE" xml:space="preserve">
-    <value>STATE</value>
-  </data>
-  <data name="STATUS" xml:space="preserve">
-    <value>STATUS</value>
-  </data>
-  <data name="STOP" xml:space="preserve">
-    <value>STOP</value>
-  </data>
-  <data name="SUPPLY" xml:space="preserve">
-    <value>SUPPLY</value>
-  </data>
-  <data name="SUPPLY · ?" xml:space="preserve">
-    <value>SUPPLY · ?</value>
-  </data>
-  <data name="Safe Z → Raise Pickup Head" xml:space="preserve">
+  <data name="safe z → raise pickup head" xml:space="preserve">
     <value>Safe Z → Raise Pickup Head</value>
   </data>
-  <data name="Safety" xml:space="preserve">
+  <data name="safety" xml:space="preserve">
     <value>Safety</value>
   </data>
-  <data name="Safety Stop" xml:space="preserve">
+  <data name="safety bypass" xml:space="preserve">
+    <value>SAFETY BYPASS</value>
+  </data>
+  <data name="safety stop" xml:space="preserve">
     <value>Safety Stop</value>
   </data>
-  <data name="Save + restart" xml:space="preserve">
+  <data name="save + restart" xml:space="preserve">
     <value>Save + restart</value>
   </data>
-  <data name="Save Inspection Settings" xml:space="preserve">
+  <data name="save inspection settings" xml:space="preserve">
     <value>Save Inspection Settings</value>
   </data>
-  <data name="Save Settings" xml:space="preserve">
+  <data name="save settings" xml:space="preserve">
     <value>Save Settings</value>
   </data>
-  <data name="Save Teaching" xml:space="preserve">
+  <data name="save teaching" xml:space="preserve">
     <value>Save Teaching</value>
   </data>
-  <data name="Save X/Y + Image" xml:space="preserve">
+  <data name="save x/y + image" xml:space="preserve">
     <value>Save X/Y + Image</value>
   </data>
-  <data name="Saved results" xml:space="preserve">
+  <data name="saved results" xml:space="preserve">
     <value>Saved results</value>
   </data>
-  <data name="Saving..." xml:space="preserve">
+  <data name="saving..." xml:space="preserve">
     <value>Saving...</value>
   </data>
-  <data name="Screw Count" xml:space="preserve">
+  <data name="screw count" xml:space="preserve">
     <value>Screw Count</value>
   </data>
-  <data name="Search acceleration (s)" xml:space="preserve">
+  <data name="sdk pulse" xml:space="preserve">
+    <value>SDK pulse</value>
+  </data>
+  <data name="sdk unit" xml:space="preserve">
+    <value>SDK unit</value>
+  </data>
+  <data name="search acceleration (s)" xml:space="preserve">
     <value>Search acceleration (s)</value>
   </data>
-  <data name="Search speed (mm/s)" xml:space="preserve">
+  <data name="search speed (mm/s)" xml:space="preserve">
     <value>Search speed (mm/s)</value>
   </data>
-  <data name="Seating S1 / S2 carriers" xml:space="preserve">
+  <data name="search · axis / number" xml:space="preserve">
+    <value>SEARCH · AXIS / NUMBER</value>
+  </data>
+  <data name="search · signal / channel" xml:space="preserve">
+    <value>SEARCH · SIGNAL / CHANNEL</value>
+  </data>
+  <data name="seating s1 / s2 carriers" xml:space="preserve">
     <value>Seating S1 / S2 carriers</value>
   </data>
-  <data name="Securing PCB and Moving to Handoff" xml:space="preserve">
+  <data name="securing pcb and moving to handoff" xml:space="preserve">
     <value>Securing PCB and Moving to Handoff</value>
   </data>
-  <data name="Select Preset 1" xml:space="preserve">
-    <value>Select Preset 1</value>
-  </data>
-  <data name="Select TEACHING (MANUAL) mode for REPEAT" xml:space="preserve">
-    <value>Select TEACHING (MANUAL) mode for REPEAT</value>
-  </data>
-  <data name="Select all" xml:space="preserve">
+  <data name="select all" xml:space="preserve">
     <value>Select all</value>
   </data>
-  <data name="Send Command" xml:space="preserve">
+  <data name="select preset 1" xml:space="preserve">
+    <value>Select Preset 1</value>
+  </data>
+  <data name="select teaching (manual) mode for repeat" xml:space="preserve">
+    <value>Select TEACHING (MANUAL) mode for REPEAT</value>
+  </data>
+  <data name="send command" xml:space="preserve">
     <value>Send Command</value>
   </data>
-  <data name="Servo Main Contactor On" xml:space="preserve">
+  <data name="servo" xml:space="preserve">
+    <value>SERVO</value>
+  </data>
+  <data name="servo main contactor on" xml:space="preserve">
     <value>Servo Main Contactor On</value>
   </data>
-  <data name="Servo OFF" xml:space="preserve">
-    <value>Servo OFF</value>
-  </data>
-  <data name="Servo ON" xml:space="preserve">
-    <value>Servo ON</value>
-  </data>
-  <data name="Servo Off" xml:space="preserve">
+  <data name="servo off" xml:space="preserve">
     <value>Servo Off</value>
   </data>
-  <data name="Settings" xml:space="preserve">
+  <data name="servo on" xml:space="preserve">
+    <value>Servo ON</value>
+  </data>
+  <data name="settings" xml:space="preserve">
     <value>Settings</value>
   </data>
-  <data name="Shared status monitor" xml:space="preserve">
+  <data name="shared status monitor" xml:space="preserve">
     <value>Shared status monitor</value>
   </data>
-  <data name="Shoot" xml:space="preserve">
+  <data name="shoot" xml:space="preserve">
     <value>Shoot</value>
   </data>
-  <data name="Shoot Bolt" xml:space="preserve">
+  <data name="shoot bolt" xml:space="preserve">
     <value>Shoot Bolt</value>
   </data>
-  <data name="Shooting" xml:space="preserve">
+  <data name="shoot off" xml:space="preserve">
+    <value>SHOOT OFF</value>
+  </data>
+  <data name="shoot on" xml:space="preserve">
+    <value>SHOOT ON</value>
+  </data>
+  <data name="shoot · ?" xml:space="preserve">
+    <value>SHOOT · ?</value>
+  </data>
+  <data name="shooting" xml:space="preserve">
     <value>Shooting</value>
   </data>
-  <data name="Shooting Bolt Feeder" xml:space="preserve">
+  <data name="shooting bolt feeder" xml:space="preserve">
     <value>Shooting Bolt Feeder</value>
   </data>
-  <data name="Shooting Controller FWD/BWD (Head 2)" xml:space="preserve">
+  <data name="shooting controller fwd/bwd (head 2)" xml:space="preserve">
     <value>Shooting Controller FWD/BWD (Head 2)</value>
   </data>
-  <data name="Shooting Controller I/O (Head 2)" xml:space="preserve">
+  <data name="shooting controller i/o (head 2)" xml:space="preserve">
     <value>Shooting Controller I/O (Head 2)</value>
   </data>
-  <data name="Shooting Controller Lock (Head 2)" xml:space="preserve">
+  <data name="shooting controller lock (head 2)" xml:space="preserve">
     <value>Shooting Controller Lock (Head 2)</value>
   </data>
-  <data name="Shooting Controller Preset 1 (Head 2)" xml:space="preserve">
+  <data name="shooting controller preset 1 (head 2)" xml:space="preserve">
     <value>Shooting Controller Preset 1 (Head 2)</value>
   </data>
-  <data name="Shooting Controller Preset 2 (Head 2)" xml:space="preserve">
+  <data name="shooting controller preset 2 (head 2)" xml:space="preserve">
     <value>Shooting Controller Preset 2 (Head 2)</value>
   </data>
-  <data name="Shooting Controller Preset 3 (Head 2)" xml:space="preserve">
+  <data name="shooting controller preset 3 (head 2)" xml:space="preserve">
     <value>Shooting Controller Preset 3 (Head 2)</value>
   </data>
-  <data name="Shooting Controller Reset (Head 2)" xml:space="preserve">
+  <data name="shooting controller reset (head 2)" xml:space="preserve">
     <value>Shooting Controller Reset (Head 2)</value>
   </data>
-  <data name="Shooting Controller Start (Head 2)" xml:space="preserve">
+  <data name="shooting controller start (head 2)" xml:space="preserve">
     <value>Shooting Controller Start (Head 2)</value>
   </data>
-  <data name="Shooting Escape Backward" xml:space="preserve">
+  <data name="shooting escape backward" xml:space="preserve">
     <value>Shooting Escape Backward</value>
   </data>
-  <data name="Shooting Escape Forward" xml:space="preserve">
+  <data name="shooting escape forward" xml:space="preserve">
     <value>Shooting Escape Forward</value>
   </data>
-  <data name="Shooting Feeder Bolt Detected (Linear)" xml:space="preserve">
-    <value>Shooting Feeder Bolt Detected (Linear)</value>
-  </data>
-  <data name="Shooting Feeder OFF (Linear)" xml:space="preserve">
-    <value>Shooting Feeder OFF (Linear)</value>
-  </data>
-  <data name="Shooting Head" xml:space="preserve">
-    <value>Shooting Head</value>
-  </data>
-  <data name="Shooting Head Down (Head 2)" xml:space="preserve">
-    <value>Shooting Head Down (Head 2)</value>
-  </data>
-  <data name="Shooting Head Fastening Z" xml:space="preserve">
-    <value>Shooting Head Fastening Z</value>
-  </data>
-  <data name="Shooting Head Pin - Lower Right" xml:space="preserve">
-    <value>Shooting Head Pin - Lower Right</value>
-  </data>
-  <data name="Shooting Head Pin - Upper Left" xml:space="preserve">
-    <value>Shooting Head Pin - Upper Left</value>
-  </data>
-  <data name="Shooting Head Up (Head 2)" xml:space="preserve">
-    <value>Shooting Head Up (Head 2)</value>
-  </data>
-  <data name="Shooting Head Vacuum Detected (Head 2)" xml:space="preserve">
-    <value>Shooting Head Vacuum Detected (Head 2)</value>
-  </data>
-  <data name="Shooting Head Vacuum Pump (Head 2)" xml:space="preserve">
-    <value>Shooting Head Vacuum Pump (Head 2)</value>
-  </data>
-  <data name="Shooting Safe Z" xml:space="preserve">
-    <value>Shooting Safe Z</value>
-  </data>
-  <data name="Shooting Tube Bolt Detected" xml:space="preserve">
-    <value>Shooting Tube Bolt Detected</value>
-  </data>
-  <data name="Shooting feeder" xml:space="preserve">
+  <data name="shooting feeder" xml:space="preserve">
     <value>Shooting feeder</value>
   </data>
-  <data name="Shooting feeder / tube" xml:space="preserve">
+  <data name="shooting feeder / tube" xml:space="preserve">
     <value>Shooting feeder / tube</value>
   </data>
-  <data name="Shooting feeder · supply bypassed" xml:space="preserve">
+  <data name="shooting feeder bolt detected (linear)" xml:space="preserve">
+    <value>Shooting Feeder Bolt Detected (Linear)</value>
+  </data>
+  <data name="shooting feeder off (linear)" xml:space="preserve">
+    <value>Shooting Feeder OFF (Linear)</value>
+  </data>
+  <data name="shooting feeder · supply bypassed" xml:space="preserve">
     <value>Shooting feeder · supply bypassed</value>
   </data>
-  <data name="Shooting feeder · supply enabled" xml:space="preserve">
+  <data name="shooting feeder · supply enabled" xml:space="preserve">
     <value>Shooting feeder · supply enabled</value>
   </data>
-  <data name="Shooting vacuum" xml:space="preserve">
+  <data name="shooting head" xml:space="preserve">
+    <value>Shooting Head</value>
+  </data>
+  <data name="shooting head down (head 2)" xml:space="preserve">
+    <value>Shooting Head Down (Head 2)</value>
+  </data>
+  <data name="shooting head fastening z" xml:space="preserve">
+    <value>Shooting Head Fastening Z</value>
+  </data>
+  <data name="shooting head pin - lower right" xml:space="preserve">
+    <value>Shooting Head Pin - Lower Right</value>
+  </data>
+  <data name="shooting head pin - upper left" xml:space="preserve">
+    <value>Shooting Head Pin - Upper Left</value>
+  </data>
+  <data name="shooting head up (head 2)" xml:space="preserve">
+    <value>Shooting Head Up (Head 2)</value>
+  </data>
+  <data name="shooting head vacuum detected (head 2)" xml:space="preserve">
+    <value>Shooting Head Vacuum Detected (Head 2)</value>
+  </data>
+  <data name="shooting head vacuum pump (head 2)" xml:space="preserve">
+    <value>Shooting Head Vacuum Pump (Head 2)</value>
+  </data>
+  <data name="shooting safe z" xml:space="preserve">
+    <value>Shooting Safe Z</value>
+  </data>
+  <data name="shooting tube bolt detected" xml:space="preserve">
+    <value>Shooting Tube Bolt Detected</value>
+  </data>
+  <data name="shooting vacuum" xml:space="preserve">
     <value>Shooting vacuum</value>
   </data>
-  <data name="Shooting · feed and fasten" xml:space="preserve">
+  <data name="shooting · feed and fasten" xml:space="preserve">
     <value>Shooting · feed and fasten</value>
   </data>
-  <data name="Shooting · supply bypassed / dry run" xml:space="preserve">
+  <data name="shooting · supply bypassed / dry run" xml:space="preserve">
     <value>Shooting · supply bypassed / dry run</value>
   </data>
-  <data name="Shooting: feed / fasten" xml:space="preserve">
+  <data name="shooting: feed / fasten" xml:space="preserve">
     <value>Shooting: feed / fasten</value>
   </data>
-  <data name="Show Reference Image" xml:space="preserve">
+  <data name="show reference image" xml:space="preserve">
     <value>Show Reference Image</value>
   </data>
-  <data name="Shutting down" xml:space="preserve">
+  <data name="shutting down" xml:space="preserve">
     <value>Shutting down</value>
   </data>
-  <data name="Shuttle" xml:space="preserve">
+  <data name="shuttle" xml:space="preserve">
     <value>Shuttle</value>
   </data>
-  <data name="Shuttle → Station 3" xml:space="preserve">
+  <data name="shuttle → station 3" xml:space="preserve">
     <value>Shuttle → Station 3</value>
   </data>
-  <data name="Silence buzzer / recover stopped hardware; servos may turn ON." xml:space="preserve">
+  <data name="silence buzzer / recover stopped hardware; servos may turn on." xml:space="preserve">
     <value>Silence buzzer / recover stopped hardware; servos may turn ON.</value>
   </data>
-  <data name="Slave ID" xml:space="preserve">
+  <data name="slave" xml:space="preserve">
+    <value>SLAVE</value>
+  </data>
+  <data name="slave id" xml:space="preserve">
     <value>Slave ID</value>
   </data>
-  <data name="Snug Angle" xml:space="preserve">
+  <data name="smema test" xml:space="preserve">
+    <value>SMEMA Test</value>
+  </data>
+  <data name="snug angle" xml:space="preserve">
     <value>Snug Angle</value>
   </data>
-  <data name="Speed (mm/s)" xml:space="preserve">
+  <data name="snug angle (°)" xml:space="preserve">
+    <value>SNUG ANGLE (°)</value>
+  </data>
+  <data name="speed (mm/s)" xml:space="preserve">
     <value>Speed (mm/s)</value>
   </data>
-  <data name="Start Fastening" xml:space="preserve">
+  <data name="start" xml:space="preserve">
+    <value>START</value>
+  </data>
+  <data name="start fastening" xml:space="preserve">
     <value>Start Fastening</value>
   </data>
-  <data name="Start Live" xml:space="preserve">
+  <data name="start live" xml:space="preserve">
     <value>Start Live</value>
   </data>
-  <data name="Station 1" xml:space="preserve">
+  <data name="state" xml:space="preserve">
+    <value>STATE</value>
+  </data>
+  <data name="station 1" xml:space="preserve">
     <value>Station 1</value>
   </data>
-  <data name="Station 2" xml:space="preserve">
+  <data name="station 2" xml:space="preserve">
     <value>Station 2</value>
   </data>
-  <data name="Station 3" xml:space="preserve">
+  <data name="station 3" xml:space="preserve">
     <value>Station 3</value>
   </data>
-  <data name="Station 3 → Waiting position" xml:space="preserve">
+  <data name="station 3 → waiting position" xml:space="preserve">
     <value>Station 3 → Waiting position</value>
   </data>
-  <data name="Status" xml:space="preserve">
+  <data name="status" xml:space="preserve">
     <value>Status</value>
   </data>
-  <data name="Status Unavailable" xml:space="preserve">
-    <value>Status Unavailable</value>
-  </data>
-  <data name="Status poll interval (s)" xml:space="preserve">
+  <data name="status poll interval (s)" xml:space="preserve">
     <value>Status poll interval (s)</value>
   </data>
-  <data name="Step (click)" xml:space="preserve">
+  <data name="status unavailable" xml:space="preserve">
+    <value>Status Unavailable</value>
+  </data>
+  <data name="step (click)" xml:space="preserve">
     <value>Step (click)</value>
   </data>
-  <data name="Step distance" xml:space="preserve">
+  <data name="step distance" xml:space="preserve">
     <value>Step distance</value>
   </data>
-  <data name="Stop" xml:space="preserve">
-    <value>Stop</value>
+  <data name="stop" xml:space="preserve">
+    <value>STOP</value>
   </data>
-  <data name="Stop Failed — Check Equipment" xml:space="preserve">
+  <data name="stop failed — check equipment" xml:space="preserve">
     <value>Stop Failed — Check Equipment</value>
   </data>
-  <data name="Stop Live" xml:space="preserve">
+  <data name="stop live" xml:space="preserve">
     <value>Stop Live</value>
   </data>
-  <data name="Stopped" xml:space="preserve">
+  <data name="stopped" xml:space="preserve">
     <value>Stopped</value>
   </data>
-  <data name="Stopper lowered" xml:space="preserve">
+  <data name="stopper lowered" xml:space="preserve">
     <value>Stopper lowered</value>
   </data>
-  <data name="Stopper position unknown" xml:space="preserve">
+  <data name="stopper position unknown" xml:space="preserve">
     <value>Stopper position unknown</value>
   </data>
-  <data name="Stopper raised" xml:space="preserve">
+  <data name="stopper raised" xml:space="preserve">
     <value>Stopper raised</value>
   </data>
-  <data name="Storage" xml:space="preserve">
+  <data name="storage" xml:space="preserve">
     <value>Storage</value>
   </data>
-  <data name="Supply Gripper Closed" xml:space="preserve">
-    <value>Supply Gripper Closed</value>
+  <data name="supply" xml:space="preserve">
+    <value>SUPPLY</value>
   </data>
-  <data name="Supply Gripper Open" xml:space="preserve">
-    <value>Supply Gripper Open</value>
-  </data>
-  <data name="Supply Handler" xml:space="preserve">
-    <value>Supply Handler</value>
-  </data>
-  <data name="Supply Handler PCB Detected" xml:space="preserve">
-    <value>Supply Handler PCB Detected</value>
-  </data>
-  <data name="Supply Handler Rotate" xml:space="preserve">
-    <value>Supply Handler Rotate</value>
-  </data>
-  <data name="Supply Handler Rotated" xml:space="preserve">
-    <value>Supply Handler Rotated</value>
-  </data>
-  <data name="Supply Handler Unrotated" xml:space="preserve">
-    <value>Supply Handler Unrotated</value>
-  </data>
-  <data name="Supply IPM Fixer Forward" xml:space="preserve">
-    <value>Supply IPM Fixer Forward</value>
-  </data>
-  <data name="Supply bypassed" xml:space="preserve">
+  <data name="supply bypassed" xml:space="preserve">
     <value>Supply bypassed</value>
   </data>
-  <data name="Supply enabled" xml:space="preserve">
+  <data name="supply enabled" xml:space="preserve">
     <value>Supply enabled</value>
   </data>
-  <data name="Supply unknown" xml:space="preserve">
+  <data name="supply gripper closed" xml:space="preserve">
+    <value>Supply Gripper Closed</value>
+  </data>
+  <data name="supply gripper open" xml:space="preserve">
+    <value>Supply Gripper Open</value>
+  </data>
+  <data name="supply handler" xml:space="preserve">
+    <value>Supply Handler</value>
+  </data>
+  <data name="supply handler pcb detected" xml:space="preserve">
+    <value>Supply Handler PCB Detected</value>
+  </data>
+  <data name="supply handler rotate" xml:space="preserve">
+    <value>Supply Handler Rotate</value>
+  </data>
+  <data name="supply handler rotated" xml:space="preserve">
+    <value>Supply Handler Rotated</value>
+  </data>
+  <data name="supply handler unrotated" xml:space="preserve">
+    <value>Supply Handler Unrotated</value>
+  </data>
+  <data name="supply ipm fixer forward" xml:space="preserve">
+    <value>Supply IPM Fixer Forward</value>
+  </data>
+  <data name="supply unknown" xml:space="preserve">
     <value>Supply unknown</value>
   </data>
-  <data name="Supply · Z" xml:space="preserve">
+  <data name="supply · ?" xml:space="preserve">
+    <value>SUPPLY · ?</value>
+  </data>
+  <data name="supply · z" xml:space="preserve">
     <value>Supply · Z</value>
   </data>
-  <data name="Switch to MANUAL" xml:space="preserve">
+  <data name="switch to manual" xml:space="preserve">
     <value>Switch to MANUAL</value>
   </data>
-  <data name="TARGET" xml:space="preserve">
+  <data name="target" xml:space="preserve">
     <value>TARGET</value>
   </data>
-  <data name="TARGET SPEED (rpm)" xml:space="preserve">
-    <value>TARGET SPEED (rpm)</value>
-  </data>
-  <data name="TARGET TORQUE" xml:space="preserve">
-    <value>TARGET TORQUE</value>
-  </data>
-  <data name="TIME (ms)" xml:space="preserve">
-    <value>TIME (ms)</value>
-  </data>
-  <data name="TORQUE" xml:space="preserve">
-    <value>TORQUE</value>
-  </data>
-  <data name="TORQUE / TARGET" xml:space="preserve">
-    <value>TORQUE / TARGET</value>
-  </data>
-  <data name="TOTAL RUN" xml:space="preserve">
-    <value>TOTAL RUN</value>
-  </data>
-  <data name="TOTAL TURNS" xml:space="preserve">
-    <value>TOTAL TURNS</value>
-  </data>
-  <data name="TUBE" xml:space="preserve">
-    <value>TUBE</value>
-  </data>
-  <data name="TURNS" xml:space="preserve">
-    <value>TURNS</value>
-  </data>
-  <data name="TURNS NG" xml:space="preserve">
-    <value>TURNS NG</value>
-  </data>
-  <data name="TURNS OK" xml:space="preserve">
-    <value>TURNS OK</value>
-  </data>
-  <data name="TURNS · A3 / 360" xml:space="preserve">
-    <value>TURNS · A3 / 360</value>
-  </data>
-  <data name="Target Speed" xml:space="preserve">
+  <data name="target speed" xml:space="preserve">
     <value>Target Speed</value>
   </data>
-  <data name="Target Torque" xml:space="preserve">
+  <data name="target speed (rpm)" xml:space="preserve">
+    <value>TARGET SPEED (rpm)</value>
+  </data>
+  <data name="target torque" xml:space="preserve">
     <value>Target Torque</value>
   </data>
-  <data name="Taught points" xml:space="preserve">
+  <data name="taught points" xml:space="preserve">
     <value>Taught points</value>
   </data>
-  <data name="Teach Carrier Pickup (S3) X/Y first" xml:space="preserve">
+  <data name="teach carrier pickup (s3) x/y first" xml:space="preserve">
     <value>Teach Carrier Pickup (S3) X/Y first</value>
   </data>
-  <data name="Teach Data Matrix Regions" xml:space="preserve">
+  <data name="teach data matrix regions" xml:space="preserve">
     <value>Teach Data Matrix Regions</value>
   </data>
-  <data name="Teach Inspection FOV / ROI" xml:space="preserve">
+  <data name="teach inspection fov / roi" xml:space="preserve">
     <value>Teach Inspection FOV / ROI</value>
   </data>
-  <data name="Teaching" xml:space="preserve">
+  <data name="teaching" xml:space="preserve">
     <value>Teaching</value>
   </data>
-  <data name="Teaching Unit" xml:space="preserve">
+  <data name="teaching unit" xml:space="preserve">
     <value>Teaching Unit</value>
   </data>
-  <data name="Test bolts" xml:space="preserve">
+  <data name="test bolts" xml:space="preserve">
     <value>Test bolts</value>
   </data>
-  <data name="Test channel (1–9)" xml:space="preserve">
+  <data name="test channel (1–9)" xml:space="preserve">
     <value>Test channel (1–9)</value>
   </data>
-  <data name="Text selection pauses updates" xml:space="preserve">
+  <data name="text selection pauses updates" xml:space="preserve">
     <value>Text selection pauses updates</value>
   </data>
-  <data name="Threshold (0–255)" xml:space="preserve">
+  <data name="threshold (0–255)" xml:space="preserve">
     <value>Threshold (0–255)</value>
   </data>
-  <data name="Time not recorded" xml:space="preserve">
+  <data name="time (ms)" xml:space="preserve">
+    <value>TIME (ms)</value>
+  </data>
+  <data name="time not recorded" xml:space="preserve">
     <value>Time not recorded</value>
   </data>
-  <data name="Toggle" xml:space="preserve">
+  <data name="toggle" xml:space="preserve">
     <value>Toggle</value>
   </data>
-  <data name="Torque: controller unit" xml:space="preserve">
+  <data name="torque" xml:space="preserve">
+    <value>TORQUE</value>
+  </data>
+  <data name="torque / target" xml:space="preserve">
+    <value>TORQUE / TARGET</value>
+  </data>
+  <data name="torque: controller unit" xml:space="preserve">
     <value>Torque: controller unit</value>
   </data>
-  <data name="Tower Lamp Green" xml:space="preserve">
+  <data name="total run" xml:space="preserve">
+    <value>TOTAL RUN</value>
+  </data>
+  <data name="total turns" xml:space="preserve">
+    <value>TOTAL TURNS</value>
+  </data>
+  <data name="tower lamp green" xml:space="preserve">
     <value>Tower Lamp Green</value>
   </data>
-  <data name="Tower Lamp Red" xml:space="preserve">
+  <data name="tower lamp red" xml:space="preserve">
     <value>Tower Lamp Red</value>
   </data>
-  <data name="Tower Lamp Yellow" xml:space="preserve">
+  <data name="tower lamp yellow" xml:space="preserve">
     <value>Tower Lamp Yellow</value>
   </data>
-  <data name="Transfer Complete" xml:space="preserve">
+  <data name="transfer complete" xml:space="preserve">
     <value>Transfer Complete</value>
   </data>
-  <data name="Transfer timeout (s)" xml:space="preserve">
+  <data name="transfer timeout (s)" xml:space="preserve">
     <value>Transfer timeout (s)</value>
   </data>
-  <data name="Transmit" xml:space="preserve">
+  <data name="transmit" xml:space="preserve">
     <value>Transmit</value>
   </data>
-  <data name="Travel" xml:space="preserve">
+  <data name="travel" xml:space="preserve">
     <value>Travel</value>
   </data>
-  <data name="Tube ON / OFF timeout (s)" xml:space="preserve">
-    <value>Tube ON / OFF timeout (s)</value>
+  <data name="tube" xml:space="preserve">
+    <value>TUBE</value>
   </data>
-  <data name="Tube detection → head arrival (s)" xml:space="preserve">
+  <data name="tube detection → head arrival (s)" xml:space="preserve">
     <value>Tube detection → head arrival (s)</value>
   </data>
-  <data name="UNIT" xml:space="preserve">
-    <value>UNIT</value>
+  <data name="tube on / off timeout (s)" xml:space="preserve">
+    <value>Tube ON / OFF timeout (s)</value>
   </data>
-  <data name="UNKNOWN" xml:space="preserve">
-    <value>UNKNOWN</value>
+  <data name="turns" xml:space="preserve">
+    <value>TURNS</value>
   </data>
-  <data name="Unavailable" xml:space="preserve">
+  <data name="turns ng" xml:space="preserve">
+    <value>TURNS NG</value>
+  </data>
+  <data name="turns ok" xml:space="preserve">
+    <value>TURNS OK</value>
+  </data>
+  <data name="turns · a3 / 360" xml:space="preserve">
+    <value>TURNS · A3 / 360</value>
+  </data>
+  <data name="unavailable" xml:space="preserve">
     <value>Unavailable</value>
   </data>
-  <data name="Unit disabled in Settings" xml:space="preserve">
+  <data name="unit" xml:space="preserve">
+    <value>UNIT</value>
+  </data>
+  <data name="unit disabled in settings" xml:space="preserve">
     <value>Unit disabled in Settings</value>
   </data>
-  <data name="Unknown" xml:space="preserve">
+  <data name="unknown" xml:space="preserve">
     <value>Unknown</value>
   </data>
-  <data name="Unrotated" xml:space="preserve">
+  <data name="unrotated" xml:space="preserve">
     <value>Unrotated</value>
   </data>
-  <data name="Unused" xml:space="preserve">
+  <data name="unused" xml:space="preserve">
     <value>Unused</value>
   </data>
-  <data name="Unused (former Station 1 carrier sensor)" xml:space="preserve">
+  <data name="unused (former station 1 carrier sensor)" xml:space="preserve">
     <value>Unused (former Station 1 carrier sensor)</value>
   </data>
-  <data name="Unused (former Station 2 carrier sensor)" xml:space="preserve">
+  <data name="unused (former station 2 carrier sensor)" xml:space="preserve">
     <value>Unused (former Station 2 carrier sensor)</value>
   </data>
-  <data name="Unused (former Station 3 carrier sensor)" xml:space="preserve">
+  <data name="unused (former station 3 carrier sensor)" xml:space="preserve">
     <value>Unused (former Station 3 carrier sensor)</value>
   </data>
-  <data name="Unused (former Supply IPM backward sensor)" xml:space="preserve">
+  <data name="unused (former supply ipm backward sensor)" xml:space="preserve">
     <value>Unused (former Supply IPM backward sensor)</value>
   </data>
-  <data name="Up" xml:space="preserve">
+  <data name="up" xml:space="preserve">
     <value>Up</value>
   </data>
-  <data name="Update Image + Light" xml:space="preserve">
+  <data name="update image + light" xml:space="preserve">
     <value>Update Image + Light</value>
   </data>
-  <data name="Updated {0:HH:mm:ss}" xml:space="preserve">
+  <data name="updated {0:hh:mm:ss}" xml:space="preserve">
     <value>Updated {0:HH:mm:ss}</value>
   </data>
-  <data name="Use Test Pattern" xml:space="preserve">
-    <value>Use Test Pattern</value>
-  </data>
-  <data name="Use for Next Test" xml:space="preserve">
+  <data name="use for next test" xml:space="preserve">
     <value>Use for Next Test</value>
   </data>
-  <data name="VALUE" xml:space="preserve">
+  <data name="use test pattern" xml:space="preserve">
+    <value>Use Test Pattern</value>
+  </data>
+  <data name="value" xml:space="preserve">
     <value>VALUE</value>
   </data>
-  <data name="VISION" xml:space="preserve">
-    <value>VISION</value>
-  </data>
-  <data name="VISION INSPECTION" xml:space="preserve">
-    <value>VISION INSPECTION</value>
-  </data>
-  <data name="Virtual" xml:space="preserve">
+  <data name="virtual" xml:space="preserve">
     <value>Virtual</value>
   </data>
-  <data name="Virtual Camera Image" xml:space="preserve">
-    <value>Virtual Camera Image</value>
-  </data>
-  <data name="Virtual build" xml:space="preserve">
+  <data name="virtual build" xml:space="preserve">
     <value>Virtual build</value>
   </data>
-  <data name="Virtual inputs · click to toggle" xml:space="preserve">
+  <data name="virtual camera image" xml:space="preserve">
+    <value>Virtual Camera Image</value>
+  </data>
+  <data name="virtual inputs · click to toggle" xml:space="preserve">
     <value>Virtual inputs · click to toggle</value>
   </data>
-  <data name="WAIT" xml:space="preserve">
+  <data name="vision" xml:space="preserve">
+    <value>VISION</value>
+  </data>
+  <data name="vision inspection" xml:space="preserve">
+    <value>VISION INSPECTION</value>
+  </data>
+  <data name="wait" xml:space="preserve">
     <value>WAIT</value>
   </data>
-  <data name="WAIT SUPPLY" xml:space="preserve">
-    <value>WAIT SUPPLY</value>
-  </data>
-  <data name="WARNING" xml:space="preserve">
-    <value>WARNING</value>
-  </data>
-  <data name="Wait for operation to stop" xml:space="preserve">
+  <data name="wait for operation to stop" xml:space="preserve">
     <value>Wait for operation to stop</value>
   </data>
-  <data name="Waiting" xml:space="preserve">
+  <data name="wait supply" xml:space="preserve">
+    <value>WAIT SUPPLY</value>
+  </data>
+  <data name="waiting" xml:space="preserve">
     <value>Waiting</value>
   </data>
-  <data name="Waiting at infeed" xml:space="preserve">
+  <data name="waiting at infeed" xml:space="preserve">
     <value>Waiting at infeed</value>
   </data>
-  <data name="Waiting for Carrier" xml:space="preserve">
-    <value>Waiting for Carrier</value>
-  </data>
-  <data name="Waiting for Carrier Exit" xml:space="preserve">
-    <value>Waiting for Carrier Exit</value>
-  </data>
-  <data name="Waiting for NG Carrier" xml:space="preserve">
-    <value>Waiting for NG Carrier</value>
-  </data>
-  <data name="Waiting for NG Shuttle Down" xml:space="preserve">
-    <value>Waiting for NG Shuttle Down</value>
-  </data>
-  <data name="Waiting for NG Shuttle Up" xml:space="preserve">
-    <value>Waiting for NG Shuttle Up</value>
-  </data>
-  <data name="Waiting for Placement Y Departure" xml:space="preserve">
-    <value>Waiting for Placement Y Departure</value>
-  </data>
-  <data name="Waiting for Placement to Present PCB" xml:space="preserve">
-    <value>Waiting for Placement to Present PCB</value>
-  </data>
-  <data name="Waiting for Return Handoff Clearance" xml:space="preserve">
-    <value>Waiting for Return Handoff Clearance</value>
-  </data>
-  <data name="Waiting for Returned PCB" xml:space="preserve">
-    <value>Waiting for Returned PCB</value>
-  </data>
-  <data name="Waiting for S1 placement" xml:space="preserve">
-    <value>Waiting for S1 placement</value>
-  </data>
-  <data name="Waiting for S2 fastening" xml:space="preserve">
-    <value>Waiting for S2 fastening</value>
-  </data>
-  <data name="Waiting for S3 / NG pickup to clear" xml:space="preserve">
-    <value>Waiting for S3 / NG pickup to clear</value>
-  </data>
-  <data name="Waiting for S3 inspection" xml:space="preserve">
-    <value>Waiting for S3 inspection</value>
-  </data>
-  <data name="Waiting for Supply Departure" xml:space="preserve">
-    <value>Waiting for Supply Departure</value>
-  </data>
-  <data name="Waiting for Supply Grip" xml:space="preserve">
-    <value>Waiting for Supply Grip</value>
-  </data>
-  <data name="Waiting for Supply PCB" xml:space="preserve">
-    <value>Waiting for Supply PCB</value>
-  </data>
-  <data name="Waiting for Supply Release" xml:space="preserve">
-    <value>Waiting for Supply Release</value>
-  </data>
-  <data name="Waiting for Supply to Open" xml:space="preserve">
-    <value>Waiting for Supply to Open</value>
-  </data>
-  <data name="Waiting for Transfer" xml:space="preserve">
-    <value>Waiting for Transfer</value>
-  </data>
-  <data name="Waiting for Transfer Supports" xml:space="preserve">
-    <value>Waiting for Transfer Supports</value>
-  </data>
-  <data name="Waiting for a fastening result" xml:space="preserve">
+  <data name="waiting for a fastening result" xml:space="preserve">
     <value>Waiting for a fastening result</value>
   </data>
-  <data name="Waiting for camera image" xml:space="preserve">
+  <data name="waiting for camera image" xml:space="preserve">
     <value>Waiting for camera image</value>
   </data>
-  <data name="Waiting for carrier transfers" xml:space="preserve">
+  <data name="waiting for carrier" xml:space="preserve">
+    <value>Waiting for Carrier</value>
+  </data>
+  <data name="waiting for carrier exit" xml:space="preserve">
+    <value>Waiting for Carrier Exit</value>
+  </data>
+  <data name="waiting for carrier transfers" xml:space="preserve">
     <value>Waiting for carrier transfers</value>
   </data>
-  <data name="Waiting for downstream" xml:space="preserve">
+  <data name="waiting for downstream" xml:space="preserve">
     <value>Waiting for downstream</value>
   </data>
-  <data name="Waiting for inspection" xml:space="preserve">
+  <data name="waiting for inspection" xml:space="preserve">
     <value>Waiting for inspection</value>
   </data>
-  <data name="Waiting for supply" xml:space="preserve">
+  <data name="waiting for ng carrier" xml:space="preserve">
+    <value>Waiting for NG Carrier</value>
+  </data>
+  <data name="waiting for ng shuttle down" xml:space="preserve">
+    <value>Waiting for NG Shuttle Down</value>
+  </data>
+  <data name="waiting for ng shuttle up" xml:space="preserve">
+    <value>Waiting for NG Shuttle Up</value>
+  </data>
+  <data name="waiting for placement to present pcb" xml:space="preserve">
+    <value>Waiting for Placement to Present PCB</value>
+  </data>
+  <data name="waiting for placement y departure" xml:space="preserve">
+    <value>Waiting for Placement Y Departure</value>
+  </data>
+  <data name="waiting for return handoff clearance" xml:space="preserve">
+    <value>Waiting for Return Handoff Clearance</value>
+  </data>
+  <data name="waiting for returned pcb" xml:space="preserve">
+    <value>Waiting for Returned PCB</value>
+  </data>
+  <data name="waiting for s1 placement" xml:space="preserve">
+    <value>Waiting for S1 placement</value>
+  </data>
+  <data name="waiting for s2 fastening" xml:space="preserve">
+    <value>Waiting for S2 fastening</value>
+  </data>
+  <data name="waiting for s3 / ng pickup to clear" xml:space="preserve">
+    <value>Waiting for S3 / NG pickup to clear</value>
+  </data>
+  <data name="waiting for s3 inspection" xml:space="preserve">
+    <value>Waiting for S3 inspection</value>
+  </data>
+  <data name="waiting for supply" xml:space="preserve">
     <value>Waiting for supply</value>
   </data>
-  <data name="Waiting for transfer at NG pickup" xml:space="preserve">
+  <data name="waiting for supply departure" xml:space="preserve">
+    <value>Waiting for Supply Departure</value>
+  </data>
+  <data name="waiting for supply grip" xml:space="preserve">
+    <value>Waiting for Supply Grip</value>
+  </data>
+  <data name="waiting for supply pcb" xml:space="preserve">
+    <value>Waiting for Supply PCB</value>
+  </data>
+  <data name="waiting for supply release" xml:space="preserve">
+    <value>Waiting for Supply Release</value>
+  </data>
+  <data name="waiting for supply to open" xml:space="preserve">
+    <value>Waiting for Supply to Open</value>
+  </data>
+  <data name="waiting for transfer" xml:space="preserve">
+    <value>Waiting for Transfer</value>
+  </data>
+  <data name="waiting for transfer at ng pickup" xml:space="preserve">
     <value>Waiting for transfer at NG pickup</value>
   </data>
-  <data name="Waiting: transfer release + pickup UP" xml:space="preserve">
+  <data name="waiting for transfer supports" xml:space="preserve">
+    <value>Waiting for Transfer Supports</value>
+  </data>
+  <data name="waiting: transfer release + pickup up" xml:space="preserve">
     <value>Waiting: transfer release + pickup UP</value>
   </data>
-  <data name="Warning · Confirm action" xml:space="preserve">
+  <data name="warning" xml:space="preserve">
+    <value>WARNING</value>
+  </data>
+  <data name="warning · confirm action" xml:space="preserve">
     <value>Warning · Confirm action</value>
   </data>
-  <data name="Work positions" xml:space="preserve">
+  <data name="work positions" xml:space="preserve">
     <value>Work positions</value>
   </data>
-  <data name="Working" xml:space="preserve">
+  <data name="working" xml:space="preserve">
     <value>Working</value>
   </data>
-  <data name="Write Single Register" xml:space="preserve">
+  <data name="write single register" xml:space="preserve">
     <value>Write Single Register</value>
   </data>
-  <data name="X+" xml:space="preserve">
+  <data name="x+" xml:space="preserve">
     <value>X+</value>
   </data>
-  <data name="X+ →" xml:space="preserve">
+  <data name="x+ →" xml:space="preserve">
     <value>X+ →</value>
   </data>
-  <data name="XY" xml:space="preserve">
+  <data name="xy" xml:space="preserve">
     <value>XY</value>
   </data>
-  <data name="XYZ" xml:space="preserve">
+  <data name="xyz" xml:space="preserve">
     <value>XYZ</value>
   </data>
-  <data name="X−" xml:space="preserve">
+  <data name="x−" xml:space="preserve">
     <value>X−</value>
   </data>
-  <data name="Y+" xml:space="preserve">
+  <data name="y+" xml:space="preserve">
     <value>Y+</value>
   </data>
-  <data name="Y−" xml:space="preserve">
+  <data name="y−" xml:space="preserve">
     <value>Y−</value>
   </data>
-  <data name="Z accel / decel: blank = X / Y" xml:space="preserve">
+  <data name="z accel / decel: blank = x / y" xml:space="preserve">
     <value>Z accel / decel: blank = X / Y</value>
   </data>
-  <data name="Z offset (mm)" xml:space="preserve">
+  <data name="z offset (mm)" xml:space="preserve">
     <value>Z offset (mm)</value>
   </data>
-  <data name="Z+" xml:space="preserve">
+  <data name="z+" xml:space="preserve">
     <value>Z+</value>
   </data>
-  <data name="Z−" xml:space="preserve">
+  <data name="z−" xml:space="preserve">
     <value>Z−</value>
   </data>
-  <data name="← Newer" xml:space="preserve">
+  <data name="← newer" xml:space="preserve">
     <value>← Newer</value>
   </data>
-  <data name="← Ready" xml:space="preserve">
+  <data name="← ready" xml:space="preserve">
     <value>← Ready</value>
   </data>
-  <data name="← X−" xml:space="preserve">
+  <data name="← x−" xml:space="preserve">
     <value>← X−</value>
   </data>
-  <data name="↑ Earlier" xml:space="preserve">
+  <data name="↑ earlier" xml:space="preserve">
     <value>↑ Earlier</value>
   </data>
-  <data name="↑ Y+" xml:space="preserve">
+  <data name="↑ y+" xml:space="preserve">
     <value>↑ Y+</value>
   </data>
-  <data name="↑ Z−" xml:space="preserve">
+  <data name="↑ z−" xml:space="preserve">
     <value>↑ Z−</value>
   </data>
-  <data name="→ Available" xml:space="preserve">
+  <data name="→ available" xml:space="preserve">
     <value>→ Available</value>
   </data>
-  <data name="↓ Later" xml:space="preserve">
+  <data name="↓ later" xml:space="preserve">
     <value>↓ Later</value>
   </data>
-  <data name="↓ Y-" xml:space="preserve">
+  <data name="↓ y-" xml:space="preserve">
     <value>↓ Y-</value>
   </data>
-  <data name="↓ Z+" xml:space="preserve">
+  <data name="↓ z+" xml:space="preserve">
     <value>↓ Z+</value>
   </data>
-  <data name="− (Negative)" xml:space="preserve">
+  <data name="− (negative)" xml:space="preserve">
     <value>− (Negative)</value>
   </data>
-  <data name="−LIMIT" xml:space="preserve">
+  <data name="−limit" xml:space="preserve">
     <value>−LIMIT</value>
   </data>
   <data name="분류" xml:space="preserve">

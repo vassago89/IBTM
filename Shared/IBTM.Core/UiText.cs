@@ -33,7 +33,10 @@ public static class UiText
 
     public static string Get(string text)
     {
-        return s_resources.GetString(text, Culture) ?? text;
+        var translated = s_resources.GetString(text.ToLowerInvariant(), Culture);
+        return translated is null
+            || Culture.Name == "en" && string.Equals(translated, text, StringComparison.OrdinalIgnoreCase)
+                ? text : translated;
     }
 
     public static string Get(Enum value)
@@ -41,8 +44,8 @@ public static class UiText
         return Get(value.GetDescription());
     }
 
-    public static string Format(string text, params object?[] arguments)
+    public static string Format(FormattableString text)
     {
-        return string.Format(CultureInfo.CurrentCulture, Get(text), arguments);
+        return string.Format(CultureInfo.CurrentCulture, Get(text.Format), text.GetArguments());
     }
 }

@@ -12,2665 +12,2551 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
   </resheader>
-  <data name="  Preset " xml:space="preserve">
+  <data name="  preset " xml:space="preserve">
     <value>  프리셋 </value>
   </data>
-  <data name="  Run " xml:space="preserve">
+  <data name="  run " xml:space="preserve">
     <value>  가동 </value>
   </data>
-  <data name=" · Bolt {0}" xml:space="preserve">
+  <data name=" · bolt {0}" xml:space="preserve">
     <value> · 볼트 {0}</value>
   </data>
-  <data name=" · Disabled" xml:space="preserve">
+  <data name=" · disabled" xml:space="preserve">
     <value> · 사용 안 함</value>
   </data>
-  <data name="+ (Positive)" xml:space="preserve">
+  <data name="+ (positive)" xml:space="preserve">
     <value>+ (양의 방향)</value>
   </data>
-  <data name="+LIMIT" xml:space="preserve">
+  <data name="+limit" xml:space="preserve">
     <value>+리밋</value>
   </data>
-  <data name="A3 ÷ 360 ≥ minimum" xml:space="preserve">
+  <data name="a3 ÷ 360 ≥ minimum" xml:space="preserve">
     <value>A3 ÷ 360 ≥ 최소값</value>
   </data>
-  <data name="ACTUAL / MIN" xml:space="preserve">
-    <value>측정 / 최소</value>
-  </data>
-  <data name="ADC TEST" xml:space="preserve">
-    <value>ADC 시험</value>
-  </data>
-  <data name="ADC communication log" xml:space="preserve">
-    <value>ADC 통신 로그</value>
-  </data>
-  <data name="ADC · HEAD" xml:space="preserve">
-    <value>ADC · 헤드</value>
-  </data>
-  <data name="ADDRESS" xml:space="preserve">
-    <value>주소</value>
-  </data>
-  <data name="AIR LOW" xml:space="preserve">
-    <value>공압 부족</value>
-  </data>
-  <data name="AIR OK" xml:space="preserve">
-    <value>공압 정상</value>
-  </data>
-  <data name="ALARM" xml:space="preserve">
-    <value>알람</value>
-  </data>
-  <data name="ANGLE A1 (°)" xml:space="preserve">
-    <value>각도 A1 (°)</value>
-  </data>
-  <data name="ANGLE A2 (°)" xml:space="preserve">
-    <value>각도 A2 (°)</value>
-  </data>
-  <data name="ANGLE A3 (°)" xml:space="preserve">
-    <value>각도 A3 (°)</value>
-  </data>
-  <data name="AXIS" xml:space="preserve">
-    <value>축</value>
-  </data>
-  <data name="Acceleration (s)" xml:space="preserve">
+  <data name="acceleration (s)" xml:space="preserve">
     <value>가속 시간 (s)</value>
   </data>
-  <data name="Active" xml:space="preserve">
+  <data name="active" xml:space="preserve">
     <value>진행 중</value>
   </data>
-  <data name="Active connection: " xml:space="preserve">
+  <data name="active connection: " xml:space="preserve">
     <value>적용 중인 연결: </value>
   </data>
-  <data name="Active: " xml:space="preserve">
+  <data name="active: " xml:space="preserve">
     <value>적용 중: </value>
   </data>
-  <data name="Add Bolt" xml:space="preserve">
+  <data name="actual / min" xml:space="preserve">
+    <value>측정 / 최소</value>
+  </data>
+  <data name="adc communication log" xml:space="preserve">
+    <value>ADC 통신 로그</value>
+  </data>
+  <data name="adc test" xml:space="preserve">
+    <value>ADC 시험</value>
+  </data>
+  <data name="adc · head" xml:space="preserve">
+    <value>ADC · 헤드</value>
+  </data>
+  <data name="add bolt" xml:space="preserve">
     <value>볼트 추가</value>
   </data>
-  <data name="After arrival sensor (s)" xml:space="preserve">
+  <data name="address" xml:space="preserve">
+    <value>주소</value>
+  </data>
+  <data name="after arrival sensor (s)" xml:space="preserve">
     <value>도착 감지 후 추가 이송 (s)</value>
   </data>
-  <data name="After bolt detection (s)" xml:space="preserve">
+  <data name="after bolt detection (s)" xml:space="preserve">
     <value>볼트 감지 후 추가 공급 (s)</value>
   </data>
-  <data name="After detection (mm/s)" xml:space="preserve">
+  <data name="after detection (mm/s)" xml:space="preserve">
     <value>감지 후 속도 (mm/s)</value>
   </data>
-  <data name="Air Pressure High" xml:space="preserve">
-    <value>공압 정상</value>
-  </data>
-  <data name="Air Pressure Low" xml:space="preserve">
+  <data name="air low" xml:space="preserve">
     <value>공압 부족</value>
   </data>
-  <data name="Air pressure interlock" xml:space="preserve">
+  <data name="air ok" xml:space="preserve">
+    <value>공압 정상</value>
+  </data>
+  <data name="air pressure high" xml:space="preserve">
+    <value>공압 정상</value>
+  </data>
+  <data name="air pressure interlock" xml:space="preserve">
     <value>공압 인터록</value>
   </data>
-  <data name="Alarm" xml:space="preserve">
+  <data name="air pressure low" xml:space="preserve">
+    <value>공압 부족</value>
+  </data>
+  <data name="alarm" xml:space="preserve">
     <value>알람</value>
   </data>
-  <data name="Alarm " xml:space="preserve">
+  <data name="alarm " xml:space="preserve">
     <value>알람 </value>
   </data>
-  <data name="Alarm / E-stop" xml:space="preserve">
+  <data name="alarm / e-stop" xml:space="preserve">
     <value>알람 / 비상정지</value>
   </data>
-  <data name="Alarm Reset" xml:space="preserve">
+  <data name="alarm reset" xml:space="preserve">
     <value>알람 리셋</value>
   </data>
-  <data name="AlphaMotion · TMC-AE16DIOe" xml:space="preserve">
+  <data name="alphamotion · tmc-ae16dioe" xml:space="preserve">
     <value>AlphaMotion · TMC-AE16DIOe</value>
   </data>
-  <data name="Angle 1" xml:space="preserve">
+  <data name="angle 1" xml:space="preserve">
     <value>각도 1</value>
   </data>
-  <data name="Angle 2" xml:space="preserve">
+  <data name="angle 2" xml:space="preserve">
     <value>각도 2</value>
   </data>
-  <data name="Angle 3" xml:space="preserve">
+  <data name="angle 3" xml:space="preserve">
     <value>각도 3</value>
   </data>
-  <data name="Apply Light" xml:space="preserve">
+  <data name="angle a1 (°)" xml:space="preserve">
+    <value>각도 A1 (°)</value>
+  </data>
+  <data name="angle a2 (°)" xml:space="preserve">
+    <value>각도 A2 (°)</value>
+  </data>
+  <data name="angle a3 (°)" xml:space="preserve">
+    <value>각도 A3 (°)</value>
+  </data>
+  <data name="apply light" xml:space="preserve">
     <value>조명 적용</value>
   </data>
-  <data name="Approach speed (mm/s)" xml:space="preserve">
+  <data name="approach speed (mm/s)" xml:space="preserve">
     <value>접근 속도 (mm/s)</value>
   </data>
-  <data name="Auto / Manual Selector" xml:space="preserve">
+  <data name="auto / manual selector" xml:space="preserve">
     <value>자동 / 수동 선택 스위치</value>
   </data>
-  <data name="Auto Response" xml:space="preserve">
+  <data name="auto response" xml:space="preserve">
     <value>자동 응답</value>
   </data>
-  <data name="Available From Front 1 (PCB)" xml:space="preserve">
+  <data name="available from front 1 (pcb)" xml:space="preserve">
     <value>전단 1 공급 가능 (PCB)</value>
   </data>
-  <data name="Available From Front 2 (Heat Sink)" xml:space="preserve">
+  <data name="available from front 2 (heat sink)" xml:space="preserve">
     <value>전단 2 공급 가능 (히트싱크)</value>
   </data>
-  <data name="Available To Rear" xml:space="preserve">
+  <data name="available to rear" xml:space="preserve">
     <value>후단 공급 가능</value>
   </data>
-  <data name="Axes and heads move. Keep clear." xml:space="preserve">
+  <data name="axes and heads move. keep clear." xml:space="preserve">
     <value>축과 헤드가 움직입니다. 접근하지 마세요.</value>
   </data>
-  <data name="Axis" xml:space="preserve">
+  <data name="axis" xml:space="preserve">
     <value>축</value>
   </data>
-  <data name="Axis mapping &amp; home signals" xml:space="preserve">
+  <data name="axis mapping &amp; home signals" xml:space="preserve">
     <value>축 매핑 · 원점 신호</value>
   </data>
-  <data name="Axis servo OFF" xml:space="preserve">
+  <data name="axis servo off" xml:space="preserve">
     <value>축 서보 OFF</value>
   </data>
-  <data name="BOLT" xml:space="preserve">
-    <value>볼트</value>
-  </data>
-  <data name="BOLT FASTENING" xml:space="preserve">
-    <value>볼트 체결</value>
-  </data>
-  <data name="BOLT NAME" xml:space="preserve">
-    <value>볼트 이름</value>
-  </data>
-  <data name="BOLT READY" xml:space="preserve">
-    <value>볼트 준비됨</value>
-  </data>
-  <data name="BOLT SUPPLY" xml:space="preserve">
-    <value>볼트 공급</value>
-  </data>
-  <data name="BOLT · ?" xml:space="preserve">
-    <value>볼트 · ?</value>
-  </data>
-  <data name="Backup Plate Pin - Lower Right" xml:space="preserve">
-    <value>백업 플레이트 핀 - 우하단</value>
-  </data>
-  <data name="Backup Plate Pin - Upper Left" xml:space="preserve">
-    <value>백업 플레이트 핀 - 좌상단</value>
-  </data>
-  <data name="Backup plate lowered" xml:space="preserve">
+  <data name="backup plate lowered" xml:space="preserve">
     <value>백업 플레이트 하강</value>
   </data>
-  <data name="Backup plate position unknown" xml:space="preserve">
+  <data name="backup plate pin - lower right" xml:space="preserve">
+    <value>백업 플레이트 핀 - 우하단</value>
+  </data>
+  <data name="backup plate pin - upper left" xml:space="preserve">
+    <value>백업 플레이트 핀 - 좌상단</value>
+  </data>
+  <data name="backup plate position unknown" xml:space="preserve">
     <value>백업 플레이트 위치 미확인</value>
   </data>
-  <data name="Backup plate raised" xml:space="preserve">
+  <data name="backup plate raised" xml:space="preserve">
     <value>백업 플레이트 상승</value>
   </data>
-  <data name="Backward" xml:space="preserve">
+  <data name="backward" xml:space="preserve">
     <value>후진</value>
   </data>
-  <data name="Baud rate" xml:space="preserve">
+  <data name="baud rate" xml:space="preserve">
     <value>통신 속도</value>
   </data>
-  <data name="Between" xml:space="preserve">
+  <data name="between" xml:space="preserve">
     <value>중간</value>
   </data>
-  <data name="Binary (0–255; blank = auto)" xml:space="preserve">
+  <data name="binary (0–255; blank = auto)" xml:space="preserve">
     <value>이진화 (0–255; 빈칸 = 자동)</value>
   </data>
-  <data name="Bolt Fastening" xml:space="preserve">
-    <value>볼트 체결</value>
+  <data name="bolt" xml:space="preserve">
+    <value>볼트</value>
   </data>
-  <data name="Bolt Fastening Backup Plate Down" xml:space="preserve">
-    <value>볼트 체결 백업 플레이트 하강</value>
-  </data>
-  <data name="Bolt Fastening Backup Plate Up" xml:space="preserve">
-    <value>볼트 체결 백업 플레이트 상승</value>
-  </data>
-  <data name="Bolt Fastening Heat Sink 1 Present" xml:space="preserve">
-    <value>볼트 체결 히트싱크 1 감지</value>
-  </data>
-  <data name="Bolt Fastening Heat Sink 2 Present" xml:space="preserve">
-    <value>볼트 체결 히트싱크 2 감지</value>
-  </data>
-  <data name="Bolt Fastening Station" xml:space="preserve">
-    <value>볼트 체결 스테이션</value>
-  </data>
-  <data name="Bolt Fastening Stopper Down" xml:space="preserve">
-    <value>볼트 체결 스토퍼 하강</value>
-  </data>
-  <data name="Bolt Fastening Stopper Up" xml:space="preserve">
-    <value>볼트 체결 스토퍼 상승</value>
-  </data>
-  <data name="Bolt Fastening Unit" xml:space="preserve">
-    <value>볼트 체결 유닛</value>
-  </data>
-  <data name="Bolt Fastening X" xml:space="preserve">
-    <value>볼트 체결 X</value>
-  </data>
-  <data name="Bolt Fastening Y" xml:space="preserve">
-    <value>볼트 체결 Y</value>
-  </data>
-  <data name="Bolt Fastening Z" xml:space="preserve">
-    <value>볼트 체결 Z</value>
-  </data>
-  <data name="Bolt Fastening · Z" xml:space="preserve">
-    <value>볼트 체결 · Z</value>
-  </data>
-  <data name="Bolt Feeder" xml:space="preserve">
-    <value>볼트 피더</value>
-  </data>
-  <data name="Bolt Inspection" xml:space="preserve">
-    <value>볼트 검사</value>
-  </data>
-  <data name="Bolt Pickup (Feeder)" xml:space="preserve">
-    <value>볼트 픽업 (피더)</value>
-  </data>
-  <data name="Bolt Station" xml:space="preserve">
-    <value>볼트 스테이션</value>
-  </data>
-  <data name="Bolt Station · Selected Bolt Test" xml:space="preserve">
-    <value>볼트 스테이션 · 선택 체결 시험</value>
-  </data>
-  <data name="Bolt controller / ADC" xml:space="preserve">
+  <data name="bolt controller / adc" xml:space="preserve">
     <value>볼트 체결기 / ADC</value>
   </data>
-  <data name="Bolt fastening" xml:space="preserve">
+  <data name="bolt fastening" xml:space="preserve">
     <value>볼트 체결</value>
   </data>
-  <data name="Bolt fastening backup plate" xml:space="preserve">
+  <data name="bolt fastening backup plate" xml:space="preserve">
     <value>체결 백업 플레이트</value>
   </data>
-  <data name="Bolt fastening stopper" xml:space="preserve">
+  <data name="bolt fastening backup plate down" xml:space="preserve">
+    <value>볼트 체결 백업 플레이트 하강</value>
+  </data>
+  <data name="bolt fastening backup plate up" xml:space="preserve">
+    <value>볼트 체결 백업 플레이트 상승</value>
+  </data>
+  <data name="bolt fastening heat sink 1 present" xml:space="preserve">
+    <value>볼트 체결 히트싱크 1 감지</value>
+  </data>
+  <data name="bolt fastening heat sink 2 present" xml:space="preserve">
+    <value>볼트 체결 히트싱크 2 감지</value>
+  </data>
+  <data name="bolt fastening station" xml:space="preserve">
+    <value>볼트 체결 스테이션</value>
+  </data>
+  <data name="bolt fastening stopper" xml:space="preserve">
     <value>체결 스토퍼</value>
   </data>
-  <data name="Bolt name" xml:space="preserve">
+  <data name="bolt fastening stopper down" xml:space="preserve">
+    <value>볼트 체결 스토퍼 하강</value>
+  </data>
+  <data name="bolt fastening stopper up" xml:space="preserve">
+    <value>볼트 체결 스토퍼 상승</value>
+  </data>
+  <data name="bolt fastening unit" xml:space="preserve">
+    <value>볼트 체결 유닛</value>
+  </data>
+  <data name="bolt fastening x" xml:space="preserve">
+    <value>볼트 체결 X</value>
+  </data>
+  <data name="bolt fastening y" xml:space="preserve">
+    <value>볼트 체결 Y</value>
+  </data>
+  <data name="bolt fastening z" xml:space="preserve">
+    <value>볼트 체결 Z</value>
+  </data>
+  <data name="bolt fastening · z" xml:space="preserve">
+    <value>볼트 체결 · Z</value>
+  </data>
+  <data name="bolt feeder" xml:space="preserve">
+    <value>볼트 피더</value>
+  </data>
+  <data name="bolt inspection" xml:space="preserve">
+    <value>볼트 검사</value>
+  </data>
+  <data name="bolt name" xml:space="preserve">
     <value>볼트 이름</value>
   </data>
-  <data name="Bolt presence" xml:space="preserve">
+  <data name="bolt pickup (feeder)" xml:space="preserve">
+    <value>볼트 픽업 (피더)</value>
+  </data>
+  <data name="bolt presence" xml:space="preserve">
     <value>볼트 유무</value>
   </data>
-  <data name="Bolt ready" xml:space="preserve">
+  <data name="bolt ready" xml:space="preserve">
     <value>볼트 준비됨</value>
   </data>
-  <data name="Bolt results" xml:space="preserve">
+  <data name="bolt results" xml:space="preserve">
     <value>볼트 결과</value>
   </data>
-  <data name="Bolt station" xml:space="preserve">
+  <data name="bolt station" xml:space="preserve">
     <value>볼트 스테이션</value>
   </data>
-  <data name="Bolt supply command" xml:space="preserve">
+  <data name="bolt station · selected bolt test" xml:space="preserve">
+    <value>볼트 스테이션 · 선택 체결 시험</value>
+  </data>
+  <data name="bolt supply" xml:space="preserve">
+    <value>볼트 공급</value>
+  </data>
+  <data name="bolt supply command" xml:space="preserve">
     <value>볼트 공급 명령</value>
   </data>
-  <data name="Bolts &amp; feeders" xml:space="preserve">
+  <data name="bolt · ?" xml:space="preserve">
+    <value>볼트 · ?</value>
+  </data>
+  <data name="bolts &amp; feeders" xml:space="preserve">
     <value>볼트 · 피더</value>
   </data>
-  <data name="Brightness (0–255)" xml:space="preserve">
+  <data name="brightness (0–255)" xml:space="preserve">
     <value>밝기 (0–255)</value>
   </data>
-  <data name="Browse..." xml:space="preserve">
+  <data name="browse..." xml:space="preserve">
     <value>찾아보기...</value>
   </data>
-  <data name="Buzzer" xml:space="preserve">
+  <data name="buzzer" xml:space="preserve">
     <value>부저</value>
   </data>
-  <data name="CH (dec)" xml:space="preserve">
-    <value>채널 (10진수)</value>
-  </data>
-  <data name="CH." xml:space="preserve">
-    <value>채널</value>
-  </data>
-  <data name="CLOSED" xml:space="preserve">
-    <value>닫힘</value>
-  </data>
-  <data name="CMD · ?" xml:space="preserve">
-    <value>명령 · ?</value>
-  </data>
-  <data name="CMD ←" xml:space="preserve">
-    <value>명령 ←</value>
-  </data>
-  <data name="CMD →" xml:space="preserve">
-    <value>명령 →</value>
-  </data>
-  <data name="COM port" xml:space="preserve">
-    <value>COM 포트</value>
-  </data>
-  <data name="CONTROLLER" xml:space="preserve">
-    <value>체결기</value>
-  </data>
-  <data name="CONTROLLER / LAST RESULT" xml:space="preserve">
-    <value>체결기 / 최근 결과</value>
-  </data>
-  <data name="CONVEYOR" xml:space="preserve">
-    <value>컨베이어</value>
-  </data>
-  <data name="COUNT" xml:space="preserve">
-    <value>개수</value>
-  </data>
-  <data name="Camera" xml:space="preserve">
+  <data name="camera" xml:space="preserve">
     <value>카메라</value>
   </data>
-  <data name="Camera &amp; lighting" xml:space="preserve">
+  <data name="camera &amp; lighting" xml:space="preserve">
     <value>카메라 · 조명</value>
   </data>
-  <data name="Cancel · Esc" xml:space="preserve">
+  <data name="cancel · esc" xml:space="preserve">
     <value>취소 · Esc</value>
   </data>
-  <data name="Capture RX (3s)" xml:space="preserve">
+  <data name="capture rx (3s)" xml:space="preserve">
     <value>수신 캡처 (3초)</value>
   </data>
-  <data name="Card number" xml:space="preserve">
+  <data name="card number" xml:space="preserve">
     <value>카드 번호</value>
   </data>
-  <data name="Carrier Held at Destination" xml:space="preserve">
-    <value>목적지에서 캐리어 파지 중</value>
-  </data>
-  <data name="Carrier Pickup (S3)" xml:space="preserve">
-    <value>캐리어 픽업 (S3)</value>
-  </data>
-  <data name="Carrier Placement (Shuttle)" xml:space="preserve">
-    <value>캐리어 안착 (셔틀)</value>
-  </data>
-  <data name="Carrier Position Unknown" xml:space="preserve">
-    <value>캐리어 위치 미확인</value>
-  </data>
-  <data name="Carrier count for alarm" xml:space="preserve">
+  <data name="carrier count for alarm" xml:space="preserve">
     <value>알람 캐리어 개수</value>
   </data>
-  <data name="Carrier presence sensor · not grip feedback" xml:space="preserve">
+  <data name="carrier held at destination" xml:space="preserve">
+    <value>목적지에서 캐리어 파지 중</value>
+  </data>
+  <data name="carrier pickup (s3)" xml:space="preserve">
+    <value>캐리어 픽업 (S3)</value>
+  </data>
+  <data name="carrier placement (shuttle)" xml:space="preserve">
+    <value>캐리어 안착 (셔틀)</value>
+  </data>
+  <data name="carrier position unknown" xml:space="preserve">
+    <value>캐리어 위치 미확인</value>
+  </data>
+  <data name="carrier presence sensor · not grip feedback" xml:space="preserve">
     <value>캐리어 감지 센서 · 파지 확인용 아님</value>
   </data>
-  <data name="Carrier stays at S2" xml:space="preserve">
+  <data name="carrier stays at s2" xml:space="preserve">
     <value>시험 후 캐리어는 S2에 유지됩니다</value>
   </data>
-  <data name="Carrier transfer positions" xml:space="preserve">
+  <data name="carrier transfer positions" xml:space="preserve">
     <value>캐리어 이송 위치</value>
   </data>
-  <data name="Change recipe" xml:space="preserve">
+  <data name="ch (dec)" xml:space="preserve">
+    <value>채널 (10진수)</value>
+  </data>
+  <data name="ch." xml:space="preserve">
+    <value>채널</value>
+  </data>
+  <data name="change recipe" xml:space="preserve">
     <value>레시피 변경</value>
   </data>
-  <data name="Change recipe..." xml:space="preserve">
+  <data name="change recipe..." xml:space="preserve">
     <value>레시피 변경...</value>
   </data>
-  <data name="Check the highlighted input." xml:space="preserve">
+  <data name="check the highlighted input." xml:space="preserve">
     <value>표시된 입력값을 확인하세요.</value>
   </data>
-  <data name="Clear Display" xml:space="preserve">
-    <value>표시 지우기</value>
-  </data>
-  <data name="Clear Messages" xml:space="preserve">
-    <value>메시지 지우기</value>
-  </data>
-  <data name="Clear axis alarm / E-stop" xml:space="preserve">
+  <data name="clear axis alarm / e-stop" xml:space="preserve">
     <value>축 알람 / 비상정지 해제 필요</value>
   </data>
-  <data name="Clear interrupted work, then RESET." xml:space="preserve">
+  <data name="clear display" xml:space="preserve">
+    <value>표시 지우기</value>
+  </data>
+  <data name="clear interrupted work, then reset." xml:space="preserve">
     <value>중단된 작업을 정리한 후 리셋하세요.</value>
   </data>
-  <data name="Clear selection" xml:space="preserve">
+  <data name="clear messages" xml:space="preserve">
+    <value>메시지 지우기</value>
+  </data>
+  <data name="clear selection" xml:space="preserve">
     <value>선택 해제</value>
   </data>
-  <data name="Clear the cause, then press RESET" xml:space="preserve">
+  <data name="clear the cause, then press reset" xml:space="preserve">
     <value>원인 해소 후 리셋하세요</value>
   </data>
-  <data name="Clear the motion fault, then press RESET" xml:space="preserve">
+  <data name="clear the motion fault, then press reset" xml:space="preserve">
     <value>모션 오류 해소 후 리셋하세요</value>
   </data>
-  <data name="Close doors" xml:space="preserve">
+  <data name="close doors" xml:space="preserve">
     <value>도어를 닫으세요</value>
   </data>
-  <data name="Close doors, then press RESET" xml:space="preserve">
+  <data name="close doors, then press reset" xml:space="preserve">
     <value>도어를 닫은 후 리셋하세요</value>
   </data>
-  <data name="Closed" xml:space="preserve">
+  <data name="closed" xml:space="preserve">
     <value>닫힘</value>
   </data>
-  <data name="Common Safe Z" xml:space="preserve">
-    <value>공통 Safe Z</value>
+  <data name="cmd · ?" xml:space="preserve">
+    <value>명령 · ?</value>
   </data>
-  <data name="Common feedback wait" xml:space="preserve">
+  <data name="cmd ←" xml:space="preserve">
+    <value>명령 ←</value>
+  </data>
+  <data name="cmd →" xml:space="preserve">
+    <value>명령 →</value>
+  </data>
+  <data name="com port" xml:space="preserve">
+    <value>COM 포트</value>
+  </data>
+  <data name="common feedback wait" xml:space="preserve">
     <value>공통 피드백 대기</value>
   </data>
-  <data name="Communication logging disabled" xml:space="preserve">
+  <data name="common safe z" xml:space="preserve">
+    <value>공통 Safe Z</value>
+  </data>
+  <data name="communication logging disabled" xml:space="preserve">
     <value>통신 로그 사용 안 함</value>
   </data>
-  <data name="Compacting NG Carriers" xml:space="preserve">
+  <data name="compacting ng carriers" xml:space="preserve">
     <value>NG 캐리어 정렬 중</value>
   </data>
-  <data name="Complete bolt teaching" xml:space="preserve">
+  <data name="complete bolt teaching" xml:space="preserve">
     <value>볼트 티칭을 완료하세요</value>
   </data>
-  <data name="Completing Carrier" xml:space="preserve">
+  <data name="completing carrier" xml:space="preserve">
     <value>캐리어 작업 마무리</value>
   </data>
-  <data name="Control I/O Communication" xml:space="preserve">
+  <data name="control i/o communication" xml:space="preserve">
     <value>제어 I/O 통신</value>
   </data>
-  <data name="Control I/O unavailable" xml:space="preserve">
+  <data name="control i/o unavailable" xml:space="preserve">
     <value>제어 I/O 통신 불가</value>
   </data>
-  <data name="Controller" xml:space="preserve">
+  <data name="controller" xml:space="preserve">
     <value>체결기</value>
   </data>
-  <data name="Controller details" xml:space="preserve">
+  <data name="controller / last result" xml:space="preserve">
+    <value>체결기 / 최근 결과</value>
+  </data>
+  <data name="controller details" xml:space="preserve">
     <value>체결기 상세</value>
   </data>
-  <data name="Controller setting" xml:space="preserve">
+  <data name="controller setting" xml:space="preserve">
     <value>제어기 설정</value>
   </data>
-  <data name="Controllers" xml:space="preserve">
+  <data name="controllers" xml:space="preserve">
     <value>제어기</value>
   </data>
-  <data name="Converted Torque" xml:space="preserve">
+  <data name="converted torque" xml:space="preserve">
     <value>환산 토크</value>
   </data>
-  <data name="Conveyor / PCB" xml:space="preserve">
-    <value>컨베이어 / PCB</value>
-  </data>
-  <data name="Conveyor RUN output ON" xml:space="preserve">
-    <value>컨베이어 RUN 출력 ON</value>
-  </data>
-  <data name="Conveyors" xml:space="preserve">
+  <data name="conveyor" xml:space="preserve">
     <value>컨베이어</value>
   </data>
-  <data name="Copy" xml:space="preserve">
+  <data name="conveyor / pcb" xml:space="preserve">
+    <value>컨베이어 / PCB</value>
+  </data>
+  <data name="conveyor run output on" xml:space="preserve">
+    <value>컨베이어 RUN 출력 ON</value>
+  </data>
+  <data name="conveyors" xml:space="preserve">
+    <value>컨베이어</value>
+  </data>
+  <data name="copy" xml:space="preserve">
     <value>복사</value>
   </data>
-  <data name="Copy all" xml:space="preserve">
+  <data name="copy all" xml:space="preserve">
     <value>전체 복사</value>
   </data>
-  <data name="Created {0:yyyy-MM-dd HH:mm:ss}" xml:space="preserve">
+  <data name="count" xml:space="preserve">
+    <value>개수</value>
+  </data>
+  <data name="created {0:yyyy-mm-dd hh:mm:ss}" xml:space="preserve">
     <value>생성 {0:yyyy-MM-dd HH:mm:ss}</value>
   </data>
-  <data name="Current Alarm" xml:space="preserve">
+  <data name="current alarm" xml:space="preserve">
     <value>현재 알람</value>
   </data>
-  <data name="Current Direction" xml:space="preserve">
-    <value>현재 방향</value>
-  </data>
-  <data name="Current Preset" xml:space="preserve">
-    <value>현재 프리셋</value>
-  </data>
-  <data name="Current axis position" xml:space="preserve">
+  <data name="current axis position" xml:space="preserve">
     <value>현재 축 위치</value>
   </data>
-  <data name="Cylinder / stop timeout (s)" xml:space="preserve">
+  <data name="current direction" xml:space="preserve">
+    <value>현재 방향</value>
+  </data>
+  <data name="current preset" xml:space="preserve">
+    <value>현재 프리셋</value>
+  </data>
+  <data name="cylinder / stop timeout (s)" xml:space="preserve">
     <value>실린더 / 정지 타임아웃 (s)</value>
   </data>
-  <data name="DIRECTION" xml:space="preserve">
-    <value>방향</value>
-  </data>
-  <data name="DO" xml:space="preserve">
-    <value>DO</value>
-  </data>
-  <data name="DOORS" xml:space="preserve">
-    <value>도어</value>
-  </data>
-  <data name="DOORS CLOSED" xml:space="preserve">
-    <value>도어 닫힘</value>
-  </data>
-  <data name="DOORS OPEN" xml:space="preserve">
-    <value>도어 열림</value>
-  </data>
-  <data name="DRY RUN" xml:space="preserve">
-    <value>공회전</value>
-  </data>
-  <data name="Data &amp; logs" xml:space="preserve">
+  <data name="data &amp; logs" xml:space="preserve">
     <value>데이터 · 로그</value>
   </data>
-  <data name="Data Matrix" xml:space="preserve">
+  <data name="data matrix" xml:space="preserve">
     <value>데이터 매트릭스</value>
   </data>
-  <data name="Data Matrix Inspection" xml:space="preserve">
+  <data name="data matrix inspection" xml:space="preserve">
     <value>데이터 매트릭스 검사</value>
   </data>
-  <data name="Data Matrix · " xml:space="preserve">
+  <data name="data matrix · " xml:space="preserve">
     <value>데이터 매트릭스 · </value>
   </data>
-  <data name="Database folder" xml:space="preserve">
+  <data name="database folder" xml:space="preserve">
     <value>DB 폴더</value>
   </data>
-  <data name="Deceleration (s)" xml:space="preserve">
+  <data name="deceleration (s)" xml:space="preserve">
     <value>감속 시간 (s)</value>
   </data>
-  <data name="Detection acceleration (s)" xml:space="preserve">
+  <data name="detection acceleration (s)" xml:space="preserve">
     <value>감지 가속 시간 (s)</value>
   </data>
-  <data name="Device ID / serial number" xml:space="preserve">
+  <data name="device id / serial number" xml:space="preserve">
     <value>장치 ID / 시리얼 번호</value>
   </data>
-  <data name="Diagnostics" xml:space="preserve">
+  <data name="diagnostics" xml:space="preserve">
     <value>진단</value>
   </data>
-  <data name="Digital Inputs" xml:space="preserve">
+  <data name="digital inputs" xml:space="preserve">
     <value>디지털 입력</value>
   </data>
-  <data name="Digital Outputs" xml:space="preserve">
+  <data name="digital outputs" xml:space="preserve">
     <value>디지털 출력</value>
   </data>
-  <data name="Digital inputs" xml:space="preserve">
-    <value>디지털 입력</value>
-  </data>
-  <data name="Digital outputs" xml:space="preserve">
-    <value>디지털 출력</value>
-  </data>
-  <data name="Direction" xml:space="preserve">
+  <data name="direction" xml:space="preserve">
     <value>방향</value>
   </data>
-  <data name="Direction Changed" xml:space="preserve">
+  <data name="direction changed" xml:space="preserve">
     <value>방향 변경</value>
   </data>
-  <data name="Disabled" xml:space="preserve">
+  <data name="disabled" xml:space="preserve">
     <value>사용 안 함</value>
   </data>
-  <data name="Discharging S3" xml:space="preserve">
+  <data name="discharging s3" xml:space="preserve">
     <value>S3 배출 중</value>
   </data>
-  <data name="Door 1 Closed" xml:space="preserve">
+  <data name="do" xml:space="preserve">
+    <value>DO</value>
+  </data>
+  <data name="door 1 closed" xml:space="preserve">
     <value>도어 1 닫힘</value>
   </data>
-  <data name="Door 2 Closed" xml:space="preserve">
+  <data name="door 2 closed" xml:space="preserve">
     <value>도어 2 닫힘</value>
   </data>
-  <data name="Door 3 Closed" xml:space="preserve">
+  <data name="door 3 closed" xml:space="preserve">
     <value>도어 3 닫힘</value>
   </data>
-  <data name="Door 4 Closed" xml:space="preserve">
+  <data name="door 4 closed" xml:space="preserve">
     <value>도어 4 닫힘</value>
   </data>
-  <data name="Door 5 Closed" xml:space="preserve">
+  <data name="door 5 closed" xml:space="preserve">
     <value>도어 5 닫힘</value>
   </data>
-  <data name="Door 6 Closed" xml:space="preserve">
+  <data name="door 6 closed" xml:space="preserve">
     <value>도어 6 닫힘</value>
   </data>
-  <data name="Door Open" xml:space="preserve">
-    <value>도어 열림</value>
-  </data>
-  <data name="Door interlock" xml:space="preserve">
+  <data name="door interlock" xml:space="preserve">
     <value>도어 인터록</value>
   </data>
-  <data name="Down" xml:space="preserve">
+  <data name="door open" xml:space="preserve">
+    <value>도어 열림</value>
+  </data>
+  <data name="doors" xml:space="preserve">
+    <value>도어</value>
+  </data>
+  <data name="doors closed" xml:space="preserve">
+    <value>도어 닫힘</value>
+  </data>
+  <data name="doors open" xml:space="preserve">
+    <value>도어 열림</value>
+  </data>
+  <data name="down" xml:space="preserve">
     <value>하강</value>
   </data>
-  <data name="Dry run motor duration (s)" xml:space="preserve">
+  <data name="dry run" xml:space="preserve">
+    <value>공회전</value>
+  </data>
+  <data name="dry run motor duration (s)" xml:space="preserve">
     <value>공회전 시간 (s)</value>
   </data>
-  <data name="Dry run · Not measured" xml:space="preserve">
-    <value>공회전 · 미측정</value>
-  </data>
-  <data name="Dry run · no bolt supply or pickup vacuum. Carrier returns to S3." xml:space="preserve">
+  <data name="dry run · no bolt supply or pickup vacuum. carrier returns to s3." xml:space="preserve">
     <value>공회전 · 볼트 공급·픽업 진공 생략. 캐리어는 S3로 복귀합니다.</value>
   </data>
-  <data name="E-STOP OK" xml:space="preserve">
+  <data name="dry run · not measured" xml:space="preserve">
+    <value>공회전 · 미측정</value>
+  </data>
+  <data name="e-stop ok" xml:space="preserve">
     <value>비상정지 정상</value>
   </data>
-  <data name="E-STOP PRESSED" xml:space="preserve">
+  <data name="e-stop pressed" xml:space="preserve">
     <value>비상정지 눌림</value>
   </data>
-  <data name="ERROR / MESSAGE" xml:space="preserve">
-    <value>오류 / 메시지</value>
-  </data>
-  <data name="ERROR CODE" xml:space="preserve">
-    <value>오류 코드</value>
-  </data>
-  <data name="ESC · ?" xml:space="preserve">
-    <value>이스케이프 · ?</value>
-  </data>
-  <data name="ESC · BACK" xml:space="preserve">
-    <value>이스케이프 · 후진</value>
-  </data>
-  <data name="ESC · CONFLICT" xml:space="preserve">
-    <value>이스케이프 · 양쪽 감지</value>
-  </data>
-  <data name="ESC · FWD" xml:space="preserve">
-    <value>이스케이프 · 전진</value>
-  </data>
-  <data name="ESC · NO LIMIT" xml:space="preserve">
-    <value>이스케이프 · 양쪽 미감지</value>
-  </data>
-  <data name="EVENT COUNT" xml:space="preserve">
-    <value>이벤트 수</value>
-  </data>
-  <data name="Eject run after S1 (s)" xml:space="preserve">
+  <data name="eject run after s1 (s)" xml:space="preserve">
     <value>S1 감지 후 배출 시간 (s)</value>
   </data>
-  <data name="Ejecting NG Carrier" xml:space="preserve">
+  <data name="ejecting ng carrier" xml:space="preserve">
     <value>NG 캐리어 배출 중</value>
   </data>
-  <data name="Emergency" xml:space="preserve">
+  <data name="emergency" xml:space="preserve">
     <value>비상정지</value>
   </data>
-  <data name="Emergency Stop" xml:space="preserve">
+  <data name="emergency stop" xml:space="preserve">
     <value>비상정지</value>
   </data>
-  <data name="Emergency Stop 1 Pressed" xml:space="preserve">
+  <data name="emergency stop 1 pressed" xml:space="preserve">
     <value>비상정지 1 눌림</value>
   </data>
-  <data name="Emergency Stop 2 Pressed" xml:space="preserve">
+  <data name="emergency stop 2 pressed" xml:space="preserve">
     <value>비상정지 2 눌림</value>
   </data>
-  <data name="Emergency stop" xml:space="preserve">
-    <value>비상정지</value>
-  </data>
-  <data name="Enable a unit in Settings" xml:space="preserve">
+  <data name="enable a unit in settings" xml:space="preserve">
     <value>설정에서 사용할 유닛을 켜세요</value>
   </data>
-  <data name="Enabled axes only" xml:space="preserve">
+  <data name="enabled axes only" xml:space="preserve">
     <value>사용 축만 표시</value>
   </data>
-  <data name="Enabled units" xml:space="preserve">
+  <data name="enabled units" xml:space="preserve">
     <value>사용 유닛</value>
   </data>
-  <data name="Entry carrier sensor" xml:space="preserve">
+  <data name="entry carrier sensor" xml:space="preserve">
     <value>입구 캐리어 센서</value>
   </data>
-  <data name="Error" xml:space="preserve">
+  <data name="error" xml:space="preserve">
     <value>오류</value>
   </data>
-  <data name="Escape backward sensor" xml:space="preserve">
+  <data name="error / message" xml:space="preserve">
+    <value>오류 / 메시지</value>
+  </data>
+  <data name="error code" xml:space="preserve">
+    <value>오류 코드</value>
+  </data>
+  <data name="esc · ?" xml:space="preserve">
+    <value>이스케이프 · ?</value>
+  </data>
+  <data name="esc · back" xml:space="preserve">
+    <value>이스케이프 · 후진</value>
+  </data>
+  <data name="esc · conflict" xml:space="preserve">
+    <value>이스케이프 · 양쪽 감지</value>
+  </data>
+  <data name="esc · fwd" xml:space="preserve">
+    <value>이스케이프 · 전진</value>
+  </data>
+  <data name="esc · no limit" xml:space="preserve">
+    <value>이스케이프 · 양쪽 미감지</value>
+  </data>
+  <data name="escape backward sensor" xml:space="preserve">
     <value>이스케이프 후진 센서</value>
   </data>
-  <data name="Escape command · B/F = sensor feedback" xml:space="preserve">
+  <data name="escape command · b/f = sensor feedback" xml:space="preserve">
     <value>이스케이프 명령 · B/F = 센서 상태</value>
   </data>
-  <data name="Escape forward sensor" xml:space="preserve">
+  <data name="escape forward sensor" xml:space="preserve">
     <value>이스케이프 전진 센서</value>
   </data>
-  <data name="Event Count" xml:space="preserve">
+  <data name="event count" xml:space="preserve">
     <value>이벤트 수</value>
   </data>
-  <data name="Extended search" xml:space="preserve">
+  <data name="extended search" xml:space="preserve">
     <value>확장 검색</value>
   </data>
-  <data name="FASTEN" xml:space="preserve">
+  <data name="fasten" xml:space="preserve">
     <value>체결</value>
   </data>
-  <data name="FASTEN NG" xml:space="preserve">
+  <data name="fasten ng" xml:space="preserve">
     <value>체결 NG</value>
   </data>
-  <data name="FASTEN OK" xml:space="preserve">
+  <data name="fasten ok" xml:space="preserve">
     <value>체결 OK</value>
   </data>
-  <data name="FASTENING TIME (ms)" xml:space="preserve">
-    <value>체결 시간 (ms)</value>
-  </data>
-  <data name="FEEDBACK INPUTS" xml:space="preserve">
-    <value>피드백 입력</value>
-  </data>
-  <data name="FILE ERROR: {0}" xml:space="preserve">
-    <value>파일 오류: {0}</value>
-  </data>
-  <data name="FRAME LOG" xml:space="preserve">
-    <value>통신 로그</value>
-  </data>
-  <data name="Fasten Selected Bolts" xml:space="preserve">
+  <data name="fasten selected bolts" xml:space="preserve">
     <value>선택 볼트 체결</value>
   </data>
-  <data name="Fastening" xml:space="preserve">
+  <data name="fastening" xml:space="preserve">
     <value>체결</value>
   </data>
-  <data name="Fastening / dry run" xml:space="preserve">
+  <data name="fastening / dry run" xml:space="preserve">
     <value>체결 / 공회전</value>
   </data>
-  <data name="Fastening NG" xml:space="preserve">
+  <data name="fastening ng" xml:space="preserve">
     <value>체결 NG</value>
   </data>
-  <data name="Fastening OK" xml:space="preserve">
+  <data name="fastening ok" xml:space="preserve">
     <value>체결 OK</value>
   </data>
-  <data name="Fastening Time" xml:space="preserve">
-    <value>체결 시간</value>
-  </data>
-  <data name="Fastening Z: conveyor clearance required" xml:space="preserve">
-    <value>체결 Z: 컨베이어 간섭 해제 위치 필요</value>
-  </data>
-  <data name="Fastening result timeout (s)" xml:space="preserve">
+  <data name="fastening result timeout (s)" xml:space="preserve">
     <value>체결 결과 타임아웃 (s)</value>
   </data>
-  <data name="Fault" xml:space="preserve">
+  <data name="fastening time" xml:space="preserve">
+    <value>체결 시간</value>
+  </data>
+  <data name="fastening time (ms)" xml:space="preserve">
+    <value>체결 시간 (ms)</value>
+  </data>
+  <data name="fastening z: conveyor clearance required" xml:space="preserve">
+    <value>체결 Z: 컨베이어 간섭 해제 위치 필요</value>
+  </data>
+  <data name="fault" xml:space="preserve">
     <value>오류</value>
   </data>
-  <data name="Feeder detection timeout (s)" xml:space="preserve">
+  <data name="feedback inputs" xml:space="preserve">
+    <value>피드백 입력</value>
+  </data>
+  <data name="feeder detection timeout (s)" xml:space="preserve">
     <value>피더 감지 타임아웃 (s)</value>
   </data>
-  <data name="File logging disabled" xml:space="preserve">
+  <data name="file error: {0}" xml:space="preserve">
+    <value>파일 오류: {0}</value>
+  </data>
+  <data name="file logging disabled" xml:space="preserve">
     <value>파일 로그 사용 안 함</value>
   </data>
-  <data name="Fine / index speed (mm/s)" xml:space="preserve">
+  <data name="fine / index speed (mm/s)" xml:space="preserve">
     <value>미세 / 인덱스 속도 (mm/s)</value>
   </data>
-  <data name="Forward" xml:space="preserve">
+  <data name="forward" xml:space="preserve">
     <value>전진</value>
   </data>
-  <data name="Forward repeat transfer" xml:space="preserve">
+  <data name="forward repeat transfer" xml:space="preserve">
     <value>반복 정방향 이송</value>
   </data>
-  <data name="Frame Log" xml:space="preserve">
+  <data name="frame log" xml:space="preserve">
     <value>통신 로그</value>
   </data>
-  <data name="Frame timeout (s)" xml:space="preserve">
+  <data name="frame timeout (s)" xml:space="preserve">
     <value>프레임 타임아웃 (s)</value>
   </data>
-  <data name="Front 1 · PCB available" xml:space="preserve">
+  <data name="front 1 · pcb available" xml:space="preserve">
     <value>전단 1 · PCB 공급 가능</value>
   </data>
-  <data name="Front 1 · PCB · SMEMA" xml:space="preserve">
+  <data name="front 1 · pcb · smema" xml:space="preserve">
     <value>전단 1 · PCB · SMEMA</value>
   </data>
-  <data name="Front 2 · Carrier available" xml:space="preserve">
+  <data name="front 2 · carrier available" xml:space="preserve">
     <value>전단 2 · 캐리어 공급 가능</value>
   </data>
-  <data name="Front 2 · SMEMA" xml:space="preserve">
+  <data name="front 2 · smema" xml:space="preserve">
     <value>전단 2 · SMEMA</value>
   </data>
-  <data name="Gantry Waiting Position" xml:space="preserve">
+  <data name="gantry waiting position" xml:space="preserve">
     <value>갠트리 대기 위치</value>
   </data>
-  <data name="Gripping Returned PCB" xml:space="preserve">
+  <data name="gripping returned pcb" xml:space="preserve">
     <value>복귀 PCB 파지 중</value>
   </data>
-  <data name="H1 Pickup" xml:space="preserve">
+  <data name="h1 pickup" xml:space="preserve">
     <value>H1 픽업</value>
   </data>
-  <data name="H2 Shooting" xml:space="preserve">
+  <data name="h2 shooting" xml:space="preserve">
     <value>H2 슈팅</value>
   </data>
-  <data name="HANTAS ADC Protocol" xml:space="preserve">
-    <value>HANTAS ADC 통신</value>
-  </data>
-  <data name="HEAD" xml:space="preserve">
-    <value>헤드</value>
-  </data>
-  <data name="HIK" xml:space="preserve">
-    <value>HIK</value>
-  </data>
-  <data name="HOME" xml:space="preserve">
-    <value>원점</value>
-  </data>
-  <data name="HOME ALL" xml:space="preserve">
-    <value>전체 원점</value>
-  </data>
-  <data name="HOME IN" xml:space="preserve">
-    <value>원점 입력</value>
-  </data>
-  <data name="HOMED" xml:space="preserve">
-    <value>원점 완료</value>
-  </data>
-  <data name="HOMING..." xml:space="preserve">
-    <value>원점 복귀 중...</value>
-  </data>
-  <data name="HS1" xml:space="preserve">
-    <value>HS1</value>
-  </data>
-  <data name="HS2" xml:space="preserve">
-    <value>HS2</value>
-  </data>
-  <data name="Handing PCB to Placement" xml:space="preserve">
+  <data name="handing pcb to placement" xml:space="preserve">
     <value>안착측으로 PCB 인계</value>
   </data>
-  <data name="Handoff setup" xml:space="preserve">
+  <data name="handoff setup" xml:space="preserve">
     <value>인계 설정</value>
   </data>
-  <data name="Hardware / logs: Save + restart" xml:space="preserve">
+  <data name="hantas adc protocol" xml:space="preserve">
+    <value>HANTAS ADC 통신</value>
+  </data>
+  <data name="hardware / logs: save + restart" xml:space="preserve">
     <value>하드웨어 / 로그: 저장 후 재시작</value>
   </data>
-  <data name="Hardware reset button" xml:space="preserve">
+  <data name="hardware reset button" xml:space="preserve">
     <value>하드웨어 리셋 버튼</value>
   </data>
-  <data name="Head 1 Pickup" xml:space="preserve">
+  <data name="head" xml:space="preserve">
+    <value>헤드</value>
+  </data>
+  <data name="head 1 pickup" xml:space="preserve">
     <value>헤드 1 픽업</value>
   </data>
-  <data name="Head 2 Shooting" xml:space="preserve">
+  <data name="head 2 shooting" xml:space="preserve">
     <value>헤드 2 슈팅</value>
   </data>
-  <data name="Heat Sink 1" xml:space="preserve">
+  <data name="heat sink 1" xml:space="preserve">
     <value>히트싱크 1</value>
   </data>
-  <data name="Heat Sink 2" xml:space="preserve">
+  <data name="heat sink 2" xml:space="preserve">
     <value>히트싱크 2</value>
   </data>
-  <data name="Heat Sink Detected" xml:space="preserve">
+  <data name="heat sink detected" xml:space="preserve">
     <value>히트싱크 감지</value>
   </data>
-  <data name="Home" xml:space="preserve">
+  <data name="hik" xml:space="preserve">
+    <value>HIK</value>
+  </data>
+  <data name="home" xml:space="preserve">
     <value>원점</value>
   </data>
-  <data name="Home Failed" xml:space="preserve">
-    <value>원점 복귀 실패</value>
+  <data name="home all" xml:space="preserve">
+    <value>전체 원점</value>
   </data>
-  <data name="Home Required" xml:space="preserve">
-    <value>원점 복귀 필요</value>
-  </data>
-  <data name="Home Selected Unit" xml:space="preserve">
-    <value>선택 유닛 원점</value>
-  </data>
-  <data name="Home direction" xml:space="preserve">
+  <data name="home direction" xml:space="preserve">
     <value>원점 방향</value>
   </data>
-  <data name="Home signal" xml:space="preserve">
+  <data name="home failed" xml:space="preserve">
+    <value>원점 복귀 실패</value>
+  </data>
+  <data name="home in" xml:space="preserve">
+    <value>원점 입력</value>
+  </data>
+  <data name="home required" xml:space="preserve">
+    <value>원점 복귀 필요</value>
+  </data>
+  <data name="home selected unit" xml:space="preserve">
+    <value>선택 유닛 원점</value>
+  </data>
+  <data name="home signal" xml:space="preserve">
     <value>원점 신호</value>
   </data>
-  <data name="Home this unit first" xml:space="preserve">
+  <data name="home this unit first" xml:space="preserve">
     <value>이 유닛의 원점을 먼저 실행하세요</value>
   </data>
-  <data name="Homing" xml:space="preserve">
+  <data name="homed" xml:space="preserve">
+    <value>원점 완료</value>
+  </data>
+  <data name="homing" xml:space="preserve">
     <value>원점 복귀</value>
   </data>
-  <data name="I/O communication unavailable" xml:space="preserve">
+  <data name="homing..." xml:space="preserve">
+    <value>원점 복귀 중...</value>
+  </data>
+  <data name="hs1" xml:space="preserve">
+    <value>HS1</value>
+  </data>
+  <data name="hs2" xml:space="preserve">
+    <value>HS2</value>
+  </data>
+  <data name="i/o communication unavailable" xml:space="preserve">
     <value>I/O 통신 불가</value>
   </data>
-  <data name="I/O control + ADC results" xml:space="preserve">
+  <data name="i/o control + adc results" xml:space="preserve">
     <value>I/O 제어 + ADC 결과</value>
   </data>
-  <data name="I/O disconnected · input states unknown" xml:space="preserve">
+  <data name="i/o disconnected · input states unknown" xml:space="preserve">
     <value>I/O 연결 끊김 · 입력 상태 미확인</value>
   </data>
-  <data name="I/O mapping" xml:space="preserve">
+  <data name="i/o mapping" xml:space="preserve">
     <value>I/O 매핑</value>
   </data>
-  <data name="ID · " xml:space="preserve">
+  <data name="id · " xml:space="preserve">
     <value>ID · </value>
   </data>
-  <data name="INPUT" xml:space="preserve">
-    <value>입력</value>
-  </data>
-  <data name="INPUTS" xml:space="preserve">
-    <value>입력</value>
-  </data>
-  <data name="IO · Assumed OK" xml:space="preserve">
-    <value>IO · OK 가정</value>
-  </data>
-  <data name="IO · Result unavailable" xml:space="preserve">
-    <value>IO · 결과 미확인</value>
-  </data>
-  <data name="Idle" xml:space="preserve">
+  <data name="idle" xml:space="preserve">
     <value>대기</value>
   </data>
-  <data name="Image" xml:space="preserve">
+  <data name="image" xml:space="preserve">
     <value>이미지</value>
   </data>
-  <data name="Input conflict" xml:space="preserve">
-    <value>입력 충돌</value>
-  </data>
-  <data name="Input signal" xml:space="preserve">
-    <value>입력 신호</value>
-  </data>
-  <data name="Inputs" xml:space="preserve">
+  <data name="input" xml:space="preserve">
     <value>입력</value>
   </data>
-  <data name="Inspect This Image" xml:space="preserve">
+  <data name="input conflict" xml:space="preserve">
+    <value>입력 충돌</value>
+  </data>
+  <data name="input signal" xml:space="preserve">
+    <value>입력 신호</value>
+  </data>
+  <data name="inputs" xml:space="preserve">
+    <value>입력</value>
+  </data>
+  <data name="inspect this image" xml:space="preserve">
     <value>이미지 검사</value>
   </data>
-  <data name="Inspecting Bolt" xml:space="preserve">
+  <data name="inspecting bolt" xml:space="preserve">
     <value>볼트 검사 중</value>
   </data>
-  <data name="Inspection" xml:space="preserve">
+  <data name="inspection" xml:space="preserve">
     <value>검사</value>
   </data>
-  <data name="Inspection + NG transfer" xml:space="preserve">
+  <data name="inspection + ng transfer" xml:space="preserve">
     <value>검사 + NG 이송</value>
   </data>
-  <data name="Inspection / NG" xml:space="preserve">
+  <data name="inspection / ng" xml:space="preserve">
     <value>검사 / NG</value>
   </data>
-  <data name="Inspection Backup Plate Down" xml:space="preserve">
-    <value>검사 백업 플레이트 하강</value>
-  </data>
-  <data name="Inspection Backup Plate Up" xml:space="preserve">
-    <value>검사 백업 플레이트 상승</value>
-  </data>
-  <data name="Inspection Gantry X" xml:space="preserve">
-    <value>검사 갠트리 X</value>
-  </data>
-  <data name="Inspection Gantry Y" xml:space="preserve">
-    <value>검사 갠트리 Y</value>
-  </data>
-  <data name="Inspection Heat Sink 1 Present" xml:space="preserve">
-    <value>검사 히트싱크 1 감지</value>
-  </data>
-  <data name="Inspection Heat Sink 2 Present" xml:space="preserve">
-    <value>검사 히트싱크 2 감지</value>
-  </data>
-  <data name="Inspection Image" xml:space="preserve">
-    <value>검사 이미지</value>
-  </data>
-  <data name="Inspection S3 Support" xml:space="preserve">
-    <value>검사 S3 지지대</value>
-  </data>
-  <data name="Inspection Setup" xml:space="preserve">
-    <value>검사 설정</value>
-  </data>
-  <data name="Inspection Station" xml:space="preserve">
-    <value>검사 스테이션</value>
-  </data>
-  <data name="Inspection Stopper Down" xml:space="preserve">
-    <value>검사 스토퍼 하강</value>
-  </data>
-  <data name="Inspection Stopper Up" xml:space="preserve">
-    <value>검사 스토퍼 상승</value>
-  </data>
-  <data name="Inspection backup plate" xml:space="preserve">
+  <data name="inspection backup plate" xml:space="preserve">
     <value>검사 백업 플레이트</value>
   </data>
-  <data name="Inspection camera" xml:space="preserve">
+  <data name="inspection backup plate down" xml:space="preserve">
+    <value>검사 백업 플레이트 하강</value>
+  </data>
+  <data name="inspection backup plate up" xml:space="preserve">
+    <value>검사 백업 플레이트 상승</value>
+  </data>
+  <data name="inspection camera" xml:space="preserve">
     <value>검사 카메라</value>
   </data>
-  <data name="Inspection capture" xml:space="preserve">
+  <data name="inspection capture" xml:space="preserve">
     <value>검사 촬영</value>
   </data>
-  <data name="Inspection channel (1–9)" xml:space="preserve">
+  <data name="inspection channel (1–9)" xml:space="preserve">
     <value>검사 채널 (1–9)</value>
   </data>
-  <data name="Inspection images" xml:space="preserve">
+  <data name="inspection gantry x" xml:space="preserve">
+    <value>검사 갠트리 X</value>
+  </data>
+  <data name="inspection gantry y" xml:space="preserve">
+    <value>검사 갠트리 Y</value>
+  </data>
+  <data name="inspection heat sink 1 present" xml:space="preserve">
+    <value>검사 히트싱크 1 감지</value>
+  </data>
+  <data name="inspection heat sink 2 present" xml:space="preserve">
+    <value>검사 히트싱크 2 감지</value>
+  </data>
+  <data name="inspection image" xml:space="preserve">
     <value>검사 이미지</value>
   </data>
-  <data name="Inspection stopper" xml:space="preserve">
+  <data name="inspection images" xml:space="preserve">
+    <value>검사 이미지</value>
+  </data>
+  <data name="inspection s3 support" xml:space="preserve">
+    <value>검사 S3 지지대</value>
+  </data>
+  <data name="inspection setup" xml:space="preserve">
+    <value>검사 설정</value>
+  </data>
+  <data name="inspection station" xml:space="preserve">
+    <value>검사 스테이션</value>
+  </data>
+  <data name="inspection stopper" xml:space="preserve">
     <value>검사 스토퍼</value>
   </data>
-  <data name="Interface &amp; Drive" xml:space="preserve">
+  <data name="inspection stopper down" xml:space="preserve">
+    <value>검사 스토퍼 하강</value>
+  </data>
+  <data name="inspection stopper up" xml:space="preserve">
+    <value>검사 스토퍼 상승</value>
+  </data>
+  <data name="interface &amp; drive" xml:space="preserve">
     <value>인터페이스 · 구동</value>
   </data>
-  <data name="Interlocks &amp; reset input" xml:space="preserve">
+  <data name="interlocks &amp; reset input" xml:space="preserve">
     <value>인터록 · 리셋 입력</value>
   </data>
-  <data name="Interrupt number" xml:space="preserve">
+  <data name="interrupt number" xml:space="preserve">
     <value>인터럽트 번호</value>
   </data>
-  <data name="Inverted colors" xml:space="preserve">
+  <data name="inverted colors" xml:space="preserve">
     <value>색상 반전</value>
   </data>
-  <data name="Jog (hold)" xml:space="preserve">
+  <data name="io · assumed ok" xml:space="preserve">
+    <value>IO · OK 가정</value>
+  </data>
+  <data name="io · result unavailable" xml:space="preserve">
+    <value>IO · 결과 미확인</value>
+  </data>
+  <data name="jog (hold)" xml:space="preserve">
     <value>조그 (누르는 동안)</value>
   </data>
-  <data name="LOGS" xml:space="preserve">
-    <value>로그</value>
-  </data>
-  <data name="Latest fastening" xml:space="preserve">
+  <data name="latest fastening" xml:space="preserve">
     <value>최근 체결</value>
   </data>
-  <data name="Lift lowered" xml:space="preserve">
+  <data name="lift lowered" xml:space="preserve">
     <value>리프트 하강</value>
   </data>
-  <data name="Lift position unknown" xml:space="preserve">
+  <data name="lift position unknown" xml:space="preserve">
     <value>리프트 위치 미확인</value>
   </data>
-  <data name="Lift raised" xml:space="preserve">
+  <data name="lift raised" xml:space="preserve">
     <value>리프트 상승</value>
   </data>
-  <data name="Light (0–255)" xml:space="preserve">
+  <data name="light (0–255)" xml:space="preserve">
     <value>조명 (0–255)</value>
   </data>
-  <data name="Light OFF" xml:space="preserve">
+  <data name="light off" xml:space="preserve">
     <value>조명 OFF</value>
   </data>
-  <data name="Light ON" xml:space="preserve">
+  <data name="light on" xml:space="preserve">
     <value>조명 ON</value>
   </data>
-  <data name="Light ON → capture delay (s)" xml:space="preserve">
+  <data name="light on → capture delay (s)" xml:space="preserve">
     <value>조명 ON → 촬영 지연 (s)</value>
   </data>
-  <data name="Light test" xml:space="preserve">
+  <data name="light test" xml:space="preserve">
     <value>조명 시험</value>
   </data>
-  <data name="Lighting controller" xml:space="preserve">
+  <data name="lighting controller" xml:space="preserve">
     <value>조명 제어기</value>
   </data>
-  <data name="Load Older" xml:space="preserve">
-    <value>이전 결과</value>
-  </data>
-  <data name="Load PCB Images" xml:space="preserve">
-    <value>PCB 이미지 불러오기</value>
-  </data>
-  <data name="Load Recipe" xml:space="preserve">
-    <value>레시피 불러오기</value>
-  </data>
-  <data name="Load Test Image" xml:space="preserve">
-    <value>시험 이미지 불러오기</value>
-  </data>
-  <data name="Load for Reinspection" xml:space="preserve">
+  <data name="load for reinspection" xml:space="preserve">
     <value>재검사 이미지로 선택</value>
   </data>
-  <data name="Load older" xml:space="preserve">
+  <data name="load older" xml:space="preserve">
     <value>이전 결과 불러오기</value>
   </data>
-  <data name="Loading PCB results..." xml:space="preserve">
-    <value>PCB 결과 불러오는 중...</value>
+  <data name="load pcb images" xml:space="preserve">
+    <value>PCB 이미지 불러오기</value>
   </data>
-  <data name="Loading images…" xml:space="preserve">
+  <data name="load recipe" xml:space="preserve">
+    <value>레시피 불러오기</value>
+  </data>
+  <data name="load test image" xml:space="preserve">
+    <value>시험 이미지 불러오기</value>
+  </data>
+  <data name="loading images…" xml:space="preserve">
     <value>이미지 불러오는 중…</value>
   </data>
-  <data name="Loading..." xml:space="preserve">
+  <data name="loading pcb results..." xml:space="preserve">
+    <value>PCB 결과 불러오는 중...</value>
+  </data>
+  <data name="loading..." xml:space="preserve">
     <value>불러오는 중...</value>
   </data>
-  <data name="Log folder" xml:space="preserve">
+  <data name="log folder" xml:space="preserve">
     <value>로그 폴더</value>
   </data>
-  <data name="Logs" xml:space="preserve">
+  <data name="logs" xml:space="preserve">
     <value>로그</value>
   </data>
-  <data name="Loosen (hold)" xml:space="preserve">
+  <data name="loosen (hold)" xml:space="preserve">
     <value>풀기 (누르는 동안)</value>
   </data>
-  <data name="Loosening" xml:space="preserve">
+  <data name="loosening" xml:space="preserve">
     <value>풀기</value>
   </data>
-  <data name="Lowering NG Shuttle" xml:space="preserve">
+  <data name="lowering ng shuttle" xml:space="preserve">
     <value>NG 셔틀 하강 중</value>
   </data>
-  <data name="Lowering PCB to Supply" xml:space="preserve">
+  <data name="lowering pcb to supply" xml:space="preserve">
     <value>공급측으로 PCB 하강</value>
   </data>
-  <data name="MANUAL TEST" xml:space="preserve">
-    <value>수동 시험</value>
-  </data>
-  <data name="MATCH" xml:space="preserve">
-    <value>일치</value>
-  </data>
-  <data name="MINIMUM TURNS" xml:space="preserve">
-    <value>최소 회전수</value>
-  </data>
-  <data name="MOTION" xml:space="preserve">
-    <value>모션</value>
-  </data>
-  <data name="MOVS (Serial)" xml:space="preserve">
-    <value>MOVS (시리얼)</value>
-  </data>
-  <data name="Machine" xml:space="preserve">
+  <data name="machine" xml:space="preserve">
     <value>설비</value>
   </data>
-  <data name="Machine &amp; communication logs" xml:space="preserve">
+  <data name="machine &amp; communication logs" xml:space="preserve">
     <value>설비 · 통신 로그</value>
   </data>
-  <data name="Machine Light" xml:space="preserve">
+  <data name="machine light" xml:space="preserve">
     <value>설비 조명</value>
   </data>
-  <data name="Machine log" xml:space="preserve">
+  <data name="machine log" xml:space="preserve">
     <value>설비 로그</value>
   </data>
-  <data name="Main Conveyor" xml:space="preserve">
+  <data name="main conveyor" xml:space="preserve">
     <value>메인 컨베이어</value>
   </data>
-  <data name="Main Conveyor Entry Carrier Detected" xml:space="preserve">
-    <value>메인 컨베이어 입구 캐리어 감지</value>
-  </data>
-  <data name="Main Conveyor Forward" xml:space="preserve">
-    <value>메인 컨베이어 정방향</value>
-  </data>
-  <data name="Main Conveyor Manual Input" xml:space="preserve">
-    <value>메인 컨베이어 수동 입력</value>
-  </data>
-  <data name="Main Conveyor Normal Speed" xml:space="preserve">
-    <value>메인 컨베이어 정상 속도</value>
-  </data>
-  <data name="Main Conveyor Run" xml:space="preserve">
-    <value>메인 컨베이어 가동</value>
-  </data>
-  <data name="Main conveyor" xml:space="preserve">
-    <value>메인 컨베이어</value>
-  </data>
-  <data name="Main conveyor drive direction" xml:space="preserve">
+  <data name="main conveyor drive direction" xml:space="preserve">
     <value>메인 컨베이어 구동 방향</value>
   </data>
-  <data name="Manual" xml:space="preserve">
+  <data name="main conveyor entry carrier detected" xml:space="preserve">
+    <value>메인 컨베이어 입구 캐리어 감지</value>
+  </data>
+  <data name="main conveyor forward" xml:space="preserve">
+    <value>메인 컨베이어 정방향</value>
+  </data>
+  <data name="main conveyor manual input" xml:space="preserve">
+    <value>메인 컨베이어 수동 입력</value>
+  </data>
+  <data name="main conveyor normal speed" xml:space="preserve">
+    <value>메인 컨베이어 정상 속도</value>
+  </data>
+  <data name="main conveyor run" xml:space="preserve">
+    <value>메인 컨베이어 가동</value>
+  </data>
+  <data name="manual" xml:space="preserve">
     <value>수동</value>
   </data>
-  <data name="Manual Adjustment" xml:space="preserve">
+  <data name="manual adjustment" xml:space="preserve">
     <value>수동 조정</value>
   </data>
-  <data name="Manual mode only" xml:space="preserve">
+  <data name="manual mode only" xml:space="preserve">
     <value>수동 모드 전용</value>
   </data>
-  <data name="Matched" xml:space="preserve">
+  <data name="manual test" xml:space="preserve">
+    <value>수동 시험</value>
+  </data>
+  <data name="match" xml:space="preserve">
     <value>일치</value>
   </data>
-  <data name="Measurements" xml:space="preserve">
+  <data name="matched" xml:space="preserve">
+    <value>일치</value>
+  </data>
+  <data name="measurements" xml:space="preserve">
     <value>측정값</value>
   </data>
-  <data name="Menu" xml:space="preserve">
+  <data name="menu" xml:space="preserve">
     <value>메뉴</value>
   </data>
-  <data name="Messages" xml:space="preserve">
+  <data name="messages" xml:space="preserve">
     <value>메시지</value>
   </data>
-  <data name="Min. turns (0 = no check)" xml:space="preserve">
+  <data name="min. turns (0 = no check)" xml:space="preserve">
     <value>최소 회전수 (0 = 검사 안 함)</value>
   </data>
-  <data name="Minimum " xml:space="preserve">
+  <data name="minimum " xml:space="preserve">
     <value>최소 </value>
   </data>
-  <data name="Minimum bright (%)" xml:space="preserve">
+  <data name="minimum bright (%)" xml:space="preserve">
     <value>최소 밝은 영역 (%)</value>
   </data>
-  <data name="Minimum not set" xml:space="preserve">
+  <data name="minimum not set" xml:space="preserve">
     <value>최소값 미설정</value>
   </data>
-  <data name="Mode &amp; Utility" xml:space="preserve">
+  <data name="minimum turns" xml:space="preserve">
+    <value>최소 회전수</value>
+  </data>
+  <data name="mode &amp; utility" xml:space="preserve">
     <value>모드 · 유틸리티</value>
   </data>
-  <data name="Mode feedback unavailable" xml:space="preserve">
+  <data name="mode feedback unavailable" xml:space="preserve">
     <value>모드 상태 미확인</value>
   </data>
-  <data name="Motion" xml:space="preserve">
+  <data name="motion" xml:space="preserve">
     <value>모션</value>
   </data>
-  <data name="Motion / I/O controller" xml:space="preserve">
+  <data name="motion / i/o controller" xml:space="preserve">
     <value>모션 / I/O 제어기</value>
   </data>
-  <data name="Motion Fault" xml:space="preserve">
+  <data name="motion fault" xml:space="preserve">
     <value>모션 오류</value>
   </data>
-  <data name="Motion Monitor" xml:space="preserve">
-    <value>모션 모니터</value>
-  </data>
-  <data name="Motion Unavailable" xml:space="preserve">
-    <value>모션 상태 미확인</value>
-  </data>
-  <data name="Motion feedback unavailable" xml:space="preserve">
+  <data name="motion feedback unavailable" xml:space="preserve">
     <value>모션 피드백 미확인</value>
   </data>
-  <data name="Motion group" xml:space="preserve">
+  <data name="motion group" xml:space="preserve">
     <value>모션 그룹</value>
   </data>
-  <data name="Motor Run" xml:space="preserve">
+  <data name="motion monitor" xml:space="preserve">
+    <value>모션 모니터</value>
+  </data>
+  <data name="motion unavailable" xml:space="preserve">
+    <value>모션 상태 미확인</value>
+  </data>
+  <data name="motor run" xml:space="preserve">
     <value>모터 가동</value>
   </data>
-  <data name="Move mode" xml:space="preserve">
+  <data name="move mode" xml:space="preserve">
     <value>이동 방식</value>
   </data>
-  <data name="Move to Selected Point" xml:space="preserve">
+  <data name="move to selected point" xml:space="preserve">
     <value>선택 위치로 이동</value>
   </data>
-  <data name="Moving" xml:space="preserve">
+  <data name="moving" xml:space="preserve">
     <value>이동 중</value>
   </data>
-  <data name="Moving S1 → S2" xml:space="preserve">
-    <value>S1 → S2 이송</value>
-  </data>
-  <data name="Moving S2 → S3" xml:space="preserve">
-    <value>S2 → S3 이송</value>
-  </data>
-  <data name="Moving and Placing Carrier" xml:space="preserve">
+  <data name="moving and placing carrier" xml:space="preserve">
     <value>캐리어 이송 및 안착</value>
   </data>
-  <data name="Moving to Position 1" xml:space="preserve">
+  <data name="moving s1 → s2" xml:space="preserve">
+    <value>S1 → S2 이송</value>
+  </data>
+  <data name="moving s2 → s3" xml:space="preserve">
+    <value>S2 → S3 이송</value>
+  </data>
+  <data name="moving to position 1" xml:space="preserve">
     <value>위치 1로 이동 중</value>
   </data>
-  <data name="Moving to Position 2" xml:space="preserve">
+  <data name="moving to position 2" xml:space="preserve">
     <value>위치 2로 이동 중</value>
   </data>
-  <data name="NG Carrier Detected" xml:space="preserve">
-    <value>NG 캐리어 감지</value>
+  <data name="movs (serial)" xml:space="preserve">
+    <value>MOVS (시리얼)</value>
   </data>
-  <data name="NG Carrier Eject Button" xml:space="preserve">
-    <value>NG 캐리어 배출 버튼</value>
-  </data>
-  <data name="NG Carrier Eject Complete Button" xml:space="preserve">
-    <value>NG 캐리어 배출 완료 버튼</value>
-  </data>
-  <data name="NG Carrier Eject Complete Lamp" xml:space="preserve">
-    <value>NG 캐리어 배출 완료 램프</value>
-  </data>
-  <data name="NG Carrier Eject Lamp" xml:space="preserve">
-    <value>NG 캐리어 배출 램프</value>
-  </data>
-  <data name="NG Carrier Gripper Close" xml:space="preserve">
-    <value>NG 캐리어 그리퍼 닫기</value>
-  </data>
-  <data name="NG Carrier Gripper Closed" xml:space="preserve">
-    <value>NG 캐리어 그리퍼 닫힘</value>
-  </data>
-  <data name="NG Carrier Gripper Open" xml:space="preserve">
-    <value>NG 캐리어 그리퍼 열림</value>
-  </data>
-  <data name="NG Carrier Pickup Down" xml:space="preserve">
-    <value>NG 캐리어 픽업 하강</value>
-  </data>
-  <data name="NG Carrier Pickup Up" xml:space="preserve">
-    <value>NG 캐리어 픽업 상승</value>
-  </data>
-  <data name="NG Carrier Ready to Eject" xml:space="preserve">
-    <value>NG 캐리어 배출 준비됨</value>
-  </data>
-  <data name="NG Carrier Transfer" xml:space="preserve">
-    <value>NG 캐리어 이송</value>
-  </data>
-  <data name="NG Conveyor" xml:space="preserve">
-    <value>NG 컨베이어</value>
-  </data>
-  <data name="NG Conveyor Full" xml:space="preserve">
-    <value>NG 컨베이어 가득 참</value>
-  </data>
-  <data name="NG Conveyor Manual Input" xml:space="preserve">
-    <value>NG 컨베이어 수동 입력</value>
-  </data>
-  <data name="NG Conveyor Normal Speed" xml:space="preserve">
-    <value>NG 컨베이어 정상 속도</value>
-  </data>
-  <data name="NG Conveyor Position 1 Occupied" xml:space="preserve">
-    <value>NG 컨베이어 위치 1 감지</value>
-  </data>
-  <data name="NG Conveyor Position 2 Occupied" xml:space="preserve">
-    <value>NG 컨베이어 위치 2 감지</value>
-  </data>
-  <data name="NG Conveyor Reverse" xml:space="preserve">
-    <value>NG 컨베이어 역방향</value>
-  </data>
-  <data name="NG Conveyor Run" xml:space="preserve">
-    <value>NG 컨베이어 가동</value>
-  </data>
-  <data name="NG Conveyor Stopper Down" xml:space="preserve">
-    <value>NG 컨베이어 스토퍼 하강</value>
-  </data>
-  <data name="NG Conveyor Stopper Up" xml:space="preserve">
-    <value>NG 컨베이어 스토퍼 상승</value>
-  </data>
-  <data name="NG Pick" xml:space="preserve">
-    <value>NG 픽업</value>
-  </data>
-  <data name="NG Shuttle" xml:space="preserve">
-    <value>NG 셔틀</value>
-  </data>
-  <data name="NG Shuttle Carrier Detected (P3)" xml:space="preserve">
-    <value>NG 셔틀 캐리어 감지 (P3)</value>
-  </data>
-  <data name="NG Shuttle Down" xml:space="preserve">
-    <value>NG 셔틀 하강</value>
-  </data>
-  <data name="NG Shuttle Up" xml:space="preserve">
-    <value>NG 셔틀 상승</value>
-  </data>
-  <data name="NG conveyor" xml:space="preserve">
-    <value>NG 컨베이어</value>
-  </data>
-  <data name="NG conveyor drive direction" xml:space="preserve">
-    <value>NG 컨베이어 구동 방향</value>
-  </data>
-  <data name="NG pickup: move / raise carrier" xml:space="preserve">
-    <value>NG 픽업: 이동 / 캐리어 상승</value>
-  </data>
-  <data name="NG shuttle + conveyor" xml:space="preserve">
-    <value>NG 셔틀 + 컨베이어</value>
-  </data>
-  <data name="NG transfer pending" xml:space="preserve">
-    <value>NG 이송 미완료</value>
-  </data>
-  <data name="NO." xml:space="preserve">
-    <value>번호</value>
-  </data>
-  <data name="NO. (ON/OFF)" xml:space="preserve">
-    <value>번호 (ON/OFF)</value>
-  </data>
-  <data name="NOT HOMED" xml:space="preserve">
-    <value>원점 미완료</value>
-  </data>
-  <data name="Negative Limit" xml:space="preserve">
+  <data name="negative limit" xml:space="preserve">
     <value>음의 리밋</value>
   </data>
-  <data name="New Recipe" xml:space="preserve">
+  <data name="new recipe" xml:space="preserve">
     <value>새 레시피</value>
   </data>
-  <data name="Next Virtual Result" xml:space="preserve">
+  <data name="next virtual result" xml:space="preserve">
     <value>다음 가상 결과</value>
   </data>
-  <data name="No PCB" xml:space="preserve">
-    <value>PCB 없음</value>
+  <data name="ng carrier detected" xml:space="preserve">
+    <value>NG 캐리어 감지</value>
   </data>
-  <data name="No PCB loaded" xml:space="preserve">
-    <value>불러온 PCB 없음</value>
+  <data name="ng carrier eject button" xml:space="preserve">
+    <value>NG 캐리어 배출 버튼</value>
   </data>
-  <data name="No PCB results" xml:space="preserve">
-    <value>PCB 결과 없음</value>
+  <data name="ng carrier eject complete button" xml:space="preserve">
+    <value>NG 캐리어 배출 완료 버튼</value>
   </data>
-  <data name="No fastening results recorded" xml:space="preserve">
+  <data name="ng carrier eject complete lamp" xml:space="preserve">
+    <value>NG 캐리어 배출 완료 램프</value>
+  </data>
+  <data name="ng carrier eject lamp" xml:space="preserve">
+    <value>NG 캐리어 배출 램프</value>
+  </data>
+  <data name="ng carrier gripper close" xml:space="preserve">
+    <value>NG 캐리어 그리퍼 닫기</value>
+  </data>
+  <data name="ng carrier gripper closed" xml:space="preserve">
+    <value>NG 캐리어 그리퍼 닫힘</value>
+  </data>
+  <data name="ng carrier gripper open" xml:space="preserve">
+    <value>NG 캐리어 그리퍼 열림</value>
+  </data>
+  <data name="ng carrier pickup down" xml:space="preserve">
+    <value>NG 캐리어 픽업 하강</value>
+  </data>
+  <data name="ng carrier pickup up" xml:space="preserve">
+    <value>NG 캐리어 픽업 상승</value>
+  </data>
+  <data name="ng carrier ready to eject" xml:space="preserve">
+    <value>NG 캐리어 배출 준비됨</value>
+  </data>
+  <data name="ng carrier transfer" xml:space="preserve">
+    <value>NG 캐리어 이송</value>
+  </data>
+  <data name="ng conveyor" xml:space="preserve">
+    <value>NG 컨베이어</value>
+  </data>
+  <data name="ng conveyor drive direction" xml:space="preserve">
+    <value>NG 컨베이어 구동 방향</value>
+  </data>
+  <data name="ng conveyor full" xml:space="preserve">
+    <value>NG 컨베이어 가득 참</value>
+  </data>
+  <data name="ng conveyor manual input" xml:space="preserve">
+    <value>NG 컨베이어 수동 입력</value>
+  </data>
+  <data name="ng conveyor normal speed" xml:space="preserve">
+    <value>NG 컨베이어 정상 속도</value>
+  </data>
+  <data name="ng conveyor position 1 occupied" xml:space="preserve">
+    <value>NG 컨베이어 위치 1 감지</value>
+  </data>
+  <data name="ng conveyor position 2 occupied" xml:space="preserve">
+    <value>NG 컨베이어 위치 2 감지</value>
+  </data>
+  <data name="ng conveyor reverse" xml:space="preserve">
+    <value>NG 컨베이어 역방향</value>
+  </data>
+  <data name="ng conveyor run" xml:space="preserve">
+    <value>NG 컨베이어 가동</value>
+  </data>
+  <data name="ng conveyor stopper down" xml:space="preserve">
+    <value>NG 컨베이어 스토퍼 하강</value>
+  </data>
+  <data name="ng conveyor stopper up" xml:space="preserve">
+    <value>NG 컨베이어 스토퍼 상승</value>
+  </data>
+  <data name="ng pick" xml:space="preserve">
+    <value>NG 픽업</value>
+  </data>
+  <data name="ng pickup: move / raise carrier" xml:space="preserve">
+    <value>NG 픽업: 이동 / 캐리어 상승</value>
+  </data>
+  <data name="ng shuttle" xml:space="preserve">
+    <value>NG 셔틀</value>
+  </data>
+  <data name="ng shuttle + conveyor" xml:space="preserve">
+    <value>NG 셔틀 + 컨베이어</value>
+  </data>
+  <data name="ng shuttle carrier detected (p3)" xml:space="preserve">
+    <value>NG 셔틀 캐리어 감지 (P3)</value>
+  </data>
+  <data name="ng shuttle down" xml:space="preserve">
+    <value>NG 셔틀 하강</value>
+  </data>
+  <data name="ng shuttle up" xml:space="preserve">
+    <value>NG 셔틀 상승</value>
+  </data>
+  <data name="ng transfer pending" xml:space="preserve">
+    <value>NG 이송 미완료</value>
+  </data>
+  <data name="no fastening results recorded" xml:space="preserve">
     <value>체결 결과 없음</value>
   </data>
-  <data name="No measurement" xml:space="preserve">
+  <data name="no measurement" xml:space="preserve">
     <value>측정값 없음</value>
   </data>
-  <data name="No reference image" xml:space="preserve">
+  <data name="no pcb" xml:space="preserve">
+    <value>PCB 없음</value>
+  </data>
+  <data name="no pcb loaded" xml:space="preserve">
+    <value>불러온 PCB 없음</value>
+  </data>
+  <data name="no pcb results" xml:space="preserve">
+    <value>PCB 결과 없음</value>
+  </data>
+  <data name="no reference image" xml:space="preserve">
     <value>기준 이미지 없음</value>
   </data>
-  <data name="No saved image for this point" xml:space="preserve">
+  <data name="no saved image for this point" xml:space="preserve">
     <value>저장된 이미지 없음</value>
   </data>
-  <data name="None" xml:space="preserve">
-    <value>없음</value>
-  </data>
-  <data name="Not In Position" xml:space="preserve">
-    <value>목표 위치 미도달</value>
-  </data>
-  <data name="Not Read" xml:space="preserve">
-    <value>미판독</value>
-  </data>
-  <data name="Not matched" xml:space="preserve">
-    <value>불일치</value>
-  </data>
-  <data name="Not read" xml:space="preserve">
-    <value>미판독</value>
-  </data>
-  <data name="Not recorded" xml:space="preserve">
-    <value>기록 없음</value>
-  </data>
-  <data name="Not set" xml:space="preserve">
-    <value>미설정</value>
-  </data>
-  <data name="Number" xml:space="preserve">
+  <data name="no." xml:space="preserve">
     <value>번호</value>
   </data>
-  <data name="OFF (dec)" xml:space="preserve">
+  <data name="no. (on/off)" xml:space="preserve">
+    <value>번호 (ON/OFF)</value>
+  </data>
+  <data name="none" xml:space="preserve">
+    <value>없음</value>
+  </data>
+  <data name="not homed" xml:space="preserve">
+    <value>원점 미완료</value>
+  </data>
+  <data name="not in position" xml:space="preserve">
+    <value>목표 위치 미도달</value>
+  </data>
+  <data name="not matched" xml:space="preserve">
+    <value>불일치</value>
+  </data>
+  <data name="not read" xml:space="preserve">
+    <value>미판독</value>
+  </data>
+  <data name="not recorded" xml:space="preserve">
+    <value>기록 없음</value>
+  </data>
+  <data name="not set" xml:space="preserve">
+    <value>미설정</value>
+  </data>
+  <data name="number" xml:space="preserve">
+    <value>번호</value>
+  </data>
+  <data name="off (dec)" xml:space="preserve">
     <value>OFF (10진수)</value>
   </data>
-  <data name="OFF: manual sensor simulation; motion still runs." xml:space="preserve">
+  <data name="off: manual sensor simulation; motion still runs." xml:space="preserve">
     <value>OFF: 센서는 수동으로 변경하며 모션은 계속 동작합니다.</value>
   </data>
-  <data name="ON (dec)" xml:space="preserve">
-    <value>ON (10진수)</value>
-  </data>
-  <data name="ON = MANUAL / OFF = AUTO" xml:space="preserve">
-    <value>ON = 수동 / OFF = 자동</value>
-  </data>
-  <data name="OPEN" xml:space="preserve">
-    <value>열림</value>
-  </data>
-  <data name="ORIGINAL ADC REGISTERS · ADDRESS : HEX" xml:space="preserve">
-    <value>ADC 원본 레지스터 · 주소 : 16진수</value>
-  </data>
-  <data name="OUTPUT" xml:space="preserve">
-    <value>출력</value>
-  </data>
-  <data name="OUTPUTS" xml:space="preserve">
-    <value>출력</value>
-  </data>
-  <data name="Older →" xml:space="preserve">
+  <data name="older →" xml:space="preserve">
     <value>이전 →</value>
   </data>
-  <data name="Open" xml:space="preserve">
+  <data name="on (dec)" xml:space="preserve">
+    <value>ON (10진수)</value>
+  </data>
+  <data name="on = manual / off = auto" xml:space="preserve">
+    <value>ON = 수동 / OFF = 자동</value>
+  </data>
+  <data name="open" xml:space="preserve">
     <value>열림</value>
   </data>
-  <data name="Operation" xml:space="preserve">
+  <data name="operation" xml:space="preserve">
     <value>운전</value>
   </data>
-  <data name="Operation &amp; safety" xml:space="preserve">
+  <data name="operation &amp; safety" xml:space="preserve">
     <value>운전 · 안전</value>
   </data>
-  <data name="Operation or stop cleanup in progress" xml:space="preserve">
+  <data name="operation or stop cleanup in progress" xml:space="preserve">
     <value>동작 또는 정지 처리 중</value>
   </data>
-  <data name="Operator Eject" xml:space="preserve">
+  <data name="operator eject" xml:space="preserve">
     <value>작업자 배출</value>
   </data>
-  <data name="Original · edit ROI" xml:space="preserve">
+  <data name="original adc registers · address : hex" xml:space="preserve">
+    <value>ADC 원본 레지스터 · 주소 : 16진수</value>
+  </data>
+  <data name="original · edit roi" xml:space="preserve">
     <value>원본 · ROI 편집</value>
   </data>
-  <data name="Output feedback unavailable" xml:space="preserve">
+  <data name="output" xml:space="preserve">
+    <value>출력</value>
+  </data>
+  <data name="output feedback unavailable" xml:space="preserve">
     <value>출력 상태 미확인</value>
   </data>
-  <data name="Output signal" xml:space="preserve">
+  <data name="output signal" xml:space="preserve">
     <value>출력 신호</value>
   </data>
-  <data name="P1 / EJECT" xml:space="preserve">
+  <data name="outputs" xml:space="preserve">
+    <value>출력</value>
+  </data>
+  <data name="p1 / eject" xml:space="preserve">
     <value>P1 / 배출</value>
   </data>
-  <data name="P3 LIFT" xml:space="preserve">
+  <data name="p3 lift" xml:space="preserve">
     <value>P3 리프트</value>
   </data>
-  <data name="PCB 1" xml:space="preserve">
-    <value>PCB 1</value>
-  </data>
-  <data name="PCB 1 Pickup" xml:space="preserve">
-    <value>PCB 1 픽업</value>
-  </data>
-  <data name="PCB 2" xml:space="preserve">
-    <value>PCB 2</value>
-  </data>
-  <data name="PCB 2 Pickup" xml:space="preserve">
-    <value>PCB 2 픽업</value>
-  </data>
-  <data name="PCB Detected" xml:space="preserve">
-    <value>PCB 감지</value>
-  </data>
-  <data name="PCB Handoff (Receive)" xml:space="preserve">
-    <value>PCB 인계 (수신)</value>
-  </data>
-  <data name="PCB Handoff (Supply)" xml:space="preserve">
-    <value>PCB 인계 (공급)</value>
-  </data>
-  <data name="PCB In" xml:space="preserve">
-    <value>PCB 투입</value>
-  </data>
-  <data name="PCB Placement" xml:space="preserve">
-    <value>PCB 안착</value>
-  </data>
-  <data name="PCB Placement - Heat Sink 1" xml:space="preserve">
-    <value>PCB 안착 - 히트싱크 1</value>
-  </data>
-  <data name="PCB Placement - Heat Sink 2" xml:space="preserve">
-    <value>PCB 안착 - 히트싱크 2</value>
-  </data>
-  <data name="PCB Placement Backup Plate Down" xml:space="preserve">
-    <value>PCB 안착 백업 플레이트 하강</value>
-  </data>
-  <data name="PCB Placement Backup Plate Up" xml:space="preserve">
-    <value>PCB 안착 백업 플레이트 상승</value>
-  </data>
-  <data name="PCB Placement Handler" xml:space="preserve">
-    <value>PCB 안착 핸들러</value>
-  </data>
-  <data name="PCB Placement Handler X" xml:space="preserve">
-    <value>PCB 안착 핸들러 X</value>
-  </data>
-  <data name="PCB Placement Handler Y" xml:space="preserve">
-    <value>PCB 안착 핸들러 Y</value>
-  </data>
-  <data name="PCB Placement Handler Z" xml:space="preserve">
-    <value>PCB 안착 핸들러 Z</value>
-  </data>
-  <data name="PCB Placement Heat Sink 1 Present" xml:space="preserve">
-    <value>PCB 안착 히트싱크 1 감지</value>
-  </data>
-  <data name="PCB Placement Heat Sink 2 Present" xml:space="preserve">
-    <value>PCB 안착 히트싱크 2 감지</value>
-  </data>
-  <data name="PCB Placement Station" xml:space="preserve">
-    <value>PCB 안착 스테이션</value>
-  </data>
-  <data name="PCB Placement Stopper Down" xml:space="preserve">
-    <value>PCB 안착 스토퍼 하강</value>
-  </data>
-  <data name="PCB Placement Stopper Up" xml:space="preserve">
-    <value>PCB 안착 스토퍼 상승</value>
-  </data>
-  <data name="PCB Receive Z" xml:space="preserve">
-    <value>PCB 수신 Z</value>
-  </data>
-  <data name="PCB Results" xml:space="preserve">
-    <value>PCB 결과</value>
-  </data>
-  <data name="PCB Secured" xml:space="preserve">
-    <value>PCB 고정됨</value>
-  </data>
-  <data name="PCB Supply" xml:space="preserve">
-    <value>PCB 공급</value>
-  </data>
-  <data name="PCB Supply / Placement" xml:space="preserve">
-    <value>PCB 공급 / 안착</value>
-  </data>
-  <data name="PCB Supply Handler X" xml:space="preserve">
-    <value>PCB 공급 핸들러 X</value>
-  </data>
-  <data name="PCB Supply Handler Y" xml:space="preserve">
-    <value>PCB 공급 핸들러 Y</value>
-  </data>
-  <data name="PCB Supply Handler Z" xml:space="preserve">
-    <value>PCB 공급 핸들러 Z</value>
-  </data>
-  <data name="PCB history unavailable" xml:space="preserve">
-    <value>PCB 이력 조회 불가</value>
-  </data>
-  <data name="PCB placement" xml:space="preserve">
-    <value>PCB 안착</value>
-  </data>
-  <data name="PCB result database" xml:space="preserve">
-    <value>PCB 결과 DB</value>
-  </data>
-  <data name="PCB supply" xml:space="preserve">
-    <value>PCB 공급</value>
-  </data>
-  <data name="PCB {0}" xml:space="preserve">
-    <value>PCB {0}</value>
-  </data>
-  <data name="PCB {0} · Results" xml:space="preserve">
-    <value>PCB {0} · 결과</value>
-  </data>
-  <data name="PCB {0} · images" xml:space="preserve">
-    <value>PCB {0} · 이미지</value>
-  </data>
-  <data name="PLACEMENT" xml:space="preserve">
-    <value>안착</value>
-  </data>
-  <data name="PORT" xml:space="preserve">
-    <value>포트</value>
-  </data>
-  <data name="PORT / ADDRESS" xml:space="preserve">
-    <value>포트 / 주소</value>
-  </data>
-  <data name="POSITION (mm)" xml:space="preserve">
-    <value>위치 (mm)</value>
-  </data>
-  <data name="PRESET" xml:space="preserve">
-    <value>프리셋</value>
-  </data>
-  <data name="Pause display" xml:space="preserve">
+  <data name="pause display" xml:space="preserve">
     <value>표시 일시정지</value>
   </data>
-  <data name="Pending" xml:space="preserve">
+  <data name="pcb 1" xml:space="preserve">
+    <value>PCB 1</value>
+  </data>
+  <data name="pcb 1 pickup" xml:space="preserve">
+    <value>PCB 1 픽업</value>
+  </data>
+  <data name="pcb 2" xml:space="preserve">
+    <value>PCB 2</value>
+  </data>
+  <data name="pcb 2 pickup" xml:space="preserve">
+    <value>PCB 2 픽업</value>
+  </data>
+  <data name="pcb detected" xml:space="preserve">
+    <value>PCB 감지</value>
+  </data>
+  <data name="pcb handoff (receive)" xml:space="preserve">
+    <value>PCB 인계 (수신)</value>
+  </data>
+  <data name="pcb handoff (supply)" xml:space="preserve">
+    <value>PCB 인계 (공급)</value>
+  </data>
+  <data name="pcb history unavailable" xml:space="preserve">
+    <value>PCB 이력 조회 불가</value>
+  </data>
+  <data name="pcb in" xml:space="preserve">
+    <value>PCB 투입</value>
+  </data>
+  <data name="pcb placement" xml:space="preserve">
+    <value>PCB 안착</value>
+  </data>
+  <data name="pcb placement - heat sink 1" xml:space="preserve">
+    <value>PCB 안착 - 히트싱크 1</value>
+  </data>
+  <data name="pcb placement - heat sink 2" xml:space="preserve">
+    <value>PCB 안착 - 히트싱크 2</value>
+  </data>
+  <data name="pcb placement backup plate down" xml:space="preserve">
+    <value>PCB 안착 백업 플레이트 하강</value>
+  </data>
+  <data name="pcb placement backup plate up" xml:space="preserve">
+    <value>PCB 안착 백업 플레이트 상승</value>
+  </data>
+  <data name="pcb placement handler" xml:space="preserve">
+    <value>PCB 안착 핸들러</value>
+  </data>
+  <data name="pcb placement handler x" xml:space="preserve">
+    <value>PCB 안착 핸들러 X</value>
+  </data>
+  <data name="pcb placement handler y" xml:space="preserve">
+    <value>PCB 안착 핸들러 Y</value>
+  </data>
+  <data name="pcb placement handler z" xml:space="preserve">
+    <value>PCB 안착 핸들러 Z</value>
+  </data>
+  <data name="pcb placement heat sink 1 present" xml:space="preserve">
+    <value>PCB 안착 히트싱크 1 감지</value>
+  </data>
+  <data name="pcb placement heat sink 2 present" xml:space="preserve">
+    <value>PCB 안착 히트싱크 2 감지</value>
+  </data>
+  <data name="pcb placement station" xml:space="preserve">
+    <value>PCB 안착 스테이션</value>
+  </data>
+  <data name="pcb placement stopper down" xml:space="preserve">
+    <value>PCB 안착 스토퍼 하강</value>
+  </data>
+  <data name="pcb placement stopper up" xml:space="preserve">
+    <value>PCB 안착 스토퍼 상승</value>
+  </data>
+  <data name="pcb receive z" xml:space="preserve">
+    <value>PCB 수신 Z</value>
+  </data>
+  <data name="pcb result database" xml:space="preserve">
+    <value>PCB 결과 DB</value>
+  </data>
+  <data name="pcb results" xml:space="preserve">
+    <value>PCB 결과</value>
+  </data>
+  <data name="pcb secured" xml:space="preserve">
+    <value>PCB 고정됨</value>
+  </data>
+  <data name="pcb supply" xml:space="preserve">
+    <value>PCB 공급</value>
+  </data>
+  <data name="pcb supply / placement" xml:space="preserve">
+    <value>PCB 공급 / 안착</value>
+  </data>
+  <data name="pcb supply handler x" xml:space="preserve">
+    <value>PCB 공급 핸들러 X</value>
+  </data>
+  <data name="pcb supply handler y" xml:space="preserve">
+    <value>PCB 공급 핸들러 Y</value>
+  </data>
+  <data name="pcb supply handler z" xml:space="preserve">
+    <value>PCB 공급 핸들러 Z</value>
+  </data>
+  <data name="pcb {0}" xml:space="preserve">
+    <value>PCB {0}</value>
+  </data>
+  <data name="pcb {0} · images" xml:space="preserve">
+    <value>PCB {0} · 이미지</value>
+  </data>
+  <data name="pcb {0} · results" xml:space="preserve">
+    <value>PCB {0} · 결과</value>
+  </data>
+  <data name="pending" xml:space="preserve">
     <value>대기</value>
   </data>
-  <data name="Pending saves: {0}" xml:space="preserve">
+  <data name="pending saves: {0}" xml:space="preserve">
     <value>저장 대기: {0}</value>
   </data>
-  <data name="Physical" xml:space="preserve">
+  <data name="physical" xml:space="preserve">
     <value>실장비</value>
   </data>
-  <data name="Pick" xml:space="preserve">
+  <data name="pick" xml:space="preserve">
     <value>픽업</value>
   </data>
-  <data name="Picking Carrier" xml:space="preserve">
+  <data name="picking carrier" xml:space="preserve">
     <value>캐리어 픽업 중</value>
   </data>
-  <data name="Picking PCB" xml:space="preserve">
+  <data name="picking pcb" xml:space="preserve">
     <value>PCB 픽업 중</value>
   </data>
-  <data name="Picking PCB for Repeat" xml:space="preserve">
+  <data name="picking pcb for repeat" xml:space="preserve">
     <value>반복용 PCB 픽업</value>
   </data>
-  <data name="Pickup" xml:space="preserve">
+  <data name="pickup" xml:space="preserve">
     <value>픽업</value>
   </data>
-  <data name="Pickup Bolt Feeder" xml:space="preserve">
+  <data name="pickup bolt feeder" xml:space="preserve">
     <value>픽업 볼트 피더</value>
   </data>
-  <data name="Pickup Controller FWD/BWD (Head 1)" xml:space="preserve">
+  <data name="pickup controller fwd/bwd (head 1)" xml:space="preserve">
     <value>픽업 체결기 정/역회전 (헤드 1)</value>
   </data>
-  <data name="Pickup Controller I/O (Head 1)" xml:space="preserve">
+  <data name="pickup controller i/o (head 1)" xml:space="preserve">
     <value>픽업 체결기 I/O (헤드 1)</value>
   </data>
-  <data name="Pickup Controller Lock (Head 1)" xml:space="preserve">
+  <data name="pickup controller lock (head 1)" xml:space="preserve">
     <value>픽업 체결기 잠금 (헤드 1)</value>
   </data>
-  <data name="Pickup Controller Preset 1 (Head 1)" xml:space="preserve">
+  <data name="pickup controller preset 1 (head 1)" xml:space="preserve">
     <value>픽업 체결기 프리셋 1 (헤드 1)</value>
   </data>
-  <data name="Pickup Controller Preset 2 (Head 1)" xml:space="preserve">
+  <data name="pickup controller preset 2 (head 1)" xml:space="preserve">
     <value>픽업 체결기 프리셋 2 (헤드 1)</value>
   </data>
-  <data name="Pickup Controller Preset 3 (Head 1)" xml:space="preserve">
+  <data name="pickup controller preset 3 (head 1)" xml:space="preserve">
     <value>픽업 체결기 프리셋 3 (헤드 1)</value>
   </data>
-  <data name="Pickup Controller Reset (Head 1)" xml:space="preserve">
+  <data name="pickup controller reset (head 1)" xml:space="preserve">
     <value>픽업 체결기 리셋 (헤드 1)</value>
   </data>
-  <data name="Pickup Controller Start (Head 1)" xml:space="preserve">
+  <data name="pickup controller start (head 1)" xml:space="preserve">
     <value>픽업 체결기 시작 (헤드 1)</value>
   </data>
-  <data name="Pickup Feeder Bolt Detected" xml:space="preserve">
-    <value>픽업 피더 볼트 감지</value>
-  </data>
-  <data name="Pickup Head" xml:space="preserve">
-    <value>픽업 헤드</value>
-  </data>
-  <data name="Pickup Head Down (Head 1)" xml:space="preserve">
-    <value>픽업 헤드 하강 (헤드 1)</value>
-  </data>
-  <data name="Pickup Head Fastening Z" xml:space="preserve">
-    <value>픽업 헤드 체결 Z</value>
-  </data>
-  <data name="Pickup Head Pin - Lower Right" xml:space="preserve">
-    <value>픽업 헤드 핀 - 우하단</value>
-  </data>
-  <data name="Pickup Head Pin - Upper Left" xml:space="preserve">
-    <value>픽업 헤드 핀 - 좌상단</value>
-  </data>
-  <data name="Pickup Head Up (Head 1)" xml:space="preserve">
-    <value>픽업 헤드 상승 (헤드 1)</value>
-  </data>
-  <data name="Pickup Head Vacuum Detected (Head 1)" xml:space="preserve">
-    <value>픽업 헤드 진공 감지 (헤드 1)</value>
-  </data>
-  <data name="Pickup Head Vacuum Pump (Head 1)" xml:space="preserve">
-    <value>픽업 헤드 진공 펌프 (헤드 1)</value>
-  </data>
-  <data name="Pickup Table Down (Head 1)" xml:space="preserve">
-    <value>픽업 테이블 하강 (헤드 1)</value>
-  </data>
-  <data name="Pickup Table Up (Head 1)" xml:space="preserve">
-    <value>픽업 테이블 상승 (헤드 1)</value>
-  </data>
-  <data name="Pickup feeder" xml:space="preserve">
+  <data name="pickup feeder" xml:space="preserve">
     <value>픽업 피더</value>
   </data>
-  <data name="Pickup feeder / head" xml:space="preserve">
+  <data name="pickup feeder / head" xml:space="preserve">
     <value>픽업 피더 / 헤드</value>
   </data>
-  <data name="Pickup retries (0 = off)" xml:space="preserve">
+  <data name="pickup feeder bolt detected" xml:space="preserve">
+    <value>픽업 피더 볼트 감지</value>
+  </data>
+  <data name="pickup head" xml:space="preserve">
+    <value>픽업 헤드</value>
+  </data>
+  <data name="pickup head down (head 1)" xml:space="preserve">
+    <value>픽업 헤드 하강 (헤드 1)</value>
+  </data>
+  <data name="pickup head fastening z" xml:space="preserve">
+    <value>픽업 헤드 체결 Z</value>
+  </data>
+  <data name="pickup head pin - lower right" xml:space="preserve">
+    <value>픽업 헤드 핀 - 우하단</value>
+  </data>
+  <data name="pickup head pin - upper left" xml:space="preserve">
+    <value>픽업 헤드 핀 - 좌상단</value>
+  </data>
+  <data name="pickup head up (head 1)" xml:space="preserve">
+    <value>픽업 헤드 상승 (헤드 1)</value>
+  </data>
+  <data name="pickup head vacuum detected (head 1)" xml:space="preserve">
+    <value>픽업 헤드 진공 감지 (헤드 1)</value>
+  </data>
+  <data name="pickup head vacuum pump (head 1)" xml:space="preserve">
+    <value>픽업 헤드 진공 펌프 (헤드 1)</value>
+  </data>
+  <data name="pickup retries (0 = off)" xml:space="preserve">
     <value>픽업 재시도 (0 = 없음)</value>
   </data>
-  <data name="Pickup · feed and fasten" xml:space="preserve">
+  <data name="pickup table down (head 1)" xml:space="preserve">
+    <value>픽업 테이블 하강 (헤드 1)</value>
+  </data>
+  <data name="pickup table up (head 1)" xml:space="preserve">
+    <value>픽업 테이블 상승 (헤드 1)</value>
+  </data>
+  <data name="pickup · feed and fasten" xml:space="preserve">
     <value>픽업 · 공급 및 체결</value>
   </data>
-  <data name="Pickup · supply bypassed / dry run" xml:space="preserve">
+  <data name="pickup · supply bypassed / dry run" xml:space="preserve">
     <value>픽업 · 공급 생략 / 공회전</value>
   </data>
-  <data name="Pickup: pick / fasten" xml:space="preserve">
+  <data name="pickup: pick / fasten" xml:space="preserve">
     <value>픽업: 집기 / 체결</value>
   </data>
-  <data name="Placement Handler" xml:space="preserve">
-    <value>안착 핸들러</value>
+  <data name="placement" xml:space="preserve">
+    <value>안착</value>
   </data>
-  <data name="Placement Handler Down" xml:space="preserve">
-    <value>안착 핸들러 하강</value>
-  </data>
-  <data name="Placement Handler PCB Detected" xml:space="preserve">
-    <value>안착 핸들러 PCB 감지</value>
-  </data>
-  <data name="Placement Handler Rotate" xml:space="preserve">
-    <value>안착 핸들러 회전</value>
-  </data>
-  <data name="Placement Handler Rotated" xml:space="preserve">
-    <value>안착 핸들러 회전 후</value>
-  </data>
-  <data name="Placement Handler Unrotated" xml:space="preserve">
-    <value>안착 핸들러 회전 전</value>
-  </data>
-  <data name="Placement Handler Up" xml:space="preserve">
-    <value>안착 핸들러 상승</value>
-  </data>
-  <data name="Placement IPM Down" xml:space="preserve">
-    <value>안착 IPM 하강</value>
-  </data>
-  <data name="Placement IPM Up" xml:space="preserve">
-    <value>안착 IPM 상승</value>
-  </data>
-  <data name="Placement Vacuum Detected" xml:space="preserve">
-    <value>안착 진공 감지</value>
-  </data>
-  <data name="Placement Vacuum Ejector" xml:space="preserve">
-    <value>안착 진공 이젝터</value>
-  </data>
-  <data name="Placement Z: conveyor clearance required" xml:space="preserve">
-    <value>안착 Z: 컨베이어 간섭 해제 위치 필요</value>
-  </data>
-  <data name="Placement backup plate" xml:space="preserve">
+  <data name="placement backup plate" xml:space="preserve">
     <value>안착 백업 플레이트</value>
   </data>
-  <data name="Placement stopper" xml:space="preserve">
+  <data name="placement handler" xml:space="preserve">
+    <value>안착 핸들러</value>
+  </data>
+  <data name="placement handler down" xml:space="preserve">
+    <value>안착 핸들러 하강</value>
+  </data>
+  <data name="placement handler pcb detected" xml:space="preserve">
+    <value>안착 핸들러 PCB 감지</value>
+  </data>
+  <data name="placement handler rotate" xml:space="preserve">
+    <value>안착 핸들러 회전</value>
+  </data>
+  <data name="placement handler rotated" xml:space="preserve">
+    <value>안착 핸들러 회전 후</value>
+  </data>
+  <data name="placement handler unrotated" xml:space="preserve">
+    <value>안착 핸들러 회전 전</value>
+  </data>
+  <data name="placement handler up" xml:space="preserve">
+    <value>안착 핸들러 상승</value>
+  </data>
+  <data name="placement ipm down" xml:space="preserve">
+    <value>안착 IPM 하강</value>
+  </data>
+  <data name="placement ipm up" xml:space="preserve">
+    <value>안착 IPM 상승</value>
+  </data>
+  <data name="placement stopper" xml:space="preserve">
     <value>안착 스토퍼</value>
   </data>
-  <data name="Placement · Z" xml:space="preserve">
+  <data name="placement vacuum detected" xml:space="preserve">
+    <value>안착 진공 감지</value>
+  </data>
+  <data name="placement vacuum ejector" xml:space="preserve">
+    <value>안착 진공 이젝터</value>
+  </data>
+  <data name="placement z: conveyor clearance required" xml:space="preserve">
+    <value>안착 Z: 컨베이어 간섭 해제 위치 필요</value>
+  </data>
+  <data name="placement · z" xml:space="preserve">
     <value>안착 · Z</value>
   </data>
-  <data name="Placing and Pressing PCB" xml:space="preserve">
+  <data name="placing and pressing pcb" xml:space="preserve">
     <value>PCB 안착 및 압착</value>
   </data>
-  <data name="Position unknown" xml:space="preserve">
+  <data name="port" xml:space="preserve">
+    <value>포트</value>
+  </data>
+  <data name="port / address" xml:space="preserve">
+    <value>포트 / 주소</value>
+  </data>
+  <data name="position (mm)" xml:space="preserve">
+    <value>위치 (mm)</value>
+  </data>
+  <data name="position unknown" xml:space="preserve">
     <value>위치 미확인</value>
   </data>
-  <data name="Positioning" xml:space="preserve">
+  <data name="positioning" xml:space="preserve">
     <value>위치 이동 중</value>
   </data>
-  <data name="Positive Limit" xml:space="preserve">
+  <data name="positive limit" xml:space="preserve">
     <value>양의 리밋</value>
   </data>
-  <data name="Preparing / moving to handoff" xml:space="preserve">
+  <data name="preparing / moving to handoff" xml:space="preserve">
     <value>인계 준비 / 이동</value>
   </data>
-  <data name="Preparing Carrier Work" xml:space="preserve">
+  <data name="preparing carrier work" xml:space="preserve">
     <value>캐리어 작업 준비</value>
   </data>
-  <data name="Preparing Inspection Points" xml:space="preserve">
-    <value>검사 위치 준비</value>
-  </data>
-  <data name="Preparing Inspection Supports" xml:space="preserve">
-    <value>검사 지지대 준비</value>
-  </data>
-  <data name="Preparing Pickup" xml:space="preserve">
-    <value>픽업 준비</value>
-  </data>
-  <data name="Preparing Pickup / Standby" xml:space="preserve">
-    <value>픽업 / 대기 준비</value>
-  </data>
-  <data name="Preparing S3: plate DOWN" xml:space="preserve">
-    <value>S3 준비: 플레이트 하강</value>
-  </data>
-  <data name="Preparing first shooting point" xml:space="preserve">
+  <data name="preparing first shooting point" xml:space="preserve">
     <value>첫 슈팅 위치 준비</value>
   </data>
-  <data name="Preparing to Receive Returned PCB" xml:space="preserve">
+  <data name="preparing inspection points" xml:space="preserve">
+    <value>검사 위치 준비</value>
+  </data>
+  <data name="preparing inspection supports" xml:space="preserve">
+    <value>검사 지지대 준비</value>
+  </data>
+  <data name="preparing pickup" xml:space="preserve">
+    <value>픽업 준비</value>
+  </data>
+  <data name="preparing pickup / standby" xml:space="preserve">
+    <value>픽업 / 대기 준비</value>
+  </data>
+  <data name="preparing s3: plate down" xml:space="preserve">
+    <value>S3 준비: 플레이트 하강</value>
+  </data>
+  <data name="preparing to receive returned pcb" xml:space="preserve">
     <value>복귀 PCB 수신 준비</value>
   </data>
-  <data name="Preset" xml:space="preserve">
+  <data name="preset" xml:space="preserve">
     <value>프리셋</value>
   </data>
-  <data name="Preset Changed" xml:space="preserve">
+  <data name="preset changed" xml:space="preserve">
     <value>프리셋 변경</value>
   </data>
-  <data name="Press RESET to restore servo power" xml:space="preserve">
+  <data name="press reset to restore servo power" xml:space="preserve">
     <value>리셋으로 서보 전원을 복구하세요</value>
   </data>
-  <data name="Pure barcode" xml:space="preserve">
+  <data name="pure barcode" xml:space="preserve">
     <value>바코드 전용 이미지</value>
   </data>
-  <data name="READY" xml:space="preserve">
-    <value>준비</value>
-  </data>
-  <data name="RECIPE" xml:space="preserve">
-    <value>레시피</value>
-  </data>
-  <data name="REGISTER ACCESS" xml:space="preserve">
-    <value>레지스터 조회</value>
-  </data>
-  <data name="REPEAT" xml:space="preserve">
-    <value>반복</value>
-  </data>
-  <data name="RESET" xml:space="preserve">
-    <value>리셋</value>
-  </data>
-  <data name="RESETTING..." xml:space="preserve">
-    <value>리셋 중...</value>
-  </data>
-  <data name="RESPONSE" xml:space="preserve">
-    <value>응답</value>
-  </data>
-  <data name="RESULT" xml:space="preserve">
-    <value>결과</value>
-  </data>
-  <data name="RESULT TORQUE" xml:space="preserve">
-    <value>결과 토크</value>
-  </data>
-  <data name="RUN" xml:space="preserve">
-    <value>가동</value>
-  </data>
-  <data name="Raise NG pickup" xml:space="preserve">
-    <value>NG 픽업 상승 필요</value>
-  </data>
-  <data name="Raise NG pickup (UP=ON, DOWN=OFF)" xml:space="preserve">
-    <value>NG 픽업 상승 필요 (UP=ON, DOWN=OFF)</value>
-  </data>
-  <data name="Raise NG pickup before XY movement" xml:space="preserve">
-    <value>XY 이동 전 NG 픽업 상승 필요</value>
-  </data>
-  <data name="Raise both fastening heads" xml:space="preserve">
+  <data name="raise both fastening heads" xml:space="preserve">
     <value>체결 헤드 양쪽 상승 필요</value>
   </data>
-  <data name="Raise placement cylinders" xml:space="preserve">
+  <data name="raise ng pickup" xml:space="preserve">
+    <value>NG 픽업 상승 필요</value>
+  </data>
+  <data name="raise ng pickup (up=on, down=off)" xml:space="preserve">
+    <value>NG 픽업 상승 필요 (UP=ON, DOWN=OFF)</value>
+  </data>
+  <data name="raise ng pickup before xy movement" xml:space="preserve">
+    <value>XY 이동 전 NG 픽업 상승 필요</value>
+  </data>
+  <data name="raise placement cylinders" xml:space="preserve">
     <value>안착 실린더 상승 필요</value>
   </data>
-  <data name="Raise placement handler" xml:space="preserve">
+  <data name="raise placement handler" xml:space="preserve">
     <value>안착 핸들러 상승 필요</value>
   </data>
-  <data name="Raise placement handler and IPM lift" xml:space="preserve">
+  <data name="raise placement handler and ipm lift" xml:space="preserve">
     <value>안착 핸들러와 IPM 리프트 상승 필요</value>
   </data>
-  <data name="Raising / leaving handoff" xml:space="preserve">
+  <data name="raising / leaving handoff" xml:space="preserve">
     <value>상승 / 인계 위치 이탈</value>
   </data>
-  <data name="Raising NG Shuttle" xml:space="preserve">
+  <data name="raising ng shuttle" xml:space="preserve">
     <value>NG 셔틀 상승 중</value>
   </data>
-  <data name="Raising S3" xml:space="preserve">
+  <data name="raising s3" xml:space="preserve">
     <value>S3 상승 중</value>
   </data>
-  <data name="Read Device Info" xml:space="preserve">
+  <data name="read device info" xml:space="preserve">
     <value>장치 정보 읽기</value>
   </data>
-  <data name="Read Holding Registers" xml:space="preserve">
+  <data name="read holding registers" xml:space="preserve">
     <value>홀딩 레지스터 읽기</value>
   </data>
-  <data name="Read Input Registers" xml:space="preserve">
+  <data name="read input registers" xml:space="preserve">
     <value>입력 레지스터 읽기</value>
   </data>
-  <data name="Read Last Result" xml:space="preserve">
+  <data name="read last result" xml:space="preserve">
     <value>최근 결과 읽기</value>
   </data>
-  <data name="Reading Data Matrix" xml:space="preserve">
+  <data name="reading data matrix" xml:space="preserve">
     <value>데이터 매트릭스 판독 중</value>
   </data>
-  <data name="Ready" xml:space="preserve">
+  <data name="ready" xml:space="preserve">
     <value>준비</value>
   </data>
-  <data name="Ready " xml:space="preserve">
+  <data name="ready " xml:space="preserve">
     <value>준비 </value>
   </data>
-  <data name="Ready From Rear" xml:space="preserve">
+  <data name="ready from rear" xml:space="preserve">
     <value>후단 수신 가능</value>
   </data>
-  <data name="Ready To Front 1 (PCB)" xml:space="preserve">
+  <data name="ready to front 1 (pcb)" xml:space="preserve">
     <value>전단 1 수신 가능 (PCB)</value>
   </data>
-  <data name="Ready To Front 2 (Heat Sink)" xml:space="preserve">
+  <data name="ready to front 2 (heat sink)" xml:space="preserve">
     <value>전단 2 수신 가능 (히트싱크)</value>
   </data>
-  <data name="Rear Ready OFF extra run (s)" xml:space="preserve">
+  <data name="rear ready off extra run (s)" xml:space="preserve">
     <value>후단 Ready OFF 후 추가 이송 (s)</value>
   </data>
-  <data name="Rear · Ready to receive" xml:space="preserve">
+  <data name="rear · ready to receive" xml:space="preserve">
     <value>후단 · 수신 가능</value>
   </data>
-  <data name="Rear · SMEMA" xml:space="preserve">
+  <data name="rear · smema" xml:space="preserve">
     <value>후단 · SMEMA</value>
   </data>
-  <data name="Receive" xml:space="preserve">
+  <data name="receive" xml:space="preserve">
     <value>수신</value>
   </data>
-  <data name="Receiving PCB" xml:space="preserve">
-    <value>PCB 수신 중</value>
-  </data>
-  <data name="Receiving at infeed" xml:space="preserve">
+  <data name="receiving at infeed" xml:space="preserve">
     <value>전단 수신 중</value>
   </data>
-  <data name="Recipe" xml:space="preserve">
+  <data name="receiving pcb" xml:space="preserve">
+    <value>PCB 수신 중</value>
+  </data>
+  <data name="recipe" xml:space="preserve">
     <value>레시피</value>
   </data>
-  <data name="Record Position" xml:space="preserve">
+  <data name="record position" xml:space="preserve">
     <value>위치 기록</value>
   </data>
-  <data name="Record X/Y" xml:space="preserve">
+  <data name="record x/y" xml:space="preserve">
     <value>X/Y 기록</value>
   </data>
-  <data name="Record X/Y/Z" xml:space="preserve">
+  <data name="record x/y/z" xml:space="preserve">
     <value>X/Y/Z 기록</value>
   </data>
-  <data name="Record Z" xml:space="preserve">
+  <data name="record z" xml:space="preserve">
     <value>Z 기록</value>
   </data>
-  <data name="Reference image unavailable" xml:space="preserve">
+  <data name="reference image unavailable" xml:space="preserve">
     <value>기준 이미지 없음</value>
   </data>
-  <data name="Reference positions" xml:space="preserve">
+  <data name="reference positions" xml:space="preserve">
     <value>기준 위치</value>
   </data>
-  <data name="Refresh List" xml:space="preserve">
+  <data name="refresh list" xml:space="preserve">
     <value>목록 새로고침</value>
   </data>
-  <data name="Refresh Ports" xml:space="preserve">
+  <data name="refresh ports" xml:space="preserve">
     <value>포트 새로고침</value>
   </data>
-  <data name="Related I/O" xml:space="preserve">
+  <data name="register access" xml:space="preserve">
+    <value>레지스터 조회</value>
+  </data>
+  <data name="related i/o" xml:space="preserve">
     <value>관련 I/O</value>
   </data>
-  <data name="Release E-stop, then press RESET" xml:space="preserve">
-    <value>비상정지 해제 후 리셋하세요</value>
-  </data>
-  <data name="Release both E-stops" xml:space="preserve">
+  <data name="release both e-stops" xml:space="preserve">
     <value>비상정지 양쪽 해제 필요</value>
   </data>
-  <data name="Release held PCB before HOME (IPM lift down)" xml:space="preserve">
+  <data name="release e-stop, then press reset" xml:space="preserve">
+    <value>비상정지 해제 후 리셋하세요</value>
+  </data>
+  <data name="release held pcb before home (ipm lift down)" xml:space="preserve">
     <value>원점 전 파지된 PCB 해제 (IPM 리프트 하강 상태)</value>
   </data>
-  <data name="Release or STOP to stop rotation." xml:space="preserve">
+  <data name="release or stop to stop rotation." xml:space="preserve">
     <value>버튼을 놓거나 정지를 누르면 회전이 멈춥니다.</value>
   </data>
-  <data name="Releasing PCB / leaving supply" xml:space="preserve">
+  <data name="releasing pcb / leaving supply" xml:space="preserve">
     <value>PCB 해제 / 공급측 이탈</value>
   </data>
-  <data name="Remote Start" xml:space="preserve">
+  <data name="remote start" xml:space="preserve">
     <value>원격 시작</value>
   </data>
-  <data name="Remove Bolt" xml:space="preserve">
+  <data name="remove bolt" xml:space="preserve">
     <value>볼트 삭제</value>
   </data>
-  <data name="Remove Carrier · EJECT Next / COMPLETE to Resume" xml:space="preserve">
+  <data name="remove carrier · eject next / complete to resume" xml:space="preserve">
     <value>캐리어 제거 · 추가 배출 / 완료로 재개</value>
   </data>
-  <data name="Request Device Information" xml:space="preserve">
+  <data name="repeat" xml:space="preserve">
+    <value>반복</value>
+  </data>
+  <data name="request device information" xml:space="preserve">
     <value>장치 정보 요청</value>
   </data>
-  <data name="Reset Button" xml:space="preserve">
+  <data name="reset" xml:space="preserve">
+    <value>리셋</value>
+  </data>
+  <data name="reset button" xml:space="preserve">
     <value>리셋 버튼</value>
   </data>
-  <data name="Response timeout (s)" xml:space="preserve">
+  <data name="resetting..." xml:space="preserve">
+    <value>리셋 중...</value>
+  </data>
+  <data name="response" xml:space="preserve">
+    <value>응답</value>
+  </data>
+  <data name="response timeout (s)" xml:space="preserve">
     <value>응답 타임아웃 (s)</value>
   </data>
-  <data name="Restore air pressure, then press RESET" xml:space="preserve">
+  <data name="restore air pressure, then press reset" xml:space="preserve">
     <value>공압 복구 후 리셋하세요</value>
   </data>
-  <data name="Results folder" xml:space="preserve">
+  <data name="result" xml:space="preserve">
+    <value>결과</value>
+  </data>
+  <data name="result torque" xml:space="preserve">
+    <value>결과 토크</value>
+  </data>
+  <data name="results folder" xml:space="preserve">
     <value>결과 폴더</value>
   </data>
-  <data name="Retention (days)" xml:space="preserve">
+  <data name="retention (days)" xml:space="preserve">
     <value>보관 기간 (일)</value>
   </data>
-  <data name="Retry loading" xml:space="preserve">
+  <data name="retry loading" xml:space="preserve">
     <value>불러오기 재시도</value>
   </data>
-  <data name="Retry save" xml:space="preserve">
+  <data name="retry save" xml:space="preserve">
     <value>저장 재시도</value>
   </data>
-  <data name="Returning / completing inspection" xml:space="preserve">
+  <data name="returning / completing inspection" xml:space="preserve">
     <value>복귀 / 검사 마무리</value>
   </data>
-  <data name="Returning Above Pickup with PCB" xml:space="preserve">
+  <data name="returning above pickup with pcb" xml:space="preserve">
     <value>PCB 파지 후 픽업 상부 복귀</value>
   </data>
-  <data name="Returning PCB to Supply" xml:space="preserve">
-    <value>PCB 공급측 복귀</value>
-  </data>
-  <data name="Returning carrier to entry" xml:space="preserve">
+  <data name="returning carrier to entry" xml:space="preserve">
     <value>캐리어 입구 복귀</value>
   </data>
-  <data name="Returning carrier to shuttle" xml:space="preserve">
+  <data name="returning carrier to shuttle" xml:space="preserve">
     <value>캐리어 셔틀 복귀</value>
   </data>
-  <data name="Returning to Waiting Position" xml:space="preserve">
-    <value>대기 위치로 복귀 중</value>
+  <data name="returning pcb to supply" xml:space="preserve">
+    <value>PCB 공급측 복귀</value>
   </data>
-  <data name="Returning to entry sensor" xml:space="preserve">
+  <data name="returning to entry sensor" xml:space="preserve">
     <value>입구 센서로 복귀 중</value>
   </data>
-  <data name="Rotated" xml:space="preserve">
+  <data name="returning to waiting position" xml:space="preserve">
+    <value>대기 위치로 복귀 중</value>
+  </data>
+  <data name="rotated" xml:space="preserve">
     <value>회전 후</value>
   </data>
-  <data name="Rotation" xml:space="preserve">
+  <data name="rotation" xml:space="preserve">
     <value>회전 검색</value>
   </data>
-  <data name="Run" xml:space="preserve">
+  <data name="run" xml:space="preserve">
     <value>가동</value>
   </data>
-  <data name="Run HOME ALL" xml:space="preserve">
+  <data name="run home all" xml:space="preserve">
     <value>전체 원점을 실행하세요</value>
   </data>
-  <data name="Running" xml:space="preserve">
+  <data name="running" xml:space="preserve">
     <value>가동 중</value>
   </data>
-  <data name="SAFETY BYPASS" xml:space="preserve">
-    <value>안전 인터록 해제</value>
-  </data>
-  <data name="SCREW COUNT" xml:space="preserve">
-    <value>볼트 수</value>
-  </data>
-  <data name="SDK pulse" xml:space="preserve">
-    <value>SDK 펄스</value>
-  </data>
-  <data name="SDK unit" xml:space="preserve">
-    <value>SDK 단위</value>
-  </data>
-  <data name="SEARCH · AXIS / NUMBER" xml:space="preserve">
-    <value>검색 · 축 / 번호</value>
-  </data>
-  <data name="SEARCH · SIGNAL / CHANNEL" xml:space="preserve">
-    <value>검색 · 신호 / 채널</value>
-  </data>
-  <data name="SERVO" xml:space="preserve">
-    <value>서보</value>
-  </data>
-  <data name="SERVO OFF" xml:space="preserve">
-    <value>서보 OFF</value>
-  </data>
-  <data name="SERVO ON" xml:space="preserve">
-    <value>서보 ON</value>
-  </data>
-  <data name="SHOOT OFF" xml:space="preserve">
-    <value>슈팅 OFF</value>
-  </data>
-  <data name="SHOOT ON" xml:space="preserve">
-    <value>슈팅 ON</value>
-  </data>
-  <data name="SHOOT · ?" xml:space="preserve">
-    <value>슈팅 · ?</value>
-  </data>
-  <data name="SLAVE" xml:space="preserve">
-    <value>슬레이브</value>
-  </data>
-  <data name="SMEMA Test" xml:space="preserve">
-    <value>SMEMA 시험</value>
-  </data>
-  <data name="SNUG ANGLE (°)" xml:space="preserve">
-    <value>스너그 각도 (°)</value>
-  </data>
-  <data name="START" xml:space="preserve">
-    <value>시작</value>
-  </data>
-  <data name="STATE" xml:space="preserve">
-    <value>상태</value>
-  </data>
-  <data name="STATUS" xml:space="preserve">
-    <value>상태</value>
-  </data>
-  <data name="STOP" xml:space="preserve">
-    <value>정지</value>
-  </data>
-  <data name="SUPPLY" xml:space="preserve">
-    <value>공급</value>
-  </data>
-  <data name="SUPPLY · ?" xml:space="preserve">
-    <value>공급 · ?</value>
-  </data>
-  <data name="Safe Z → Raise Pickup Head" xml:space="preserve">
+  <data name="safe z → raise pickup head" xml:space="preserve">
     <value>Safe Z → 픽업 헤드 상승</value>
   </data>
-  <data name="Safety" xml:space="preserve">
+  <data name="safety" xml:space="preserve">
     <value>안전</value>
   </data>
-  <data name="Safety Stop" xml:space="preserve">
+  <data name="safety bypass" xml:space="preserve">
+    <value>안전 인터록 해제</value>
+  </data>
+  <data name="safety stop" xml:space="preserve">
     <value>안전 정지</value>
   </data>
-  <data name="Save + restart" xml:space="preserve">
+  <data name="save + restart" xml:space="preserve">
     <value>저장 후 재시작</value>
   </data>
-  <data name="Save Inspection Settings" xml:space="preserve">
+  <data name="save inspection settings" xml:space="preserve">
     <value>검사 설정 저장</value>
   </data>
-  <data name="Save Settings" xml:space="preserve">
+  <data name="save settings" xml:space="preserve">
     <value>설정 저장</value>
   </data>
-  <data name="Save Teaching" xml:space="preserve">
+  <data name="save teaching" xml:space="preserve">
     <value>티칭 저장</value>
   </data>
-  <data name="Save X/Y + Image" xml:space="preserve">
+  <data name="save x/y + image" xml:space="preserve">
     <value>X/Y + 이미지 저장</value>
   </data>
-  <data name="Saved results" xml:space="preserve">
+  <data name="saved results" xml:space="preserve">
     <value>저장 결과</value>
   </data>
-  <data name="Saving..." xml:space="preserve">
+  <data name="saving..." xml:space="preserve">
     <value>저장 중...</value>
   </data>
-  <data name="Screw Count" xml:space="preserve">
+  <data name="screw count" xml:space="preserve">
     <value>볼트 수</value>
   </data>
-  <data name="Search acceleration (s)" xml:space="preserve">
+  <data name="sdk pulse" xml:space="preserve">
+    <value>SDK 펄스</value>
+  </data>
+  <data name="sdk unit" xml:space="preserve">
+    <value>SDK 단위</value>
+  </data>
+  <data name="search acceleration (s)" xml:space="preserve">
     <value>검색 가속 시간 (s)</value>
   </data>
-  <data name="Search speed (mm/s)" xml:space="preserve">
+  <data name="search speed (mm/s)" xml:space="preserve">
     <value>검색 속도 (mm/s)</value>
   </data>
-  <data name="Seating S1 / S2 carriers" xml:space="preserve">
+  <data name="search · axis / number" xml:space="preserve">
+    <value>검색 · 축 / 번호</value>
+  </data>
+  <data name="search · signal / channel" xml:space="preserve">
+    <value>검색 · 신호 / 채널</value>
+  </data>
+  <data name="seating s1 / s2 carriers" xml:space="preserve">
     <value>S1 / S2 캐리어 착좌</value>
   </data>
-  <data name="Securing PCB and Moving to Handoff" xml:space="preserve">
+  <data name="securing pcb and moving to handoff" xml:space="preserve">
     <value>PCB 고정 및 인계 위치 이동</value>
   </data>
-  <data name="Select Preset 1" xml:space="preserve">
-    <value>프리셋 1 선택</value>
-  </data>
-  <data name="Select TEACHING (MANUAL) mode for REPEAT" xml:space="preserve">
-    <value>반복 운전은 수동 모드에서 가능합니다</value>
-  </data>
-  <data name="Select all" xml:space="preserve">
+  <data name="select all" xml:space="preserve">
     <value>전체 선택</value>
   </data>
-  <data name="Send Command" xml:space="preserve">
+  <data name="select preset 1" xml:space="preserve">
+    <value>프리셋 1 선택</value>
+  </data>
+  <data name="select teaching (manual) mode for repeat" xml:space="preserve">
+    <value>반복 운전은 수동 모드에서 가능합니다</value>
+  </data>
+  <data name="send command" xml:space="preserve">
     <value>명령 전송</value>
   </data>
-  <data name="Servo Main Contactor On" xml:space="preserve">
+  <data name="servo" xml:space="preserve">
+    <value>서보</value>
+  </data>
+  <data name="servo main contactor on" xml:space="preserve">
     <value>서보 메인 전원 ON</value>
   </data>
-  <data name="Servo OFF" xml:space="preserve">
+  <data name="servo off" xml:space="preserve">
     <value>서보 OFF</value>
   </data>
-  <data name="Servo ON" xml:space="preserve">
+  <data name="servo on" xml:space="preserve">
     <value>서보 ON</value>
   </data>
-  <data name="Servo Off" xml:space="preserve">
-    <value>서보 OFF</value>
-  </data>
-  <data name="Settings" xml:space="preserve">
+  <data name="settings" xml:space="preserve">
     <value>설정</value>
   </data>
-  <data name="Shared status monitor" xml:space="preserve">
+  <data name="shared status monitor" xml:space="preserve">
     <value>공통 상태 모니터</value>
   </data>
-  <data name="Shoot" xml:space="preserve">
+  <data name="shoot" xml:space="preserve">
     <value>슈팅</value>
   </data>
-  <data name="Shoot Bolt" xml:space="preserve">
+  <data name="shoot bolt" xml:space="preserve">
     <value>볼트 슈팅</value>
   </data>
-  <data name="Shooting" xml:space="preserve">
+  <data name="shoot off" xml:space="preserve">
+    <value>슈팅 OFF</value>
+  </data>
+  <data name="shoot on" xml:space="preserve">
+    <value>슈팅 ON</value>
+  </data>
+  <data name="shoot · ?" xml:space="preserve">
+    <value>슈팅 · ?</value>
+  </data>
+  <data name="shooting" xml:space="preserve">
     <value>슈팅</value>
   </data>
-  <data name="Shooting Bolt Feeder" xml:space="preserve">
+  <data name="shooting bolt feeder" xml:space="preserve">
     <value>슈팅 볼트 피더</value>
   </data>
-  <data name="Shooting Controller FWD/BWD (Head 2)" xml:space="preserve">
+  <data name="shooting controller fwd/bwd (head 2)" xml:space="preserve">
     <value>슈팅 체결기 정/역회전 (헤드 2)</value>
   </data>
-  <data name="Shooting Controller I/O (Head 2)" xml:space="preserve">
+  <data name="shooting controller i/o (head 2)" xml:space="preserve">
     <value>슈팅 체결기 I/O (헤드 2)</value>
   </data>
-  <data name="Shooting Controller Lock (Head 2)" xml:space="preserve">
+  <data name="shooting controller lock (head 2)" xml:space="preserve">
     <value>슈팅 체결기 잠금 (헤드 2)</value>
   </data>
-  <data name="Shooting Controller Preset 1 (Head 2)" xml:space="preserve">
+  <data name="shooting controller preset 1 (head 2)" xml:space="preserve">
     <value>슈팅 체결기 프리셋 1 (헤드 2)</value>
   </data>
-  <data name="Shooting Controller Preset 2 (Head 2)" xml:space="preserve">
+  <data name="shooting controller preset 2 (head 2)" xml:space="preserve">
     <value>슈팅 체결기 프리셋 2 (헤드 2)</value>
   </data>
-  <data name="Shooting Controller Preset 3 (Head 2)" xml:space="preserve">
+  <data name="shooting controller preset 3 (head 2)" xml:space="preserve">
     <value>슈팅 체결기 프리셋 3 (헤드 2)</value>
   </data>
-  <data name="Shooting Controller Reset (Head 2)" xml:space="preserve">
+  <data name="shooting controller reset (head 2)" xml:space="preserve">
     <value>슈팅 체결기 리셋 (헤드 2)</value>
   </data>
-  <data name="Shooting Controller Start (Head 2)" xml:space="preserve">
+  <data name="shooting controller start (head 2)" xml:space="preserve">
     <value>슈팅 체결기 시작 (헤드 2)</value>
   </data>
-  <data name="Shooting Escape Backward" xml:space="preserve">
+  <data name="shooting escape backward" xml:space="preserve">
     <value>슈팅 이스케이프 후진</value>
   </data>
-  <data name="Shooting Escape Forward" xml:space="preserve">
+  <data name="shooting escape forward" xml:space="preserve">
     <value>슈팅 이스케이프 전진</value>
   </data>
-  <data name="Shooting Feeder Bolt Detected (Linear)" xml:space="preserve">
-    <value>슈팅 피더 볼트 감지 (리니어)</value>
-  </data>
-  <data name="Shooting Feeder OFF (Linear)" xml:space="preserve">
-    <value>슈팅 피더 OFF (리니어)</value>
-  </data>
-  <data name="Shooting Head" xml:space="preserve">
-    <value>슈팅 헤드</value>
-  </data>
-  <data name="Shooting Head Down (Head 2)" xml:space="preserve">
-    <value>슈팅 헤드 하강 (헤드 2)</value>
-  </data>
-  <data name="Shooting Head Fastening Z" xml:space="preserve">
-    <value>슈팅 헤드 체결 Z</value>
-  </data>
-  <data name="Shooting Head Pin - Lower Right" xml:space="preserve">
-    <value>슈팅 헤드 핀 - 우하단</value>
-  </data>
-  <data name="Shooting Head Pin - Upper Left" xml:space="preserve">
-    <value>슈팅 헤드 핀 - 좌상단</value>
-  </data>
-  <data name="Shooting Head Up (Head 2)" xml:space="preserve">
-    <value>슈팅 헤드 상승 (헤드 2)</value>
-  </data>
-  <data name="Shooting Head Vacuum Detected (Head 2)" xml:space="preserve">
-    <value>슈팅 헤드 진공 감지 (헤드 2)</value>
-  </data>
-  <data name="Shooting Head Vacuum Pump (Head 2)" xml:space="preserve">
-    <value>슈팅 헤드 진공 펌프 (헤드 2)</value>
-  </data>
-  <data name="Shooting Safe Z" xml:space="preserve">
-    <value>슈팅 Safe Z</value>
-  </data>
-  <data name="Shooting Tube Bolt Detected" xml:space="preserve">
-    <value>슈팅 튜브 볼트 감지</value>
-  </data>
-  <data name="Shooting feeder" xml:space="preserve">
+  <data name="shooting feeder" xml:space="preserve">
     <value>슈팅 피더</value>
   </data>
-  <data name="Shooting feeder / tube" xml:space="preserve">
+  <data name="shooting feeder / tube" xml:space="preserve">
     <value>슈팅 피더 / 튜브</value>
   </data>
-  <data name="Shooting feeder · supply bypassed" xml:space="preserve">
+  <data name="shooting feeder bolt detected (linear)" xml:space="preserve">
+    <value>슈팅 피더 볼트 감지 (리니어)</value>
+  </data>
+  <data name="shooting feeder off (linear)" xml:space="preserve">
+    <value>슈팅 피더 OFF (리니어)</value>
+  </data>
+  <data name="shooting feeder · supply bypassed" xml:space="preserve">
     <value>슈팅 피더 · 공급 생략</value>
   </data>
-  <data name="Shooting feeder · supply enabled" xml:space="preserve">
+  <data name="shooting feeder · supply enabled" xml:space="preserve">
     <value>슈팅 피더 · 공급 사용</value>
   </data>
-  <data name="Shooting vacuum" xml:space="preserve">
+  <data name="shooting head" xml:space="preserve">
+    <value>슈팅 헤드</value>
+  </data>
+  <data name="shooting head down (head 2)" xml:space="preserve">
+    <value>슈팅 헤드 하강 (헤드 2)</value>
+  </data>
+  <data name="shooting head fastening z" xml:space="preserve">
+    <value>슈팅 헤드 체결 Z</value>
+  </data>
+  <data name="shooting head pin - lower right" xml:space="preserve">
+    <value>슈팅 헤드 핀 - 우하단</value>
+  </data>
+  <data name="shooting head pin - upper left" xml:space="preserve">
+    <value>슈팅 헤드 핀 - 좌상단</value>
+  </data>
+  <data name="shooting head up (head 2)" xml:space="preserve">
+    <value>슈팅 헤드 상승 (헤드 2)</value>
+  </data>
+  <data name="shooting head vacuum detected (head 2)" xml:space="preserve">
+    <value>슈팅 헤드 진공 감지 (헤드 2)</value>
+  </data>
+  <data name="shooting head vacuum pump (head 2)" xml:space="preserve">
+    <value>슈팅 헤드 진공 펌프 (헤드 2)</value>
+  </data>
+  <data name="shooting safe z" xml:space="preserve">
+    <value>슈팅 Safe Z</value>
+  </data>
+  <data name="shooting tube bolt detected" xml:space="preserve">
+    <value>슈팅 튜브 볼트 감지</value>
+  </data>
+  <data name="shooting vacuum" xml:space="preserve">
     <value>슈팅 진공</value>
   </data>
-  <data name="Shooting · feed and fasten" xml:space="preserve">
+  <data name="shooting · feed and fasten" xml:space="preserve">
     <value>슈팅 · 공급 및 체결</value>
   </data>
-  <data name="Shooting · supply bypassed / dry run" xml:space="preserve">
+  <data name="shooting · supply bypassed / dry run" xml:space="preserve">
     <value>슈팅 · 공급 생략 / 공회전</value>
   </data>
-  <data name="Shooting: feed / fasten" xml:space="preserve">
+  <data name="shooting: feed / fasten" xml:space="preserve">
     <value>슈팅: 공급 / 체결</value>
   </data>
-  <data name="Show Reference Image" xml:space="preserve">
+  <data name="show reference image" xml:space="preserve">
     <value>기준 이미지 보기</value>
   </data>
-  <data name="Shutting down" xml:space="preserve">
+  <data name="shutting down" xml:space="preserve">
     <value>종료 중</value>
   </data>
-  <data name="Shuttle" xml:space="preserve">
+  <data name="shuttle" xml:space="preserve">
     <value>셔틀</value>
   </data>
-  <data name="Shuttle → Station 3" xml:space="preserve">
+  <data name="shuttle → station 3" xml:space="preserve">
     <value>셔틀 → 스테이션 3</value>
   </data>
-  <data name="Silence buzzer / recover stopped hardware; servos may turn ON." xml:space="preserve">
+  <data name="silence buzzer / recover stopped hardware; servos may turn on." xml:space="preserve">
     <value>부저 해제 / 정지된 장비 복구. 서보가 켜질 수 있습니다.</value>
   </data>
-  <data name="Slave ID" xml:space="preserve">
+  <data name="slave" xml:space="preserve">
+    <value>슬레이브</value>
+  </data>
+  <data name="slave id" xml:space="preserve">
     <value>슬레이브 ID</value>
   </data>
-  <data name="Snug Angle" xml:space="preserve">
+  <data name="smema test" xml:space="preserve">
+    <value>SMEMA 시험</value>
+  </data>
+  <data name="snug angle" xml:space="preserve">
     <value>스너그 각도</value>
   </data>
-  <data name="Speed (mm/s)" xml:space="preserve">
+  <data name="snug angle (°)" xml:space="preserve">
+    <value>스너그 각도 (°)</value>
+  </data>
+  <data name="speed (mm/s)" xml:space="preserve">
     <value>속도 (mm/s)</value>
   </data>
-  <data name="Start Fastening" xml:space="preserve">
+  <data name="start" xml:space="preserve">
+    <value>시작</value>
+  </data>
+  <data name="start fastening" xml:space="preserve">
     <value>체결 시작</value>
   </data>
-  <data name="Start Live" xml:space="preserve">
+  <data name="start live" xml:space="preserve">
     <value>라이브 시작</value>
   </data>
-  <data name="Station 1" xml:space="preserve">
-    <value>스테이션 1</value>
-  </data>
-  <data name="Station 2" xml:space="preserve">
-    <value>스테이션 2</value>
-  </data>
-  <data name="Station 3" xml:space="preserve">
-    <value>스테이션 3</value>
-  </data>
-  <data name="Station 3 → Waiting position" xml:space="preserve">
-    <value>스테이션 3 → 대기 위치</value>
-  </data>
-  <data name="Status" xml:space="preserve">
+  <data name="state" xml:space="preserve">
     <value>상태</value>
   </data>
-  <data name="Status Unavailable" xml:space="preserve">
-    <value>상태 미확인</value>
+  <data name="station 1" xml:space="preserve">
+    <value>스테이션 1</value>
   </data>
-  <data name="Status poll interval (s)" xml:space="preserve">
+  <data name="station 2" xml:space="preserve">
+    <value>스테이션 2</value>
+  </data>
+  <data name="station 3" xml:space="preserve">
+    <value>스테이션 3</value>
+  </data>
+  <data name="station 3 → waiting position" xml:space="preserve">
+    <value>스테이션 3 → 대기 위치</value>
+  </data>
+  <data name="status" xml:space="preserve">
+    <value>상태</value>
+  </data>
+  <data name="status poll interval (s)" xml:space="preserve">
     <value>상태 조회 주기 (s)</value>
   </data>
-  <data name="Step (click)" xml:space="preserve">
+  <data name="status unavailable" xml:space="preserve">
+    <value>상태 미확인</value>
+  </data>
+  <data name="step (click)" xml:space="preserve">
     <value>스텝 (클릭)</value>
   </data>
-  <data name="Step distance" xml:space="preserve">
+  <data name="step distance" xml:space="preserve">
     <value>스텝 거리</value>
   </data>
-  <data name="Stop" xml:space="preserve">
+  <data name="stop" xml:space="preserve">
     <value>정지</value>
   </data>
-  <data name="Stop Failed — Check Equipment" xml:space="preserve">
+  <data name="stop failed — check equipment" xml:space="preserve">
     <value>정지 실패 — 장비 확인 필요</value>
   </data>
-  <data name="Stop Live" xml:space="preserve">
+  <data name="stop live" xml:space="preserve">
     <value>라이브 정지</value>
   </data>
-  <data name="Stopped" xml:space="preserve">
+  <data name="stopped" xml:space="preserve">
     <value>정지됨</value>
   </data>
-  <data name="Stopper lowered" xml:space="preserve">
+  <data name="stopper lowered" xml:space="preserve">
     <value>스토퍼 하강</value>
   </data>
-  <data name="Stopper position unknown" xml:space="preserve">
+  <data name="stopper position unknown" xml:space="preserve">
     <value>스토퍼 위치 미확인</value>
   </data>
-  <data name="Stopper raised" xml:space="preserve">
+  <data name="stopper raised" xml:space="preserve">
     <value>스토퍼 상승</value>
   </data>
-  <data name="Storage" xml:space="preserve">
+  <data name="storage" xml:space="preserve">
     <value>보관</value>
   </data>
-  <data name="Supply Gripper Closed" xml:space="preserve">
-    <value>공급 그리퍼 닫힘</value>
+  <data name="supply" xml:space="preserve">
+    <value>공급</value>
   </data>
-  <data name="Supply Gripper Open" xml:space="preserve">
-    <value>공급 그리퍼 열림</value>
-  </data>
-  <data name="Supply Handler" xml:space="preserve">
-    <value>공급 핸들러</value>
-  </data>
-  <data name="Supply Handler PCB Detected" xml:space="preserve">
-    <value>공급 핸들러 PCB 감지</value>
-  </data>
-  <data name="Supply Handler Rotate" xml:space="preserve">
-    <value>공급 핸들러 회전</value>
-  </data>
-  <data name="Supply Handler Rotated" xml:space="preserve">
-    <value>공급 핸들러 회전 후</value>
-  </data>
-  <data name="Supply Handler Unrotated" xml:space="preserve">
-    <value>공급 핸들러 회전 전</value>
-  </data>
-  <data name="Supply IPM Fixer Forward" xml:space="preserve">
-    <value>공급 IPM 고정 실린더 전진</value>
-  </data>
-  <data name="Supply bypassed" xml:space="preserve">
+  <data name="supply bypassed" xml:space="preserve">
     <value>공급 생략</value>
   </data>
-  <data name="Supply enabled" xml:space="preserve">
+  <data name="supply enabled" xml:space="preserve">
     <value>공급 사용</value>
   </data>
-  <data name="Supply unknown" xml:space="preserve">
+  <data name="supply gripper closed" xml:space="preserve">
+    <value>공급 그리퍼 닫힘</value>
+  </data>
+  <data name="supply gripper open" xml:space="preserve">
+    <value>공급 그리퍼 열림</value>
+  </data>
+  <data name="supply handler" xml:space="preserve">
+    <value>공급 핸들러</value>
+  </data>
+  <data name="supply handler pcb detected" xml:space="preserve">
+    <value>공급 핸들러 PCB 감지</value>
+  </data>
+  <data name="supply handler rotate" xml:space="preserve">
+    <value>공급 핸들러 회전</value>
+  </data>
+  <data name="supply handler rotated" xml:space="preserve">
+    <value>공급 핸들러 회전 후</value>
+  </data>
+  <data name="supply handler unrotated" xml:space="preserve">
+    <value>공급 핸들러 회전 전</value>
+  </data>
+  <data name="supply ipm fixer forward" xml:space="preserve">
+    <value>공급 IPM 고정 실린더 전진</value>
+  </data>
+  <data name="supply unknown" xml:space="preserve">
     <value>공급 상태 미확인</value>
   </data>
-  <data name="Supply · Z" xml:space="preserve">
+  <data name="supply · ?" xml:space="preserve">
+    <value>공급 · ?</value>
+  </data>
+  <data name="supply · z" xml:space="preserve">
     <value>공급 · Z</value>
   </data>
-  <data name="Switch to MANUAL" xml:space="preserve">
+  <data name="switch to manual" xml:space="preserve">
     <value>수동 모드로 전환하세요</value>
   </data>
-  <data name="TARGET" xml:space="preserve">
+  <data name="target" xml:space="preserve">
     <value>목표</value>
   </data>
-  <data name="TARGET SPEED (rpm)" xml:space="preserve">
-    <value>목표 속도 (rpm)</value>
-  </data>
-  <data name="TARGET TORQUE" xml:space="preserve">
-    <value>목표 토크</value>
-  </data>
-  <data name="TIME (ms)" xml:space="preserve">
-    <value>시간 (ms)</value>
-  </data>
-  <data name="TORQUE" xml:space="preserve">
-    <value>토크</value>
-  </data>
-  <data name="TORQUE / TARGET" xml:space="preserve">
-    <value>토크 / 목표</value>
-  </data>
-  <data name="TOTAL RUN" xml:space="preserve">
-    <value>전체 실행</value>
-  </data>
-  <data name="TOTAL TURNS" xml:space="preserve">
-    <value>전체 회전수</value>
-  </data>
-  <data name="TUBE" xml:space="preserve">
-    <value>튜브</value>
-  </data>
-  <data name="TURNS" xml:space="preserve">
-    <value>회전수</value>
-  </data>
-  <data name="TURNS NG" xml:space="preserve">
-    <value>회전수 NG</value>
-  </data>
-  <data name="TURNS OK" xml:space="preserve">
-    <value>회전수 OK</value>
-  </data>
-  <data name="TURNS · A3 / 360" xml:space="preserve">
-    <value>회전수 · A3 / 360</value>
-  </data>
-  <data name="Target Speed" xml:space="preserve">
+  <data name="target speed" xml:space="preserve">
     <value>목표 속도</value>
   </data>
-  <data name="Target Torque" xml:space="preserve">
+  <data name="target speed (rpm)" xml:space="preserve">
+    <value>목표 속도 (rpm)</value>
+  </data>
+  <data name="target torque" xml:space="preserve">
     <value>목표 토크</value>
   </data>
-  <data name="Taught points" xml:space="preserve">
+  <data name="taught points" xml:space="preserve">
     <value>티칭 위치</value>
   </data>
-  <data name="Teach Carrier Pickup (S3) X/Y first" xml:space="preserve">
+  <data name="teach carrier pickup (s3) x/y first" xml:space="preserve">
     <value>캐리어 픽업 (S3) X/Y 티칭 필요</value>
   </data>
-  <data name="Teach Data Matrix Regions" xml:space="preserve">
+  <data name="teach data matrix regions" xml:space="preserve">
     <value>데이터 매트릭스 영역 티칭 필요</value>
   </data>
-  <data name="Teach Inspection FOV / ROI" xml:space="preserve">
+  <data name="teach inspection fov / roi" xml:space="preserve">
     <value>검사 FOV / ROI 티칭 필요</value>
   </data>
-  <data name="Teaching" xml:space="preserve">
+  <data name="teaching" xml:space="preserve">
     <value>티칭</value>
   </data>
-  <data name="Teaching Unit" xml:space="preserve">
+  <data name="teaching unit" xml:space="preserve">
     <value>티칭 유닛</value>
   </data>
-  <data name="Test bolts" xml:space="preserve">
+  <data name="test bolts" xml:space="preserve">
     <value>볼트 시험</value>
   </data>
-  <data name="Test channel (1–9)" xml:space="preserve">
+  <data name="test channel (1–9)" xml:space="preserve">
     <value>시험 채널 (1–9)</value>
   </data>
-  <data name="Text selection pauses updates" xml:space="preserve">
+  <data name="text selection pauses updates" xml:space="preserve">
     <value>텍스트 선택 중에는 표시가 멈춥니다</value>
   </data>
-  <data name="Threshold (0–255)" xml:space="preserve">
+  <data name="threshold (0–255)" xml:space="preserve">
     <value>임계값 (0–255)</value>
   </data>
-  <data name="Time not recorded" xml:space="preserve">
+  <data name="time (ms)" xml:space="preserve">
+    <value>시간 (ms)</value>
+  </data>
+  <data name="time not recorded" xml:space="preserve">
     <value>시간 기록 없음</value>
   </data>
-  <data name="Toggle" xml:space="preserve">
+  <data name="toggle" xml:space="preserve">
     <value>전환</value>
   </data>
-  <data name="Torque: controller unit" xml:space="preserve">
+  <data name="torque" xml:space="preserve">
+    <value>토크</value>
+  </data>
+  <data name="torque / target" xml:space="preserve">
+    <value>토크 / 목표</value>
+  </data>
+  <data name="torque: controller unit" xml:space="preserve">
     <value>토크: 체결기 설정 단위</value>
   </data>
-  <data name="Tower Lamp Green" xml:space="preserve">
+  <data name="total run" xml:space="preserve">
+    <value>전체 실행</value>
+  </data>
+  <data name="total turns" xml:space="preserve">
+    <value>전체 회전수</value>
+  </data>
+  <data name="tower lamp green" xml:space="preserve">
     <value>타워 램프 녹색</value>
   </data>
-  <data name="Tower Lamp Red" xml:space="preserve">
+  <data name="tower lamp red" xml:space="preserve">
     <value>타워 램프 적색</value>
   </data>
-  <data name="Tower Lamp Yellow" xml:space="preserve">
+  <data name="tower lamp yellow" xml:space="preserve">
     <value>타워 램프 황색</value>
   </data>
-  <data name="Transfer Complete" xml:space="preserve">
+  <data name="transfer complete" xml:space="preserve">
     <value>이송 완료</value>
   </data>
-  <data name="Transfer timeout (s)" xml:space="preserve">
+  <data name="transfer timeout (s)" xml:space="preserve">
     <value>이송 타임아웃 (s)</value>
   </data>
-  <data name="Transmit" xml:space="preserve">
+  <data name="transmit" xml:space="preserve">
     <value>송신</value>
   </data>
-  <data name="Travel" xml:space="preserve">
+  <data name="travel" xml:space="preserve">
     <value>이동</value>
   </data>
-  <data name="Tube ON / OFF timeout (s)" xml:space="preserve">
-    <value>튜브 ON / OFF 타임아웃 (s)</value>
+  <data name="tube" xml:space="preserve">
+    <value>튜브</value>
   </data>
-  <data name="Tube detection → head arrival (s)" xml:space="preserve">
+  <data name="tube detection → head arrival (s)" xml:space="preserve">
     <value>튜브 감지 → 헤드 도착 (s)</value>
   </data>
-  <data name="UNIT" xml:space="preserve">
+  <data name="tube on / off timeout (s)" xml:space="preserve">
+    <value>튜브 ON / OFF 타임아웃 (s)</value>
+  </data>
+  <data name="turns" xml:space="preserve">
+    <value>회전수</value>
+  </data>
+  <data name="turns ng" xml:space="preserve">
+    <value>회전수 NG</value>
+  </data>
+  <data name="turns ok" xml:space="preserve">
+    <value>회전수 OK</value>
+  </data>
+  <data name="turns · a3 / 360" xml:space="preserve">
+    <value>회전수 · A3 / 360</value>
+  </data>
+  <data name="unavailable" xml:space="preserve">
+    <value>미확인</value>
+  </data>
+  <data name="unit" xml:space="preserve">
     <value>유닛</value>
   </data>
-  <data name="UNKNOWN" xml:space="preserve">
-    <value>미확인</value>
-  </data>
-  <data name="Unavailable" xml:space="preserve">
-    <value>미확인</value>
-  </data>
-  <data name="Unit disabled in Settings" xml:space="preserve">
+  <data name="unit disabled in settings" xml:space="preserve">
     <value>설정에서 유닛 사용 안 함</value>
   </data>
-  <data name="Unknown" xml:space="preserve">
+  <data name="unknown" xml:space="preserve">
     <value>미확인</value>
   </data>
-  <data name="Unrotated" xml:space="preserve">
+  <data name="unrotated" xml:space="preserve">
     <value>회전 전</value>
   </data>
-  <data name="Unused" xml:space="preserve">
+  <data name="unused" xml:space="preserve">
     <value>미사용</value>
   </data>
-  <data name="Unused (former Station 1 carrier sensor)" xml:space="preserve">
+  <data name="unused (former station 1 carrier sensor)" xml:space="preserve">
     <value>미사용 (구 스테이션 1 캐리어 센서)</value>
   </data>
-  <data name="Unused (former Station 2 carrier sensor)" xml:space="preserve">
+  <data name="unused (former station 2 carrier sensor)" xml:space="preserve">
     <value>미사용 (구 스테이션 2 캐리어 센서)</value>
   </data>
-  <data name="Unused (former Station 3 carrier sensor)" xml:space="preserve">
+  <data name="unused (former station 3 carrier sensor)" xml:space="preserve">
     <value>미사용 (구 스테이션 3 캐리어 센서)</value>
   </data>
-  <data name="Unused (former Supply IPM backward sensor)" xml:space="preserve">
+  <data name="unused (former supply ipm backward sensor)" xml:space="preserve">
     <value>미사용 (구 공급 IPM 후진 센서)</value>
   </data>
-  <data name="Up" xml:space="preserve">
+  <data name="up" xml:space="preserve">
     <value>상승</value>
   </data>
-  <data name="Update Image + Light" xml:space="preserve">
+  <data name="update image + light" xml:space="preserve">
     <value>이미지 + 조명 저장</value>
   </data>
-  <data name="Updated {0:HH:mm:ss}" xml:space="preserve">
+  <data name="updated {0:hh:mm:ss}" xml:space="preserve">
     <value>갱신 {0:HH:mm:ss}</value>
   </data>
-  <data name="Use Test Pattern" xml:space="preserve">
-    <value>시험 패턴 사용</value>
-  </data>
-  <data name="Use for Next Test" xml:space="preserve">
+  <data name="use for next test" xml:space="preserve">
     <value>다음 시험에 적용</value>
   </data>
-  <data name="VALUE" xml:space="preserve">
+  <data name="use test pattern" xml:space="preserve">
+    <value>시험 패턴 사용</value>
+  </data>
+  <data name="value" xml:space="preserve">
     <value>값</value>
   </data>
-  <data name="VISION" xml:space="preserve">
-    <value>비전</value>
-  </data>
-  <data name="VISION INSPECTION" xml:space="preserve">
-    <value>비전 검사</value>
-  </data>
-  <data name="Virtual" xml:space="preserve">
+  <data name="virtual" xml:space="preserve">
     <value>가상</value>
   </data>
-  <data name="Virtual Camera Image" xml:space="preserve">
-    <value>가상 카메라 이미지</value>
-  </data>
-  <data name="Virtual build" xml:space="preserve">
+  <data name="virtual build" xml:space="preserve">
     <value>가상 빌드</value>
   </data>
-  <data name="Virtual inputs · click to toggle" xml:space="preserve">
+  <data name="virtual camera image" xml:space="preserve">
+    <value>가상 카메라 이미지</value>
+  </data>
+  <data name="virtual inputs · click to toggle" xml:space="preserve">
     <value>가상 입력 · 클릭으로 전환</value>
   </data>
-  <data name="WAIT" xml:space="preserve">
+  <data name="vision" xml:space="preserve">
+    <value>비전</value>
+  </data>
+  <data name="vision inspection" xml:space="preserve">
+    <value>비전 검사</value>
+  </data>
+  <data name="wait" xml:space="preserve">
     <value>대기</value>
   </data>
-  <data name="WAIT SUPPLY" xml:space="preserve">
-    <value>공급 대기</value>
-  </data>
-  <data name="WARNING" xml:space="preserve">
-    <value>주의</value>
-  </data>
-  <data name="Wait for operation to stop" xml:space="preserve">
+  <data name="wait for operation to stop" xml:space="preserve">
     <value>동작이 멈출 때까지 대기하세요</value>
   </data>
-  <data name="Waiting" xml:space="preserve">
-    <value>대기</value>
-  </data>
-  <data name="Waiting at infeed" xml:space="preserve">
-    <value>전단 수신 대기</value>
-  </data>
-  <data name="Waiting for Carrier" xml:space="preserve">
-    <value>캐리어 대기</value>
-  </data>
-  <data name="Waiting for Carrier Exit" xml:space="preserve">
-    <value>캐리어 배출 대기</value>
-  </data>
-  <data name="Waiting for NG Carrier" xml:space="preserve">
-    <value>NG 캐리어 대기</value>
-  </data>
-  <data name="Waiting for NG Shuttle Down" xml:space="preserve">
-    <value>NG 셔틀 하강 대기</value>
-  </data>
-  <data name="Waiting for NG Shuttle Up" xml:space="preserve">
-    <value>NG 셔틀 상승 대기</value>
-  </data>
-  <data name="Waiting for Placement Y Departure" xml:space="preserve">
-    <value>안착 Y 이탈 대기</value>
-  </data>
-  <data name="Waiting for Placement to Present PCB" xml:space="preserve">
-    <value>안착측 PCB 전달 대기</value>
-  </data>
-  <data name="Waiting for Return Handoff Clearance" xml:space="preserve">
-    <value>복귀 인계 간섭 해제 대기</value>
-  </data>
-  <data name="Waiting for Returned PCB" xml:space="preserve">
-    <value>복귀 PCB 대기</value>
-  </data>
-  <data name="Waiting for S1 placement" xml:space="preserve">
-    <value>S1 안착 대기</value>
-  </data>
-  <data name="Waiting for S2 fastening" xml:space="preserve">
-    <value>S2 체결 대기</value>
-  </data>
-  <data name="Waiting for S3 / NG pickup to clear" xml:space="preserve">
-    <value>S3 / NG 픽업 비움 대기</value>
-  </data>
-  <data name="Waiting for S3 inspection" xml:space="preserve">
-    <value>S3 검사 대기</value>
-  </data>
-  <data name="Waiting for Supply Departure" xml:space="preserve">
-    <value>공급측 이탈 대기</value>
-  </data>
-  <data name="Waiting for Supply Grip" xml:space="preserve">
-    <value>공급측 파지 대기</value>
-  </data>
-  <data name="Waiting for Supply PCB" xml:space="preserve">
-    <value>공급 PCB 대기</value>
-  </data>
-  <data name="Waiting for Supply Release" xml:space="preserve">
-    <value>공급 해제 대기</value>
-  </data>
-  <data name="Waiting for Supply to Open" xml:space="preserve">
-    <value>공급측 열림 대기</value>
-  </data>
-  <data name="Waiting for Transfer" xml:space="preserve">
-    <value>이송 대기</value>
-  </data>
-  <data name="Waiting for Transfer Supports" xml:space="preserve">
-    <value>이송 지지대 대기</value>
-  </data>
-  <data name="Waiting for a fastening result" xml:space="preserve">
-    <value>체결 결과 대기</value>
-  </data>
-  <data name="Waiting for camera image" xml:space="preserve">
-    <value>카메라 이미지 대기</value>
-  </data>
-  <data name="Waiting for carrier transfers" xml:space="preserve">
-    <value>캐리어 이송 대기</value>
-  </data>
-  <data name="Waiting for downstream" xml:space="preserve">
-    <value>후단 대기</value>
-  </data>
-  <data name="Waiting for inspection" xml:space="preserve">
-    <value>검사 대기</value>
-  </data>
-  <data name="Waiting for supply" xml:space="preserve">
+  <data name="wait supply" xml:space="preserve">
     <value>공급 대기</value>
   </data>
-  <data name="Waiting for transfer at NG pickup" xml:space="preserve">
+  <data name="waiting" xml:space="preserve">
+    <value>대기</value>
+  </data>
+  <data name="waiting at infeed" xml:space="preserve">
+    <value>전단 수신 대기</value>
+  </data>
+  <data name="waiting for a fastening result" xml:space="preserve">
+    <value>체결 결과 대기</value>
+  </data>
+  <data name="waiting for camera image" xml:space="preserve">
+    <value>카메라 이미지 대기</value>
+  </data>
+  <data name="waiting for carrier" xml:space="preserve">
+    <value>캐리어 대기</value>
+  </data>
+  <data name="waiting for carrier exit" xml:space="preserve">
+    <value>캐리어 배출 대기</value>
+  </data>
+  <data name="waiting for carrier transfers" xml:space="preserve">
+    <value>캐리어 이송 대기</value>
+  </data>
+  <data name="waiting for downstream" xml:space="preserve">
+    <value>후단 대기</value>
+  </data>
+  <data name="waiting for inspection" xml:space="preserve">
+    <value>검사 대기</value>
+  </data>
+  <data name="waiting for ng carrier" xml:space="preserve">
+    <value>NG 캐리어 대기</value>
+  </data>
+  <data name="waiting for ng shuttle down" xml:space="preserve">
+    <value>NG 셔틀 하강 대기</value>
+  </data>
+  <data name="waiting for ng shuttle up" xml:space="preserve">
+    <value>NG 셔틀 상승 대기</value>
+  </data>
+  <data name="waiting for placement to present pcb" xml:space="preserve">
+    <value>안착측 PCB 전달 대기</value>
+  </data>
+  <data name="waiting for placement y departure" xml:space="preserve">
+    <value>안착 Y 이탈 대기</value>
+  </data>
+  <data name="waiting for return handoff clearance" xml:space="preserve">
+    <value>복귀 인계 간섭 해제 대기</value>
+  </data>
+  <data name="waiting for returned pcb" xml:space="preserve">
+    <value>복귀 PCB 대기</value>
+  </data>
+  <data name="waiting for s1 placement" xml:space="preserve">
+    <value>S1 안착 대기</value>
+  </data>
+  <data name="waiting for s2 fastening" xml:space="preserve">
+    <value>S2 체결 대기</value>
+  </data>
+  <data name="waiting for s3 / ng pickup to clear" xml:space="preserve">
+    <value>S3 / NG 픽업 비움 대기</value>
+  </data>
+  <data name="waiting for s3 inspection" xml:space="preserve">
+    <value>S3 검사 대기</value>
+  </data>
+  <data name="waiting for supply" xml:space="preserve">
+    <value>공급 대기</value>
+  </data>
+  <data name="waiting for supply departure" xml:space="preserve">
+    <value>공급측 이탈 대기</value>
+  </data>
+  <data name="waiting for supply grip" xml:space="preserve">
+    <value>공급측 파지 대기</value>
+  </data>
+  <data name="waiting for supply pcb" xml:space="preserve">
+    <value>공급 PCB 대기</value>
+  </data>
+  <data name="waiting for supply release" xml:space="preserve">
+    <value>공급 해제 대기</value>
+  </data>
+  <data name="waiting for supply to open" xml:space="preserve">
+    <value>공급측 열림 대기</value>
+  </data>
+  <data name="waiting for transfer" xml:space="preserve">
+    <value>이송 대기</value>
+  </data>
+  <data name="waiting for transfer at ng pickup" xml:space="preserve">
     <value>NG 픽업 이송 대기</value>
   </data>
-  <data name="Waiting: transfer release + pickup UP" xml:space="preserve">
+  <data name="waiting for transfer supports" xml:space="preserve">
+    <value>이송 지지대 대기</value>
+  </data>
+  <data name="waiting: transfer release + pickup up" xml:space="preserve">
     <value>이송 해제 + 픽업 상승 대기</value>
   </data>
-  <data name="Warning · Confirm action" xml:space="preserve">
+  <data name="warning" xml:space="preserve">
+    <value>주의</value>
+  </data>
+  <data name="warning · confirm action" xml:space="preserve">
     <value>주의 · 동작 확인</value>
   </data>
-  <data name="Work positions" xml:space="preserve">
+  <data name="work positions" xml:space="preserve">
     <value>작업 위치</value>
   </data>
-  <data name="Working" xml:space="preserve">
+  <data name="working" xml:space="preserve">
     <value>작업 중</value>
   </data>
-  <data name="Write Single Register" xml:space="preserve">
+  <data name="write single register" xml:space="preserve">
     <value>단일 레지스터 쓰기</value>
   </data>
-  <data name="X+" xml:space="preserve">
+  <data name="x+" xml:space="preserve">
     <value>X+</value>
   </data>
-  <data name="X+ →" xml:space="preserve">
+  <data name="x+ →" xml:space="preserve">
     <value>X+ →</value>
   </data>
-  <data name="XY" xml:space="preserve">
+  <data name="xy" xml:space="preserve">
     <value>XY</value>
   </data>
-  <data name="XYZ" xml:space="preserve">
+  <data name="xyz" xml:space="preserve">
     <value>XYZ</value>
   </data>
-  <data name="X−" xml:space="preserve">
+  <data name="x−" xml:space="preserve">
     <value>X−</value>
   </data>
-  <data name="Y+" xml:space="preserve">
+  <data name="y+" xml:space="preserve">
     <value>Y+</value>
   </data>
-  <data name="Y−" xml:space="preserve">
+  <data name="y−" xml:space="preserve">
     <value>Y−</value>
   </data>
-  <data name="Z accel / decel: blank = X / Y" xml:space="preserve">
+  <data name="z accel / decel: blank = x / y" xml:space="preserve">
     <value>Z 감가속: 빈칸 = X / Y 적용</value>
   </data>
-  <data name="Z offset (mm)" xml:space="preserve">
+  <data name="z offset (mm)" xml:space="preserve">
     <value>Z 오프셋 (mm)</value>
   </data>
-  <data name="Z+" xml:space="preserve">
+  <data name="z+" xml:space="preserve">
     <value>Z+</value>
   </data>
-  <data name="Z−" xml:space="preserve">
+  <data name="z−" xml:space="preserve">
     <value>Z−</value>
   </data>
-  <data name="← Newer" xml:space="preserve">
+  <data name="← newer" xml:space="preserve">
     <value>← 최근</value>
   </data>
-  <data name="← Ready" xml:space="preserve">
+  <data name="← ready" xml:space="preserve">
     <value>← 수신 가능</value>
   </data>
-  <data name="← X−" xml:space="preserve">
+  <data name="← x−" xml:space="preserve">
     <value>← X−</value>
   </data>
-  <data name="↑ Earlier" xml:space="preserve">
+  <data name="↑ earlier" xml:space="preserve">
     <value>↑ 앞으로</value>
   </data>
-  <data name="↑ Y+" xml:space="preserve">
+  <data name="↑ y+" xml:space="preserve">
     <value>↑ Y+</value>
   </data>
-  <data name="↑ Z−" xml:space="preserve">
+  <data name="↑ z−" xml:space="preserve">
     <value>↑ Z−</value>
   </data>
-  <data name="→ Available" xml:space="preserve">
+  <data name="→ available" xml:space="preserve">
     <value>→ 공급 가능</value>
   </data>
-  <data name="↓ Later" xml:space="preserve">
+  <data name="↓ later" xml:space="preserve">
     <value>↓ 뒤로</value>
   </data>
-  <data name="↓ Y-" xml:space="preserve">
+  <data name="↓ y-" xml:space="preserve">
     <value>↓ Y-</value>
   </data>
-  <data name="↓ Z+" xml:space="preserve">
+  <data name="↓ z+" xml:space="preserve">
     <value>↓ Z+</value>
   </data>
-  <data name="− (Negative)" xml:space="preserve">
+  <data name="− (negative)" xml:space="preserve">
     <value>− (음의 방향)</value>
   </data>
-  <data name="−LIMIT" xml:space="preserve">
+  <data name="−limit" xml:space="preserve">
     <value>−리밋</value>
   </data>
   <data name="분류" xml:space="preserve">
