@@ -1480,7 +1480,8 @@ public partial class TeachingViewModel : ObservableObject
         get
         {
             return Inspection.IsLiveView
-                || IsInspectionSelected && State.ManualMode && !TeachCurrentPositionCommand.IsRunning && !GrabCommand.IsRunning;
+                || IsInspectionSelected && State.ManualMode
+                    && !TeachCurrentPositionCommand.IsRunning && !GrabCommand.IsRunning;
         }
     }
 

@@ -151,6 +151,7 @@ public sealed record PcbBoltResultView(
     public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => Result.Source == BoltResultSource.DryRun ? UiText.Get("DRY RUN") : Result.Success ? "OK" : "NG";
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
+
     public string TurnsVerdict
     {
         get
@@ -168,6 +169,7 @@ public sealed record PcbBoltResultView(
             }
         }
     }
+
     public string? ControllerStatus
     {
         get
@@ -176,6 +178,7 @@ public sealed record PcbBoltResultView(
                 ? $"{UiText.Get((AdcEventStatus)data.StatusCode)} ({data.StatusCode})" : null;
         }
     }
+
     public string? Direction
     {
         get
@@ -184,6 +187,7 @@ public sealed record PcbBoltResultView(
                 ? $"{UiText.Get((AdcDirection)data.DirectionCode)} ({data.DirectionCode})" : null;
         }
     }
+
     public string? ControllerErrorDescription
     {
         get
@@ -192,12 +196,14 @@ public sealed record PcbBoltResultView(
                 ? AdcControllerError.Describe(data.ErrorCode) : null;
         }
     }
+
     public string RegisterText
     {
         get
         {
             return Result.Controller?.Registers is { } registers
-                ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}")) : UiText.Get("Not recorded");
+                ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}"))
+                : UiText.Get("Not recorded");
         }
     }
 }

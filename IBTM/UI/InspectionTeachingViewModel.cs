@@ -92,6 +92,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public bool IsBusy => _commands.Any(command => command.IsRunning);
     public bool IsIdle => !IsBusy;
     public bool IsDataMatrixSelected => SelectedPoint?.IsDataMatrix == true;
+
     public DataMatrixInspectionRecipe? DataMatrix
     {
         get
