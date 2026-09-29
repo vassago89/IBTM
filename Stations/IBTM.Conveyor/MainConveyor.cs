@@ -133,32 +133,10 @@ public sealed partial class MainConveyor : AutoUnit
                 var state = GetNextStep(_io.GetOutput(OutputIo.MainConveyorRun));
                 cancellationToken.ThrowIfCancellationRequested();
                 SetSmemaOutput(OutputIo.MainConveyorAvailableToRear, IsRearDischargeAllowed, cancellationToken);
-                EnterStep(state, waitingFor: state switch
-                {
-                    MainConveyorState.WaitingForFrontCarrier =>
-                        "Entry carrier detected=ON OR Front 2 Available=ON (teaching: TEST, auto: DI)",
-                    MainConveyorState.WaitingForRearEquipment => "Rear Ready=ON (teaching: TEST, auto: DI)",
-                    MainConveyorState.WaitingForInspection =>
-                        "S3 inspection complete; conveyor remains stopped",
-                    MainConveyorState.WaitingForInspectionTransfer =>
-                        "inspection gantry operation complete; carrier seating moves to NG pickup before raising S3",
-                    MainConveyorState.WaitingForPcbPlacement =>
-                        $"S1 placement complete; enabled={_units.PcbPlacement}, completed={_placement.Completed}, "
-                            + $"work={_placement.CurrentJob.Id}",
-                    MainConveyorState.WaitingForBoltFastening =>
-                        $"S2 work complete; enabled={_units.BoltFastening}, completed={_fastening.Completed}, "
-                            + $"plate={_fastening.BackupPlate}, stopper={_fastening.Stopper}, "
-                            + $"work={_fastening.CurrentJob.Id}",
-                    MainConveyorState.WaitingForInspectionClear =>
-                        $"S3 vacant and NG pickup empty; S2 enabled={_units.BoltFastening}, "
-                            + $"completed={_fastening.Completed}; "
-                            + $"S3 canReceive={_inspection.IsReceiveAllowed}, HS1={_inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)}, "
-                            + $"HS2={_inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)}",
-                    _ => null,
-                });
                 switch (state)
                 {
                     case MainConveyorState.PreparingInspectionCarrier:
+                        EnterStep(state);
                         var inspectionJob = _inspection.Station.CurrentJob;
                         await _io.SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true, cancellationToken);
                         await _io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
@@ -167,14 +145,16 @@ public sealed partial class MainConveyor : AutoUnit
                             && GetNextTransfer() is MainConveyorState.DischargingInspectionCarrier
                                 or MainConveyorState.MovingPcbPlacementToBoltFastening
                                 or MainConveyorState.ReceivingFrontCarrier)
-                            break;
+                            continue;
                         _inspection.RequestInspection(inspectionJob);
-                        break;
+                        continue;
                     case MainConveyorState.RaisingInspectionCarrier:
+                        EnterStep(state);
                         _inspection.RequestCarrierSeating(_inspection.Station.CurrentJob);
                         await WaitForChangeAsync(cancellationToken);
-                        break;
+                        continue;
                     case MainConveyorState.SeatingCarriers:
+                        EnterStep(state);
                         // S1/S2 can prepare their work without moving the belt.
                         var seating = new List<Task>(2);
                         if (_fastening.CarrierPresent && !_fastening.CarrierSeated)
@@ -183,9 +163,10 @@ public sealed partial class MainConveyor : AutoUnit
                             seating.Add(_placement.SeatAsync(cancellationToken));
                         await Task.WhenAll(seating);
                         cancellationToken.ThrowIfCancellationRequested();
-                        break;
+                        continue;
                     case MainConveyorState.DischargingInspectionCarrier:
                     {
+                        EnterStep(state);
                         if (!IsRearDischargeAllowed)
                         {
                             throw new MotionInterlockException(
@@ -259,29 +240,70 @@ public sealed partial class MainConveyor : AutoUnit
                         {
                             Changed -= ObserveRear;
                         }
-                        break;
+                        continue;
                     }
                     case MainConveyorState.MovingBoltFasteningToInspection:
+                        EnterStep(state);
                         await TransferAsync(_fastening, _inspection.Station, cancellationToken);
-                        break;
+                        continue;
                     case MainConveyorState.MovingPcbPlacementToBoltFastening:
+                        EnterStep(state);
                         await TransferAsync(_placement, _fastening, cancellationToken);
-                        break;
+                        continue;
                     case MainConveyorState.ReceivingFrontCarrier:
+                        EnterStep(state);
                         await TransferAsync(null, _placement, cancellationToken);
+                        continue;
+                    case MainConveyorState.WaitingForFrontCarrier:
+                        EnterStep(state, waitingFor:
+                            "Entry carrier detected=ON OR Front 2 Available=ON (teaching: TEST, auto: DI)");
                         break;
-                    case MainConveyorState.WaitingForFrontCarrier
+                    case MainConveyorState.WaitingForRearEquipment:
+                        EnterStep(state, waitingFor: "Rear Ready=ON (teaching: TEST, auto: DI)");
+                        break;
+                    case MainConveyorState.WaitingForInspection:
+                        EnterStep(state, waitingFor: "S3 inspection complete; conveyor remains stopped");
+                        break;
+                    case MainConveyorState.WaitingForInspectionTransfer:
+                        EnterStep(state, waitingFor:
+                            "inspection gantry operation complete; carrier seating moves to NG pickup before raising S3");
+                        break;
+                    case MainConveyorState.WaitingForPcbPlacement:
+                        EnterStep(state, waitingFor:
+                            $"S1 placement complete; enabled={_units.PcbPlacement}, completed={_placement.Completed}, "
+                                + $"work={_placement.CurrentJob.Id}");
+                        break;
+                    case MainConveyorState.WaitingForBoltFastening:
+                        EnterStep(state, waitingFor:
+                            $"S2 work complete; enabled={_units.BoltFastening}, completed={_fastening.Completed}, "
+                                + $"plate={_fastening.BackupPlate}, stopper={_fastening.Stopper}, "
+                                + $"work={_fastening.CurrentJob.Id}");
+                        break;
+                    case MainConveyorState.WaitingForInspectionClear:
+                        EnterStep(state, waitingFor:
+                            $"S3 vacant and NG pickup empty; S2 enabled={_units.BoltFastening}, "
+                                + $"completed={_fastening.Completed}; "
+                                + $"S3 canReceive={_inspection.IsReceiveAllowed}, HS1={_inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)}, "
+                                + $"HS2={_inspection.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)}");
+                        break;
+                    default:
+                        EnterStep(state);
+                        break;
+                }
+
+                if (state is MainConveyorState.WaitingForFrontCarrier
                         or MainConveyorState.WaitingForRearEquipment
                         or MainConveyorState.WaitingForBoltFastening
                         or MainConveyorState.WaitingForInspectionClear
-                        when !_repeat && !_placement.CarrierPresent
-                            && (!_inspection.Station.CarrierPresent || _inspection.Station.CarrierSeated):
-                        await TransferAsync(null, _placement, cancellationToken);
-                        break;
-                    default:
-                        SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false, cancellationToken);
-                        await WaitForChangeAsync(cancellationToken);
-                        break;
+                    && !_repeat && !_placement.CarrierPresent
+                    && (!_inspection.Station.CarrierPresent || _inspection.Station.CarrierSeated))
+                {
+                    await TransferAsync(null, _placement, cancellationToken);
+                }
+                else
+                {
+                    SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false, cancellationToken);
+                    await WaitForChangeAsync(cancellationToken);
                 }
             }
         }
