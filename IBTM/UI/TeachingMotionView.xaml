@@ -45,44 +45,27 @@
         </Style>
     </UserControl.Resources>
     <StackPanel>
-        <WrapPanel Margin="0,0,0,8">
-            <TextBlock Text="Taught coordinates (mm) · " Foreground="{StaticResource TextMutedBrush}"/>
-            <TextBlock Text="{Binding SelectedPoint.PositionLabel, TargetNullValue=—}" FontFamily="Consolas" TextWrapping="Wrap"/>
-        </WrapPanel>
         <DockPanel Margin="0,0,0,4">
             <TextBlock Text="mm" DockPanel.Dock="Right" Foreground="{StaticResource TextMutedBrush}"/>
             <TextBlock Text="Current axis position" FontWeight="SemiBold"/>
         </DockPanel>
-        <Grid Margin="0,2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="20"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="X" VerticalAlignment="Center" FontWeight="SemiBold"/>
-            <TextBlock Grid.Column="1"
-                Text="{Binding Motion.Position.X, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
-                VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
-        </Grid>
-        <Grid Margin="0,2" Visibility="{Binding Motion.Feedback.HasY, Converter={StaticResource BoolToVis}}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="20"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="Y" VerticalAlignment="Center" FontWeight="SemiBold"/>
-            <TextBlock Grid.Column="1"
-                Text="{Binding Motion.Position.Y, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
-                VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
-        </Grid>
-        <Grid Margin="0,2" Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="20"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="Z" VerticalAlignment="Center" FontWeight="SemiBold"/>
-            <TextBlock Grid.Column="1"
-                Text="{Binding Motion.Position.Z, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
-                VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
-        </Grid>
+        <UniformGrid Columns="3" Margin="0,2,0,0">
+            <StackPanel>
+                <TextBlock Text="X" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Text="{Binding Motion.Position.X, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
+                    FontFamily="Consolas" FontSize="15"/>
+            </StackPanel>
+            <StackPanel Visibility="{Binding Motion.Feedback.HasY, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="Y" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Text="{Binding Motion.Position.Y, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
+                    FontFamily="Consolas" FontSize="15"/>
+            </StackPanel>
+            <StackPanel Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="Z" Foreground="{StaticResource TextMutedBrush}"/>
+                <TextBlock Text="{Binding Motion.Position.Z, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
+                    FontFamily="Consolas" FontSize="15"/>
+            </StackPanel>
+        </UniformGrid>
 
         <Grid Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
@@ -168,8 +151,15 @@
         <Button Content="Home Axes" Command="{Binding HomeCommand}" Margin="0,8,0,0"
             Style="{StaticResource SecondaryButtonStyle}"
             ToolTip="Home the selected unit: Z first, then X/Y. Units without Z home X/Y only."/>
-        <ComboBox ItemsSource="{Binding MoveModes}"
-            SelectedItem="{Binding MoveMode, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0"/>
+        <Grid Margin="0,6,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="120"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Move mode" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+            <ComboBox Grid.Column="1" ItemsSource="{Binding MoveModes}"
+                SelectedItem="{Binding MoveMode, UpdateSourceTrigger=PropertyChanged}"/>
+        </Grid>
         <Grid Margin="0,6,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -209,14 +199,5 @@
             Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}"/>
         <TextBlock Text="Position and Z moves use the configured axis speed." Margin="0,4,0,0" TextWrapping="Wrap"
             Foreground="{StaticResource TextMutedBrush}"/>
-        <TextBlock Text="{Binding SaveBehavior, Converter={StaticResource EnumDescriptionConverter}}"
-            TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0"/>
-        <TextBlock
-            Text="{Binding SaveError}"
-            TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="0,4,0,0"/>
-        <TextBlock Text="{Binding ManualBlock, Converter={StaticResource EnumDescriptionConverter}}"
-            TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}" Margin="0,6,0,0"/>
-        <TextBlock Text="{Binding MotionHint, Converter={StaticResource EnumDescriptionConverter}}"
-            TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}" Margin="0,4,0,0"/>
     </StackPanel>
 </UserControl>
