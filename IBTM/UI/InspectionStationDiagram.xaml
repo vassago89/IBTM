@@ -11,7 +11,7 @@
     <Grid>
         <Canvas>
             <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeaderTop}"
-                Text="Inspection Station" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
+                Text="{ui:Text 'Inspection Station'}" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
             <Border Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}"
                 Width="{x:Static ui:MachineDiagramLayout.PlateWidth}" Height="54"
                 Tag="{Binding InspectionDisplayState}"
@@ -24,7 +24,7 @@
                     <TextBlock Margin="0,3,0,0" FontSize="14" TextTrimming="CharacterEllipsis"
                         Foreground="{StaticResource TextPrimaryBrush}"
                         ToolTip="{Binding InspectionActiveBarcode}">
-                        <Run Text="ID · "/><Run Text="{Binding InspectionActiveBarcode, Mode=OneWay, TargetNullValue='Not Read'}"/>
+                        <Run Text="{ui:Text 'ID · '}"/><Run Text="{Binding InspectionActiveBarcode, Mode=OneWay, TargetNullValue={ui:Text 'Not Read'}}"/>
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Style.Triggers>
@@ -43,7 +43,7 @@
                 <TextBlock x:Name="ActivePcb" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
                     Text="{Binding InspectionActivePcb, Converter={StaticResource EnumDescriptionConverter}}"/>
                 <TextBlock FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="{Binding InspectionActiveOrdinal, StringFormat=' · Bolt {0}'}">
+                    Text="{Binding InspectionActiveOrdinal, StringFormat={ui:Text ' · Bolt {0}'}}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Style.Triggers>
@@ -79,10 +79,10 @@
                             <ColumnDefinition Width="64"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="PCB 1" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Text="{ui:Text 'PCB 1'}" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
                         <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="{Binding InspectionPcb1Barcode, TargetNullValue='Not Read'}"
+                            Text="{Binding InspectionPcb1Barcode, TargetNullValue={ui:Text 'Not Read'}}"
                             ToolTip="{Binding InspectionPcb1Barcode}"/>
                     </Grid>
                     <Grid Margin="0,0,0,8"
@@ -91,10 +91,10 @@
                             <ColumnDefinition Width="64"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="PCB 2" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Text="{ui:Text 'PCB 2'}" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
                         <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="{Binding InspectionPcb2Barcode, TargetNullValue='Not Read'}"
+                            Text="{Binding InspectionPcb2Barcode, TargetNullValue={ui:Text 'Not Read'}}"
                             ToolTip="{Binding InspectionPcb2Barcode}"/>
                     </Grid>
                 </StackPanel>
@@ -125,7 +125,7 @@
                 <Grid Width="{StaticResource CarrierWidth}" Height="{StaticResource CarrierHeight}"
                     VerticalAlignment="Top">
                     <ui:CarrierView Visibility="{Binding Signals.Inputs[NgCarrierDetected].IsOn, Converter={StaticResource BoolToVis}}"
-                        ToolTip="Carrier presence sensor · not grip feedback" Opacity="0.5"/>
+                        ToolTip="{ui:Text 'Carrier presence sensor · not grip feedback'}" Opacity="0.5"/>
                     <Grid Width="{x:Static ui:MachineDiagramLayout.NgPickerWidth}" HorizontalAlignment="Center">
                         <Border Margin="-8,-6" Background="{StaticResource MachineGhostBrush}"
                             Tag="{Binding Inspection.Motion.IsMoving}"
@@ -133,7 +133,7 @@
                         <Border Tag="{Binding Inspection.Lift}" Style="{StaticResource DownFootprintStyle}"/>
                         <Border Tag="{Binding Inspection.Gripper}" Style="{StaticResource CarrierPickerTopJawStyle}"/>
                         <Border Tag="{Binding Inspection.Gripper}" Style="{StaticResource CarrierPickerBottomJawStyle}"/>
-                        <TextBlock Margin="0,5,0,0" VerticalAlignment="Top" Text="NG Pick" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                        <TextBlock Margin="0,5,0,0" VerticalAlignment="Top" Text="{ui:Text 'NG Pick'}" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                     </Grid>
                 </Grid>
             </StackPanel>
@@ -148,7 +148,7 @@
                             StrokeThickness="2"/>
                         <Ellipse Width="16" Height="16" Fill="Transparent" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1"/>
                     </Grid>
-                    <TextBlock Margin="0,2,0,0" Text="Camera" HorizontalAlignment="Center" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    <TextBlock Margin="0,2,0,0" Text="{ui:Text 'Camera'}" HorizontalAlignment="Center" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                 </StackPanel>
             </Canvas>
         </Canvas>

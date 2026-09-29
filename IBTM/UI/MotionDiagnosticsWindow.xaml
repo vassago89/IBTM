@@ -7,7 +7,7 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MotionDiagnosticsViewModel, IsDesignTimeCreatable=False}"
-    Title="Motion Monitor"
+    Title="{ui:Text 'Motion Monitor'}"
     Width="1240"
     Height="720"
     MinWidth="1120"
@@ -61,8 +61,8 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid>
-            <TextBlock Text="Motion Monitor" Style="{StaticResource TitleStyle}"/>
-            <Button Content="STOP"
+            <TextBlock Text="{ui:Text 'Motion Monitor'}" Style="{StaticResource TitleStyle}"/>
+            <Button Content="{ui:Text 'STOP'}"
                 Command="{Binding StopCommand}"
                 Style="{StaticResource DangerButtonStyle}" HorizontalAlignment="Right" MinWidth="100"/>
         </Grid>
@@ -74,10 +74,10 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="SEARCH · AXIS / NUMBER" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6"/>
+                <TextBlock Text="{ui:Text 'SEARCH · AXIS / NUMBER'}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6"/>
                 <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
-            <CheckBox Grid.Column="1" Content="Enabled axes only"
+            <CheckBox Grid.Column="1" Content="{ui:Text 'Enabled axes only'}"
                 IsChecked="{Binding EnabledOnly}"
                 Margin="20,0,0,0" VerticalAlignment="Bottom"/>
         </Grid>
@@ -95,16 +95,16 @@
                 <ColumnDefinition Width="62"/>
                 <ColumnDefinition Width="196"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="NO." Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1" Text="AXIS" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="POSITION (mm)" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="3" Text="STATE" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="4" Text="SERVO" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
-            <TextBlock Grid.Column="5" Text="HOMED" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
-            <TextBlock Grid.Column="6" Text="HOME IN" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
-            <TextBlock Grid.Column="7" Text="−LIMIT" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
-            <TextBlock Grid.Column="8" Text="+LIMIT" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
-            <TextBlock Grid.Column="9" Text="ALARM" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Text="{ui:Text 'NO.'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="1" Text="{ui:Text 'AXIS'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2" Text="{ui:Text 'POSITION (mm)'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="3" Text="{ui:Text 'STATE'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="4" Text="{ui:Text 'SERVO'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="5" Text="{ui:Text 'HOMED'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="6" Text="{ui:Text 'HOME IN'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="7" Text="{ui:Text '−LIMIT'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="8" Text="{ui:Text '+LIMIT'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="9" Text="{ui:Text 'ALARM'}" Style="{StaticResource SectionHeaderStyle}" HorizontalAlignment="Center"/>
         </Grid>
         <ListBox Grid.Row="4" ItemsSource="{Binding View}" Style="{StaticResource IoListStyle}">
             <ListBox.ItemContainerStyle>
@@ -148,7 +148,7 @@
                                         <Setter Property="Text" Value=""/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Enabled}" Value="False">
-                                                <Setter Property="Text" Value=" · Disabled"/>
+                                                <Setter Property="Text" Value="{ui:Text ' · Disabled'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -178,21 +178,21 @@
                         <TextBlock Grid.Column="9"
                             Tag="{Binding Diagnostics.Snapshot.Faulted}"
                             Text="{Binding Diagnostics.Snapshot.Faulted, Converter={StaticResource SignalTextConverter}}"
-                            Style="{StaticResource MotionFaultBit}" ToolTip="Alarm / E-stop"/>
+                            Style="{StaticResource MotionFaultBit}" ToolTip="{ui:Text 'Alarm / E-stop'}"/>
                         <StackPanel Grid.Column="10" Orientation="Horizontal" HorizontalAlignment="Right">
                             <Button Width="96" Padding="8,7" Margin="8,0,6,0" Command="{Binding ToggleServoCommand}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                        <Setter Property="Content" Value="Servo ON"/>
+                                        <Setter Property="Content" Value="{ui:Text 'Servo ON'}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Diagnostics.Snapshot.State.ServoOn}" Value="True">
-                                                <Setter Property="Content" Value="Servo OFF"/>
+                                                <Setter Property="Content" Value="{ui:Text 'Servo OFF'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Content="Home" Width="80" Style="{StaticResource SecondaryButtonStyle}"
+                            <Button Content="{ui:Text 'Home'}" Width="80" Style="{StaticResource SecondaryButtonStyle}"
                                 Command="{Binding HomeCommand}"/>
                         </StackPanel>
                     </Grid>

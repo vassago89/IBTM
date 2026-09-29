@@ -9,7 +9,7 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:AdcProtocolViewModel, IsDesignTimeCreatable=False}"
-    Title="HANTAS ADC Protocol"
+    Title="{ui:Text 'HANTAS ADC Protocol'}"
     Width="1120"
     Height="980"
     MinWidth="960"
@@ -26,7 +26,7 @@
 
         <Grid>
             <StackPanel>
-                <TextBlock Text="HANTAS ADC Protocol" Style="{StaticResource TitleStyle}"/>
+                <TextBlock Text="{ui:Text 'HANTAS ADC Protocol'}" Style="{StaticResource TitleStyle}"/>
                 <ComboBox Margin="0,10,0,0" Width="220" HorizontalAlignment="Left"
                     ItemsSource="{Binding Heads}" SelectedItem="{Binding SelectedHead, Mode=TwoWay}"
                     IsEnabled="{Binding ConnectionControlsEnabled}">
@@ -48,7 +48,7 @@
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
-                <TextBlock Text="Next Virtual Result" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBlock Text="{ui:Text 'Next Virtual Result'}" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
                 <ComboBox SelectedItem="{Binding NextResult, Mode=TwoWay}" Width="155" Margin="10,0" ItemsSource="{Binding FasteningResults}">
                     <ComboBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type device:AdcEventStatus}">
@@ -56,7 +56,7 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <Button Content="Use for Next Test" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding QueueResultCommand}"/>
+                <Button Content="{ui:Text 'Use for Next Test'}" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding QueueResultCommand}"/>
             </StackPanel>
         </Grid>
 
@@ -73,16 +73,16 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Text="PORT" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBlock Text="{ui:Text 'PORT'}" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
                 <ComboBox Grid.Column="1" Margin="10,0,8,0"
                     ItemsSource="{Binding PortNames}"
                     SelectedItem="{Binding SelectedPort, Mode=TwoWay}" IsEnabled="{Binding PortSelectionEnabled}"/>
-                <Button Grid.Column="2" Content="Refresh Ports" Padding="12,5"
+                <Button Grid.Column="2" Content="{ui:Text 'Refresh Ports'}" Padding="12,5"
                     Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshPortsCommand}"/>
 
                 <ComboBox IsEnabled="{Binding PortSelectionEnabled}" SelectedItem="{Binding SelectedBaudRate, Mode=TwoWay}" Grid.Column="3" Margin="16,0,0,0" ItemsSource="{Binding BaudRates}"/>
 
-                <TextBlock Grid.Column="4" Margin="16,0,0,0" Text="SLAVE" VerticalAlignment="Center"
+                <TextBlock Grid.Column="4" Margin="16,0,0,0" Text="{ui:Text 'SLAVE'}" VerticalAlignment="Center"
                     Style="{StaticResource SectionHeaderStyle}"/>
                 <TextBox IsEnabled="{Binding SlaveSelectionEnabled}" Grid.Column="5" Margin="10,0,0,0" Text="{Binding SlaveText, UpdateSourceTrigger=PropertyChanged}"/>
 
@@ -105,44 +105,44 @@
             <Border Padding="18,16" Style="{StaticResource CardStyle}">
                 <DockPanel>
                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                        <TextBlock Text="CONTROLLER" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="{ui:Text 'CONTROLLER'}" VerticalAlignment="Center" Style="{StaticResource SectionHeaderStyle}"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <ui:HoldButton Content="Loosen (hold)" Margin="0,0,8,0"
+                            <ui:HoldButton Content="{ui:Text 'Loosen (hold)'}" Margin="0,0,8,0"
                                 PressCommand="{Binding ReverseCommand}"
                                 ReleaseCommand="{Binding ReleaseReverseCommand}"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 ToolTipService.ShowOnDisabled="True"
-                                ToolTip="Release or STOP to stop rotation."/>
-                            <Button Content="Stop" Style="{StaticResource DangerButtonStyle}" Command="{Binding StopCommand}"/>
+                                ToolTip="{ui:Text 'Release or STOP to stop rotation.'}"/>
+                            <Button Content="{ui:Text 'Stop'}" Style="{StaticResource DangerButtonStyle}" Command="{Binding StopCommand}"/>
                         </StackPanel>
                     </Grid>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel IsEnabled="{Binding ProtocolEnabled}">
-                            <Button Content="Select Preset 1"
+                            <Button Content="{ui:Text 'Select Preset 1'}"
                                 Margin="0,14,0,12" HorizontalAlignment="Left" Padding="14,5"
                                 Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SelectPresetCommand}"/>
 
                             <WrapPanel Margin="0,0,0,14">
-                                <Button Content="Start Fastening" Margin="0,0,8,8"
+                                <Button Content="{ui:Text 'Start Fastening'}" Margin="0,0,8,8"
                                     ToolTipService.ShowOnDisabled="True"
-                                    ToolTip="Clear interrupted work, then RESET."
+                                    ToolTip="{ui:Text 'Clear interrupted work, then RESET.'}"
                                     Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartCommand}"/>
-                                <Button Content="Alarm Reset" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
+                                <Button Content="{ui:Text 'Alarm Reset'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding ResetAlarmCommand}"/>
-                                <Button Content="Read Last Result" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
+                                <Button Content="{ui:Text 'Read Last Result'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding ReadResultCommand}"/>
-                                <Button Content="Read Device Info" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
+                                <Button Content="{ui:Text 'Read Device Info'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding ReadDeviceInformationCommand}"/>
-                                <Button Content="Capture RX (3s)" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
+                                <Button Content="{ui:Text 'Capture RX (3s)'}" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding CaptureDeviceInformationCommand}"/>
                             </WrapPanel>
 
-                            <TextBlock Text="CONTROLLER / LAST RESULT" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="{ui:Text 'CONTROLLER / LAST RESULT'}" Style="{StaticResource SectionHeaderStyle}"/>
                             <TextBlock Margin="0,10,0,0" FontFamily="Cascadia Mono, Consolas">
-                                <Run Text="Ready "/><Run Text="{Binding Bus.Monitor.Sample.Status.Ready, Mode=OneWay, TargetNullValue=—}"/>
-                                <Run Text="  Run "/><Run Text="{Binding Bus.Monitor.Sample.Status.Running, Mode=OneWay, TargetNullValue=—}"/>
-                                <Run Text="  Preset "/><Run Text="{Binding Bus.Monitor.Sample.Status.Preset, Mode=OneWay, TargetNullValue=—}"/>
-                                <LineBreak/><Run Text="Alarm "/><Run Text="{Binding Bus.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—}"/>
+                                <Run Text="{ui:Text 'Ready '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Ready, Mode=OneWay, TargetNullValue=—}"/>
+                                <Run Text="{ui:Text '  Run '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Running, Mode=OneWay, TargetNullValue=—}"/>
+                                <Run Text="{ui:Text '  Preset '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Preset, Mode=OneWay, TargetNullValue=—}"/>
+                                <LineBreak/><Run Text="{ui:Text 'Alarm '}"/><Run Text="{Binding Bus.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—}"/>
                             </TextBlock>
                             <TextBlock Text="{Binding Bus.Monitor.Sample.Error.Message}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
                             <TextBlock Text="{Binding Bus.Monitor.Sample.Rejection}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
@@ -157,7 +157,7 @@
             <Border Grid.Column="2" Padding="18,16" Style="{StaticResource CardStyle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel IsEnabled="{Binding ProtocolEnabled}">
-                        <TextBlock Text="REGISTER ACCESS" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="{ui:Text 'REGISTER ACCESS'}" Style="{StaticResource SectionHeaderStyle}"/>
 
                         <ComboBox SelectedItem="{Binding RegisterAccess, Mode=TwoWay}" Margin="0,14,0,12" ItemsSource="{Binding RegisterAccesses}"/>
 
@@ -170,23 +170,23 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="ADDRESS" Style="{StaticResource SectionHeaderStyle}"/>
+                                <TextBlock Text="{ui:Text 'ADDRESS'}" Style="{StaticResource SectionHeaderStyle}"/>
                                 <TextBox Margin="0,6,0,0" Text="{Binding AddressText, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="COUNT" Style="{StaticResource SectionHeaderStyle}"/>
+                                <TextBlock Text="{ui:Text 'COUNT'}" Style="{StaticResource SectionHeaderStyle}"/>
                                 <TextBox Margin="0,6,0,0" Text="{Binding CountText, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="4">
-                                <TextBlock Text="VALUE" Style="{StaticResource SectionHeaderStyle}"/>
+                                <TextBlock Text="{ui:Text 'VALUE'}" Style="{StaticResource SectionHeaderStyle}"/>
                                 <TextBox Margin="0,6,0,0" Text="{Binding ValueText, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                         </Grid>
 
-                        <Button Content="Send Command" Margin="0,14,0,14" HorizontalAlignment="Left"
+                        <Button Content="{ui:Text 'Send Command'}" Margin="0,14,0,14" HorizontalAlignment="Left"
                             Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ExecuteRegisterCommand}"/>
 
-                        <TextBlock Text="RESPONSE" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="{ui:Text 'RESPONSE'}" Style="{StaticResource SectionHeaderStyle}"/>
                         <TextBlock Margin="0,10,0,0"
                             Text="{Binding RegisterResult}"
                             TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas" Foreground="{StaticResource TextPrimaryBrush}"/>
@@ -196,7 +196,7 @@
         </Grid>
 
         <TabControl Grid.Row="3" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}">
-        <TabItem Header="Frame Log">
+        <TabItem Header="{ui:Text 'Frame Log'}">
         <Border Padding="18,14" Style="{StaticResource CardStyle}">
             <Grid>
                 <Grid.RowDefinitions>
@@ -207,17 +207,17 @@
                 </Grid.RowDefinitions>
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <CheckBox Content="Pause display" IsChecked="{Binding IsLogPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                        <Button Content="Copy" Command="{Binding CopyLogCommand}" Padding="12,4" Margin="0,0,8,0"
+                        <CheckBox Content="{ui:Text 'Pause display'}" IsChecked="{Binding IsLogPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <Button Content="{ui:Text 'Copy'}" Command="{Binding CopyLogCommand}" Padding="12,4" Margin="0,0,8,0"
                             Style="{StaticResource SecondaryButtonStyle}"/>
-                        <Button Content="Copy all" Command="{Binding CopyAllLogCommand}" Padding="12,4" Margin="0,0,8,0"
+                        <Button Content="{ui:Text 'Copy all'}" Command="{Binding CopyAllLogCommand}" Padding="12,4" Margin="0,0,8,0"
                             Style="{StaticResource SecondaryButtonStyle}"/>
-                        <Button Content="Clear Display" Command="{Binding ClearLogCommand}" Padding="12,4" Style="{StaticResource SecondaryButtonStyle}"/>
+                        <Button Content="{ui:Text 'Clear Display'}" Command="{Binding ClearLogCommand}" Padding="12,4" Style="{StaticResource SecondaryButtonStyle}"/>
                     </StackPanel>
-                    <TextBlock Text="FRAME LOG" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{ui:Text 'FRAME LOG'}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center"/>
                 </DockPanel>
                 <TextBlock Grid.Row="1" Margin="0,6,0,0" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
-                    Text="Text selection pauses updates"/>
+                    Text="{ui:Text 'Text selection pauses updates'}"/>
                 <ui:LogTextBox x:Name="FrameLogBox" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2" Margin="0,8,0,0"
                     Text="{Binding FrameLogText, Mode=OneWay}"
                     IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
@@ -227,7 +227,7 @@
             </Grid>
         </Border>
         </TabItem>
-        <TabItem Header="오류 코드 / 조치">
+        <TabItem Header="{ui:Text '오류 코드 / 조치'}">
             <Grid Margin="12,8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -243,10 +243,10 @@
                     HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0"
                     Background="{StaticResource ControlBgBrush}" Foreground="{StaticResource TextPrimaryBrush}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="코드 · 10진수 (16진수)" Binding="{Binding CodeText}" Width="155"/>
-                        <DataGridTextColumn Header="분류" Binding="{Binding Group}" Width="115"/>
-                        <DataGridTextColumn Header="의미" Binding="{Binding Description}" Width="*"/>
-                        <DataGridTextColumn Header="확인 / 조치" Binding="{Binding Action}" Width="*"/>
+                        <DataGridTextColumn Header="{ui:Text '코드 · 10진수 (16진수)'}" Binding="{Binding CodeText}" Width="155"/>
+                        <DataGridTextColumn Header="{ui:Text '분류'}" Binding="{Binding Group}" Width="115"/>
+                        <DataGridTextColumn Header="{ui:Text '의미'}" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="{ui:Text '확인 / 조치'}" Binding="{Binding Action}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>

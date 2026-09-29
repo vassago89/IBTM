@@ -13,13 +13,13 @@
     <Grid>
         <Canvas>
             <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.HeaderTop}"
-                Text="PCB Supply / Placement" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
+                Text="{ui:Text 'PCB Supply / Placement'}" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
 
             <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.HeaderInset}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}"
                 Orientation="Horizontal">
                 <Border Tag="{Binding SupplyDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54" Margin="0,0,10,0">
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="SUPPLY" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
+                        <TextBlock Text="{ui:Text 'SUPPLY'}" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
                         <TextBlock
                             Text="{Binding SupplyStatus,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
@@ -29,7 +29,7 @@
                 </Border>
                 <Border Tag="{Binding PlacementDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54">
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="PLACEMENT" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
+                        <TextBlock Text="{ui:Text 'PLACEMENT'}" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
                         <TextBlock
                             Text="{Binding PlacementStatus,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
@@ -54,12 +54,12 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Grid.ColumnSpan="5" Text="Front 1 · PCB · SMEMA"
+                    <TextBlock Grid.ColumnSpan="5" Text="{ui:Text 'Front 1 · PCB · SMEMA'}"
                         FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock Grid.Row="1" Text="→ Available" FontSize="13" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="1" Text="{ui:Text '→ Available'}" FontSize="13" Style="{StaticResource MapHintStyle}"/>
                     <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
                         Tag="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].IsOn}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="3" Text="← Ready" FontSize="13" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="3" Text="{ui:Text '← Ready'}" FontSize="13" Style="{StaticResource MapHintStyle}"/>
                     <TextBlock Grid.Row="1" Grid.Column="4" Style="{StaticResource SmemaSignalStateStyle}"
                         Tag="{Binding Signals.Outputs[PcbSupplyReadyToFront1].IsOn}"/>
                 </Grid>
@@ -68,7 +68,7 @@
                 Width="{x:Static ui:MachineDiagramLayout.SupplyRailWidth}" Height="{x:Static ui:MachineDiagramLayout.SupplyRailHeight}"
                 Style="{StaticResource DeviceBodyStyle}">
                 <Grid>
-                    <TextBlock Text="PCB In" VerticalAlignment="Top" Margin="0,8,0,0"
+                    <TextBlock Text="{ui:Text 'PCB In'}" VerticalAlignment="Top" Margin="0,8,0,0"
                         Style="{StaticResource EquipmentRoleLabelStyle}"/>
                     <Grid Width="{x:Static ui:MachineDiagramLayout.SupplyCarrierFrameWidth}" Height="{x:Static ui:MachineDiagramLayout.SupplyCarrierHeight}"
                         HorizontalAlignment="Center" VerticalAlignment="Center">

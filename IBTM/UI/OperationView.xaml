@@ -12,7 +12,7 @@
     <UserControl.Resources>
         <DataTemplate x:Key="PcbHistoryCard" DataType="{x:Type storage:PcbRecord}">
             <StackPanel MinWidth="94" Margin="8,4">
-                <TextBlock Text="{Binding Number, StringFormat='PCB {0}'}" FontWeight="SemiBold"
+                <TextBlock Text="{Binding Number, StringFormat={ui:Text 'PCB {0}'}}" FontWeight="SemiBold"
                     Foreground="{StaticResource TextPrimaryBrush}"/>
                 <TextBlock x:Name="ResultText" Margin="0,4,0,0"
                     Text="{Binding Result, Converter={StaticResource EnumDescriptionConverter}}"
@@ -37,17 +37,17 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextSecondaryBrush}"
                         FontSize="12" Margin="0,0,8,0"/>
-                    <TextBlock x:Name="DoorState" Grid.Column="1" Text="UNKNOWN"
+                    <TextBlock x:Name="DoorState" Grid.Column="1" Text="{ui:Text 'UNKNOWN'}"
                         Foreground="{StaticResource TextMutedBrush}" FontSize="12" FontWeight="SemiBold"/>
                 </Grid>
             </Border>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding Input.IsOn}" Value="True">
-                    <Setter TargetName="DoorState" Property="Text" Value="CLOSED"/>
+                    <Setter TargetName="DoorState" Property="Text" Value="{ui:Text 'CLOSED'}"/>
                     <Setter TargetName="DoorState" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Input.IsOn}" Value="False">
-                    <Setter TargetName="DoorState" Property="Text" Value="OPEN"/>
+                    <Setter TargetName="DoorState" Property="Text" Value="{ui:Text 'OPEN'}"/>
                     <Setter TargetName="DoorState" Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                     <Setter TargetName="DoorCard" Property="Background" Value="{StaticResource AlarmStateBackgroundBrush}"/>
                     <Setter TargetName="DoorCard" Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
@@ -74,7 +74,7 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="DOORS" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold"/>
+                    <TextBlock Text="{ui:Text 'DOORS'}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold"/>
                 </StackPanel>
                 <ItemsControl Grid.Column="1" ItemsSource="{Binding DoorSensors}" ItemTemplate="{StaticResource DoorSensorTemplate}">
                     <ItemsControl.ItemsPanel>
@@ -96,7 +96,7 @@
                     BorderThickness="0,0,0,1" Padding="12,8">
                     <UniformGrid Columns="3">
                         <StackPanel>
-                            <TextBlock Text="Supply · Z" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{ui:Text 'Supply · Z'}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBlock FontSize="14" FontWeight="SemiBold">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -115,7 +115,7 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel>
-                            <TextBlock Text="Placement · Z" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{ui:Text 'Placement · Z'}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBlock FontSize="14" FontWeight="SemiBold">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -134,7 +134,7 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel>
-                            <TextBlock Text="Bolt Fastening · Z" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{ui:Text 'Bolt Fastening · Z'}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBlock FontSize="14" FontWeight="SemiBold">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -177,14 +177,14 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBlock Text="Inspection Image" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                <TextBlock Grid.Row="1" Margin="0,4,0,10" Text="{Binding InspectionImageCaption, TargetNullValue='Waiting for inspection'}"
+                <TextBlock Text="{ui:Text 'Inspection Image'}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Grid.Row="1" Margin="0,4,0,10" Text="{Binding InspectionImageCaption, TargetNullValue={ui:Text 'Waiting for inspection'}}"
                     Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding InspectionImageCaption}"/>
                 <Border Grid.Row="2" Background="{StaticResource ImageBackgroundBrush}" ClipToBounds="True">
                     <Image Source="{Binding InspectionImage}" Stretch="Uniform"/>
                 </Border>
                 <Grid Grid.Row="3" Margin="0,14,0,8">
-                    <TextBlock Text="Latest fastening" FontSize="16" FontWeight="SemiBold"
+                    <TextBlock Text="{ui:Text 'Latest fastening'}" FontSize="16" FontWeight="SemiBold"
                         Foreground="{StaticResource TextPrimaryBrush}"/>
                     <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11"
                         Foreground="{StaticResource TextMutedBrush}"
@@ -193,7 +193,7 @@
                 <Border Grid.Row="4" Padding="10" MinHeight="218" Background="{StaticResource ControlBgBrush}"
                     BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="3">
                     <Grid>
-                        <TextBlock Text="Waiting for a fastening result" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        <TextBlock Text="{ui:Text 'Waiting for a fastening result'}" VerticalAlignment="Center" HorizontalAlignment="Center"
                             Foreground="{StaticResource TextMutedBrush}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -231,15 +231,15 @@
                                             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.Success}" Value="True">
-                                                    <Setter Property="Text" Value="FASTEN OK"/>
+                                                    <Setter Property="Text" Value="{ui:Text 'FASTEN OK'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.Success}" Value="False">
-                                                    <Setter Property="Text" Value="FASTEN NG"/>
+                                                    <Setter Property="Text" Value="{ui:Text 'FASTEN NG'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.Source}" Value="{x:Static core:BoltResultSource.DryRun}">
-                                                    <Setter Property="Text" Value="DRY RUN"/>
+                                                    <Setter Property="Text" Value="{ui:Text 'DRY RUN'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -251,7 +251,7 @@
                                 <Run Text="{Binding RecentFastening.HeatSink, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
                                 <Run Text=" · "/><Run Text="{Binding RecentFastening.Head, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
                             </TextBlock>
-                            <TextBlock Text="TURNS · A3 / 360" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{ui:Text 'TURNS · A3 / 360'}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBlock Text="{Binding RecentFastening.Result.TotalTurns, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"
                                 FontSize="32" FontWeight="SemiBold" FontFamily="Cascadia Mono, Consolas">
                                 <TextBlock.Style>
@@ -267,24 +267,24 @@
                             </TextBlock>
                             <Grid>
                                 <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Minimum "/><Run Text="{Binding RecentFastening.Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
+                                    <Run Text="{ui:Text 'Minimum '}"/><Run Text="{Binding RecentFastening.Result.MinimumTurns, Mode=OneWay, StringFormat=0.###, TargetNullValue=—, FallbackValue=—}"/>
                                 </TextBlock>
                                 <TextBlock HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="Minimum not set"/>
+                                            <Setter Property="Text" Value="{ui:Text 'Minimum not set'}"/>
                                             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Ok}">
-                                                    <Setter Property="Text" Value="TURNS OK"/>
+                                                    <Setter Property="Text" Value="{ui:Text 'TURNS OK'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Ng}">
-                                                    <Setter Property="Text" Value="TURNS NG"/>
+                                                    <Setter Property="Text" Value="{ui:Text 'TURNS NG'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding RecentFastening.Result.TurnsResult}" Value="{x:Static core:AssemblyResult.Pending}">
-                                                    <Setter Property="Text" Value="No measurement"/>
+                                                    <Setter Property="Text" Value="{ui:Text 'No measurement'}"/>
                                                     <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -294,14 +294,14 @@
                             </Grid>
                             <UniformGrid Columns="2" Margin="0,10,0,6">
                                 <StackPanel>
-                                    <TextBlock Text="TORQUE / TARGET" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="{ui:Text 'TORQUE / TARGET'}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                                     <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="14">
                                         <Run Text="{Binding RecentFastening.Result.Torque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                         <Run Text=" / "/><Run Text="{Binding RecentFastening.Result.Controller.TargetTorque, Mode=OneWay, StringFormat=0.##, TargetNullValue=—, FallbackValue=—}"/>
                                     </TextBlock>
                                 </StackPanel>
                                 <StackPanel>
-                                    <TextBlock Text="FASTENING TIME (ms)" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="{ui:Text 'FASTENING TIME (ms)'}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
                                     <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="14"
                                         Text="{Binding RecentFastening.Result.Controller.FasteningTimeMilliseconds, TargetNullValue=—, FallbackValue=—}"/>
                                 </StackPanel>
@@ -338,7 +338,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="PCB Results" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{ui:Text 'PCB Results'}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
                                 </StackPanel>
                                 <TextBlock Grid.Column="1" Margin="20,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                     Foreground="{StaticResource AccentRedBrush}">
@@ -357,7 +357,7 @@
                                 </TextBlock>
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
-                                        Text="{Binding Machine.PcbHistory.PendingCount, StringFormat='Pending saves: {0}'}">
+                                        Text="{Binding Machine.PcbHistory.PendingCount, StringFormat={ui:Text 'Pending saves: {0}'}}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Style.Triggers>
@@ -368,7 +368,7 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <Button Content="Retry save" Margin="0,0,8,0" Padding="12,2" MinHeight="24"
+                                    <Button Content="{ui:Text 'Retry save'}" Margin="0,0,8,0" Padding="12,2" MinHeight="24"
                                         Command="{Binding RetryPcbSaveCommand}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -380,7 +380,7 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="← Newer" Padding="12,2" MinHeight="24" Margin="0,0,6,0"
+                                    <Button Content="{ui:Text '← Newer'}" Padding="12,2" MinHeight="24" Margin="0,0,6,0"
                                         Command="{x:Static ScrollBar.PageLeftCommand}" CommandTarget="{Binding ElementName=PcbHistoryScroll}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -392,7 +392,7 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="Older →" Padding="12,2" MinHeight="24" Margin="0,0,12,0"
+                                    <Button Content="{ui:Text 'Older →'}" Padding="12,2" MinHeight="24" Margin="0,0,12,0"
                                         Command="{x:Static ScrollBar.PageRightCommand}" CommandTarget="{Binding ElementName=PcbHistoryScroll}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -407,13 +407,13 @@
                                     <Button Padding="12,2" MinHeight="24" Command="{Binding LoadOlderPcbsCommand}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Setter Property="Content" Value="Retry loading"/>
+                                                <Setter Property="Content" Value="{ui:Text 'Retry loading'}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding PcbHistoryError}" Value="{x:Null}">
-                                                        <Setter Property="Content" Value="Load older"/>
+                                                        <Setter Property="Content" Value="{ui:Text 'Load older'}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="True">
-                                                        <Setter Property="Content" Value="Loading..."/>
+                                                        <Setter Property="Content" Value="{ui:Text 'Loading...'}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -431,16 +431,16 @@
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Setter Property="Text" Value="PCB history unavailable"/>
+                                        <Setter Property="Text" Value="{ui:Text 'PCB history unavailable'}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding PcbRecords.Count}" Value="0">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding PcbHistoryError}" Value="{x:Null}">
-                                                <Setter Property="Text" Value="No PCB results"/>
+                                                <Setter Property="Text" Value="{ui:Text 'No PCB results'}"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding LoadOlderPcbsCommand.IsRunning}" Value="True">
-                                                <Setter Property="Text" Value="Loading PCB results..."/>
+                                                <Setter Property="Text" Value="{ui:Text 'Loading PCB results...'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

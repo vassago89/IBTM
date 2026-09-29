@@ -72,7 +72,7 @@
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Padding="20,20,20,16" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
-                    <TextBlock Text="Menu" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="{ui:Text 'Menu'}" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
@@ -119,7 +119,7 @@
                         </Button.Style>
                     </Button>
 
-                    <Button Content="Inspection" Command="{Binding NavigateCommand}"
+                    <Button Content="{ui:Text 'Inspection'}" Command="{Binding NavigateCommand}"
                         CommandParameter="{x:Static ui:AppPage.Inspection}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
@@ -146,17 +146,17 @@
                     </Button>
                 </StackPanel>
                 <StackPanel Grid.Row="2" Margin="0,8">
-                    <Button Content="INPUTS" Margin="8,8,8,0" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenInputsCommand}"/>
+                    <Button Content="{ui:Text 'INPUTS'}" Margin="8,8,8,0" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenInputsCommand}"/>
 
-                    <Button Content="OUTPUTS" Style="{StaticResource SidebarToolButtonStyle}"
-        ToolTip="Manual mode only" ToolTipService.ShowOnDisabled="True"
+                    <Button Content="{ui:Text 'OUTPUTS'}" Style="{StaticResource SidebarToolButtonStyle}"
+        ToolTip="{ui:Text 'Manual mode only'}" ToolTipService.ShowOnDisabled="True"
         Command="{Binding OpenOutputsCommand}"/>
 
-                    <Button Content="MOTION" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenMotionCommand}"/>
+                    <Button Content="{ui:Text 'MOTION'}" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenMotionCommand}"/>
 
-                    <Button Content="ADC TEST" Style="{StaticResource SidebarToolButtonStyle}"
+                    <Button Content="{ui:Text 'ADC TEST'}" Style="{StaticResource SidebarToolButtonStyle}"
         Command="{Binding OpenAdcProtocolCommand}"/>
-                    <Button Content="LOGS" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenLogsCommand}"/>
+                    <Button Content="{ui:Text 'LOGS'}" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenLogsCommand}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -213,7 +213,7 @@
                                         <DataTrigger Binding="{Binding Operation.State.Available}" Value="False">
                                             <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
                                             <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
-                                            <Setter Property="ToolTip" Value="Mode feedback unavailable"/>
+                                            <Setter Property="ToolTip" Value="{ui:Text 'Mode feedback unavailable'}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -235,21 +235,21 @@
                         <Border Style="{StaticResource StateBadgeStyle}" Margin="8,0,0,0" BorderBrush="{StaticResource AccentAmberBrush}"
                             Visibility="{Binding Operation.SafetyBypass,
                                                      Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="SAFETY BYPASS" Foreground="{StaticResource AccentAmberBrush}" FontSize="11"
+                            <TextBlock Text="{ui:Text 'SAFETY BYPASS'}" Foreground="{StaticResource AccentAmberBrush}" FontSize="11"
                                 FontWeight="SemiBold"/>
                         </Border>
                     </StackPanel>
 
                     <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="RECIPE" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{ui:Text 'RECIPE'}" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding RecipeEditor.ActiveName}"
                             Foreground="{StaticResource TextPrimaryBrush}" FontSize="14" FontWeight="SemiBold"
                             VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis"
                             ToolTip="{Binding RecipeEditor.ActiveName}"/>
                         <Grid Width="156" Margin="10,0,0,0" IsEnabled="{Binding RecipeEditingEnabled}">
-                            <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" AutomationProperties.Name="Change recipe"
+                            <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" AutomationProperties.Name="{ui:Text 'Change recipe'}"
                                 SelectedItem="{Binding SelectedRecipeName, Mode=TwoWay}"/>
-                            <TextBlock Text="Change recipe..." Margin="10,0,28,0" VerticalAlignment="Center"
+                            <TextBlock Text="{ui:Text 'Change recipe...'}" Margin="10,0,28,0" VerticalAlignment="Center"
                                 Foreground="{StaticResource TextMutedBrush}" FontSize="12" IsHitTestVisible="False">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -271,10 +271,10 @@
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
-                                        <Setter Property="Text" Value="SERVO OFF"/>
+                                        <Setter Property="Text" Value="{ui:Text 'SERVO OFF'}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.State.ServoPowerOn}" Value="True">
-                                                <Setter Property="Text" Value="SERVO ON"/>
+                                                <Setter Property="Text" Value="{ui:Text 'SERVO ON'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -286,10 +286,10 @@
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
-                                        <Setter Property="Text" Value="NOT HOMED"/>
+                                        <Setter Property="Text" Value="{ui:Text 'NOT HOMED'}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.State.FeedbackReadiness.Homed}" Value="True">
-                                                <Setter Property="Text" Value="HOMED"/>
+                                                <Setter Property="Text" Value="{ui:Text 'HOMED'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -301,10 +301,10 @@
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
-                                        <Setter Property="Text" Value="E-STOP PRESSED"/>
+                                        <Setter Property="Text" Value="{ui:Text 'E-STOP PRESSED'}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.State.EmergencyStopReleased}" Value="True">
-                                                <Setter Property="Text" Value="E-STOP OK"/>
+                                                <Setter Property="Text" Value="{ui:Text 'E-STOP OK'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -316,10 +316,10 @@
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
-                                        <Setter Property="Text" Value="DOORS OPEN"/>
+                                        <Setter Property="Text" Value="{ui:Text 'DOORS OPEN'}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.State.DoorClosed}" Value="True">
-                                                <Setter Property="Text" Value="DOORS CLOSED"/>
+                                                <Setter Property="Text" Value="{ui:Text 'DOORS CLOSED'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -331,10 +331,10 @@
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
-                                        <Setter Property="Text" Value="AIR LOW"/>
+                                        <Setter Property="Text" Value="{ui:Text 'AIR LOW'}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.State.AirPressureOk}" Value="True">
-                                                <Setter Property="Text" Value="AIR OK"/>
+                                                <Setter Property="Text" Value="{ui:Text 'AIR OK'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -371,7 +371,7 @@
                         <ColumnDefinition Width="100"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Messages" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
+                    <TextBlock Text="{ui:Text 'Messages'}" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
                         VerticalAlignment="Center"/>
                     <ScrollViewer Grid.Column="1" MaxHeight="100" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
@@ -426,8 +426,8 @@
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <CheckBox Content="REPEAT" Margin="0,0,18,0" VerticalAlignment="Center"
-                                ToolTip="Dry run · no bolt supply or pickup vacuum. Carrier returns to S3."
+                            <CheckBox Content="{ui:Text 'REPEAT'}" Margin="0,0,18,0" VerticalAlignment="Center"
+                                ToolTip="{ui:Text 'Dry run · no bolt supply or pickup vacuum. Carrier returns to S3.'}"
                                 IsChecked="{Binding Operation.State.RepeatEnabled, BindingGroupName={x:Null}}"
                                 IsEnabled="{Binding Operation.State.SetupEditingEnabled}"/>
                             <Button Command="{Binding Operation.HomeCommand}"
@@ -435,17 +435,17 @@
                                 ToolTipService.ShowOnDisabled="True" MinWidth="144" Height="48" Margin="0,0,8,0">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                        <Setter Property="Content" Value="HOME ALL"/>
+                                        <Setter Property="Content" Value="{ui:Text 'HOME ALL'}"/>
                                         <Setter Property="ToolTip" Value="{Binding Operation.Machine.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.State.IsHoming}" Value="True">
-                                                <Setter Property="Content" Value="HOMING..."/>
+                                                <Setter Property="Content" Value="{ui:Text 'HOMING...'}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Content="START"
+                            <Button Content="{ui:Text 'START'}"
                                 Command="{Binding Operation.StartCommand}"
                                 IsEnabled="{Binding Operation.Machine.IsStartAllowed}"
                                 MinWidth="144" Height="48" Margin="0,0,8,0">
@@ -469,21 +469,21 @@
                         </StackPanel>
                         <Button
                             Command="{Binding ResetCommand}"
-                            ToolTip="Silence buzzer / recover stopped hardware; servos may turn ON."
+                            ToolTip="{ui:Text 'Silence buzzer / recover stopped hardware; servos may turn ON.'}"
                             ToolTipService.ShowOnDisabled="True" MinWidth="120" Height="48" Margin="0,0,8,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                    <Setter Property="Content" Value="RESET"/>
+                                    <Setter Property="Content" Value="{ui:Text 'RESET'}"/>
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
-                                            <Setter Property="Content" Value="RESETTING..."/>
+                                            <Setter Property="Content" Value="{ui:Text 'RESETTING...'}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="STOP" Command="{Binding Operation.StopCommand}" MinWidth="144" Height="48">
+                        <Button Content="{ui:Text 'STOP'}" Command="{Binding Operation.StopCommand}" MinWidth="144" Height="48">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                     <Style.Triggers>

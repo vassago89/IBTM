@@ -19,8 +19,8 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" IsEnabled="{Binding IsIdle}">
                 <ComboBox ItemsSource="{Binding RecipeNames}" SelectedItem="{Binding SelectedRecipeName, BindingGroupName={x:Null}}"
                     Width="180" Margin="0,0,8,0"/>
-                <Button Content="Load Recipe" Command="{Binding LoadRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
-                <Button Content="Save Inspection Settings" Command="{Binding SaveCommand}">
+                <Button Content="{ui:Text 'Load Recipe'}" Command="{Binding LoadRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
+                <Button Content="{ui:Text 'Save Inspection Settings'}" Command="{Binding SaveCommand}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                             <Style.Triggers>
@@ -31,13 +31,13 @@
                     </Button.Style>
                 </Button>
             </StackPanel>
-            <TextBlock Text="Inspection Setup" Style="{StaticResource TitleStyle}"/>
+            <TextBlock Text="{ui:Text 'Inspection Setup'}" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions><ColumnDefinition Width="280"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
             <Border Style="{StaticResource CardStyle}" Padding="10" Margin="0,0,10,0">
                 <TabControl Style="{StaticResource SectionTabs}" ItemContainerStyle="{StaticResource SectionTab}">
-                    <TabItem Header="Taught points">
+                    <TabItem Header="{ui:Text 'Taught points'}">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                                 <TextBlock Text="{Binding Draft.Name}" Style="{StaticResource PanelTitleStyle}"/>
@@ -55,7 +55,7 @@
                             </ListBox>
                         </DockPanel>
                     </TabItem>
-                    <TabItem Header="Saved results">
+                    <TabItem Header="{ui:Text 'Saved results'}">
                         <Grid IsEnabled="{Binding IsIdle}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -65,12 +65,12 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <StackPanel Margin="0,0,0,8">
-                                <TextBlock Text="Results folder" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,4"/>
+                                <TextBlock Text="{ui:Text 'Results folder'}" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,4"/>
                                 <TextBox Text="{Binding HistoryDirectory, UpdateSourceTrigger=LostFocus}" Height="30"/>
                                 <UniformGrid Columns="2" Margin="0,6,0,0">
-                                    <Button Content="Refresh List" Command="{Binding RefreshHistoryCommand}"
+                                    <Button Content="{ui:Text 'Refresh List'}" Command="{Binding RefreshHistoryCommand}"
                                         Style="{StaticResource SecondaryButtonStyle}" Padding="8,5" Margin="0,0,3,0"/>
-                                    <Button Content="Load Older" Command="{Binding LoadOlderCommand}" IsEnabled="{Binding HasOlder}"
+                                    <Button Content="{ui:Text 'Load Older'}" Command="{Binding LoadOlderCommand}" IsEnabled="{Binding HasOlder}"
                                         Style="{StaticResource SecondaryButtonStyle}" Padding="8,5" Margin="3,0,0,0"/>
                                 </UniformGrid>
                             </StackPanel>
@@ -99,9 +99,9 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <StackPanel Grid.Row="2" Margin="0,6,0,6">
-                                <Button Content="Load PCB Images" Command="{Binding LoadRecordCommand}"
+                                <Button Content="{ui:Text 'Load PCB Images'}" Command="{Binding LoadRecordCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" Padding="8,5"/>
-                                <TextBlock Text="{Binding LoadedRecord.Number, StringFormat='PCB {0} · images', TargetNullValue='No PCB loaded', FallbackValue='No PCB loaded'}"
+                                <TextBlock Text="{Binding LoadedRecord.Number, StringFormat={ui:Text 'PCB {0} · images'}, TargetNullValue={ui:Text 'No PCB loaded'}, FallbackValue={ui:Text 'No PCB loaded'}}"
                                     FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
                             </StackPanel>
                             <ListBox Grid.Row="3" ItemsSource="{Binding HistoryImages}"
@@ -127,7 +127,7 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                            <Button Grid.Row="4" Content="Load for Reinspection" Command="{Binding UseHistoryImageCommand}"
+                            <Button Grid.Row="4" Content="{ui:Text 'Load for Reinspection'}" Command="{Binding UseHistoryImageCommand}"
                                 Style="{StaticResource PrimaryButtonStyle}" Padding="8,6" Margin="0,8,0,0"/>
                         </Grid>
                     </TabItem>
@@ -138,7 +138,7 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
                         <WrapPanel IsEnabled="{Binding IsIdle}">
-                            <Button Content="Inspect This Image" Command="{Binding InspectCommand}" Margin="0,0,8,6">
+                            <Button Content="{ui:Text 'Inspect This Image'}" Command="{Binding InspectCommand}" Margin="0,0,8,6">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                         <Style.Triggers>
@@ -149,13 +149,13 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Content="Show Reference Image" Command="{Binding ShowRecipeImageCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,6"/>
+                            <Button Content="{ui:Text 'Show Reference Image'}" Command="{Binding ShowRecipeImageCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,6"/>
                         </WrapPanel>
                         <TextBlock Text="{Binding ImageSource}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ImageSource}"/>
                         <TextBlock Text="{Binding OriginalResult}" Style="{StaticResource StatusMessageStyle}" TextTrimming="CharacterEllipsis" ToolTip="{Binding OriginalResult}"
                             Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
                         <StackPanel IsEnabled="{Binding IsIdle}" Margin="0,8,0,0">
-                            <TextBlock Text="Reference image unavailable" Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,0,6">
+                            <TextBlock Text="{ui:Text 'Reference image unavailable'}" Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,0,6">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -168,17 +168,17 @@
                                 </TextBlock.Style>
                             </TextBlock>
                             <WrapPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="Data Matrix" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="Extended search" IsChecked="{Binding DataMatrix.TryHarder, BindingGroupName={x:Null}}"
+                                <TextBlock Text="{ui:Text 'Data Matrix'}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,6"/>
+                                <CheckBox Content="{ui:Text 'Extended search'}" IsChecked="{Binding DataMatrix.TryHarder, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="Inverted colors" IsChecked="{Binding DataMatrix.TryInverted, BindingGroupName={x:Null}}"
+                                <CheckBox Content="{ui:Text 'Inverted colors'}" IsChecked="{Binding DataMatrix.TryInverted, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="Rotation" IsChecked="{Binding DataMatrix.AutoRotate, BindingGroupName={x:Null}}"
+                                <CheckBox Content="{ui:Text 'Rotation'}" IsChecked="{Binding DataMatrix.AutoRotate, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
-                                <CheckBox Content="Pure barcode" IsChecked="{Binding DataMatrix.PureBarcode, BindingGroupName={x:Null}}"
+                                <CheckBox Content="{ui:Text 'Pure barcode'}" IsChecked="{Binding DataMatrix.PureBarcode, BindingGroupName={x:Null}}"
                                     VerticalAlignment="Center" Margin="0,0,16,6"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <TextBlock Text="Binary (0–255; blank = auto)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{ui:Text 'Binary (0–255; blank = auto)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBox Width="70" Text="{Binding Preview.DataMatrixThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                 </StackPanel>
                             </WrapPanel>
@@ -192,13 +192,13 @@
                                         </Style.Triggers>
                                     </Style>
                                 </WrapPanel.Style>
-                                <TextBlock Text="Bolt presence" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,6"/>
+                                <TextBlock Text="{ui:Text 'Bolt presence'}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,6"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
-                                    <TextBlock Text="Threshold (0–255)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{ui:Text 'Threshold (0–255)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBox Width="70" Text="{Binding Preview.BrightnessThreshold, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <TextBlock Text="Minimum bright (%)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{ui:Text 'Minimum bright (%)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBox Width="70" Text="{Binding Preview.MinimumBrightPercent, BindingGroupName=InspectionInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                 </StackPanel>
                             </WrapPanel>
@@ -207,7 +207,7 @@
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                        <TextBlock Text="Original · edit ROI" FontWeight="SemiBold" Margin="0,0,6,6"/>
+                        <TextBlock Text="{ui:Text 'Original · edit ROI'}" FontWeight="SemiBold" Margin="0,0,6,6"/>
                         <TextBlock Grid.Column="1" Text="{Binding Preview.BinaryDescription}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="6,0,0,6"/>
                         <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}" Margin="0,0,6,0">
                             <ui:InspectionImageView x:Name="InspectionImage" Source="{Binding Preview.Image}"
@@ -227,7 +227,7 @@
         </Grid>
         <ScrollViewer Grid.Row="2" MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
-                <TextBlock Text="Check the highlighted input."
+                <TextBlock Text="{ui:Text 'Check the highlighted input.'}"
                     Style="{StaticResource StatusMessageStyle}"
                     Visibility="{Binding ElementName=EditorRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"
                     TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>

@@ -6,7 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:LogViewModel, IsDesignTimeCreatable=False}"
-    Title="Logs"
+    Title="{ui:Text 'Logs'}"
     Width="1400"
     Height="860"
     MinWidth="680"
@@ -22,16 +22,16 @@
         </Grid.RowDefinitions>
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <CheckBox Content="Pause display" IsChecked="{Binding IsPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                <Button Content="Copy" Command="{Binding CopyCommand}"
+                <CheckBox Content="{ui:Text 'Pause display'}" IsChecked="{Binding IsPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <Button Content="{ui:Text 'Copy'}" Command="{Binding CopyCommand}"
                     Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Margin="0,0,8,0"/>
-                <Button Content="Copy all" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Command="{Binding CopyAllCommand}" Margin="0,0,8,0"/>
-                <Button Content="Clear Display" Command="{Binding ClearCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6"/>
+                <Button Content="{ui:Text 'Copy all'}" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Command="{Binding CopyAllCommand}" Margin="0,0,8,0"/>
+                <Button Content="{ui:Text 'Clear Display'}" Command="{Binding ClearCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6"/>
             </StackPanel>
-            <TextBlock Text="Logs" Style="{StaticResource TitleStyle}" VerticalAlignment="Center"/>
+            <TextBlock Text="{ui:Text 'Logs'}" Style="{StaticResource TitleStyle}" VerticalAlignment="Center"/>
         </DockPanel>
         <TextBlock Grid.Row="1" Margin="0,8,0,16" Style="{StaticResource PageSubtitleStyle}"
-            Text="Text selection pauses updates"
+            Text="{ui:Text 'Text selection pauses updates'}"
             TextWrapping="Wrap"/>
         <ui:LogTextBox x:Name="LogText" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2"
             Text="{Binding Text, Mode=OneWay}"
@@ -45,7 +45,7 @@
                         <Setter Property="Text" Value="{Binding ClipboardError}"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ClipboardError}" Value="{x:Null}">
-                                <Setter Property="Text" Value="{Binding Log.FileError, StringFormat='FILE ERROR: {0}'}"/>
+                                <Setter Property="Text" Value="{Binding Log.FileError, StringFormat={ui:Text 'FILE ERROR: {0}'}}"/>
                             </DataTrigger>
                             <MultiDataTrigger>
                                 <MultiDataTrigger.Conditions>
@@ -59,13 +59,13 @@
                 </TextBlock.Style>
             </TextBlock>
             <DockPanel Margin="0,6,0,0">
-                <TextBlock Text="Machine log" Width="164" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
-                <TextBox Text="{Binding Log.FilePath, Mode=OneWay, TargetNullValue='File logging disabled'}"
+                <TextBlock Text="{ui:Text 'Machine log'}" Width="164" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding Log.FilePath, Mode=OneWay, TargetNullValue={ui:Text 'File logging disabled'}}"
                     IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}" Padding="0,4"/>
             </DockPanel>
             <DockPanel Margin="0,4,0,0">
-                <TextBlock Text="ADC communication log" Width="164" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
-                <TextBox Text="{Binding Log.CommunicationFilePath, Mode=OneWay, TargetNullValue='Communication logging disabled'}"
+                <TextBlock Text="{ui:Text 'ADC communication log'}" Width="164" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding Log.CommunicationFilePath, Mode=OneWay, TargetNullValue={ui:Text 'Communication logging disabled'}}"
                     IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}" Padding="0,4"/>
             </DockPanel>
         </StackPanel>

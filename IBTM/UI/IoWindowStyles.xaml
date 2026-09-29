@@ -218,7 +218,7 @@
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Io.IsOn}" Value="{x:Null}">
                                             <Setter Property="IsEnabled" Value="False"/>
-                                            <Setter Property="ToolTip" Value="Output feedback unavailable"/>
+                                            <Setter Property="ToolTip" Value="{ui:Text 'Output feedback unavailable'}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -248,7 +248,7 @@
             <TextBlock Text="{Binding Area, Converter={StaticResource EnumDescriptionConverter}}"
                 FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
             <StackPanel x:Name="Inputs" Margin="0,0,0,10">
-                <TextBlock Text="Inputs" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
+                <TextBlock Text="{ui:Text 'Inputs'}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
                     Margin="0,0,0,4"/>
                 <ItemsControl ItemsSource="{Binding Sensors}" ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
             </StackPanel>
@@ -264,7 +264,7 @@
     <DataTemplate x:Key="IoStatusTemplate" DataType="{x:Type ui:TeachingViewModel}">
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                <TextBlock Text="Related I/O" Style="{StaticResource PanelTitleStyle}"/>
+                <TextBlock Text="{ui:Text 'Related I/O'}" Style="{StaticResource PanelTitleStyle}"/>
             </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ui:IoGroupItemsControl ItemsSource="{Binding TeachingIoGroups}" ItemTemplate="{StaticResource TeachingIoGroupTemplate}">

@@ -6,7 +6,7 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:OutputViewModel, IsDesignTimeCreatable=False}"
-    Title="Digital Outputs"
+    Title="{ui:Text 'Digital Outputs'}"
     Width="1120"
     Height="720"
     MinWidth="900"
@@ -22,8 +22,8 @@
         </Grid.RowDefinitions>
 
         <Grid>
-            <TextBlock Text="Digital Outputs" Style="{StaticResource TitleStyle}"/>
-            <Button Content="Clear Messages" HorizontalAlignment="Right" Style="{StaticResource SecondaryButtonStyle}" Padding="14,5"
+            <TextBlock Text="{ui:Text 'Digital Outputs'}" Style="{StaticResource TitleStyle}"/>
+            <Button Content="{ui:Text 'Clear Messages'}" HorizontalAlignment="Right" Style="{StaticResource SecondaryButtonStyle}" Padding="14,5"
                 Command="{Binding ClearMessagesCommand}"/>
         </Grid>
 
@@ -35,12 +35,12 @@
                 <ColumnDefinition Width="230"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="SEARCH · SIGNAL / CHANNEL" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBlock Text="{ui:Text 'SEARCH · SIGNAL / CHANNEL'}" Style="{StaticResource SectionHeaderStyle}"/>
                 <TextBox Margin="0,6,0,0"
                     Text="{Binding Filter.SearchText, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <StackPanel Grid.Column="2">
-                <TextBlock Text="UNIT" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBlock Text="{ui:Text 'UNIT'}" Style="{StaticResource SectionHeaderStyle}"/>
                 <ComboBox Margin="0,6,0,0"
                     ItemsSource="{Binding Filter.Areas}"
                     ItemTemplate="{x:Null}" DisplayMemberPath="Value"
@@ -57,11 +57,11 @@
                 <ColumnDefinition Width="100"/>
                 <ColumnDefinition Width="90"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="NO. (ON/OFF)" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1" Text="OUTPUT" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="DO" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="3" Text="FEEDBACK INPUTS" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="4" Text="MATCH" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Text="{ui:Text 'NO. (ON/OFF)'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="1" Text="{ui:Text 'OUTPUT'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2" Text="{ui:Text 'DO'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="3" Text="{ui:Text 'FEEDBACK INPUTS'}" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="4" Text="{ui:Text 'MATCH'}" Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
 
         <ListBox Grid.Row="3"
@@ -99,7 +99,7 @@
                             <ItemsControl Grid.Column="3" Margin="0,0,12,0"
                                 ItemsSource="{Binding Io.Feedback}"
                                 ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
-                            <TextBlock x:Name="FeedbackStatus" Grid.Column="4" Text="Not matched"
+                            <TextBlock x:Name="FeedbackStatus" Grid.Column="4" Text="{ui:Text 'Not matched'}"
                                 Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"
                                 Visibility="{Binding Io.HasFeedback, Converter={StaticResource BoolToVis}}"/>
                             <Button x:Name="ToggleOutput" Grid.Column="5" Content="ON"
@@ -117,15 +117,15 @@
                             <Setter TargetName="Row" Property="TextElement.FontWeight" Value="SemiBold"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Io.IsMatched}" Value="True">
-                            <Setter TargetName="FeedbackStatus" Property="Text" Value="Matched"/>
+                            <Setter TargetName="FeedbackStatus" Property="Text" Value="{ui:Text 'Matched'}"/>
                             <Setter TargetName="FeedbackStatus" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Io.IsOn}" Value="{x:Null}">
-                            <Setter TargetName="FeedbackStatus" Property="Text" Value="Unknown"/>
+                            <Setter TargetName="FeedbackStatus" Property="Text" Value="{ui:Text 'Unknown'}"/>
                             <Setter TargetName="FeedbackStatus" Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Io.HasConflict}" Value="True">
-                            <Setter TargetName="FeedbackStatus" Property="Text" Value="Input conflict"/>
+                            <Setter TargetName="FeedbackStatus" Property="Text" Value="{ui:Text 'Input conflict'}"/>
                             <Setter TargetName="FeedbackStatus" Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                         </DataTrigger>
                     </DataTemplate.Triggers>

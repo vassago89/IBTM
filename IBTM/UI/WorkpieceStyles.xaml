@@ -111,7 +111,7 @@
                             <Border x:Name="HeatSink1" Grid.Column="0" Tag="{TemplateBinding HeatSink1Present}"
                                 Style="{StaticResource HeatSinkPocketStyle}">
                                 <Grid>
-                                    <TextBlock Text="HS1" Style="{StaticResource HeatSinkPocketLabelStyle}"
+                                    <TextBlock Text="{ui:Text 'HS1'}" Style="{StaticResource HeatSinkPocketLabelStyle}"
                                         Visibility="{TemplateBinding HeatSink1Present, Converter={StaticResource BoolToVis}}"/>
                                     <Border x:Name="Pcb1" Style="{StaticResource CarrierPcbSlotStyle}">
                                         <Grid>
@@ -129,7 +129,7 @@
                             <Border x:Name="HeatSink2" Grid.Column="2" Tag="{TemplateBinding HeatSink2Present}"
                                 Style="{StaticResource HeatSinkPocketStyle}">
                                 <Grid>
-                                    <TextBlock Text="HS2" Style="{StaticResource HeatSinkPocketLabelStyle}"
+                                    <TextBlock Text="{ui:Text 'HS2'}" Style="{StaticResource HeatSinkPocketLabelStyle}"
                                         Visibility="{TemplateBinding HeatSink2Present, Converter={StaticResource BoolToVis}}"/>
                                     <Border x:Name="Pcb2" Style="{StaticResource CarrierPcbSlotStyle}">
                                         <Grid>

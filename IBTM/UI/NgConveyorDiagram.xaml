@@ -32,7 +32,7 @@
             <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
             <Setter Property="StrokeThickness" Value="3"/>
             <Setter Property="Visibility" Value="Collapsed"/>
-            <Setter Property="ToolTip" Value="NG conveyor drive direction"/>
+            <Setter Property="ToolTip" Value="{ui:Text 'NG conveyor drive direction'}"/>
             <Style.Triggers>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -55,7 +55,7 @@
     </UserControl.Resources>
     <Canvas>
         <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="170">
-            <TextBlock Text="NG Conveyor" TextAlignment="Left" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock Text="{ui:Text 'NG Conveyor'}" TextAlignment="Left" Style="{StaticResource EquipmentRoleLabelStyle}"/>
             <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" FontSize="13">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -78,7 +78,7 @@
                                 <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding Units.NgConveyor}" Value="False">
-                                <Setter Property="Text" Value="Disabled"/>
+                                <Setter Property="Text" Value="{ui:Text 'Disabled'}"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                                 <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger>
@@ -146,7 +146,7 @@
                 <ui:CarrierView
                     Visibility="{Binding Signals.Inputs[NgConveyorPosition1Occupied].IsOn, Converter={StaticResource BoolToVis}}"/>
             </Grid>
-            <TextBlock Grid.Row="3" Text="P1 / EJECT" Style="{StaticResource PositionLabelStyle}"/>
+            <TextBlock Grid.Row="3" Text="{ui:Text 'P1 / EJECT'}" Style="{StaticResource PositionLabelStyle}"/>
             <Border Grid.Row="3" Width="28" Height="10" VerticalAlignment="Bottom" Margin="0,0,0,-5">
                 <Border.Style>
                     <Style TargetType="Border" BasedOn="{StaticResource StopperVisualStyle}">
@@ -171,7 +171,7 @@
             </Border>
         </Grid>
         <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="160">
-            <TextBlock Text="P3 LIFT" Style="{StaticResource EquipmentRoleLabelStyle}" Margin="0,0,0,12"/>
+            <TextBlock Text="{ui:Text 'P3 LIFT'}" Style="{StaticResource EquipmentRoleLabelStyle}" Margin="0,0,0,12"/>
             <Viewbox Width="150">
                 <Canvas Width="284" Height="48">
                     <Path Data="M 12,38 H 272 M 12,43 H 272" Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
