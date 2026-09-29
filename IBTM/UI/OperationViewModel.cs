@@ -24,6 +24,8 @@ namespace IBTM.UI;
 
 public sealed record DoorSensorDisplay(string Name, IoInputStatus Input);
 
+public sealed record RecentFasteningView(string BoltName, HeatSinkSlot HeatSink, FasteningHead Head, BoltResult Result);
+
 public partial class OperationViewModel : ObservableObject
 {
     private readonly MachineOptions _options;
@@ -136,6 +138,9 @@ public partial class OperationViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string? InspectionImageCaption { get; private set; }
+
+    [ObservableProperty]
+    public partial RecentFasteningView? RecentFastening { get; private set; }
 
     public MachineState State { get; }
 
@@ -600,6 +605,24 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnBoltFasteningChanged()
     {
+        // Retain the latest completed measurement after the carrier leaves, including
+        // results produced while another screen is open. Do not wait for DB persistence.
+        var latest = Fastening.Station.Assemblies.SelectMany(assembly =>
+                assembly.PcbBoltResults.Select(pair =>
+                    (assembly.HeatSink, Head: FasteningHead.Shooting, Id: pair.Key, Result: pair.Value))
+                .Concat(assembly.PickupBoltResults.Select(pair =>
+                    (assembly.HeatSink, Head: FasteningHead.Pickup, Id: pair.Key, Result: pair.Value))))
+            .OrderByDescending(row => row.Result.RecordedAt)
+            .FirstOrDefault();
+        if (latest.Result?.RecordedAt is { } recordedAt
+            && (RecentFastening?.Result.RecordedAt is not { } previous || recordedAt > previous))
+        {
+            var bolt = _recipes.Current.Pcb.BoltPoints.FirstOrDefault(point => point.Id == latest.Id);
+            var name = !string.IsNullOrWhiteSpace(bolt?.Name) ? bolt.Name
+                : _recipes.Current.Pcb.GetBoltOrdinal(latest.Id) is { } ordinal ? $"Bolt {ordinal}" : "Unnamed bolt";
+            RecentFastening = new(name, latest.HeatSink, latest.Head, latest.Result);
+        }
+
         if (!_active)
             return;
 
