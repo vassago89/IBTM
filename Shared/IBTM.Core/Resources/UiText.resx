@@ -346,7 +346,7 @@ Operation failed. Check controller status.</value>
     <value>Camera disconnection failed during application exit.</value>
   </data>
   <data name="cancel · esc" xml:space="preserve">
-    <value>Cancel · Esc</value>
+    <value>Cancel</value>
   </data>
   <data name="cannot load pcb history. open logs for details." xml:space="preserve">
     <value>Cannot load PCB history. Open Logs for details.</value>
@@ -367,7 +367,7 @@ Operation failed. Check controller status.</value>
     <value>Carrier count for alarm</value>
   </data>
   <data name="carrier held at destination" xml:space="preserve">
-    <value>Carrier Held at Destination</value>
+    <value>Holding carrier at target</value>
   </data>
   <data name="carrier pickup (s3)" xml:space="preserve">
     <value>Carrier Pickup (S3)</value>
@@ -477,7 +477,7 @@ Operation failed. Check controller status.</value>
     <value>Complete bolt teaching</value>
   </data>
   <data name="completing carrier" xml:space="preserve">
-    <value>Completing Carrier</value>
+    <value>Completing carrier</value>
   </data>
   <data name="connect" xml:space="preserve">
     <value>Connect</value>
@@ -516,7 +516,7 @@ Operation failed. Check controller status.</value>
     <value>Conveyor / PCB</value>
   </data>
   <data name="conveyor run output on" xml:space="preserve">
-    <value>Conveyor RUN output ON</value>
+    <value>Conveyor RUN ON</value>
   </data>
   <data name="conveyors" xml:space="preserve">
     <value>Conveyors</value>
@@ -1338,9 +1338,6 @@ Operation failed. Check controller status.</value>
   <data name="moving to position 2" xml:space="preserve">
     <value>Moving to Position 2</value>
   </data>
-  <data name="movs (serial)" xml:space="preserve">
-    <value>MOVS (Serial)</value>
-  </data>
   <data name="multiple reference images are linked to this point. resolve the duplicate before capturing." xml:space="preserve">
     <value>Multiple reference images are linked to this point. Resolve the duplicate before capturing.</value>
   </data>
@@ -1423,7 +1420,7 @@ Operation failed. Check controller status.</value>
     <value>NG Pick</value>
   </data>
   <data name="ng pickup: move / raise carrier" xml:space="preserve">
-    <value>NG pickup: move / raise carrier</value>
+    <value>NG pickup: move / lift</value>
   </data>
   <data name="ng shuttle" xml:space="preserve">
     <value>NG Shuttle</value>
@@ -1852,7 +1849,7 @@ Operation failed. Check controller status.</value>
     <value>Placement · Z</value>
   </data>
   <data name="placing and pressing pcb" xml:space="preserve">
-    <value>Placing and Pressing PCB</value>
+    <value>Placing / pressing PCB</value>
   </data>
   <data name="port" xml:space="preserve">
     <value>PORT</value>
@@ -1876,31 +1873,31 @@ Operation failed. Check controller status.</value>
     <value>Positive Limit</value>
   </data>
   <data name="preparing / moving to handoff" xml:space="preserve">
-    <value>Preparing / moving to handoff</value>
+    <value>Preparing handoff</value>
   </data>
   <data name="preparing carrier work" xml:space="preserve">
-    <value>Preparing Carrier Work</value>
+    <value>Preparing carrier</value>
   </data>
   <data name="preparing first shooting point" xml:space="preserve">
-    <value>Preparing first shooting point</value>
+    <value>Preparing first shot</value>
   </data>
   <data name="preparing inspection points" xml:space="preserve">
     <value>Preparing Inspection Points</value>
   </data>
   <data name="preparing inspection supports" xml:space="preserve">
-    <value>Preparing Inspection Supports</value>
+    <value>Preparing supports</value>
   </data>
   <data name="preparing pickup" xml:space="preserve">
     <value>Preparing Pickup</value>
   </data>
   <data name="preparing pickup / standby" xml:space="preserve">
-    <value>Preparing Pickup / Standby</value>
+    <value>Preparing pickup</value>
   </data>
   <data name="preparing s3: plate down" xml:space="preserve">
-    <value>Preparing S3: plate DOWN</value>
+    <value>Lowering S3 plate</value>
   </data>
   <data name="preparing to receive returned pcb" xml:space="preserve">
-    <value>Preparing to Receive Returned PCB</value>
+    <value>Preparing PCB return</value>
   </data>
   <data name="preset" xml:space="preserve">
     <value>Preset</value>
@@ -1946,7 +1943,7 @@ Operation failed. Check controller status.</value>
     <value>Raise placement handler and IPM lift</value>
   </data>
   <data name="raising / leaving handoff" xml:space="preserve">
-    <value>Raising / leaving handoff</value>
+    <value>Raising / clearing handoff</value>
   </data>
   <data name="raising ng shuttle" xml:space="preserve">
     <value>Raising NG Shuttle</value>
@@ -2048,7 +2045,7 @@ Operation failed. Check controller status.</value>
     <value>Recording was not started because another operation is active. Try again after it finishes.</value>
   </data>
   <data name="recording was not started because the machine is busy. wait for motion to stop, then record again." xml:space="preserve">
-    <value>Recording was not started because the machine is busy. Wait for motion to stop, then record again.</value>
+    <value>Machine busy. Wait for motion to stop, then record again.</value>
   </data>
   <data name="reference image unavailable" xml:space="preserve">
     <value>Reference image unavailable</value>
@@ -2081,7 +2078,7 @@ Operation failed. Check controller status.</value>
     <value>Release or STOP to stop rotation.</value>
   </data>
   <data name="releasing pcb / leaving supply" xml:space="preserve">
-    <value>Releasing PCB / leaving supply</value>
+    <value>Releasing / clearing supply</value>
   </data>
   <data name="remote start" xml:space="preserve">
     <value>Remote Start</value>
@@ -2096,16 +2093,16 @@ Operation failed. Check controller status.</value>
     <value>REPEAT</value>
   </data>
   <data name="replace the recorded x/y with the current coordinates." xml:space="preserve">
-    <value>Replace the recorded X/Y with the current coordinates.</value>
+    <value>Overwrite X/Y with current coordinates.</value>
   </data>
   <data name="replace the recorded x/y, reference image and light level with the current values." xml:space="preserve">
-    <value>Replace the recorded X/Y, reference image and light level with the current values.</value>
+    <value>Overwrite X/Y, image and light with current values.</value>
   </data>
   <data name="replace the recorded x/y/z with the current coordinates." xml:space="preserve">
-    <value>Replace the recorded X/Y/Z with the current coordinates.</value>
+    <value>Overwrite X/Y/Z with current coordinates.</value>
   </data>
   <data name="replace the recorded z with the current coordinate." xml:space="preserve">
-    <value>Replace the recorded Z with the current coordinate.</value>
+    <value>Overwrite Z with the current coordinate.</value>
   </data>
   <data name="request device information" xml:space="preserve">
     <value>Request Device Information</value>
@@ -2156,10 +2153,10 @@ Operation failed. Check controller status.</value>
     <value>Retry save</value>
   </data>
   <data name="returning / completing inspection" xml:space="preserve">
-    <value>Returning / completing inspection</value>
+    <value>Returning after inspection</value>
   </data>
   <data name="returning above pickup with pcb" xml:space="preserve">
-    <value>Returning Above Pickup with PCB</value>
+    <value>Returning PCB above pickup</value>
   </data>
   <data name="returning carrier to entry" xml:space="preserve">
     <value>Returning carrier to entry</value>
@@ -2174,7 +2171,7 @@ Operation failed. Check controller status.</value>
     <value>Returning to entry sensor</value>
   </data>
   <data name="returning to waiting position" xml:space="preserve">
-    <value>Returning to Waiting Position</value>
+    <value>Returning to standby</value>
   </data>
   <data name="roi changed · not saved" xml:space="preserve">
     <value>ROI changed · not saved</value>
@@ -2276,7 +2273,7 @@ Operation failed. Check controller status.</value>
     <value>Seating S1 / S2 carriers</value>
   </data>
   <data name="securing pcb and moving to handoff" xml:space="preserve">
-    <value>Securing PCB and Moving to Handoff</value>
+    <value>Gripping / moving to handoff</value>
   </data>
   <data name="select a bolt before changing its required bright percentage." xml:space="preserve">
     <value>Select a bolt before changing its required bright percentage.</value>
@@ -2858,7 +2855,7 @@ Speed   Configured axis speed</value>
     <value>Waiting for carrier transfers</value>
   </data>
   <data name="waiting for downstream" xml:space="preserve">
-    <value>Waiting for downstream</value>
+    <value>Waiting for rear READY</value>
   </data>
   <data name="waiting for inspection" xml:space="preserve">
     <value>Waiting for inspection</value>
@@ -2873,13 +2870,13 @@ Speed   Configured axis speed</value>
     <value>Waiting for NG Shuttle Up</value>
   </data>
   <data name="waiting for placement to present pcb" xml:space="preserve">
-    <value>Waiting for Placement to Present PCB</value>
+    <value>Waiting for PCB from placement</value>
   </data>
   <data name="waiting for placement y departure" xml:space="preserve">
-    <value>Waiting for Placement Y Departure</value>
+    <value>Waiting for placement Y to clear</value>
   </data>
   <data name="waiting for return handoff clearance" xml:space="preserve">
-    <value>Waiting for Return Handoff Clearance</value>
+    <value>Waiting for return clearance</value>
   </data>
   <data name="waiting for returned pcb" xml:space="preserve">
     <value>Waiting for Returned PCB</value>
@@ -2921,10 +2918,10 @@ Speed   Configured axis speed</value>
     <value>Waiting for transfer at NG pickup</value>
   </data>
   <data name="waiting for transfer supports" xml:space="preserve">
-    <value>Waiting for Transfer Supports</value>
+    <value>Waiting for supports</value>
   </data>
   <data name="waiting: transfer release + pickup up" xml:space="preserve">
-    <value>Waiting: transfer release + pickup UP</value>
+    <value>Waiting for release / pickup UP</value>
   </data>
   <data name="warning" xml:space="preserve">
     <value>WARNING</value>

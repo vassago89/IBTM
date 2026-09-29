@@ -44,11 +44,11 @@
                 Style="{StaticResource DeviceBodyStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="32"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="32"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="*" MinWidth="12"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="40"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -57,10 +57,10 @@
                     <TextBlock Grid.ColumnSpan="5" Text="{ui:Text 'Front 1 · PCB · SMEMA'}"
                         FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
                     <TextBlock Grid.Row="1" Text="{ui:Text '→ Available'}" FontSize="13" Style="{StaticResource MapHintStyle}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                    <TextBlock Grid.Row="1" Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource SmemaSignalStateStyle}"
                         Tag="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].IsOn}"/>
                     <TextBlock Grid.Row="1" Grid.Column="3" Text="{ui:Text '← Ready'}" FontSize="13" Style="{StaticResource MapHintStyle}"/>
-                    <TextBlock Grid.Row="1" Grid.Column="4" Style="{StaticResource SmemaSignalStateStyle}"
+                    <TextBlock Grid.Row="1" Grid.Column="4" Margin="6,0,0,0" Style="{StaticResource SmemaSignalStateStyle}"
                         Tag="{Binding Signals.Outputs[PcbSupplyReadyToFront1].IsOn}"/>
                 </Grid>
             </Border>
