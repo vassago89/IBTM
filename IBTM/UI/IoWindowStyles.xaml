@@ -278,10 +278,6 @@
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                 <TextBlock Text="Related I/O" Style="{StaticResource PanelTitleStyle}"/>
-                <TextBlock Text="Current state: blue = DI ON · amber = DO ON · — = unavailable" TextWrapping="Wrap"
-                    Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,5,0,0"/>
-                <TextBlock Text="Click CURRENT DO to switch ON / OFF." TextWrapping="Wrap"
-                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,4,0,0"/>
             </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ui:IoGroupList ItemsSource="{Binding TeachingIoGroups}" ItemTemplate="{StaticResource TeachingIoGroupTemplate}"/>

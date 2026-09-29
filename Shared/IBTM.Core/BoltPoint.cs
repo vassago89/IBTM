@@ -29,6 +29,12 @@ public sealed class BoltPoint
     public Guid Id { get; init; }
     public string? Name { get; set; }
 
+    public static string GetDisplayName(string? name, int? ordinal)
+    {
+        return !string.IsNullOrWhiteSpace(name) ? name
+            : ordinal is { } number ? $"Bolt {number}" : "Unnamed bolt";
+    }
+
     public int? LightLevel
     {
         get;

@@ -331,6 +331,7 @@ public static class DependencyInjection
             .AddSingleton<MachineFeedbackMonitor>()
             .AddSingleton<MachineState>()
             .AddSingleton<PcbHistory>()
+            .AddSingleton<InspectionImages>()
             .AddSingleton<PcbDetailsViewModel>()
             .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
                 Enum.GetValues<MotionGroup>().ToDictionary(

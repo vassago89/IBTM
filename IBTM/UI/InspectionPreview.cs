@@ -37,7 +37,8 @@ public partial class InspectionPreview : ObservableObject
         ? new Rect(region.X, region.Y, region.Width, region.Height)
         : null;
 
-    public string BinaryDescription => _pcb is null ? $"Binary ROI · threshold {BrightnessThreshold}"
+    public string BinaryDescription => _pcb is null
+        ? _bolt is null ? "Binary ROI · no inspection target" : $"Binary ROI · threshold {BrightnessThreshold}"
         : DataMatrixThreshold is { } threshold ? $"Binary ROI · threshold {threshold}"
         : HasImage && Overlay is null ? "Automatic binary unavailable · set a threshold"
         : "Binary ROI · automatic (ZXing)";
@@ -113,6 +114,8 @@ public partial class InspectionPreview : ObservableObject
 
     public async Task InspectAsync(CancellationToken token)
     {
+        if (_pcb is null && _bolt is null)
+            throw new InvalidOperationException("Select an image linked to a Data Matrix or bolt before inspecting.");
         Result = null;
         var frame = _frame!;
         var region = _sourceRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");

@@ -11,26 +11,6 @@
     Width="408"
     Height="650">
     <UserControl.Resources>
-        <Style x:Key="FeederDeviceStyle" TargetType="Grid">
-            <Style.Triggers>
-                <Trigger Property="Tag">
-                    <Trigger.Value>
-                        <sys:Boolean>False</sys:Boolean>
-                    </Trigger.Value>
-                    <Setter Property="Opacity" Value="0.5"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="FeederLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource EquipmentRoleLabelStyle}">
-            <Style.Triggers>
-                <Trigger Property="Tag">
-                    <Trigger.Value>
-                        <sys:Boolean>True</sys:Boolean>
-                    </Trigger.Value>
-                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
         <Style x:Key="FeederSensorStyle" TargetType="Ellipse">
             <Setter Property="Width" Value="14"/>
             <Setter Property="Height" Value="14"/>
@@ -110,10 +90,9 @@
                 <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding Fastening.ShootingHead.Monitor.Sample.Status.Alarm, Mode=OneWay, TargetNullValue=—, FallbackValue=—}"/>
             </Grid>
 
-            <Grid Width="{x:Static ui:MachinePlan.PickupFeederWidth}" Height="{x:Static ui:MachinePlan.PickupFeederHeight}"
-                Tag="{Binding Units.PickupBoltFeeder}">
+            <Grid Width="{x:Static ui:MachinePlan.PlateWidth}" Height="{x:Static ui:MachinePlan.PickupFeederHeight}">
                 <Grid.Style>
-                    <Style TargetType="Grid" BasedOn="{StaticResource FeederDeviceStyle}">
+                    <Style TargetType="Grid">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding BoltPickupFeederMapPosition}" Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -124,29 +103,51 @@
                 <Grid.RenderTransform>
                     <TranslateTransform X="{Binding BoltPickupFeederMapPosition.X, TargetNullValue=0, FallbackValue=0}" Y="{Binding BoltPickupFeederMapPosition.Y, TargetNullValue=0, FallbackValue=0}"/>
                 </Grid.RenderTransform>
-                <Border Width="{x:Static ui:MachinePlan.PickupFeederWidth}" Height="{x:Static ui:MachinePlan.PickupFeederHeight}"
-                    VerticalAlignment="Top" Style="{StaticResource DeviceBodyStyle}">
-                    <Grid Margin="4">
-                        <TextBlock Tag="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}"
-                            VerticalAlignment="Top" FontSize="10">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock" BasedOn="{StaticResource FeederLabelStyle}">
-                                    <Setter Property="Text" Value="Pick Feeder"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Units.PickupBoltFeeder}" Value="False">
-                                            <Setter Property="Text" Value="Pick Feeder (off)"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <Border Height="18" Margin="6,0" VerticalAlignment="Center" Background="{StaticResource EquipBgBrush}"
-                            BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="1"/>
-                        <Ellipse Width="18" Height="18"
-                            Tag="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}"
-                            ToolTip="Pickup feeder bolt detected" Style="{StaticResource FeederSensorStyle}"/>
-                    </Grid>
-                </Border>
+                <Border Style="{StaticResource DeviceBodyStyle}"/>
+                <!-- Keep the detected bolt at the mapped pickup point; the status extends to its right. -->
+                <Grid Width="{x:Static ui:MachinePlan.PickupFeederWidth}" HorizontalAlignment="Left">
+                    <Border Height="26" Margin="12,0" VerticalAlignment="Center"
+                        Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource MachineStructureBorderBrush}"
+                        BorderThickness="1" CornerRadius="3"/>
+                    <Path Data="M 18,26 L 26,34 L 18,42 M 30,26 L 38,34 L 30,42 M 64,34 H 80 M 80,25 V 43"
+                        Stroke="{StaticResource MachineStructureBorderBrush}" StrokeThickness="2"/>
+                    <Ellipse Width="20" Height="20" Tag="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}"
+                        ToolTip="Bolt detected at the pickup position" Style="{StaticResource FeederSensorStyle}"/>
+                </Grid>
+                <StackPanel Margin="100,6,10,6" VerticalAlignment="Center">
+                    <TextBlock Text="Pickup feeder" FontSize="15" FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Margin="0,1,0,0"
+                        ToolTip="Bolt present: ready for pickup. Bolt absent: waiting for replenishment. This is not motor RUN feedback.">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="Supply unknown"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}" Value="True">
+                                        <Setter Property="Text" Value="Bolt ready"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Signals.Inputs[PickupFeederBoltDetected].IsOn}" Value="False">
+                                        <Setter Property="Text" Value="Waiting for supply"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="Supply enabled"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Units.PickupBoltFeeder}" Value="False">
+                                        <Setter Property="Text" Value="Supply bypassed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
             </Grid>
 
             <Canvas Visibility="{Binding FasteningPositionKnown, Converter={StaticResource BoolToVis}}" Panel.ZIndex="20">
@@ -258,17 +259,17 @@
             <Border Height="138" VerticalAlignment="Top" Style="{StaticResource DeviceBodyStyle}">
                 <Canvas Width="280" Height="134">
                     <TextBlock Canvas.Left="12" Canvas.Top="8" Width="78"
-                        ToolTip="Feeder command: ShootingFeederOff OFF = RUN, ON = STOP">
+                        ToolTip="Supply command: RUN during replenishment, WAIT when stopped. This is separate from the feeder-use setting.">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
-                                <Setter Property="Text" Value="RUN · ?"/>
+                                <Setter Property="Text" Value="SUPPLY · ?"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Signals.Outputs[ShootingFeederOff].IsOn}" Value="False">
                                         <Setter Property="Text" Value="RUN"/>
                                         <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Signals.Outputs[ShootingFeederOff].IsOn}" Value="True">
-                                        <Setter Property="Text" Value="STOP"/>
+                                        <Setter Property="Text" Value="WAIT"/>
                                         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -376,7 +377,22 @@
 
                     <Ellipse Canvas.Left="68" Canvas.Top="42" Tag="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn}"
                         Style="{StaticResource FeederSensorStyle}" ToolTip="Shooting feeder bolt detected · green=ON, gray=OFF, amber outline=unknown"/>
-                    <TextBlock Canvas.Left="12" Canvas.Top="106" Width="78" Text="BOLT" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    <TextBlock Canvas.Left="8" Canvas.Top="106" Width="86">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
+                                <Setter Property="Text" Value="BOLT · ?"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn}" Value="True">
+                                        <Setter Property="Text" Value="BOLT READY"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn}" Value="False">
+                                        <Setter Property="Text" Value="WAIT SUPPLY"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <UniformGrid Canvas.Left="99" Canvas.Top="72" Width="84" Height="22" Rows="1">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Ellipse Tag="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}"
@@ -437,10 +453,10 @@
             <TextBlock VerticalAlignment="Bottom">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock" BasedOn="{StaticResource EquipmentRoleLabelStyle}">
-                        <Setter Property="Text" Value="Shoot Feeder"/>
+                        <Setter Property="Text" Value="Shooting feeder · supply enabled"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Units.ShootingBoltFeeder}" Value="False">
-                                <Setter Property="Text" Value="Shoot Feeder · Disabled"/>
+                                <Setter Property="Text" Value="Shooting feeder · supply bypassed"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

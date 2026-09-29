@@ -8,38 +8,14 @@ using IBTM.Inspection;
 
 namespace IBTM.UI;
 
-public sealed record CarrierImageTileView(
-    CarrierImageTile Metadata,
-    BitmapSource Image,
-    BoltPoint? Bolt = null,
-    int? Ordinal = null)
-{
-    public AxisPosition? Position => Metadata.IsBarcode ? Metadata.Center : Bolt?.InspectionPosition;
-
-    public string Title => $"{Metadata.HeatSink.GetDescription()} · "
-        + (Metadata.IsBarcode ? "Data Matrix" : $"Bolt {Ordinal}");
-
-    public override string ToString()
-    {
-        return $"FOV {Metadata.Number}";
-    }
-}
-
-public sealed record ImageRuler(Point Start, Point End)
-{
-    public double PixelLength => (End - Start).Length;
-}
-
-// Drawing and measurement coordinates are original-image pixels, independent of display size.
+// ROI coordinates are original-image pixels, independent of display size.
 public sealed class ImageTeachingView : FrameworkElement
 {
     private static readonly Pen s_regionPen;
-    private static readonly Pen s_rulerPen;
     private static readonly Pen s_crosshairOutlinePen;
     private static readonly Pen s_crosshairPen;
 
-    private Point? _dragStart;
-    private Point? _dragEnd;
+    private Point? _dragPoint;
 
     public static readonly DependencyProperty SourceProperty;
 
@@ -51,23 +27,16 @@ public sealed class ImageTeachingView : FrameworkElement
 
     public static readonly DependencyProperty RegionCommandProperty;
 
-    public static readonly DependencyProperty IsMeasuringProperty;
-
-    public static readonly DependencyProperty RulerProperty;
-
-    public static readonly DependencyProperty MeasureCommandProperty;
-
     static ImageTeachingView()
     {
         s_regionPen = CreateFrozenPen(Color.FromRgb(74, 222, 128), 2.5);
-        s_rulerPen = CreateFrozenPen(Color.FromRgb(56, 189, 248), 2);
         s_crosshairOutlinePen = CreateFrozenPen(Colors.Black, 3);
         s_crosshairPen = CreateFrozenPen(Color.FromRgb(251, 191, 36), 1);
         SourceProperty = DependencyProperty.Register(
             nameof(Source),
             typeof(BitmapSource),
             typeof(ImageTeachingView),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnDrawingContextChanged));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnSourceChanged));
         SourceRegionProperty = DependencyProperty.Register(
             nameof(SourceRegion),
             typeof(Rect?),
@@ -87,14 +56,6 @@ public sealed class ImageTeachingView : FrameworkElement
             nameof(RegionCommand),
             typeof(ICommand),
             typeof(ImageTeachingView));
-        IsMeasuringProperty = DependencyProperty.Register(
-            nameof(IsMeasuring), typeof(bool), typeof(ImageTeachingView),
-            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnDrawingContextChanged));
-        RulerProperty = DependencyProperty.Register(
-            nameof(Ruler), typeof(ImageRuler), typeof(ImageTeachingView),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
-        MeasureCommandProperty = DependencyProperty.Register(
-            nameof(MeasureCommand), typeof(ICommand), typeof(ImageTeachingView));
     }
 
     public ImageTeachingView()
@@ -132,24 +93,6 @@ public sealed class ImageTeachingView : FrameworkElement
         set => SetValue(RegionCommandProperty, value);
     }
 
-    public bool IsMeasuring
-    {
-        get => (bool)GetValue(IsMeasuringProperty);
-        set => SetValue(IsMeasuringProperty, value);
-    }
-
-    public ImageRuler? Ruler
-    {
-        get => (ImageRuler?)GetValue(RulerProperty);
-        set => SetValue(RulerProperty, value);
-    }
-
-    public ICommand? MeasureCommand
-    {
-        get => (ICommand?)GetValue(MeasureCommandProperty);
-        set => SetValue(MeasureCommandProperty, value);
-    }
-
     protected override void OnRender(DrawingContext drawing)
     {
         base.OnRender(drawing);
@@ -159,7 +102,7 @@ public sealed class ImageTeachingView : FrameworkElement
         var fitted = ImageBounds;
         var scale = fitted.Width / source.PixelWidth;
         drawing.DrawImage(source, fitted);
-        var displayedRegion = !IsMeasuring && _dragEnd is { } point ? GetRegion(point) : SourceRegion;
+        var displayedRegion = _dragPoint is { } point ? GetRegion(point) : SourceRegion;
         if (displayedRegion is { } region)
         {
             var bounds = new Rect(
@@ -167,25 +110,9 @@ public sealed class ImageTeachingView : FrameworkElement
                 fitted.Y + region.Y * scale,
                 region.Width * scale,
                 region.Height * scale);
-            if (SourceOverlay is not null && _dragStart is null)
+            if (SourceOverlay is not null && _dragPoint is null)
                 drawing.DrawImage(SourceOverlay, bounds);
             drawing.DrawRectangle(null, s_regionPen, bounds);
-        }
-
-        if (IsMeasuring)
-        {
-            var ruler = _dragStart is { } start && _dragEnd is { } end
-                ? new ImageRuler(start, end)
-                : Ruler;
-            if (ruler is not null)
-            {
-                var first = new Point(fitted.X + ruler.Start.X * scale, fitted.Y + ruler.Start.Y * scale);
-                var last = new Point(fitted.X + ruler.End.X * scale, fitted.Y + ruler.End.Y * scale);
-                drawing.DrawLine(s_crosshairOutlinePen, first, last);
-                drawing.DrawLine(s_rulerPen, first, last);
-                drawing.DrawEllipse(Brushes.Black, s_rulerPen, first, 4, 4);
-                drawing.DrawEllipse(Brushes.Black, s_rulerPen, last, 4, 4);
-            }
         }
 
         if (!ShowCrosshair)
@@ -212,14 +139,11 @@ public sealed class ImageTeachingView : FrameworkElement
             || !ImageBounds.Contains(mouse))
             return;
         var point = GetImagePoint(mouse);
-        if (IsMeasuring
-            ? MeasureCommand?.CanExecute(new ImageRuler(point, point)) != true
-            : RegionCommand?.CanExecute(Rect.Empty) != true)
+        if (RegionCommand?.CanExecute(Rect.Empty) != true)
             return;
 
         Focus();
-        _dragStart = point;
-        _dragEnd = point;
+        _dragPoint = point;
         CaptureMouse();
         InvalidateVisual();
         e.Handled = true;
@@ -228,39 +152,30 @@ public sealed class ImageTeachingView : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (_dragStart is null || Source is null)
+        if (_dragPoint is null || Source is null)
             return;
 
-        _dragEnd = GetImagePoint(e.GetPosition(this));
+        _dragPoint = GetImagePoint(e.GetPosition(this));
         InvalidateVisual();
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
-        if (_dragStart is not { } start || Source is null)
+        if (_dragPoint is null || Source is null)
             return;
         var end = GetImagePoint(e.GetPosition(this));
         CancelDrag();
-        if (IsMeasuring)
-        {
-            var ruler = new ImageRuler(start, end);
-            if (ruler.PixelLength >= 1 && MeasureCommand?.CanExecute(ruler) == true)
-                MeasureCommand.Execute(ruler);
-        }
-        else
-        {
-            var region = GetRegion(end);
-            if (region is { Width: > 0, Height: > 0 } && RegionCommand?.CanExecute(region) == true)
-                RegionCommand.Execute(region);
-        }
+        var region = GetRegion(end);
+        if (region is { Width: > 0, Height: > 0 } && RegionCommand?.CanExecute(region) == true)
+            RegionCommand.Execute(region);
         e.Handled = true;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Key != Key.Escape || _dragStart is null)
+        if (e.Key != Key.Escape || _dragPoint is null)
             return;
 
         CancelDrag();
@@ -270,15 +185,13 @@ public sealed class ImageTeachingView : FrameworkElement
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
-        _dragStart = null;
-        _dragEnd = null;
+        _dragPoint = null;
         InvalidateVisual();
     }
 
     private void CancelDrag()
     {
-        _dragStart = null;
-        _dragEnd = null;
+        _dragPoint = null;
         if (IsMouseCaptured)
             ReleaseMouseCapture();
         InvalidateVisual();
@@ -317,7 +230,7 @@ public sealed class ImageTeachingView : FrameworkElement
         return new Rect(region.X, region.Y, region.Width, region.Height);
     }
 
-    private static void OnDrawingContextChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+    private static void OnSourceChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
     {
         ((ImageTeachingView)sender).CancelDrag();
     }

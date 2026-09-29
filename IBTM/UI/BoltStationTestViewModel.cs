@@ -110,9 +110,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         Bolts.Clear();
         foreach (var bolt in _recipes.Current.Pcb.FasteningPoints)
         {
-            var label = string.IsNullOrWhiteSpace(bolt.Name)
-                ? $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}" : bolt.Name;
-            var row = new BoltTestRow(bolt, label);
+            var row = new BoltTestRow(bolt, _recipes.Current.Pcb.GetBoltName(bolt.Id));
             row.PropertyChanged += OnRowChanged;
             Bolts.Add(row);
         }

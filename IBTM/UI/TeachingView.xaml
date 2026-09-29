@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:machine="clr-namespace:IBTM"
     xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
     xmlns:data="clr-namespace:System.Windows.Data;assembly=PresentationFramework"
     mc:Ignorable="d"
@@ -26,93 +27,46 @@
                 <PropertyGroupDescription PropertyName="Position.Bolt.Head"/>
             </CollectionViewSource.GroupDescriptions>
         </CollectionViewSource>
-        <Style x:Key="TeachingTabs" TargetType="TabControl">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabControl">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <TabPanel IsItemsHost="True"/>
-                            <ContentPresenter Grid.Row="1" Margin="0,8,0,0" ContentSource="SelectedContent"/>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="TeachingTab" TargetType="TabItem">
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="Margin" Value="0,-1,-1,0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="Root" Padding="18,8" Background="{StaticResource ControlBgBrush}"
-                            BorderBrush="{StaticResource ControlBorderBrush}" BorderThickness="1" CornerRadius="2">
-                            <ContentPresenter ContentSource="Header"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource CardBgBrush}"/>
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource ControlFocusBorderBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource ControlHoverBorderBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
     </UserControl.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="64"/>
+            <RowDefinition Height="40"/>
         </Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,10">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0"
                 IsEnabled="{Binding State.SetupEditingEnabled}">
                 <TextBlock Text="Recipe" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <TextBox Text="{Binding RecipeEditor.Name, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
-                    Width="180" Margin="0,0,6,0" ToolTip="Recipe name"/>
+                    Width="180" Margin="0,0,6,0"/>
                 <Button Command="{Binding SaveCommand}" Margin="0,0,6,0">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                             <Setter Property="Content" Value="Save"/>
-                            <Setter Property="ToolTip" Value="Save the recorded machine coordinates and the current product recipe. This does not record or change any position."/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
                                     <Setter Property="Content" Value="Saving..."/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding ElementName=TeachingRoot, Path=(Validation.HasError)}" Value="True">
                                     <Setter Property="IsEnabled" Value="False"/>
-                                    <Setter Property="ToolTip" Value="Correct the highlighted input before saving."/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Button.Style>
                 </Button>
                 <Button Content="New Recipe" Command="{Binding RecipeEditor.NewCommand}"
-                    Style="{StaticResource SecondaryButtonStyle}"
-                    ToolTip="Start a new product recipe. Supply and Placement handoff coordinates are kept."/>
+                    Style="{StaticResource SecondaryButtonStyle}"/>
             </StackPanel>
             <TextBlock Text="Teaching" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.1*" MinWidth="240" MaxWidth="300"/>
+                <ColumnDefinition Width="1.1*" MinWidth="240" MaxWidth="280"/>
                 <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="3*" MinWidth="380"/>
                 <ColumnDefinition Width="10"/>
-                <ColumnDefinition Width="1.3*" MinWidth="340" MaxWidth="380"/>
+                <ColumnDefinition Width="1.3*" MinWidth="340" MaxWidth="360"/>
             </Grid.ColumnDefinitions>
             <Border Style="{StaticResource CardStyle}" Padding="12">
                 <Grid>
@@ -124,9 +78,6 @@
                         <TextBlock Text="Teaching Unit" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,6"/>
                         <ComboBox ItemsSource="{Binding TeachingUnits}"
                             SelectedItem="{Binding SelectedTeachingUnit, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock
-                            Text="{Binding ActiveMotionGroup, Converter={StaticResource EnumDescriptionConverter}, StringFormat=Axes · {0}}"
-                            Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                         <ComboBox ItemsSource="{Binding HeatSinkSlots}"
                             SelectedItem="{Binding SelectedPcb, UpdateSourceTrigger=PropertyChanged}"
                             Margin="0,6,0,0"
@@ -151,10 +102,42 @@
                         </ListBox.GroupStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type ui:TeachingPoint}">
-                                <StackPanel Margin="4,4" ToolTip="{Binding Description}">
-                                    <TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontWeight="SemiBold"/>
-                                    <TextBlock Text="{Binding PositionLabel}" TextWrapping="Wrap"
-                                        FontFamily="Consolas" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
+                                <StackPanel Margin="4,4">
+                                    <TextBlock TextTrimming="CharacterEllipsis" FontWeight="SemiBold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="{Binding BoltLabel}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Position.Bolt}" Value="{x:Null}">
+                                                        <Setter Property="Text" Value="{Binding Name}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock TextTrimming="CharacterEllipsis" FontFamily="Consolas" FontSize="11"
+                                        Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="{Binding PositionLabel}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Position.Mode}" Value="{x:Static device:TeachMode.Image}">
+                                                        <Setter Property="Text">
+                                                            <Setter.Value>
+                                                                <MultiBinding StringFormat="X {0:F3}  Y {1:F3}">
+                                                                    <Binding Path="Coordinates.X"/>
+                                                                    <Binding Path="Coordinates.Y"/>
+                                                                </MultiBinding>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Coordinates}" Value="{x:Null}">
+                                                        <Setter Property="Text" Value="{Binding PositionLabel}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -166,74 +149,60 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,10">
                         <TextBlock Text="{Binding SelectedPoint.Name}" Style="{StaticResource PanelTitleStyle}"
-                            TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedPoint.Description}"/>
+                            TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding SelectedPoint.PositionLabel, TargetNullValue=—}"
                             Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" Margin="0,4,0,0"
-                            ToolTip="Saved coordinates (mm)"/>
-                        <Grid Margin="0,10,0,0" IsEnabled="{Binding State.SetupEditingEnabled}">
-                            <Grid.Style>
-                                <Style TargetType="Grid">
-                                    <Setter Property="Visibility" Value="Visible"/>
+                            TextWrapping="Wrap"/>
+                        <WrapPanel Margin="0,8,0,0" IsEnabled="{Binding State.SetupEditingEnabled}">
+                            <WrapPanel.Style>
+                                <Style TargetType="WrapPanel">
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding SelectedPoint.Position.Bolt}" Value="{x:Null}">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </Grid.Style>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Bolt name" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <TextBox Grid.Column="1"
-                                Text="{Binding SelectedPoint.BoltName, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
-                                ToolTip="Name for this bolt. Save to keep the name; leave blank to use its display order (Bolt 1, Bolt 2, …)."/>
-                        </Grid>
-                        <Grid Margin="0,10,0,0" IsEnabled="{Binding State.SetupEditingEnabled}">
-                            <Grid.Style>
-                                <Style TargetType="Grid">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPosition}">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Grid.Style>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Bolt Z offset (mm)" Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding SelectedPoint.FasteningZOffset, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                <TextBlock Text="{Binding SelectedPoint.Coordinates.Z, StringFormat=Target Z: {0:F3} mm}"
-                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                            </WrapPanel.Style>
+                            <StackPanel Width="240" Margin="0,0,12,0">
+                                <TextBlock Text="Bolt name" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding SelectedPoint.BoltName, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Minimum turns" Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding SelectedPoint.Position.Bolt.MinimumTurns, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                    ToolTip="For this bolt only. A3 ÷ 360 below this value is NG. Decimals allowed (e.g. 2.5). Save to keep the criterion."/>
-                                <TextBlock Text="0 = no minimum check · decimals allowed"
-                                    TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </Grid>
+                            <WrapPanel>
+                                <WrapPanel.Style>
+                                    <Style TargetType="WrapPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedPoint.Position.Target}" Value="{x:Static device:TeachingTarget.BoltPosition}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </WrapPanel.Style>
+                                <StackPanel Width="140" Margin="0,0,12,0">
+                                    <TextBlock Text="Z offset (mm)" Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding SelectedPoint.FasteningZOffset, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                </StackPanel>
+                                <StackPanel Width="180">
+                                    <TextBlock Text="Min. turns (0 = off)" Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding SelectedPoint.Position.Bolt.MinimumTurns, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                </StackPanel>
+                            </WrapPanel>
+                        </WrapPanel>
                     </StackPanel>
-                    <TabControl Grid.Row="1" Style="{StaticResource TeachingTabs}"
-                        ItemContainerStyle="{StaticResource TeachingTab}"
+                    <TabControl Grid.Row="1" Style="{StaticResource SectionTabs}"
+                        ItemContainerStyle="{StaticResource SectionTab}"
                         Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}">
                         <TabItem>
                             <TabItem.Style>
-                                <Style TargetType="TabItem" BasedOn="{StaticResource TeachingTab}">
+                                <Style TargetType="TabItem" BasedOn="{StaticResource SectionTab}">
                                     <Setter Property="Header" Value="Fastening order"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsInspectionSelected}" Value="True">
-                                            <Setter Property="Header" Value="Camera / Points"/>
+                                            <Setter Property="Header" Value="Camera"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -243,14 +212,11 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <WrapPanel Margin="0,0,0,4">
                                         <ComboBox ItemsSource="{Binding FasteningHeads}" Width="180" Margin="0,0,8,4"
-                                            SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"
-                                            ToolTip="Head for the new bolt"/>
+                                            SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"/>
                                         <Button Content="Add Bolt" Command="{Binding AddBoltPointCommand}"
                                             Style="{StaticResource PrimaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
                                         <Button Content="Remove Bolt" Command="{Binding RemoveBoltPointCommand}"
@@ -270,42 +236,42 @@
                                             </Button.Style>
                                         </Button>
                                         <Button Content="Grab" Command="{Binding GrabCommand}" Margin="0,0,12,4" MinWidth="75" Padding="12,7"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            ToolTip="Save a new reference image for the recorded point. Coordinates and ROI are preserved. Record Position first for a new point."/>
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding State.SetupEditingEnabled}">
-                                            <TextBlock Text="Light" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox Width="55" Margin="0,0,8,0" ToolTip="Live light (0–255)"
+                                            <TextBlock Text="Light (0–255)" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBox Width="55" Margin="0,0,8,0"
                                                 Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                            <Button Content="Apply to Live" Command="{Binding ApplyLightCommand}"
-                                                Style="{StaticResource SecondaryButtonStyle}" Padding="12,7"
-                                                ToolTip="Selecting a point loads its saved light level. Grab or Record Position saves the adjusted light level with the image."/>
+                                            <Button Content="Apply" Command="{Binding ApplyLightCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}" Padding="12,7"/>
                                         </StackPanel>
                                     </WrapPanel>
-                                    <TextBlock Grid.Row="2" Text="Live → Align with crosshair → Record Position"
-                                        Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8" TextTrimming="CharacterEllipsis"/>
-                                    <Border Grid.Row="3" Background="{StaticResource ImageBackgroundBrush}">
-                                        <ui:ImageTeachingView Source="{Binding CameraImage}" ShowCrosshair="True"/>
+                                    <Border Grid.Row="2" Background="{StaticResource ImageBackgroundBrush}">
+                                        <Grid>
+                                            <ui:ImageTeachingView Source="{Binding CameraImage}" ShowCrosshair="True"/>
+                                            <TextBlock Text="No image" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CameraImage}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
                                     </Border>
-                                    <TextBlock Grid.Row="4" Margin="0,8,0,0" TextTrimming="CharacterEllipsis"
-                                        Foreground="{StaticResource TextMutedBrush}"
-                                        Text="Record Position: coordinates + image · Grab: image only"
-                                        ToolTip="Record Position saves coordinates and an image. Grab updates only the reference image and keeps Live running. Inspection Teaching refreshes saved images when opened; ROI and inspection edits are preserved."/>
                                 </Grid>
                                 <Border
                                     Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}">
                                     <Grid>
                                         <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="*"/>
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
-                                        <StackPanel Margin="0,0,0,10">
-                                            <TextBlock Text="Shooting → Pickup" Margin="0"
-                                                Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
-                                            <TextBlock Text="Runs from top to bottom. Move a bolt within its head group."
-                                                Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
-                                        </StackPanel>
-                                        <ListBox Grid.Row="1" ItemsSource="{Binding Source={StaticResource FasteningPoints}}"
+                                        <ListBox ItemsSource="{Binding Source={StaticResource FasteningPoints}}"
                                             SelectedItem="{Binding SelectedFasteningPoint, UpdateSourceTrigger=PropertyChanged}"
                                             Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}"
                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -328,16 +294,12 @@
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
-                                        <StackPanel Grid.Row="2" Margin="0,10,0,0">
-                                            <UniformGrid Columns="2">
-                                                <Button Content="↑ Move up" Command="{Binding MoveFasteningEarlierCommand}"
-                                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,3,0"/>
-                                                <Button Content="↓ Move down" Command="{Binding MoveFasteningLaterCommand}"
-                                                    Style="{StaticResource SecondaryButtonStyle}" Margin="3,0,0,0"/>
-                                            </UniformGrid>
-                                            <TextBlock Text="Save to keep this order in the recipe. Inspection order and point coordinates stay unchanged."
-                                                Margin="0,8,0,0" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
-                                        </StackPanel>
+                                        <UniformGrid Grid.Row="1" Columns="2" Margin="0,10,0,0">
+                                            <Button Content="↑ Move up" Command="{Binding MoveFasteningEarlierCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,3,0"/>
+                                            <Button Content="↓ Move down" Command="{Binding MoveFasteningLaterCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}" Margin="3,0,0,0"/>
+                                        </UniformGrid>
                                     </Grid>
                                 </Border>
                             </Grid>
@@ -358,6 +320,12 @@
                             </Style>
                         </ContentPresenter.Style>
                     </ContentPresenter>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <ui:RecordPositionButton Content="Record Position" Command="{Binding TeachCurrentPositionCommand}"
+                            Style="{StaticResource PrimaryButtonStyle}" MinWidth="150" Padding="12,8" Margin="0,0,8,0"/>
+                        <ui:MoveToPositionButton Content="Move to Position" Command="{Binding MoveToPointCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}" MinWidth="150" Padding="12,8"/>
+                    </StackPanel>
                 </Grid>
             </Border>
             <Border Grid.Column="4" Style="{StaticResource CardStyle}" Padding="12">
@@ -368,71 +336,43 @@
                     </Grid.RowDefinitions>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <TextBlock Text="Jog / Motion" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,10"/>
+                            <TextBlock Text="Motion" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,10"/>
                             <ui:TeachingMotionView/>
                             <Button Content="Return from Bolt Pickup" Command="{Binding ReturnFromPickupCommand}"
                                 Margin="0,8,0,0" Style="{StaticResource SecondaryButtonStyle}"
-                                ToolTip="Move Z to Safe Z, then raise the pickup head (Head 1). XY and vacuum remain unchanged."
                                 Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </ScrollViewer>
-                    <Border Grid.Row="1" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0"
-                        Margin="0,10,0,0" Padding="0,10,0,0">
-                        <StackPanel>
-                            <TextBlock Text="{Binding SelectedPoint.Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                ToolTip="{Binding SelectedPoint.Description}" Margin="0,0,0,8"/>
-                            <UniformGrid Columns="2">
-                                <ui:RecordPositionButton Content="Record Position"
-                                    Command="{Binding TeachCurrentPositionCommand}"
-                                    ToolTipService.ShowOnDisabled="True"
-                                    Style="{StaticResource PrimaryButtonStyle}" Padding="8,7" Margin="0,0,3,0">
-                                    <ui:RecordPositionButton.ToolTip>
-                                        <StackPanel MaxWidth="350">
-                                            <TextBlock Text="Record the current coordinates for this point. The axes must be homed and stopped."
-                                                TextWrapping="Wrap"/>
-                                            <TextBlock Text="{Binding SaveBehavior, Converter={StaticResource EnumDescriptionConverter}}"
-                                                TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                        </StackPanel>
-                                    </ui:RecordPositionButton.ToolTip>
-                                </ui:RecordPositionButton>
-                                <ui:MoveToPositionButton Content="Move to Position"
-                                    Command="{Binding MoveToPointCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}" Padding="8,7" Margin="3,0,0,0"
-                                    ToolTip="Move to the selected position using its teaching coordinates and configured axis speed."/>
-                            </UniformGrid>
-                            <TextBlock Text="{Binding SaveBehavior, Converter={StaticResource EnumDescriptionConverter}}"
-                                ToolTip="{Binding SaveBehavior, Converter={StaticResource EnumDescriptionConverter}}"
-                                TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
-                        </StackPanel>
-                    </Border>
+                    <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,8,0,0"
+                        Foreground="{StaticResource AccentAmberBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HomeBlock}" Value="{x:Static machine:HomeBlockReason.None}">
+                                        <Setter Property="Text" Value="{Binding MotionHint, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ManualBlock}" Value="{x:Static ui:ManualControlBlock.AutoMode}">
+                                        <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ManualBlock}" Value="{x:Static ui:ManualControlBlock.Busy}">
+                                        <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Grid>
             </Border>
         </Grid>
-        <Border Grid.Row="2" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0"
-            Margin="0,8,0,0" Padding="0,6,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="16"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
-                        <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
-                            TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}"/>
-                        <TextBlock Text="{Binding ManualBlock, Converter={StaticResource EnumDescriptionConverter}}"
-                            TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}"/>
-                        <TextBlock Text="{Binding MotionHint, Converter={StaticResource EnumDescriptionConverter}}"
-                            TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}"/>
-                    </StackPanel>
-                </ScrollViewer>
-                <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
-                        <TextBlock Text="{Binding SaveError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
-                        <TextBlock Text="{Binding CameraError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </Grid>
-        </Border>
+        <ScrollViewer Grid.Row="2" Margin="0,6,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Text="Check the highlighted input."
+                    Visibility="{Binding ElementName=TeachingRoot, Path=(Validation.HasError), Converter={StaticResource BoolToVis}}"
+                    Foreground="{StaticResource AccentRedBrush}"/>
+                <TextBlock Text="{Binding SaveError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                <TextBlock Text="{Binding CameraError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

@@ -12,8 +12,6 @@ namespace IBTM;
 
 public sealed class Recipe
 {
-    public const double DefaultCarrierImageMillimetersPerPixel = 0.05;
-
     public Recipe()
     {
         PcbSupply = new();
@@ -28,7 +26,6 @@ public sealed class Recipe
     public PcbPlacementRecipe PcbPlacement { get; set; }
     public PcbLayout Pcb { get; set; }
     public BoltInspectionRecipe BoltInspection { get; set; }
-    public double CarrierImageMillimetersPerPixel { get; set; } = DefaultCarrierImageMillimetersPerPixel;
     public List<CarrierImageTile> CarrierImages { get; set; }
 
     public void ValidateBoltIds()
@@ -62,7 +59,6 @@ public sealed class Recipe
         inspection.DataMatrix1.LightLevel = BoltInspection.DataMatrix1.LightLevel;
         inspection.DataMatrix2.LightLevel = BoltInspection.DataMatrix2.LightLevel;
         BoltInspection = inspection;
-        CarrierImageMillimetersPerPixel = source.CarrierImageMillimetersPerPixel;
         foreach (var bolt in Pcb.BoltPoints)
         {
             var edited = source.Pcb.BoltPoints.SingleOrDefault(item => item.Id == bolt.Id);
@@ -94,7 +90,6 @@ public sealed class Recipe
         Pcb.BoltPoints = recipe.Pcb.BoltPoints;
         Pcb.FasteningOrder = recipe.Pcb.FasteningOrder;
         BoltInspection = recipe.BoltInspection;
-        CarrierImageMillimetersPerPixel = recipe.CarrierImageMillimetersPerPixel;
         CarrierImages = recipe.CarrierImages;
     }
 }

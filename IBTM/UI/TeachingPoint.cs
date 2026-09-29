@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.ComponentModel;
 using IBTM.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -12,7 +11,6 @@ public class TeachingPoint : ObservableObject
 {
     private readonly MachineSettings _settings;
     private readonly RecipeManager _recipes;
-    private readonly HeatSinkSlot _pcb;
     private readonly TeachingPosition _definition;
 
     public double FasteningZOffset
@@ -34,8 +32,11 @@ public class TeachingPoint : ObservableObject
         _definition = definition;
         _settings = settings;
         _recipes = recipes;
-        _pcb = pcb;
+        Inspection = definition.Target is TeachingTarget.DataMatrix or TeachingTarget.BoltReference
+            ? new(recipes.Current, pcb, definition.Bolt) : null;
     }
+
+    public InspectionPoint? Inspection { get; }
 
     public TeachingPosition Position => _definition with { HasPosition = Coordinates is not null };
 
@@ -109,11 +110,8 @@ public class TeachingPoint : ObservableObject
                     return _settings.NgCarrierTransfer.CarrierPickupPosition;
                 case TeachingTarget.NgShuttlePlace:
                     return _settings.NgCarrierTransfer.ShuttlePlacePosition;
-                case TeachingTarget.DataMatrix:
-                    var images = recipe.CarrierImages.Where(tile => tile.IsBarcode && tile.HeatSink == _pcb).ToArray();
-                    return images.Length == 1 ? images[0].Center : null;
-                case TeachingTarget.BoltReference:
-                    return _definition.Bolt?.InspectionPosition;
+                case TeachingTarget.DataMatrix or TeachingTarget.BoltReference:
+                    return Inspection!.Position;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(_definition.Target));
             }
@@ -140,8 +138,7 @@ public class TeachingPoint : ObservableObject
         {
             if (_definition.Bolt is not { } bolt)
                 return null;
-            return string.IsNullOrWhiteSpace(bolt.Name)
-                ? $"Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}" : bolt.Name;
+            return _recipes.Current.Pcb.GetBoltName(bolt.Id);
         }
     }
 
@@ -149,6 +146,8 @@ public class TeachingPoint : ObservableObject
     {
         get
         {
+            if (Inspection is { } inspection)
+                return inspection.Name;
             if (_definition.Bolt is { } bolt)
             {
                 return _definition.Target == TeachingTarget.BoltPosition
@@ -187,95 +186,20 @@ public class TeachingPoint : ObservableObject
         }
     }
 
-    public string Description
-    {
-        get
-        {
-            switch (_definition.Target)
-            {
-                case TeachingTarget.SafeZ when _definition.MotionGroup == MotionGroup.PcbSupply:
-                    return "Z height used before PCB rotation and for travel above the pickup positions. Moving to this height moves only Z.";
-                case TeachingTarget.SafeZ:
-                    return "Common clearance Z for pickup travel, table changes, standby and carrier release.";
-                case TeachingTarget.ShootingSafeZ:
-                    return "Z for shooting-bolt XY travel and retraction. Until recorded, uses common Safe Z. Table changes and carrier release still use common Safe Z.";
-                case TeachingTarget.SupplyPcb1Pick:
-                    return "XYZ where Supply picks PCB 1 from the incoming carrier.";
-                case TeachingTarget.SupplyPcb2Pick:
-                    return "XYZ where Supply picks PCB 2 from the incoming carrier.";
-                case TeachingTarget.SupplyHandoff:
-                    return "XYZ where Supply hands the PCB to Placement. This Z is also used for the return XY move.";
-                case TeachingTarget.PlacementHandoff:
-                    return "XYZ where Placement waits for Supply and returns after receiving the PCB. This Z is also its travel height.";
-                case TeachingTarget.PlacementReceiveZ:
-                    return "Z where Placement grips the PCB, using the X/Y of PCB Receive Standby.";
-                case TeachingTarget.HeatSink1PcbPlacement:
-                    return "XYZ where Placement seats the PCB on Heat Sink 1.";
-                case TeachingTarget.HeatSink2PcbPlacement:
-                    return "XYZ where Placement seats the PCB on Heat Sink 2.";
-                case TeachingTarget.BoltPickup:
-                    return "XYZ where the pickup head (Head 1) collects a bolt from the feeder.";
-                case TeachingTarget.ShootingHeadFasteningZ:
-                    return "Z used for fastening with the shooting head (Head 2).";
-                case TeachingTarget.PickupHeadFasteningZ:
-                    return "Z used for fastening with the pickup head (Head 1).";
-                case TeachingTarget.BoltPosition:
-                    return "Independent fastening XY, initially converted from inspection. Record Position updates only this bolt's XY. Z is the head's common fastening Z plus this bolt's offset. Save keeps these adjustments in the recipe.";
-                case TeachingTarget.BoltReference:
-                    return "Camera XY and teaching image for inspecting this bolt.";
-                case TeachingTarget.DataMatrix:
-                    return "Camera XY and teaching image for reading this heat sink's Data Matrix.";
-                case TeachingTarget.CarrierUpperLeftLocatingPin:
-                    return "Camera XY centered on the backup plate's upper-left reference pin.";
-                case TeachingTarget.CarrierLowerRightLocatingPin:
-                    return "Camera XY centered on the backup plate's lower-right reference pin.";
-                case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
-                    return "Shooting head XY aligned with the backup plate's upper-left reference pin.";
-                case TeachingTarget.ShootingHeadLowerRightLocatingPin:
-                    return "Shooting head XY aligned with the backup plate's lower-right reference pin.";
-                case TeachingTarget.PickupHeadUpperLeftLocatingPin:
-                    return "Pickup head XY aligned with the backup plate's upper-left reference pin.";
-                case TeachingTarget.PickupHeadLowerRightLocatingPin:
-                    return "Pickup head XY aligned with the backup plate's lower-right reference pin.";
-                case TeachingTarget.InspectionWaiting:
-                    return "Independent waiting XY used while idle and after inspection. X and Y move together.";
-                case TeachingTarget.NgCarrierPickup:
-                    return "Carrier pickup XY at Station 3, also used before raising its backup plate. X and Y move together.";
-                case TeachingTarget.NgShuttlePlace:
-                    return "XY where the transfer places the carrier on the NG shuttle.";
-                default:
-                    return "";
-            }
-        }
-    }
-
     public string PositionLabel
     {
         get
         {
+            if (Inspection is { } inspection)
+                return inspection.PositionLabel;
             if (Coordinates is not { } position)
             {
-                if (_definition.Target == TeachingTarget.DataMatrix
-                    && _recipes.Current.CarrierImages.Count(tile => tile.IsBarcode && tile.HeatSink == _pcb) > 1)
-                    return "Multiple Data Matrix positions; movement target is ambiguous";
                 if (_definition.Target == TeachingTarget.BoltPosition)
                     return "Record fastening XY; initial conversion needs inspection XY and both sets of reference pins";
                 return "Not taught";
             }
             if (_definition.Target == TeachingTarget.BoltPosition)
                 return $"X {position.X:F3}  Y {position.Y:F3}  Z {position.Z:F3}";
-            if (_definition.Target == TeachingTarget.BoltReference)
-            {
-                var imageCount = _recipes.Current.CarrierImages.Count(tile => !tile.IsBarcode
-                    && tile.HeatSink == _pcb && tile.BoltId == _definition.Bolt!.Id);
-                var coordinates = $"X {position.X:F3}  Y {position.Y:F3}";
-                return imageCount switch
-                {
-                    0 => $"{coordinates} · No linked inspection image",
-                    1 => coordinates,
-                    _ => $"{coordinates} · Multiple linked inspection images",
-                };
-            }
             switch (_definition.Mode)
             {
                 case TeachMode.Image or TeachMode.XYOnly:
@@ -418,39 +342,4 @@ public enum TeachingPointGroup
     MachineReference,
     [Description("Fastening positions")]
     Fastening,
-}
-
-public enum TeachingSaveBehavior
-{
-    [Description("Only Record Position changes these handoff coordinates. Move to Position uses them. Save keeps them after restart.")]
-    SupplyHandoff,
-    [Description("Only Record Position changes these standby coordinates. Move to Position moves Z first, then X/Y. Save keeps them after restart.")]
-    PlacementHandoff,
-    [Description("Record Position saves this Z automatically. Move to Position moves only Z at the current X/Y. Select PCB Receive Standby to move X/Y.")]
-    PlacementReceiveZ,
-    [Description("Record Position saves pickup X/Y together automatically. Move to Position moves X and Y together.")]
-    NgPickup,
-
-    [Description("Record Position with both heads raised and the pickup table down; saves automatically. Move to Position: Safe Z → table down → pickup XY → pickup Z. Vacuum is unchanged.")]
-    BoltPickup,
-
-    [Description("Record Position saves this head's Z automatically. Move to Position moves only Z. Automatic fastening reaches this Z before lowering the head.")]
-    FasteningZ,
-
-    [Description("Record Position updates XY only. Edit Z offset separately, then Save. Move to Position: Safe Z → table down for pickup / up for shooting → bolt XY → head fastening Z + bolt offset. Both heads must be raised.")]
-    BoltPosition,
-
-    [Description("Center this backup plate pin in Live, then press Record Position. Saves automatically.")]
-    CameraCenter,
-
-    [Description("Record Position saves this machine coordinate automatically.")]
-    Machine,
-    [Description("Record Position updates this product's coordinates. Press Save to keep them after restart.")]
-    Recipe,
-    [Description("Recorded handoff coordinates stay when you leave this page. Save keeps them after restart.")]
-    Handoff,
-    [Description("Center the bolt in Live, then Record Position to save its coordinates and image. ROI resizing does not change coordinates. Each heat sink is taught independently.")]
-    Image,
-    [Description("Center the Data Matrix in Live, stop the axes, then Record Position to save its XY and image. ROI resizing does not change coordinates. Move to Position returns to the recorded XY.")]
-    BarcodeFov,
 }

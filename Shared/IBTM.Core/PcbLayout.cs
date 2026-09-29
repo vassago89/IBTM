@@ -65,6 +65,11 @@ public sealed class PcbLayout
             .TakeWhile(point => point.Id != boltId).Count() + 1;
     }
 
+    public string GetBoltName(Guid boltId)
+    {
+        return BoltPoint.GetDisplayName(BoltPoints.FirstOrDefault(bolt => bolt.Id == boltId)?.Name, GetBoltOrdinal(boltId));
+    }
+
     public IEnumerable<BoltPoint> GetBolts(HeatSinkSlot pcb)
     {
         return BoltPoints.Where(bolt => bolt.HeatSink == pcb);

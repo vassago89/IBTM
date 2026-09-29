@@ -51,54 +51,6 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
-        <Style x:Key="SettingTabControl" TargetType="TabControl">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabControl">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="190"/>
-                                <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Border Style="{StaticResource CardStyle}" Padding="6">
-                                <TabPanel IsItemsHost="True" VerticalAlignment="Top"/>
-                            </Border>
-                            <ContentPresenter Grid.Column="2" ContentSource="SelectedContent"/>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="TabStripPlacement" Value="Left"/>
-        </Style>
-        <Style x:Key="SettingTabItem" TargetType="TabItem">
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="Root" Padding="12,11" Background="Transparent" BorderBrush="{StaticResource ControlBorderBrush}"
-                            BorderThickness="1" CornerRadius="4">
-                            <ContentPresenter ContentSource="Header"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource CardBgBrush}"/>
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource ControlFocusBorderBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource ControlHoverBorderBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-        </Style>
         <x:Array x:Key="HomeDirections" Type="{x:Type device:HomeDirection}">
             <x:Static Member="device:HomeDirection.Negative"/>
             <x:Static Member="device:HomeDirection.Positive"/>
@@ -144,7 +96,7 @@
                 DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center"/>
             <TextBlock Text="Settings" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
-        <TabControl Grid.Row="1" Style="{StaticResource SettingTabControl}" ItemContainerStyle="{StaticResource SettingTabItem}">
+        <TabControl Grid.Row="1" Style="{StaticResource SectionTabs}" ItemContainerStyle="{StaticResource SectionTab}">
             <TabItem Header="Operation &amp; safety">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
                     <Grid>

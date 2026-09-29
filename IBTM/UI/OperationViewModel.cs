@@ -617,10 +617,7 @@ public partial class OperationViewModel : ObservableObject
         if (latest.Result?.RecordedAt is { } recordedAt
             && (RecentFastening?.Result.RecordedAt is not { } previous || recordedAt > previous))
         {
-            var bolt = _recipes.Current.Pcb.BoltPoints.FirstOrDefault(point => point.Id == latest.Id);
-            var name = !string.IsNullOrWhiteSpace(bolt?.Name) ? bolt.Name
-                : _recipes.Current.Pcb.GetBoltOrdinal(latest.Id) is { } ordinal ? $"Bolt {ordinal}" : "Unnamed bolt";
-            RecentFastening = new(name, latest.HeatSink, latest.Head, latest.Result);
+            RecentFastening = new(_recipes.Current.Pcb.GetBoltName(latest.Id), latest.HeatSink, latest.Head, latest.Result);
         }
 
         if (!_active)
@@ -641,7 +638,7 @@ public partial class OperationViewModel : ObservableObject
     private void OnInspectionCaptured(ImageFrame frame, HeatSinkSlot pcb, Guid? boltId)
     {
         InspectionImageCaption = boltId is { } id
-            ? $"{pcb.GetDescription()} · Bolt {_recipes.Current.Pcb.GetBoltOrdinal(id)}"
+            ? $"{pcb.GetDescription()} · {_recipes.Current.Pcb.GetBoltName(id)}"
             : $"{pcb.GetDescription()} · Data Matrix";
         InspectionImage = InspectionPreview.CreateBitmap(frame);
     }

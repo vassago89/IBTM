@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -17,14 +15,14 @@ namespace IBTM.UI;
 
 public partial class PcbDetailsViewModel : ObservableObject
 {
-    private readonly MachineStore _store;
+    private readonly InspectionImages _images;
     private readonly RecipeManager _recipes;
     private readonly ILogger<PcbDetailsViewModel> _log;
     private int _imageRequest;
 
-    public PcbDetailsViewModel(MachineStore store, RecipeManager recipes, ILogger<PcbDetailsViewModel> log)
+    public PcbDetailsViewModel(InspectionImages images, RecipeManager recipes, ILogger<PcbDetailsViewModel> log)
     {
-        _store = store;
+        _images = images;
         _recipes = recipes;
         _log = log;
         LoadImagesCommand = new AsyncRelayCommand(LoadImagesAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -107,16 +105,7 @@ public partial class PcbDetailsViewModel : ObservableObject
             return;
         try
         {
-            var images = await Task.Run(() =>
-            {
-                var saved = _store.LoadPcbImages(record);
-                return saved.Select(image =>
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var bitmap = InspectionPreview.DecodeImage(image.Png);
-                    return new PcbInspectionImageView(image, bitmap, image.BoltId is { } id ? record.GetBoltOrdinal(id) : null);
-                }).ToArray();
-            }, cancellationToken);
+            var images = await _images.LoadRecordAsync(record, _recipes.Current, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (request != _imageRequest)
                 return;
@@ -145,8 +134,7 @@ public sealed record PcbBoltResultView(
     Guid BoltId, int? Number, FasteningHead Head, BoltResult Result, bool? Present = null, string? Name = null)
 {
     public string HeadLabel => Head == FasteningHead.Pickup ? "H1 · Pickup" : "H2 · Shooting";
-    public string BoltLabel => !string.IsNullOrWhiteSpace(Name) ? Name
-        : Number is { } number ? $"Bolt {number}" : "Unnamed bolt";
+    public string BoltLabel => BoltPoint.GetDisplayName(Name, Number);
     public string Title => $"{BoltLabel} · {HeadLabel}";
     public string Verdict => Result.Source == BoltResultSource.DryRun ? "DRY RUN" : Result.Success ? "OK" : "NG";
     public string VisionVerdict => Present is not { } present ? "—" : present ? "OK" : "NG";
@@ -165,20 +153,4 @@ public sealed record PcbBoltResultView(
         ? AdcControllerError.Describe(data.ErrorCode) : null;
     public string RegisterText => Result.Controller?.Registers is { } registers
         ? string.Join("  ", registers.Select((value, index) => $"{3200 + index}: {value:X4}")) : "Not recorded";
-}
-
-public sealed record PcbInspectionImageView(PcbInspectionImage Record, BitmapSource Image, int? Ordinal = null)
-{
-    public string Title => Record.BoltId.HasValue ? $"Bolt {Ordinal}" : "Data Matrix";
-    public string Verdict => Record.Success ? "OK" : "NG";
-    public Rect Region => new(Record.Region.X, Record.Region.Y, Record.Region.Width, Record.Region.Height);
-    public string Details => Record.BoltId.HasValue
-        ? $"Bright {Record.BrightRatio:P2} · Required ≥ {Record.MinimumBrightRatio:P2}"
-        : Record.Barcode ?? "Data Matrix not read";
-    public string Resolution => $"{Image.PixelWidth} × {Image.PixelHeight} px";
-
-    public override string ToString()
-    {
-        return $"{Title} · {Verdict}";
-    }
 }

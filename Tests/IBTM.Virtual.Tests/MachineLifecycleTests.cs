@@ -1,4 +1,4 @@
-﻿using IBTM.BoltFeeder;
+using IBTM.BoltFeeder;
 using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -4982,7 +4982,6 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.BoltPickup);
-        Assert.Equal(TeachingSaveBehavior.BoltPickup, teaching.SaveBehavior);
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
 
         // Hold the table feedback; both heads must remain raised throughout pickup.
@@ -6391,7 +6390,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(recipes.Current));
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
-        teaching.CarrierImages = await teaching.RecipeEditor.LoadCarrierImagesAsync();
+        teaching.CarrierImages = await services.GetRequiredService<InspectionImages>().LoadRecipeAsync(recipes.Current);
         var previousImage = RecordedImage(teaching);
         settings.CarrierReference.UpperLeftLocatingPin = null;
         settings.CarrierReference.LowerRightLocatingPin = null;
@@ -6446,10 +6445,12 @@ public sealed partial class MachineLifecycleTests
         var editor = services.GetRequiredService<InspectionTeachingViewModel>();
         editor.SelectedRecipeName = teaching.RecipeEditor.ActiveName;
         await editor.LoadRecipeCommand.ExecuteAsync(null);
+        editor.SelectedPoint = editor.Points.Single(point => point.HeatSink == teaching.SelectedPcb
+            && point.Bolt?.Id == teaching.SelectedPoint!.Position.Bolt?.Id);
         var previousEditorImage = editor.Preview.Image;
         var region = new PixelRegion(2, 3, 10, 12);
         original.Metadata.Region = region;
-        editor.SelectedPoint!.Metadata.Region = region;
+        editor.SelectedPoint!.Metadata!.Region = region;
         var bolt = teaching.SelectedPoint!.Position.Bolt;
         var originalBoltPosition = (bolt?.X, bolt?.Y);
         await teaching.Inspection.MoveToAsync(new() { X = 41, Y = 53 });
@@ -6466,7 +6467,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(teaching.Inspection.IsLiveView);
         var captured = RecordedImage(teaching)!;
         Assert.NotSame(original.Image, captured.Image);
-        Assert.Equal((17d, 29d), (captured.Position!.X, captured.Position!.Y));
+        Assert.Equal((17d, 29d), (teaching.SelectedPoint!.Coordinates!.X, teaching.SelectedPoint.Coordinates.Y));
         Assert.Equal(originalBoltPosition, (bolt?.X, bolt?.Y));
         Assert.Equal(region, captured.Metadata.Region);
         await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
@@ -6476,11 +6477,11 @@ public sealed partial class MachineLifecycleTests
         await editor.RefreshImagesCommand.ExecutionTask!;
         Assert.Null(editor.Error);
         Assert.NotSame(previousEditorImage, editor.Preview.Image);
-        var loaded = Assert.Single(editor.Points);
-        Assert.Equal(region, loaded.Metadata.Region);
+        var loaded = Assert.Single(editor.Points, point => point.Metadata is not null);
+        Assert.Equal(region, loaded.Metadata!.Region);
         Assert.Equal((17d, 29d), (loaded.Position!.X, loaded.Position!.Y));
         Assert.Equal(67, barcode ? editor.DataMatrix!.LightLevel : editor.SelectedPoint!.Bolt!.LightLevel);
-        Assert.Equal(captured.Image.PixelWidth, loaded.Image.PixelWidth);
+        Assert.Equal(captured.Image.PixelWidth, editor.Preview.Image!.PixelWidth);
         var recordedPoint = teaching.SelectedPoint;
         teaching.LiveLightLevel = 99;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.NgCarrierPickup);

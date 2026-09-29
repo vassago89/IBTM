@@ -22,13 +22,17 @@ public partial class InspectionTeachingViewModel : ObservableObject
     private readonly RecipeManager _recipes;
     private readonly ILogger<InspectionTeachingViewModel> _log;
     private readonly IAsyncRelayCommand[] _commands;
+    private readonly InspectionImages _images;
+    private IReadOnlyList<CarrierImageTileView> _carrierImages;
 
-    public InspectionTeachingViewModel(MachineStore store, RecipeManager recipes,
+    public InspectionTeachingViewModel(MachineStore store, RecipeManager recipes, InspectionImages images,
         PcbHistorySettings history, ILogger<InspectionTeachingViewModel> log)
     {
         _store = store;
         _recipes = recipes;
         _log = log;
+        _images = images;
+        _carrierImages = [];
         Draft = new();
         Preview = new(Draft);
         Points = [];
@@ -39,15 +43,13 @@ public partial class InspectionTeachingViewModel : ObservableObject
         LoadRecipeCommand = new AsyncRelayCommand(LoadRecipeAsync);
         RefreshImagesCommand = new AsyncRelayCommand(RefreshImagesAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
-        InspectCommand = new AsyncRelayCommand(InspectAsync);
+        InspectCommand = new AsyncRelayCommand(InspectAsync, () => IsInspectAllowed);
         RefreshHistoryCommand = new AsyncRelayCommand(RefreshHistoryAsync);
         LoadOlderCommand = new AsyncRelayCommand(LoadOlderAsync);
         LoadRecordCommand = new AsyncRelayCommand(LoadRecordAsync);
         DrawRegionCommand = new RelayCommand<Rect>(DrawRegion, _ => IsDrawRegionAllowed);
         UseHistoryImageCommand = new RelayCommand(UseHistoryImage, () => IsUseHistoryImageAllowed);
         ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
-        MeasureCommand = new RelayCommand<ImageRuler>(Measure);
-        ApplyResolutionCommand = new RelayCommand(ApplyResolution, () => RulerResolution is > 0);
         _commands = [LoadRecipeCommand, RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
@@ -67,13 +69,11 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public IRelayCommand<Rect> DrawRegionCommand { get; }
     public IRelayCommand UseHistoryImageCommand { get; }
     public IRelayCommand ShowRecipeImageCommand { get; }
-    public IRelayCommand<ImageRuler> MeasureCommand { get; }
-    public IRelayCommand ApplyResolutionCommand { get; }
 
     [ObservableProperty] public partial IReadOnlyList<string> RecipeNames { get; private set; }
     [ObservableProperty] public partial string? SelectedRecipeName { get; set; }
-    [ObservableProperty] public partial IReadOnlyList<CarrierImageTileView> Points { get; private set; }
-    [ObservableProperty] public partial CarrierImageTileView? SelectedPoint { get; set; }
+    [ObservableProperty] public partial IReadOnlyList<InspectionPoint> Points { get; private set; }
+    [ObservableProperty] public partial InspectionPoint? SelectedPoint { get; set; }
     [ObservableProperty] public partial string? Error { get; private set; }
     [ObservableProperty] public partial string? Message { get; private set; }
     [ObservableProperty] public partial string? ImageSource { get; private set; }
@@ -87,21 +87,12 @@ public partial class InspectionTeachingViewModel : ObservableObject
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UseHistoryImageCommand))]
     public partial PcbInspectionImageView? SelectedHistoryImage { get; set; }
-    [ObservableProperty] public partial bool IsMeasuring { get; set; }
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ApplyResolutionCommand))]
-    public partial ImageRuler? Ruler { get; set; }
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ApplyResolutionCommand))]
-    public partial double? RulerMillimeters { get; set; }
 
     public bool IsBusy => _commands.Any(command => command.IsRunning);
     public bool IsIdle => !IsBusy;
-    public bool IsDataMatrixSelected => SelectedPoint?.Metadata.IsBarcode == true;
+    public bool IsDataMatrixSelected => SelectedPoint?.IsDataMatrix == true;
     public DataMatrixInspectionRecipe? DataMatrix => IsDataMatrixSelected
-        ? Draft.BoltInspection.GetDataMatrix(SelectedPoint!.Metadata.HeatSink) : null;
-    private double? RulerResolution => Ruler is { PixelLength: >= 1 } ruler && RulerMillimeters is > 0
-        && double.IsFinite(RulerMillimeters.Value) ? RulerMillimeters.Value / ruler.PixelLength : null;
+        ? Draft.BoltInspection.GetDataMatrix(SelectedPoint!.HeatSink) : null;
 
     public void Activate()
     {
@@ -169,34 +160,24 @@ public partial class InspectionTeachingViewModel : ObservableObject
                     activeRecipe = JsonSerializer.Deserialize<Recipe>(JsonSerializer.Serialize(_recipes.Current))!;
                 }
             }
-            var loaded = await Task.Run(() =>
-            {
-                var recipe = activeRecipe ?? _store.LoadRecipe(name);
-                var images = recipe.CarrierImages.OrderBy(tile => tile.HeatSink).ThenBy(tile => !tile.IsBarcode)
-                    .ThenBy(tile => recipe.Pcb.GetBoltOrdinal(tile.BoltId ?? Guid.Empty)).Select(tile =>
-                    {
-                        token.ThrowIfCancellationRequested();
-                        return new CarrierImageTileView(tile, InspectionPreview.DecodeImage(_store.LoadRecipeImage(name, tile.Number)),
-                            tile.IsBarcode ? null : recipe.Pcb.BoltPoints.FirstOrDefault(
-                                bolt => bolt.HeatSink == tile.HeatSink && bolt.Id == tile.BoltId),
-                            recipe.Pcb.GetBoltOrdinal(tile.BoltId ?? Guid.Empty));
-                    }).ToArray();
-                return (Recipe: recipe, Images: images);
-            }, token);
+            var loaded = activeRecipe ?? await Task.Run(() => _store.LoadRecipe(name), token);
+            var images = await _images.LoadRecipeAsync(loaded, token);
             token.ThrowIfCancellationRequested();
-            var selected = SelectedPoint?.Metadata;
+            var selected = SelectedPoint;
             if (preserveEdits)
-                loaded.Recipe.ApplyInspectionSettings(Draft);
+                loaded.ApplyInspectionSettings(Draft);
             SelectedPoint = null;
-            Draft.ReplaceWith(loaded.Recipe);
-            Points = loaded.Images;
+            Draft.ReplaceWith(loaded);
+            _carrierImages = images;
+            Points = Enum.GetValues<HeatSinkSlot>().SelectMany(pcb => InspectionPoint.ForPcb(Draft, pcb)).ToArray();
             IsLoaded = true;
             OnPropertyChanged(nameof(Draft));
             SelectedPoint = (preserveEdits && selected is not null
-                ? Points.FirstOrDefault(point => point.Metadata.HeatSink == selected.HeatSink
-                    && point.Metadata.IsBarcode == selected.IsBarcode && point.Metadata.BoltId == selected.BoltId)
-                : null) ?? Points.FirstOrDefault();
-            Message = Points.Count == 0 ? "No recorded inspection positions. Record positions in Teaching first."
+                ? Points.FirstOrDefault(point => point.HeatSink == selected.HeatSink
+                    && point.IsDataMatrix == selected.IsDataMatrix && point.Bolt?.Id == selected.Bolt?.Id)
+                : null) ?? Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
+            var unlinked = Draft.CarrierImages.Count(tile => !Points.Any(point => point.Matches(tile)));
+            Message = unlinked > 0 ? $"{unlinked} saved image(s) have no matching recipe point and are excluded from the point list. Record reference images in Teaching."
                 : preserveEdits ? "Latest recipe images loaded. ROI and inspection edits are preserved."
                 : "Recipe images loaded.";
         }
@@ -208,7 +189,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedPointChanged(CarrierImageTileView? value)
+    partial void OnSelectedPointChanged(InspectionPoint? value)
     {
         ShowRecipeImage();
         OnPropertyChanged(nameof(IsDataMatrixSelected));
@@ -221,49 +202,42 @@ public partial class InspectionTeachingViewModel : ObservableObject
         InspectCommand.Cancel();
         Error = null;
         ImageSource = null;
-        Ruler = null;
-        RulerMillimeters = null;
         OriginalResult = null;
-        Preview.Clear(IsDataMatrixSelected ? SelectedPoint!.Metadata.HeatSink : null, SelectedPoint?.Bolt);
-        if (SelectedPoint is not { } point)
-            return;
-        var region = point.Metadata.Region ?? PixelRegion.CenteredSquare(point.Image.PixelWidth, point.Image.PixelHeight,
-            Math.Min(point.Image.PixelWidth, point.Image.PixelHeight) / 4);
-        try
+        Preview.Clear(IsDataMatrixSelected ? SelectedPoint!.HeatSink : null, SelectedPoint?.Bolt);
+        if (SelectedPoint is { } point)
         {
-            Preview.SetSavedImage(point.Image, region);
+            if (point.GetImage(_carrierImages) is { } image)
+            {
+                var region = point.Metadata!.Region ?? PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight,
+                    Math.Min(image.PixelWidth, image.PixelHeight) / 4);
+                try
+                {
+                    Preview.SetSavedImage(image, region);
+                }
+                catch (Exception exception)
+                {
+                    Error = exception.Message;
+                    _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata.Number);
+                }
+            }
+            ImageSource = $"Recipe · {Draft.Name} · {point.Title}";
         }
-        catch (Exception exception)
-        {
-            Error = exception.Message;
-            _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata.Number);
-        }
-        ImageSource = $"Recipe · {Draft.Name} · {point.Metadata.HeatSink.GetDescription()} · "
-            + (point.Metadata.IsBarcode ? "Data Matrix" : $"Bolt {point.Ordinal}");
+        InspectCommand.NotifyCanExecuteChanged();
+        DrawRegionCommand.NotifyCanExecuteChanged();
     }
 
-    private bool IsDrawRegionAllowed => !IsBusy && !IsMeasuring && SelectedPoint is not null && Preview.HasImage;
+    private bool IsInspectAllowed => Preview.HasImage && SelectedPoint?.Metadata is not null;
+
+    private bool IsDrawRegionAllowed => !IsBusy && IsInspectAllowed;
 
     private void DrawRegion(Rect bounds)
     {
-        if (Preview.Image is not { } image || SelectedPoint is not { } point || bounds.IsEmpty)
+        if (Preview.Image is not { } image || SelectedPoint?.Metadata is not { } metadata || bounds.IsEmpty)
             return;
         var region = PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight, (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
-        point.Metadata.Region = region;
+        metadata.Region = region;
         Preview.SetSavedImage(image, region);
         Message = "ROI changed in this editing copy. Save applies it to the next inspection point.";
-    }
-
-    private void Measure(ImageRuler? ruler)
-    {
-        Ruler = ruler;
-    }
-
-    private void ApplyResolution()
-    {
-        Draft.CarrierImageMillimetersPerPixel = RulerResolution!.Value;
-        OnPropertyChanged(nameof(Draft));
-        Message = "Resolution updated. Save keeps the change; recorded coordinates stay fixed.";
     }
 
     private async Task InspectAsync(CancellationToken token)
@@ -271,7 +245,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Error = null;
         try
         {
-            if (SelectedPoint is not null && Preview.HasImage)
+            if (IsInspectAllowed)
                 await Preview.InspectAsync(token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -348,9 +322,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Error = null;
         try
         {
-            var images = await Task.Run(() => _store.LoadPcbImages(record)
-                .Select(image => new PcbInspectionImageView(image, InspectionPreview.DecodeImage(image.Png),
-                    image.BoltId is { } id ? record.GetBoltOrdinal(id) : null)).ToArray(), token);
+            var images = await _images.LoadRecordAsync(record, Draft, token);
             token.ThrowIfCancellationRequested();
             LoadedRecord = record;
             HistoryImages = images;
@@ -368,20 +340,20 @@ public partial class InspectionTeachingViewModel : ObservableObject
     private bool IsUseHistoryImageAllowed => LoadedRecord is not null
         && MachineStore.IsSameRecipeName(LoadedRecord.RecipeName, Draft.Name)
         && SelectedHistoryImage is not null
-        && Points.Any(point => point.Metadata.HeatSink == LoadedRecord.HeatSink
-            && (point.Metadata.IsBarcode ? SelectedHistoryImage.Record.BoltId is null
-                : point.Metadata.BoltId == SelectedHistoryImage.Record.BoltId));
+        && Points.Any(point => point.Metadata is not null && point.HeatSink == LoadedRecord.HeatSink
+            && point.Bolt?.Id == SelectedHistoryImage.Record.BoltId);
 
     private void UseHistoryImage()
     {
         if (!IsUseHistoryImageAllowed)
             return;
         var saved = SelectedHistoryImage!;
-        var target = Points.FirstOrDefault(point => point.Metadata.HeatSink == LoadedRecord!.HeatSink
-            && (point.Metadata.IsBarcode ? saved.Record.BoltId is null : point.Metadata.BoltId == saved.Record.BoltId));
+        var target = Points.FirstOrDefault(point => point.Metadata is not null && point.HeatSink == LoadedRecord!.HeatSink
+            && point.Bolt?.Id == saved.Record.BoltId);
         if (target is null)
             return;
-        if (target.Image.PixelWidth != saved.Image.PixelWidth || target.Image.PixelHeight != saved.Image.PixelHeight)
+        var reference = target.GetImage(_carrierImages);
+        if (reference is null || reference.PixelWidth != saved.Image.PixelWidth || reference.PixelHeight != saved.Image.PixelHeight)
         {
             Error = "Saved result image dimensions differ from the recipe image. Select an image with the same resolution.";
             return;
@@ -389,10 +361,10 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Error = null;
         SelectedPoint = target;
         InspectCommand.Cancel();
-        Preview.Clear(IsDataMatrixSelected ? target.Metadata.HeatSink : null, target.Bolt);
+        Preview.Clear(IsDataMatrixSelected ? target.HeatSink : null, target.Bolt);
         try
         {
-            Preview.SetSavedImage(saved.Image, target.Metadata.Region ?? saved.Record.Region);
+            Preview.SetSavedImage(saved.Image, target.Metadata!.Region ?? saved.Record.Region);
         }
         catch (Exception exception)
         {
@@ -402,7 +374,5 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
         ImageSource = $"PCB {LoadedRecord!.Number} · {saved.Title} · {saved.Record.CapturedAt:yyyy-MM-dd HH:mm:ss}";
         OriginalResult = $"Recorded {saved.Verdict} · {saved.Details}";
-        Ruler = null;
-        RulerMillimeters = null;
     }
 }

@@ -67,7 +67,7 @@ public sealed class DiagnosticToolsTests
         var editor = services.GetRequiredService<RecipeEditor>();
         var image = InspectionPreview.CreateBitmap(new ImageFrame(2, 2, 6, new byte[12]));
         Assert.True(await editor.SaveCarrierImagesAsync([
-            new(new CarrierImageTile { Number = 1, BoltId = VirtualTest.BoltId(1) }, image, bolt),
+            new(new CarrierImageTile { Number = 1, BoltId = VirtualTest.BoltId(1) }, image),
             new(new CarrierImageTile { Number = 2, IsBarcode = true }, image),
         ]));
         var teaching = services.GetRequiredService<TeachingViewModel>();
