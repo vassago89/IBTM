@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 using IBTM.UI;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
@@ -199,6 +203,214 @@ public sealed class MotionStatusTests
         Assert.Null(status.Position.X);
     }
 
+    [Fact]
+    public async Task StationsAndMonitorUseTheRegisteredMotionAndStatusInstances()
+    {
+        await using var services = MachineTest.CreateDiagnosticServices();
+        var motions = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, IXyMotion>>();
+        var statuses = services.GetRequiredService<IReadOnlyDictionary<MotionGroup, MotionStatus>>();
+        var monitor = services.GetRequiredService<MachineFeedbackMonitor>();
+        Assert.Same(statuses, monitor.Motions);
+        foreach (var (group, status) in statuses)
+            Assert.Same(motions[group], status.Feedback);
+        Assert.Same(statuses[MotionGroup.PcbSupply], services.GetRequiredService<IBTM.PcbSupply.PcbSupplier>().Motion);
+        Assert.Same(statuses[MotionGroup.PcbPlacementHandler], services.GetRequiredService<IBTM.PcbPlacement.PcbPlacer>().Motion);
+        Assert.Same(statuses[MotionGroup.BoltFastening], services.GetRequiredService<IBTM.BoltFastening.BoltFasteningStation>().Motion);
+        Assert.Same(statuses[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionStation>().Motion);
+        Assert.Same(motions[MotionGroup.InspectionGantry], services.GetRequiredService<InspectionStation>().Motion.Feedback);
+    }
+
+    [Fact]
+    public async Task MotionMonitorShowsFeedbackWithAxisAlarmServoOffAndLatchedMachineAlarm()
+    {
+        await using var services = MachineTest.CreateDiagnosticServices();
+        var settings = services.GetRequiredService<MachineSettings>();
+        settings.Units.Inspection = true;
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
+            MotionGroup.InspectionGantry);
+        await machine.InitializeAsync();
+        try
+        {
+            motion.SetAlarm(MotionAxis.X, true);
+            motion.SetServo(MotionAxis.Y, false);
+            state.SetError(MachineAlarm.MotionUnavailable, new IOException("Axis alarm is latched."));
+            state.Refresh();
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => state.Available
+                        && state.FeedbackReadiness.Faulted
+                        && !state.ServoPowerOn,
+                    TimeSpan.FromSeconds(2)));
+            var view = new MotionWindowViewModel(machine, state, settings);
+            var axes = view.Axes.Where(row => row.Group == MotionGroup.InspectionGantry).ToArray();
+            Assert.All(
+                axes,
+                row =>
+                {
+                    Assert.NotNull(row.Diagnostics.Snapshot.State);
+                    Assert.NotNull(row.Diagnostics.Snapshot.Position);
+                    Assert.False(row.HomeCommand.CanExecute(null));
+                });
+            var x = Assert.Single(axes, row => row.Axis == MotionAxis.X);
+            var y = Assert.Single(axes, row => row.Axis == MotionAxis.Y);
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => x.Diagnostics.Snapshot.Faulted == true
+                        && y.Diagnostics.Snapshot.State?.ServoOn == false,
+                    TimeSpan.FromSeconds(2)));
+            Assert.Equal(AxisCondition.Alarm, x.Diagnostics.Snapshot.Condition);
+            Assert.True(x.Diagnostics.Snapshot.Faulted);
+            Assert.Equal(AxisCondition.ServoOff, y.Diagnostics.Snapshot.Condition);
+            Assert.False(y.Diagnostics.Snapshot.State?.ServoOn);
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task MotionDiagnosticsKeepPollingDisabledAxesWithoutWindowOrEventsAndDespiteControlReadFailure()
+    {
+        var probe = System.Reflection.DispatchProxy.Create<IXyMotion, DiagnosticMotionProbe>();
+        var diagnostics = (DiagnosticMotionProbe)probe;
+        await using var services = MachineTest.CreateDiagnosticServices(
+            configure: collection =>
+                collection
+                    .AddSingleton<IReadOnlyDictionary<MotionGroup, IXyMotion>>(provider =>
+                        Enum.GetValues<MotionGroup>().ToDictionary(group => group,
+                            group => group == MotionGroup.InspectionGantry
+                                ? probe : provider.GetRequiredKeyedService<IXyMotion>(group))));
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var settings = services.GetRequiredService<MachineSettings>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            var view = new MotionWindowViewModel(machine, state, settings) { EnabledOnly = false };
+            var x = Assert.Single(
+                view.Axes,
+                row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
+            var y = Assert.Single(
+                view.Axes,
+                row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.Y);
+            var position = services.GetRequiredService<IBTM.Inspection.InspectionStation>().Motion;
+            Assert.False(x.Enabled);
+            Assert.NotNull(x.Diagnostics.Snapshot.State);
+            Assert.False(x.ToggleServoCommand.CanExecute(null));
+            Assert.False(x.HomeCommand.CanExecute(null));
+            var reads = diagnostics.Reads;
+            // Change raw state silently: no motion, input event, refresh request or monitor window.
+            diagnostics.Position = 42;
+            diagnostics.Alarmed = true;
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => diagnostics.Reads > reads
+                        && x.Diagnostics.Snapshot.Position == 42
+                        && x.Diagnostics.Snapshot.Faulted == true,
+                    TimeSpan.FromSeconds(2)));
+            Assert.Equal(MachineAlarm.None, state.Alarm); // Disabled axes are diagnostic only.
+            Assert.Equal(42, position.Position.X);
+            Assert.False(state.FeedbackReadiness.Faulted);
+
+            // Movement started outside the application still makes the machine busy.
+            diagnostics.InMotion = true;
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => state.IsRunning, TimeSpan.FromSeconds(2)));
+            Assert.False(machine.IsResetAllowed);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.True(state.SetupEditingEnabled);
+            Assert.True(services.GetRequiredService<SettingsViewModel>().IsSettingsEditAllowed);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.IsRunning && state.SetupEditingEnabled,
+                TimeSpan.FromSeconds(2)));
+            Assert.False(state.ManualSetupEnabled);
+
+            await view.StopCommand.ExecuteAsync(null);
+            Assert.Equal(1, diagnostics.Stops);
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => !state.IsRunning, TimeSpan.FromSeconds(2)));
+
+            using (services.GetRequiredService<OperationCancellation>().TryBegin())
+            {
+                Assert.False(state.SetupEditingEnabled);
+                Assert.False(services.GetRequiredService<SettingsViewModel>().IsSettingsEditAllowed);
+            }
+            Assert.True(state.SetupEditingEnabled);
+
+            diagnostics.FailX = true;
+            diagnostics.Position = 43;
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => x.Diagnostics.Snapshot.State is null
+                        && x.Diagnostics.Snapshot.Position == 43
+                        && y.Diagnostics.Snapshot.State is not null,
+                    TimeSpan.FromSeconds(2)));
+            Assert.NotNull(x.Diagnostics.Snapshot.ReadError);
+            Assert.Equal(43, position.Position.X); // A state-query failure does not hide a readable coordinate.
+            Assert.True(state.Available);
+            diagnostics.FailPosition = true;
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => position.Position.X is null && x.Diagnostics.Snapshot.Position is null,
+                TimeSpan.FromSeconds(2)));
+            var readErrors = Assert.IsType<AggregateException>(x.Diagnostics.Snapshot.ReadError);
+            Assert.Collection(
+                readErrors.InnerExceptions,
+                error => Assert.Equal("Diagnostic X read failed.", error.Message),
+                error => Assert.Equal("Diagnostic X position read failed.", error.Message));
+            Assert.Equal(43, position.Position.Y);
+            diagnostics.FailPosition = false;
+            // A failed enabled control scan must not hide the independent monitor cache
+            // or throw while WPF evaluates the RESET button.
+            settings.Units.Inspection = true;
+            Assert.True(x.Enabled);
+            Assert.True(x.Refresh());
+            Assert.False(x.Refresh());
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.FeedbackReadiness.Faulted && state.ReadError is not null && !y.ToggleServoCommand.CanExecute(null),
+                TimeSpan.FromSeconds(2)));
+            Assert.NotNull(state.ReadError); // Explicit failure without another throwing control read.
+            diagnostics.FailX = false;
+            diagnostics.FailControl = true;
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => !state.Available, TimeSpan.FromSeconds(2)));
+            Assert.NotNull(y.Diagnostics.Snapshot.State);
+            Assert.NotNull(y.Diagnostics.Snapshot.Position);
+            Assert.True(machine.IsResetAllowed);
+            Assert.False(y.ToggleServoCommand.CanExecute(null));
+            diagnostics.FailControl = false;
+            settings.Units.Inspection = false;
+            Assert.True(x.Refresh());
+            Assert.False(x.Enabled);
+            // Control-I/O loss does not stop independent motion diagnostics or allow control.
+            io.IsReady = false;
+            diagnostics.FailX = false;
+            diagnostics.Alarmed = false;
+            diagnostics.Position = 44;
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => x.Diagnostics.Snapshot.Position == 44
+                        && x.Diagnostics.Snapshot.Faulted == false,
+                    TimeSpan.FromSeconds(2)));
+            Assert.Equal(44, position.Position.X);
+            Assert.False(x.ToggleServoCommand.CanExecute(null));
+            Assert.False(x.HomeCommand.CanExecute(null));
+
+            io.IsReady = true;
+            await machine.ShutdownAsync();
+            Assert.True(services.GetRequiredService<MachineFeedbackMonitor>().Completion.IsCompletedSuccessfully);
+        }
+        finally
+        {
+            io.IsReady = true;
+            await machine.ShutdownAsync();
+        }
+    }
+
     private sealed class StatusMotion : AjinMotionService, IMotionDiagnostics
     {
         public AxisState State;
@@ -265,6 +477,53 @@ public sealed class MotionStatusTests
         public void Publish()
         {
             PublishStateChanged();
+        }
+    }
+
+    public class DiagnosticMotionProbe : System.Reflection.DispatchProxy, IMotionDiagnostics
+    {
+        private readonly VirtualMotionService _motion;
+        public volatile bool Alarmed;
+        public volatile bool FailX;
+        public volatile bool FailPosition;
+        public volatile bool FailControl;
+        public volatile bool InMotion;
+        public int Position;
+        public int Reads;
+        public int Stops;
+
+        public DiagnosticMotionProbe()
+        {
+            _motion = new(new(), new(), hasZ: false);
+        }
+
+        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
+        {
+            Interlocked.Increment(ref Reads);
+            if (FailX && axis == MotionAxis.X)
+                return (null, new IOException("Diagnostic X read failed."));
+            return (new(false, false, Alarmed, true, false, true, false, false, InMotion), null);
+        }
+
+        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
+        {
+            if (FailPosition && axis == MotionAxis.X)
+                return (null, new IOException("Diagnostic X position read failed."));
+            return (Volatile.Read(ref Position), null);
+        }
+
+        protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)
+        {
+            if (method!.Name == nameof(IAxisMotion.Stop))
+            {
+                Interlocked.Increment(ref Stops);
+                InMotion = false;
+            }
+            if (method!.Name == "get_IsMoving")
+                throw new IOException("Command availability must use the independent monitor snapshot.");
+            if (FailControl && method!.Name == "get_" + nameof(IMotionFeedback.IsReady))
+                throw new IOException("Control readiness read failed.");
+            return method!.Invoke(_motion, arguments);
         }
     }
 }

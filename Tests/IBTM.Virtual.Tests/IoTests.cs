@@ -12,11 +12,11 @@ using IBTM.Device;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
-using IBTM.Virtual;
 using IBTM.UI;
+using IBTM.Virtual;
+using static IBTM.Virtual.Tests.VirtualTest;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using static IBTM.Virtual.Tests.VirtualTest;
 
 namespace IBTM.Virtual.Tests;
 
@@ -425,6 +425,87 @@ public sealed class IoTests
         io.SetInput(InputIo.ResetButton, true);
         Assert.True(io.GetInput(InputIo.ServoMainContactorOn));
         Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).ServoOn));
+    }
+
+    [Fact]
+    public async Task DirectSmemaOutputRemainsAvailableInTeaching()
+    {
+        await using var services = MachineTest.CreateDiagnosticServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            foreach (var output in new[] { OutputIo.PcbSupplyReadyToFront1,
+                OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear })
+            {
+                var row = new OutputWindowRow(services.GetRequiredService<IoSignals>().Outputs[output], machine);
+                row.ToggleCommand.Execute(null);
+                Assert.Null(row.ActionMessage);
+                Assert.True(io.GetOutput(output));
+                if (output == OutputIo.MainConveyorReadyToFront2)
+                    await Task.Delay(1100); // Direct output stays on; it is not a timed pulse.
+                io.SetInput(InputIo.MainConveyorReadyFromRear, true);
+                Assert.True(io.GetOutput(output));
+                row.ToggleCommand.Execute(null);
+                Assert.False(io.GetOutput(output));
+            }
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ManualConveyorSendsOffWhileUiContextIsBlocked()
+    {
+        await using var services = MachineTest.CreateDiagnosticServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var context = new VirtualTest.PausedSynchronizationContext();
+        ManualConveyorRow? row = null;
+        Task? test = null;
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+            io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+            row = new ManualConveyorRow(
+                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun],
+                machine);
+            var previous = SynchronizationContext.Current;
+            try
+            {
+                SynchronizationContext.SetSynchronizationContext(context);
+                test = row.RunCommand.ExecuteAsync(null);
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previous);
+            }
+
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+            row.StopCommand.Execute(null);
+            // No queued UI callback is allowed to run before OFF is observed.
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => !io.GetOutput(OutputIo.MainConveyorRun),
+                    TimeSpan.FromSeconds(2)));
+            Assert.False(test.IsCompleted); // Only the UI command completion is still queued.
+        }
+        finally
+        {
+            row?.RunCommand.Cancel();
+            context.Release();
+            if (test is not null)
+                await test.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
     }
 
     public class OutputReadProbe : DispatchProxy

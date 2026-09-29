@@ -121,6 +121,7 @@
                                                 </TextBlock>
                                                 <TextBlock Text="{Binding Details}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Details}"
                                                     FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
+                                                <TextBlock Text="{Binding Error}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource AccentAmberBrush}"/>
                                             </StackPanel>
                                         </Grid>
                                     </DataTemplate>

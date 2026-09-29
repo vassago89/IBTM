@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -435,15 +438,140 @@ public sealed class LightingTests
         }
     }
 
+    [Fact]
+    public async Task LightTestOwnsOperationUntilOffAndStopsOnAuto()
+    {
+        var light = new RecordingLight { FailOn = false };
+        await using var services = MachineTest.CreateDiagnosticServices(light);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var settings = services.GetRequiredService<SettingsViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            settings.LightTestChannel = 2;
+            settings.LightTestLevel = 43;
+            var test = settings.TestLightCommand.ExecuteAsync(null);
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
+            Assert.True(state.IsRunning);
+            Assert.False(settings.IsSettingsEditAllowed);
+            Assert.False(machine.IsStartAllowed);
+            state.SetError(MachineAlarm.MotionUnavailable, new IOException("Unrelated motion alarm."));
+            Assert.Equal(2, settings.PendingLightOffChannel);
+            Assert.False(test.IsCompleted);
+            await settings.OffTestLightCommand.ExecuteAsync(null);
+            await test.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Null(settings.PendingLightOffChannel);
+            Assert.False(state.IsRunning);
+            Assert.Contains("level:2:43", light.Calls);
+            Assert.Equal("off:2", light.Calls.Last());
+
+            test = settings.TestLightCommand.ExecuteAsync(null);
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => settings.PendingLightOffChannel is not null, TimeSpan.FromSeconds(2)));
+            io.SetInput(InputIo.AutoMode, false);
+            await test.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal("off:2", light.Calls.Last());
+            Assert.False(state.IsRunning);
+            Assert.False(settings.TestLightCommand.CanExecute(null));
+        }
+        finally
+        {
+            await settings.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task LightTestCleansUpPartialOnFailureAndReportsOffFailure()
+    {
+        var light = new RecordingLight { FailOn = true, FailOff = true };
+        await using var services = MachineTest.CreateDiagnosticServices(light);
+        var machine = services.GetRequiredService<MachineController>();
+        var settings = services.GetRequiredService<SettingsViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            settings.LightTestLevel = 256;
+            await settings.TestLightCommand.ExecuteAsync(null);
+            Assert.Empty(light.Calls);
+            settings.LightTestLevel = 80;
+            await settings.TestLightCommand.ExecuteAsync(null);
+            Assert.Contains("off:2", light.Calls);
+            Assert.Contains("state is unknown", settings.LightTestMessage);
+            Assert.False(services.GetRequiredService<MachineState>().IsRunning);
+            Assert.Equal(2, settings.PendingLightOffChannel);
+            Assert.True(settings.OffTestLightCommand.CanExecute(null));
+            Assert.False(settings.TestLightCommand.CanExecute(null));
+            var onWrites = light.Calls.Count(call => call.StartsWith("on:"));
+            settings.LightTestChannel = 7;
+            services.GetRequiredService<VirtualIoService>().SetInput(InputIo.AutoMode, false);
+            var shutdownFailure = await Assert.ThrowsAsync<InvalidOperationException>(settings.ShutdownAsync);
+            Assert.Contains(light.OffFailure.Message, shutdownFailure.Message);
+            Assert.Equal(2, settings.PendingLightOffChannel);
+
+            // Keep another command pending so shutdown must handle its failure before retrying OFF.
+            services.GetRequiredService<VirtualIoService>().SetInput(InputIo.AutoMode, true);
+            var commandFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var releaseCommand = new ManualResetEventSlim();
+            var commandFailure = new InvalidOperationException("Simulated command failure.");
+            void FailImageCommand(object? sender, PropertyChangedEventArgs args)
+            {
+                if (args.PropertyName != nameof(settings.VirtualImageError) || settings.VirtualImageError is null)
+                    return;
+                commandFailed.SetResult();
+                Assert.True(releaseCommand.Wait(TimeSpan.FromSeconds(2)));
+                throw commandFailure;
+            }
+
+            settings.PropertyChanged += FailImageCommand;
+            var load = Task.Run(() => settings.LoadVirtualImageCommand.ExecuteAsync(
+                Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.png")));
+            try
+            {
+                await commandFailed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                var shutdown = settings.ShutdownAsync();
+                releaseCommand.Set();
+                Assert.Same(commandFailure, await Assert.ThrowsAsync<InvalidOperationException>(() => load));
+                var failures = (await Assert.ThrowsAsync<AggregateException>(() => shutdown)).Flatten().InnerExceptions;
+                Assert.Equal(2, failures.Count);
+                Assert.Contains(commandFailure, failures);
+                Assert.Contains(failures, failure => failure.Message.Contains(light.OffFailure.Message));
+                Assert.Equal("off:2", light.Calls.Last());
+                Assert.Equal(2, settings.PendingLightOffChannel);
+            }
+            finally
+            {
+                releaseCommand.Set();
+                settings.PropertyChanged -= FailImageCommand;
+            }
+
+            light.FailOff = false;
+            await settings.OffTestLightCommand.ExecuteAsync(null);
+            Assert.Equal("off:2", light.Calls.Last());
+            Assert.Equal(onWrites, light.Calls.Count(call => call.StartsWith("on:")));
+            Assert.Null(settings.PendingLightOffChannel);
+        }
+        finally
+        {
+            await settings.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
+    }
+
     private sealed class RecordingLight : ILightController
     {
         public RecordingLight()
         {
+            Calls = new();
             Failure = new("ON failed after the output was sent.");
             OffFailure = new("OFF failed.");
         }
 
         public IOException Failure { get; }
+        public ConcurrentQueue<string> Calls { get; }
         public bool IsOn { get; private set; }
         public int OffCalls { get; private set; }
         public int LastOffChannel { get; private set; }
@@ -456,16 +584,19 @@ public sealed class LightingTests
 
         public void Initialize()
         {
+            Calls.Enqueue("initialize");
             Connected = true;
         }
 
         public void SetLevel(int channel, int level)
         {
+            Calls.Enqueue($"level:{channel}:{level}");
             LastLevel = level;
         }
 
         public void TurnOn(int channel)
         {
+            Calls.Enqueue($"on:{channel}");
             if (!Connected)
                 throw Failure;
             IsOn = true;
@@ -476,6 +607,7 @@ public sealed class LightingTests
 
         public void TurnOff(int channel)
         {
+            Calls.Enqueue($"off:{channel}");
             if (!Connected || FailOff)
                 throw OffFailure;
             IsOn = false;
@@ -485,6 +617,7 @@ public sealed class LightingTests
 
         public void TurnOffAll()
         {
+            Calls.Enqueue("off:all");
             if (!Connected || FailOff)
                 throw OffFailure;
             IsOn = false;

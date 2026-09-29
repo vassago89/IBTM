@@ -37,6 +37,7 @@ public partial class RecipeEditor : ObservableObject
         ILogger<RecipeEditor>? log = null)
     {
         LoadCommand = new AsyncRelayCommand<string>(LoadAsync);
+        RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         NewCommand = new RelayCommand(New);
 
         _log = log;
@@ -44,7 +45,7 @@ public partial class RecipeEditor : ObservableObject
         _database = database;
         _operations = operations;
         Name = recipes.Current.Name;
-        Recipes = database.RecipeNames;
+        Recipes = [];
         recipes.Changed += OnRecipeChanged;
     }
 
@@ -52,14 +53,27 @@ public partial class RecipeEditor : ObservableObject
 
     public bool IsSaveAllowed => !string.IsNullOrWhiteSpace(Name);
 
-    public void Refresh()
+    public IAsyncRelayCommand RefreshCommand { get; }
+
+    private async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        Recipes = _database.RecipeNames;
+        try
+        {
+            var names = await Task.Run(() => _database.RecipeNames, cancellationToken);
+            if (!cancellationToken.IsCancellationRequested)
+                Recipes = names;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+                ReportError(exception);
+        }
     }
 
     public Task ShutdownAsync()
     {
-        return CommandShutdown.WaitAsync(CommandShutdown.Capture(LoadCommand));
+        return CommandShutdown.CancelAndWaitAsync([LoadCommand, RefreshCommand]);
     }
 
     public async Task<bool> SaveAsync(CancellationToken cancellationToken = default)
@@ -143,6 +157,8 @@ public partial class RecipeEditor : ObservableObject
 
     private void Saved()
     {
+        if (RefreshCommand.IsRunning)
+            _ = RefreshCommand.ExecuteAsync(null);
         Name = _recipes.Current.Name;
         OnPropertyChanged(nameof(ActiveName));
         if (!Recipes.Any(name => MachineStore.IsSameRecipeName(name, Name)))
@@ -163,9 +179,11 @@ public partial class RecipeEditor : ObservableObject
             await _recipes.SaveImagesAsync(
                 name,
                 images.Select(image => image.Metadata).ToList(),
-                images.Select(image =>
+                images.Where(image => image.Image is not null || image.UnreadablePng is not null).Select(image =>
                 {
                     operation.Token.ThrowIfCancellationRequested();
+                    if (image.Image is null)
+                        return new RecipeImage(image.Metadata.Number, image.UnreadablePng!);
                     using var stream = new MemoryStream();
                     var encoder = new PngBitmapEncoder();
                     // Encode pixels only; decoder metadata can belong to another thread.

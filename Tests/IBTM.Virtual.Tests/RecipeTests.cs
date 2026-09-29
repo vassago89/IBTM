@@ -5,8 +5,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
 using System.Windows.Data;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using IBTM.BoltFastening;
 using IBTM.Core;
@@ -14,15 +14,81 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
-using IBTM.UI;
 using IBTM.Storage;
+using IBTM.UI;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
 
 public sealed class RecipeTests
 {
+    [Fact]
+    public async Task RecipeListQueriesDoNotBlockEntryAndDiscardCancelledResults()
+    {
+        var store = VirtualTest.OpenMachineStore();
+        store.SaveRecipe(new Recipe { Name = "Stored recipe" });
+        var recipes = new RecipeManager(store, new());
+        using var connection = new SqliteConnection(
+            new SqliteConnectionStringBuilder { DataSource = store.DatabaseFile }.ToString());
+        SqliteConnection.ClearPool(connection);
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandTimeout = 5;
+        command.CommandText = "PRAGMA journal_mode=DELETE; BEGIN EXCLUSIVE";
+        command.ExecuteNonQuery();
+        var editor = new RecipeEditor(recipes, store, new());
+        var inspection = new InspectionTeachingViewModel(store, recipes,
+            new InspectionImages(store, NullLogger<InspectionImages>.Instance), new(),
+            NullLogger<InspectionTeachingViewModel>.Instance);
+        var refresh = editor.RefreshCommand.ExecuteAsync(null);
+        inspection.Activate();
+        Assert.False(refresh.IsCompleted);
+        Assert.False(inspection.RefreshRecipesCommand.ExecutionTask!.IsCompleted);
+        Assert.Empty(editor.Recipes);
+        Assert.Empty(inspection.RecipeNames);
+        editor.RefreshCommand.Cancel();
+        inspection.RefreshRecipesCommand.Cancel();
+        var shutdown = inspection.ShutdownAsync();
+        command.CommandText = "COMMIT";
+        command.ExecuteNonQuery();
+        await Task.WhenAll(refresh, shutdown).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Empty(editor.Recipes);
+        Assert.Empty(inspection.RecipeNames);
+        Assert.Null(editor.Error);
+        Assert.Null(inspection.Error);
+
+        await editor.RefreshCommand.ExecuteAsync(null);
+        inspection.Activate();
+        await inspection.RefreshRecipesCommand.ExecutionTask!;
+        Assert.Equal(new[] { "Stored recipe" }, editor.Recipes);
+        Assert.Equal(editor.Recipes, inspection.RecipeNames);
+
+        var paused = new VirtualTest.PausedSynchronizationContext();
+        var context = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(paused);
+            var pending = editor.RefreshCommand.ExecuteAsync(null);
+            SynchronizationContext.SetSynchronizationContext(context);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => paused.HasPending, TimeSpan.FromSeconds(2)));
+            editor.Name = "New recipe";
+            Assert.True(await editor.SaveAsync(), editor.Error);
+            paused.Release();
+            await pending;
+            await editor.RefreshCommand.ExecutionTask!;
+            Assert.Equal(new[] { "New recipe", "Stored recipe" }, editor.Recipes);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            paused.Release();
+        }
+        await editor.ShutdownAsync();
+        await inspection.ShutdownAsync();
+    }
+
     [Fact]
     public void MinimumTurnsFollowEachBoltThroughRecipeSaveReorderAndClear()
     {
@@ -949,11 +1015,17 @@ public sealed class RecipeTests
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default).Unwrap();
-        Assert.All(reloaded, tile => Assert.True(tile.Image.IsFrozen));
+        Assert.All(reloaded, tile =>
+        {
+            Assert.NotNull(tile.Image);
+            Assert.True(tile.Image.IsFrozen);
+        });
         Assert.Equal("FOV 1", reloaded[0].ToString());
         Assert.True(await sourceEditor.SaveCarrierImagesAsync(reloaded));
         var pixels = new byte[3];
-        (await imagesLoader.LoadRecipeAsync(sourceRecipes.Current))[0].Image.CopyPixels(pixels, 3, 0);
+        var savedImage = (await imagesLoader.LoadRecipeAsync(sourceRecipes.Current))[0].Image;
+        Assert.NotNull(savedImage);
+        savedImage.CopyPixels(pixels, 3, 0);
         Assert.Equal(new byte[] { 10, 11, 12 }, pixels);
         var savedFov = database.LoadRecipe("Source").CarrierImages[0];
         Assert.Equal(new PixelRegion(0, 0, 1, 1), savedFov.Region);
@@ -987,7 +1059,7 @@ public sealed class RecipeTests
         Assert.Equal("Target", targetSelection.LastRecipeName);
         Assert.DoesNotContain("Rejected", database.RecipeNames);
         Assert.DoesNotContain("Rejected", targetEditor.Recipes);
-        Assert.Throws<InvalidOperationException>(() => database.LoadRecipeImage("Rejected", 1));
+        Assert.Throws<FileNotFoundException>(() => database.LoadRecipeImage("Rejected", 1));
 
         targetEditor.Name = "Target";
         Assert.False(await targetEditor.SaveCarrierImagesAsync(Images(30, 200)));
@@ -1050,8 +1122,7 @@ public sealed class RecipeTests
 
         await sourceEditor.SaveCarrierImagesAsync(Images(50, 200).Take(1).ToArray());
         Assert.Single(database.LoadRecipe("Target").CarrierImages);
-        Assert.Throws<InvalidOperationException>(() => database.LoadRecipeImage("Target", 2));
+        Assert.Throws<FileNotFoundException>(() => database.LoadRecipeImage("Target", 2));
         Assert.Equal(2, database.LoadRecipe("Source").CarrierImages.Count);
     }
-
 }

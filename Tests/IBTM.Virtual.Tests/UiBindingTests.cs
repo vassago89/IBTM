@@ -22,8 +22,8 @@ using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 using Microsoft.Extensions.Logging;
+using Xunit;
 
 namespace IBTM.Virtual.Tests;
 // A plain WPF Application supplies resources/Dispatcher only. Never start IBTM.App.
@@ -851,6 +851,7 @@ public sealed class UiBindingTests
             Assert.Null(VirtualTest.RecordedImage(teaching));
             teaching.SelectedPoint = firstBolt;
             var firstImage = VirtualTest.RecordedImage(teaching)!;
+            Assert.NotNull(firstImage.Image);
             Assert.True(firstImage.Image.IsFrozen);
             // Only Record Position replaces the selected point's image, capture XY and bolt coordinates.
             var gantry = services.GetRequiredService<InspectionStation>();

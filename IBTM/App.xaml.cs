@@ -1,10 +1,10 @@
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
-using System;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Storage;
@@ -125,6 +125,7 @@ public partial class App : System.Windows.Application
         await serviceProvider.GetRequiredService<MachineController>().InitializeAsync();
         var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
+        _ = serviceProvider.GetRequiredService<RecipeEditor>().RefreshCommand.ExecuteAsync(null);
         _log.LogInformation("Main window opened.");
     }
 

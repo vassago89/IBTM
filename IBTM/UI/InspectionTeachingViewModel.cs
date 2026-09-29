@@ -40,6 +40,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Records = [];
         RecipeNames = [];
         SelectedRecipeName = recipes.Current.Name;
+        RefreshRecipesCommand = new AsyncRelayCommand(RefreshRecipesAsync);
         LoadRecipeCommand = new AsyncRelayCommand(LoadRecipeAsync);
         RefreshImagesCommand = new AsyncRelayCommand(RefreshImagesAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
@@ -50,7 +51,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         DrawRegionCommand = new RelayCommand<Rect>(DrawRegion, _ => IsDrawRegionAllowed);
         UseHistoryImageCommand = new RelayCommand(UseHistoryImage, () => HistoryImageTarget is not null);
         ShowRecipeImageCommand = new RelayCommand(ShowRecipeImage);
-        _commands = [LoadRecipeCommand, RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
+        _commands = [RefreshRecipesCommand, LoadRecipeCommand, RefreshImagesCommand, SaveCommand, InspectCommand, RefreshHistoryCommand, LoadOlderCommand, LoadRecordCommand];
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
         HistoryDirectory = history.Directory;
@@ -60,6 +61,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     public InspectionPreview Preview { get; }
     public ObservableCollection<PcbRecord> Records { get; }
     public IAsyncRelayCommand LoadRecipeCommand { get; }
+    public IAsyncRelayCommand RefreshRecipesCommand { get; }
     public IAsyncRelayCommand RefreshImagesCommand { get; }
     public IAsyncRelayCommand SaveCommand { get; }
     public IAsyncRelayCommand InspectCommand { get; }
@@ -96,24 +98,32 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     public void Activate()
     {
+        if (!IsBusy)
+            _ = RefreshRecipesCommand.ExecuteAsync(null);
+    }
+
+    private async Task RefreshRecipesAsync(CancellationToken token)
+    {
         try
         {
+            var names = await Task.Run(() => _store.RecipeNames, token);
+            if (token.IsCancellationRequested)
+                return;
             var selectedName = SelectedRecipeName;
-            RecipeNames = _store.RecipeNames;
+            RecipeNames = names;
             // ComboBox item matching is case-sensitive even though recipe identity is not.
             SelectedRecipeName = RecipeNames.FirstOrDefault(name => MachineStore.IsSameRecipeName(name, selectedName))
                 ?? selectedName;
-            if (!IsBusy)
-            {
-                if (IsLoaded)
-                    _ = RefreshImagesCommand.ExecuteAsync(null);
-                else if (RecipeNames.Any(name => MachineStore.IsSameRecipeName(name, SelectedRecipeName)))
-                    _ = LoadRecipeCommand.ExecuteAsync(null);
-            }
+            if (IsLoaded)
+                await LoadRecipeImagesAsync(Draft.Name, preserveEdits: true, token);
+            else if (RecipeNames.Any(name => MachineStore.IsSameRecipeName(name, SelectedRecipeName)))
+                await LoadRecipeImagesAsync(SelectedRecipeName, preserveEdits: false, token);
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            Error = exception.Message;
+            if (!token.IsCancellationRequested)
+                Error = exception.Message;
             _log.LogError(exception, "Inspection teaching recipe list failed.");
         }
     }
@@ -177,7 +187,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
                     && point.IsDataMatrix == selected.IsDataMatrix && point.Bolt?.Id == selected.Bolt?.Id)
                 : null) ?? Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
             var unlinked = Draft.CarrierImages.Count(tile => !Points.Any(point => point.Matches(tile)));
-            Message = unlinked > 0 ? $"{unlinked} unlinked image(s) excluded." : null;
+            var failed = images.Count(image => image.Error is not null);
+            Message = failed > 0 ? $"{failed} reference image(s) unavailable. Select a point for details."
+                : unlinked > 0 ? $"{unlinked} unlinked image(s) excluded." : null;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
@@ -204,7 +216,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Preview.Clear(IsDataMatrixSelected ? SelectedPoint!.HeatSink : null, SelectedPoint?.Bolt);
         if (SelectedPoint is { } point)
         {
-            if (point.GetImage(_carrierImages) is { } image)
+            var loaded = point.FindImage(_carrierImages);
+            Error = loaded?.Error;
+            if (loaded?.Image is { } image)
             {
                 var region = point.Metadata!.Region ?? PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight,
                     Math.Min(image.PixelWidth, image.PixelHeight) / 4);
@@ -356,7 +370,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         get
         {
-            if (LoadedRecord is not { } record || SelectedHistoryImage is not { } image
+            if (LoadedRecord is not { } record || SelectedHistoryImage is not { Image: not null } image
                 || !MachineStore.IsSameRecipeName(record.RecipeName, Draft.Name))
                 return null;
             return Points.FirstOrDefault(point => point.Metadata?.IsForTarget(record.HeatSink, image.Record.BoltId) == true);
@@ -368,8 +382,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
         if (HistoryImageTarget is not { } target)
             return;
         var saved = SelectedHistoryImage!;
-        var reference = target.GetImage(_carrierImages);
-        if (reference is null || reference.PixelWidth != saved.Image.PixelWidth || reference.PixelHeight != saved.Image.PixelHeight)
+        var reference = target.FindImage(_carrierImages)?.Image;
+        if (reference is null || reference.PixelWidth != saved.Image!.PixelWidth || reference.PixelHeight != saved.Image.PixelHeight)
         {
             Error = "Image dimensions do not match the recipe image.";
             return;

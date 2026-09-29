@@ -12,10 +12,12 @@ using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
-using IBTM.Virtual;
-using Xunit;
-using static IBTM.Virtual.Tests.VirtualTest;
 using IBTM.Storage;
+using IBTM.UI;
+using IBTM.Virtual;
+using static IBTM.Virtual.Tests.VirtualTest;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace IBTM.Virtual.Tests;
 
@@ -2741,5 +2743,34 @@ public sealed class BoltFasteningTests
         SupplyBeforeTravel,
         ClearanceLost,
         CarrierLost,
+    }
+
+    [Fact]
+    public async Task BoltTestMatchesRecreatedPointsByGuidRatherThanNameOrReference()
+    {
+        await using var services = MachineTest.CreateDiagnosticServices();
+        var recipes = services.GetRequiredService<RecipeManager>();
+        var first = new BoltPoint { Name = "Same name" };
+        var second = new BoltPoint { Name = "Same name" };
+        recipes.Current.Pcb.BoltPoints = [first, second];
+        var test = services.GetRequiredService<BoltStationTestViewModel>();
+        test.Activate();
+        try
+        {
+            var result = new BoltResult(true, 8);
+            var callback = typeof(BoltStationTestViewModel).GetMethod("OnResultReceived",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            callback.Invoke(test, [new BoltPoint(second.Id) { Name = "Renamed" }, result]);
+            Assert.Null(test.Bolts[0].Result);
+            Assert.Same(result, test.Bolts[1].Result);
+            Assert.Equal("OK", test.Bolts[1].Status);
+            callback.Invoke(test, [new BoltPoint { Name = "Same name" }, new BoltResult(false, null)]);
+            Assert.Same(result, test.Bolts[1].Result);
+            Assert.Null(test.Bolts[0].Result);
+        }
+        finally
+        {
+            test.Deactivate();
+        }
     }
 }

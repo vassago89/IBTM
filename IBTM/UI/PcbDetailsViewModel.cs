@@ -105,6 +105,8 @@ public partial class PcbDetailsViewModel : ObservableObject
             var selectedBoltId = SelectedImage is { } selected
                 ? selected.Record.BoltId : SelectedBolt?.BoltId;
             Images = images;
+            var failed = images.Where(image => image.Error is not null).Select(image => image.Title).ToArray();
+            ImageError = failed.Length == 0 ? null : $"Image unavailable: {string.Join(", ", failed)}";
             SelectedImage = hasSelection
                 ? images.FirstOrDefault(image => image.Record.BoltId == selectedBoltId)
                 : images.FirstOrDefault();

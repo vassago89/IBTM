@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows.Media.Imaging;
 using IBTM.Core;
 using IBTM.Inspection;
 
@@ -58,10 +57,10 @@ public sealed class InspectionPoint
         return image.IsForTarget(HeatSink, Bolt?.Id);
     }
 
-    public BitmapSource? GetImage(IReadOnlyList<CarrierImageTileView> images)
+    public CarrierImageTileView? FindImage(IReadOnlyList<CarrierImageTileView> images)
     {
         return Metadata is { } metadata
-            ? images.FirstOrDefault(image => image.Metadata.Number == metadata.Number && Matches(image.Metadata))?.Image
+            ? images.FirstOrDefault(image => image.Metadata.Number == metadata.Number && Matches(image.Metadata))
             : null;
     }
 

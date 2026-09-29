@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -194,5 +195,37 @@ internal static class VirtualTest
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    public sealed class PausedSynchronizationContext : SynchronizationContext
+    {
+        private readonly ConcurrentQueue<Action> _pending;
+        private int _released;
+
+        public PausedSynchronizationContext()
+        {
+            _pending = new();
+        }
+
+        public bool HasPending => !_pending.IsEmpty;
+
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            _pending.Enqueue(() => callback(state));
+            if (Volatile.Read(ref _released) != 0)
+                Drain();
+        }
+
+        public void Release()
+        {
+            Volatile.Write(ref _released, 1);
+            Drain();
+        }
+
+        private void Drain()
+        {
+            while (_pending.TryDequeue(out var callback))
+                ThreadPool.QueueUserWorkItem(_ => callback());
+        }
     }
 }

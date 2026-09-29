@@ -254,7 +254,7 @@ public sealed class MachineStore
         using var db = new MachineDb(_options);
         return db.RecipeImages.Where(row => row.RecipeName == name && row.Number == number)
             .Select(row => row.Image)
-            .Single();
+            .SingleOrDefault() ?? throw new FileNotFoundException($"Recipe '{name}', image {number} is missing.");
     }
 
     public long NextPcbNumber()

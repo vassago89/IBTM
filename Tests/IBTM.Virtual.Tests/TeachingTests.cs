@@ -14,11 +14,11 @@ using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
 using IBTM.UI;
+using static IBTM.Virtual.Tests.MachineTest;
+using static IBTM.Virtual.Tests.VirtualTest;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
-using static IBTM.Virtual.Tests.MachineTest;
-using static IBTM.Virtual.Tests.VirtualTest;
 
 namespace IBTM.Virtual.Tests;
 
@@ -842,13 +842,14 @@ public sealed class TeachingTests
         Assert.Same(captured.Image, teaching.CameraImage);
 
         editor.Activate();
-        await editor.RefreshImagesCommand.ExecutionTask!;
+        await editor.RefreshRecipesCommand.ExecutionTask!;
         Assert.Null(editor.Error);
         Assert.NotSame(previousEditorImage, editor.Preview.Image);
         var loaded = Assert.Single(editor.Points, point => point.Metadata is not null);
         Assert.Equal(region, loaded.Metadata!.Region);
         Assert.Equal((17d, 29d), (loaded.Position!.X, loaded.Position!.Y));
         Assert.Equal(67, barcode ? editor.DataMatrix!.LightLevel : editor.SelectedPoint!.Bolt!.LightLevel);
+        Assert.NotNull(captured.Image);
         Assert.Equal(captured.Image.PixelWidth, editor.Preview.Image!.PixelWidth);
         var recordedPoint = teaching.SelectedPoint;
         teaching.LiveLightLevel = 99;
@@ -2175,5 +2176,42 @@ public sealed class TeachingTests
         Stop,
         ChangeUnit,
         Close,
+    }
+    [Fact]
+    public async Task InspectionStepUsesSelectedManualSpeed()
+    {
+        await using var services = MachineTest.CreateDiagnosticServices();
+        services.GetRequiredService<UnitSettings>().Inspection = true;
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+        var settings = services.GetRequiredService<InspectionGantrySettings>();
+        await machine.InitializeAsync();
+        try
+        {
+            await motion.HomeHorizontalAsync(1_000);
+            teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+            teaching.JogSpeed = 10;
+            settings.Motion.HorizontalSpeed = 0;
+            var before = motion.Position;
+
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+
+            Assert.Null(teaching.SaveError);
+            Assert.Equal(before.X + teaching.StepDistance, motion.Position.X, 3);
+
+            settings.Motion.HorizontalSpeed = 100;
+            teaching.JogSpeed = 0;
+            before = motion.Position;
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+
+            Assert.NotNull(teaching.SaveError);
+            Assert.Equal(before, motion.Position);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 }

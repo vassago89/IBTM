@@ -12,12 +12,17 @@
 | `IBTM.Virtual.Tests/MachineLifecycleTests.cs` | START·STOP·RESET·종료, 유닛 간 인계와 결과 소유권 |
 | `IBTM.Virtual.Tests/MachineHomeTests.cs` | 전체·개별 HOME, 실린더 준비, 취소와 홈 실패 |
 | `IBTM.Virtual.Tests/TeachingTests.cs` | 티칭 위치·순서·저장, Jog·Step·화면 전환 중 취소 |
-| `IBTM.Virtual.Tests/InspectionTeachingTests.cs` | 검사 이미지·ROI·레시피 편집·저장 결과 불러오기 |
+| `IBTM.Virtual.Tests/InspectionTeachingTests.cs` | 검사 이미지·ROI·레시피 편집, 손상 이미지 보존, 저장 결과 불러오기 |
+| `IBTM.Virtual.Tests/RecipeTests.cs` | 레시피 목록 비동기 조회, 저장·복사 트랜잭션, GUID·티칭 정보 유지 |
 | `IBTM.Virtual.Tests/UiBindingTests.cs` | WPF 바인딩의 스레드 갱신, 창 열기 실패와 재열기 |
 | `IBTM.Virtual.Tests/HeatSinkAssemblyTests.cs` | 저장소 없는 결과 판정, 최소 회전수 |
 | `IBTM.Virtual.Tests/PcbHistoryTests.cs` | 결과·이미지 DB 저장, 저장 실패 후 재시도, 번호 유지·조회 |
+| `IBTM.Virtual.Tests/LightingTests.cs` | 조명 연결·진단, 작업 소유권, 종료와 출력 실패 처리 |
+| `IBTM.Virtual.Tests/MotionStatusTests.cs` | 모션 피드백·진단 조회, 축 알람과 드라이버 공유 |
+| `IBTM.Virtual.Tests/IoTests.cs` | 수동 출력·SMEMA, UI 지연 중 컨베이어 정지 |
+| `IBTM.Virtual.Tests/ConveyorTests.cs` | 컨베이어 이송·인터록, 정지·리셋 중 속도 출력 유지 |
 
-`MachineTest`는 위 설비 테스트들이 공유하는 가상 설정·DI 준비와 모션 오류 대역을 소유한다. 다른 테스트 클래스의 내부 대역을 참조하지 않는다. `VirtualTest`에는 공통 대기와 간단한 STA 바인딩 실행을 둔다.
+`MachineTest`는 설비·진단 테스트들이 공유하는 가상 설정·DI 준비와 모션 오류 대역을 소유한다. 다른 테스트 클래스의 내부 대역을 참조하지 않는다. `VirtualTest`에는 공통 대기, STA 바인딩 실행과 UI 반영을 지연시키는 동기화 컨텍스트를 둔다.
 
 분리한 설비 테스트는 `Machine integration` 컬렉션에서 기존처럼 직렬 실행한다. `UiBindingTests`는 한 프로세스에서 WPF `Application`을 한 번만 만들기 위해 하나의 테스트 진입점을 유지하며, 실제 `IBTM.App`은 실행하지 않는다.
 

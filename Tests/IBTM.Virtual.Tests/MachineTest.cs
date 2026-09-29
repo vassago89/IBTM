@@ -36,6 +36,36 @@ public static class MachineTest
             .BuildServiceProvider();
     }
 
+    public static ServiceProvider CreateDiagnosticServices(
+        ILightController? light = null,
+        Action<ServiceCollection>? configure = null)
+    {
+        var collection = new ServiceCollection();
+        collection.AddSingleton(
+            VirtualTest.OpenMachineStore(
+                Path.Combine(Path.GetTempPath(), $"IBTM-diagnostic-{Guid.NewGuid():N}.db")))
+            .AddIbtmApplication(
+                new MachineSettings
+                {
+                    Drivers = new() { Light = LightDriver.Virtual },
+                    Units = new()
+                    {
+                        MainConveyor = true,
+                        PcbSupply = false,
+                        PcbPlacement = false,
+                        PickupBoltFeeder = false,
+                        ShootingBoltFeeder = false,
+                        BoltFastening = false,
+                        Inspection = false,
+                        NgConveyor = false,
+                    },
+                });
+        if (light is not null)
+            collection.AddSingleton(light);
+        configure?.Invoke(collection);
+        return collection.BuildServiceProvider();
+    }
+
     public static ServiceProvider CreateServices(MachineSettings settings)
     {
         return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())

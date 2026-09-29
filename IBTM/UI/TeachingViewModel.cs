@@ -267,9 +267,7 @@ public partial class TeachingViewModel : ObservableObject
         _logger.LogInformation("Teaching open: unit={Unit}, PCB={Pcb}, recipe={Recipe}, bolts={Bolts}, images={Images}; begin.",
             SelectedTeachingUnit, SelectedPcb, Recipes.Current.Name, Recipes.Current.Pcb.BoltPoints.Count, Recipes.Current.CarrierImages.Count);
         CameraError = null;
-        RecipeEditor.Refresh();
-        _logger.LogInformation("Teaching open: recipe list read, elapsed={ElapsedMs:F1} ms.",
-            Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        _ = RecipeEditor.RefreshCommand.ExecuteAsync(null);
         var pointsStarted = Stopwatch.GetTimestamp();
         RefreshTeachingPoints();
         _logger.LogInformation("Teaching open: point lists refreshed, points={Points}, elapsed={ElapsedMs:F1} ms.",
@@ -506,6 +504,7 @@ public partial class TeachingViewModel : ObservableObject
             ? Recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel : newValue?.Position.Bolt?.LightLevel)
             ?? Recipes.Current.BoltInspection.LightLevel;
         OnPropertyChanged(nameof(CameraImage));
+        OnPropertyChanged(nameof(CameraError));
         NotifyManualTeachingCommands();
         OnPropertyChanged(nameof(SelectedBarcode));
         OnPropertyChanged(nameof(IsDataMatrixSelected));
@@ -1379,17 +1378,18 @@ public partial class TeachingViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CameraImage))]
+    [NotifyPropertyChangedFor(nameof(CameraError))]
     [NotifyCanExecuteChangedFor(nameof(GrabCommand))]
     public partial IReadOnlyList<CarrierImageTileView> CarrierImages { get; set; }
 
     public string? CameraError
     {
-        get => field ?? Inspection.LiveViewError?.Message;
+        get => field ?? SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Error ?? Inspection.LiveViewError?.Message;
         private set => SetProperty(ref field, value);
     }
 
     public BitmapSource? CameraImage => Inspection.IsLiveView ? LiveImage
-        : SelectedPoint?.Inspection?.GetImage(CarrierImages);
+        : SelectedPoint?.Inspection?.FindImage(CarrierImages)?.Image;
 
     public IAsyncRelayCommand GrabCommand { get; }
 
@@ -1400,7 +1400,7 @@ public partial class TeachingViewModel : ObservableObject
     }
 
     private bool IsGrabAllowed => IsRecordImagePositionAllowed && SelectedPoint?.Position.HasPosition == true
-        && SelectedPoint.Inspection?.GetImage(CarrierImages) is not null;
+        && SelectedPoint.Inspection?.FindImage(CarrierImages) is not null;
 
     public IAsyncRelayCommand ApplyLightCommand { get; }
 

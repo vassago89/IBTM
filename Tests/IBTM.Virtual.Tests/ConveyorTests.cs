@@ -1,8 +1,8 @@
-using System.Diagnostics;
-using System.Linq;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
@@ -12,8 +12,9 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.Virtual;
-using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace IBTM.Virtual.Tests;
 
@@ -2458,5 +2459,35 @@ public sealed class ConveyorTests
             io, io, InputIo.InspectionHeatSink1Present, OutputIo.InspectionBackupPlateUp);
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
         return (io, conveyor);
+    }
+
+    [Fact]
+    public async Task ConveyorSpeedStaysOnThroughStopResetAndOutputControl()
+    {
+        await using var services = MachineTest.CreateDiagnosticServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            foreach (var output in new[] { OutputIo.MainConveyorNormalSpeed, OutputIo.NgConveyorNormalSpeed })
+            {
+                Assert.True(io.GetOutput(output));
+                Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(output));
+                Assert.True(io.GetOutput(output));
+            }
+            await machine.StopAsync();
+            Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+            Assert.True(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
+            await machine.ResetAsync();
+            Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+            Assert.True(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 }
