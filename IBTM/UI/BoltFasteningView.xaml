@@ -31,6 +31,30 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="FeederSensorStyle" TargetType="Ellipse">
+            <Setter Property="Width" Value="14"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="Fill" Value="Transparent"/>
+            <Setter Property="Stroke" Value="{StaticResource AccentAmberBrush}"/>
+            <Setter Property="StrokeThickness" Value="2"/>
+            <Style.Triggers>
+                <Trigger Property="Tag">
+                    <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
+                    <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
+                    <Setter Property="Stroke" Value="{StaticResource AccentGreenBrush}"/>
+                </Trigger>
+                <Trigger Property="Tag">
+                    <Trigger.Value><sys:Boolean>False</sys:Boolean></Trigger.Value>
+                    <Setter Property="Fill" Value="{StaticResource EquipBgBrush}"/>
+                    <Setter Property="Stroke" Value="{StaticResource MachineStructureBorderBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="FeederCommandLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource EquipmentRoleLabelStyle}">
+            <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="IsHitTestVisible" Value="True"/>
+        </Style>
     </UserControl.Resources>
     <Grid>
         <Canvas>
@@ -188,5 +212,192 @@
                 </ControlTemplate>
             </Button.Template>
         </Button>
+        <Grid Width="284" Height="162" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,150,0,0">
+            <Border Height="138" VerticalAlignment="Top" Style="{StaticResource DeviceBodyStyle}">
+                <Canvas Width="280" Height="134">
+                    <TextBlock Canvas.Left="8" Canvas.Top="8" Width="82"
+                        ToolTip="Feeder command: ShootingFeederOff OFF = RUN, ON = STOP">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
+                                <Setter Property="Text" Value="RUN · ?"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootingFeederOff].IsOn}" Value="False">
+                                        <Setter Property="Text" Value="RUN"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootingFeederOff].IsOn}" Value="True">
+                                        <Setter Property="Text" Value="STOP"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Canvas.Left="96" Canvas.Top="8" Width="88"
+                        ToolTip="Escape output command; the B/F lamps below show actual sensor feedback">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
+                                <Setter Property="Text" Value="CMD · ?"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootingEscapeForward].IsOn}" Value="False">
+                                        <Setter Property="Text" Value="CMD ←"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootingEscapeForward].IsOn}" Value="True">
+                                        <Setter Property="Text" Value="CMD →"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Canvas.Left="194" Canvas.Top="8" Width="78" ToolTip="ShootBolt output command">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
+                                <Setter Property="Text" Value="SHOOT · ?"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootBolt].IsOn}" Value="True">
+                                        <Setter Property="Text" Value="SHOOT ON"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootBolt].IsOn}" Value="False">
+                                        <Setter Property="Text" Value="SHOOT OFF"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- Linear feeder, escape slide, then the shooting tube. -->
+                    <Border Canvas.Left="12" Canvas.Top="34" Width="78" Height="30"
+                        Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource MachineStructureBorderBrush}"
+                        BorderThickness="1" CornerRadius="3"/>
+                    <Path Data="M 23,41 L 31,49 L 23,57 M 39,41 L 47,49 L 39,57 M 55,41 L 63,49 L 55,57"
+                        StrokeThickness="2">
+                        <Path.Style>
+                            <Style TargetType="Path">
+                                <Setter Property="Stroke" Value="{StaticResource AccentAmberBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootingFeederOff].IsOn}" Value="False">
+                                        <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootingFeederOff].IsOn}" Value="True">
+                                        <Setter Property="Stroke" Value="{StaticResource MachineStructureBorderBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+                    <Path Data="M 90,49 H 108 M 108,37 H 174 V 61 H 108 Z" StrokeThickness="2"
+                        Stroke="{StaticResource MachineStructureBorderBrush}"/>
+                    <Rectangle Canvas.Top="40" Width="18" Height="18" Fill="{StaticResource AccentGreenBrush}">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="True"/>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Canvas.Left" Value="111"/>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="False"/>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="True"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Canvas.Left" Value="153"/>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+                    <Path Data="M 174,49 H 226 Q 245,49 245,68 V 96 M 239,89 L 245,96 L 251,89" StrokeThickness="3">
+                        <Path.Style>
+                            <Style TargetType="Path">
+                                <Setter Property="Stroke" Value="{StaticResource AccentAmberBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootBolt].IsOn}" Value="True">
+                                        <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Signals.Outputs[ShootBolt].IsOn}" Value="False">
+                                        <Setter Property="Stroke" Value="{StaticResource MachineStructureBorderBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+
+                    <Ellipse Canvas.Left="68" Canvas.Top="42" Tag="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn}"
+                        Style="{StaticResource FeederSensorStyle}" ToolTip="Shooting feeder bolt detected · green=ON, gray=OFF, amber outline=unknown"/>
+                    <TextBlock Canvas.Left="12" Canvas.Top="106" Width="78" Text="BOLT" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    <Ellipse Canvas.Left="110" Canvas.Top="74" Tag="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}"
+                        Style="{StaticResource FeederSensorStyle}" ToolTip="Escape backward sensor"/>
+                    <TextBlock Canvas.Left="125" Canvas.Top="74" Text="B" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    <Ellipse Canvas.Left="151" Canvas.Top="74" Tag="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}"
+                        Style="{StaticResource FeederSensorStyle}" ToolTip="Escape forward sensor"/>
+                    <TextBlock Canvas.Left="166" Canvas.Top="74" Text="F" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    <TextBlock Canvas.Left="93" Canvas.Top="106" Width="99">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
+                                <Setter Property="Text" Value="ESC · ?"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="True"/>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Text" Value="ESC · BACK"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    </MultiDataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="False"/>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="True"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Text" Value="ESC · FWD"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    </MultiDataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="False"/>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Text" Value="ESC · NO LIMIT"/>
+                                    </MultiDataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeBackward].IsOn}" Value="True"/>
+                                            <Condition Binding="{Binding Signals.Inputs[ShootingEscapeForward].IsOn}" Value="True"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Text" Value="ESC · CONFLICT"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Ellipse Canvas.Left="238" Canvas.Top="71" Tag="{Binding Signals.Inputs[ShootingTubeBoltDetected].IsOn}"
+                        Style="{StaticResource FeederSensorStyle}" ToolTip="Shooting tube bolt detected (current input)"/>
+                    <TextBlock Canvas.Left="208" Canvas.Top="106" Width="64" Text="TUBE" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                </Canvas>
+            </Border>
+            <TextBlock VerticalAlignment="Bottom">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource EquipmentRoleLabelStyle}">
+                        <Setter Property="Text" Value="Shoot Feeder"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Units.ShootingBoltFeeder}" Value="False">
+                                <Setter Property="Text" Value="Shoot Feeder · Disabled"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
     </Grid>
 </UserControl>

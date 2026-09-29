@@ -237,20 +237,44 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private void OnDispatcherUnhandledException(
+    private async void OnDispatcherUnhandledException(
         object sender,
         System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
     {
+        // Mark the dispatcher exception handled before yielding for hardware STOP.
+        e.Handled = true;
         _log?.LogError(e.Exception, "Unhandled UI exception.");
-        StopAfterUnhandledException();
-        ShowError("An unhandled UI error occurred.", e.Exception);
+        _exitCode = 1;
+        try
+        {
+            if (_serviceProvider is { } services)
+                await services.GetRequiredService<MachineController>().StopAsync();
+        }
+        catch (Exception exception)
+        {
+            _log?.LogError(exception, "Device STOP failed after an unhandled UI error.");
+            ShowError("Device STOP failed after an unhandled UI error.", exception);
+        }
+        ShowError("An unhandled UI error occurred. The application will remain open.", e.Exception);
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
         _log?.LogError(e.ExceptionObject as Exception, "Unhandled exception. Terminating={Terminating}.", e.IsTerminating.ToString());
         if (e.IsTerminating)
-            StopAfterUnhandledException();
+        {
+            // CLR termination cannot await STOP. This event cannot prevent process exit.
+            _exitCode = 1;
+            try
+            {
+                _serviceProvider?.GetService<MachineController>()?.Stop();
+            }
+            catch (Exception exception)
+            {
+                _log?.LogError(exception, "Device STOP failed after an unhandled application error.");
+                ShowError("Device STOP failed after an unhandled application error.", exception);
+            }
+        }
         ShowError(
             e.IsTerminating
                 ? "An unhandled error occurred. The application will close."
@@ -263,22 +287,9 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private void StopAfterUnhandledException()
-    {
-        _exitCode = 1;
-        try
-        {
-            _serviceProvider?.GetService<MachineController>()?.Stop();
-        }
-        catch (Exception exception)
-        {
-            _log?.LogError(exception, "Device STOP failed after an unhandled application error.");
-            ShowError("Device STOP failed after an unhandled application error.", exception);
-        }
-    }
-
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
+        e.SetObserved();
         _log?.LogError(e.Exception, "Unobserved background task exception.");
         _ = Dispatcher.InvokeAsync(
             () => ShowError("A background task failed.", e.Exception));
