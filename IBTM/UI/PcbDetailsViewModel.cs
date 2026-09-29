@@ -48,9 +48,10 @@ public partial class PcbDetailsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? ImageError { get; private set; }
 
-    public IReadOnlyList<KeyValuePair<int?, bool>> PresenceResults => Record is { } record
-        ? record.BoltPresenceResults.Select(pair => new KeyValuePair<int?, bool>(record.GetBoltOrdinal(pair.Key), pair.Value))
-            .OrderBy(pair => pair.Key).ToArray() : [];
+    public IReadOnlyList<PcbBoltPresenceView> PresenceResults => Record is { } record
+        ? record.BoltPresenceResults.Select(pair => new PcbBoltPresenceView(
+            pair.Key, record.GetBoltOrdinal(pair.Key), pair.Value, record.BoltNames?.GetValueOrDefault(pair.Key)))
+            .OrderBy(row => row.Ordinal).ToArray() : [];
 
     partial void OnRecordChanged(PcbRecord? oldValue, PcbRecord? newValue)
     {
@@ -123,6 +124,11 @@ public partial class PcbDetailsViewModel : ObservableObject
             _log.LogError(exception, "PCB {Number} image history load failed.", record.Number);
         }
     }
+}
+
+public sealed record PcbBoltPresenceView(Guid BoltId, int? Ordinal, bool Present, string? Name)
+{
+    public string BoltLabel => BoltPoint.GetDisplayName(Name, Ordinal);
 }
 
 public sealed record PcbBoltResultView(

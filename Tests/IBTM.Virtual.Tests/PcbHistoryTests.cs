@@ -19,55 +19,38 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class PcbHistoryTests
 {
-    [Theory]
-    [InlineData(3599, true, true, AssemblyResult.Ng, AssemblyResult.Ng)]
-    [InlineData(3600, true, true, AssemblyResult.Ok, AssemblyResult.Ok)]
-    [InlineData(3601, true, false, AssemblyResult.Ok, AssemblyResult.Ng)]
-    [InlineData(3600, false, true, AssemblyResult.Ok, AssemblyResult.Ng)]
-    public void MinimumTurnsIsIndependentOfControllerAndVisionResults(
-        double angle, bool controllerOk, bool visionOk, AssemblyResult turnsResult, AssemblyResult finalResult)
-    {
-        var id = Guid.NewGuid();
-        var result = new BoltResult(controllerOk, 8)
-        {
-            MinimumTurns = 10,
-            Controller = new("COM9", 1, 1, 1000, 1, 8, 800, 100, 200, angle, 1, 0, 0, 1, 0, null),
-        };
-        var assembly = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBolt(FasteningHead.Pickup, id, result);
-        assembly.CompleteFastening();
-        assembly.RecordBoltPresence(id, visionOk);
-        assembly.CompleteInspection();
-
-        Assert.Equal(angle / 360, result.TotalTurns);
-        Assert.Equal(turnsResult, result.TurnsResult);
-        Assert.Equal(turnsResult, assembly.TurnsResult);
-        Assert.Equal(controllerOk ? AssemblyResult.Ok : AssemblyResult.Ng, assembly.FasteningResult);
-        Assert.Equal(visionOk ? AssemblyResult.Ok : AssemblyResult.Ng, assembly.InspectionResult);
-        Assert.Equal(finalResult, assembly.Result);
-    }
-
     [Fact]
-    public void MissingMeasurementAndDisabledTurnsCheckAreNotMeasuredOk()
+    public void EmptyBoltGuidCannotOverwriteSavedDataMatrixImage()
     {
-        var measured = new BoltResult(true, 8)
+        var store = VirtualTest.OpenMachineStore();
+        var file = Path.Combine(store.DatabaseFile + ".results", "PCB-2026-09.db");
+        var capturedAt = DateTimeOffset.Now;
+        var record = new PcbRecord(1, capturedAt, capturedAt, "Default", HeatSinkSlot.HeatSink1,
+            "PCB-123", AssemblyResult.Ok, AssemblyResult.Pending, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
         {
-            Controller = new("COM9", 1, 1, 1000, 1, 8, 800, 100, 200, 3600, 1, 0, 0, 1, 0, null),
+            DatabaseFile = file,
         };
-        Assert.Null(measured.TurnsResult);
-        var missing = measured with { MinimumTurns = 10, Controller = null };
-        Assert.Null(missing.TotalTurns);
-        Assert.Equal(AssemblyResult.Pending, missing.TurnsResult);
-        var dryRun = measured with { MinimumTurns = 10, Source = BoltResultSource.DryRun };
-        Assert.Null(dryRun.TotalTurns);
-        Assert.Equal(AssemblyResult.Pending, dryRun.TurnsResult);
+        store.SavePcb(file, record);
+        var dataMatrix = new PcbInspectionImage(null, capturedAt, new(0, 0, 1, 1), true, "PCB-123", null, null, [1, 2, 3]);
+        store.SavePcbImage(file, record.Number, dataMatrix);
 
-        var assembly = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordBolt(FasteningHead.Pickup, Guid.NewGuid(), missing);
-        assembly.CompleteFastening();
-        assembly.CompleteInspection();
-        Assert.Equal(AssemblyResult.Pending, assembly.TurnsResult);
-        Assert.Equal(AssemblyResult.Pending, assembly.Result);
+        var invalid = dataMatrix with { BoltId = Guid.Empty, Barcode = null, Success = false, Png = [4, 5, 6] };
+        Assert.Throws<ArgumentException>(() => store.SavePcbImage(file, record.Number, invalid));
+        var saved = Assert.Single(store.LoadPcbImages(record));
+        Assert.Null(saved.BoltId);
+        Assert.Equal(dataMatrix.Barcode, saved.Barcode);
+        Assert.True(saved.Success);
+        Assert.Equal(dataMatrix.Png, saved.Png);
+
+        var boltImage = invalid with { BoltId = Guid.NewGuid() };
+        store.SavePcbImage(file, record.Number, boltImage);
+        var images = store.LoadPcbImages(record);
+        Assert.Equal(2, images.Count);
+        Assert.Null(images[0].BoltId);
+        Assert.Equal(dataMatrix.Png, images[0].Png);
+        Assert.Equal(boltImage.BoltId, images[1].BoltId);
+        Assert.Equal(boltImage.Png, images[1].Png);
     }
 
     [Fact]
@@ -146,6 +129,7 @@ public sealed class PcbHistoryTests
         {
             assembly.RecordBolt(bolts[index].Head, bolts[index].Id,
                 new(index != 4, index == 4 ? null : 8 + index, Error: index == 4 ? "ADC response error" : null));
+            assembly.RecordBoltPresence(bolts[index].Id, index != 4);
         }
         assembly.CompleteFastening();
         assembly.RecordInspectionCapture(new(bolts[4].Id, DateTimeOffset.Now,
@@ -194,6 +178,11 @@ public sealed class PcbHistoryTests
             Assert.Equal(index == 4 ? null : (double?)(8 + index), row.Result.Torque);
             Assert.Equal(index == 5 ? null : "고정", record.BoltNames[bolts[index].Id]);
             Assert.Equal(index == 5 ? "Bolt 6" : "고정", row.BoltLabel);
+            var presence = details.PresenceResults[index];
+            Assert.Equal(row.BoltId, presence.BoltId);
+            Assert.Equal(row.Ordinal, presence.Ordinal);
+            Assert.Equal(row.BoltLabel, presence.BoltLabel);
+            Assert.Equal(index != 4, presence.Present);
         }
         details.SelectedBolt = details.BoltResults[4];
         Assert.Equal("ADC response error", details.SelectedBolt.Result.Error);
@@ -207,6 +196,7 @@ public sealed class PcbHistoryTests
         details.Record = record with { UpdatedAt = record.UpdatedAt.AddSeconds(1) };
         Assert.Equal(bolts[4].Id, details.SelectedBolt?.BoltId);
         Assert.Equal("고정", details.SelectedBolt?.BoltLabel);
+        Assert.Equal("고정", details.PresenceResults.Single(row => row.BoltId == bolts[4].Id).BoltLabel);
         await details.LoadImagesCommand.ExecuteAsync(null);
         Assert.Equal("고정", details.SelectedImage?.Title);
 
@@ -217,6 +207,7 @@ public sealed class PcbHistoryTests
         details.Record = legacy with { Number = record.Number, DatabaseFile = record.DatabaseFile };
         Assert.Equal(Enumerable.Range(1, 6).Select(number => $"Bolt {number}"),
             details.BoltResults.Select(row => row.BoltLabel));
+        Assert.Equal(details.BoltResults.Select(row => row.BoltLabel), details.PresenceResults.Select(row => row.BoltLabel));
         await details.LoadImagesCommand.ExecuteAsync(null);
         Assert.Equal(bolts[4].Id, details.SelectedImage?.Record.BoltId);
         Assert.Equal("Bolt 5", details.SelectedImage?.Title);

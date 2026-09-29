@@ -49,7 +49,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial string? CloseError { get; set; }
     [ObservableProperty]
-    public partial string? SelectedRecipeFile { get; set; }
+    public partial string? SelectedRecipeName { get; set; }
 
     [ObservableProperty]
     public partial string? ResetError { get; set; }
@@ -153,12 +153,12 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedRecipeFileChanged(string? value)
+    partial void OnSelectedRecipeNameChanged(string? value)
     {
         if (value is null)
             return;
-        // File selection is an action: clear it so the same recipe can be chosen again.
-        SelectedRecipeFile = null;
+        // Selection loads a recipe; clear it so the same name can be chosen again.
+        SelectedRecipeName = null;
         if (RecipeEditingEnabled)
             RecipeEditor.LoadCommand.Execute(value);
     }

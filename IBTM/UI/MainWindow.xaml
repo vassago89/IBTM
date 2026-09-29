@@ -256,7 +256,7 @@
                             ToolTip="{Binding RecipeEditor.ActiveName}"/>
                         <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" Width="156" Margin="10,0,0,0"
                             IsEnabled="{Binding RecipeEditingEnabled}"
-                            SelectedItem="{Binding SelectedRecipeFile, Mode=TwoWay}"/>
+                            SelectedItem="{Binding SelectedRecipeName, Mode=TwoWay}"/>
                     </StackPanel>
 
                     <WrapPanel Grid.Column="6" VerticalAlignment="Center" HorizontalAlignment="Right">

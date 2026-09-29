@@ -318,6 +318,8 @@ public sealed class MachineStore
 
     public void SavePcbImage(string databaseFile, long pcbNumber, PcbInspectionImage image)
     {
+        if (image.BoltId == Guid.Empty)
+            throw new ArgumentException("A bolt image requires a nonempty GUID; use null for Data Matrix.", nameof(image));
         using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = databaseFile }.ToString());
         connection.Open();
         using var command = connection.CreateCommand();

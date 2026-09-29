@@ -92,10 +92,13 @@ Placement Repeat는 픽업 진공 동작 뒤 PCB 감지와 진공을 함께 확�
 - `ConveyorStation`은 현재 캐리어의 작업·결과 소유권을 관리한다. 위치와 착좌 여부는 현재 I/O로 판단한다.
   사용 설정, 실행 중 명령, 결과 소유권을 물리 위치나 완료 피드백으로 대신하지 않는다.
 - `PcbHistory`는 PCB 결과 객체가 만들어질 때 기존 `Machine.db`의 `PcbCounter`를 증가시켜 번호를 발급한다.
-  결과는 Settings → Operation & Timing → PCB Results의 폴더에 `PCB-yyyy-MM.db`로 저장한다.
+  결과는 Settings → Data & logs → PCB result database의 폴더에 `PCB-yyyy-MM.db`로 저장한다.
   공정 이송·STOP/START는 같은 번호를 유지하며, Repeat의 새 작업은 새 번호를 받는다.
   월 또는 저장 폴더가 바뀌어도 이미 등록된 PCB의 결과는 최초 파일에 누적한다.
   운전 화면 아래에는 최신 번호부터 왼쪽에 표시하고, 선택하면 바코드·헤드별 체결·볼트 검사 결과를 펼친다.
+  체결·비전 결과와 이미지는 GUID로 연결하고, 이름은 해당 PCB에 저장된 값을 표시한다.
+  결과 수집과 이미지 저장은 빈 GUID를 거부한다. Data Matrix 이미지의 `BoltId`는 `null`이며,
+  빈 GUID 볼트 이미지가 같은 DB 키로 저장되어 기존 Data Matrix 이미지를 덮어쓰지 않게 한다.
   과거 결과를 읽어도 현재 설비의 작업·점유 상태는 복원하지 않는다.
 - 장비의 동기 SDK 조회·정지는 장비 진입부에서 UI 스레드와 분리한다. 화면에서는 비동기 명령을 그대로 `await`한다.
   화면 값은 기존 observable 객체에 직접 바인딩하고, 표시를 위한 복사 속성과 알림 중계를 만들지 않는다.

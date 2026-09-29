@@ -273,7 +273,7 @@ public sealed class UiBindingTests
             var recipeSelector = new ComboBox { ItemsSource = editor.Recipes };
             recipeSelector.SetBinding(
                 System.Windows.Controls.Primitives.Selector.SelectedItemProperty,
-                new Binding(nameof(MainViewModel.SelectedRecipeFile)) { Source = main, Mode = BindingMode.TwoWay });
+                new Binding(nameof(MainViewModel.SelectedRecipeName)) { Source = main, Mode = BindingMode.TwoWay });
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 editor.NewCommand.Execute(null);

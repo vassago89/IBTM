@@ -162,11 +162,11 @@
                         <TextBlock Text="{Binding ImageError}" ToolTip="{Binding ImageError}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource AccentRedBrush}"/>
                         <ItemsControl ItemsSource="{Binding PresenceResults}">
                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate><DataTemplate>
-                                <StackPanel Orientation="Horizontal" Margin="0,3,12,0"><TextBlock Text="{Binding Key, StringFormat='Bolt {0}: '}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                            <ItemsControl.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbBoltPresenceView}">
+                                <StackPanel Orientation="Horizontal" Margin="0,3,12,0"><TextBlock Text="{Binding BoltLabel, StringFormat='{}{0}: '}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                                     <TextBlock x:Name="Presence" Text="NG" Foreground="{StaticResource AccentRedBrush}" FontSize="11"/>
                                 </StackPanel>
-                                <DataTemplate.Triggers><DataTrigger Binding="{Binding Value}" Value="True">
+                                <DataTemplate.Triggers><DataTrigger Binding="{Binding Present}" Value="True">
                                     <Setter TargetName="Presence" Property="Text" Value="OK"/><Setter TargetName="Presence" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                 </DataTrigger></DataTemplate.Triggers>
                             </DataTemplate></ItemsControl.ItemTemplate>
