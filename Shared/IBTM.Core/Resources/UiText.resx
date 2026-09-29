@@ -72,9 +72,6 @@ Operation failed. Check controller status.</value>
   <data name="adc test" xml:space="preserve">
     <value>ADC TEST</value>
   </data>
-  <data name="adc · head" xml:space="preserve">
-    <value>ADC · HEAD</value>
-  </data>
   <data name="add bolt" xml:space="preserve">
     <value>Add Bolt</value>
   </data>
@@ -292,7 +289,7 @@ Operation failed. Check controller status.</value>
     <value>Bolt presence</value>
   </data>
   <data name="bolt ready" xml:space="preserve">
-    <value>BOLT READY</value>
+    <value>Bolt detected</value>
   </data>
   <data name="bolt results" xml:space="preserve">
     <value>Bolt results</value>
@@ -744,28 +741,19 @@ Operation failed. Check controller status.</value>
     <value>ERROR CODE</value>
   </data>
   <data name="esc · ?" xml:space="preserve">
-    <value>ESC · ?</value>
+    <value>POSITION UNKNOWN</value>
   </data>
   <data name="esc · back" xml:space="preserve">
-    <value>ESC · BACK</value>
+    <value>BACK</value>
   </data>
   <data name="esc · conflict" xml:space="preserve">
-    <value>ESC · CONFLICT</value>
+    <value>SENSOR CONFLICT</value>
   </data>
   <data name="esc · fwd" xml:space="preserve">
-    <value>ESC · FWD</value>
+    <value>FORWARD</value>
   </data>
   <data name="esc · no limit" xml:space="preserve">
-    <value>ESC · NO LIMIT</value>
-  </data>
-  <data name="escape backward sensor" xml:space="preserve">
-    <value>Escape backward sensor</value>
-  </data>
-  <data name="escape command · b/f = sensor feedback" xml:space="preserve">
-    <value>Escape command · B/F = sensor feedback</value>
-  </data>
-  <data name="escape forward sensor" xml:space="preserve">
-    <value>Escape forward sensor</value>
+    <value>BETWEEN LIMITS</value>
   </data>
   <data name="event count" xml:space="preserve">
     <value>Event Count</value>
@@ -2081,7 +2069,7 @@ Operation failed. Check controller status.</value>
     <value>Remove Bolt</value>
   </data>
   <data name="remove carrier · eject next / complete to resume" xml:space="preserve">
-    <value>Remove Carrier · EJECT Next / COMPLETE to Resume</value>
+    <value>Remove carrier · EJECT / COMPLETE</value>
   </data>
   <data name="repeat" xml:space="preserve">
     <value>REPEAT</value>
@@ -2396,10 +2384,7 @@ Operation failed. Check controller status.</value>
     <value>Shooting Feeder OFF (Linear)</value>
   </data>
   <data name="shooting feeder · supply bypassed" xml:space="preserve">
-    <value>Shooting feeder · supply bypassed</value>
-  </data>
-  <data name="shooting feeder · supply enabled" xml:space="preserve">
-    <value>Shooting feeder · supply enabled</value>
+    <value>Shooting feeder · bypassed</value>
   </data>
   <data name="shooting head" xml:space="preserve">
     <value>Shooting Head</value>
@@ -2572,9 +2557,6 @@ Operation failed. Check controller status.</value>
   <data name="supply bypassed" xml:space="preserve">
     <value>Supply bypassed</value>
   </data>
-  <data name="supply enabled" xml:space="preserve">
-    <value>Supply enabled</value>
-  </data>
   <data name="supply gripper closed" xml:space="preserve">
     <value>Supply Gripper Closed</value>
   </data>
@@ -2600,7 +2582,7 @@ Operation failed. Check controller status.</value>
     <value>Supply IPM Fixer Forward</value>
   </data>
   <data name="supply unknown" xml:space="preserve">
-    <value>Supply unknown</value>
+    <value>Sensor unknown</value>
   </data>
   <data name="supply · ?" xml:space="preserve">
     <value>SUPPLY · ?</value>

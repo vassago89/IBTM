@@ -141,8 +141,7 @@
         <Setter Property="Padding" Value="10,5"/>
         <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
-        <Setter Property="BorderThickness" Value="4,1,1,1"/>
-        <Setter Property="CornerRadius" Value="5"/>
+        <Setter Property="BorderThickness" Value="3,0,0,0"/>
     </Style>
 
     <Style x:Key="MachineStateBadgeStyle" TargetType="Border" BasedOn="{StaticResource StateBadgeStyle}">
@@ -228,7 +227,7 @@
     </Style>
 
     <Style x:Key="PrimaryStateTextStyle" TargetType="TextBlock" BasedOn="{StaticResource MapHintStyle}">
-        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="FontSize" Value="18"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
@@ -285,16 +284,6 @@
         <Setter Property="Fill" Value="{StaticResource AccentBlueBrush}"/>
         <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="StrokeThickness" Value="1"/>
-    </Style>
-
-    <Style x:Key="ActiveToolNumberStyle" TargetType="TextBlock">
-        <Setter Property="Width" Value="16"/>
-        <Setter Property="Height" Value="14"/>
-        <Setter Property="TextAlignment" Value="Center"/>
-        <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
-        <Setter Property="FontSize" Value="10"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Panel.ZIndex" Value="5"/>
     </Style>
 
     <Style x:Key="BoltTargetStyle" TargetType="Border">

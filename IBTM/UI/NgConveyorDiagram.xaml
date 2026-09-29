@@ -55,21 +55,31 @@
     </UserControl.Resources>
     <Canvas>
         <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StatusTop}" Width="170">
-            <TextBlock Text="{ui:Text 'NG Conveyor'}" TextAlignment="Left" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" FontSize="13">
+            <TextBlock Text="{ui:Text 'NG Conveyor'}" FontSize="15" FontWeight="SemiBold" TextAlignment="Left" Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" FontSize="16">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Text" Value="{Binding NgConveyorState, Converter={StaticResource UiTextConverter}, TargetNullValue={ui:Text 'Status Unavailable'}, FallbackValue={ui:Text 'Status Unavailable'}}"/>
-                        <Setter Property="Visibility" Value="Visible"/>
-                        <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding NgConveyorState}"
-                                Value="{x:Static ng:NgConveyorState.WaitingForCarrier}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
+                            <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Null}">
+                                <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding NgConveyorState}"
                                 Value="{x:Static ng:NgConveyorState.ReadyToEject}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding State.Available}" Value="True"/>
+                                    <Condition Binding="{Binding State.AutomaticRunning}" Value="False"/>
+                                    <Condition Binding="{Binding Signals.Outputs[NgConveyorRun].IsOn}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Text" Value="{ui:Text 'Stopped'}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                            </MultiDataTrigger>
+                            <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Static ng:NgConveyorState.WaitingForEjectConfirmation}">
+                                <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Static ng:NgConveyorState.Full}">
                                 <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
@@ -80,7 +90,6 @@
                             <DataTrigger Binding="{Binding Units.NgConveyor}" Value="False">
                                 <Setter Property="Text" Value="{ui:Text 'Disabled'}"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                <Setter Property="Visibility" Value="Visible"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -170,7 +179,7 @@
                 </Border.Style>
             </Border>
         </Grid>
-        <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="160">
+        <StackPanel Canvas.Left="{x:Static ui:MachineDiagramLayout.NgStatusLeft}" Canvas.Top="212">
             <TextBlock Text="{ui:Text 'P3 LIFT'}" Style="{StaticResource EquipmentRoleLabelStyle}" Margin="0,0,0,12"/>
             <Viewbox Width="150">
                 <Canvas Width="284" Height="48">

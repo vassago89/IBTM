@@ -72,9 +72,6 @@
   <data name="adc test" xml:space="preserve">
     <value>ADC 시험</value>
   </data>
-  <data name="adc · head" xml:space="preserve">
-    <value>ADC · 헤드</value>
-  </data>
   <data name="add bolt" xml:space="preserve">
     <value>볼트 추가</value>
   </data>
@@ -292,7 +289,7 @@
     <value>볼트 유무</value>
   </data>
   <data name="bolt ready" xml:space="preserve">
-    <value>볼트 준비됨</value>
+    <value>볼트 감지</value>
   </data>
   <data name="bolt results" xml:space="preserve">
     <value>볼트 결과</value>
@@ -744,28 +741,19 @@
     <value>오류 코드</value>
   </data>
   <data name="esc · ?" xml:space="preserve">
-    <value>이스케이프 · ?</value>
+    <value>위치 미확인</value>
   </data>
   <data name="esc · back" xml:space="preserve">
-    <value>이스케이프 · 후진</value>
+    <value>후진</value>
   </data>
   <data name="esc · conflict" xml:space="preserve">
-    <value>이스케이프 · 양쪽 감지</value>
+    <value>센서 동시 감지</value>
   </data>
   <data name="esc · fwd" xml:space="preserve">
-    <value>이스케이프 · 전진</value>
+    <value>전진</value>
   </data>
   <data name="esc · no limit" xml:space="preserve">
-    <value>이스케이프 · 양쪽 미감지</value>
-  </data>
-  <data name="escape backward sensor" xml:space="preserve">
-    <value>이스케이프 후진 센서</value>
-  </data>
-  <data name="escape command · b/f = sensor feedback" xml:space="preserve">
-    <value>이스케이프 명령 · B/F = 센서 상태</value>
-  </data>
-  <data name="escape forward sensor" xml:space="preserve">
-    <value>이스케이프 전진 센서</value>
+    <value>양쪽 미감지</value>
   </data>
   <data name="event count" xml:space="preserve">
     <value>이벤트 수</value>
@@ -2081,7 +2069,7 @@
     <value>볼트 삭제</value>
   </data>
   <data name="remove carrier · eject next / complete to resume" xml:space="preserve">
-    <value>캐리어 제거 · 추가 배출 / 완료로 재개</value>
+    <value>캐리어 제거 → 배출 / 완료</value>
   </data>
   <data name="repeat" xml:space="preserve">
     <value>반복</value>
@@ -2396,10 +2384,7 @@
     <value>슈팅 피더 OFF (리니어)</value>
   </data>
   <data name="shooting feeder · supply bypassed" xml:space="preserve">
-    <value>슈팅 피더 · 공급 생략</value>
-  </data>
-  <data name="shooting feeder · supply enabled" xml:space="preserve">
-    <value>슈팅 피더 · 공급 사용</value>
+    <value>슈팅 피더 · 공급 제외</value>
   </data>
   <data name="shooting head" xml:space="preserve">
     <value>슈팅 헤드</value>
@@ -2570,10 +2555,7 @@
     <value>공급</value>
   </data>
   <data name="supply bypassed" xml:space="preserve">
-    <value>공급 생략</value>
-  </data>
-  <data name="supply enabled" xml:space="preserve">
-    <value>공급 사용</value>
+    <value>공급 제외</value>
   </data>
   <data name="supply gripper closed" xml:space="preserve">
     <value>공급 그리퍼 닫힘</value>
@@ -2600,7 +2582,7 @@
     <value>공급 IPM 고정 실린더 전진</value>
   </data>
   <data name="supply unknown" xml:space="preserve">
-    <value>공급 상태 미확인</value>
+    <value>센서 미확인</value>
   </data>
   <data name="supply · ?" xml:space="preserve">
     <value>공급 · ?</value>

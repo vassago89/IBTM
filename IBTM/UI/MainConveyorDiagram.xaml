@@ -116,14 +116,17 @@
             </Border>
 
             <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StationLabelTop}"
-                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" Text="{ui:Text 'Station 1'}"
-                Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" FontSize="14" Style="{StaticResource EquipmentRoleLabelStyle}">
+                <Run Text="S1 · "/><Run Text="{ui:Text 'PCB Placement'}"/>
+            </TextBlock>
             <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StationLabelTop}"
-                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" Text="{ui:Text 'Station 2'}"
-                Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" FontSize="14" Style="{StaticResource EquipmentRoleLabelStyle}">
+                <Run Text="S2 · "/><Run Text="{ui:Text 'Bolt Fastening'}"/>
+            </TextBlock>
             <TextBlock Canvas.Left="{x:Static ui:MachineDiagramLayout.InspectionPlateLeft}" Canvas.Top="{x:Static ui:MachineDiagramLayout.StationLabelTop}"
-                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" Text="{ui:Text 'Station 3'}"
-                Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" FontSize="14" Style="{StaticResource EquipmentRoleLabelStyle}">
+                <Run Text="S3 · "/><Run Text="{ui:Text 'Inspection'}"/>
+            </TextBlock>
 
             <Ellipse Canvas.Left="160" Canvas.Top="108"
                 Tag="{Binding Signals.Inputs[MainConveyorEntryCarrierDetected].IsOn}"
