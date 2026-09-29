@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Windows;
 using IBTM.BoltFastening;
 using IBTM.Core;
@@ -242,9 +241,8 @@ public sealed class MachineDiagramMapper
 
     public Point? GetInspectionTargetPosition(BoltPoint bolt)
     {
-        var fovCount = _recipes.Current.CarrierImages.Count(fov => !fov.IsBarcode
-            && fov.HeatSink == bolt.HeatSink && fov.BoltId == bolt.Id);
-        if (!InspectionDefined || fovCount != 1 || bolt.InspectionPosition is not { } center)
+        if (!InspectionDefined || _recipes.Current.FindInspectionImage(bolt.HeatSink, bolt.Id) is null
+            || bolt.InspectionPosition is not { } center)
             return null;
         var mapped = MapCarrier(center.X, center.Y, MachineDiagramLayout.InspectionUpperLeft, MachineDiagramLayout.InspectionLowerRight);
         return MachineDiagramLayout.Offset(mapped, MachineDiagramLayout.InspectionContentOrigin);

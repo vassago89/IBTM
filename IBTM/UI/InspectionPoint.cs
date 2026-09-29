@@ -24,14 +24,7 @@ public sealed class InspectionPoint
     public string Title => $"{UiText.Get(HeatSink)} · {Name}";
     public int ImageCount => _recipe.CarrierImages.Count(Matches);
 
-    public CarrierImageTile? Metadata
-    {
-        get
-        {
-            var images = _recipe.CarrierImages.Where(Matches).Take(2).ToArray();
-            return images.Length == 1 ? images[0] : null;
-        }
-    }
+    public CarrierImageTile? Metadata => _recipe.FindInspectionImage(HeatSink, Bolt?.Id);
 
     public AxisPosition? Position => IsDataMatrix ? Metadata?.Center : Bolt!.InspectionPosition;
 

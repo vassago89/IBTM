@@ -51,6 +51,12 @@ public sealed class Recipe
             $"Record an inspection position for {tile.HeatSink}, image {tile.Number}.");
     }
 
+    public CarrierImageTile? FindInspectionImage(HeatSinkSlot heatSink, Guid? boltId)
+    {
+        var images = CarrierImages.Where(image => image.IsForTarget(heatSink, boltId)).Take(2).ToArray();
+        return images.Length == 1 ? images[0] : null;
+    }
+
     public void ApplyInspectionSettings(Recipe source)
     {
         // Gantry teaching owns coordinates, reference images and capture lighting.

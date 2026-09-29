@@ -981,17 +981,13 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     public bool HasBarcodePosition(HeatSinkSlot pcb)
     {
-        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsForTarget(pcb, boltId: null)).ToArray();
-        return fovs.Length == 1 && fovs[0].Center is not null;
+        return _recipes.Current.FindInspectionImage(pcb, boltId: null)?.Center is not null;
     }
 
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
     {
         var size = _camera.FrameSize;
-        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsForTarget(pcb, boltId: null)).ToArray();
-        return fovs.Length == 1
-            && fovs[0].Center is not null
-            && fovs[0].Region is { } region
+        return _recipes.Current.FindInspectionImage(pcb, boltId: null) is { Center: not null, Region: { } region }
             && region.IsInside(size.Width, size.Height);
     }
 
@@ -1049,9 +1045,8 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     public bool HasRegion(BoltPoint point)
     {
         var size = _camera.FrameSize;
-        var fovs = _recipes.Current.CarrierImages.Where(fov => fov.IsForTarget(point.HeatSink, point.Id)).ToArray();
-        return point.InspectionPosition is not null && fovs.Length == 1
-            && fovs[0].Region is { } region
+        return point.InspectionPosition is not null
+            && _recipes.Current.FindInspectionImage(point.HeatSink, point.Id)?.Region is { } region
             && region.IsInside(size.Width, size.Height);
     }
 

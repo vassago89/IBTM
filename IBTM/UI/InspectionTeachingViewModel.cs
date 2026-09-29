@@ -141,9 +141,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
         }
     }
 
-    private async Task LoadRecipeAsync(CancellationToken token)
+    private Task LoadRecipeAsync(CancellationToken token)
     {
-        await LoadRecipeImagesAsync(SelectedRecipeName, preserveEdits: false, token);
+        return LoadRecipeImagesAsync(SelectedRecipeName, preserveEdits: false, token);
     }
 
     private async Task RefreshImagesAsync(CancellationToken token)

@@ -62,9 +62,9 @@ public sealed class MotionAxisViewModel : ObservableObject
 
     public IAsyncRelayCommand HomeCommand { get; }
 
-    private async Task HomeAsync(CancellationToken cancellationToken)
+    private Task HomeAsync(CancellationToken cancellationToken)
     {
-        await _machine.HomeAsync(Group, cancellationToken, Axis);
+        return _machine.HomeAsync(Group, cancellationToken, Axis);
     }
 
     internal bool Refresh()

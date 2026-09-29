@@ -540,7 +540,7 @@ public sealed class PcbHistoryTests
         Assert.Equal(4, fourth.PcbNumber);
         Assert.Equal(4, Assert.Single(store.LoadPcbs(settings.PcbHistory.Directory)).Number);
         view.PcbDetails.Record = null;
-        Assert.Null(view.PcbDetails.Record);
+        Assert.Empty(view.PcbDetails.Images);
         await view.ShutdownAsync();
 
         settings.PcbHistory.Directory = originalFolder;

@@ -94,11 +94,11 @@ public sealed class MachineStore
         db.SaveChanges();
     }
 
-    public async Task SaveSettingsAsync(
+    public Task SaveSettingsAsync(
         IEnumerable<Setting> settings,
         CancellationToken cancellationToken = default)
     {
-        await Task.Run(() => SaveSettings(settings, cancellationToken), cancellationToken);
+        return Task.Run(() => SaveSettings(settings, cancellationToken), cancellationToken);
     }
 
     public IReadOnlyList<string> RecipeNames

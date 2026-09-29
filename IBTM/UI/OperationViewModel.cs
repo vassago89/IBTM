@@ -61,9 +61,9 @@ public partial class OperationViewModel : ObservableObject
         ILogger<OperationViewModel> log)
     {
         OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest);
-        StartCommand = new AsyncRelayCommand(StartAsync);
+        StartCommand = new AsyncRelayCommand(machine.StartAsync);
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        HomeCommand = new AsyncRelayCommand(HomeAsync);
+        HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync, () => HasOlderPcbs);
         RetryPcbSaveCommand = new AsyncRelayCommand(RetryPcbSaveAsync);
         PcbRecords = new();
@@ -379,11 +379,6 @@ public partial class OperationViewModel : ObservableObject
 
     public IAsyncRelayCommand StartCommand { get; }
 
-    private async Task StartAsync(CancellationToken cancellationToken)
-    {
-        await Machine.StartAsync(cancellationToken);
-    }
-
     public IAsyncRelayCommand StopCommand { get; }
 
     private async Task StopAsync()
@@ -407,11 +402,6 @@ public partial class OperationViewModel : ObservableObject
     }
 
     public IAsyncRelayCommand HomeCommand { get; }
-
-    private async Task HomeAsync(CancellationToken cancellationToken)
-    {
-        await Machine.HomeAsync(cancellationToken);
-    }
 
     private static bool HasAssembly(ConveyorStation station, HeatSinkSlot heatSink)
     {
@@ -1099,5 +1089,4 @@ public partial class OperationViewModel : ObservableObject
             HasOlderPcbs = true;
         }
     }
-
 }
