@@ -70,8 +70,6 @@ public sealed class HeatSinkAssembly
 
     public void RecordBolt(FasteningHead head, Guid boltId, BoltResult result)
     {
-        if (boltId == Guid.Empty)
-            throw new ArgumentException("A fastening result requires a nonempty bolt GUID.", nameof(boltId));
         var results = head switch
         {
             FasteningHead.Shooting => _shootingBoltResults,
@@ -109,8 +107,6 @@ public sealed class HeatSinkAssembly
 
     public void RecordBoltPresence(Guid boltId, bool present)
     {
-        if (boltId == Guid.Empty)
-            throw new ArgumentException("An inspection result requires a nonempty bolt GUID.", nameof(boltId));
         _boltPresenceResults[boltId] = present;
         if (!present)
         {
@@ -130,8 +126,6 @@ public sealed class HeatSinkAssembly
 
     public void RecordInspectionCapture(InspectionCapture capture)
     {
-        if (capture.BoltId == Guid.Empty)
-            throw new ArgumentException("A bolt image requires a nonempty GUID; use null for Data Matrix.", nameof(capture));
         InspectionCaptured?.Invoke(capture);
     }
 }

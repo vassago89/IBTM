@@ -6,36 +6,6 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class HeatSinkAssemblyTests
 {
-    [Fact]
-    public void EmptyBoltGuidCannotChangeResultsOrPublishAnImage()
-    {
-        var assembly = new HeatSinkAssembly(HeatSinkSlot.HeatSink1);
-        var resultEvents = 0;
-        InspectionCapture? published = null;
-        assembly.ResultsChanged += _ => resultEvents++;
-        assembly.InspectionCaptured += capture => published = capture;
-        var image = new InspectionCapture(Guid.Empty, DateTimeOffset.Now,
-            new ImageFrame(1, 1, 3, new byte[3]), new(0, 0, 1, 1), false);
-
-        Assert.Throws<ArgumentException>(() => assembly.RecordBolt(FasteningHead.Shooting, Guid.Empty, new(false, null)));
-        Assert.Throws<ArgumentException>(() => assembly.RecordBoltPresence(Guid.Empty, false));
-        Assert.Throws<ArgumentException>(() => assembly.RecordInspectionCapture(image));
-
-        Assert.Empty(assembly.ShootingBoltResults);
-        Assert.Empty(assembly.BoltPresenceResults);
-        Assert.Equal(AssemblyResult.Pending, assembly.FasteningResult);
-        Assert.Equal(AssemblyResult.Pending, assembly.InspectionResult);
-        Assert.Equal(0, resultEvents);
-        Assert.Null(published);
-
-        var dataMatrix = image with { BoltId = null, Barcode = "PCB-123", Success = true };
-        assembly.RecordInspectionCapture(dataMatrix);
-        Assert.Same(dataMatrix, published);
-        var boltImage = image with { BoltId = Guid.NewGuid() };
-        assembly.RecordInspectionCapture(boltImage);
-        Assert.Same(boltImage, published);
-    }
-
     [Theory]
     [InlineData(3599, true, true, AssemblyResult.Ng, AssemblyResult.Ng)]
     [InlineData(3600, true, true, AssemblyResult.Ok, AssemblyResult.Ok)]

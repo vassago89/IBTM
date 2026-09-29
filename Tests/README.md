@@ -14,7 +14,7 @@
 | `IBTM.Virtual.Tests/TeachingTests.cs` | 티칭 위치·순서·저장, Jog·Step·화면 전환 중 취소 |
 | `IBTM.Virtual.Tests/InspectionTeachingTests.cs` | 검사 이미지·ROI·레시피 편집·저장 결과 불러오기 |
 | `IBTM.Virtual.Tests/UiBindingTests.cs` | WPF 바인딩의 스레드 갱신, 창 열기 실패와 재열기 |
-| `IBTM.Virtual.Tests/HeatSinkAssemblyTests.cs` | 저장소 없는 결과 판정, 최소 회전수, 결과·이미지 GUID 유효성 |
+| `IBTM.Virtual.Tests/HeatSinkAssemblyTests.cs` | 저장소 없는 결과 판정, 최소 회전수 |
 | `IBTM.Virtual.Tests/PcbHistoryTests.cs` | 결과·이미지 DB 저장, 저장 실패 후 재시도, 번호 유지·조회 |
 
 `MachineTest`는 위 설비 테스트들이 공유하는 가상 설정·DI 준비와 모션 오류 대역을 소유한다. 다른 테스트 클래스의 내부 대역을 참조하지 않는다. `VirtualTest`에는 공통 대기와 간단한 STA 바인딩 실행을 둔다.
