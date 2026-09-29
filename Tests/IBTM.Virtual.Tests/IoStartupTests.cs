@@ -1077,6 +1077,41 @@ public sealed class IoStartupTests
         Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
     }
 
+    [Fact]
+    public async Task SmemaFailureDuringReceiveStopsTheSequenceAndReportsTheFailure()
+    {
+        await using var services = CreateServices();
+        var io = services.GetRequiredService<StartupIo>();
+        var physicalIo = services.GetRequiredService<VirtualIoService>();
+        var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
+        io.Initialize();
+        physicalIo.SetInput(InputIo.AutoMode, false);
+        physicalIo.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+        var failure = new IOException("SMEMA output update failed during receipt.");
+        io.BeforeOutputWrite = (output, value) =>
+        {
+            if (output == OutputIo.MainConveyorAvailableToRear
+                && io.GetOutput(OutputIo.MainConveyorRun))
+            {
+                io.BeforeOutputWrite = null;
+                throw failure;
+            }
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        try
+        {
+            var reported = await Assert.ThrowsAsync<IOException>(() => conveyor.RunAsync(stop.Token));
+            Assert.Same(failure, reported);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1335,9 +1370,10 @@ public sealed class IoStartupTests
                 _ => conveyor.RunAsync(timeout.Token),
             };
             var failure = await Assert.ThrowsAsync<AggregateException>(() => run);
-            Assert.Equal(
-                handshake is null ? new[] { runError, stopError } : new[] { runError, stopError, handshakeError },
-                failure.Flatten().InnerExceptions);
+            var expected = handshake is null ? new[] { runError, stopError } : new[] { runError, stopError, handshakeError };
+            var failures = failure.Flatten().InnerExceptions;
+            Assert.Equal(expected.Length, failures.Count);
+            Assert.All(expected, error => Assert.Contains(error, failures));
         }
         finally
         {

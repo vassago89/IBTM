@@ -2161,9 +2161,7 @@ public sealed class ConveyorTests
         {
             if (output == OutputIo.InspectionBackupPlateUp && !on)
                 released = true;
-            if (duringRelease
-                ? output == OutputIo.InspectionBackupPlateUp && !on
-                : output == OutputIo.MainConveyorAvailableToRear && on)
+            if (duringRelease && output == OutputIo.InspectionBackupPlateUp && !on)
             {
                 io.SetInput(InputIo.NgCarrierPickupUp, false);
             }
@@ -2172,6 +2170,11 @@ public sealed class ConveyorTests
                 started = true;
                 stop.Cancel();
             }
+        };
+        conveyor.StepChanged += () =>
+        {
+            if (!duringRelease && conveyor.Step is MainConveyorState.DischargingInspectionCarrier)
+                io.SetInput(InputIo.NgCarrierPickupUp, false);
         };
 
         await Assert.ThrowsAsync<MotionInterlockException>(
@@ -2354,6 +2357,55 @@ public sealed class ConveyorTests
             if (!run.IsFaulted)
                 await run.WaitAsync(TimeSpan.FromSeconds(1));
         }
+    }
+
+    [Fact]
+    public async Task SmemaTracksFeedbackDuringReceiveAndRetainsEntryPulse()
+    {
+        var (io, conveyor) = await PrepareRearDischargeAsync(new ConveyorSettings
+        {
+            CarrierStopDelaySeconds = 0,
+        });
+        io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+        using var stop = new CancellationTokenSource();
+        var run = conveyor.RunAsync(stop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, true);
+            var rearDropped = false;
+            void ObserveRear(OutputIo output, bool value)
+            {
+                if (output == OutputIo.MainConveyorAvailableToRear && !value)
+                    rearDropped = true;
+            }
+            io.OutputChanged += ObserveRear;
+            // A pulse admitted while idle must survive before the receive sequence subscribes.
+            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorReadyToFront2, false);
+            io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+            await Task.Delay(30);
+            Assert.False(rearDropped, "Receiving at S1 must not withdraw the available carrier at S3.");
+            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            Assert.False(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
+            io.OutputChanged -= ObserveRear;
+
+            // The receive sequence is still waiting for HS2; SMEMA must follow S3 now.
+            SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, false);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+            await ((IIoService)io).WaitForInputAsync(InputIo.PcbPlacementBackupPlateUp, true);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
     }
 
     private static async Task<(VirtualIoService Io, MainConveyor Conveyor)> PrepareRearDischargeAsync(
