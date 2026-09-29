@@ -380,104 +380,117 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        switch (state)
-        {
-            case InspectionStationState.PreparingTransfer
-                or InspectionStationState.PickingCarrier
-                or InspectionStationState.PlacingCarrier
-                or InspectionStationState.WaitingForDestination
-                or InspectionStationState.HoldingAtDestination:
-                return await ExecuteTransferAsync(
-                    NgTransferDestination.Shuttle, state, cancellationToken, holdAtDestination: repeat,
-                    allowEmpty: repeat && IsEmptyRepeatAllowed);
-        }
-
-        EnterStep(state, workId: Station.CurrentJob.Id,
-            waitingFor: state == InspectionStationState.WaitingForShuttleDown
-                ? $"shuttle Down; current={_ngConveyor.ShuttleLift}"
-                : state is InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor
-                    ? "carrier, supports and clear pickup" : null);
-        switch (state)
-        {
-            case InspectionStationState.PreparingInspectionPosition:
-                await Station.PrepareToReceiveAsync(cancellationToken);
-                return true;
-            case InspectionStationState.PreparingInspection:
-                ClearInspectionOperation();
-                var bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
-                var targets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
-                var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt)>();
-                foreach (var pcb in targets)
-                {
-                    var pcbBolts = bolts.Where(bolt => bolt.HeatSink == pcb).ToArray();
-                    if (pcbBolts.Length == 0)
-                        throw new InvalidOperationException(
-                            $"{pcb.GetDescription()} has no taught bolts. Complete bolt teaching before inspection.");
-                    points.Add((pcb, null));
-                    foreach (var bolt in pcbBolts)
-                        points.Add((pcb, bolt));
-                }
-                _runJob = Station.CurrentJob;
-                _runPoints = points.ToArray();
-                _inspectionOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                Changed += CheckInspectionPosition;
-                CheckInspectionPosition();
-                NotifyChanged();
-                return true;
-            case InspectionStationState.SeatingCarrier:
-                await SeatStationAsync(cancellationToken);
-                ClearCarrierSeatingRequest();
-                return true;
-            case InspectionStationState.ReturningToWaitingPosition:
-                await MoveToWaitingPositionAsync(cancellationToken);
-                return true;
-            case InspectionStationState.Disabled:
-                if (Station.CarrierSeated || IsAtInspectionPosition)
-                    Station.Complete(Station.CurrentJob);
-                return false;
-            case InspectionStationState.Waiting
-                or InspectionStationState.WaitingForConveyor
-                or InspectionStationState.WaitingForShuttleDown
-                or InspectionStationState.BarcodeTeachingRequired
-                or InspectionStationState.FovTeachingRequired:
-                return false;
-        }
-
-        var operation = _inspectionOperation
-            ?? throw new InvalidOperationException("No inspection work is selected.");
-        var job = _runJob!;
-        var token = operation.Token;
+        var operation = _inspectionOperation;
         try
         {
-            CheckInspectionPosition();
-            token.ThrowIfCancellationRequested();
-            Station.RequireCurrentJob(job);
-            if (state == InspectionStationState.CompletingInspection)
-            {
-                await MoveToWaitingPositionAsync(token);
-                token.ThrowIfCancellationRequested();
-                foreach (var point in _runPoints!)
-                    if (point.Bolt is null)
-                        Station.GetAssembly(job, point.Pcb).CompleteInspection();
-                Station.Complete(job);
-                ClearInspectionOperation();
-                return true;
-            }
-
-            var target = InspectionTarget;
-            var pcb = target.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
-            var assembly = Station.GetAssembly(job, pcb);
             switch (state)
             {
+                case InspectionStationState.PreparingTransfer
+                    or InspectionStationState.PickingCarrier
+                    or InspectionStationState.PlacingCarrier
+                    or InspectionStationState.WaitingForDestination
+                    or InspectionStationState.HoldingAtDestination:
+                    return await ExecuteTransferAsync(
+                        NgTransferDestination.Shuttle, state, cancellationToken, holdAtDestination: repeat,
+                        allowEmpty: repeat && IsEmptyRepeatAllowed);
+                case InspectionStationState.PreparingInspectionPosition:
+                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    await Station.PrepareToReceiveAsync(cancellationToken);
+                    return true;
+                case InspectionStationState.PreparingInspection:
+                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    ClearInspectionOperation();
+                    var bolts = _recipes.Current.Pcb.BoltPoints.ToArray();
+                    var targets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
+                    var points = new List<(HeatSinkSlot Pcb, BoltPoint? Bolt)>();
+                    foreach (var pcb in targets)
+                    {
+                        var pcbBolts = bolts.Where(bolt => bolt.HeatSink == pcb).ToArray();
+                        if (pcbBolts.Length == 0)
+                            throw new InvalidOperationException(
+                                $"{pcb.GetDescription()} has no taught bolts. Complete bolt teaching before inspection.");
+                        points.Add((pcb, null));
+                        foreach (var bolt in pcbBolts)
+                            points.Add((pcb, bolt));
+                    }
+                    _runJob = Station.CurrentJob;
+                    _runPoints = points.ToArray();
+                    _inspectionOperation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    Changed += CheckInspectionPosition;
+                    CheckInspectionPosition();
+                    NotifyChanged();
+                    return true;
+                case InspectionStationState.SeatingCarrier:
+                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    await SeatStationAsync(cancellationToken);
+                    ClearCarrierSeatingRequest();
+                    return true;
+                case InspectionStationState.ReturningToWaitingPosition:
+                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    await MoveToWaitingPositionAsync(cancellationToken);
+                    return true;
+                case InspectionStationState.Disabled:
+                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    if (Station.CarrierSeated || IsAtInspectionPosition)
+                        Station.Complete(Station.CurrentJob);
+                    return false;
+                case InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor:
+                    EnterStep(state, workId: Station.CurrentJob.Id, waitingFor: "carrier, supports and clear pickup");
+                    return false;
+                case InspectionStationState.WaitingForShuttleDown:
+                    EnterStep(state, workId: Station.CurrentJob.Id, waitingFor: $"shuttle Down; current={_ngConveyor.ShuttleLift}");
+                    return false;
+                case InspectionStationState.BarcodeTeachingRequired or InspectionStationState.FovTeachingRequired:
+                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    return false;
+                case InspectionStationState.CompletingInspection:
+                {
+                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
+                    var job = _runJob!;
+                    CheckInspectionPosition();
+                    token.ThrowIfCancellationRequested();
+                    Station.RequireCurrentJob(job);
+                    await MoveToWaitingPositionAsync(token);
+                    token.ThrowIfCancellationRequested();
+                    foreach (var point in _runPoints!)
+                        if (point.Bolt is null)
+                            Station.GetAssembly(job, point.Pcb).CompleteInspection();
+                    Station.Complete(job);
+                    ClearInspectionOperation();
+                    return true;
+                }
                 case InspectionStationState.ReadingBarcode:
+                {
+                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
+                    var job = _runJob!;
+                    CheckInspectionPosition();
+                    token.ThrowIfCancellationRequested();
+                    Station.RequireCurrentJob(job);
+                    var pcb = InspectionTarget.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
+                    var assembly = Station.GetAssembly(job, pcb);
                     EnterStep(state, $"{pcb.GetDescription()} / Data Matrix", job.Id);
                     var barcode = await ReadBarcodeAsync(pcb, token);
                     token.ThrowIfCancellationRequested();
                     Station.RequireCurrentJob(job);
                     assembly.PcbBarcode = barcode.Barcode;
                     assembly.RecordInspectionCapture(barcode);
-                    break;
+                    _pointIndex++;
+                    NotifyChanged();
+                    return true;
+                }
                 case InspectionStationState.InspectingBolt:
+                {
+                    EnterStep(state, workId: Station.CurrentJob.Id);
+                    var token = operation?.Token ?? throw new InvalidOperationException("No inspection work is selected.");
+                    var job = _runJob!;
+                    CheckInspectionPosition();
+                    token.ThrowIfCancellationRequested();
+                    Station.RequireCurrentJob(job);
+                    var target = InspectionTarget;
+                    var pcb = target.Pcb ?? throw new InvalidOperationException("No inspection target is selected.");
+                    var assembly = Station.GetAssembly(job, pcb);
                     var bolt = target.Bolt ?? throw new InvalidOperationException("No inspection bolt is selected.");
                     EnterStep(state, $"{pcb.GetDescription()} / Bolt {_recipes.Current.Pcb.GetBoltOrdinal(bolt.Id)}", job.Id);
                     var capture = await InspectAsync(bolt, token);
@@ -485,14 +498,18 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     Station.RequireCurrentJob(job);
                     assembly.RecordBoltPresence(bolt.Id, capture.Success);
                     assembly.RecordInspectionCapture(capture);
-                    break;
+                    _pointIndex++;
+                    NotifyChanged();
+                    return true;
+                }
                 default:
+                    EnterStep(state, workId: Station.CurrentJob.Id);
                     throw new ArgumentOutOfRangeException(nameof(state));
             }
-            _pointIndex++;
-            NotifyChanged();
         }
-        catch (OperationCanceledException) when (operation.IsCancellationRequested
+        catch (OperationCanceledException) when (state is InspectionStationState.ReadingBarcode
+                or InspectionStationState.InspectingBolt or InspectionStationState.CompletingInspection
+            && operation?.IsCancellationRequested == true
             && !cancellationToken.IsCancellationRequested)
         {
             if (IsReadyToInspect && ReferenceEquals(_runJob, Station.CurrentJob))
@@ -668,21 +685,17 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
         bool allowEmpty = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        EnterStep(state, destination.ToString(), waitingFor: state == InspectionStationState.WaitingForDestination
-            ? $"source support={IsSupportReady(GetOppositeDestination(destination))}, "
-                + $"destination support={IsSupportReady(destination)}, destination occupied={IsCarrierPresent(destination)}, "
-                + $"shuttle={_ngConveyor.ShuttleLift}, receive={_ngConveyor.IsReceiveAllowed}, "
-                + $"pickup={Lift}, gripper={Gripper}, pending={IsTransferPending}"
-            : null);
         switch (state)
         {
             case InspectionStationState.PreparingTransfer:
+                EnterStep(state, destination.ToString());
                 if (!IsRaised)
                     await SetLiftUpAsync(true, cancellationToken);
                 if (!IsTransferPending && Gripper != NgTransferGripperState.Open)
                     await SetGripperOpenAsync(true, cancellationToken);
                 break;
             case InspectionStationState.PickingCarrier:
+                EnterStep(state, destination.ToString());
                 var source = GetOppositeDestination(destination);
                 if (IsTransferPending
                     && (!IsSupportReady(source)
@@ -708,6 +721,7 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 break;
             case InspectionStationState.PlacingCarrier:
             {
+                EnterStep(state, destination.ToString());
                 var position = GetTransferPosition(destination)
                     ?? throw new InvalidOperationException("Record Carrier Pickup (S3) X/Y before returning to Station 3.");
                 var supported = MotionService.IsAt(_motion, position) && Lift == StationCylinderState.Down
@@ -772,7 +786,15 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                     await SetLiftUpAsync(true, cancellationToken);
                 break;
             }
+            case InspectionStationState.WaitingForDestination:
+                EnterStep(state, destination.ToString(), waitingFor:
+                    $"source support={IsSupportReady(GetOppositeDestination(destination))}, "
+                        + $"destination support={IsSupportReady(destination)}, destination occupied={IsCarrierPresent(destination)}, "
+                        + $"shuttle={_ngConveyor.ShuttleLift}, receive={_ngConveyor.IsReceiveAllowed}, "
+                        + $"pickup={Lift}, gripper={Gripper}, pending={IsTransferPending}");
+                return false;
             default:
+                EnterStep(state, destination.ToString());
                 return false;
         }
         return true;

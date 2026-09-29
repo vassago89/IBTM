@@ -226,31 +226,20 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                 _io.SetOutput(
                     OutputIo.NgCarrierEjectCompleteLamp,
                     buttonsEnabled && state == NgConveyorState.WaitingForEjectConfirmation);
-                EnterStep(state, waitingFor: state switch
-                {
-                    NgConveyorState.WaitingForTransferRelease =>
-                        $"pickup Up={_transfer?.IsRaised}, pending={_transfer?.IsTransferPending}, "
-                            + $"gripper Open={_io.GetInput(InputIo.NgCarrierGripperOpen)}, "
-                            + $"Closed={_io.GetInput(InputIo.NgCarrierGripperClosed)}",
-                    NgConveyorState.WaitingForShuttleDown =>
-                        $"shuttle={ShuttleLift}, accept={IsAcceptCarrierAllowed()}, movement={_movement}, ejection={_ejectionPhase}",
-                    NgConveyorState.WaitingForShuttleUp =>
-                        "destination reached; wait for shuttle carrier detection OFF and shuttle UP",
-                    NgConveyorState.EjectingCarrier =>
-                        $"S1 then {_settings.EjectRunSeconds:F3} s; S1={_io.GetInput(InputIo.NgConveyorPosition1Occupied)}, S2={_io.GetInput(InputIo.NgConveyorPosition2Occupied)}",
-                    _ => null,
-                });
                 switch (state)
                 {
                     case NgConveyorState.LoweringShuttle:
+                        EnterStep(state);
                         if (Volatile.Read(ref _ejectRequested) != 0)
                             continue;
                         await SetShuttleDownAsync(true, cancellationToken);
                         break;
                     case NgConveyorState.RaisingShuttle:
+                        EnterStep(state);
                         await SetShuttleDownAsync(false, cancellationToken);
                         break;
                     case NgConveyorState.MovingToPosition1 or NgConveyorState.MovingToPosition2:
+                        EnterStep(state);
                         var toPosition1 = state == NgConveyorState.MovingToPosition1;
                         _movement = toPosition1 ? Movement.ToPosition1 : Movement.ToPosition2;
                         await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
@@ -260,6 +249,8 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         NotifyChanged();
                         break;
                     case NgConveyorState.WaitingForShuttleUp:
+                        EnterStep(state, waitingFor:
+                            "destination reached; wait for shuttle carrier detection OFF and shuttle UP");
                         if (ShuttleLift != StationCylinderState.Up)
                         {
                             await WaitForChangeAsync(cancellationToken);
@@ -270,6 +261,8 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         NotifyChanged();
                         break;
                     case NgConveyorState.EjectingCarrier:
+                        EnterStep(state, waitingFor:
+                            $"S1 then {_settings.EjectRunSeconds:F3} s; S1={_io.GetInput(InputIo.NgConveyorPosition1Occupied)}, S2={_io.GetInput(InputIo.NgConveyorPosition2Occupied)}");
                         if (ShuttleLift != StationCylinderState.Up)
                         {
                             if (!IsTransferClear)
@@ -304,13 +297,20 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         NotifyChanged();
                         break;
                     case NgConveyorState.CompactingCarriers:
+                        EnterStep(state);
                         _movement = Movement.Compacting;
                         await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
                         await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, false, cancellationToken);
                         _movement = Movement.None;
                         NotifyChanged();
                         break;
-                    case NgConveyorState.WaitingForEjectConfirmation when Volatile.Read(ref _ejectCompleteRequested) != 0:
+                    case NgConveyorState.WaitingForEjectConfirmation:
+                        EnterStep(state);
+                        if (Volatile.Read(ref _ejectCompleteRequested) == 0)
+                        {
+                            await WaitForChangeAsync(cancellationToken);
+                            continue;
+                        }
                         while (_io.GetInput(InputIo.NgCarrierEjectButton) || _io.GetInput(InputIo.NgCarrierEjectCompleteButton))
                             await WaitForChangeAsync(cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
@@ -320,7 +320,20 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                         _ejectionPhase = EjectionPhase.Idle;
                         NotifyChanged();
                         break;
+                    case NgConveyorState.WaitingForTransferRelease:
+                        EnterStep(state, waitingFor:
+                            $"pickup Up={_transfer?.IsRaised}, pending={_transfer?.IsTransferPending}, "
+                                + $"gripper Open={_io.GetInput(InputIo.NgCarrierGripperOpen)}, "
+                                + $"Closed={_io.GetInput(InputIo.NgCarrierGripperClosed)}");
+                        await WaitForChangeAsync(cancellationToken);
+                        break;
+                    case NgConveyorState.WaitingForShuttleDown:
+                        EnterStep(state, waitingFor:
+                            $"shuttle={ShuttleLift}, accept={IsAcceptCarrierAllowed()}, movement={_movement}, ejection={_ejectionPhase}");
+                        await WaitForChangeAsync(cancellationToken);
+                        break;
                     default:
+                        EnterStep(state);
                         await WaitForChangeAsync(cancellationToken);
                         continue;
                 }
