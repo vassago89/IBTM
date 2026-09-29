@@ -192,7 +192,7 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Content="{ui:Text 'Home'}" Width="80" Style="{StaticResource SecondaryButtonStyle}"
+                            <Button Content="{ui:Text 'Home'}" Width="80" Padding="8,7" Style="{StaticResource SecondaryButtonStyle}"
                                 Command="{Binding HomeCommand}"/>
                         </StackPanel>
                     </Grid>

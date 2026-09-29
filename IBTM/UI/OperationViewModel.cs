@@ -680,7 +680,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            if (!State.Available || !PlacementPositionKnown || !Placement.Motion.IsFeedbackAvailable)
+            if (!State.Available || !Placement.Motion.IsFeedbackAvailable)
                 return null;
             return Placement.Step as PcbPlacementState?;
         }
@@ -690,8 +690,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            if (!State.Available || !Units.BoltFastening || !Machine.TeachingReady
-                || !FasteningPositionKnown || !Fastening.Motion.IsFeedbackAvailable)
+            if (!State.Available || !Units.BoltFastening || !Fastening.Motion.IsFeedbackAvailable)
                 return null;
             return Fastening.Step as BoltFasteningState?;
         }
@@ -701,8 +700,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            if (!State.Available || !Units.Inspection || !Machine.TeachingReady
-                || !InspectionPositionKnown || !Inspection.Motion.IsFeedbackAvailable
+            if (!State.Available || !Units.Inspection || !Inspection.Motion.IsFeedbackAvailable
                 || Signals.Outputs[OutputIo.MainConveyorRun].IsOn is null
                 || Signals.Outputs[OutputIo.NgConveyorRun].IsOn is null)
                 return null;
@@ -858,7 +856,7 @@ public partial class OperationViewModel : ObservableObject
                 return HandlerDisplayState.Disabled;
             if (Alarm is MachineAlarm.PcbSupply)
                 return HandlerDisplayState.IoAlarm;
-            if (!SupplyPositionKnown)
+            if (!State.Available || !Supply.Motion.IsFeedbackAvailable)
                 return HandlerDisplayState.PositionUnknown;
             if (Supply.Motion.IsMoving)
                 return HandlerDisplayState.Moving;
@@ -884,7 +882,7 @@ public partial class OperationViewModel : ObservableObject
                 return HandlerDisplayState.Disabled;
             if (Alarm is MachineAlarm.PcbPlacement)
                 return HandlerDisplayState.IoAlarm;
-            if (!PlacementPositionKnown)
+            if (!State.Available || !Placement.Motion.IsFeedbackAvailable)
                 return HandlerDisplayState.PositionUnknown;
             if (Placement.Motion.IsMoving)
                 return HandlerDisplayState.Moving;
@@ -912,7 +910,7 @@ public partial class OperationViewModel : ObservableObject
                 or MachineAlarm.ShootingBoltFeeder
                 or MachineAlarm.BoltFastening)
                 return StationDisplayState.IoAlarm;
-            if (!FasteningPositionKnown)
+            if (!State.Available || !Fastening.Motion.IsFeedbackAvailable)
                 return StationDisplayState.PositionUnknown;
             if (Fastening.Motion.IsMoving || State.BoltTestRunning)
                 return StationDisplayState.Working;
@@ -956,7 +954,7 @@ public partial class OperationViewModel : ObservableObject
                 return StationDisplayState.Disabled;
             if (Alarm is MachineAlarm.Inspection or MachineAlarm.NgCarrierTransfer)
                 return StationDisplayState.IoAlarm;
-            if (!InspectionPositionKnown)
+            if (!State.Available || !Inspection.Motion.IsFeedbackAvailable)
                 return StationDisplayState.PositionUnknown;
             if (!State.AutomaticRunning && !Inspection.Motion.IsMoving)
                 return StationDisplayState.Stopped;

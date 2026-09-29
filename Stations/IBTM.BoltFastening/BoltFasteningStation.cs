@@ -494,7 +494,15 @@ public sealed class BoltFasteningStation : AutoUnit
                                     pendingCancellation?.Cancel();
                                 }
                                 // Drain both operations, including STOP/air-OFF cleanup on failure.
-                                await Task.WhenAll(moving, shooting);
+                                var preparationCompleted = Task.WhenAll(moving, shooting);
+                                try
+                                {
+                                    await preparationCompleted;
+                                }
+                                catch when (preparationCompleted.Exception is { InnerExceptions.Count: > 1 } failures)
+                                {
+                                    throw failures;
+                                }
                                 _log?.LogInformation("Bolt timing {Bolt}: movement / shooting supply joined, elapsed={ElapsedMs:F1} ms, supplied during previous retraction={Prefed}.",
                                     bolt.Id, Stopwatch.GetElapsedTime(supplyWaitStarted).TotalMilliseconds, pendingFeed is not null);
                             }
@@ -889,7 +897,15 @@ public sealed class BoltFasteningStation : AutoUnit
         if (!first.IsCompletedSuccessfully)
             clearance.Cancel();
         // No next XY move or result publication until both operations have finished.
-        await Task.WhenAll(moving, raising);
+        var clearanceCompleted = Task.WhenAll(moving, raising);
+        try
+        {
+            await clearanceCompleted;
+        }
+        catch when (clearanceCompleted.Exception is { InnerExceptions.Count: > 1 } failures)
+        {
+            throw failures;
+        }
         var finished = Stopwatch.GetTimestamp();
         _log?.LogInformation(
             "Bolt timing {Bolt}/{Head}: clearance complete; head UP={HeadMs:F1} ms, retract Z={SafeZ} in {ZMs:F1} ms, parallel={ParallelMs:F1} ms, total including vacuum OFF={TotalMs:F1} ms.",

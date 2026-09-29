@@ -294,11 +294,16 @@ public partial class TeachingViewModel : ObservableObject
         UnsubscribeMotionChanges();
         PositionUpdatesActive = false;
         // Page/application shutdown must still receive an unconfirmed device stop.
-        CancelTeaching(reportDeviceFailure: false);
-        _recipeImageCancellation.Cancel();
-        CarrierImages = [];
-
-        _ = RequestCameraStopAsync();
+        try
+        {
+            CancelTeaching(reportDeviceFailure: false);
+        }
+        finally
+        {
+            _recipeImageCancellation.Cancel();
+            CarrierImages = [];
+            _ = RequestCameraStopAsync();
+        }
     }
 
     public async Task ShutdownAsync()

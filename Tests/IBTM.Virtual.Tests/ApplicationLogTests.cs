@@ -107,17 +107,17 @@ public sealed class ApplicationLogTests
 
             var machine = File.ReadAllText(path);
             var communicationText = File.ReadAllText(communicationPath);
-            Assert.Contains("Machine cycle completed", machine);
+            Assert.Contains("[IBTM.Virtual.Tests.ApplicationLogTests] Machine cycle completed", machine);
             Assert.DoesNotContain("RX RAW", machine);
             Assert.DoesNotContain("RTU response decoded", machine);
             Assert.DoesNotContain("ADC status timing", machine);
             Assert.DoesNotContain("Machine cycle completed", communicationText);
             Assert.Equal(64, File.ReadAllLines(communicationPath).Count(line => line.Contains("RX RAW")));
             Assert.Contains("RTU response decoded", communicationText);
-            Assert.Contains("ADC status timing", communicationText);
+            Assert.Contains("[IBTM.Device.AdcStatusMonitor] ADC status timing", communicationText);
             foreach (var text in new[] { machine, communicationText })
             {
-                Assert.Contains("ADC request rejected", text);
+                Assert.Contains("[IBTM.Hantas.AdcBus] ADC request rejected", text);
                 Assert.Contains("ADC exchange failed", text);
                 Assert.Contains("Response timed out", text);
             }
@@ -158,7 +158,9 @@ public sealed class ApplicationLogTests
         Assert.Equal(error.ToString(), entry.Detail);
         Assert.Contains(nameof(RetainsFullExceptionDetails), entry.Text);
         Assert.Contains("Native error", entry.Text);
-        Assert.Contains("[ERROR] AJIN input read", entry.Text);
+        Assert.Equal("IBTM.Virtual.Tests.ApplicationLogTests", entry.Source);
+        Assert.Equal("AJIN input read", entry.Message);
+        Assert.Contains("[ERROR] [IBTM.Virtual.Tests.ApplicationLogTests] AJIN input read", entry.Text);
     }
 
     [Fact]

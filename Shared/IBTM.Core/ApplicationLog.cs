@@ -20,9 +20,18 @@ public sealed record LogEntry(
     DateTimeOffset Time,
     string Level,
     string Message,
-    string? Detail)
+    string? Detail,
+    string? Source)
 {
-    public string Text => $"{Time:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] {Message}" + (Detail is null ? "" : Environment.NewLine + Detail);
+    public string Text
+    {
+        get
+        {
+            return $"{Time:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] "
+                + (Source is null ? "" : $"[{Source}] ") + Message
+                + (Detail is null ? "" : Environment.NewLine + Detail);
+        }
+    }
 }
 
 // Screen history is a sink; Serilog owns file writing, queuing and flushing.
@@ -90,7 +99,7 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
                         file => file.Fallible(
                             sink => sink.File(
                                 path,
-                                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u}] {Message:lj}{NewLine}{Exception}",
+                                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
                                 formatProvider: CultureInfo.InvariantCulture,
                                 rollingInterval: RetentionDays.HasValue ? RollingInterval.Day : RollingInterval.Infinite,
                                 fileSizeLimitBytes: 100 * 1024 * 1024,
@@ -131,7 +140,9 @@ public sealed class ApplicationLog : ILogEventSink, ILoggingFailureListener, INo
                 logEvent.Timestamp,
                 logEvent.Level.ToString().ToUpperInvariant(),
                 message.ToString(),
-                logEvent.Exception?.ToString()));
+                logEvent.Exception?.ToString(),
+                logEvent.Properties.TryGetValue("SourceContext", out var source)
+                    && source is ScalarValue { Value: string sourceName } ? sourceName : null));
             while (_entries.Count > RecentEntryLimit)
                 _entries.RemoveAt(0);
         }

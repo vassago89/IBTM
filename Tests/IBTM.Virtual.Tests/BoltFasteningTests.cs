@@ -368,13 +368,14 @@ public sealed class BoltFasteningTests
         }
     }
 
-    public enum RetractionScenario { HeadFirst, ZFirst, Stop, MotionFailure }
+    public enum RetractionScenario { HeadFirst, ZFirst, Stop, MotionFailure, HeadAndMotionFailure }
 
     [Theory]
     [InlineData(FasteningHead.Pickup, RetractionScenario.HeadFirst)]
     [InlineData(FasteningHead.Shooting, RetractionScenario.ZFirst)]
     [InlineData(FasteningHead.Pickup, RetractionScenario.Stop)]
     [InlineData(FasteningHead.Shooting, RetractionScenario.MotionFailure)]
+    [InlineData(FasteningHead.Shooting, RetractionScenario.HeadAndMotionFailure)]
     [InlineData(FasteningHead.Shooting, RetractionScenario.ZFirst, true)]
     [InlineData(FasteningHead.Shooting, RetractionScenario.Stop, true)]
     public async Task RetractionOverlapsHeadAndZAndDrainsBothBeforeNextBolt(
@@ -432,6 +433,7 @@ public sealed class BoltFasteningTests
         var vacuumReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var nextXy = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var motionFailure = new IOException("Retraction Z failed.");
+        var headFailure = new IOException("Head UP failed.");
         var failMotion = false;
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         io.OutputChanged += (output, on) =>
@@ -453,6 +455,12 @@ public sealed class BoltFasteningTests
                 Assert.False(io.GetOutput(start));
                 Assert.False(io.GetOutput(vacuum));
                 riseRequested = true;
+                if (scenario == RetractionScenario.HeadAndMotionFailure)
+                {
+                    // The head command fails first; draining the cancelled Z move also fails.
+                    failMotion = true;
+                    throw headFailure;
+                }
             }
             if (output == OutputIo.PickupTableDown && on)
             {
@@ -486,10 +494,13 @@ public sealed class BoltFasteningTests
                 Assert.Equal(12, motion.Position.Z);
                 io.SetInput(InputIo.PickupHeadVacuumDetected, false);
             }
-            Assert.True(await WaitUntilAsync(() => riseRequested && motion.IsMoving, TimeSpan.FromSeconds(1)));
-            Assert.False(io.GetInput(upInput));
-            Assert.Empty(results);
-            Assert.False(nextXy.Task.IsCompleted);
+            if (scenario != RetractionScenario.HeadAndMotionFailure)
+            {
+                Assert.True(await WaitUntilAsync(() => riseRequested && motion.IsMoving, TimeSpan.FromSeconds(1)));
+                Assert.False(io.GetInput(upInput));
+                Assert.Empty(results);
+                Assert.False(nextXy.Task.IsCompleted);
+            }
             switch (scenario)
             {
                 case RetractionScenario.HeadFirst:
@@ -517,6 +528,14 @@ public sealed class BoltFasteningTests
                     failMotion = true;
                     Assert.Same(motionFailure, await Assert.ThrowsAsync<IOException>(
                         () => run.WaitAsync(TimeSpan.FromSeconds(1))));
+                    Assert.False(nextXy.Task.IsCompleted);
+                    break;
+                case RetractionScenario.HeadAndMotionFailure:
+                    var failures = (await Assert.ThrowsAsync<AggregateException>(
+                        () => run.WaitAsync(TimeSpan.FromSeconds(1)))).Flatten().InnerExceptions;
+                    Assert.Equal(2, failures.Count);
+                    Assert.Contains(headFailure, failures);
+                    Assert.Contains(motionFailure, failures);
                     Assert.False(nextXy.Task.IsCompleted);
                     break;
             }

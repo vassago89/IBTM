@@ -511,6 +511,11 @@ public sealed class TeachingTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        if (action == TeachingStopAction.Close)
+        {
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            Assert.True(teaching.Inspection.IsLiveView);
+        }
         var motion = teaching.Motion.Feedback;
         // Simulate a native STOP failure in the cancellation callback without loading the SDK.
         var viewCancellation = (CancellationTokenSource)typeof(TeachingViewModel)
@@ -537,6 +542,7 @@ public sealed class TeachingTests
             {
                 var failures = Assert.IsType<AggregateException>(failure).Flatten().InnerExceptions;
                 Assert.Contains(stopError, failures);
+                Assert.False(teaching.Inspection.IsLiveView);
             }
             else
             {

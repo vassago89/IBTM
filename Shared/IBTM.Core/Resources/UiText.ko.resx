@@ -211,10 +211,10 @@
     <value>통신 속도</value>
   </data>
   <data name="between" xml:space="preserve">
-    <value>중간</value>
+    <value>위치 불명확</value>
   </data>
   <data name="binary (0–255; blank = auto)" xml:space="preserve">
-    <value>이진화 (0–255; 빈칸 = 자동)</value>
+    <value>임계값 (0–255; 빈칸 = 자동)</value>
   </data>
   <data name="binary roi · automatic" xml:space="preserve">
     <value>이진 ROI · 자동</value>
@@ -319,7 +319,7 @@
     <value>볼트 · 피더</value>
   </data>
   <data name="bright {0:p2} · required ≥ {1:p2}" xml:space="preserve">
-    <value>밝은 영역 {0:P2} · 기준 ≥ {1:P2}</value>
+    <value>밝은 영역 {0:P2} · 최소 {1:P2}</value>
   </data>
   <data name="brightness (0–255)" xml:space="preserve">
     <value>밝기 (0–255)</value>
@@ -358,7 +358,7 @@
     <value>카드 번호</value>
   </data>
   <data name="carrier count for alarm" xml:space="preserve">
-    <value>알람 캐리어 개수</value>
+    <value>알람 발생 기준 개수</value>
   </data>
   <data name="carrier held at destination" xml:space="preserve">
     <value>목적지에서 캐리어 유지</value>
@@ -480,7 +480,7 @@
     <value>연결 중: {0}…</value>
   </data>
   <data name="control i/o communication" xml:space="preserve">
-    <value>제어 I/O 통신</value>
+    <value>제어 I/O 통신 오류</value>
   </data>
   <data name="control i/o unavailable" xml:space="preserve">
     <value>제어 I/O 통신 불가</value>
@@ -693,7 +693,7 @@
     <value>비상정지 눌림</value>
   </data>
   <data name="eject run after s1 (s)" xml:space="preserve">
-    <value>S1 감지 후 배출 시간 (s)</value>
+    <value>P1 감지 후 배출 시간 (s)</value>
   </data>
   <data name="ejecting ng carrier" xml:space="preserve">
     <value>NG 캐리어 배출 중</value>
@@ -900,13 +900,13 @@
     <value>HIK</value>
   </data>
   <data name="home" xml:space="preserve">
-    <value>원점</value>
+    <value>원점 복귀</value>
   </data>
   <data name="home all" xml:space="preserve">
-    <value>전체 원점</value>
+    <value>전체 원점 복귀</value>
   </data>
   <data name="home direction" xml:space="preserve">
-    <value>원점 방향</value>
+    <value>원점 복귀 방향</value>
   </data>
   <data name="home failed" xml:space="preserve">
     <value>원점 복귀 실패</value>
@@ -918,7 +918,7 @@
     <value>원점 복귀 필요</value>
   </data>
   <data name="home selected unit" xml:space="preserve">
-    <value>선택 유닛 원점</value>
+    <value>선택 유닛 원점 복귀</value>
   </data>
   <data name="home signal" xml:space="preserve">
     <value>원점 신호</value>
@@ -927,13 +927,13 @@
     <value>선택 축의 원점 복귀 후 정지를 기다리세요.</value>
   </data>
   <data name="home this unit first" xml:space="preserve">
-    <value>이 유닛의 원점을 먼저 실행하세요</value>
+    <value>이 유닛의 원점 복귀를 먼저 실행하세요</value>
   </data>
   <data name="homed" xml:space="preserve">
     <value>원점 완료</value>
   </data>
   <data name="homing" xml:space="preserve">
-    <value>원점 복귀</value>
+    <value>원점 복귀 중</value>
   </data>
   <data name="homing..." xml:space="preserve">
     <value>원점 복귀 중...</value>
@@ -1026,7 +1026,7 @@
     <value>검사 촬영</value>
   </data>
   <data name="inspection channel (1–9)" xml:space="preserve">
-    <value>검사 채널 (1–9)</value>
+    <value>검사 조명 채널 (1–9)</value>
   </data>
   <data name="inspection gantry x" xml:space="preserve">
     <value>검사 갠트리 X</value>
@@ -1080,7 +1080,7 @@
     <value>인터럽트 번호</value>
   </data>
   <data name="inverted colors" xml:space="preserve">
-    <value>색상 반전</value>
+    <value>반전 색상 검색</value>
   </data>
   <data name="io · assumed ok" xml:space="preserve">
     <value>IO · OK 가정</value>
@@ -1138,7 +1138,7 @@
     <value>조명 시험 취소됨.</value>
   </data>
   <data name="load for reinspection" xml:space="preserve">
-    <value>재검사 이미지로 선택</value>
+    <value>재검사에 사용</value>
   </data>
   <data name="load older" xml:space="preserve">
     <value>이전 결과</value>
@@ -1363,7 +1363,7 @@
     <value>NG 캐리어 픽업 상승</value>
   </data>
   <data name="ng carrier ready to eject" xml:space="preserve">
-    <value>NG 캐리어 배출 준비됨</value>
+    <value>NG 캐리어 배출 가능</value>
   </data>
   <data name="ng carrier transfer" xml:space="preserve">
     <value>NG 캐리어 이송</value>
@@ -1459,7 +1459,7 @@
     <value>조회된 결과 없음</value>
   </data>
   <data name="no saved image for this point" xml:space="preserve">
-    <value>저장된 이미지 없음</value>
+    <value>이 위치의 저장 이미지 없음</value>
   </data>
   <data name="no saved images for this pcb." xml:space="preserve">
     <value>이 PCB의 저장 이미지가 없습니다.</value>
@@ -1687,7 +1687,7 @@
     <value>PCB {0} · 결과</value>
   </data>
   <data name="pending" xml:space="preserve">
-    <value>대기</value>
+    <value>판정 대기</value>
   </data>
   <data name="pending saves: {0}" xml:space="preserve">
     <value>저장 대기: {0}</value>
@@ -1768,7 +1768,7 @@
     <value>픽업 헤드 진공 펌프 (헤드 1)</value>
   </data>
   <data name="pickup retries (0 = off)" xml:space="preserve">
-    <value>픽업 재시도 (0 = 없음)</value>
+    <value>픽업 재시도 횟수 (0 = 없음)</value>
   </data>
   <data name="pickup table down (head 1)" xml:space="preserve">
     <value>픽업 테이블 하강 (헤드 1)</value>
@@ -1780,7 +1780,7 @@
     <value>픽업 · 공급 및 체결</value>
   </data>
   <data name="pickup · supply bypassed / dry run" xml:space="preserve">
-    <value>픽업 · 공급 생략 / 공회전</value>
+    <value>픽업 · 공급 제외 / 공회전</value>
   </data>
   <data name="pickup: pick / fasten" xml:space="preserve">
     <value>픽업·체결</value>
@@ -1898,7 +1898,7 @@
     <value>리셋으로 서보 전원을 복구하세요</value>
   </data>
   <data name="pure barcode" xml:space="preserve">
-    <value>바코드 전용 이미지</value>
+    <value>바코드만 있는 이미지</value>
   </data>
   <data name="queued" xml:space="preserve">
     <value>실행 대기</value>
@@ -1934,7 +1934,7 @@
     <value>S3 상승 중</value>
   </data>
   <data name="raw start is not available. use start fastening or reverse (hold)." xml:space="preserve">
-    <value>체결 시작 또는 풀기 버튼을 사용하세요.</value>
+    <value>START 직접 쓰기 대신 체결 시작 또는 풀기 (누르는 동안)를 사용하세요.</value>
   </data>
   <data name="read device info" xml:space="preserve">
     <value>장치 정보 읽기</value>
@@ -2030,7 +2030,7 @@
     <value>설비 동작 중입니다. 모션 정지 후 다시 기록하세요.</value>
   </data>
   <data name="reference image unavailable" xml:space="preserve">
-    <value>기준 이미지 없음</value>
+    <value>기준 이미지 사용 불가</value>
   </data>
   <data name="reference positions" xml:space="preserve">
     <value>기준 위치</value>
@@ -2042,7 +2042,7 @@
     <value>포트 새로고침</value>
   </data>
   <data name="register access" xml:space="preserve">
-    <value>레지스터 조회</value>
+    <value>레지스터 읽기 / 쓰기</value>
   </data>
   <data name="related i/o" xml:space="preserve">
     <value>관련 I/O</value>
@@ -2168,7 +2168,7 @@
     <value>가동</value>
   </data>
   <data name="run home all" xml:space="preserve">
-    <value>전체 원점을 실행하세요</value>
+    <value>전체 원점 복귀를 실행하세요</value>
   </data>
   <data name="running" xml:space="preserve">
     <value>가동 중</value>
@@ -2282,13 +2282,13 @@
     <value>프리셋 1 선택</value>
   </data>
   <data name="select teaching (manual) mode for repeat" xml:space="preserve">
-    <value>반복 운전은 수동 모드에서 가능합니다</value>
+    <value>반복 운전은 수동 모드로 전환하세요</value>
   </data>
   <data name="selected bolt is not taught." xml:space="preserve">
     <value>선택 볼트 티칭 필요.</value>
   </data>
   <data name="selected pcb not detected at s2." xml:space="preserve">
-    <value>S2에서 선택 PCB 미감지.</value>
+    <value>S2에서 선택 히트싱크 미감지.</value>
   </data>
   <data name="send command" xml:space="preserve">
     <value>명령 전송</value>
@@ -2423,7 +2423,7 @@
     <value>슈팅 · 공급 및 체결</value>
   </data>
   <data name="shooting · supply bypassed / dry run" xml:space="preserve">
-    <value>슈팅 · 공급 생략 / 공회전</value>
+    <value>슈팅 · 공급 제외 / 공회전</value>
   </data>
   <data name="shooting: feed / fasten" xml:space="preserve">
     <value>슈팅 공급·체결</value>
@@ -2549,7 +2549,7 @@
     <value>스토퍼 상승</value>
   </data>
   <data name="storage" xml:space="preserve">
-    <value>보관</value>
+    <value>캐리어 대기</value>
   </data>
   <data name="supply" xml:space="preserve">
     <value>공급</value>
@@ -2667,7 +2667,7 @@
     <value>토크: 체결기 설정 단위</value>
   </data>
   <data name="total run" xml:space="preserve">
-    <value>전체 실행</value>
+    <value>전체 실행 시간</value>
   </data>
   <data name="total turns" xml:space="preserve">
     <value>전체 회전수</value>
@@ -2864,7 +2864,7 @@
     <value>S3 / NG 픽업 비움 대기</value>
   </data>
   <data name="waiting for s3 inspection" xml:space="preserve">
-    <value>S3 검사 대기</value>
+    <value>S3 검사 완료 대기</value>
   </data>
   <data name="waiting for supply" xml:space="preserve">
     <value>공급 대기</value>
@@ -2879,10 +2879,10 @@
     <value>공급 PCB 대기</value>
   </data>
   <data name="waiting for supply release" xml:space="preserve">
-    <value>공급 해제 대기</value>
+    <value>공급측 PCB 해제 대기</value>
   </data>
   <data name="waiting for supply to open" xml:space="preserve">
-    <value>공급측 열림 대기</value>
+    <value>공급 그리퍼 열림 대기</value>
   </data>
   <data name="waiting for transfer" xml:space="preserve">
     <value>이송 대기</value>
@@ -3009,7 +3009,7 @@
     <value>← X−</value>
   </data>
   <data name="↑ earlier" xml:space="preserve">
-    <value>↑ 앞으로</value>
+    <value>↑ 순서 앞으로</value>
   </data>
   <data name="↑ y+" xml:space="preserve">
     <value>↑ Y+</value>
@@ -3021,7 +3021,7 @@
     <value>→ 공급 가능</value>
   </data>
   <data name="↓ later" xml:space="preserve">
-    <value>↓ 뒤로</value>
+    <value>↓ 순서 뒤로</value>
   </data>
   <data name="↓ y-" xml:space="preserve">
     <value>↓ Y-</value>
@@ -3051,7 +3051,7 @@
     <value>과전압</value>
   </data>
   <data name="누락 확인" xml:space="preserve">
-    <value>누락 확인</value>
+    <value>볼트 누락 확인</value>
   </data>
   <data name="동기화 확인" xml:space="preserve">
     <value>동기화 확인</value>
@@ -3105,7 +3105,7 @@
     <value>목표토크 도달 전 정지</value>
   </data>
   <data name="문서에 없는 코드. 컨트롤러 모델·펌웨어별 오류표 확인 필요." xml:space="preserve">
-    <value>문서에 없는 코드. 컨트롤러 모델·펌웨어별 오류표 확인 필요.</value>
+    <value>문서에 없는 코드. 체결기 모델·펌웨어별 오류표를 확인하세요.</value>
   </data>
   <data name="문서에 중복 기재; 온도·모델 확인" xml:space="preserve">
     <value>문서에 중복 기재; 온도·모델 확인</value>
@@ -3252,7 +3252,7 @@
     <value>카운트 조건 확인</value>
   </data>
   <data name="컨트롤러 인식 실패" xml:space="preserve">
-    <value>컨트롤러 인식 실패</value>
+    <value>체결기 인식 실패</value>
   </data>
   <data name="케이블·모터·부하 점검" xml:space="preserve">
     <value>케이블·모터·부하 점검</value>
