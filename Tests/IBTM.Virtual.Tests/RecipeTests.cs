@@ -111,7 +111,7 @@ public sealed class RecipeTests
         Assert.True(firstPoint.Position.HasPosition);
         Assert.Equal((148.637, 244.938), (firstPoint.MovePosition.X, firstPoint.MovePosition.Y));
         Assert.DoesNotContain("Not taught", firstPoint.PositionLabel);
-        Assert.Contains("No linked inspection image", firstPoint.PositionLabel);
+        Assert.Contains("No reference image", firstPoint.PositionLabel);
 
         firstPoint.BoltName = "좌상단 고정";
         var store = VirtualTest.OpenMachineStore();

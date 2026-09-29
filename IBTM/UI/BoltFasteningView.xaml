@@ -38,9 +38,11 @@
     </UserControl.Resources>
     <Grid>
         <Canvas>
-            <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
+            <TextBlock Canvas.Left="{Binding BoltPickupFeederMapPosition.X, TargetNullValue={x:Static ui:MachinePlan.HeaderInset}, FallbackValue={x:Static ui:MachinePlan.HeaderInset}}"
+                Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
                 Text="Bolt Fastening" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
-            <Border Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
+            <Border Canvas.Left="{Binding BoltPickupFeederMapPosition.X, TargetNullValue={x:Static ui:MachinePlan.HeaderInset}, FallbackValue={x:Static ui:MachinePlan.HeaderInset}}"
+                Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
                 Width="{x:Static ui:MachinePlan.PlateWidth}" Height="54" Tag="{Binding BoltDisplayState}"
                 Style="{StaticResource StationStateBadgeStyle}">
                 <StackPanel VerticalAlignment="Center">
@@ -55,7 +57,8 @@
                 </StackPanel>
             </Border>
 
-            <Grid Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.DetailTop}"
+            <Grid Canvas.Left="{Binding BoltPickupFeederMapPosition.X, TargetNullValue={x:Static ui:MachinePlan.HeaderInset}, FallbackValue={x:Static ui:MachinePlan.HeaderInset}}"
+                Canvas.Top="{x:Static ui:MachinePlan.DetailTop}"
                 Width="{x:Static ui:MachinePlan.PlateWidth}" Height="54">
                 <Grid.Resources>
                     <Style TargetType="TextBlock">
@@ -118,7 +121,7 @@
                     <TextBlock Text="Pickup feeder" FontSize="15" FontWeight="SemiBold"
                         Foreground="{StaticResource TextPrimaryBrush}"/>
                     <TextBlock FontSize="16" FontWeight="SemiBold" Margin="0,1,0,0"
-                        ToolTip="Bolt present: ready for pickup. Bolt absent: waiting for replenishment. This is not motor RUN feedback.">
+                        ToolTip="Bolt presence at pickup position">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Text" Value="Supply unknown"/>
@@ -226,7 +229,7 @@
                             <Ellipse Width="12" Height="12" Fill="{StaticResource EquipBgBrush}"
                                 Stroke="{StaticResource TextMutedBrush}" StrokeThickness="2"/>
                             <Ellipse Style="{StaticResource VacuumDetectedVisualStyle}"
-                                ToolTip="Shooting head vacuum feedback (display only)"
+                                ToolTip="Shooting head vacuum feedback"
                                 Visibility="{Binding Signals.Inputs[ShootingHeadVacuumDetected].IsOn, Converter={StaticResource BoolToVis}}"/>
                         </Grid>
                     </Canvas>
@@ -237,7 +240,7 @@
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
             Visibility="{Binding State.ManualMode, Converter={StaticResource BoolToVis}}"
-            ToolTip="Open selected-bolt test · Manual mode">
+            ToolTip="Bolt test · Manual mode">
             <Button.Template>
                 <ControlTemplate TargetType="Button">
                     <Border Background="{TemplateBinding Background}" BorderThickness="1" CornerRadius="6">
@@ -255,11 +258,14 @@
                 </ControlTemplate>
             </Button.Template>
         </Button>
-        <Grid Width="{x:Static ui:MachinePlan.PlateWidth}" Height="162" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,172,0,0">
+        <Grid Width="{x:Static ui:MachinePlan.PlateWidth}" Height="162" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,172,0,0">
+            <Grid.RenderTransform>
+                <TranslateTransform X="{Binding BoltPickupFeederMapPosition.X, TargetNullValue={x:Static ui:MachinePlan.HeaderInset}, FallbackValue={x:Static ui:MachinePlan.HeaderInset}}"/>
+            </Grid.RenderTransform>
             <Border Height="138" VerticalAlignment="Top" Style="{StaticResource DeviceBodyStyle}">
                 <Canvas Width="280" Height="134">
                     <TextBlock Canvas.Left="12" Canvas.Top="8" Width="78"
-                        ToolTip="Supply command: RUN during replenishment, WAIT when stopped. This is separate from the feeder-use setting.">
+                        ToolTip="Bolt supply command">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
                                 <Setter Property="Text" Value="SUPPLY · ?"/>
@@ -277,7 +283,7 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <TextBlock Canvas.Left="94" Canvas.Top="8" Width="94"
-                        ToolTip="Escape output command; the B/F lamps below show actual sensor feedback">
+                        ToolTip="Escape command · B/F = sensor feedback">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
                                 <Setter Property="Text" Value="CMD · ?"/>
@@ -294,7 +300,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <TextBlock Canvas.Left="211" Canvas.Top="8" Width="68" ToolTip="ShootBolt output command">
+                    <TextBlock Canvas.Left="211" Canvas.Top="8" Width="68" ToolTip="Bolt air command">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
                                 <Setter Property="Text" Value="SHOOT · ?"/>
@@ -376,7 +382,7 @@
                     </Path>
 
                     <Ellipse Canvas.Left="68" Canvas.Top="42" Tag="{Binding Signals.Inputs[ShootingFeederBoltDetected].IsOn}"
-                        Style="{StaticResource FeederSensorStyle}" ToolTip="Shooting feeder bolt detected · green=ON, gray=OFF, amber outline=unknown"/>
+                        Style="{StaticResource FeederSensorStyle}" ToolTip="Shooting feeder bolt sensor"/>
                     <TextBlock Canvas.Left="8" Canvas.Top="106" Width="86">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource FeederCommandLabelStyle}">
@@ -446,7 +452,7 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <Ellipse Canvas.Left="238" Canvas.Top="76" Tag="{Binding Signals.Inputs[ShootingTubeBoltDetected].IsOn}"
-                        Style="{StaticResource FeederSensorStyle}" ToolTip="Shooting tube bolt detected (current input)"/>
+                        Style="{StaticResource FeederSensorStyle}" ToolTip="Shooting tube bolt sensor"/>
                     <TextBlock Canvas.Left="211" Canvas.Top="106" Width="68" Text="TUBE" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                 </Canvas>
             </Border>

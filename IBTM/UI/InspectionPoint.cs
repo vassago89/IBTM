@@ -42,13 +42,13 @@ public sealed class InspectionPoint
         {
             var imageCount = ImageCount;
             if (IsDataMatrix && imageCount > 1)
-                return "Multiple Data Matrix positions; movement target is ambiguous";
+                return "Position ambiguous · multiple reference images";
             var coordinates = Position is { } position ? $"X {position.X:F3}  Y {position.Y:F3}" : "Not taught";
             return imageCount switch
             {
-                0 => $"{coordinates} · No linked inspection image",
+                0 => $"{coordinates} · No reference image",
                 1 => coordinates,
-                _ => $"{coordinates} · Multiple linked inspection images",
+                _ => $"{coordinates} · Multiple reference images",
             };
         }
     }

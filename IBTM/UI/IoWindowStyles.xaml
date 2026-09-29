@@ -13,7 +13,6 @@
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
-        <Setter Property="ToolTip" Value="Configured I/O channel number. Paired outputs show ON / OFF numbers."/>
     </Style>
 
     <Style x:Key="IoListStyle" TargetType="ListBox">
@@ -219,14 +218,10 @@
                                 Content="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource IoOutputStateButtonStyle}">
-                                        <Setter Property="ToolTip" Value="Current output: OFF. Click to turn ON."/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Io.IsOn}" Value="True">
-                                                <Setter Property="ToolTip" Value="Current output: ON. Click to turn OFF."/>
-                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding Io.IsOn}" Value="{x:Null}">
                                                 <Setter Property="IsEnabled" Value="False"/>
-                                                <Setter Property="ToolTip" Value="Current output is unavailable."/>
+                                                <Setter Property="ToolTip" Value="Output feedback unavailable"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

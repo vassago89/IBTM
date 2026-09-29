@@ -4,7 +4,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
-    xmlns:machine="clr-namespace:IBTM"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
     Title="IBTM"
@@ -156,11 +155,10 @@
                     <Button Content="INPUTS" Margin="8,8,8,0" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenInputsCommand}"/>
 
                     <Button Content="OUTPUTS" Style="{StaticResource SidebarToolButtonStyle}"
-        ToolTip="Open in MANUAL only. Individual controls remain safety-interlocked." ToolTipService.ShowOnDisabled="True"
+        ToolTip="Manual mode only" ToolTipService.ShowOnDisabled="True"
         Command="{Binding OpenOutputsCommand}"/>
 
-                    <Button Content="MOTION" Style="{StaticResource SidebarToolButtonStyle}"
-        ToolTip="Axis numbers, positions and feedback. Controls remain safety-interlocked." Command="{Binding OpenMotionCommand}"/>
+                    <Button Content="MOTION" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenMotionCommand}"/>
 
                     <Button Content="ADC TEST" Style="{StaticResource SidebarToolButtonStyle}"
         Command="{Binding OpenAdcProtocolCommand}"/>
@@ -214,7 +212,7 @@
                                     <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                                     <Setter Property="ToolTip"
-                                        Value="Hardware selector · ON = MANUAL / OFF = AUTO. Change the mode with the physical switch."/>
+                                        Value="Set mode with the hardware switch."/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Operation.State.AutoMode}" Value="True">
                                             <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
@@ -223,7 +221,7 @@
                                         <DataTrigger Binding="{Binding Operation.State.Available}" Value="False">
                                             <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
                                             <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
-                                            <Setter Property="ToolTip" Value="Mode is unknown: waiting for a valid machine status update."/>
+                                            <Setter Property="ToolTip" Value="Mode feedback unavailable"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -257,7 +255,7 @@
                             VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis"
                             ToolTip="{Binding RecipeEditor.ActiveName}"/>
                         <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" Width="156" Margin="10,0,0,0"
-                            IsEnabled="{Binding RecipeEditingEnabled}" ToolTip="Load a saved recipe"
+                            IsEnabled="{Binding RecipeEditingEnabled}"
                             SelectedItem="{Binding SelectedRecipeFile, Mode=TwoWay}"/>
                     </StackPanel>
 
@@ -307,8 +305,7 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,16,0"
-                            ToolTip="Door contacts: ON = CLOSED / OFF = OPEN. All six door inputs must be ON.">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                             <Ellipse Tag="{Binding Operation.State.DoorClosed}" Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
@@ -366,7 +363,7 @@
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                             <TextBlock Text="{Binding RecipeEditor.Error}"
                                 Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"
-                                ToolTip="Your edits remain in memory. Resolve the storage problem, then retry the recipe operation."/>
+                                ToolTip="Changes are not saved. Retry after resolving the error."/>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -410,7 +407,7 @@
                                 </Style>
                             </StackPanel.Style>
                             <CheckBox Content="REPEAT" Margin="0,0,18,0" VerticalAlignment="Center"
-                                ToolTip="Run Repeat in TEACHING (MANUAL) mode. Both bolt feeders are ignored; pickup travel remains active without vacuum ON, and both motors use the dry-run duration. Inspection carries the gripped carrier to the shuttle position without lowering, then returns to Carrier Pickup (S3) to place it."
+                                ToolTip="Dry run · no bolt supply or pickup vacuum. Carrier returns to S3."
                                 IsChecked="{Binding Operation.State.RepeatEnabled, BindingGroupName={x:Null}}"
                                 IsEnabled="{Binding Operation.State.SetupEditingEnabled}"/>
                             <Button Command="{Binding Operation.HomeCommand}"
@@ -421,9 +418,6 @@
                                         <Setter Property="Content" Value="HOME ALL"/>
                                         <Setter Property="ToolTip" Value="{Binding Operation.Machine.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.Machine.HomeBlock}" Value="{x:Static machine:HomeBlockReason.None}">
-                                                <Setter Property="ToolTip" Value="Raise cylinders, confirm feedback, then home all enabled axes. STOP cancels the operation."/>
-                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding Operation.State.IsHoming}" Value="True">
                                                 <Setter Property="Content" Value="HOMING..."/>
                                             </DataTrigger>
@@ -457,7 +451,7 @@
                         </StackPanel>
                         <Button
                             Command="{Binding ResetCommand}"
-                            ToolTip="Silences the buzzer even while an alarm remains. Hardware recovery runs only when stopped and safety conditions allow; it may enable servos but does not home axes or start automatic operation."
+                            ToolTip="Silence buzzer; recover hardware when stopped (servos may turn ON)."
                             ToolTipService.ShowOnDisabled="True" MinWidth="120" Height="48" Margin="0,0,8,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">

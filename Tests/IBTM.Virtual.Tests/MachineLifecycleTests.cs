@@ -1,4 +1,4 @@
-using IBTM.BoltFeeder;
+﻿using IBTM.BoltFeeder;
 using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -6504,7 +6504,7 @@ public sealed partial class MachineLifecycleTests
         recipes.Current.Pcb.BoltPoints = [shooting1, pickup1, shooting2, pickup2, otherShooting, otherPickup];
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
-        Assert.Equal(shooting1.Id, teaching.SelectedFasteningPoint!.Position.Bolt!.Id);
+        Assert.Equal(shooting1.Id, teaching.SelectedPoint!.Position.Bolt!.Id);
         Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
         Assert.True(teaching.MoveFasteningLaterCommand.CanExecute(null));
         var earlierUpdates = 0;
@@ -6512,30 +6512,44 @@ public sealed partial class MachineLifecycleTests
         teaching.MoveFasteningEarlierCommand.CanExecuteChanged += (sender, args) => earlierUpdates++;
         teaching.MoveFasteningLaterCommand.CanExecuteChanged += (sender, args) => laterUpdates++;
         teaching.MoveFasteningLaterCommand.Execute(null);
-        Assert.Equal(shooting1.Id, teaching.SelectedFasteningPoint!.Position.Bolt!.Id);
+        Assert.Equal(shooting1.Id, teaching.SelectedPoint!.Position.Bolt!.Id);
         Assert.True(earlierUpdates > 0);
         Assert.True(laterUpdates > 0);
+        Assert.Same(shooting1, teaching.SelectedPoint!.Position.Bolt);
+        Assert.Equal(TeachingTarget.BoltPosition, teaching.SelectedPoint.Position.Target);
+        teaching.SelectedPoint.BoltName = "Selected shooting bolt";
+        Assert.Equal("Selected shooting bolt", shooting1.Name);
+        Assert.True(string.IsNullOrEmpty(shooting2.Name));
+        Assert.Equal(new[] { shooting2.Id, shooting1.Id, pickup1.Id, pickup2.Id },
+            teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
         Assert.True(teaching.MoveFasteningEarlierCommand.CanExecute(null));
         Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null)); // End of this PCB's shooting group.
         teaching.MoveFasteningLaterCommand.Execute(null);
         Assert.Equal(new[] { shooting2.Id, shooting1.Id, otherShooting.Id, pickup1.Id, pickup2.Id, otherPickup.Id },
             recipes.Current.Pcb.FasteningOrder);
 
-        teaching.SelectedFasteningPoint = teaching.FasteningPoints.Single(point => point.Position.Bolt == pickup1);
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SafeZ);
         Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
-        teaching.SelectedFasteningPoint = teaching.FasteningPoints.Single(point => point.Position.Bolt == pickup2);
-        Assert.Equal(pickup2.Id, teaching.SelectedFasteningPoint.Position.Bolt!.Id);
+        Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
+        teaching.MoveFasteningLaterCommand.Execute(null);
+        Assert.Equal(new[] { shooting2.Id, shooting1.Id, otherShooting.Id, pickup1.Id, pickup2.Id, otherPickup.Id },
+            recipes.Current.Pcb.FasteningOrder);
+
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == pickup1);
+        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt == pickup2);
+        Assert.Equal(pickup2.Id, teaching.SelectedPoint.Position.Bolt!.Id);
         teaching.MoveFasteningEarlierCommand.Execute(null);
         Assert.Equal(new[] { shooting2.Id, shooting1.Id, otherShooting.Id, pickup2.Id, pickup1.Id, otherPickup.Id },
             recipes.Current.Pcb.FasteningOrder);
         Assert.Equal(new[] { shooting1, pickup1, shooting2, pickup2, otherShooting, otherPickup }, recipes.Current.Pcb.BoltPoints);
         teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
         Assert.Equal(new[] { otherShooting.Id, otherPickup.Id },
-            teaching.FasteningPoints.Select(point => point.Position.Bolt!.Id));
+            teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
         Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
         Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
         teaching.MoveFasteningEarlierCommand.Execute(null); // Cannot cross the PCB boundary.
-        teaching.SelectedFasteningPoint = teaching.FasteningPoints.Last();
+        teaching.SelectedPoint = teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Last();
         Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
         Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
         teaching.MoveFasteningEarlierCommand.Execute(null);
@@ -6548,36 +6562,40 @@ public sealed partial class MachineLifecycleTests
         await teaching.RecipeEditor.LoadCommand.ExecuteAsync(name);
         Assert.Null(teaching.RecipeEditor.Error);
         Assert.Equal(new[] { shooting2.Id, shooting1.Id, pickup2.Id, pickup1.Id },
-            teaching.FasteningPoints.Select(point => point.Position.Bolt!.Id));
+            teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
         Assert.Equal(new[] { shooting1.Id, pickup1.Id, shooting2.Id, pickup2.Id, otherShooting.Id, otherPickup.Id },
             recipes.Current.Pcb.BoltPoints.Select(bolt => bolt.Id));
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Bolt?.Id == shooting1.Id);
+        Assert.Equal("Selected shooting bolt", teaching.SelectedPoint.BoltName);
+        Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
+        Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
         Assert.True(teaching.RemoveBoltPointCommand.CanExecute(null));
         teaching.RemoveBoltPointCommand.Execute(null);
         Assert.DoesNotContain(shooting1.Id, recipes.Current.Pcb.FasteningOrder);
         teaching.NewFasteningHead = FasteningHead.Shooting;
         teaching.AddBoltPointCommand.Execute(null);
         var addedId = teaching.SelectedPoint!.Position.Bolt!.Id;
-        Assert.Equal(new[] { shooting2.Id, addedId, pickup2.Id, pickup1.Id },
-            teaching.FasteningPoints.Select(point => point.Position.Bolt!.Id));
         Assert.NotEqual(shooting1.Id, addedId);
         Assert.False(teaching.SelectedPoint.Position.Bolt!.IsFasteningPositionDefined);
         teaching.NewFasteningHead = FasteningHead.Pickup;
         teaching.AddBoltPointCommand.Execute(null);
         var addedPickupId = teaching.SelectedPoint!.Position.Bolt!.Id;
         var expectedOrder = new[] { shooting2.Id, addedId, pickup2.Id, pickup1.Id, addedPickupId };
-        Assert.Equal(expectedOrder, teaching.FasteningPoints.Select(point => point.Position.Bolt!.Id));
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        Assert.Equal(addedPickupId, teaching.SelectedPoint!.Position.Bolt!.Id);
+        Assert.Equal(expectedOrder, teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
         Assert.True(await teaching.RecipeEditor.SaveAsync());
         await teaching.RecipeEditor.LoadCommand.ExecuteAsync(name);
         Assert.Null(teaching.RecipeEditor.Error);
-        Assert.Equal(expectedOrder, teaching.FasteningPoints.Select(point => point.Position.Bolt!.Id));
+        Assert.Equal(expectedOrder, teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
         Assert.DoesNotContain(shooting1.Id, recipes.Current.Pcb.FasteningOrder);
         Assert.Equal(new[] { pickup1.Id, shooting2.Id, pickup2.Id, addedId, addedPickupId },
             recipes.Current.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Select(bolt => bolt.Id));
 
-        // Removing the last point also clears selection and both movement commands.
+        // Inspection keeps its own order; deleting the last bolt leaves a non-bolt selection.
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         foreach (var bolt in recipes.Current.Pcb.BoltPoints.ToArray())
         {
             teaching.SelectedPcb = bolt.HeatSink;
@@ -6585,8 +6603,8 @@ public sealed partial class MachineLifecycleTests
             teaching.RemoveBoltPointCommand.Execute(null);
             Assert.DoesNotContain(bolt.Id, recipes.Current.Pcb.FasteningOrder);
         }
-        Assert.Empty(teaching.FasteningPoints);
-        Assert.Null(teaching.SelectedFasteningPoint);
+        Assert.DoesNotContain(teaching.FilteredPoints, point => point.Position.Bolt is not null);
+        Assert.Null(teaching.SelectedPoint?.Position.Bolt);
         Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
         Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
         Assert.True(await teaching.RecipeEditor.SaveAsync());
@@ -6595,9 +6613,11 @@ public sealed partial class MachineLifecycleTests
         Assert.Empty(recipes.Current.Pcb.BoltPoints);
         Assert.Empty(recipes.Current.Pcb.FasteningOrder);
         teaching.AddBoltPointCommand.Execute(null);
-        var recreated = Assert.Single(teaching.FasteningPoints);
+        var recreated = Assert.Single(teaching.FilteredPoints, point => point.Position.Bolt is not null);
         Assert.DoesNotContain(recreated.Position.Bolt!.Id, expectedOrder);
-        Assert.Same(recreated, teaching.SelectedFasteningPoint);
+        Assert.Same(recreated, teaching.SelectedPoint);
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        Assert.Same(recreated.Position.Bolt, teaching.SelectedPoint!.Position.Bolt);
         Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
         Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null));
         await services.GetRequiredService<MachineController>().ShutdownAsync();
@@ -6776,7 +6796,7 @@ public sealed partial class MachineLifecycleTests
             else
             {
                 Assert.True(teaching.SelectedPoint.Position.HasPosition);
-                Assert.Contains("No linked inspection image", teaching.SelectedPoint.PositionLabel);
+                Assert.Contains("No reference image", teaching.SelectedPoint.PositionLabel);
                 Assert.True(teaching.MoveToPointCommand.CanExecute(null));
                 await gantry.MoveToAsync(new() { X = 1, Y = 2 });
                 await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));

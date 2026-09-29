@@ -23,15 +23,15 @@
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <CheckBox Content="Pause display" IsChecked="{Binding IsPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                <Button Content="Copy" Command="{Binding CopyCommand}" ToolTip="Copy selected text, or all displayed logs if nothing is selected."
+                <Button Content="Copy" Command="{Binding CopyCommand}" ToolTip="Copy selection, or all visible lines."
                     Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Margin="0,0,8,0"/>
                 <Button Content="Copy all" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Command="{Binding CopyAllCommand}" Margin="0,0,8,0"/>
-                <Button Content="Clear view" Command="{Binding ClearCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6"/>
+                <Button Content="Clear Display" Command="{Binding ClearCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6"/>
             </StackPanel>
             <TextBlock Text="Logs" Style="{StaticResource TitleStyle}" VerticalAlignment="Center"/>
         </DockPanel>
         <TextBlock Grid.Row="1" Margin="0,8,0,16" Style="{StaticResource PageSubtitleStyle}"
-            Text="Newest messages first. Drag across lines to select, or use Ctrl+A / Ctrl+C. Selecting text pauses the display; file logging continues."
+            Text="Newest first · text selection pauses the display."
             TextWrapping="Wrap"/>
         <ui:LogTextBox x:Name="LogText" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2"
             Text="{Binding Text, Mode=OneWay}"
@@ -52,26 +52,18 @@
                                     <Condition Binding="{Binding ClipboardError}" Value="{x:Null}"/>
                                     <Condition Binding="{Binding Log.FileError}" Value="{x:Null}"/>
                                 </MultiDataTrigger.Conditions>
-                                <Setter Property="Text" Value="Recent messages are shown here; the log file contains the full session history."/>
-                            </MultiDataTrigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding ClipboardError}" Value="{x:Null}"/>
-                                    <Condition Binding="{Binding Log.FileError}" Value="{x:Null}"/>
-                                    <Condition Binding="{Binding Log.FilePath}" Value="{x:Null}"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Text" Value="Recent messages are shown here; file logging is disabled."/>
+                                <Setter Property="Visibility" Value="Collapsed"/>
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
-            <TextBlock Text="Machine log · base path" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
-            <TextBox Text="{Binding Log.FilePath, Mode=OneWay, TargetNullValue='File logging is disabled in this session.'}"
+            <TextBlock Text="Machine log" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
+            <TextBox Text="{Binding Log.FilePath, Mode=OneWay, TargetNullValue='File logging disabled'}"
                 IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}"
                 Padding="0,4,0,0"/>
-            <TextBlock Text="ADC communication log · base path" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
-            <TextBox Text="{Binding Log.CommunicationFilePath, Mode=OneWay, TargetNullValue='Communication file logging is disabled in this session.'}"
+            <TextBlock Text="ADC communication log" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
+            <TextBox Text="{Binding Log.CommunicationFilePath, Mode=OneWay, TargetNullValue='Communication logging disabled'}"
                 IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextSecondaryBrush}"
                 Padding="0,4,0,0"/>
         </StackPanel>

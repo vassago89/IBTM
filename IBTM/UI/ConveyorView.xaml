@@ -70,6 +70,51 @@
                 Tag="{Binding Signals.Outputs[MainConveyorRun].IsOn}"
                 Style="{StaticResource ConveyorBedStyle}"/>
 
+            <Border Canvas.Left="18" Canvas.Top="-8" Width="170" Padding="10,4"
+                Style="{StaticResource DeviceBodyStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="40"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.ColumnSpan="2" Text="Front 2 · SMEMA"
+                        FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Grid.Row="1" Text="→ Available" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Inputs[MainConveyorAvailableFromFront2].IsOn}"/>
+                    <TextBlock Grid.Row="2" Text="← Ready" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Outputs[MainConveyorReadyToFront2].IsOn}"/>
+                </Grid>
+            </Border>
+            <Border Canvas.Left="{x:Static ui:MachinePlan.RearInterfaceLeft}" Canvas.Top="-8"
+                Width="214" Padding="10,4" Style="{StaticResource DeviceBodyStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="40"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.ColumnSpan="2" Text="Rear · SMEMA"
+                        FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Grid.Row="1" Text="→ Available" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Outputs[MainConveyorAvailableToRear].IsOn}"/>
+                    <TextBlock Grid.Row="2" Text="← Ready" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Inputs[MainConveyorReadyFromRear].IsOn}"/>
+                </Grid>
+            </Border>
+
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
                 Width="{StaticResource BackupPlateWidth}" Margin="6,0,0,0" TextAlignment="Left" Text="Station 1"
                 Style="{StaticResource EquipmentRoleLabelStyle}"/>

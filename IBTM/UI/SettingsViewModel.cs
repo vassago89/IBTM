@@ -223,7 +223,7 @@ public partial class SettingsViewModel : ObservableObject
                 throw new InvalidOperationException("Choose an absolute folder path for PCB results.");
             Directory.CreateDirectory(PcbResultsDirectory);
             await _store.SaveSettingsAsync(Settings.Sections);
-            DatabaseMessage = "Settings saved. Restart to apply hardware and logging changes.";
+            DatabaseMessage = "Settings saved.";
             _log.LogInformation(
                 "Settings saved to {Database}. Restart required for hardware and logging changes.",
                 _store.DatabaseFile);
@@ -519,7 +519,7 @@ public partial class SettingsViewModel : ObservableObject
                     operation.Token);
                 operation.Token.ThrowIfCancellationRequested();
                 PendingLightOffChannel = channel;
-                LightTestMessage = $"ON command sent · channel {channel}, level {level}. Press OFF to finish.";
+                LightTestMessage = $"ON command sent · channel {channel}, level {level}.";
                 _log.LogInformation("Lighting test ON command sent: channel={Channel}, level={Level}.", channel, level);
                 // Keep the operation owned while illuminated, including OFF cleanup.
                 // This blocks automatic/motion admission and lets STOP cancel the test.

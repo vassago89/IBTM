@@ -1,4 +1,4 @@
-<UserControl x:Class="IBTM.UI.OperationView"
+﻿<UserControl x:Class="IBTM.UI.OperationView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -76,8 +76,7 @@
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="DOORS" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold"/>
                 </StackPanel>
-                <ItemsControl Grid.Column="1" ItemsSource="{Binding DoorSensors}" ItemTemplate="{StaticResource DoorSensorTemplate}"
-                    ToolTip="Live door positions. UNKNOWN means feedback is unavailable.">
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding DoorSensors}" ItemTemplate="{StaticResource DoorSensorTemplate}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <UniformGrid Columns="6"/>
@@ -317,68 +316,83 @@
                 </Border>
             </Grid>
         </Border>
-        <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="12,8" Height="124"
+        <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="12,8" Height="108"
             Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
             BorderThickness="1" CornerRadius="3">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="28"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="PCB Results" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                        <TextBlock Text="New → Old" Margin="14,0,0,0" Foreground="{StaticResource TextMutedBrush}"/>
-                    </StackPanel>
-                    <TextBlock Grid.Column="1" Margin="20,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                        Foreground="{StaticResource AccentRedBrush}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="{Binding Machine.PcbHistory.SaveError}"/>
-                                <Setter Property="ToolTip" Value="{Binding Machine.PcbHistory.SaveError}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
-                                        <Setter Property="Text" Value="{Binding PcbHistoryError}"/>
-                                        <Setter Property="ToolTip" Value="{Binding PcbHistoryError}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
-                            Text="{Binding Machine.PcbHistory.PendingCount, StringFormat='Pending saves: {0}'}"/>
-                        <Button Content="Retry save" Margin="0,0,8,0" Padding="12,2" MinHeight="24"
-                            Command="{Binding RetryPcbSaveCommand}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <Button Content="Older" Padding="12,2" MinHeight="24"
-                            Command="{Binding LoadOlderPcbsCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
-                    </StackPanel>
-                </Grid>
-                <ListBox Grid.Row="1" Margin="0,4,0,0" ItemsSource="{Binding PcbRecords}" SelectedItem="{Binding SelectedPcb, Mode=TwoWay}"
-                    SelectionChanged="OnPcbSelectionChanged"
-                    ItemTemplate="{StaticResource PcbHistoryCard}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
-                    Background="{StaticResource ControlBgBrush}" BorderThickness="0"
-                    ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                    <ListBox.ItemsPanel>
-                        <ItemsPanelTemplate><VirtualizingStackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-                    </ListBox.ItemsPanel>
-                </ListBox>
-            </Grid>
+            <ListBox ItemsSource="{Binding PcbRecords}" SelectedItem="{Binding SelectedPcb, Mode=TwoWay}"
+                SelectionChanged="OnPcbSelectionChanged"
+                ItemTemplate="{StaticResource PcbHistoryCard}" ItemContainerStyle="{StaticResource FlatListItemStyle}"
+                Background="{StaticResource ControlBgBrush}" BorderThickness="0"
+                ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                <ListBox.Template>
+                    <ControlTemplate TargetType="ListBox">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="28"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="PCB Results" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="New → Old" Margin="14,0,0,0" Foreground="{StaticResource TextMutedBrush}"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Margin="20,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                    Foreground="{StaticResource AccentRedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{Binding Machine.PcbHistory.SaveError}"/>
+                                            <Setter Property="ToolTip" Value="{Binding Machine.PcbHistory.SaveError}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
+                                                    <Setter Property="Text" Value="{Binding PcbHistoryError}"/>
+                                                    <Setter Property="ToolTip" Value="{Binding PcbHistoryError}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
+                                        Text="{Binding Machine.PcbHistory.PendingCount, StringFormat='Pending saves: {0}'}"/>
+                                    <Button Content="Retry save" Margin="0,0,8,0" Padding="12,2" MinHeight="24"
+                                        Command="{Binding RetryPcbSaveCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Machine.PcbHistory.SaveError}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="← Newer" Padding="12,2" MinHeight="24" Margin="0,0,6,0"
+                                        Command="{x:Static ScrollBar.PageLeftCommand}" CommandTarget="{Binding ElementName=PcbHistoryScroll}"
+                                        Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button Content="Older →" Padding="12,2" MinHeight="24" Margin="0,0,12,0"
+                                        Command="{x:Static ScrollBar.PageRightCommand}" CommandTarget="{Binding ElementName=PcbHistoryScroll}"
+                                        Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button Content="Load older" Padding="12,2" MinHeight="24"
+                                        Command="{Binding LoadOlderPcbsCommand}" Style="{StaticResource SecondaryButtonStyle}"/>
+                                </StackPanel>
+                            </Grid>
+                            <ScrollViewer x:Name="PcbHistoryScroll" Grid.Row="1" Margin="0,4,0,0"
+                                Background="{TemplateBinding Background}" Focusable="False" CanContentScroll="True"
+                                HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                        </Grid>
+                    </ControlTemplate>
+                </ListBox.Template>
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate><VirtualizingStackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+            </ListBox>
         </Border>
     </Grid>
 </UserControl>

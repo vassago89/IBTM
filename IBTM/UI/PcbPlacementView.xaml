@@ -39,6 +39,31 @@
                 </Border>
             </StackPanel>
 
+            <Border Canvas.Left="{x:Static ui:MachinePlan.SupplyRailLeft}" Canvas.Top="112"
+                Width="{x:Static ui:MachinePlan.SupplyRailWidth}" Padding="10,4"
+                Style="{StaticResource DeviceBodyStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="32"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="32"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.ColumnSpan="5" Text="Front 1 · PCB · SMEMA"
+                        FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Grid.Row="1" Text="→ Available" FontSize="13" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].IsOn}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="3" Text="← Ready" FontSize="13" Style="{StaticResource MapHintStyle}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="4" Style="{StaticResource SmemaSignalStateStyle}"
+                        Tag="{Binding Signals.Outputs[PcbSupplyReadyToFront1].IsOn}"/>
+                </Grid>
+            </Border>
             <Border Canvas.Left="{x:Static ui:MachinePlan.SupplyRailLeft}" Canvas.Top="{x:Static ui:MachinePlan.SupplyRailTop}"
                 Width="{x:Static ui:MachinePlan.SupplyRailWidth}" Height="{x:Static ui:MachinePlan.SupplyRailHeight}"
                 Style="{StaticResource DeviceBodyStyle}">
@@ -48,7 +73,7 @@
                     <Grid Width="{x:Static ui:MachinePlan.SupplyCarrierFrameWidth}" Height="{x:Static ui:MachinePlan.SupplyCarrierHeight}"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Border Width="{x:Static ui:MachinePlan.SupplyCarrierWidth}" HorizontalAlignment="Left"
-                            Tag="{Binding Supply.UpstreamCarrierAvailable}">
+                            Tag="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].IsOn}">
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
@@ -76,9 +101,6 @@
                                 <Border Grid.Column="2" Style="{StaticResource UnknownPcbFootprintStyle}"/>
                             </Grid>
                         </Border>
-                        <Ellipse HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Tag="{Binding Supply.UpstreamCarrierAvailable}"
-                            Style="{StaticResource PresenceLedStyle}"/>
                     </Grid>
                 </Grid>
             </Border>

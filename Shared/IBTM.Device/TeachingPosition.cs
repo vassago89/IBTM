@@ -32,7 +32,7 @@ public enum TeachingStorage
 
 public enum TeachingTarget
 {
-    [Description("Safe Z")]
+    [Description("Common Safe Z")]
     SafeZ,
 
     [Description("PCB 1 Pickup")]
@@ -41,10 +41,10 @@ public enum TeachingTarget
     [Description("PCB 2 Pickup")]
     SupplyPcb2Pick,
 
-    [Description("PCB Handoff")]
+    [Description("PCB Handoff (Supply)")]
     SupplyHandoff,
 
-    [Description("PCB Receive Standby")]
+    [Description("PCB Handoff (Receive)")]
     PlacementHandoff,
 
     [Description("PCB Placement - Heat Sink 1")]
@@ -97,7 +97,7 @@ public enum TeachingTarget
     [Description("PCB Receive Z")]
     PlacementReceiveZ,
 
-    [Description("Waiting")]
+    [Description("Gantry Waiting Position")]
     InspectionWaiting,
 
     [Description("Shooting Safe Z")]

@@ -54,7 +54,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         StopCommand = new AsyncRelayCommand(StopAsync);
         SelectAllCommand = new RelayCommand(SelectAll, () => !RunCommand.IsRunning && !IsClosing);
         ClearSelectionCommand = new RelayCommand(ClearSelection, () => !RunCommand.IsRunning && !IsClosing);
-        Message = "Uncheck bolts to leave only the bolts you want to test.";
+        Message = string.Empty;
     }
 
     public MachineState State { get; }
@@ -82,20 +82,20 @@ public partial class BoltStationTestViewModel : ObservableObject
         get
         {
             if (!State.ManualMode)
-                return "Switch to MANUAL to test bolts.";
+                return "Manual mode required.";
             if (RunCommand.IsRunning)
-                return "Selected bolts are running once. STOP cancels the test.";
+                return string.Empty;
             if (!State.ManualSetupEnabled)
-                return "Wait for the machine to stop and clear its alarm / safety conditions.";
+                return "Stop the machine and clear alarms / safety blocks.";
             if (!_machine.IsManualMotionReady(MotionGroup.BoltFastening, live: false))
-                return "Enable and home the bolt station; confirm its servos and motion feedback.";
+                return "Check station enablement, homing and servo feedback.";
             if (!_station.Station.CarrierSeated)
-                return "Load the S2 carrier and raise its backup plate before testing.";
+                return "Load the S2 carrier and raise the backup plate.";
             if (Bolts.Any(row => row.IsSelected && !_station.Station.IsHeatSinkPresent(row.Bolt.HeatSink)))
-                return "A selected PCB is not detected at S2. Load it or uncheck its bolts.";
+                return "Selected PCB not detected at S2.";
             if (Bolts.Any(row => row.IsSelected && !row.Bolt.IsFasteningPositionDefined))
-                return "A selected bolt has no fastening position. Complete its teaching first.";
-            return SelectedCount == 0 ? "Select at least one bolt." : "Ready to run selected bolts.";
+                return "Selected bolt is not taught.";
+            return SelectedCount == 0 ? "Select a bolt." : string.Empty;
         }
     }
 
@@ -104,7 +104,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         IsClosing = false;
         Error = null;
         TotalRunSeconds = null;
-        Message = "Uncheck bolts to leave only the bolts you want to test.";
+        Message = string.Empty;
         foreach (var row in Bolts)
             row.PropertyChanged -= OnRowChanged;
         Bolts.Clear();
@@ -205,7 +205,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         {
             var completed = await _machine.RunSelectedBoltsAsync(
                 selected.Select(row => row.Bolt.Id).ToArray(), OnResultReceived, cancellationToken);
-            Message = completed ? "Selected-bolt test finished." : "Test stopped.";
+            Message = completed ? "Test completed." : "Test stopped.";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

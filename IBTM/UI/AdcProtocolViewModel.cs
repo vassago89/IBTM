@@ -445,7 +445,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             operation = BeginCommand(cancellationToken);
             _machine.EnsureBoltTestAvailable();
             _state.BoltTestRunning = true;
-            ResultMessage = "Loosening — hold to run; release to stop. No automatic completion judgement.";
+            ResultMessage = "Loosening · release to stop";
             await ConnectedHead.RunReverseAsync(operation.Token);
         }
         catch (Exception exception)
@@ -572,7 +572,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             const int durationMilliseconds = 3000;
             var slave = SlaveAddress;
             IsLogPaused = false;
-            ResultMessage = "Capturing raw RX for 3 seconds; no response parsing.";
+            ResultMessage = "Capturing raw RX · 3 s";
             AppendLog($"CAPTURE BEGIN  ADC {slave}, {Bus.PortName} | {Bus.BaudRate}, {durationMilliseconds} ms");
             var bus = Bus;
             var received = await bus.Monitor.EnqueueAsync(

@@ -17,9 +17,9 @@ public sealed class MoveToPositionButton : Button
         var command = Command;
         var confirmed = WarningDialog.Confirm(Window.GetWindow(this),
             "Move machine axes?",
-            "The machine will move to the selected teaching position.\nCheck the travel path and keep hands clear before starting.",
+            "Keep the travel path clear before moving.",
             $"Unit    {unit.GetDescription()}\nPoint   {point.Name}\nTarget  {target} mm\nSpeed   Configured axis speed",
-            "Move to Position");
+            "Move to Selected Point");
         if (!confirmed || !IsEnabled
             || !ReferenceEquals(DataContext, teaching)
             || !ReferenceEquals(teaching.SelectedPoint, point)

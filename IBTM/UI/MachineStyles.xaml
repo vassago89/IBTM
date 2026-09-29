@@ -95,8 +95,29 @@
         <Setter Property="Fill" Value="{StaticResource AccentAmberBrush}"/>
     </Style>
 
-    <Style x:Key="PresenceLedStyle" TargetType="Ellipse" BasedOn="{StaticResource SafetyLedStyle}">
-        <Setter Property="Fill" Value="{StaticResource DividerBrush}"/>
+    <Style x:Key="SmemaSignalStateStyle" TargetType="TextBlock">
+        <Setter Property="Text" Value="—"/>
+        <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="TextAlignment" Value="Right"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Style.Triggers>
+            <Trigger Property="Tag">
+                <Trigger.Value>
+                    <sys:Boolean>True</sys:Boolean>
+                </Trigger.Value>
+                <Setter Property="Text" Value="ON"/>
+                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag">
+                <Trigger.Value>
+                    <sys:Boolean>False</sys:Boolean>
+                </Trigger.Value>
+                <Setter Property="Text" Value="OFF"/>
+                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="ResultTextStyle" TargetType="TextBlock" BasedOn="{StaticResource MapHintStyle}">

@@ -181,10 +181,7 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <DockPanel Margin="0,0,0,8">
-                        <TextBlock DockPanel.Dock="Right" Text="Select a bolt for details" FontSize="11" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
-                        <TextBlock Text="Bolt results" Style="{StaticResource PanelTitleStyle}"/>
-                    </DockPanel>
+                    <TextBlock Text="Bolt results" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,8"/>
                     <DataGrid Grid.Row="1" ItemsSource="{Binding BoltResults}" SelectedItem="{Binding SelectedBolt, Mode=TwoWay}" AutoGenerateColumns="False"
                         IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False"
                         CanUserReorderColumns="False" HeadersVisibility="Column" GridLinesVisibility="None" RowHeaderWidth="0"
@@ -305,6 +302,6 @@
             </Border>
         </Grid>
         <TextBlock Grid.Row="3" Margin="0,8,0,0" FontSize="11" Foreground="{StaticResource TextMutedBrush}"
-            Text="Fasten = controller result. Vision = bolt inspection. Turns = A3 ÷ 360 against the saved minimum. — = not measured; Not set = no minimum. Torque uses the controller's unit." TextWrapping="Wrap"/>
+            Text="Torque: controller unit" TextWrapping="Wrap"/>
     </Grid>
 </Window>

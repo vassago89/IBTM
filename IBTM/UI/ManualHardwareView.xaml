@@ -50,7 +50,7 @@
                         <CheckBox Content="Rear · Ready to receive" Margin="0,0,0,8"
                             IsChecked="{Binding Conveyor.TestDownstreamReady, Mode=TwoWay}"/>
                     </WrapPanel>
-                    <TextBlock Text="Manual mode only. Auto uses the equipment signals."
+                    <TextBlock Text="Manual test signals"
                         Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
                 </StackPanel>
             </Border>

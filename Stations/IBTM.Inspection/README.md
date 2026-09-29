@@ -22,9 +22,9 @@
 신규 볼트는 그 기본값에서 시작한다(새 레시피 기본: 밝기 128, 최소 비율 1%). 실제 합격 기준은 촬영 영상으로
 맞춰야 한다. 기준값과 같은 밝기 및 최소 비율과 같은 결과는 합격이다.
 
-Teaching의 Inspection Gantry는 포인트 추가·삭제, 좌표 기록, Live·Grab과 촬영 조명을 담당한다.
+Teaching의 Inspection Gantry는 포인트 추가·삭제, 좌표 기록, Live·Update Image + Light과 촬영 조명을 담당한다.
 Live 조명값은 화면에서만 보관하며, 포인트를 선택하면 저장된 조명값을 불러온다.
-Record Position은 좌표와 기준 영상을 저장하고, Grab은 기존 포인트의 영상과 조명만 갱신한다.
+Save X/Y + Image는 좌표와 기준 영상을 저장하고, Update Image + Light는 기존 포인트의 영상과 조명만 갱신한다.
 
 별도 Inspection Teaching은 저장된 기준 영상이나 검사 결과 영상을 불러와 ROI·판독 설정을 조정한다.
 카메라나 축을 제어하지 않으므로 자동 운전 중에도 사용할 수 있다. 볼트를 선택하면 원본과

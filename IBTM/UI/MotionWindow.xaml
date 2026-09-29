@@ -64,13 +64,12 @@
             <TextBlock Text="Motion Monitor" Style="{StaticResource TitleStyle}"/>
             <Button Content="STOP"
                 Command="{Binding StopCommand}"
-                Style="{StaticResource DangerButtonStyle}" HorizontalAlignment="Right" MinWidth="100"
-                ToolTip="Stop all machine operations."/>
+                Style="{StaticResource DangerButtonStyle}" HorizontalAlignment="Right" MinWidth="100"/>
         </Grid>
         <StackPanel Grid.Row="1" Margin="0,6,0,16">
             <TextBlock Text="{Binding ControlStatus}" Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
             <TextBlock
-                Text="All configured axes are monitored, including disabled axes · blue = ON · red = limit / alarm · — = read unavailable"
+                Text="Blue: ON · Red: limit / alarm · —: unknown"
                 Style="{StaticResource PageSubtitleStyle}" Margin="0,4,0,0" TextWrapping="Wrap"/>
         </StackPanel>
         <Grid Grid.Row="2" Margin="0,0,0,16">
@@ -79,7 +78,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="SEARCH · AXIS NUMBER / MECHANISM / AXIS" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6"/>
+                <TextBlock Text="SEARCH · AXIS / NUMBER" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6"/>
                 <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <CheckBox Grid.Column="1" Content="Enabled axes only"
@@ -138,7 +137,7 @@
                             <ColumnDefinition Width="196"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{Binding Address}"
-                            Style="{StaticResource IoAddressStyle}" ToolTip="Active controller axis number."/>
+                            Style="{StaticResource IoAddressStyle}"/>
                         <TextBlock Grid.Column="1" Text="{Binding Axis}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                         <TextBlock Grid.Column="2"
                             Text="{Binding Diagnostics.Snapshot.Position, StringFormat=F3, TargetNullValue=—}"

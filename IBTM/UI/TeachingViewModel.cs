@@ -25,7 +25,7 @@ public enum TeachingMoveMode
 {
     [Description("Jog (hold)")]
     Jog,
-    [Description("Step")]
+    [Description("Step (click)")]
     Step,
 }
 
@@ -137,7 +137,6 @@ public partial class TeachingViewModel : ObservableObject
         MoveModes = Enum.GetValues<TeachingMoveMode>();
         _recipeImageCancellation = new();
         FilteredPoints = [];
-        FasteningPoints = [];
         TeachingUnits = [
             HardwareArea.PcbSupply,
             HardwareArea.PcbPlacementHandler,
@@ -476,6 +475,8 @@ public partial class TeachingViewModel : ObservableObject
         ApplyLightCommand.NotifyCanExecuteChanged();
         AddBoltPointCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
+        MoveFasteningEarlierCommand.NotifyCanExecuteChanged();
+        MoveFasteningLaterCommand.NotifyCanExecuteChanged();
     }
 
     [ObservableProperty]
@@ -492,14 +493,6 @@ public partial class TeachingViewModel : ObservableObject
 
     [ObservableProperty]
     public partial IReadOnlyList<TeachingPoint> FilteredPoints { get; set; }
-
-    [ObservableProperty]
-    public partial IReadOnlyList<TeachingPoint> FasteningPoints { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(MoveFasteningEarlierCommand))]
-    [NotifyCanExecuteChangedFor(nameof(MoveFasteningLaterCommand))]
-    public partial TeachingPoint? SelectedFasteningPoint { get; set; }
 
     [ObservableProperty]
     public partial TeachingPoint? SelectedPoint { get; set; }
@@ -581,7 +574,7 @@ public partial class TeachingViewModel : ObservableObject
                 Point(TeachingTarget.PickupHeadUpperLeftLocatingPin, TeachMode.XYOnly),
                 Point(TeachingTarget.PickupHeadLowerRightLocatingPin, TeachMode.XYOnly),
                 Point(TeachingTarget.BoltPickup, TeachMode.Full),
-                .. Recipes.Current.Pcb.GetBolts(SelectedPcb).OrderBy(bolt => bolt.Head)
+                .. Recipes.Current.Pcb.FasteningPoints.Where(bolt => bolt.HeatSink == SelectedPcb)
                     .Select(bolt => Point(TeachingTarget.BoltPosition, TeachMode.XYOnly, bolt)),
             ],
             HardwareArea.InspectionGantry => [
@@ -607,24 +600,6 @@ public partial class TeachingViewModel : ObservableObject
                 : point.Position.Target == selectedTarget)
             ?? NextTeachingPoint
                 ?? FilteredPoints.FirstOrDefault();
-        RefreshFasteningPoints();
-    }
-
-    private void RefreshFasteningPoints()
-    {
-        var selectedId = SelectedFasteningPoint?.Position.Bolt?.Id;
-        FasteningPoints = Recipes.Current.Pcb.FasteningPoints
-            .Where(bolt => bolt.HeatSink == SelectedPcb)
-            .Select(bolt => FilteredPoints.FirstOrDefault(point =>
-                point.Position.Target == TeachingTarget.BoltPosition && point.Position.Bolt == bolt)
-                ?? new TeachingPoint(
-                new(TeachingTarget.BoltPosition, MotionGroup.BoltFastening, TeachMode.XYOnly) { Bolt = bolt },
-                _settings, Recipes, bolt.HeatSink)).ToArray();
-        SelectedFasteningPoint = FasteningPoints.FirstOrDefault(point => point.Position.Bolt?.Id == selectedId)
-            ?? FasteningPoints.FirstOrDefault();
-        // Reordering keeps the same selected point, but changes its available neighbours.
-        MoveFasteningEarlierCommand.NotifyCanExecuteChanged();
-        MoveFasteningLaterCommand.NotifyCanExecuteChanged();
     }
 
     public IRelayCommand MoveFasteningEarlierCommand { get; }
@@ -643,7 +618,8 @@ public partial class TeachingViewModel : ObservableObject
 
     private bool IsFasteningMoveAllowed(int offset)
     {
-        if (SelectedFasteningPoint?.Position.Bolt is not { } selected)
+        if (!State.SetupEditingEnabled || !IsFasteningSelected
+            || SelectedPoint?.Position is not { Target: TeachingTarget.BoltPosition, Bolt: { } selected })
             return false;
         var bolts = Recipes.Current.Pcb.FasteningPoints.ToList();
         var index = bolts.FindIndex(bolt => bolt.Id == selected.Id);
@@ -659,10 +635,10 @@ public partial class TeachingViewModel : ObservableObject
             return;
         var pcb = Recipes.Current.Pcb;
         var bolts = pcb.FasteningPoints.ToList();
-        var index = bolts.FindIndex(bolt => bolt.Id == SelectedFasteningPoint!.Position.Bolt!.Id);
+        var index = bolts.FindIndex(bolt => bolt.Id == SelectedPoint!.Position.Bolt!.Id);
         (bolts[index], bolts[index + offset]) = (bolts[index + offset], bolts[index]);
         pcb.FasteningOrder = bolts.Select(bolt => bolt.Id).ToList();
-        RefreshFasteningPoints();
+        RefreshTeachingPoints();
     }
 
     private void RefreshPointPositions()
@@ -911,11 +887,11 @@ public partial class TeachingViewModel : ObservableObject
             switch (ActiveMotionGroup)
             {
                 case MotionGroup.PcbSupply:
-                    return "Move Z to Rotation Height";
+                    return "Z → PCB Rotation Height";
                 case MotionGroup.PcbPlacementHandler:
-                    return "Move Z to Standby Height";
+                    return "Z → PCB Handoff Height";
                 default:
-                    return "Move Z to Safe Z";
+                    return "Z → Common Safe Z";
             }
         }
     }
@@ -1529,7 +1505,7 @@ public partial class TeachingViewModel : ObservableObject
             var index = images.FindIndex(tile => point.Inspection.Matches(tile.Metadata));
             var previous = index >= 0 ? images[index].Metadata : null;
             if (!recordPosition && previous is null)
-                throw new InvalidOperationException("No image is linked to this point. Use Move to Position, then Record Position to save its image and coordinates together.");
+                throw new InvalidOperationException("No reference image. Use Move to Selected Point, then Save X/Y + Image.");
             var metadata = new CarrierImageTile
             {
                 Number = previous?.Number ?? (images.Count == 0 ? 1 : images.Max(tile => tile.Metadata.Number) + 1),

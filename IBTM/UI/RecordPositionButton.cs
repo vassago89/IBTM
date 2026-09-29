@@ -12,15 +12,19 @@ public sealed class RecordPositionButton : Button
         if (DataContext is not TeachingViewModel { SelectedPoint: { } point } teaching)
             return;
 
-        var replacement = point.Position.Mode == TeachMode.Image
-            ? "This will replace this point's teaching coordinates and image."
-            : "This will replace this point's teaching coordinates.";
+        var replacement = point.Position.Mode switch
+        {
+            TeachMode.Image => "Replace the recorded X/Y, reference image and light level with the current values.",
+            TeachMode.XYOnly => "Replace the recorded X/Y with the current coordinates.",
+            TeachMode.ZOnly => "Replace the recorded Z with the current coordinate.",
+            _ => "Replace the recorded X/Y/Z with the current coordinates.",
+        };
         var confirmed = WarningDialog.Confirm(
             Window.GetWindow(this),
-            "Overwrite teaching position?",
-            $"{replacement}\nCheck the selected point and current axis position before recording.",
-            $"Unit    {teaching.SelectedTeachingUnit.GetDescription()}\nPoint   {point.Name}\nStored  {point.PositionLabel} mm",
-            "Record Position");
+            point.Position.Mode == TeachMode.Image ? "Save position and image?" : "Record current position?",
+            replacement,
+            $"Unit      {teaching.SelectedTeachingUnit.GetDescription()}\nPoint     {point.Name}\nRecorded (mm)  {point.PositionLabel}",
+            Content?.ToString() ?? "Record Position");
         if (!confirmed
             || !IsEnabled
             || !ReferenceEquals(DataContext, teaching)

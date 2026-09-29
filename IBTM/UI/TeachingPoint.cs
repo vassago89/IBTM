@@ -172,7 +172,8 @@ public class TeachingPoint : ObservableObject
             switch (_definition.Target)
             {
                 case TeachingTarget.BoltPosition:
-                    return TeachingPointGroup.Fastening;
+                    return _definition.Bolt!.Head == FasteningHead.Shooting
+                        ? TeachingPointGroup.ShootingFastening : TeachingPointGroup.PickupFastening;
                 case TeachingTarget.InspectionWaiting or TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace:
                     return TeachingPointGroup.CarrierTransfer;
                 case TeachingTarget.SafeZ or TeachingTarget.ShootingSafeZ or TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ
@@ -193,11 +194,7 @@ public class TeachingPoint : ObservableObject
             if (Inspection is { } inspection)
                 return inspection.PositionLabel;
             if (Coordinates is not { } position)
-            {
-                if (_definition.Target == TeachingTarget.BoltPosition)
-                    return "Record fastening XY; initial conversion needs inspection XY and both sets of reference pins";
                 return "Not taught";
-            }
             if (_definition.Target == TeachingTarget.BoltPosition)
                 return $"X {position.X:F3}  Y {position.Y:F3}  Z {position.Z:F3}";
             switch (_definition.Mode)
@@ -340,6 +337,8 @@ public enum TeachingPointGroup
     CarrierTransfer,
     [Description("Reference positions")]
     MachineReference,
-    [Description("Fastening positions")]
-    Fastening,
+    [Description("Head 2 Shooting")]
+    ShootingFastening,
+    [Description("Head 1 Pickup")]
+    PickupFastening,
 }

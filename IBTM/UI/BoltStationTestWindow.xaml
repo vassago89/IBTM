@@ -37,7 +37,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="100"/>
+            <RowDefinition Height="64"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <DockPanel>
@@ -47,8 +47,8 @@
             <TextBlock Text="Bolt Station" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
         <StackPanel Grid.Row="1" Margin="0,8,0,18">
-            <TextBlock Text="Run only the checked bolts · Shooting first, then Pickup" Style="{StaticResource PageSubtitleStyle}"/>
-            <TextBlock Text="Actual feeding, axis movement and fastening will run. Clear the working area before starting."
+            <TextBlock Text="Shooting → Pickup" Style="{StaticResource PageSubtitleStyle}"/>
+            <TextBlock Text="Axes and fastening heads will move. Keep the work area clear."
                 Foreground="{StaticResource AccentAmberBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
         </StackPanel>
         <Border Grid.Row="2" Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}"
@@ -94,8 +94,7 @@
             </StackPanel>
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="{Binding SelectedCount, StringFormat={}{0} bolts selected}" Style="{StaticResource TestCell}" FontWeight="SemiBold"/>
-                <Border Background="{StaticResource EquipBgBrush}" Padding="12,6" Margin="20,0,0,0" CornerRadius="4"
-                    ToolTip="Total elapsed time including feeding, movement, fastening and cleanup.">
+                <Border Background="{StaticResource EquipBgBrush}" Padding="12,6" Margin="20,0,0,0" CornerRadius="4">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="TOTAL RUN" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
                         <TextBlock Text="{Binding TotalRunSeconds, StringFormat={}{0:0.000} s, TargetNullValue=—}"
@@ -192,10 +191,10 @@
         </ScrollViewer>
         <DockPanel Grid.Row="6">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button Content="Run selected once" Command="{Binding RunCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="170" Margin="0,0,12,0"/>
+                <Button Content="Fasten Selected Bolts" Command="{Binding RunCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="170" Margin="0,0,12,0"/>
                 <Button Content="STOP" Command="{Binding StopCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="120"/>
             </StackPanel>
-            <TextBlock Text="Results are kept for the current carrier.&#10;This test does not release the carrier to the next station."
+            <TextBlock Text="Carrier remains at S2 after testing."
                 Style="{StaticResource PageSubtitleStyle}" VerticalAlignment="Center"/>
         </DockPanel>
     </Grid>

@@ -25,7 +25,7 @@
 
         <Grid>
             <TextBlock Text="Digital Inputs" Style="{StaticResource TitleStyle}"/>
-            <CheckBox Content="Auto Response" ToolTip="Turn off to change sensors manually. Outputs and motion still run."
+            <CheckBox Content="Auto Response" ToolTip="OFF: manual sensor simulation; motion still runs."
                 HorizontalAlignment="Right" VerticalAlignment="Center"
                 IsChecked="{Binding VirtualIo.AutoResponseEnabled, Mode=TwoWay}"
                 Visibility="{Binding IsVirtual, Converter={StaticResource BoolToVis}}"/>
@@ -34,13 +34,13 @@
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,4,0,18">
             <TextBlock.Style>
                 <Style TargetType="TextBlock" BasedOn="{StaticResource PageSubtitleStyle}">
-                    <Setter Property="Text" Value="Blue = energized raw input"/>
+                    <Setter Property="Text" Value="Blue = input ON"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsVirtual}" Value="True">
-                            <Setter Property="Text" Value="Virtual mode · blue = energized · toggle inputs to simulate the machine"/>
+                            <Setter Property="Text" Value="Virtual inputs · click to toggle"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
-                            <Setter Property="Text" Value="I/O disconnected · UNKNOWN (—). Input states are unavailable, not OFF."/>
+                            <Setter Property="Text" Value="I/O disconnected · input states unknown"/>
                             <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                         </DataTrigger>
                     </Style.Triggers>
@@ -55,8 +55,8 @@
                 <ColumnDefinition Width="230"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="SEARCH" Style="{StaticResource SectionHeaderStyle}"/>
-                <TextBox Margin="0,6,0,0" ToolTip="Search by signal name or configured I/O number."
+                <TextBlock Text="SEARCH · SIGNAL / CHANNEL" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBox Margin="0,6,0,0"
                     Text="{Binding Filter.SearchText, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <StackPanel Grid.Column="2">
@@ -75,7 +75,7 @@
                 <ColumnDefinition Width="110"/>
                 <ColumnDefinition Width="90"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="NO." Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Text="CH." Style="{StaticResource SectionHeaderStyle}"/>
             <TextBlock Grid.Column="1" Text="INPUT" Style="{StaticResource SectionHeaderStyle}"/>
             <TextBlock Grid.Column="2" Text="STATE" Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>

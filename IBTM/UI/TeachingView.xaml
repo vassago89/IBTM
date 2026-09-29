@@ -22,11 +22,6 @@
                 <PropertyGroupDescription PropertyName="Group"/>
             </CollectionViewSource.GroupDescriptions>
         </CollectionViewSource>
-        <CollectionViewSource x:Key="FasteningPoints" Source="{Binding FasteningPoints}">
-            <CollectionViewSource.GroupDescriptions>
-                <PropertyGroupDescription PropertyName="Position.Bolt.Head"/>
-            </CollectionViewSource.GroupDescriptions>
-        </CollectionViewSource>
     </UserControl.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -43,7 +38,7 @@
                 <Button Command="{Binding SaveCommand}" Margin="0,0,6,0">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                            <Setter Property="Content" Value="Save"/>
+                            <Setter Property="Content" Value="Save Teaching"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
                                     <Setter Property="Content" Value="Saving..."/>
@@ -73,6 +68,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
                         <TextBlock Text="Teaching Unit" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,6"/>
@@ -142,6 +138,13 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ui:TeachingPointList>
+                    <UniformGrid Grid.Row="2" Columns="2" Margin="0,8,0,0"
+                        Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}">
+                        <Button Content="↑ Earlier" Command="{Binding MoveFasteningEarlierCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="0,0,3,0"/>
+                        <Button Content="↓ Later" Command="{Binding MoveFasteningLaterCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}" Padding="8,6" Margin="3,0,0,0"/>
+                    </UniformGrid>
                 </Grid>
             </Border>
             <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="12">
@@ -187,7 +190,7 @@
                                     <TextBox Text="{Binding SelectedPoint.FasteningZOffset, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
                                 </StackPanel>
                                 <StackPanel Width="180">
-                                    <TextBlock Text="Min. turns (0 = off)" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Min. turns (0 = no check)" Margin="0,0,0,4"/>
                                     <TextBox Text="{Binding SelectedPoint.Position.Bolt.MinimumTurns, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                 </StackPanel>
                             </WrapPanel>
@@ -195,111 +198,65 @@
                     </StackPanel>
                     <TabControl Grid.Row="1" Style="{StaticResource SectionTabs}"
                         ItemContainerStyle="{StaticResource SectionTab}"
-                        Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}">
-                        <TabItem>
-                            <TabItem.Style>
-                                <Style TargetType="TabItem" BasedOn="{StaticResource SectionTab}">
-                                    <Setter Property="Header" Value="Fastening order"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsInspectionSelected}" Value="True">
-                                            <Setter Property="Header" Value="Camera"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TabItem.Style>
+                        Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
+                        <TabItem Header="Camera">
                             <Grid>
-                                <Grid Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                    </Grid.RowDefinitions>
-                                    <WrapPanel Margin="0,0,0,4">
-                                        <ComboBox ItemsSource="{Binding FasteningHeads}" Width="180" Margin="0,0,8,4"
-                                            SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <Button Content="Add Bolt" Command="{Binding AddBoltPointCommand}"
-                                            Style="{StaticResource PrimaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
-                                        <Button Content="Remove Bolt" Command="{Binding RemoveBoltPointCommand}"
-                                            Style="{StaticResource DangerButtonStyle}" Padding="12,7" Margin="0,0,0,4"/>
-                                    </WrapPanel>
-                                    <WrapPanel Grid.Row="1" Margin="0,0,0,4">
-                                        <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" MinWidth="75" Padding="12,7">
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                                    <Setter Property="Content" Value="Live"/>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <WrapPanel Margin="0,0,0,4">
+                                    <ComboBox ItemsSource="{Binding FasteningHeads}" Width="180" Margin="0,0,8,4"
+                                        SelectedItem="{Binding NewFasteningHead, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button Content="Add Bolt" Command="{Binding AddBoltPointCommand}"
+                                        Style="{StaticResource PrimaryButtonStyle}" Padding="12,7" Margin="0,0,8,4"/>
+                                    <Button Content="Remove Bolt" Command="{Binding RemoveBoltPointCommand}"
+                                        Style="{StaticResource DangerButtonStyle}" Padding="12,7" Margin="0,0,0,4"/>
+                                </WrapPanel>
+                                <WrapPanel Grid.Row="1" Margin="0,0,0,4">
+                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" MinWidth="75" Padding="12,7">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                <Setter Property="Content" Value="Start Live"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
+                                                        <Setter Property="Content" Value="Stop Live"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Update Image + Light" Command="{Binding GrabCommand}" Margin="0,0,12,4" Padding="12,7"
+                                        Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding State.SetupEditingEnabled}">
+                                        <TextBlock Text="Light (0–255)" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <TextBox Width="55" Margin="0,0,8,0"
+                                            Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                        <Button Content="Apply Light" Command="{Binding ApplyLightCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}" Padding="12,7"/>
+                                    </StackPanel>
+                                </WrapPanel>
+                                <Border Grid.Row="2" Background="{StaticResource ImageBackgroundBrush}">
+                                    <Grid>
+                                        <ui:ImageTeachingView Source="{Binding CameraImage}" ShowCrosshair="True"/>
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Setter Property="Text" Value="No reference image"/>
                                                     <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding CameraImage}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
                                                         <DataTrigger Binding="{Binding Inspection.IsLiveView}" Value="True">
-                                                            <Setter Property="Content" Value="Stop Live"/>
+                                                            <Setter Property="Text" Value="Waiting for camera image"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </Button.Style>
-                                        </Button>
-                                        <Button Content="Grab" Command="{Binding GrabCommand}" Margin="0,0,12,4" MinWidth="75" Padding="12,7"
-                                            Style="{StaticResource SecondaryButtonStyle}"/>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4" IsEnabled="{Binding State.SetupEditingEnabled}">
-                                            <TextBlock Text="Light (0–255)" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBox Width="55" Margin="0,0,8,0"
-                                                Text="{Binding LiveLightLevel, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                            <Button Content="Apply" Command="{Binding ApplyLightCommand}"
-                                                Style="{StaticResource SecondaryButtonStyle}" Padding="12,7"/>
-                                        </StackPanel>
-                                    </WrapPanel>
-                                    <Border Grid.Row="2" Background="{StaticResource ImageBackgroundBrush}">
-                                        <Grid>
-                                            <ui:ImageTeachingView Source="{Binding CameraImage}" ShowCrosshair="True"/>
-                                            <TextBlock Text="No image" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                Foreground="{StaticResource TextMutedBrush}" IsHitTestVisible="False">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding CameraImage}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Grid>
-                                    </Border>
-                                </Grid>
-                                <Border
-                                    Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="*"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
-                                        <ListBox ItemsSource="{Binding Source={StaticResource FasteningPoints}}"
-                                            SelectedItem="{Binding SelectedFasteningPoint, UpdateSourceTrigger=PropertyChanged}"
-                                            Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}"
-                                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                            BorderThickness="1" ItemContainerStyle="{StaticResource FlatListItemStyle}">
-                                            <ListBox.GroupStyle>
-                                                <GroupStyle>
-                                                    <GroupStyle.HeaderTemplate>
-                                                        <DataTemplate DataType="{x:Type data:CollectionViewGroup}">
-                                                            <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
-                                                                FontWeight="SemiBold" Margin="8,12,4,6" TextWrapping="Wrap"
-                                                                Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                        </DataTemplate>
-                                                    </GroupStyle.HeaderTemplate>
-                                                </GroupStyle>
-                                            </ListBox.GroupStyle>
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate DataType="{x:Type ui:TeachingPoint}">
-                                                    <TextBlock Text="{Binding BoltLabel}" Margin="6,8" FontWeight="SemiBold"
-                                                        TextWrapping="Wrap"/>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                        <UniformGrid Grid.Row="1" Columns="2" Margin="0,10,0,0">
-                                            <Button Content="↑ Move up" Command="{Binding MoveFasteningEarlierCommand}"
-                                                Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,3,0"/>
-                                            <Button Content="↓ Move down" Command="{Binding MoveFasteningLaterCommand}"
-                                                Style="{StaticResource SecondaryButtonStyle}" Margin="3,0,0,0"/>
-                                        </UniformGrid>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </Grid>
                                 </Border>
                             </Grid>
@@ -313,7 +270,7 @@
                             <Style TargetType="ContentPresenter">
                                 <Setter Property="Visibility" Value="Visible"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding BoltPointEditorVisible}" Value="True">
+                                    <DataTrigger Binding="{Binding IsInspectionSelected}" Value="True">
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -321,9 +278,29 @@
                         </ContentPresenter.Style>
                     </ContentPresenter>
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                        <ui:RecordPositionButton Content="Record Position" Command="{Binding TeachCurrentPositionCommand}"
-                            Style="{StaticResource PrimaryButtonStyle}" MinWidth="150" Padding="12,8" Margin="0,0,8,0"/>
-                        <ui:MoveToPositionButton Content="Move to Position" Command="{Binding MoveToPointCommand}"
+                        <ui:RecordPositionButton Command="{Binding TeachCurrentPositionCommand}"
+                            MinWidth="150" Padding="12,8" Margin="0,0,8,0">
+                            <ui:RecordPositionButton.Style>
+                                <Style TargetType="ui:RecordPositionButton" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                    <Setter Property="Content" Value="Record Position"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.Full}">
+                                            <Setter Property="Content" Value="Record X/Y/Z"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.XYOnly}">
+                                            <Setter Property="Content" Value="Record X/Y"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.ZOnly}">
+                                            <Setter Property="Content" Value="Record Z"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectedPoint.Position.Mode}" Value="{x:Static device:TeachMode.Image}">
+                                            <Setter Property="Content" Value="Save X/Y + Image"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:RecordPositionButton.Style>
+                        </ui:RecordPositionButton>
+                        <ui:MoveToPositionButton Content="Move to Selected Point" Command="{Binding MoveToPointCommand}"
                             Style="{StaticResource SecondaryButtonStyle}" MinWidth="150" Padding="12,8"/>
                     </StackPanel>
                 </Grid>
@@ -338,7 +315,7 @@
                         <StackPanel>
                             <TextBlock Text="Motion" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,10"/>
                             <ui:TeachingMotionView/>
-                            <Button Content="Return from Bolt Pickup" Command="{Binding ReturnFromPickupCommand}"
+                            <Button Content="Safe Z → Raise Pickup Head" Command="{Binding ReturnFromPickupCommand}"
                                 Margin="0,8,0,0" Style="{StaticResource SecondaryButtonStyle}"
                                 Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>

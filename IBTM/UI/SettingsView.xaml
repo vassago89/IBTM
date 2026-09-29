@@ -92,8 +92,6 @@
             <RowDefinition Height="84"/>
         </Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,12">
-            <TextBlock Text="Timing: seconds (s) · decimals allowed, e.g. 0.1 or 1.5" Style="{StaticResource SettingHelpText}"
-                DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center"/>
             <TextBlock Text="Settings" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
         <TabControl Grid.Row="1" Style="{StaticResource SectionTabs}" ItemContainerStyle="{StaticResource SectionTab}">
@@ -153,15 +151,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Feedback / stop timeout (s)" Style="{StaticResource SettingFieldLabel}"
+                                        <TextBlock Text="Cylinder / stop timeout (s)" Style="{StaticResource SettingFieldLabel}"
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Options.TimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Maximum wait for cylinder position feedback or stop confirmation."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
-                                    <TextBlock Text="Maximum wait for cylinder feedback or stop confirmation."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -190,19 +185,18 @@
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.TransferTimeoutSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Wait limit for entry, destination HS2 and rear Ready OFF. The belt stops and an alarm is raised on timeout."/>
+                                            ToolTip="Entry, destination HS2 and Rear Ready OFF waits."/>
                                     </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Seating extra run (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="After arrival sensor (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.CarrierStopDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Continue after destination HS2 detection at S1, S2 or S3. 0 disables the extra run."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
@@ -213,10 +207,9 @@
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Conveyor.RearSmemaOffDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Continue discharge after downstream SMEMA Ready turns OFF. 0 stops immediately."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
-                                    <TextBlock Text="Station work and SMEMA readiness waits before transfer are outside the transfer timeout."
+                                    <TextBlock Text="Excludes station work and SMEMA waiting."
                                         Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
@@ -246,10 +239,8 @@
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.NgConveyor.EjectRunSeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Run for this time if S1 is occupied, or start timing when the carrier reaches S1."/>
+                                            ToolTip="Timed from S1 detection."/>
                                     </Grid>
-                                    <TextBlock Text="EJECT discharges one carrier per press. COMPLETE resumes automatic loading."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -284,15 +275,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Additional pickup attempts" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="Pickup retries (0 = off)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.PickupRetryCount, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="After lifting to Safe Z, check vacuum. If absent, lower, pick and lift again. 0 = no retry."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
-                                    <TextBlock Text="Vacuum is checked after lifting to Safe Z. 0 additional attempts disables retry."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource SettingCard}">
@@ -307,8 +295,7 @@
                                             Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.Hantas.FasteningTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Maximum wait for the controller result after fastening starts."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
@@ -319,10 +306,9 @@
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.DryRunMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="With the feeder OFF or in Repeat, run after head DOWN, then stop without waiting for a fastening result."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
-                                    <TextBlock Text="Dry run duration applies when the feeder is OFF or Repeat is selected."
+                                    <TextBlock Text="Used with the feeder disabled or Repeat."
                                         Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
@@ -347,12 +333,11 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Feed after detection (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="After bolt detection (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFeeder.ShootingRunOnMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="After Bolt Detected turns ON, keep the feeder running for this time, then stop."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
@@ -364,22 +349,19 @@
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.ShootingDetectionTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Separate timeout for tube passage ON and tube clearance OFF."/>
+                                            ToolTip="Applies separately to tube sensor ON and OFF."/>
                                     </Grid>
                                     <Grid Margin="0,0,0,8" MinHeight="34">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Head arrival delay (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="Tube detection → head arrival (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.BoltFastening.ShootingArrivalDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            VerticalAlignment="Center" Grid.Column="1"
-                                            ToolTip="Minimum time from tube detection until the bolt supply is ready. Head vacuum ON is not required."/>
+                                            VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
-                                    <TextBlock Text="Feed after detection keeps replenishment running after the feeder sensor turns ON."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -466,7 +448,7 @@
                                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"/>
                                             </Grid>
                                             <TextBlock
-                                                Text="Speeds and acceleration times must be greater than 0. Blank Z times use the corresponding X / Y times."
+                                                Text="Blank Z acceleration / deceleration uses X / Y."
                                                 Style="{StaticResource SettingHelpText}"/>
                                         </StackPanel>
                                     </Border>
@@ -600,12 +582,9 @@
                                         Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}"
                                         ItemTemplate="{StaticResource AxisMappingTemplate}" Padding="0"
                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled"/>
-                                    <TextBlock
-                                        Text="Axis mapping and home signal changes require Save and restart. Controller setting preserves the controller’s configured home signal."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
-                            <TextBlock Text="Valid motion edits apply to subsequent moves. Save keeps them after restart."
+                            <TextBlock Text="Motion changes apply to the next move."
                                 Style="{StaticResource SettingHelpText}"/>
                         </StackPanel>
                     </ScrollViewer>
@@ -657,8 +636,6 @@
                                                 Text="{Binding Settings.AlphaMotion.ControllerNumber, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Column="1"/>
                                         </Grid>
-                                        <TextBlock Text="Driver and controller changes take effect after Save and restart."
-                                            Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -733,12 +710,9 @@
                                             <TextBlock Text="Status poll interval (s)" Style="{StaticResource SettingFieldLabel}"
                                                 Margin="0,0,12,0" VerticalAlignment="Center"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                ToolTip="Shared monitor interval, including idle time. Fastening uses these samples and reads the result after RUN turns OFF."
                                                 Text="{Binding Settings.Hantas.StatusPollMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                                 VerticalAlignment="Center" Grid.Column="1"/>
                                         </Grid>
-                                        <TextBlock Text="COM port, baud rate and slave ID changes require Save and restart."
-                                            Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -780,8 +754,6 @@
                                             Text="{Binding Settings.InspectionCamera.FrameTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             VerticalAlignment="Center" Grid.Column="1"/>
                                     </Grid>
-                                    <TextBlock Text="Camera connection changes take effect after Save and restart."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource SettingCard}"
@@ -801,9 +773,9 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </StackPanel.Style>
-                                            <Button Content="Open Image" Command="{Binding LoadVirtualImageCommand}" Margin="0,0,8,0"
+                                            <Button Content="Load Test Image" Command="{Binding LoadVirtualImageCommand}" Margin="0,0,8,0"
                                                 Style="{StaticResource SecondaryButtonStyle}"/>
-                                            <Button Content="Use Generated" Command="{Binding ClearVirtualImageCommand}"
+                                            <Button Content="Use Test Pattern" Command="{Binding ClearVirtualImageCommand}"
                                                 Style="{StaticResource SecondaryButtonStyle}"/>
                                         </StackPanel>
                                         <TextBlock Text="{Binding VirtualImageError}" TextWrapping="Wrap" Margin="0,6,0,0"/>
@@ -848,16 +820,12 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Stabilization delay (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
+                                        <TextBlock Text="Light ON → capture delay (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,0,12,0"
                                             VerticalAlignment="Center"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding Settings.Lighting.StabilizationDelayMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                            ToolTip="Delay from light ON to image capture. 0 disables the delay." VerticalAlignment="Center"
+                                            Text="{Binding Settings.Lighting.StabilizationDelayMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" VerticalAlignment="Center"
                                             Grid.Column="1"/>
                                     </Grid>
-                                    <TextBlock
-                                        Text="Connection changes require Save and restart. Point brightness is set in Inspection Gantry Teaching."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource SettingCard}">
@@ -890,9 +858,9 @@
                                             Grid.Column="1"/>
                                     </Grid>
                                     <UniformGrid Columns="2">
-                                        <Button Content="ON / Test" Command="{Binding TestLightCommand}"
+                                        <Button Content="Light ON" Command="{Binding TestLightCommand}"
                                             Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,4,0"/>
-                                        <Button Content="OFF" Command="{Binding OffTestLightCommand}" Style="{StaticResource DangerButtonStyle}"
+                                        <Button Content="Light OFF" Command="{Binding OffTestLightCommand}" Style="{StaticResource DangerButtonStyle}"
                                             MinWidth="100" Margin="4,0,0,0"/>
                                     </UniformGrid>
                                     <ScrollViewer Height="40" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto"
@@ -925,9 +893,6 @@
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding PcbResultsDirectory, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
                                     </DockPanel>
-                                    <TextBlock
-                                        Text="Monthly files: PCB-yyyy-MM.db. PCB numbers continue across months. Save to keep this folder."
-                                        Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -956,7 +921,7 @@
                                         </Grid>
                                     </Border>
                                     <TextBlock
-                                        Text="Machine logs use this folder; ADC logs use its Communication subfolder. Files roll daily and at 100 MB. Save and restart to apply."
+                                        Text="ADC logs: Communication subfolder."
                                         Style="{StaticResource SettingHelpText}"/>
                                 </StackPanel>
                             </Border>
@@ -966,112 +931,103 @@
             </TabItem>
             <TabItem Header="I/O mapping">
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="Channel numbers are decimal. Save and restart after changing I/O addresses."
-                        Style="{StaticResource SettingHelpText}"/>
-                    <Grid Grid.Row="1" Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Border Style="{StaticResource SettingCard}" Margin="0">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="Digital inputs" Style="{StaticResource SettingSectionTitle}"/>
-                                <Grid Grid.Row="1" Margin="9,0,26,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="76"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Input signal" Style="{StaticResource SettingFieldLabel}" Grid.Column="0" Margin="0,0,4,0"/>
-                                    <TextBlock Text="Channel" Style="{StaticResource SettingFieldLabel}" Grid.Column="1" Margin="4,0,4,0"/>
-                                </Grid>
-                                <ListBox IsEnabled="{Binding IsSettingsEditAllowed}" ItemsSource="{Binding InputMappingView}"
-                                    Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}" Grid.Row="2"
-                                    Padding="0" ScrollViewer.VerticalScrollBarVisibility="Visible"
-                                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                    <ListBox.GroupStyle>
-                                        <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
-                                            HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
-                                        <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
-                                            HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
-                                    </ListBox.GroupStyle>
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type ui:HardwareMappingRow}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="76"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
-                                                    ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
-                                                    Style="{StaticResource HardwareSignalText}"/>
-                                                <TextBox Grid.Column="1" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
-                                                    MinWidth="0" Padding="5,3" Margin="4,0"/>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource SettingCard}" Margin="0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Digital inputs" Style="{StaticResource SettingSectionTitle}"/>
+                            <Grid Grid.Row="1" Margin="9,0,26,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="76"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Input signal" Style="{StaticResource SettingFieldLabel}" Grid.Column="0" Margin="0,0,4,0"/>
+                                <TextBlock Text="CH (dec)" Style="{StaticResource SettingFieldLabel}" Grid.Column="1" Margin="4,0,4,0"/>
                             </Grid>
-                        </Border>
-                        <Border Style="{StaticResource SettingCard}" Margin="0" Grid.Column="2">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="Digital outputs" Style="{StaticResource SettingSectionTitle}"/>
-                                <Grid Grid.Row="1" Margin="9,0,26,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="76"/>
-                                        <ColumnDefinition Width="76"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Output signal" Style="{StaticResource SettingFieldLabel}" Grid.Column="0" Margin="0,0,4,0"/>
-                                    <TextBlock Text="ON ch." Style="{StaticResource SettingFieldLabel}" Grid.Column="1" Margin="4,0,4,0"/>
-                                    <TextBlock Text="OFF ch." Style="{StaticResource SettingFieldLabel}" Grid.Column="2" Margin="4,0,4,0"/>
-                                </Grid>
-                                <ListBox IsEnabled="{Binding IsSettingsEditAllowed}" ItemsSource="{Binding OutputMappingView}"
-                                    Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}" Grid.Row="2"
-                                    Padding="0" ScrollViewer.VerticalScrollBarVisibility="Visible"
-                                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                    <ListBox.GroupStyle>
-                                        <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
-                                            HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
-                                        <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
-                                            HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
-                                    </ListBox.GroupStyle>
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type ui:HardwareMappingRow}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="76"/>
-                                                    <ColumnDefinition Width="76"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
-                                                    ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
-                                                    Style="{StaticResource HardwareSignalText}"/>
-                                                <TextBox Grid.Column="1" Text="{Binding Output.Number, UpdateSourceTrigger=PropertyChanged}"
-                                                    MinWidth="0" Padding="5,3" Margin="4,0"/>
-                                                <TextBox Grid.Column="2" Text="{Binding Output.OffNumber, UpdateSourceTrigger=PropertyChanged}"
-                                                    ToolTip="Reverse output channel" MinWidth="0" Padding="5,3" Margin="4,0"/>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
+                            <ListBox IsEnabled="{Binding IsSettingsEditAllowed}" ItemsSource="{Binding InputMappingView}"
+                                Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}" Grid.Row="2"
+                                Padding="0" ScrollViewer.VerticalScrollBarVisibility="Visible"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.GroupStyle>
+                                    <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
+                                        HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                                    <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
+                                        HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
+                                </ListBox.GroupStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type ui:HardwareMappingRow}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="76"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                                ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                                Style="{StaticResource HardwareSignalText}"/>
+                                            <TextBox Grid.Column="1" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
+                                                MinWidth="0" Padding="5,3" Margin="4,0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+                    <Border Style="{StaticResource SettingCard}" Margin="0" Grid.Column="2">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Digital outputs" Style="{StaticResource SettingSectionTitle}"/>
+                            <Grid Grid.Row="1" Margin="9,0,26,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="76"/>
+                                    <ColumnDefinition Width="76"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Output signal" Style="{StaticResource SettingFieldLabel}" Grid.Column="0" Margin="0,0,4,0"/>
+                                <TextBlock Text="ON (dec)" Style="{StaticResource SettingFieldLabel}" Grid.Column="1" Margin="4,0,4,0"/>
+                                <TextBlock Text="OFF (dec)" Style="{StaticResource SettingFieldLabel}" Grid.Column="2" Margin="4,0,4,0"/>
                             </Grid>
-                        </Border>
-                    </Grid>
+                            <ListBox IsEnabled="{Binding IsSettingsEditAllowed}" ItemsSource="{Binding OutputMappingView}"
+                                Style="{StaticResource PanelListStyle}" ItemContainerStyle="{StaticResource HardwareListItem}" Grid.Row="2"
+                                Padding="0" ScrollViewer.VerticalScrollBarVisibility="Visible"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.GroupStyle>
+                                    <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
+                                        HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                                    <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
+                                        HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
+                                </ListBox.GroupStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type ui:HardwareMappingRow}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="76"/>
+                                                <ColumnDefinition Width="76"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                                ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                                Style="{StaticResource HardwareSignalText}"/>
+                                            <TextBox Grid.Column="1" Text="{Binding Output.Number, UpdateSourceTrigger=PropertyChanged}"
+                                                MinWidth="0" Padding="5,3" Margin="4,0"/>
+                                            <TextBox Grid.Column="2" Text="{Binding Output.OffNumber, UpdateSourceTrigger=PropertyChanged}" MinWidth="0" Padding="5,3" Margin="4,0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
                 </Grid>
             </TabItem>
         </TabControl>
@@ -1086,7 +1042,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Save Settings keeps all changes. Hardware connections, I/O addresses and log settings require a restart."
+                    <TextBlock Text="Hardware and log changes require Save + restart."
                         Style="{StaticResource SettingHelpText}"/>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <TextBlock Text="{Binding DatabaseMessage}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
