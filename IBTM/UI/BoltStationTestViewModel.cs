@@ -163,7 +163,7 @@ public partial class BoltStationTestViewModel : ObservableObject
         }
         if (RunCommand.IsRunning && _station.ActiveBolt is { } active)
         {
-            var row = Bolts.FirstOrDefault(item => item.Bolt == active);
+            var row = Bolts.FirstOrDefault(item => item.Bolt.Id == active.Id);
             if (row is not null && row.Result is null)
                 row.Status = "Running";
         }
@@ -182,7 +182,7 @@ public partial class BoltStationTestViewModel : ObservableObject
             dispatcher.BeginInvoke(() => OnResultReceived(bolt, result));
             return;
         }
-        var row = Bolts.FirstOrDefault(item => item.Bolt == bolt);
+        var row = Bolts.FirstOrDefault(item => item.Bolt.Id == bolt.Id);
         if (row is null)
             return;
         row.Result = result;

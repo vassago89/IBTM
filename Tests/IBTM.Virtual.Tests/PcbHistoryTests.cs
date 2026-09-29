@@ -124,7 +124,7 @@ public sealed class PcbHistoryTests
         {
             recipe.Pcb.BoltPoints.Add(new()
             {
-                Name = "고정",
+                Name = index == 5 ? null : "고정",
                 Head = index < 4 ? FasteningHead.Shooting : FasteningHead.Pickup,
             });
         }
@@ -141,12 +141,16 @@ public sealed class PcbHistoryTests
 
         var history = services.GetRequiredService<PcbHistory>();
         var assembly = services.GetRequiredService<BoltFasteningStation>().Station.GetAssembly(HeatSinkSlot.HeatSink1);
+        bolts[0].Name = "작업 중 변경";
         for (var index = 0; index < bolts.Length; index++)
         {
             assembly.RecordBolt(bolts[index].Head, bolts[index].Id,
                 new(index != 4, index == 4 ? null : 8 + index, Error: index == 4 ? "ADC response error" : null));
         }
         assembly.CompleteFastening();
+        assembly.RecordInspectionCapture(new(bolts[4].Id, DateTimeOffset.Now,
+            new ImageFrame(2, 1, 6, [0, 0, 255, 0, 255, 0]), new PixelRegion(0, 0, 1, 1), false,
+            BrightRatio: 0.1, MinimumBrightRatio: 0.8));
         recipes.Current.Pcb.BoltPoints.Move(0, 5);
         bolts[4].Name = "변경된 이름";
         await recipes.SaveAsync(recipe.Name);
@@ -158,6 +162,8 @@ public sealed class PcbHistoryTests
         Assert.Equal(2, record.PickupBoltResults.Count);
         Assert.Equal(AssemblyResult.Ng, record.FasteningResult);
         Assert.Equal(bolts.Select(bolt => bolt.Id), record.BoltIds);
+        Assert.NotNull(record.BoltNames);
+        Assert.Equal(6, record.BoltNames.Count);
         Assert.Equal(bolts.Select(bolt => bolt.Id).Order(), reopened.LoadRecipe(recipe.Name).Pcb.BoltPoints.Select(bolt => bolt.Id).Order());
         using (var connection = new SqliteConnection($"Data Source={record.DatabaseFile};Mode=ReadOnly"))
         {
@@ -185,11 +191,34 @@ public sealed class PcbHistoryTests
             Assert.Equal(bolts[index].Head, row.Head);
             Assert.Equal(index != 4, row.Result.Success);
             Assert.Equal(index == 4 ? null : (double?)(8 + index), row.Result.Torque);
+            Assert.Equal(index == 5 ? null : "고정", record.BoltNames[bolts[index].Id]);
+            Assert.Equal(index == 5 ? "Bolt 6" : "고정", row.BoltLabel);
         }
         details.SelectedBolt = details.BoltResults[4];
         Assert.Equal("ADC response error", details.SelectedBolt.Result.Error);
         Assert.True(details.BoltResults[5].Result.Success);
         await details.LoadImagesCommand.ExecuteAsync(null);
+        Assert.Equal(bolts[4].Id, details.SelectedImage?.Record.BoltId);
+        Assert.Equal("고정", details.SelectedImage?.Title);
+
+        store.SaveRecipe(new Recipe { Name = "Other" });
+        await recipes.LoadAsync("Other");
+        details.Record = record with { UpdatedAt = record.UpdatedAt.AddSeconds(1) };
+        Assert.Equal(bolts[4].Id, details.SelectedBolt?.BoltId);
+        Assert.Equal("고정", details.SelectedBolt?.BoltLabel);
+        await details.LoadImagesCommand.ExecuteAsync(null);
+        Assert.Equal("고정", details.SelectedImage?.Title);
+
+        // Records saved before display names were added retain their own GUID order.
+        var legacyJson = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(record))!;
+        legacyJson.AsObject().Remove(nameof(PcbRecord.BoltNames));
+        var legacy = System.Text.Json.JsonSerializer.Deserialize<PcbRecord>(legacyJson.ToJsonString())!;
+        details.Record = legacy with { Number = record.Number, DatabaseFile = record.DatabaseFile };
+        Assert.Equal(Enumerable.Range(1, 6).Select(number => $"Bolt {number}"),
+            details.BoltResults.Select(row => row.BoltLabel));
+        await details.LoadImagesCommand.ExecuteAsync(null);
+        Assert.Equal(bolts[4].Id, details.SelectedImage?.Record.BoltId);
+        Assert.Equal("Bolt 5", details.SelectedImage?.Title);
     }
 
     [Fact]

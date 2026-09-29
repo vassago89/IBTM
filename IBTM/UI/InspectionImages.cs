@@ -44,16 +44,14 @@ public sealed class InspectionImages
         }).ToArray(), cancellationToken);
     }
 
-    public Task<PcbInspectionImageView[]> LoadRecordAsync(PcbRecord record, Recipe recipe, CancellationToken cancellationToken = default)
+    public Task<PcbInspectionImageView[]> LoadRecordAsync(PcbRecord record, CancellationToken cancellationToken = default)
     {
-        var names = MachineStore.IsSameRecipeName(record.RecipeName, recipe.Name)
-            ? recipe.Pcb.BoltPoints.ToDictionary(bolt => bolt.Id, bolt => bolt.Name) : [];
         return Task.Run(() => _store.LoadPcbImages(record).Select(image =>
         {
             cancellationToken.ThrowIfCancellationRequested();
             return new PcbInspectionImageView(image, InspectionPreview.DecodeImage(image.Png),
                 image.BoltId is { } id ? record.GetBoltOrdinal(id) : null,
-                image.BoltId is { } boltId ? names.GetValueOrDefault(boltId) : null);
+                image.BoltId is { } boltId ? record.BoltNames?.GetValueOrDefault(boltId) : null);
         }).ToArray(), cancellationToken);
     }
 }

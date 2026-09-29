@@ -111,6 +111,85 @@ public sealed class DiagnosticToolsTests
     }
 
     [Fact]
+    public async Task HistoryDirectoryChangeDiscardsPendingListAndImageLoads()
+    {
+        await using var services = CreateServices(new RecordingLight());
+        var store = services.GetRequiredService<MachineStore>();
+        var editor = services.GetRequiredService<InspectionTeachingViewModel>();
+        var directory = Path.Combine(Path.GetTempPath(), $"IBTM-history-switch-{Guid.NewGuid():N}");
+        var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Default", HeatSinkSlot.HeatSink1,
+            null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), [])
+        {
+            DatabaseFile = Path.Combine(directory, "PCB-2026-09.db"),
+        };
+        store.SavePcb(record.DatabaseFile, record);
+        foreach (var load in new[] { editor.RefreshHistoryCommand, editor.LoadRecordCommand })
+        {
+            editor.HistoryDirectory = directory;
+            editor.SelectedRecord = record;
+            var context = new PausedSynchronizationContext();
+            var previous = SynchronizationContext.Current;
+            Task pending;
+            try
+            {
+                SynchronizationContext.SetSynchronizationContext(context);
+                pending = load.ExecuteAsync(null);
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previous);
+            }
+            try
+            {
+                Assert.True(await VirtualTest.WaitUntilAsync(() => context.HasPending, TimeSpan.FromSeconds(2)));
+                editor.HistoryDirectory = Path.Combine(directory, "other");
+                context.Release();
+                await pending.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.Empty(editor.Records);
+                Assert.Null(editor.LoadedRecord);
+                Assert.Null(editor.SelectedRecord);
+                Assert.Empty(editor.HistoryImages);
+                Assert.Null(editor.Error);
+            }
+            finally
+            {
+                context.Release();
+                await editor.ShutdownAsync();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task BoltTestMatchesRecreatedPointsByGuidRatherThanNameOrReference()
+    {
+        await using var services = CreateServices(new RecordingLight());
+        var recipes = services.GetRequiredService<RecipeManager>();
+        var first = new BoltPoint { Name = "Same name" };
+        var second = new BoltPoint { Name = "Same name" };
+        recipes.Current.Pcb.BoltPoints = [first, second];
+        var test = services.GetRequiredService<BoltStationTestViewModel>();
+        test.Activate();
+        try
+        {
+            var result = new BoltResult(true, 8);
+            var callback = typeof(BoltStationTestViewModel).GetMethod("OnResultReceived",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            callback.Invoke(test, [new BoltPoint(second.Id) { Name = "Renamed" }, result]);
+            Assert.Null(test.Bolts[0].Result);
+            Assert.Same(result, test.Bolts[1].Result);
+            Assert.Equal("OK", test.Bolts[1].Status);
+            callback.Invoke(test, [new BoltPoint { Name = "Same name" }, new BoltResult(false, null)]);
+            Assert.Same(result, test.Bolts[1].Result);
+            Assert.Null(test.Bolts[0].Result);
+        }
+        finally
+        {
+            test.Deactivate();
+        }
+    }
+
+    [Fact]
     public async Task StationsAndMonitorUseTheRegisteredMotionAndStatusInstances()
     {
         await using var services = CreateServices(new RecordingLight());

@@ -60,16 +60,18 @@ public sealed partial class PcbHistory : ObservableObject, IAsyncDisposable
     private void OnAssemblyCreated(HeatSinkAssembly assembly)
     {
         var createdAt = DateTimeOffset.Now;
-        var recipeName = _recipes.Current.Name;
+        var recipe = _recipes.Current;
+        var bolts = recipe.Pcb.GetBolts(assembly.HeatSink).ToArray();
         // Keep this PCB in its original month/folder. Validate the path on the writer, too.
         var directory = _settings.Directory;
-        var initial = new PcbRecord(0, createdAt, createdAt, recipeName, assembly.HeatSink,
+        var initial = new PcbRecord(0, createdAt, createdAt, recipe.Name, assembly.HeatSink,
             assembly.PcbBarcode, assembly.PcbBarcodeResult, assembly.FasteningResult, assembly.InspectionResult,
             assembly.PcbBoltResults.ToDictionary(), assembly.PickupBoltResults.ToDictionary(),
             assembly.BoltPresenceResults.ToDictionary(),
-            _recipes.Current.Pcb.GetBolts(assembly.HeatSink).Select(bolt => bolt.Id).ToArray())
+            bolts.Select(bolt => bolt.Id).ToArray())
         {
             TurnsResult = assembly.TurnsResult,
+            BoltNames = bolts.ToDictionary(bolt => bolt.Id, bolt => bolt.Name),
         };
 
         // The station records results after this creation callback returns.

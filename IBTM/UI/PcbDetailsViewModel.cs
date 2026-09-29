@@ -16,14 +16,12 @@ namespace IBTM.UI;
 public partial class PcbDetailsViewModel : ObservableObject
 {
     private readonly InspectionImages _images;
-    private readonly RecipeManager _recipes;
     private readonly ILogger<PcbDetailsViewModel> _log;
     private int _imageRequest;
 
-    public PcbDetailsViewModel(InspectionImages images, RecipeManager recipes, ILogger<PcbDetailsViewModel> log)
+    public PcbDetailsViewModel(InspectionImages images, ILogger<PcbDetailsViewModel> log)
     {
         _images = images;
-        _recipes = recipes;
         _log = log;
         LoadImagesCommand = new AsyncRelayCommand(LoadImagesAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         BoltResults = [];
@@ -59,16 +57,13 @@ public partial class PcbDetailsViewModel : ObservableObject
         OnPropertyChanged(nameof(PresenceResults));
         var selected = SelectedBolt;
         var selectedImage = SelectedImage;
-        var recipe = _recipes.Current;
-        var points = newValue is not null && MachineStore.IsSameRecipeName(newValue.RecipeName, recipe.Name)
-            ? recipe.Pcb.BoltPoints : null;
         BoltResults = newValue is null ? [] : newValue.PcbBoltResults
             .Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Shooting, pair.Value,
                 newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null,
-                points?.FirstOrDefault(bolt => bolt.Id == pair.Key)?.Name))
+                newValue.BoltNames?.GetValueOrDefault(pair.Key)))
             .Concat(newValue.PickupBoltResults.Select(pair => new PcbBoltResultView(pair.Key, newValue.GetBoltOrdinal(pair.Key), FasteningHead.Pickup, pair.Value,
                 newValue.BoltPresenceResults.TryGetValue(pair.Key, out var present) ? present : null,
-                points?.FirstOrDefault(bolt => bolt.Id == pair.Key)?.Name)))
+                newValue.BoltNames?.GetValueOrDefault(pair.Key))))
             .OrderBy(row => row.Number).ThenBy(row => row.Head).ToArray();
         SelectedBolt = BoltResults.FirstOrDefault(row => row.BoltId == selected?.BoltId && row.Head == selected.Head)
             ?? BoltResults.FirstOrDefault();
@@ -105,7 +100,7 @@ public partial class PcbDetailsViewModel : ObservableObject
             return;
         try
         {
-            var images = await _images.LoadRecordAsync(record, _recipes.Current, cancellationToken);
+            var images = await _images.LoadRecordAsync(record, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (request != _imageRequest)
                 return;

@@ -510,6 +510,14 @@ public sealed class InspectionTeachingTests
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 2));
         editor.Draft.Name = "Other";
         Assert.False(editor.UseHistoryImageCommand.CanExecute(null));
+
+        editor.SelectedRecord = editor.SelectedRecord! with { DatabaseFile = Path.Combine(directory, "missing.db") };
+        await editor.LoadRecordCommand.ExecuteAsync(null);
+        Assert.NotNull(editor.Error);
+        Assert.Null(editor.LoadedRecord);
+        Assert.Empty(editor.HistoryImages);
+        Assert.Null(editor.SelectedHistoryImage);
+        Assert.False(editor.UseHistoryImageCommand.CanExecute(null));
     }
 
     [Fact]

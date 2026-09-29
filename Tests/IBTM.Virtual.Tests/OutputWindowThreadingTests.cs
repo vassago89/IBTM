@@ -4,6 +4,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -432,6 +433,128 @@ public sealed class OutputWindowThreadingTests
         operationView.Measure(new Size(1600, 900));
         operationView.Arrange(new Rect(0, 0, 1600, 900));
         operationView.UpdateLayout();
+
+        var normalStyle = new Style(typeof(PcbDetailsWindow));
+        normalStyle.Setters.Add(new Setter(Window.ShowActivatedProperty, false));
+        normalStyle.Setters.Add(new Setter(Window.ShowInTaskbarProperty, false));
+        normalStyle.Setters.Add(new Setter(UIElement.OpacityProperty, 0d));
+        var failedStyle = new Style(typeof(PcbDetailsWindow), normalStyle);
+        failedStyle.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(PcbDetailsWindow))
+        {
+            VisualTree = new FrameworkElementFactory(typeof(FailedDetailsLayout)),
+        }));
+        var resources = Application.Current.Resources;
+        var originalStyle = resources[typeof(PcbDetailsWindow)];
+        var selectionHandler = typeof(OperationView).GetMethod("OnPcbSelectionChanged",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Test", HeatSinkSlot.HeatSink1,
+            null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), []);
+        var selection = new SelectionChangedEventArgs(System.Windows.Controls.Primitives.Selector.SelectionChangedEvent,
+            Array.Empty<PcbRecord>(), new[] { record });
+        try
+        {
+            resources[typeof(PcbDetailsWindow)] = failedStyle;
+            var exception = Assert.Throws<TargetInvocationException>(() =>
+                selectionHandler.Invoke(operationView, [operationView, selection]));
+            Assert.Equal("Simulated PCB details layout failure.", exception.GetBaseException().Message);
+            Assert.Null(operation.SelectedPcb);
+            Assert.Empty(Application.Current.Windows.OfType<PcbDetailsWindow>());
+
+            resources[typeof(PcbDetailsWindow)] = normalStyle;
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                selectionHandler.Invoke(operationView, [operationView, selection]);
+                var detailsWindow = Assert.Single(Application.Current.Windows.OfType<PcbDetailsWindow>());
+                Assert.True(detailsWindow.IsVisible);
+                Assert.Same(record, operation.SelectedPcb);
+                detailsWindow.Close();
+                Assert.Null(operation.SelectedPcb);
+            }
+        }
+        finally
+        {
+            foreach (var detailsWindow in Application.Current.Windows.OfType<PcbDetailsWindow>().ToArray())
+                detailsWindow.Close();
+            if (originalStyle is null)
+                resources.Remove(typeof(PcbDetailsWindow));
+            else
+                resources[typeof(PcbDetailsWindow)] = originalStyle;
+        }
+
+        var diagnostics = services.GetRequiredService<DiagnosticWindows>();
+        foreach (var (windowType, open) in new (Type Type, Action Open)[]
+        {
+            (typeof(InputWindow), diagnostics.OpenInputs),
+            (typeof(OutputWindow), diagnostics.OpenOutputs),
+            (typeof(MotionWindow), diagnostics.OpenMotion),
+            (typeof(AdcProtocolWindow), diagnostics.OpenAdcProtocol),
+            (typeof(LogWindow), diagnostics.OpenLogs),
+            (typeof(BoltStationTestWindow), diagnostics.OpenBoltStationTest),
+        })
+        {
+            var hiddenStyle = new Style(windowType);
+            hiddenStyle.Setters.Add(new Setter(Window.ShowActivatedProperty, false));
+            hiddenStyle.Setters.Add(new Setter(Window.ShowInTaskbarProperty, false));
+            hiddenStyle.Setters.Add(new Setter(UIElement.OpacityProperty, 0d));
+            var brokenStyle = new Style(windowType, hiddenStyle);
+            brokenStyle.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(windowType)
+            {
+                VisualTree = new FrameworkElementFactory(typeof(FailedDetailsLayout)),
+            }));
+            var previousStyle = resources[windowType];
+            // These windows declare a local Style. Exercise their owner-assignment
+            // failure instead of replacing the shutdown style used by the window.
+            var invalidOwner = windowType == typeof(MotionWindow) || windowType == typeof(BoltStationTestWindow)
+                ? new Window() : null;
+            try
+            {
+                diagnostics.Owner = invalidOwner;
+                resources[windowType] = brokenStyle;
+                var failure = Xunit.Record.Exception(open);
+                Assert.True(failure is InvalidOperationException,
+                    $"{windowType.Name}: {failure?.ToString() ?? "No exception"}; manual={services.GetRequiredService<MachineState>().ManualMode}");
+                if (invalidOwner is null)
+                    Assert.Equal("Simulated PCB details layout failure.", failure!.Message);
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => !Application.Current.Windows.Cast<Window>().Any(window => window.GetType() == windowType),
+                    TimeSpan.FromSeconds(2)));
+
+                resources[windowType] = hiddenStyle;
+                diagnostics.Owner = null;
+                Window? reopened = null;
+                if (windowType == typeof(BoltStationTestWindow))
+                {
+                    _ = Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        reopened = Application.Current.Windows.Cast<Window>().Single(window => window.GetType() == windowType);
+                        reopened.Close();
+                    }));
+                }
+                open();
+                if (windowType != typeof(BoltStationTestWindow))
+                {
+                    reopened = Application.Current.Windows.Cast<Window>().Single(window => window.GetType() == windowType);
+                    Assert.True(reopened.IsVisible);
+                    reopened.Close();
+                }
+                Assert.NotNull(reopened);
+                Assert.True(await VirtualTest.WaitUntilAsync(() => !reopened.IsVisible, TimeSpan.FromSeconds(2)));
+            }
+            finally
+            {
+                diagnostics.Owner = null;
+                invalidOwner?.Close();
+                foreach (var window in Application.Current.Windows.Cast<Window>()
+                    .Where(window => window.GetType() == windowType).ToArray())
+                    window.Close();
+                if (previousStyle is null)
+                    resources.Remove(windowType);
+                else
+                    resources[windowType] = previousStyle;
+            }
+        }
+
         var conveyorEnabled = new CheckBox();
         conveyorEnabled.SetBinding(
             System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
@@ -983,6 +1106,14 @@ public sealed class OutputWindowThreadingTests
         Assert.Same(pending.ToggleCommand, pendingButton.Command);
         pendingButton.Command.Execute(null);
         Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+    }
+
+    public sealed class FailedDetailsLayout : FrameworkElement
+    {
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            throw new InvalidOperationException("Simulated PCB details layout failure.");
+        }
     }
 
     private sealed class TestLight : ILightController

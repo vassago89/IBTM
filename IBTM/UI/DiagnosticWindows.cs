@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -68,9 +69,9 @@ public sealed class DiagnosticWindows
             _input.Activate();
             return;
         }
-        _input = new(new InputWindowViewModel(_io, _signals)) { Owner = Owner };
+        _input = new(new InputWindowViewModel(_io, _signals));
         _input.Closed += (_, _) => _input = null;
-        _input.Show();
+        ShowWindow(_input);
     }
 
     public void OpenOutputs()
@@ -80,9 +81,9 @@ public sealed class DiagnosticWindows
             _output.Activate();
             return;
         }
-        _output = new(new OutputWindowViewModel(_signals, _machine)) { Owner = Owner };
+        _output = new(new OutputWindowViewModel(_signals, _machine));
         _output.Closed += (_, _) => _output = null;
-        _output.Show();
+        ShowWindow(_output);
     }
 
     public void CloseOutputs()
@@ -97,13 +98,13 @@ public sealed class DiagnosticWindows
             _motion.Activate();
             return;
         }
-        _motion = new(_motionViewModel) { Owner = Owner };
+        _motion = new(_motionViewModel);
         _motion.Closed += (_, _) =>
         {
             _motion = null;
             _log.LogInformation("Motion monitor closed.");
         };
-        _motion.Show();
+        ShowWindow(_motion);
         _log.LogInformation("Motion monitor opened.");
     }
 
@@ -123,13 +124,22 @@ public sealed class DiagnosticWindows
             _state,
             _loggerFactory.CreateLogger<AdcProtocolViewModel>(),
             _loggerFactory.CreateLogger<IBTM.Hantas.AdcBoltHead>());
-        _adc = new(_adcViewModel) { Owner = Owner };
+        try
+        {
+            _adc = new(_adcViewModel);
+        }
+        catch
+        {
+            _adcViewModel.Dispose();
+            _adcViewModel = null;
+            throw;
+        }
         _adc.Closed += (_, _) =>
         {
             _adc = null;
             _adcViewModel = null;
         };
-        _adc.Show();
+        ShowWindow(_adc);
     }
 
     public void OpenBoltStationTest()
@@ -141,9 +151,9 @@ public sealed class DiagnosticWindows
         }
         if (!_state.ManualMode)
             return;
-        _boltTest = new(_boltTestViewModel) { Owner = Owner };
+        _boltTest = new(_boltTestViewModel);
         _boltTest.Closed += (_, _) => _boltTest = null;
-        _boltTest.ShowDialog();
+        ShowWindow(_boltTest, modal: true);
     }
 
     public void OpenLogs()
@@ -153,9 +163,43 @@ public sealed class DiagnosticWindows
             _logs.Activate();
             return;
         }
-        _logs = new(new LogWindowViewModel(_applicationLog)) { Owner = Owner };
+        var viewModel = new LogWindowViewModel(_applicationLog);
+        try
+        {
+            _logs = new(viewModel);
+        }
+        catch
+        {
+            viewModel.Dispose();
+            throw;
+        }
         _logs.Closed += (_, _) => _logs = null;
-        _logs.Show();
+        ShowWindow(_logs);
+    }
+
+    private void ShowWindow(Window window, bool modal = false)
+    {
+        try
+        {
+            window.Owner = Owner;
+            if (modal)
+                window.ShowDialog();
+            else
+                window.Show();
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                // Closing retains each window's cancellation/disposal and Closed handlers.
+                window.Close();
+            }
+            catch (Exception closeException)
+            {
+                throw new AggregateException("Diagnostic window could not be opened or closed.", exception, closeException);
+            }
+            throw;
+        }
     }
 
     public void PrepareShutdown()

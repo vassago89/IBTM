@@ -276,12 +276,21 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private async Task RefreshHistoryAsync(CancellationToken token)
     {
+        LoadOlderCommand.Cancel();
+        LoadRecordCommand.Cancel();
         Records.Clear();
+        SelectedRecord = null;
+        LoadedRecord = null;
+        HistoryImages = [];
+        SelectedHistoryImage = null;
         await LoadOlderAsync(token);
     }
 
     partial void OnHistoryDirectoryChanged(string value)
     {
+        RefreshHistoryCommand.Cancel();
+        LoadOlderCommand.Cancel();
+        LoadRecordCommand.Cancel();
         Records.Clear();
         SelectedRecord = null;
         LoadedRecord = null;
@@ -301,6 +310,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
         {
             var records = await Task.Run(() => _store.LoadPcbs(directory, before), token);
             token.ThrowIfCancellationRequested();
+            if (directory != HistoryDirectory)
+                return;
             foreach (var record in records)
                 Records.Add(record);
             HasOlder = records.Count == 100;
@@ -308,7 +319,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            Error = exception.Message;
+            if (directory == HistoryDirectory)
+                Error = exception.Message;
             _log.LogError(exception, "Inspection history load failed for {Directory}.", directory);
         }
     }
@@ -317,11 +329,18 @@ public partial class InspectionTeachingViewModel : ObservableObject
     {
         if (SelectedRecord is not { } record)
             return;
+        var directory = HistoryDirectory;
         Error = null;
+        Message = null;
+        LoadedRecord = null;
+        HistoryImages = [];
+        SelectedHistoryImage = null;
         try
         {
-            var images = await _images.LoadRecordAsync(record, Draft, token);
+            var images = await _images.LoadRecordAsync(record, token);
             token.ThrowIfCancellationRequested();
+            if (directory != HistoryDirectory || SelectedRecord != record)
+                return;
             LoadedRecord = record;
             HistoryImages = images;
             SelectedHistoryImage = images.FirstOrDefault();
@@ -330,7 +349,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            Error = exception.Message;
+            if (directory == HistoryDirectory && SelectedRecord == record)
+                Error = exception.Message;
             _log.LogError(exception, "Inspection image history failed for PCB {Number}.", record.Number);
         }
     }

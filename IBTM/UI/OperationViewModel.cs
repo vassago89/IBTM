@@ -254,7 +254,7 @@ public partial class OperationViewModel : ObservableObject
                 var assembly = assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
                 var results = bolt.Head == FasteningHead.Shooting ? assembly?.PcbBoltResults : assembly?.PickupBoltResults;
                 var state = BoltTargetState.Pending;
-                if (bolt == active)
+                if (bolt.Id == active?.Id)
                     state = BoltTargetState.Active;
                 else if (results is not null && results.TryGetValue(bolt.Id, out var result))
                     state = result.Success ? BoltTargetState.Ok : BoltTargetState.Ng;
@@ -282,7 +282,7 @@ public partial class OperationViewModel : ObservableObject
 
                 var assembly = assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
                 var state = BoltTargetState.Pending;
-                if (bolt == active)
+                if (bolt.Id == active?.Id)
                     state = BoltTargetState.Active;
                 else if (assembly is not null && assembly.BoltPresenceResults.TryGetValue(bolt.Id, out var present))
                     state = present ? BoltTargetState.Ok : BoltTargetState.Ng;
