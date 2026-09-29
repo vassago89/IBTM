@@ -63,24 +63,80 @@ public sealed class PcbPlacementStateSafetyTests
     [Fact]
     public async Task DepartureClearRemainsAvailableUntilSupplyAcknowledges()
     {
-        using var rig = new PlacementRig();
+        using var rig = new PlacementRig(acknowledgeDeparture: false);
         await rig.InitializeAsync();
         await rig.ReceiveAsync();
-        await rig.Placer.ExecuteStepAsync(
-            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
-        Assert.Equal(PcbPlacementHandoff.Clear, rig.Placer.Handoff);
-        var position = rig.Motion.Position;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var departing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Placer.Changed += () =>
+        {
+            if (rig.Placer.Handoff == PcbPlacementHandoff.Clear)
+                departing.TrySetResult();
+        };
+        rig.Placer.StepChanged += () =>
+        {
+            if (rig.Placer.Step is PcbPlacementState.PlacingPcb)
+                stop.Cancel();
+        };
+        var run = rig.Placer.RunAsync(stop.Token);
+        try
+        {
+            await departing.Task.WaitAsync(stop.Token);
+            Assert.False(run.IsCompleted);
+            Assert.Equal(PcbPlacementState.PreparingPlacement, rig.Placer.Phase);
+            Assert.Equal(rig.Position.Y, rig.Motion.Position.Y);
+            Assert.Equal(rig.Settings.HandoffPosition.X, rig.Motion.Position.X);
+            Assert.True(rig.Placer.PcbSecured);
+            Assert.Equal(PcbPlacementHandoff.Clear, rig.Placer.Handoff);
 
-        // Supply has not observed Clear yet. Placement must keep that handoff
-        // available, even if its own loop runs again before Supply is scheduled.
-        Assert.False(await rig.Placer.ExecuteStepAsync(
-            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None));
-        Assert.Equal(position, rig.Motion.Position);
-        Assert.True(rig.Placer.PcbSecured);
-        Assert.Equal(PcbPlacementHandoff.Clear, rig.Placer.Handoff);
+            rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+        Assert.Equal(PcbPlacementState.PlacingPcb, rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1));
+    }
+
+    [Fact]
+    public async Task StopWhileCompletingHandoffKeepsGripAndCanRestart()
+    {
+        using var rig = new PlacementRig(acknowledgeDeparture: false);
+        await rig.InitializeAsync();
+        await rig.ReceiveAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var departing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Placer.Changed += () =>
+        {
+            if (rig.Placer.Handoff == PcbPlacementHandoff.Clear)
+                departing.TrySetResult();
+        };
+        var run = rig.Placer.RunAsync(stop.Token);
+        try
+        {
+            await departing.Task.WaitAsync(stop.Token);
+            stop.Cancel();
+            await run.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.Equal(PcbPlacementState.PreparingPlacement, rig.Placer.Phase);
+            Assert.True(rig.Placer.PcbSecured);
+            Assert.False(rig.Motion.IsMoving);
+            Assert.Empty(rig.Work.Assemblies);
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
 
         rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
-        Assert.Equal(PcbPlacementState.PlacingPcb, rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1));
+        using var restart = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        await rig.Placer.ExecuteStepAsync(
+            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, restart.Token);
+        Assert.Equal(PcbPlacementState.PlacingPcb, rig.Placer.Phase);
+        Assert.True(rig.Placer.PcbSecured);
+        Assert.Empty(rig.Work.Assemblies);
     }
 
     [Theory]
@@ -232,7 +288,7 @@ public sealed class PcbPlacementStateSafetyTests
             rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
         }
         Assert.Equal(expected == PcbPlacementState.PreparingPlacement
-            ? PcbPlacementState.WaitingForSupplyRelease : PcbPlacementState.WaitingForSupplyClear, rig.Placer.Phase);
+            ? PcbPlacementState.WaitingForSupplyRelease : PcbPlacementState.PlacingPcb, rig.Placer.Phase);
         var lost = false;
         var lowered = false;
         var released = false;
@@ -585,8 +641,9 @@ public sealed class PcbPlacementStateSafetyTests
 
     private sealed class PlacementRig : IDisposable
     {
-        public PlacementRig(bool probeFeedback = false, OperationCancellation? operations = null)
+        public PlacementRig(bool probeFeedback = false, OperationCancellation? operations = null, bool acknowledgeDeparture = true)
         {
+            AcknowledgeDeparture = acknowledgeDeparture;
             Settings = new PcbPlacementHandlerSettings
             {
                 Motion = new() { HorizontalSpeed = 200, ZSpeed = 50 },
@@ -618,8 +675,10 @@ public sealed class PcbPlacementStateSafetyTests
                 recipes,
                 Units);
             Io.OutputChanged += OnOutputChanged;
+            Placer.Changed += OnPlacementChanged;
         }
 
+        private bool AcknowledgeDeparture { get; }
         public AxisPosition Position { get; }
         public UnitSettings Units { get; }
         public PcbPlacementHandlerSettings Settings { get; }
@@ -655,6 +714,13 @@ public sealed class PcbPlacementStateSafetyTests
         {
             if (output == OutputIo.PcbPlacementVacuumEjector)
                 Io.SetInput(InputIo.PcbPlacementVacuumDetected, on);
+        }
+
+        private void OnPlacementChanged()
+        {
+            if (AcknowledgeDeparture && Supply.Handoff == PcbSupplyHandoff.Released
+                && Placer.Handoff == PcbPlacementHandoff.Clear)
+                Supply.Handoff = PcbSupplyHandoff.Unavailable;
         }
 
         public void Dispose()

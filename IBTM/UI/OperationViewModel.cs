@@ -892,7 +892,7 @@ public partial class OperationViewModel : ObservableObject
                 return HandlerDisplayState.Stopped;
             return PlacementState is PcbPlacementState.WaitingForSupply
                 or PcbPlacementState.WaitingForSupplyRelease
-                or PcbPlacementState.WaitingForSupplyClear
+                or PcbPlacementState.PreparingPlacement
                 or PcbPlacementState.WaitingForCarrier
                 or PcbPlacementState.WaitingForSupplyReceipt
                 or PcbPlacementState.WaitingForSupplyGrip

@@ -173,7 +173,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     return PcbPlacementHandoff.Holding;
                 case PcbPlacementState.WaitingForSupply when !PcbSecured:
                 case PcbPlacementState.WaitingForSupplyDeparture:
-                case PcbPlacementState.WaitingForSupplyClear:
+                case PcbPlacementState.PreparingPlacement:
                 case PcbPlacementState.WaitingForCarrier
                     or PcbPlacementState.PlacingPcb or PcbPlacementState.CompletingCarrier:
                     return PcbPlacementHandoff.Clear;
@@ -316,9 +316,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 return PcbPlacementState.ReceivingPcb;
             case PcbPlacementState.WaitingForSupplyRelease when _supply.Handoff == PcbSupplyHandoff.Released:
                 return PcbPlacementState.PreparingPlacement;
-            case PcbPlacementState.WaitingForSupplyClear when _supply.Handoff == PcbSupplyHandoff.Unavailable:
-                return Station.CarrierSeated && !Station.Completed
-                    ? PcbPlacementState.PlacingPcb : PcbPlacementState.WaitingForCarrier;
             case PcbPlacementState.WaitingForCarrier when Station.CarrierSeated && !Station.Completed:
                 return heatSink is null ? PcbPlacementState.CompletingCarrier : PcbPlacementState.PlacingPcb;
             default:
@@ -349,15 +346,16 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         var activePcb = IsRunning ? heatSink : null;
         var targetChanged = ActivePcb != activePcb;
         ActivePcb = activePcb;
+        if (state == PcbPlacementState.PreparingPlacement)
+            _handoffPosition = null;
         EnterStep(state, heatSink?.ToString(), job.Id);
         if (targetChanged)
             NotifyChanged();
         if (IsPcbGripUncertain
             || state is PcbPlacementState.ReturningToSupply or PcbPlacementState.WaitingForSupplyReceipt
                 or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
-                or PcbPlacementState.WaitingForSupplyClear
-                && !PcbSecured
-            || _repeatTrip is not null && state == PcbPlacementState.PreparingPlacement && !PcbSecured)
+                or PcbPlacementState.PreparingPlacement
+                && !PcbSecured)
             throw new InvalidOperationException("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before moving or releasing it.");
         if (repeat && state == PcbPlacementState.PickingPcb && _repeatTrip is null)
             _repeatTrip = new(job, heatSink ?? throw new InvalidOperationException("No repeat PCB is selected."));
@@ -469,15 +467,19 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 }
                 case PcbPlacementState.PreparingPlacement:
                     await PreparePlacementAsync(heatSink ?? HeatSinkSlot.HeatSink1, repeat, cancellationToken);
-                    if (PcbSecured)
-                        // Keep the confirmed departure position until Supply observes Clear.
-                        // Starting placement immediately can erase Clear before its loop wakes.
-                        EnterStep(PcbPlacementState.WaitingForSupplyClear);
-                    else
+                    // Complete this handoff before the next move invalidates its departure position.
+                    NotifyChanged();
+                    while (true)
                     {
-                        EnterStep(TargetHeatSink is null && Station.CarrierSeated && !Station.Completed
-                            ? PcbPlacementState.CompletingCarrier : PcbPlacementState.MovingToHandoff);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (!PcbSecured)
+                            throw new InvalidOperationException("Placement lost PCB holding while completing the supply handoff.");
+                        if (_supply.Handoff == PcbSupplyHandoff.Unavailable)
+                            break;
+                        await WaitForChangeAsync(cancellationToken);
                     }
+                    EnterStep(Station.CarrierSeated && !Station.Completed
+                        ? PcbPlacementState.PlacingPcb : PcbPlacementState.WaitingForCarrier);
                     break;
                 case PcbPlacementState.PlacingPcb:
                 {

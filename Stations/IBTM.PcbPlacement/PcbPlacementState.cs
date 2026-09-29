@@ -28,7 +28,7 @@ public enum PcbPlacementState
     [Description("Waiting for Supply Release")]
     WaitingForSupplyRelease,
 
-    [Description("Raising Handler and Moving to Placement Y")]
+    [Description("Raising Handler, Departing and Completing Handoff")]
     PreparingPlacement,
 
     [Description("Waiting for Carrier")]
@@ -64,6 +64,4 @@ public enum PcbPlacementState
     [Description("Disabled")]
     Disabled,
 
-    [Description("Waiting for Supply to Confirm Handoff Clear")]
-    WaitingForSupplyClear,
 }
