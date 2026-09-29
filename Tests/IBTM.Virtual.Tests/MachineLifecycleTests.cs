@@ -6506,8 +6506,15 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(shooting1.Id, teaching.SelectedFasteningPoint!.Position.Bolt!.Id);
         Assert.False(teaching.MoveFasteningEarlierCommand.CanExecute(null));
         Assert.True(teaching.MoveFasteningLaterCommand.CanExecute(null));
+        var earlierUpdates = 0;
+        var laterUpdates = 0;
+        teaching.MoveFasteningEarlierCommand.CanExecuteChanged += (sender, args) => earlierUpdates++;
+        teaching.MoveFasteningLaterCommand.CanExecuteChanged += (sender, args) => laterUpdates++;
         teaching.MoveFasteningLaterCommand.Execute(null);
         Assert.Equal(shooting1.Id, teaching.SelectedFasteningPoint!.Position.Bolt!.Id);
+        Assert.True(earlierUpdates > 0);
+        Assert.True(laterUpdates > 0);
+        Assert.True(teaching.MoveFasteningEarlierCommand.CanExecute(null));
         Assert.False(teaching.MoveFasteningLaterCommand.CanExecute(null)); // End of this PCB's shooting group.
         teaching.MoveFasteningLaterCommand.Execute(null);
         Assert.Equal(new[] { shooting2.Id, shooting1.Id, otherShooting.Id, pickup1.Id, pickup2.Id, otherPickup.Id },

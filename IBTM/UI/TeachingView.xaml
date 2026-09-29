@@ -278,7 +278,7 @@
                             Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                     <ListBox Grid.Row="1" ItemsSource="{Binding Source={StaticResource FasteningPoints}}"
-                        SelectedItem="{Binding SelectedFasteningPoint}"
+                        SelectedItem="{Binding SelectedFasteningPoint, UpdateSourceTrigger=PropertyChanged}"
                         Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}"
                         BorderThickness="1" ItemContainerStyle="{StaticResource FlatListItemStyle}">
                         <ListBox.GroupStyle>

@@ -45,10 +45,10 @@ public static class MachinePlan
     public const double PlacementWidth = 104;
     public const double PlacementHeight = 106;
     public const double PlacementBottomMargin = 13;
-    public const double SupplyRailLeft = 54;
-    public const double SupplyRailTop = 164;
-    public const double SupplyRailWidth = 220;
-    public const double SupplyRailHeight = 108;
+    public const double SupplyRailLeft = HeaderInset;
+    public const double SupplyRailTop = 172;
+    public const double SupplyRailWidth = 258;
+    public const double SupplyRailHeight = 138;
     public const double SupplyCarrierFrameWidth = 208;
     public const double SupplyCarrierWidth = 192;
     public const double SupplyCarrierHeight = 66;

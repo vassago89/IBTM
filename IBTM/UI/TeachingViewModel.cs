@@ -656,6 +656,9 @@ public partial class TeachingViewModel : ObservableObject
                 _settings, Recipes, bolt.HeatSink)).ToArray();
         SelectedFasteningPoint = FasteningPoints.FirstOrDefault(point => point.Position.Bolt?.Id == selectedId)
             ?? FasteningPoints.FirstOrDefault();
+        // Reordering keeps the same selected point, but changes its available neighbours.
+        MoveFasteningEarlierCommand.NotifyCanExecuteChanged();
+        MoveFasteningLaterCommand.NotifyCanExecuteChanged();
     }
 
     public IRelayCommand MoveFasteningEarlierCommand { get; }

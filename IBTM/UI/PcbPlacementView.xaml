@@ -18,66 +18,68 @@
             <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
                 Orientation="Horizontal">
                 <Border Tag="{Binding SupplyDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54" Margin="0,0,10,0">
-                    <StackPanel>
+                    <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="SUPPLY" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
                         <TextBlock
                             Text="{Binding SupplyStatus,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                            Margin="0,4,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                            Margin="0,2,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
                             ToolTip="{Binding SupplyStatus, Converter={StaticResource EnumDescriptionConverter}}"/>
                     </StackPanel>
                 </Border>
                 <Border Tag="{Binding PlacementDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Height="54">
-                    <StackPanel>
+                    <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="PLACEMENT" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
                         <TextBlock
                             Text="{Binding PlacementStatus,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                            Margin="0,4,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
+                            Margin="0,2,0,0" Style="{StaticResource PrimaryStateTextStyle}" TextTrimming="CharacterEllipsis"
                             ToolTip="{Binding PlacementStatus, Converter={StaticResource EnumDescriptionConverter}}"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
 
-            <TextBlock Canvas.Left="54" Canvas.Top="142" Width="220" Text="PCB In" Style="{StaticResource EquipmentRoleLabelStyle}"/>
-
             <Border Canvas.Left="{x:Static ui:MachinePlan.SupplyRailLeft}" Canvas.Top="{x:Static ui:MachinePlan.SupplyRailTop}"
                 Width="{x:Static ui:MachinePlan.SupplyRailWidth}" Height="{x:Static ui:MachinePlan.SupplyRailHeight}"
                 Style="{StaticResource DeviceBodyStyle}">
-                <Grid Width="{x:Static ui:MachinePlan.SupplyCarrierFrameWidth}" Height="{x:Static ui:MachinePlan.SupplyCarrierHeight}"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Border Width="{x:Static ui:MachinePlan.SupplyCarrierWidth}" HorizontalAlignment="Left"
-                        Tag="{Binding Supply.UpstreamCarrierAvailable}">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
-                                <Setter Property="BorderThickness" Value="{x:Static ui:MachinePlan.CarrierBorderThickness}"/>
-                                <Setter Property="CornerRadius" Value="2"/>
-                                <Style.Triggers>
-                                    <Trigger Property="Tag">
-                                        <Trigger.Value>
-                                            <sys:Boolean>True</sys:Boolean>
-                                        </Trigger.Value>
-                                        <Setter Property="Background" Value="{StaticResource MapActiveBackgroundBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource CarrierBrush}"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <Grid Margin="{x:Static ui:MachinePlan.SupplyCarrierMargin}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="{x:Static ui:MachinePlan.SupplySlotGapWidth}"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Border Style="{StaticResource UnknownPcbFootprintStyle}"/>
-                            <Border Grid.Column="2" Style="{StaticResource UnknownPcbFootprintStyle}"/>
-                        </Grid>
-                    </Border>
-                    <Ellipse HorizontalAlignment="Right" VerticalAlignment="Center"
-                        Tag="{Binding Supply.UpstreamCarrierAvailable}"
-                        Style="{StaticResource PresenceLedStyle}"/>
+                <Grid>
+                    <TextBlock Text="PCB In" VerticalAlignment="Top" Margin="0,8,0,0"
+                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    <Grid Width="{x:Static ui:MachinePlan.SupplyCarrierFrameWidth}" Height="{x:Static ui:MachinePlan.SupplyCarrierHeight}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border Width="{x:Static ui:MachinePlan.SupplyCarrierWidth}" HorizontalAlignment="Left"
+                            Tag="{Binding Supply.UpstreamCarrierAvailable}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+                                    <Setter Property="BorderThickness" Value="{x:Static ui:MachinePlan.CarrierBorderThickness}"/>
+                                    <Setter Property="CornerRadius" Value="2"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="Tag">
+                                            <Trigger.Value>
+                                                <sys:Boolean>True</sys:Boolean>
+                                            </Trigger.Value>
+                                            <Setter Property="Background" Value="{StaticResource MapActiveBackgroundBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource CarrierBrush}"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid Margin="{x:Static ui:MachinePlan.SupplyCarrierMargin}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="{x:Static ui:MachinePlan.SupplySlotGapWidth}"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource UnknownPcbFootprintStyle}"/>
+                                <Border Grid.Column="2" Style="{StaticResource UnknownPcbFootprintStyle}"/>
+                            </Grid>
+                        </Border>
+                        <Ellipse HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Tag="{Binding Supply.UpstreamCarrierAvailable}"
+                            Style="{StaticResource PresenceLedStyle}"/>
+                    </Grid>
                 </Grid>
             </Border>
             <Grid Width="{x:Static ui:MachinePlan.SupplyWidth}" Height="{x:Static ui:MachinePlan.SupplyHeight}"
