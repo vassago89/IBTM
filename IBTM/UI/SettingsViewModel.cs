@@ -213,9 +213,9 @@ public partial class SettingsViewModel : ObservableObject
             if (Settings.Lighting.InspectionChannel is < 1 or > 9)
                 throw new InvalidOperationException("Inspection light channel must be from 1 to 9.");
             if (Settings.Hantas.FasteningTimeoutMilliseconds <= 0)
-                throw new InvalidOperationException("Fastening timeout must be greater than zero milliseconds.");
+                throw new InvalidOperationException("Fastening timeout must be greater than 0 s.");
             if (Settings.Hantas.ResponseTimeoutMilliseconds <= 0)
-                throw new InvalidOperationException("ADC response timeout must be greater than zero milliseconds.");
+                throw new InvalidOperationException("ADC response timeout must be greater than 0 s.");
             if (string.IsNullOrWhiteSpace(LogDirectory) || !Path.IsPathFullyQualified(LogDirectory))
                 throw new InvalidOperationException("Choose an absolute folder path for logs.");
             _ = Path.GetFullPath(LogDirectory);

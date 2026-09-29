@@ -9,6 +9,7 @@
     d:DataContext="{d:DesignInstance Type=ui:SettingsViewModel, IsDesignTimeCreatable=False}"
     Background="{StaticResource AppBgBrush}">
     <UserControl.Resources>
+        <ui:MillisecondsToSecondsConverter x:Key="MillisecondsToSecondsConverter"/>
         <Style x:Key="SettingFieldLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
@@ -166,6 +167,8 @@
 
         <StackPanel Margin="0,0,0,10">
             <TextBlock Text="Settings" Style="{StaticResource TitleStyle}"/>
+            <TextBlock Text="Timing values use seconds (s). Decimals are supported, e.g. 0.1 or 1.5."
+                Style="{StaticResource SettingHelpText}" Margin="0,4,0,0"/>
             <TextBlock Text="{Binding DatabaseMessage}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
         </StackPanel>
 
@@ -247,11 +250,11 @@
                                 <Border Style="{StaticResource SettingCard}">
                                     <StackPanel>
                                         <TextBlock Text="Common · Feedback / Stop" Style="{StaticResource SettingSectionTitle}"/>
-                                        <TextBlock Text="Feedback / Stop Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBlock Text="Feedback / Stop Timeout (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding Settings.Options.TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
+                                            Text="{Binding Settings.Options.TimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             Width="180" HorizontalAlignment="Left"/>
-                                        <TextBlock Text="Maximum wait for cylinder position feedback or stop confirmation. 1,000 ms = 1 s."
+                                        <TextBlock Text="Maximum wait for cylinder position feedback or stop confirmation."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </Border>
@@ -260,14 +263,14 @@
                                         <TextBlock Text="Bolt Supply · Detection Timeout" Style="{StaticResource SettingSectionTitle}"/>
                                         <UniformGrid Columns="2">
                                             <StackPanel Margin="0,0,8,0">
-                                                <TextBlock Text="Pickup Feeder (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="Pickup Feeder (s)" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                    Text="{Binding Settings.BoltFeeder.PickupTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    Text="{Binding Settings.BoltFeeder.PickupTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                             </StackPanel>
                                             <StackPanel Margin="8,0,0,0">
-                                                <TextBlock Text="Shooting Feeder (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="Shooting Feeder (s)" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                    Text="{Binding Settings.BoltFeeder.ShootingTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    Text="{Binding Settings.BoltFeeder.ShootingTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                             </StackPanel>
                                         </UniformGrid>
                                         <TextBlock Text="Maximum wait for bolt detection at each feeder."
@@ -278,11 +281,11 @@
                                             Width="180" HorizontalAlignment="Left"/>
                                         <TextBlock Text="Additional pickup attempts after vacuum feedback times out at Safe Z. Lower to pickup Z, lift and check again. 0 = no retry. Default: 3."
                                             Style="{StaticResource SettingHelpText}"/>
-                                        <TextBlock Text="Shooting Feeder · Run After Bolt Detection (ms)" Style="{StaticResource SettingFieldLabel}" Margin="0,10,0,0"/>
+                                        <TextBlock Text="Shooting Feeder · Run After Bolt Detection (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,10,0,0"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding Settings.BoltFeeder.ShootingRunOnMilliseconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                            Text="{Binding Settings.BoltFeeder.ShootingRunOnMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             Width="180" HorizontalAlignment="Left"/>
-                                        <TextBlock Text="Feed while no bolt is detected. After Bolt Detected turns ON, keep feeding for this time, then stop. Default: 3,000 ms."
+                                        <TextBlock Text="Feed while no bolt is detected. After Bolt Detected turns ON, keep feeding for this time, then stop. Default: 3 s."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </Border>
@@ -295,11 +298,11 @@
                                             Width="180" HorizontalAlignment="Left"/>
                                         <TextBlock Text="Wait after tube passage before finishing the shot. Head vacuum ON is not required. Default: 3 s."
                                             Style="{StaticResource SettingHelpText}"/>
-                                        <TextBlock Text="Tube Detection Timeout (ms)" Style="{StaticResource SettingFieldLabel}" Margin="0,10,0,0"/>
+                                        <TextBlock Text="Tube Detection Timeout (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,10,0,0"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding Settings.BoltFastening.ShootingDetectionTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
+                                            Text="{Binding Settings.BoltFastening.ShootingDetectionTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             Width="180" HorizontalAlignment="Left"/>
-                                        <TextBlock Text="Applies separately to tube passage and tube clearance. Default: 3,000 ms."
+                                        <TextBlock Text="Applies separately to tube passage and tube clearance. Default: 3 s."
                                             Style="{StaticResource SettingHelpText}"/>
                                     </StackPanel>
                                 </Border>
@@ -308,16 +311,16 @@
                                 <Border Style="{StaticResource SettingCard}">
                                     <StackPanel>
                                         <TextBlock Text="Bolt Fastening · Timing" Style="{StaticResource SettingSectionTitle}"/>
-                                        <TextBlock Text="Dry Run Motor Duration (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBlock Text="Dry Run Motor Duration (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding Settings.BoltFastening.DryRunMilliseconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                            Text="{Binding Settings.BoltFastening.DryRunMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             Width="180" HorizontalAlignment="Left"/>
-                                        <TextBlock Text="Feeder OFF or Repeat: run after head DOWN, then STOP without waiting for a fastening result. Default: 2,000 ms."
+                                        <TextBlock Text="Feeder OFF or Repeat: run after head DOWN, then STOP without waiting for a fastening result. Default: 2 s."
                                             Style="{StaticResource SettingHelpText}"/>
                                         <StackPanel>
-                                            <TextBlock Text="ADC · Fastening Result Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                            <TextBlock Text="ADC · Fastening Result Timeout (s)" Style="{StaticResource SettingFieldLabel}"/>
                                             <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                Text="{Binding Settings.Hantas.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
+                                                Text="{Binding Settings.Hantas.FasteningTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                                 Width="180" HorizontalAlignment="Left"/>
                                             <TextBlock Text="Maximum wait for the controller result after fastening starts."
                                                 Style="{StaticResource SettingHelpText}"/>
@@ -600,15 +603,15 @@
                                                     Text="{Binding Settings.Hantas.ShootingSlaveAddress, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                             <StackPanel Margin="0,10,4,0">
-                                                <TextBlock Text="Response Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="Response Timeout (s)" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                                    Text="{Binding Settings.Hantas.ResponseTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    Text="{Binding Settings.Hantas.ResponseTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                             </StackPanel>
                                             <StackPanel Margin="4,10,0,0">
-                                                <TextBlock Text="RUN Status Poll (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBlock Text="RUN Status Poll (s)" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                                     ToolTip="Interval for the shared controller status monitor, including idle time. Fastening uses these samples and reads the result once after RUN turns OFF."
-                                                    Text="{Binding Settings.Hantas.StatusPollMilliseconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                                    Text="{Binding Settings.Hantas.StatusPollMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                             </StackPanel>
                                         </UniformGrid>
                                     </StackPanel>
@@ -643,9 +646,9 @@
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
                                             Text="{Binding Settings.InspectionCamera.DeviceId, UpdateSourceTrigger=PropertyChanged}"
                                             Margin="0,0,0,10"/>
-                                        <TextBlock Text="Frame Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBlock Text="Frame Timeout (s)" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding Settings.InspectionCamera.FrameTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
+                                            Text="{Binding Settings.InspectionCamera.FrameTimeoutMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                     </StackPanel>
                                 </Border>
                                 <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12"
@@ -696,9 +699,9 @@
                                                     Text="{Binding Settings.Lighting.InspectionChannel, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                         </UniformGrid>
-                                        <TextBlock Text="Stabilization Delay (ms)" Style="{StaticResource SettingFieldLabel}" Margin="0,12,0,4"/>
+                                        <TextBlock Text="Stabilization Delay (s)" Style="{StaticResource SettingFieldLabel}" Margin="0,12,0,4"/>
                                         <TextBox IsEnabled="{Binding IsSettingsEditAllowed}"
-                                            Text="{Binding Settings.Lighting.StabilizationDelayMilliseconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                            Text="{Binding Settings.Lighting.StabilizationDelayMilliseconds, Converter={StaticResource MillisecondsToSecondsConverter}, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                             ToolTip="Delay from light ON to image capture. 0 disables the delay."/>
                                         <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,14,0,0"
                                             Padding="0,12,0,0">
