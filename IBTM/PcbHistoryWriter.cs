@@ -62,7 +62,7 @@ public sealed partial class PcbHistoryWriter : ObservableObject, IAsyncDisposabl
     {
         var createdAt = DateTimeOffset.Now;
         var recipe = _recipes.Current;
-        var bolts = recipe.Pcb.GetBolts(assembly.HeatSink).ToArray();
+        var bolts = recipe.Pcb.BoltPoints.Where(point => point.HeatSink == assembly.HeatSink).ToArray();
         // Keep this PCB in its original month/folder. Validate the path on the writer, too.
         var directory = _settings.Directory;
         var initial = new PcbRecord(0, createdAt, createdAt, recipe.Name, assembly.HeatSink,

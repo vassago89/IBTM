@@ -200,9 +200,12 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 return trip.HeatSink;
             if (Station.Completed)
                 return null;
-            if (IsTarget(HeatSinkSlot.HeatSink1) && !IsHeatSinkCompleted(HeatSinkSlot.HeatSink1))
+            // An assembly entry is created after placement; skip already placed PCBs.
+            if (IsTarget(HeatSinkSlot.HeatSink1)
+                && !Station.Assemblies.Any(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1))
                 return HeatSinkSlot.HeatSink1;
-            return IsTarget(HeatSinkSlot.HeatSink2) && !IsHeatSinkCompleted(HeatSinkSlot.HeatSink2)
+            return IsTarget(HeatSinkSlot.HeatSink2)
+                && !Station.Assemblies.Any(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2)
                 ? HeatSinkSlot.HeatSink2
                 : null;
         }
@@ -231,11 +234,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     private bool IsTarget(HeatSinkSlot heatSink)
     {
         return _runTargets?.Contains(heatSink) ?? Station.IsHeatSinkPresent(heatSink);
-    }
-
-    private bool IsHeatSinkCompleted(HeatSinkSlot heatSink)
-    {
-        return Station.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
     }
 
     private AxisPosition GetHeatSinkPosition(HeatSinkSlot heatSink)

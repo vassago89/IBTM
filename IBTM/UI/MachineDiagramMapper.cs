@@ -103,16 +103,14 @@ public sealed class MachineDiagramMapper
         get
         {
             return _carrier.IsDefined
-                && (HasPins(_fastening.ShootingHead) || HasPins(_fastening.PickupHead));
+                && (CarrierCoordinates.IsDefined(
+                        _fastening.ShootingHead.UpperLeftLocatingPin, _fastening.ShootingHead.LowerRightLocatingPin)
+                    || CarrierCoordinates.IsDefined(
+                        _fastening.PickupHead.UpperLeftLocatingPin, _fastening.PickupHead.LowerRightLocatingPin));
         }
     }
 
     public bool InspectionDefined => _carrier.IsDefined;
-
-    private static bool HasPins(BoltHeadSettings head)
-    {
-        return CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin);
-    }
 
     public Point? GetSupplyPosition(MotionPosition current)
     {
@@ -235,7 +233,8 @@ public sealed class MachineDiagramMapper
         double x, double y, FasteningHead head, Point origin)
     {
         var settings = _fastening.GetHead(head);
-        if (!_carrier.IsDefined || !HasPins(settings))
+        if (!_carrier.IsDefined
+            || !CarrierCoordinates.IsDefined(settings.UpperLeftLocatingPin, settings.LowerRightLocatingPin))
             return null;
         // Project this head's stored or live machine XY back onto the carrier drawing.
         var carrier = CarrierCoordinates.ToMachine(new() { X = x, Y = y },

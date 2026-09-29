@@ -984,11 +984,6 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
             ExceptionDispatchInfo.Throw(failure);
     }
 
-    public bool HasBarcodePosition(HeatSinkSlot pcb)
-    {
-        return _recipes.Current.FindInspectionImage(pcb, boltId: null)?.Center is not null;
-    }
-
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
     {
         var size = _camera.FrameSize;

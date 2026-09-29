@@ -392,7 +392,7 @@ public sealed class BoltFasteningStation : AutoUnit
                     _runTargets = Enum.GetValues<HeatSinkSlot>().Where(Station.IsHeatSinkPresent).ToArray();
                     foreach (var heatSink in _runTargets)
                     {
-                        if (selectedBolts is null && !_recipes.Current.Pcb.GetBolts(heatSink).Any())
+                        if (selectedBolts is null && !_recipes.Current.Pcb.BoltPoints.Any(point => point.HeatSink == heatSink))
                             throw new InvalidOperationException(
                                 $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
                     }

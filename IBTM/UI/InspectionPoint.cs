@@ -22,7 +22,7 @@ public sealed class InspectionPoint
     public bool IsDataMatrix => Bolt is null;
     public string Name => IsDataMatrix ? UiText.Get("Data Matrix Inspection") : UiText.Format($"{_recipe.Pcb.GetBoltName(Bolt!.Id)} Inspection");
     public string Title => $"{UiText.Get(HeatSink)} · {Name}";
-    public int ImageCount => _recipe.CarrierImages.Count(Matches);
+    public int ImageCount => _recipe.CarrierImages.Count(image => image.IsForTarget(HeatSink, Bolt?.Id));
 
     public CarrierImageTile? Metadata => _recipe.FindInspectionImage(HeatSink, Bolt?.Id);
 
@@ -45,22 +45,18 @@ public sealed class InspectionPoint
         }
     }
 
-    public bool Matches(CarrierImageTile image)
-    {
-        return image.IsForTarget(HeatSink, Bolt?.Id);
-    }
-
     public RecipeImageItem? FindImage(IReadOnlyList<RecipeImageItem> images)
     {
         return Metadata is { } metadata
-            ? images.FirstOrDefault(image => image.Metadata.Number == metadata.Number && Matches(image.Metadata))
+            ? images.FirstOrDefault(image => image.Metadata.Number == metadata.Number
+                && image.Metadata.IsForTarget(HeatSink, Bolt?.Id))
             : null;
     }
 
     public static IEnumerable<InspectionPoint> ForPcb(Recipe recipe, HeatSinkSlot heatSink)
     {
         yield return new(recipe, heatSink);
-        foreach (var bolt in recipe.Pcb.GetBolts(heatSink))
+        foreach (var bolt in recipe.Pcb.BoltPoints.Where(point => point.HeatSink == heatSink))
             yield return new(recipe, heatSink, bolt);
     }
 }

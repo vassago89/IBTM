@@ -154,7 +154,8 @@ public partial class TeachingViewModel : ObservableObject
 
         TeachCurrentPositionCommand = new AsyncRelayCommand(TeachCurrentPositionAsync, () => IsTeachCurrentPositionAllowed);
         MoveToPointCommand = new AsyncRelayCommand(MoveToPointAsync, () => IsMoveToPointAllowed);
-        JogCommand = new AsyncRelayCommand<TeachingDirection>(JogAsync, IsMoveDirectionAllowed);
+        JogCommand = new AsyncRelayCommand<TeachingDirection>(
+            JogAsync, direction => IsJogAllowed(Resolve(direction).Axis));
         StepCommand = new AsyncRelayCommand<TeachingDirection>(StepAsync, IsStepAllowed);
         JogStopCommand = new RelayCommand(JogStop);
         HomeCommand = new AsyncRelayCommand(HomeAsync, () => Machine.IsManualHomeAllowed(ActiveMotionGroup));
@@ -531,7 +532,7 @@ public partial class TeachingViewModel : ObservableObject
         {
             if (!IsInspectionSelected)
                 return null;
-            if (!Inspection.HasBarcodePosition(SelectedPcb))
+            if (Recipes.Current.FindInspectionImage(SelectedPcb, boltId: null)?.Center is null)
                 return FilteredPoints.FirstOrDefault(
                     point => point.Position.Target == TeachingTarget.DataMatrix);
             return Recipes.Current.CarrierImages.Count == 0
@@ -1146,11 +1147,6 @@ public partial class TeachingViewModel : ObservableObject
         }
     }
 
-    private bool IsMoveDirectionAllowed(TeachingDirection direction)
-    {
-        return IsJogAllowed(Resolve(direction).Axis);
-    }
-
     public IAsyncRelayCommand<TeachingDirection> StepCommand { get; }
 
     private async Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
@@ -1527,7 +1523,8 @@ public partial class TeachingViewModel : ObservableObject
             var image = await Task.Run(() => InspectionPreviewViewModel.CreateBitmap(captured.Frame), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             var images = CarrierImages.ToList();
-            var index = images.FindIndex(tile => point.Inspection.Matches(tile.Metadata));
+            var index = images.FindIndex(tile =>
+                tile.Metadata.IsForTarget(point.Inspection.HeatSink, point.Inspection.Bolt?.Id));
             var previous = index >= 0 ? images[index].Metadata : null;
             if (!recordPosition && previous is null)
                 throw new InvalidOperationException(UiText.Get("No reference image. Use Move to Selected Point, then Save X/Y + Image."));

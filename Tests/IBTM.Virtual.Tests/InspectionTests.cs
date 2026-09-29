@@ -504,13 +504,13 @@ public sealed class InspectionTests
         Assert.True(barcodeResult.Success);
         Assert.Equal("PCB-000123", barcodeResult.Barcode);
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
-        Assert.True(inspector.HasBarcodePosition(HeatSinkSlot.HeatSink1));
+        Assert.NotNull(recipes.Current.FindInspectionImage(HeatSinkSlot.HeatSink1, boltId: null)?.Center);
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink2));
-        Assert.False(inspector.HasBarcodePosition(HeatSinkSlot.HeatSink2));
+        Assert.Null(recipes.Current.FindInspectionImage(HeatSinkSlot.HeatSink2, boltId: null)?.Center);
         Assert.Equal(new PixelRegion(180, 40, 80, 80), inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1).Region);
         fov.Region = new(310, 30, 60, 80);
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
-        Assert.True(inspector.HasBarcodePosition(HeatSinkSlot.HeatSink1));
+        Assert.NotNull(recipes.Current.FindInspectionImage(HeatSinkSlot.HeatSink1, boltId: null)?.Center);
         movements = 0;
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None));
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink2, CancellationToken.None));
@@ -518,7 +518,7 @@ public sealed class InspectionTests
 
         fov.Region = new(180, 40, 80, 80);
         recipes.Current.CarrierImages.Add(new() { IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1 });
-        Assert.False(inspector.HasBarcodePosition(HeatSinkSlot.HeatSink1));
+        Assert.Null(recipes.Current.FindInspectionImage(HeatSinkSlot.HeatSink1, boltId: null)?.Center);
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.ReadBarcodeAsync(HeatSinkSlot.HeatSink1, CancellationToken.None));
         Assert.Equal(0, movements);

@@ -185,7 +185,7 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBlock Text="{ui:Text 'Bolt results'}" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,8"/>
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding BoltResults}" SelectedItem="{Binding SelectedBolt, Mode=TwoWay}" AutoGenerateColumns="False"
+                    <DataGrid x:Name="BoltResultsGrid" Grid.Row="1" ItemsSource="{Binding BoltResults}" SelectedItem="{Binding SelectedBolt, Mode=TwoWay}" AutoGenerateColumns="False"
                         IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False"
                         CanUserReorderColumns="False" HeadersVisibility="Column" GridLinesVisibility="None" RowHeaderWidth="0"
                         BorderThickness="0" Background="{StaticResource ControlBgBrush}" RowHeight="28" ColumnHeaderHeight="28" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -198,7 +198,7 @@
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="{ui:Text 'HEAD'}" Binding="{Binding HeadLabel}" Width="108"/>
+                            <DataGridTextColumn Header="{ui:Text 'HEAD'}" Binding="{Binding HeadLabel, Mode=OneWay}" Width="108"/>
                             <DataGridTemplateColumn Header="{ui:Text 'FASTEN'}" Width="72"><DataGridTemplateColumn.CellTemplate><DataTemplate DataType="{x:Type ui:PcbBoltResultView}">
                                 <TextBlock Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource ResultBadge}" FontSize="11"/>
                             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>

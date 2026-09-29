@@ -79,7 +79,7 @@ public partial class PcbResultsViewModel : ObservableObject
         {
             Images = [];
             SelectedImage = null;
-            RefreshImages();
+            _ = LoadImagesCommand.ExecuteAsync(null);
         }
         else
         {
@@ -97,11 +97,6 @@ public partial class PcbResultsViewModel : ObservableObject
     {
         if (value is not null)
             SelectedBolt = BoltResults.FirstOrDefault(bolt => bolt.BoltId == value.Record.BoltId);
-    }
-
-    public void RefreshImages()
-    {
-        _ = LoadImagesCommand.ExecuteAsync(null);
     }
 
     private async Task LoadImagesAsync(CancellationToken cancellationToken)

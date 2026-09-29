@@ -180,7 +180,7 @@ public partial class OperationViewModel : ObservableObject
             return Units.PcbPlacement
                 && Placement.Station.CarrierPresent
                 && Placement.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink1)
-                && HasAssembly(Placement.Station, HeatSinkSlot.HeatSink1);
+                && Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1);
         }
     }
 
@@ -191,7 +191,7 @@ public partial class OperationViewModel : ObservableObject
             return Units.PcbPlacement
                 && Placement.Station.CarrierPresent
                 && Placement.Station.IsHeatSinkPresent(HeatSinkSlot.HeatSink2)
-                && HasAssembly(Placement.Station, HeatSinkSlot.HeatSink2);
+                && Placement.Station.Assemblies.Any(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2);
         }
     }
 
@@ -400,11 +400,6 @@ public partial class OperationViewModel : ObservableObject
     }
 
     public IAsyncRelayCommand HomeCommand { get; }
-
-    private static bool HasAssembly(ConveyorStation station, HeatSinkSlot heatSink)
-    {
-        return station.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
-    }
 
     private static AssemblyResult GetAssemblyResult(ConveyorStation station, HeatSinkSlot heatSink, bool inspection)
     {
@@ -998,7 +993,7 @@ public partial class OperationViewModel : ObservableObject
             return;
         }
         if (PcbDetails.Record?.Number == number)
-            PcbDetails.RefreshImages();
+            _ = PcbDetails.LoadImagesCommand.ExecuteAsync(null);
     }
 
     [ObservableProperty]

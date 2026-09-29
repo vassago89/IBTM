@@ -961,7 +961,7 @@ public sealed class TeachingTests
         Assert.Equal(expectedOrder, teaching.FilteredPoints.Where(point => point.Position.Bolt is not null).Select(point => point.Position.Bolt!.Id));
         Assert.DoesNotContain(shooting1.Id, recipes.Current.Pcb.FasteningOrder);
         Assert.Equal(new[] { pickup1.Id, shooting2.Id, pickup2.Id, addedId, addedPickupId },
-            recipes.Current.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Select(bolt => bolt.Id));
+            recipes.Current.Pcb.BoltPoints.Where(point => point.HeatSink == HeatSinkSlot.HeatSink1).Select(bolt => bolt.Id));
 
         // Inspection keeps its own order; deleting the last bolt leaves a non-bolt selection.
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;

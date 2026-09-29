@@ -496,7 +496,7 @@ public sealed class VirtualMachine
                     && _io.GetOutput(OutputIo.MainConveyorAvailableToRear)
                     && _io.GetInput(InputIo.MainConveyorReadyFromRear))
                 {
-                    ClearCarrier(InputIo.InspectionHeatSink1Present, InputIo.InspectionHeatSink2Present);
+                    _io.SetInputs((InputIo.InspectionHeatSink1Present, false), (InputIo.InspectionHeatSink2Present, false));
                     _ = RespondAsync(responseVersion, () =>
                     {
                         if (_mainConveyorTransferVersion == version && _io.GetOutput(OutputIo.MainConveyorRun))
@@ -624,7 +624,7 @@ public sealed class VirtualMachine
 
             var pcbs = GetCarrierPcbs(heatSink1);
             _mainEntryCarrier = (_io.GetInput(heatSink1), _io.GetInput(heatSink2), pcbs.Pcb1, pcbs.Pcb2);
-            ClearCarrier(heatSink1, heatSink2);
+            _io.SetInputs((heatSink1, false), (heatSink2, false));
             _io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
             return;
         }
@@ -655,7 +655,7 @@ public sealed class VirtualMachine
         var heatSink1 = _io.GetInput(sourceHeatSink1);
         var heatSink2 = _io.GetInput(sourceHeatSink2);
         var pcbs = GetCarrierPcbs(sourceHeatSink1);
-        ClearCarrier(sourceHeatSink1, sourceHeatSink2);
+        _io.SetInputs((sourceHeatSink1, false), (sourceHeatSink2, false));
         if (destinationHeatSink1 == InputIo.PcbPlacementHeatSink1Present)
         {
             _placedPcbs[0] = pcbs.Pcb1;
@@ -666,11 +666,6 @@ public sealed class VirtualMachine
             _carrierPcbs[destinationHeatSink1] = pcbs;
         }
         _io.SetInputs((destinationHeatSink1, heatSink1), (destinationHeatSink2, heatSink2));
-    }
-
-    private void ClearCarrier(InputIo heatSink1, InputIo heatSink2)
-    {
-        _io.SetInputs((heatSink1, false), (heatSink2, false));
     }
 
     // Simulated material travels with the carrier; real control still reads only sensors.
@@ -739,7 +734,7 @@ public sealed class VirtualMachine
                             _ngCarrierHeatSink2 = _io.GetInput(InputIo.InspectionHeatSink2Present);
                             _ngCarrierPcbs = GetCarrierPcbs(InputIo.InspectionHeatSink1Present);
                             _io.SetInput(InputIo.NgCarrierDetected, true);
-                            ClearCarrier(InputIo.InspectionHeatSink1Present, InputIo.InspectionHeatSink2Present);
+                            _io.SetInputs((InputIo.InspectionHeatSink1Present, false), (InputIo.InspectionHeatSink2Present, false));
                         }
                         else if (value
                             && !_ngCarrierHeld

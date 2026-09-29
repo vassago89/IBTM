@@ -192,7 +192,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
                 ? Points.FirstOrDefault(point => point.HeatSink == selected.HeatSink
                     && point.IsDataMatrix == selected.IsDataMatrix && point.Bolt?.Id == selected.Bolt?.Id)
                 : null) ?? Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
-            var unlinked = Draft.CarrierImages.Count(tile => !Points.Any(point => point.Matches(tile)));
+            var unlinked = Draft.CarrierImages.Count(tile =>
+                !Points.Any(point => tile.IsForTarget(point.HeatSink, point.Bolt?.Id)));
             var failed = images.Count(image => image.Error is not null);
             Message = failed > 0 ? UiText.Format($"{failed} reference image(s) unavailable.")
                 : unlinked > 0 ? UiText.Format($"{unlinked} unlinked image(s) excluded.") : null;

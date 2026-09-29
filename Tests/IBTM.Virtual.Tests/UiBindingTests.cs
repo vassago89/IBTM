@@ -536,9 +536,17 @@ public sealed class UiBindingTests
         var originalStyle = resources[typeof(PcbResultsWindow)];
         var selectionHandler = typeof(OperationView).GetMethod("OnPcbSelectionChanged",
             BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var boltId = Guid.NewGuid();
+        var result = new BoltResult(true, 10.09)
+        {
+            MinimumTurns = 12.5,
+            Controller = new BoltControllerData("COM10", 1, 112, 988, 1, 10, 863,
+                4617, 23, 4640, 1, 0, 0, 1, 0, null),
+        };
         var record = new PcbRecord(1, DateTimeOffset.Now, DateTimeOffset.Now, "Test", HeatSinkSlot.HeatSink1,
             null, AssemblyResult.Pending, AssemblyResult.Pending, AssemblyResult.Pending,
-            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, bool>(), []);
+            new Dictionary<Guid, BoltResult>(), new Dictionary<Guid, BoltResult> { [boltId] = result },
+            new Dictionary<Guid, bool>(), []);
         var selection = new SelectionChangedEventArgs(System.Windows.Controls.Primitives.Selector.SelectionChangedEvent,
             Array.Empty<PcbRecord>(), new[] { record });
         try
@@ -557,6 +565,16 @@ public sealed class UiBindingTests
                 var detailsWindow = Assert.Single(Application.Current.Windows.OfType<PcbResultsWindow>());
                 Assert.True(detailsWindow.IsVisible);
                 Assert.Same(record, operation.PcbDetails.Record);
+                detailsWindow.UpdateLayout();
+                await Dispatcher.Yield(DispatcherPriority.ContextIdle);
+                var results = (DataGrid)detailsWindow.FindName("BoltResultsGrid");
+                var selected = Assert.Single(operation.PcbDetails.BoltResults);
+                Assert.Same(selected, results.SelectedItem);
+                Assert.Equal(selected.HeadLabel, Assert.IsType<TextBlock>(results.Columns[1].GetCellContent(selected)).Text);
+                var turnsCell = Assert.IsType<ContentPresenter>(results.Columns[5].GetCellContent(selected));
+                var turns = Assert.IsType<TextBlock>(VisualTreeHelper.GetChild(turnsCell, 0));
+                Assert.Equal("12.889 / 12.5",
+                    new System.Windows.Documents.TextRange(turns.ContentStart, turns.ContentEnd).Text);
                 detailsWindow.Close();
                 Assert.Null(operation.PcbDetails.Record);
             }

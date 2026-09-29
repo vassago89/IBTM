@@ -36,7 +36,7 @@ public partial class LogViewModel : ObservableObject, IDisposable
         BindingOperations.EnableCollectionSynchronization(log.Entries, log.SyncRoot);
         _entries = new ListCollectionView(log.Entries)
         {
-            Filter = IsVisible,
+            Filter = item => ((LogEntry)item).Sequence > _clearedThroughSequence,
             SortDescriptions = { new(nameof(LogEntry.Sequence), ListSortDirection.Descending) },
         };
         ((INotifyCollectionChanged)_entries).CollectionChanged += OnEntriesChanged;
@@ -53,11 +53,6 @@ public partial class LogViewModel : ObservableObject, IDisposable
     }
 
     public ApplicationLog Log { get; }
-
-    private bool IsVisible(object item)
-    {
-        return ((LogEntry)item).Sequence > _clearedThroughSequence;
-    }
 
     private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {

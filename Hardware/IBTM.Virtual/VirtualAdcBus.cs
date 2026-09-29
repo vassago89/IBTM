@@ -37,7 +37,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
 
     public void SetNextFasteningResult(byte slaveAddress, AdcEventStatus status)
     {
-        var controller = GetController(slaveAddress);
+        var controller = _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
         lock (controller)
         {
             controller.NextStatus = status;
@@ -75,7 +75,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var controller = GetController(slaveAddress);
+        var controller = _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
         ApplyControl(controller, address, value);
 
         var data = new byte[4];
@@ -100,7 +100,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             _io = io;
             _io.OutputChanged += OnOutputChanged;
         }
-        var controller = GetController(slaveAddress);
+        var controller = _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
         controller.Head = head;
     }
 
@@ -220,7 +220,7 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var controller = GetController(slaveAddress);
+        var controller = _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
         var values = new ushort[count];
         lock (controller)
         {
@@ -250,11 +250,6 @@ public sealed class VirtualAdcBus : IAdcBus, IDisposable
             AdcRtuFrame.Build(slaveAddress, function, requestData),
             BuildReadResponse(slaveAddress, function, responseData));
         return Task.FromResult(values);
-    }
-
-    private Controller GetController(byte slaveAddress)
-    {
-        return _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
     }
 
     private async Task CompleteFasteningAsync(

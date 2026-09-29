@@ -351,7 +351,7 @@ public sealed class RecipeTests
         var added = new BoltPoint();
         pcb.BoltPoints.Add(added);
         Assert.Equal(new[] { shooting1, added, shooting2, pickup1, pickup2 }, pcb.FasteningPoints);
-        Assert.Equal(new[] { shooting1, pickup1, added }, pcb.GetBolts(HeatSinkSlot.HeatSink1));
+        Assert.Equal(new[] { shooting1, pickup1, added }, pcb.BoltPoints.Where(point => point.HeatSink == HeatSinkSlot.HeatSink1));
         Assert.Equal(1, pcb.GetBoltOrdinal(shooting1.Id));
         Assert.Equal(2, pcb.GetBoltOrdinal(pickup1.Id));
     }
@@ -596,15 +596,15 @@ public sealed class RecipeTests
         await editor.SaveAsync();
         var loaded = database.LoadRecipe(recipe.Name);
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count);
-        Assert.Equal(13d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().X);
-        Assert.Equal(175d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().X);
-        Assert.Equal(140, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().BrightnessThreshold);
-        Assert.Equal(0.2, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().MinimumBrightRatio);
-        Assert.Equal(210, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().BrightnessThreshold);
-        Assert.Equal(0.7, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().MinimumBrightRatio);
+        Assert.Equal(13d, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink1).X);
+        Assert.Equal(175d, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink2).X);
+        Assert.Equal(140, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink1).BrightnessThreshold);
+        Assert.Equal(0.2, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink1).MinimumBrightRatio);
+        Assert.Equal(210, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink2).BrightnessThreshold);
+        Assert.Equal(0.7, loaded.Pcb.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink2).MinimumBrightRatio);
         layout.BoltPoints.Remove(targets[1]);
-        Assert.Empty(layout.GetBolts(HeatSinkSlot.HeatSink2));
-        Assert.Single(layout.GetBolts(HeatSinkSlot.HeatSink1));
+        Assert.DoesNotContain(layout.BoltPoints, point => point.HeatSink == HeatSinkSlot.HeatSink2);
+        Assert.Single(layout.BoltPoints, point => point.HeatSink == HeatSinkSlot.HeatSink1);
         var oldLayout = System.Text.Json.JsonSerializer.Deserialize<PcbLayout>(
             """{"BoltPoints":[{"Number":1,"X":5,"Y":6}],"Origins":{"HeatSink1":{"X":100,"Y":200}}}""");
         Assert.Empty(oldLayout!.BoltPoints);
@@ -825,7 +825,7 @@ public sealed class RecipeTests
             new(TeachingTarget.CarrierUpperLeftLocatingPin, MotionGroup.InspectionGantry, TeachMode.XYOnly), settings);
         upperLeft.Teach(105, 205, 0);
         Assert.Same(lowerRight, reference.LowerRightLocatingPin);
-        var camera = recipe.GetBolts(HeatSinkSlot.HeatSink1).Single().InspectionPosition!;
+        var camera = recipe.BoltPoints.Single(point => point.HeatSink == HeatSinkSlot.HeatSink1).InspectionPosition!;
         Assert.Equal((110, 220), (camera.X, camera.Y));
         Assert.Equal((110d, 220d), (bolt.X, bolt.Y));
         Assert.Same(reference, upperLeft.Setting);

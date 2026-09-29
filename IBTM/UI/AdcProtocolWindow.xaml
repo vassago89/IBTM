@@ -232,10 +232,10 @@
                         </Style>
                     </DataGrid.Resources>
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="{ui:Text '코드 · 10진수 (16진수)'}" Binding="{Binding CodeText}" Width="180"/>
-                        <DataGridTextColumn Header="{ui:Text '분류'}" Binding="{Binding Group, Converter={StaticResource UiTextConverter}}" Width="115"/>
-                        <DataGridTextColumn Header="{ui:Text '의미'}" Binding="{Binding Description, Converter={StaticResource UiTextConverter}}" ElementStyle="{StaticResource ErrorReferenceText}" Width="*"/>
-                        <DataGridTextColumn Header="{ui:Text '확인 / 조치'}" Binding="{Binding Action, Converter={StaticResource UiTextConverter}}" ElementStyle="{StaticResource ErrorReferenceText}" Width="*"/>
+                        <DataGridTextColumn Header="{ui:Text '코드 · 10진수 (16진수)'}" Binding="{Binding CodeText, Mode=OneWay}" Width="180"/>
+                        <DataGridTextColumn Header="{ui:Text '분류'}" Binding="{Binding Group, Mode=OneWay, Converter={StaticResource UiTextConverter}}" Width="115"/>
+                        <DataGridTextColumn Header="{ui:Text '의미'}" Binding="{Binding Description, Mode=OneWay, Converter={StaticResource UiTextConverter}}" ElementStyle="{StaticResource ErrorReferenceText}" Width="*"/>
+                        <DataGridTextColumn Header="{ui:Text '확인 / 조치'}" Binding="{Binding Action, Mode=OneWay, Converter={StaticResource UiTextConverter}}" ElementStyle="{StaticResource ErrorReferenceText}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>
