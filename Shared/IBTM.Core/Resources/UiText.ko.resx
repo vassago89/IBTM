@@ -2206,9 +2206,6 @@
   <data name="saved to recipe '{0}'." xml:space="preserve">
     <value>레시피 '{0}'에 저장됨.</value>
   </data>
-  <data name="saved · applies from the next inspection point." xml:space="preserve">
-    <value>저장됨 · 다음 검사 위치부터 적용됩니다.</value>
-  </data>
   <data name="saving settings..." xml:space="preserve">
     <value>설정 저장 중...</value>
   </data>

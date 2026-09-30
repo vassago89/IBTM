@@ -72,6 +72,7 @@ public sealed class Recipe
                 continue;
             bolt.BrightnessThreshold = edited.BrightnessThreshold;
             bolt.MinimumBrightRatio = edited.MinimumBrightRatio;
+            bolt.MinimumTurns = edited.MinimumTurns;
         }
         foreach (var tile in CarrierImages)
         {

@@ -442,6 +442,8 @@ public sealed class InspectionTeachingTests
         editor.SelectedPoint = editor.Points.Single(point => !point.IsDataMatrix);
         editor.Preview.BrightnessThreshold = 214;
         editor.Preview.MinimumBrightPercent = 40;
+        editor.SelectedPoint.Bolt!.MinimumTurns = 12.5;
+        Assert.Null(recipes.Current.Pcb.BoltPoints[0].MinimumTurns);
         Assert.Null(recipes.Current.Pcb.BoltPoints[0].LightLevel);
         Assert.Equal(255, recipes.Current.BoltInspection.LightLevel);
         Assert.True(recipes.Current.BoltInspection.DataMatrix1.TryInverted);
@@ -482,6 +484,7 @@ public sealed class InspectionTeachingTests
             Assert.Equal(87, recipe.Pcb.BoltPoints[0].LightLevel);
             Assert.Equal(214, recipe.Pcb.BoltPoints[0].BrightnessThreshold);
             Assert.Equal(0.4, recipe.Pcb.BoltPoints[0].MinimumBrightRatio);
+            Assert.Equal(12.5, recipe.Pcb.BoltPoints[0].MinimumTurns);
         }
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 1));
         Assert.Equal(png, store.LoadRecipeImage("Inspection", 2));
@@ -491,9 +494,12 @@ public sealed class InspectionTeachingTests
 
         // Saving another recipe never replaces the active machine recipe.
         recipes.Current.Name = "Other";
+        editor.SelectedPoint.Bolt!.MinimumTurns = 0;
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);
         Assert.Equal("Other", recipes.Current.Name);
+        Assert.Equal(12.5, bolt.MinimumTurns);
+        Assert.Null(store.LoadRecipe("Inspection").Pcb.BoltPoints[0].MinimumTurns);
         Assert.Equal(87, bolt.LightLevel);
         Assert.Equal(87, store.LoadRecipe("Inspection").Pcb.BoltPoints[0].LightLevel);
     }
@@ -599,6 +605,7 @@ public sealed class InspectionTeachingTests
         editor.DrawRegionCommand.Execute(new Rect(0, 0, 8, 8));
         editor.Preview.BrightnessThreshold = 173;
         editor.Preview.MinimumBrightPercent = 42;
+        editor.SelectedPoint.Bolt!.MinimumTurns = 8.25;
         editor.Draft.BoltInspection.DataMatrix1.TryInverted = false;
         var previousImage = editor.Preview.Image;
         var png = await SaveRecipeAsync(store, brightness: 90);
@@ -613,6 +620,7 @@ public sealed class InspectionTeachingTests
         Assert.Equal(new PixelRegion(6, 6, 8, 8), editor.SelectedPoint.Metadata!.Region);
         Assert.Equal(173, editor.Preview.BrightnessThreshold);
         Assert.Equal(42, editor.Preview.MinimumBrightPercent);
+        Assert.Equal(8.25, editor.SelectedPoint.Bolt!.MinimumTurns);
         Assert.False(editor.Draft.BoltInspection.DataMatrix1.TryInverted);
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.Error);

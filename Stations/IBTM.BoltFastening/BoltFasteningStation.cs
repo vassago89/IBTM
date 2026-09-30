@@ -592,7 +592,9 @@ public sealed class BoltFasteningStation : AutoUnit
                     TraceStep(step, target, job.Id, "fastening controller result");
                     BoltResult? result = null;
                     Exception? fasteningFailure = null;
-                    var minimumTurns = bolt.MinimumTurns;
+                    double? minimumTurns;
+                    lock (_recipes.InspectionSync)
+                        minimumTurns = bolt.MinimumTurns;
                     try
                     {
                         var head = bolt.Head switch

@@ -2206,9 +2206,6 @@ Operation failed. Check controller status.</value>
   <data name="saved to recipe '{0}'." xml:space="preserve">
     <value>Saved to recipe '{0}'.</value>
   </data>
-  <data name="saved · applies from the next inspection point." xml:space="preserve">
-    <value>Saved · applies from the next inspection point.</value>
-  </data>
   <data name="saving settings..." xml:space="preserve">
     <value>Saving settings...</value>
   </data>

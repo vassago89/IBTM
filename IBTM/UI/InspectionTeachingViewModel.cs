@@ -284,9 +284,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         try
         {
             await _recipes.SaveInspectionAsync(Draft, token);
-            Message = MachineStore.IsSameRecipeName(_recipes.Current.Name, Draft.Name)
-                ? UiText.Get("Saved · applies from the next inspection point.")
-                : UiText.Format($"Saved to recipe '{Draft.Name}'.");
+            Message = UiText.Format($"Saved to recipe '{Draft.Name}'.");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)

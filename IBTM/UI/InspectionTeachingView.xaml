@@ -210,6 +210,10 @@
                                         </Style.Triggers>
                                     </Style>
                                 </WrapPanel.Style>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,24,6">
+                                    <TextBlock Text="{ui:Text 'Min. turns (0 = no check)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox Width="70" Text="{Binding SelectedPoint.Bolt.MinimumTurns, Mode=TwoWay, BindingGroupName=InspectionInputs, TargetNullValue=0, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
+                                </StackPanel>
                                 <TextBlock Text="{ui:Text 'Bolt presence'}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,6"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
                                     <TextBlock Text="{ui:Text 'Threshold (0–255)'}" VerticalAlignment="Center" Margin="0,0,8,0"/>
