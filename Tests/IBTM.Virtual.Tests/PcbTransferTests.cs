@@ -278,8 +278,33 @@ public sealed class PcbTransferTests
                 placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token));
             Assert.Equal(waitingPosition, placementMotion.Position);
             Assert.Equal(PcbPlacementState.MovingToHandoff, placer.Phase);
+            // Supply reaches XYZ with the pickup orientation; rotation feedback arrives later.
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true);
+            io.AutoResponseEnabled = false;
+            var preparation = supplier.PrepareHandoffAsync(timeout.Token);
+            try
+            {
+                Assert.True(await WaitUntilAsync(
+                    () => !io.GetOutput(OutputIo.PcbSupplyRotate), TimeSpan.FromSeconds(2)));
+                Assert.True(MotionServiceBase.IsHoldingPosition(supplyMotion, supplySettings.HandoffPosition));
+                Assert.Equal(PcbSupplyRotationState.Rotated, supplier.Rotation);
+                Assert.False(preparation.IsCompleted);
+                Assert.False(await placer.ExecuteStepAsync(
+                    placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, timeout.Token));
+                Assert.Equal(waitingPosition, placementMotion.Position);
+                io.SetInputs((InputIo.PcbSupplyRotated, false), (InputIo.PcbSupplyUnrotated, true));
+                await preparation;
+            }
+            finally
+            {
+                io.AutoResponseEnabled = true;
+                await preparation.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+            }
         }
-        await supplier.PrepareHandoffAsync(timeout.Token);
+        else
+        {
+            await supplier.PrepareHandoffAsync(timeout.Token);
+        }
         Assert.Equal(PcbSupplyRotationState.Unrotated, supplier.Rotation);
         Assert.Equal(PcbSupplyHandoff.Holding, supplier.Handoff);
         Assert.Equal(PcbPlacementState.MovingToHandoff, placer.Phase);

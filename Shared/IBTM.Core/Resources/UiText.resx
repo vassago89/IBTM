@@ -3284,4 +3284,7 @@ See the application log for details.</value>
   <data name="supply rotation feedback changed while moving to the handoff position." xml:space="preserve">
     <value>Supply rotation feedback changed while moving to the handoff position.</value>
   </data>
+  <data name="supply must remain ready at its unrotated handoff position while placement approaches." xml:space="preserve">
+    <value>Supply must remain ready at its unrotated handoff position while Placement approaches.</value>
+  </data>
 </root>

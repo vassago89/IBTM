@@ -91,9 +91,12 @@ motion commands, or internal sequence stages, and do not store duplicate state.
 Placement receives Supply's handoff interface through DI. Neither project refers
 to the other. Each loop listens for the peer's own changes to wake its wait;
 it never relays those changes back to the peer.
-Supply and Placement approach independently. Every Placement axis movement
-requires its handler cylinder Up. Either may arrive first. Both handlers must settle at their
-own taught standby/give XYZ before Placement moves Z to `ReceiveZ`.
+Supply reaches its handoff XYZ and confirms Unrotated before Placement approaches.
+Placement waits outside the handoff while Supply is unavailable: forward receipt requires
+`Holding`; a Repeat return requires `Released`. Placement monitors this condition through
+its Z, X, then Y approach and cancels movement if Supply readiness is lost.
+Every Placement axis movement requires its handler cylinder Up. Both handlers must settle at
+their own taught standby/give XYZ before Placement moves Z to `ReceiveZ`.
 
 Supply releases only while Placement reports handoff `Holding`, which
 requires PCB detection and vacuum detection at the receive position with the handler Up.

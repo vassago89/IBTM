@@ -1734,7 +1734,9 @@ public sealed class TeachingTests
             Assert.True(machine.IsHomeAllowed);
             await machine.HomeAsync(CancellationToken.None);
             await supply.PrepareHandoffAsync(CancellationToken.None);
-            await placement.PrepareHandoffAsync();
+            await placement.MoveToTeachingPositionAsync(
+                new(TeachingTarget.PlacementHandoff, MotionGroup.PcbPlacementHandler, TeachMode.Full),
+                settings.PcbPlacementHandler.HandoffPosition);
             Assert.True(MotionServiceBase.IsAt(supply.Motion.Feedback, settings.PcbSupply.HandoffPosition));
             Assert.True(MotionServiceBase.IsAt(placement.Motion.Feedback, settings.PcbPlacementHandler.HandoffPosition));
 

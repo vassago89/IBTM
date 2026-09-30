@@ -405,6 +405,9 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 case PcbPlacementState.ReturningToSupply:
                     if (!PcbSecured)
                         throw new InvalidOperationException("Returning a PCB requires confirmed holding feedback.");
+                    // Entering ReturningToSupply above requests Supply's empty handoff first.
+                    if (_units.PcbSupply && _supply.Handoff != PcbSupplyHandoff.Released)
+                        return false;
                     await SetLiftDownAsync(false, cancellationToken);
                     await PrepareHandoffAsync(cancellationToken, returning: true);
                     if (!_units.PcbSupply)
@@ -429,6 +432,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     EnterStep(PcbPlacementState.WaitingForSupplyDeparture);
                     break;
                 case PcbPlacementState.MovingToHandoff:
+                    if (_units.PcbSupply && _supply.Handoff != PcbSupplyHandoff.Holding)
+                        return false;
                     await SetLiftDownAsync(false, cancellationToken);
                     await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, cancellationToken);
                     await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, !repeat, cancellationToken);
@@ -616,15 +621,38 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     public async Task PrepareHandoffAsync(CancellationToken cancellationToken = default, bool returning = false)
     {
         EnterStep(returning ? PcbPlacementState.ReturningToSupply : PcbPlacementState.MovingToHandoff);
-        await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, cancellationToken);
-        await MoveAxisAsync(MotionAxis.X, _settings.HandoffPosition.X, cancellationToken);
-        await MoveAxisAsync(MotionAxis.Y, _settings.HandoffPosition.Y, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        _handoffPosition = new()
+        var expected = returning ? PcbSupplyHandoff.Released : PcbSupplyHandoff.Holding;
+        using var approach = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        void CheckSupply()
         {
-            X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = _settings.HandoffPosition.Z,
-        };
-        EnterStep(returning ? PcbPlacementState.WaitingForSupplyReceipt : PcbPlacementState.WaitingForSupply);
+            // Handoff confirms settled Supply XYZ and Unrotated feedback, as well as grip state.
+            if (_units.PcbSupply && _supply.Handoff != expected)
+                OperationCancellation.CancelIfNotDisposed(approach);
+        }
+        _supply.Changed += CheckSupply;
+        try
+        {
+            CheckSupply();
+            approach.Token.ThrowIfCancellationRequested();
+            await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, approach.Token);
+            await MoveAxisAsync(MotionAxis.X, _settings.HandoffPosition.X, approach.Token);
+            await MoveAxisAsync(MotionAxis.Y, _settings.HandoffPosition.Y, approach.Token);
+            CheckSupply();
+            approach.Token.ThrowIfCancellationRequested();
+            _handoffPosition = new()
+            {
+                X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = _settings.HandoffPosition.Z,
+            };
+            EnterStep(returning ? PcbPlacementState.WaitingForSupplyReceipt : PcbPlacementState.WaitingForSupply);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new MotionInterlockException("Supply must remain ready at its unrotated handoff position while Placement approaches.");
+        }
+        finally
+        {
+            _supply.Changed -= CheckSupply;
+        }
     }
 
     public async Task PrepareReceiptAsync(CancellationToken cancellationToken = default, bool returning = false)

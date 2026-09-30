@@ -4,8 +4,8 @@ Standby is `HandoffPosition.Z` followed by `HandoffPosition.X/Y`. This Z is
 also the XY travel height. `ReceiveZ` is taught separately at the same X/Y.
 Handler Rotate output stays OFF during automatic, repeat and manual operation.
 
-1. Raise the handler, reach standby Z, prepare the IPM, then move to standby X followed by Y. Automatic and Repeat use this same approach regardless of Supply enablement.
-2. Wait for Supply at its give XYZ with confirmed holding. Keep the handler cylinder Up, move Z to `ReceiveZ`, detect the PCB and confirm vacuum holding.
+1. Wait outside the handoff until Supply reports `Holding`: settled at its give XYZ, Unrotated, and securing the PCB. Then raise the handler, reach standby Z, prepare the IPM and move to standby X followed by Y. Loss of Supply readiness during this approach stops movement.
+2. Keep the handler cylinder Up, move Z to `ReceiveZ`, detect the PCB and confirm vacuum holding.
 3. After Supply fixer and gripper retract, return Z to standby and move only Y to the selected heat sink's placement Y. Keep `PreparingPlacement` until Y settles; only then publish `Clear` for Supply withdrawal. A prefetched PCB without a carrier target waits at Heat Sink 1 Y.
 4. With the carrier seated, finish the move to the selected heat sink X, descend to placement Z and lower the handler.
 5. Release vacuum, raise IPM and lower IPM to press using the existing IPM Down output. Record the placement, then raise IPM, handler and Z. There is no IPM gripper output or open/closed feedback.
@@ -42,8 +42,10 @@ the sensor to clear during retraction. The operation uses its selected carrier a
 it never guesses a heat sink from X/Y. Repeat uses the same switch in `PcbPlacer.cs` and
 picks PCBs from the existing carrier.
 With Supply disabled, it visits handoff and places each PCB back on its heat sink.
-With Supply enabled, `ReturningPcb` identifies the original heat sink and `Returning`
-confirms a held PCB at Receive Z. Supply secures it before Placement releases and
+With Supply enabled, `ReturningPcb` requests the original heat sink's return before
+Placement approaches. Placement waits until Supply reports `Released` at its settled,
+Unrotated handoff XYZ, then approaches in Z, X, Y order with the same readiness monitoring.
+`Returning` confirms a held PCB at Receive Z. Supply secures it before Placement releases and
 rises and moves to the original heat sink Y before allowing Supply to withdraw. Placement waits for Supply's departure and next forward handoff, then places
 the same PCB without pressing. Supply then completes normal empty withdrawal to
 pickup XY and Travel Z before waiting for another return. Repeat keeps IPM Up during pickup, both handoff directions,

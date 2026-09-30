@@ -223,7 +223,8 @@ NG Transfer는 `Carrier Pickup (S3)`와 `Carrier Placement (Shuttle)` 두 XY 위
 Supply의 `PCB Handoff`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unrotated 상태다.
 `Travel Z` → 인계 XY → 인계 Z 순서로 이동한 뒤, 인계 XYZ에서만 Unrotated로 전환한다.
 대기는 PCB 1 Pickup의 X/Y와 PCB Travel Z에서 Rotated 상태다.
-Placement는 핸들러 상승 → 대기 Z → 인계 XY에서 대기하고, 실린더 Up 상태로 `ReceiveZ`까지 이동해 받는다.
+Placement는 Supply가 인계 XYZ에 도착하고 Unrotated를 확인한 뒤에만 접근한다. 정방향은 `Holding`, Repeat 역인계는 `Released`를 기다린다.
+그 뒤 핸들러 상승 → 대기 Z → 인계 X → 인계 Y 순서로 접근하며, 도중 Supply 준비가 풀리면 정지한다. 실린더 Up 상태로 `ReceiveZ`까지 이동해 받는다.
 Supply 해제 후 대기 Z로 복귀하고 선택한 히트싱크 Y까지 먼저 빠진 뒤 X 이동·안착한다. Supply는 Y 도착 후 복귀한다.
 Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 동작에서 회전하거나 회전 피드백을 기다리지 않는다. 티칭·OUTPUTS에서도 ON으로 전환할 수 없다.
 체결의 `Safe Z`는 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,

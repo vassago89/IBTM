@@ -406,13 +406,38 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.True(rig.Placer.PcbSecured);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HandoffApproachStopsIfSupplyReadinessIsLost(bool returning)
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        rig.Supply.Handoff = returning ? PcbSupplyHandoff.Released : PcbSupplyHandoff.Holding;
+        var lost = false;
+        rig.Motion.PositionChanged += (x, y, z) =>
+        {
+            if (!lost && rig.Motion.IsMovingHorizontal && x > 1)
+            {
+                lost = true;
+                rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+            }
+        };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        await Assert.ThrowsAsync<MotionInterlockException>(
+            () => rig.Placer.PrepareHandoffAsync(timeout.Token, returning));
+        Assert.True(lost);
+        Assert.False(rig.Motion.IsMoving);
+        Assert.Equal(0, rig.Motion.Position.Y);
+        Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
+    }
+
     [Fact]
     public async Task ReceiptWaitsForCurrentPcbPresenceBeforeStartingVacuum()
     {
         using var rig = new PlacementRig();
         await rig.InitializeAsync();
         await rig.Placer.PrepareHandoffAsync();
-        rig.Supply.Handoff = PcbSupplyHandoff.Holding;
         await rig.Placer.PrepareReceiptAsync();
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var scheduler = new ConcurrentExclusiveSchedulerPair();
@@ -456,7 +481,6 @@ public sealed class PcbPlacementStateSafetyTests
         await rig.InitializeAsync();
         await rig.Placer.PrepareHandoffAsync();
         rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
-        rig.Supply.Handoff = PcbSupplyHandoff.Holding;
         var lost = false;
         rig.Motion.PositionChanged += (x, y, z) =>
         {
@@ -654,7 +678,7 @@ public sealed class PcbPlacementStateSafetyTests
             Io = new(Outputs(new PcbPlacementHandlerHardwareSettings(), new ConveyorHardwareSettings()), new());
             Motion = new(Settings.Motion, operations ?? new());
 
-            Supply = new() { Handoff = PcbSupplyHandoff.Released };
+            Supply = new() { Handoff = PcbSupplyHandoff.Holding };
             Units = new();
             Work = ConveyorStation.CreatePcbPlacement(Io);
             var recipes = new RecipeManager(OpenMachineStore(), new());
@@ -691,8 +715,8 @@ public sealed class PcbPlacementStateSafetyTests
 
         public async Task ReceiveAsync()
         {
-            await Placer.PrepareHandoffAsync();
             Supply.Handoff = PcbSupplyHandoff.Holding;
+            await Placer.PrepareHandoffAsync();
             Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
             await Placer.ExecuteStepAsync(Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
             Supply.Handoff = PcbSupplyHandoff.Released;

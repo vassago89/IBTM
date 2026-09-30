@@ -3284,4 +3284,7 @@
   <data name="supply rotation feedback changed while moving to the handoff position." xml:space="preserve">
     <value>인계 위치로 이동 중 공급기 회전 상태가 변경되었습니다.</value>
   </data>
+  <data name="supply must remain ready at its unrotated handoff position while placement approaches." xml:space="preserve">
+    <value>안착기 접근 중에는 공급기가 인계 위치에서 회전 전 상태와 인계 준비를 유지해야 합니다.</value>
+  </data>
 </root>
