@@ -775,10 +775,11 @@ public sealed class PcbPlacementRepeatTests
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
         rig.Placer.StepChanged += () =>
         {
-            if (rig.Placer.Step is PcbPlacementState.WaitingForSupplyReceipt)
+            if (rig.Placer.Step is PcbPlacementState.ReturningToSupply)
                 stop.Cancel();
         };
         await rig.Placer.RunAsync(stop.Token, repeat: true);
+        Assert.Equal(PcbPlacementState.ReturningToSupply, rig.Placer.Phase);
         Assert.True(rig.Placer.PcbSecured);
         if (loseCarrier)
             rig.Io.SetInputs((InputIo.PcbPlacementHeatSink1Present, false), (InputIo.PcbPlacementHeatSink2Present, false));
@@ -804,10 +805,11 @@ public sealed class PcbPlacementRepeatTests
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
         rig.Placer.StepChanged += () =>
         {
-            if (rig.Placer.Step is PcbPlacementState.WaitingForSupplyReceipt)
+            if (rig.Placer.Step is PcbPlacementState.ReturningToSupply)
                 stop.Cancel();
         };
         await rig.Placer.RunAsync(stop.Token, repeat: true);
+        Assert.Equal(PcbPlacementState.ReturningToSupply, rig.Placer.Phase);
         Assert.True(rig.Placer.PcbSecured);
         rig.Units.PcbPlacement = false;
         using var disabled = new CancellationTokenSource(TimeSpan.FromSeconds(2));

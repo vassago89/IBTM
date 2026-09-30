@@ -3287,4 +3287,7 @@ See the application log for details.</value>
   <data name="supply must remain ready at its unrotated handoff position while placement approaches." xml:space="preserve">
     <value>Supply must remain ready at its unrotated handoff position while Placement approaches.</value>
   </data>
+  <data name="move placement to handoff xy before lowering to receive z." xml:space="preserve">
+    <value>Move Placement to handoff XY before lowering to receive Z.</value>
+  </data>
 </root>

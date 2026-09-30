@@ -5,7 +5,7 @@ also the XY travel height. `ReceiveZ` is taught separately at the same X/Y.
 Handler Rotate output stays OFF during automatic, repeat and manual operation.
 
 1. Wait outside the handoff until Supply reports `Holding`: settled at its give XYZ, Unrotated, and securing the PCB. Then raise the handler, reach standby Z, prepare the IPM and move to standby X followed by Y. Loss of Supply readiness during this approach stops movement.
-2. Keep the handler cylinder Up, move Z to `ReceiveZ`, detect the PCB and confirm vacuum holding.
+2. Confirm actual handoff X/Y and settled axes before lowering Z to `ReceiveZ`, including after STOP. Keep the handler cylinder Up, detect the PCB and confirm vacuum holding.
 3. After Supply fixer and gripper retract, return Z to standby and move only Y to the selected heat sink's placement Y. Keep `PreparingPlacement` until Y settles; only then publish `Clear` for Supply withdrawal. A prefetched PCB without a carrier target waits at Heat Sink 1 Y.
 4. With the carrier seated, finish the move to the selected heat sink X, descend to placement Z and lower the handler.
 5. Release vacuum, raise IPM and lower IPM to press using the existing IPM Down output. Record the placement, then raise IPM, handler and Z. There is no IPM gripper output or open/closed feedback.
@@ -45,6 +45,8 @@ With Supply disabled, it visits handoff and places each PCB back on its heat sin
 With Supply enabled, `ReturningPcb` requests the original heat sink's return before
 Placement approaches. Placement waits until Supply reports `Released` at its settled,
 Unrotated handoff XYZ, then approaches in Z, X, Y order with the same readiness monitoring.
+Supply must remain `Released` before and throughout the final descent to Receive Z.
+Only after descent completes does Placement publish `Returning`, allowing Supply to grip.
 `Returning` confirms a held PCB at Receive Z. Supply secures it before Placement releases and
 rises and moves to the original heat sink Y before allowing Supply to withdraw. Placement waits for Supply's departure and next forward handoff, then places
 the same PCB without pressing. Supply then completes normal empty withdrawal to

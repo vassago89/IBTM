@@ -3287,4 +3287,7 @@
   <data name="supply must remain ready at its unrotated handoff position while placement approaches." xml:space="preserve">
     <value>안착기 접근 중에는 공급기가 인계 위치에서 회전 전 상태와 인계 준비를 유지해야 합니다.</value>
   </data>
+  <data name="move placement to handoff xy before lowering to receive z." xml:space="preserve">
+    <value>안착기를 인계 X/Y 위치로 이동한 뒤 수취 Z로 내려가세요.</value>
+  </data>
 </root>

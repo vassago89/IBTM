@@ -658,15 +658,44 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     public async Task PrepareReceiptAsync(CancellationToken cancellationToken = default, bool returning = false)
     {
         EnterStep(returning ? PcbPlacementState.PresentingToSupply : PcbPlacementState.ReceivingPcb);
-        await MoveAxisAsync(
-            MotionAxis.Z,
-            _settings.ReceiveZ ?? throw new MotionInterlockException("Teach PCB Receive Z before receiving a PCB."),
-            cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        _handoffPosition = new()
+        var handoffAtCurrentZ = new AxisPosition
         {
-            X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = _settings.ReceiveZ!.Value,
+            X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = _motion.Position.Z,
         };
+        if (!MotionServiceBase.IsHoldingPosition(_motion, handoffAtCurrentZ))
+            throw new MotionInterlockException("Move Placement to handoff XY before lowering to receive Z.");
+        using var receipt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        void CheckSupply()
+        {
+            if (returning && _units.PcbSupply && _supply.Handoff != PcbSupplyHandoff.Released)
+                OperationCancellation.CancelIfNotDisposed(receipt);
+        }
+        _supply.Changed += CheckSupply;
+        try
+        {
+            CheckSupply();
+            receipt.Token.ThrowIfCancellationRequested();
+            await MoveAxisAsync(
+                MotionAxis.Z,
+                _settings.ReceiveZ ?? throw new MotionInterlockException("Teach PCB Receive Z before receiving a PCB."),
+                receipt.Token);
+            CheckSupply();
+            receipt.Token.ThrowIfCancellationRequested();
+            _handoffPosition = new()
+            {
+                X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = _settings.ReceiveZ!.Value,
+            };
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new MotionInterlockException("Supply must remain ready at its unrotated handoff position while Placement approaches.");
+        }
+        finally
+        {
+            _supply.Changed -= CheckSupply;
+        }
+        // Publishing Returning permits Supply to grip; it no longer has to remain Released.
         if (PcbSecured)
             EnterStep(returning ? PcbPlacementState.WaitingForSupplyGrip : PcbPlacementState.WaitingForSupplyRelease);
     }
