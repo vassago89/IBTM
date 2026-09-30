@@ -191,7 +191,7 @@
                                         <TextBlock Grid.Column="6" Text="{Binding Result.Controller.FasteningTimeMilliseconds, TargetNullValue=—, FallbackValue=—}" Style="{StaticResource TestCell}"/>
                                     </Grid>
                                     <TextBlock Text="{Binding Result.Error}" Foreground="{StaticResource AccentRedBrush}"
-                                        Style="{StaticResource StatusMessageStyle}" Margin="52,4,8,0"/>
+                                        Height="18" TextTrimming="CharacterEllipsis" ToolTip="{Binding Result.Error}" Margin="52,4,8,0"/>
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -199,7 +199,7 @@
                 </ItemsControl>
             </ScrollViewer>
         </Grid>
-        <ScrollViewer Grid.Row="5" Margin="0,8,0,12" MaxHeight="80" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="5" Margin="0,8,0,12" Height="72" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <TextBlock Text="{Binding Message}" Style="{StaticResource StatusMessageStyle}"
                     Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold"/>

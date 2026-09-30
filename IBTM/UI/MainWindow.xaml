@@ -165,16 +165,16 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="64"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="64"/>
                 <RowDefinition Height="64"/>
             </Grid.RowDefinitions>
 
             <Border Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
                 <Grid Margin="18,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="280"/>
                         <ColumnDefinition Width="18"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="240"/>
                         <ColumnDefinition Width="24"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="18"/>
@@ -182,18 +182,19 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Tag="{Binding Operation.MachineDisplayState}" Style="{StaticResource MachineStateBadgeStyle}">
+                        <Border Tag="{Binding Operation.MachineDisplayState}" Style="{StaticResource MachineStateBadgeStyle}" Width="130">
                             <TextBlock
                                 Text="{Binding Operation.MachineDisplayState,
                                                      Converter={StaticResource UiTextConverter}}"
-                                Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold"/>
+                                Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold"
+                                TextTrimming="CharacterEllipsis" ToolTip="{Binding Operation.MachineDisplayState, Converter={StaticResource UiTextConverter}}"/>
                         </Border>
                         <TextBlock
                             Text="{Binding Operation.Alarm,
                                                   Converter={StaticResource UiTextConverter}}"
                             ToolTip="{Binding Operation.AlarmDetail}"
                             Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}" FontSize="16"
-                            FontWeight="SemiBold" MaxWidth="180" TextWrapping="Wrap"
+                            FontWeight="SemiBold" Width="140" TextWrapping="Wrap"
                             Visibility="{Binding Operation.HasAlarm,
                                                         Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
@@ -348,21 +349,6 @@
 
             <Border Grid.Row="2" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
                 BorderThickness="0,1,0,0" Padding="18,6">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding Operation.HasAlarm}" Value="False"/>
-                                    <Condition Binding="{Binding ResetError}" Value="{x:Null}"/>
-                                    <Condition Binding="{Binding NavigationError}" Value="{x:Null}"/>
-                                    <Condition Binding="{Binding RecipeEditor.Error}" Value="{x:Null}"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="100"/>
@@ -370,7 +356,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{ui:Text 'Messages'}" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
                         VerticalAlignment="Center"/>
-                    <ScrollViewer Grid.Column="1" MaxHeight="100" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
                             <TextBlock Text="{Binding Operation.AlarmMessage}" ToolTip="{Binding Operation.AlarmDetail}"
                                 Visibility="{Binding Operation.HasAlarm, Converter={StaticResource BoolToVis}}"

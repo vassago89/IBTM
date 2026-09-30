@@ -76,7 +76,7 @@
                 <TextBox IsEnabled="{Binding SlaveSelectionEnabled}" Grid.Column="5" Margin="10,0,0,0" Text="{Binding SlaveText, UpdateSourceTrigger=PropertyChanged}"/>
 
                 <Button x:Name="ConnectButton" Grid.Column="6" Margin="16,0,0,0"
-                    Content="{Binding ConnectionAction}"
+                    Content="{Binding ConnectionAction}" Width="110"
                     Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ToggleConnectionCommand}"/>
                 <TextBlock Grid.Column="7" Margin="16,0,0,0"
                     Text="{Binding ConnectionStatus}"
@@ -206,7 +206,8 @@
                     IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
                     SelectionText="{Binding SelectedLogText, Mode=TwoWay}" IsPaused="{Binding IsLogPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap"
                     Padding="8" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
-                <TextBlock Grid.Row="2" Text="{Binding ClipboardError}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap"/>
+                <TextBlock Grid.Row="2" Text="{Binding ClipboardError}" Height="20" Foreground="{StaticResource AccentRedBrush}"
+                    TextTrimming="CharacterEllipsis" ToolTip="{Binding ClipboardError}"/>
             </Grid>
         </Border>
         </TabItem>

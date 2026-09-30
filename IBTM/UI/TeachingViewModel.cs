@@ -143,7 +143,7 @@ public partial class TeachingViewModel : ObservableObject
             HardwareArea.BoltFastening,
             HardwareArea.InspectionGantry,
         ];
-        FasteningHeads = Enum.GetValues<FasteningHead>();
+        FasteningHeads = [FasteningHead.Pickup, FasteningHead.Shooting];
         HeatSinkSlots = Enum.GetValues<HeatSinkSlot>();
 
         State = state;

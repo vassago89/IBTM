@@ -1128,6 +1128,9 @@ Operation failed. Check controller status.</value>
   <data name="lighting test cancelled." xml:space="preserve">
     <value>Lighting test cancelled.</value>
   </data>
+  <data name="load" xml:space="preserve">
+    <value>Load</value>
+  </data>
   <data name="load for reinspection" xml:space="preserve">
     <value>Use for Reinspection</value>
   </data>
@@ -1136,9 +1139,6 @@ Operation failed. Check controller status.</value>
   </data>
   <data name="load pcb images" xml:space="preserve">
     <value>Load PCB Images</value>
-  </data>
-  <data name="load recipe" xml:space="preserve">
-    <value>Load Recipe</value>
   </data>
   <data name="load the s2 carrier and raise the backup plate." xml:space="preserve">
     <value>Load the S2 carrier and raise the backup plate.</value>
@@ -2179,23 +2179,20 @@ Operation failed. Check controller status.</value>
   <data name="safety stop" xml:space="preserve">
     <value>Safety Stop</value>
   </data>
+  <data name="save" xml:space="preserve">
+    <value>Save</value>
+  </data>
   <data name="save cancelled. retry save." xml:space="preserve">
     <value>Save cancelled. Retry Save.</value>
   </data>
   <data name="save cancelled; teaching not saved." xml:space="preserve">
     <value>Save cancelled; teaching not saved.</value>
   </data>
-  <data name="save inspection settings" xml:space="preserve">
-    <value>Save Inspection Settings</value>
-  </data>
   <data name="save position and image?" xml:space="preserve">
     <value>Record position and image?</value>
   </data>
   <data name="save settings" xml:space="preserve">
     <value>Save Settings</value>
-  </data>
-  <data name="save teaching" xml:space="preserve">
-    <value>Save Teaching</value>
   </data>
   <data name="save x/y + image" xml:space="preserve">
     <value>Record Position and Image</value>

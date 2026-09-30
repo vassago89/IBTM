@@ -66,8 +66,8 @@
                 Command="{Binding StopCommand}"
                 Style="{StaticResource DangerButtonStyle}" HorizontalAlignment="Right" MinWidth="100"/>
         </Grid>
-        <TextBlock Grid.Row="1" Margin="0,6,0,16" Text="{Binding ControlStatus}"
-            Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
+        <TextBlock Grid.Row="1" Height="36" Margin="0,6,0,16" Text="{Binding ControlStatus}"
+            Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding ControlStatus}"/>
         <Grid Grid.Row="2" Margin="0,0,0,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>

@@ -27,18 +27,34 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="48"/>
         </Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,10">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0"
-                IsEnabled="{Binding State.SetupEditingEnabled}">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="IsEnabled" Value="{Binding State.SetupEditingEnabled}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                <Setter Property="IsEnabled" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <Button Content="{ui:Text 'New Recipe'}" Command="{Binding RecipeEditor.NewCommand}"
+                    Style="{StaticResource SecondaryButtonStyle}" MinWidth="100" Margin="0,0,16,0"/>
                 <TextBlock Text="{ui:Text 'Recipe'}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <TextBox Text="{Binding RecipeEditor.Name, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
-                    Width="180" Margin="0,0,6,0"/>
-                <Button Command="{Binding SaveCommand}" Margin="0,0,6,0">
+                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" IsEditable="True" IsTextSearchEnabled="False"
+                    Text="{Binding RecipeEditor.Name, Mode=TwoWay, BindingGroupName={x:Null}, UpdateSourceTrigger=PropertyChanged}"
+                    AutomationProperties.Name="{ui:Text 'Recipe'}" Width="180" Margin="0,0,6,0"/>
+                <Button Content="{ui:Text 'Load'}" Command="{Binding RecipeEditor.LoadCommand}"
+                    CommandParameter="{Binding RecipeEditor.Name}"
+                    IsEnabled="{Binding RecipeEditor.IsSaveAllowed}"
+                    Style="{StaticResource SecondaryButtonStyle}" MinWidth="100" Margin="0,0,6,0"/>
+                <Button Command="{Binding SaveCommand}" MinWidth="100">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                            <Setter Property="Content" Value="{ui:Text 'Save Teaching'}"/>
+                            <Setter Property="Content" Value="{ui:Text 'Save'}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SaveCommand.IsRunning}" Value="True">
                                     <Setter Property="Content" Value="{ui:Text 'Saving...'}"/>
@@ -50,8 +66,6 @@
                         </Style>
                     </Button.Style>
                 </Button>
-                <Button Content="{ui:Text 'New Recipe'}" Command="{Binding RecipeEditor.NewCommand}"
-                    Style="{StaticResource SecondaryButtonStyle}"/>
             </StackPanel>
             <TextBlock Text="{ui:Text 'Teaching'}" Style="{StaticResource TitleStyle}"/>
         </DockPanel>
@@ -156,9 +170,9 @@
                     </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,10">
                         <TextBlock Text="{Binding SelectedPoint.Name}" Style="{StaticResource PanelTitleStyle}"
-                            TextTrimming="CharacterEllipsis"/>
+                            Height="20" TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding SelectedPoint.PositionLabel, TargetNullValue=—}"
-                            Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" Margin="0,4,0,0"
+                            Height="36" ToolTip="{Binding SelectedPoint.PositionLabel}" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas" Margin="0,4,0,0"
                             TextWrapping="Wrap"/>
                         <WrapPanel Margin="0,8,0,0" IsEnabled="{Binding State.SetupEditingEnabled}">
                             <WrapPanel.Style>
@@ -209,7 +223,7 @@
                                         Style="{StaticResource DangerButtonStyle}" Padding="12,7" Margin="0,0,0,4"/>
                                 </WrapPanel>
                                 <WrapPanel Grid.Row="1" Margin="0,0,0,4">
-                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" MinWidth="75" Padding="12,7">
+                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,8,4" Width="96" Padding="12,7">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                                 <Setter Property="Content" Value="{ui:Text 'Start Live'}"/>
@@ -336,7 +350,7 @@
                 </Grid>
             </Border>
         </Grid>
-        <ScrollViewer Grid.Row="2" MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <TextBlock Text="{ui:Text 'Check the highlighted input.'}"
                     Style="{StaticResource StatusMessageStyle}"
