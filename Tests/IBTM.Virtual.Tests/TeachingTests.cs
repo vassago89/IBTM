@@ -75,6 +75,161 @@ public sealed class TeachingTests
     }
 
     [Fact]
+    public async Task SupplyTeachingMoveButtonsUseSelectedXyzWithoutOperatingPneumatics()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.PcbSupply.TravelZ = 3;
+        settings.PcbSupply.HandoffPosition = new() { X = 20, Y = 15, Z = 7 };
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var supply = services.GetRequiredService<PcbSupplier>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
+            var points = teaching.FilteredPoints.ToDictionary(point => point.Position.Target);
+            points[TeachingTarget.SupplyPcb1Pick].Teach(10, 30, 5);
+            points[TeachingTarget.SupplyPcb2Pick].Teach(40, 45, 8);
+            var motion = supply.Motion.Feedback;
+            motion.PositionChanged += (x, y, z) =>
+            {
+                if (motion.IsMovingHorizontal)
+                    Assert.Equal(settings.PcbSupply.TravelZ, z);
+            };
+            var pneumaticCommanded = false;
+            io.OutputChanged += (output, on) => pneumaticCommanded |= output is
+                OutputIo.PcbSupplyRotate or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward;
+
+            teaching.SelectedPoint = points[TeachingTarget.SupplyPcb1Pick];
+            Assert.Equal(PcbSupplyRotationState.Unrotated, supply.Rotation);
+            Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+            teaching.SelectedPoint = points[TeachingTarget.SupplyHandoff];
+            await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+            Assert.Equal((20d, 15d, 7d), motion.Position);
+            Assert.False(pneumaticCommanded);
+            await supply.SetRotatedAsync(true);
+            pneumaticCommanded = false;
+
+            foreach (var target in new[]
+            {
+                TeachingTarget.SupplyPcb1Pick, TeachingTarget.SupplyPcb2Pick,
+                TeachingTarget.SafeZ, TeachingTarget.SupplyHandoff,
+            })
+            {
+                teaching.SelectedPoint = points[target];
+                var before = motion.Position;
+                var destination = teaching.SelectedPoint.Coordinates!;
+                await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+                await teaching.MoveToPointCommand.ExecuteAsync(null);
+                Assert.Equal(target == TeachingTarget.SafeZ
+                    ? (before.X, before.Y, destination.Z)
+                    : (destination.X, destination.Y, destination.Z), motion.Position);
+                Assert.Equal(PcbSupplyRotationState.Rotated, supply.Rotation);
+                Assert.False(pneumaticCommanded);
+                Assert.Null(teaching.SaveError);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+            }
+
+            settings.PcbSupply.Motion.HorizontalSpeed = 20;
+            teaching.SelectedPoint = points[TeachingTarget.SupplyPcb1Pick];
+            await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+            var move = teaching.MoveToPointCommand.ExecuteAsync(null);
+            try
+            {
+                await WaitUntilAsync(() => motion.IsMovingHorizontal);
+                teaching.SelectedPoint = points[TeachingTarget.SupplyPcb2Pick];
+                await move.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(motion.IsMoving);
+                Assert.Equal(settings.PcbSupply.TravelZ, motion.Position.Z);
+                Assert.False(MotionServiceBase.IsAt(motion, points[TeachingTarget.SupplyPcb1Pick].Coordinates!));
+                Assert.False(MotionServiceBase.IsAt(motion, points[TeachingTarget.SupplyPcb2Pick].Coordinates!));
+                Assert.False(pneumaticCommanded);
+                Assert.Null(teaching.SaveError);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+            }
+            finally
+            {
+                teaching.MoveToPointCommand.Cancel();
+                await move;
+            }
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TeachingFeederMoveRequiresPickupTableThroughXyAndZ(bool? duringDescent)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.BoltFastening.SafeZ = 3;
+        settings.BoltFastening.PickupPosition = new() { X = 20, Y = 15, Z = 8 };
+        settings.BoltFastening.Motion.HorizontalSpeed = 100;
+        settings.BoltFastening.Motion.ZSpeed = 50;
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.BoltPickup);
+            var motion = station.Motion.Feedback;
+            var lost = false;
+            motion.PositionChanged += (x, y, z) =>
+            {
+                if (duringDescent is { } descent && !lost && (descent
+                    ? x == 20 && y == 15 && z > settings.BoltFastening.SafeZ + 0.1
+                    : motion.IsMovingHorizontal && x > 0.1))
+                {
+                    lost = true;
+                    io.SetInputs((InputIo.PickupTableDown, false), (InputIo.PickupTableUp, false));
+                }
+            };
+            await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
+            await teaching.MoveToPointCommand.ExecuteAsync(null);
+
+            Assert.Equal(duringDescent is not null, lost);
+            Assert.False(motion.IsMoving);
+            if (duringDescent is null)
+            {
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+                Assert.True(MotionServiceBase.IsAt(motion, settings.BoltFastening.PickupPosition));
+                Assert.Equal(StationCylinderState.Down, station.PickupTablePosition);
+            }
+            else
+            {
+                Assert.Equal(MachineAlarm.BoltFastening, state.Alarm);
+                Assert.False(MotionServiceBase.IsAt(motion, settings.BoltFastening.PickupPosition));
+                if (duringDescent == false)
+                    Assert.Equal(settings.BoltFastening.SafeZ, motion.Position.Z);
+                else
+                    Assert.True(motion.Position.Z < settings.BoltFastening.PickupPosition.Z);
+            }
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task TeachingPlacementZAdjustsWithHandlerDownWhileXyAndMoveToStayBlocked()
     {
         var settings = FlowSettings();
@@ -328,7 +483,7 @@ public sealed class TeachingTests
         teaching.StepDistance = 0.1;
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
         await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
-        Assert.Equal(motionSettings.HorizontalSpeed, feedback.LastMoveVelocity);
+        Assert.Equal(teaching.JogSpeed, feedback.LastMoveVelocity);
         Assert.Equal(beforeStep.X + 0.1, gantry.Motion.Feedback.Position.X, 6);
         Assert.Equal(beforeStep.Y, gantry.Motion.Feedback.Position.Y);
 

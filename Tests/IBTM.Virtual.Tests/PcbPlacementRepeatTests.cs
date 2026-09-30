@@ -735,6 +735,16 @@ public sealed class PcbPlacementRepeatTests
         Assert.Single(rig.Work.Assemblies);
         Assert.Equal(HeatSinkSlot.HeatSink2, rig.Placer.TargetHeatSink);
         Assert.Null(rig.Placer.ActivePcb);
+        if (stopSupplyAt is null)
+        {
+            Assert.Equal(rig.Settings.HandoffPosition.Z, rig.Motion.Position.Z);
+            Assert.True(rig.Placer.PcbSecured);
+            Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
+            Assert.Equal(PcbSupplyHandoff.Released, rig.Supply.Handoff);
+            Assert.Equal(PcbSupplyState.WaitingForReturnedPcbGrip, rig.Supply.GetNextStep(rig.Placer, repeat: true));
+            Assert.False(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.False(rig.Io.GetOutput(OutputIo.PcbSupplyIpmFixerForward));
+        }
 
         var repicked = false;
         var visitedOriginalSlot = rig.SupplyMotion.Position.X == 20

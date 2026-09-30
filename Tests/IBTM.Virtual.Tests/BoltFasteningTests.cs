@@ -2527,18 +2527,20 @@ public sealed class BoltFasteningTests
     [InlineData(FasteningHead.Shooting, false, true)]
     [InlineData(FasteningHead.Pickup, false, false, true)]
     [InlineData(FasteningHead.Shooting, false, false, false, true)]
+    [InlineData(FasteningHead.Shooting, false, false, false, false, true)]
     public async Task TeachingBoltMoveWaitsForTableAtSafeZBeforeXyAndFasteningZ(
         FasteningHead head,
         bool stopAtTable = false,
         bool conflictingTableFeedback = false,
         bool loseTableDuringXy = false,
-        bool loseTableDuringFasteningZ = false)
+        bool loseTableDuringFasteningZ = false,
+        bool loseHeadDuringFasteningZ = false)
     {
         var settings = new BoltFasteningSettings
         {
             SafeZ = 5,
             ShootingSafeZ = 9,
-            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = loseTableDuringFasteningZ ? 50 : 20_000 },
+            Motion = new() { HorizontalSpeed = 20_000, ZSpeed = loseTableDuringFasteningZ || loseHeadDuringFasteningZ ? 50 : 20_000 },
             PickupHead = HeadSettings(),
             ShootingHead = HeadSettings(),
         };
@@ -2591,9 +2593,14 @@ public sealed class BoltFasteningTests
         {
             if (loseTableDuringXy && motion.IsMovingHorizontal)
                 io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
-            if (loseTableDuringFasteningZ && !motion.IsMovingHorizontal
+            if (!motion.IsMovingHorizontal
                 && x == destination.X && y == destination.Y && z > settings.GetSafeZ(head) + 0.05)
-                io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
+            {
+                if (loseTableDuringFasteningZ)
+                    io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
+                if (loseHeadDuringFasteningZ)
+                    io.SetInput(InputIo.ShootingHeadUp, false);
+            }
         };
         io.OutputChanged += (output, on) =>
         {
@@ -2624,10 +2631,10 @@ public sealed class BoltFasteningTests
         else
         {
             io.SetInputs((InputIo.PickupTableUp, !tableDown), (InputIo.PickupTableDown, tableDown));
-            if (loseTableDuringXy || loseTableDuringFasteningZ)
+            if (loseTableDuringXy || loseTableDuringFasteningZ || loseHeadDuringFasteningZ)
             {
                 await Assert.ThrowsAsync<MotionInterlockException>(() => move);
-                if (loseTableDuringFasteningZ)
+                if (loseTableDuringFasteningZ || loseHeadDuringFasteningZ)
                 {
                     Assert.Equal(destination.X, motion.Position.X);
                     Assert.Equal(destination.Y, motion.Position.Y);
@@ -2650,7 +2657,7 @@ public sealed class BoltFasteningTests
             }
         }
         Assert.Equal((destination.X, destination.Y, destination.Z), (settings.GetBoltPosition(bolt).X, settings.GetBoltPosition(bolt).Y, settings.GetBoltPosition(bolt).Z));
-        Assert.True(station.IsHorizontalMoveAllowed);
+        Assert.Equal(!loseHeadDuringFasteningZ, station.IsHorizontalMoveAllowed);
         Assert.False(motion.IsMoving);
     }
 

@@ -1107,61 +1107,64 @@ public sealed class BoltFasteningStation : AutoUnit
     {
         switch (point)
         {
-            case { Target: TeachingTarget.BoltPosition, Bolt: { } bolt }:
+            case { Target: TeachingTarget.BoltPosition, Bolt: not null }:
+            case { Target: TeachingTarget.BoltPickup }:
             {
+                var pickup = point.Target == TeachingTarget.BoltPickup;
+                var head = pickup ? FasteningHead.Pickup : point.Bolt!.Head;
+                var safeZ = pickup ? _settings.SafeZ : _settings.GetSafeZ(head);
                 _log?.LogInformation(
-                    "Bolt teaching Move To: {HeatSink}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}; Safe Z={SafeZ}.",
-                    bolt.HeatSink, bolt.Id, bolt.Head, position.X, position.Y, position.Z, _settings.GetSafeZ(bolt.Head));
+                    "Bolt teaching Move To: {Target}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}; Safe Z={SafeZ}.",
+                    point.Target, point.Bolt?.Id, head, position.X, position.Y, position.Z, safeZ);
                 if (!point.HasPosition)
-                    throw new MotionInterlockException("Record fastening XY before moving to this bolt.");
-                var tableDown = bolt.Head == FasteningHead.Pickup;
+                    throw new MotionInterlockException("Record the teaching position before moving.");
+                var tableDown = head == FasteningHead.Pickup;
+                if (pickup)
+                    await RaiseCylindersAsync(cancellationToken);
                 EnsureCanMoveHorizontal(cancellationToken);
                 await MoveZAsync(_settings.SafeZ, cancellationToken);
                 _log?.LogInformation("Bolt teaching Move To: Safe Z completed; requesting pickup table {Table}.",
                     tableDown ? "DOWN" : "UP");
                 EnsureCanMoveHorizontal(cancellationToken);
-                await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, tableDown, cancellationToken);
+                if (PickupTablePosition != (tableDown ? StationCylinderState.Down : StationCylinderState.Up))
+                    await _io.SetOutputAndWaitAsync(OutputIo.PickupTableDown, tableDown, cancellationToken);
                 _log?.LogInformation("Bolt teaching Move To: pickup table feedback confirmed.");
                 using var move = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                void CheckTeachingTable()
+                void CheckTeachingClearance()
                 {
-                    if (PickupTablePosition != (tableDown ? StationCylinderState.Down : StationCylinderState.Up))
+                    if (!IsHorizontalMoveAllowed
+                        || PickupTablePosition != (tableDown ? StationCylinderState.Down : StationCylinderState.Up))
                         OperationCancellation.CancelIfNotDisposed(move);
                 }
 
-                Changed += CheckTeachingTable;
+                Changed += CheckTeachingClearance;
                 try
                 {
-                    CheckTeachingTable();
+                    CheckTeachingClearance();
                     EnsureCanMoveHorizontal(move.Token);
-                    var safeZ = _settings.GetSafeZ(bolt.Head);
                     if (!MotionServiceBase.IsAtZ(_motion, safeZ))
                         await MoveZAsync(safeZ, move.Token);
                     EnsureCanMoveHorizontal(move.Token);
                     _log?.LogInformation("Bolt teaching Move To: requesting XY, X={X}, Y={Y}.", position.X, position.Y);
                     await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, move.Token);
-                    _log?.LogInformation("Bolt teaching Move To: XY command completed; requesting fastening Z={Z}.", position.Z);
-                    CheckTeachingTable();
+                    _log?.LogInformation("Bolt teaching Move To: XY command completed; requesting target Z={Z}.", position.Z);
+                    CheckTeachingClearance();
                     EnsureCanMoveHorizontal(move.Token);
                     await MoveZAsync(position.Z, move.Token);
                     move.Token.ThrowIfCancellationRequested();
-                    _log?.LogInformation("Bolt teaching Move To: fastening Z completed.");
+                    _log?.LogInformation("Bolt teaching Move To: target Z completed.");
                 }
                 catch (OperationCanceledException) when (move.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
                 {
                     throw new MotionInterlockException(
-                        $"Keep the pickup table {(tableDown ? "down" : "up")} while moving to the selected bolt's fastening position.");
+                        $"Keep both fastening heads up and the pickup table {(tableDown ? "down" : "up")} while moving to the teaching position.");
                 }
                 finally
                 {
-                    Changed -= CheckTeachingTable;
+                    Changed -= CheckTeachingClearance;
                 }
                 break;
             }
-            case { Target: TeachingTarget.BoltPickup }:
-                await MoveToPickupXYAsync(cancellationToken);
-                await MoveToPickupZAsync(cancellationToken);
-                break;
             case { Mode: TeachMode.XYOnly }:
                 await MoveToXYAsync(position.X, position.Y, cancellationToken);
                 break;

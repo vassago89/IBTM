@@ -139,6 +139,56 @@ public sealed class PcbPlacementStateSafetyTests
         Assert.Empty(rig.Work.Assemblies);
     }
 
+    [Fact]
+    public async Task ReceiptRestartsAfterStoppingAtHandoffWithoutRepeatingApproach()
+    {
+        using var rig = new PlacementRig();
+        await rig.InitializeAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        void StopBeforeReceipt()
+        {
+            if (rig.Placer.Step is PcbPlacementState.ReceivingPcb)
+                stop.Cancel();
+        }
+        rig.Placer.StepChanged += StopBeforeReceipt;
+        await rig.Placer.RunAsync(stop.Token);
+        rig.Placer.StepChanged -= StopBeforeReceipt;
+
+        Assert.Equal(PcbPlacementState.ReceivingPcb, rig.Placer.Phase);
+        Assert.Equal(rig.Settings.HandoffPosition.Z, rig.Motion.Position.Z);
+        Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
+        Assert.False(rig.Io.GetOutput(OutputIo.PcbPlacementVacuumEjector));
+
+        var commanded = false;
+        var movedHorizontally = false;
+        rig.Motion.MovingChanged += moving => commanded |= moving;
+        rig.Io.OutputChanged += (output, on) => commanded = true;
+        rig.Motion.PositionChanged += (x, y, z) => movedHorizontally |=
+            x != rig.Settings.HandoffPosition.X || y != rig.Settings.HandoffPosition.Y;
+        rig.Supply.Handoff = PcbSupplyHandoff.Unavailable;
+        Assert.False(await rig.Placer.ExecuteStepAsync(
+            rig.Placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, default));
+        Assert.False(commanded);
+        Assert.Equal(PcbPlacementHandoff.Unavailable, rig.Placer.Handoff);
+
+        rig.Supply.Handoff = PcbSupplyHandoff.Holding;
+        rig.Io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        using var restart = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        rig.Placer.StepChanged += () =>
+        {
+            if (rig.Placer.Step is PcbPlacementState.WaitingForSupplyRelease)
+                restart.Cancel();
+        };
+        await rig.Placer.RunAsync(restart.Token);
+
+        Assert.Equal(PcbPlacementState.WaitingForSupplyRelease, rig.Placer.Phase);
+        Assert.Equal(rig.Settings.ReceiveZ, rig.Motion.Position.Z);
+        Assert.True(rig.Placer.PcbSecured);
+        Assert.Equal(PcbPlacementHandoff.Holding, rig.Placer.Handoff);
+        Assert.False(movedHorizontally);
+        Assert.Empty(rig.Work.Assemblies);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
