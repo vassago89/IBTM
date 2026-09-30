@@ -173,7 +173,7 @@ public sealed class PcbSupplyRepeatTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task SupplyRepeatKeepsPcbAboveSlotWithoutUpstreamAndChecksHolding(bool loseHolding)
+    public async Task SupplyRepeatPlacesPcbAtPickupAndReusesNormalPickup(bool loseHolding)
     {
         var settings = new PcbSupplySettings
         {
@@ -206,45 +206,44 @@ public sealed class PcbSupplyRepeatTests
         await HomeAsync(motion, 2_000);
         io.SetInput(InputIo.AutoMode, false);
         var visits = 0;
-        var returns = 0;
         var releases = 0;
-        var descendedAfterPickup = false;
-        var returning = false;
+        var regrips = 0;
+        var liftedEmpty = false;
         var lost = false;
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         io.OutputChanged += (output, on) =>
         {
-            if (output == OutputIo.PcbSupplyGripperClosed && !on)
+            if (output != OutputIo.PcbSupplyGripperClosed)
+                return;
+            Assert.Equal((10.0, 10.0, 5.0), motion.Position);
+            Assert.Equal(PcbSupplyRotationState.Rotated, supplier.Rotation);
+            if (!on)
+            {
+                Assert.False(io.GetInput(InputIo.PcbSupplyIpmFixerForward));
+                Assert.True(supplier.UpstreamCarrierAvailable);
                 releases++;
+            }
+            else if (releases > 0)
+            {
+                Assert.True(liftedEmpty);
+                regrips++;
+            }
         };
-        var returnPosition = new AxisPosition
+        supplier.StepChanged += () =>
         {
-            X = recipe.Pcb1PickPosition.X,
-            Y = recipe.Pcb1PickPosition.Y!.Value,
-            Z = settings.RotationZ,
-        };
-        motion.StateChanged += () =>
-        {
-            if (!returning && MotionServiceBase.IsAt(supplier.Motion.Feedback, settings.HandoffPosition) && supplier.PcbSecured)
+            if (supplier.Step is PcbSupplyState.HandingOff)
             {
                 visits++;
-                returning = true;
-                io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-            }
-            if (returning && supplier.Rotation == PcbSupplyRotationState.Rotated
-                && MotionServiceBase.IsAt(supplier.Motion.Feedback, returnPosition))
-            {
-                returning = false;
-                returns++;
-                if (returns == 2)
+                if (visits == 2)
                     stop.Cancel();
             }
         };
         motion.PositionChanged += (x, y, z) =>
         {
-            if (visits > 0 && z == recipe.Pcb1PickPosition.Z)
-                descendedAfterPickup = true;
-            if (loseHolding && !lost && supplier.PcbSecured && motion.IsMovingHorizontal && x > 30)
+            if (releases > 0 && supplier.PcbReleased && z == settings.RotationZ)
+                liftedEmpty = true;
+            if (loseHolding && !lost && supplier.Phase == PcbSupplyState.ReturningToPickup
+                && motion.IsMovingHorizontal)
             {
                 lost = true;
                 io.SetInput(InputIo.PcbSupplyIpmFixerForward, false);
@@ -255,18 +254,18 @@ public sealed class PcbSupplyRepeatTests
             await Assert.ThrowsAsync<InvalidOperationException>(
                 () => supplier.RunAsync(new NoPlacement(), stop.Token, repeat: true));
             Assert.True(lost);
-            Assert.Equal(0, returns);
+            Assert.Equal(0, releases);
         }
         else
         {
             await supplier.RunAsync(new NoPlacement(), stop.Token, repeat: true);
-            Assert.Equal(2, returns);
-            Assert.True(visits >= 2);
-        }
-        Assert.Equal(0, releases);
-        Assert.False(descendedAfterPickup);
-        if (!loseHolding)
+            Assert.Equal(2, visits);
+            Assert.Equal(1, releases);
+            Assert.Equal(1, regrips);
+            Assert.True(liftedEmpty);
             Assert.True(supplier.PcbSecured);
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+        }
         Assert.False(motion.IsMoving);
     }
 

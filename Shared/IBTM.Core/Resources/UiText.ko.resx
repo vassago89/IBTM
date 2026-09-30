@@ -3269,4 +3269,7 @@
   <data name="확인 / 조치" xml:space="preserve">
     <value>확인 / 조치</value>
   </data>
+  <data name="placing pcb at pickup" xml:space="preserve">
+    <value>픽업 위치에 PCB 내려놓는 중</value>
+  </data>
 </root>

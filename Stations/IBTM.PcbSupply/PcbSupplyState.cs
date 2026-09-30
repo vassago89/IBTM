@@ -81,4 +81,10 @@ public enum PcbSupplyState
 
     [Description("Disabled")]
     Disabled,
+
+    [Description("Placing PCB at Pickup")]
+    PlacingReturnedPcb,
+
+    [Description("Picking PCB")]
+    PickingReturnedPcb,
 }

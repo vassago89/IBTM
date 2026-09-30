@@ -3269,4 +3269,7 @@ See the application log for details.</value>
   <data name="확인 / 조치" xml:space="preserve">
     <value>Check / action</value>
   </data>
+  <data name="placing pcb at pickup" xml:space="preserve">
+    <value>Placing PCB at Pickup</value>
+  </data>
 </root>

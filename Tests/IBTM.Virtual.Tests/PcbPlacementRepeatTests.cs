@@ -70,6 +70,27 @@ public sealed class PcbPlacementRepeatTests
     {
         using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
         await rig.InitializeAsync();
+        var returnedSlots = new List<double>();
+        var repickedSlots = new List<double>();
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.PcbSupplyGripperClosed)
+                return;
+            var position = rig.SupplyMotion.Position;
+            if (rig.Supply.Phase == PcbSupplyState.PlacingReturnedPcb && !on)
+            {
+                Assert.Equal(30, position.Y);
+                Assert.Equal(5, position.Z);
+                Assert.Equal(PcbSupplyRotationState.Rotated, rig.Supply.Rotation);
+                Assert.False(rig.Io.GetInput(InputIo.PcbSupplyIpmFixerForward));
+                returnedSlots.Add(position.X);
+            }
+            if (rig.Supply.Phase == PcbSupplyState.PickingReturnedPcb && on)
+            {
+                Assert.Equal(5, position.Z);
+                repickedSlots.Add(position.X);
+            }
+        };
         var trace = new System.Collections.Concurrent.ConcurrentQueue<(PcbSupplyState Supply, PcbPlacementState Placement)>();
         rig.Supply.StepChanged += () => trace.Enqueue((rig.Supply.Phase, rig.Placer.Phase));
         rig.Placer.StepChanged += () => trace.Enqueue((rig.Supply.Phase, rig.Placer.Phase));
@@ -97,6 +118,9 @@ public sealed class PcbPlacementRepeatTests
             Assert.True(rig.Work.Completed,
                 $"Supply={rig.Supply.Phase}, Placement={rig.Placer.Phase}\n{string.Join('\n', trace)}");
             Assert.Equal(2, rig.Work.Assemblies.Count());
+            Assert.Equal(new[] { 10.0, 20.0 }, returnedSlots);
+            Assert.Equal(returnedSlots, repickedSlots);
+            Assert.True(rig.Io.GetInput(InputIo.PcbSupplyAvailableFromFront1));
             Assert.False(rig.Supply.PcbSecured);
             Assert.False(rig.Placer.PcbSecured);
             Assert.Null(rig.Supply.Step);
@@ -106,6 +130,128 @@ public sealed class PcbPlacementRepeatTests
         {
             stop.Cancel();
             await Task.WhenAll(supply, placement);
+        }
+    }
+
+    [Theory]
+    [InlineData(InputIo.PcbSupplyAvailableFromFront1)]
+    [InlineData(InputIo.PcbSupplyRotated)]
+    [InlineData(InputIo.PcbSupplyIpmFixerForward)]
+    public async Task ReturnSupportLossStopsBeforeOpeningGripper(InputIo lostFeedback)
+    {
+        using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
+        await rig.InitializeAsync();
+        var changed = false;
+        var opened = false;
+        rig.SupplyMotion.PositionChanged += (x, y, z) =>
+        {
+            if (!changed && rig.Supply.Phase == PcbSupplyState.PlacingReturnedPcb
+                && rig.Supply.Rotation == PcbSupplyRotationState.Rotated && z == 5)
+            {
+                changed = true;
+                rig.Io.SetInput(lostFeedback, false);
+            }
+        };
+        rig.Io.OutputChanged += (output, on) =>
+            opened |= changed && output == OutputIo.PcbSupplyGripperClosed && !on;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var supply = rig.Supply.RunAsync(rig.Placer, stop.Token, repeat: true);
+        var placement = rig.Placer.RunAsync(stop.Token, repeat: true);
+        try
+        {
+            await Assert.ThrowsAsync<MotionInterlockException>(() => supply);
+            Assert.True(changed);
+            Assert.False(opened);
+            Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            Assert.False(rig.SupplyMotion.IsMoving);
+            Assert.Empty(rig.Work.Assemblies);
+        }
+        finally
+        {
+            stop.Cancel();
+            await placement;
+        }
+    }
+
+    [Theory]
+    [InlineData(InputIo.PcbSupplyIpmFixerForward, false)]
+    [InlineData(InputIo.PcbSupplyGripperOpen, true)]
+    public async Task RepeatResumesInterruptedReturnReleaseAtOriginalSupport(InputIo feedback, bool value)
+    {
+        using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
+        await rig.InitializeAsync();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var interrupted = false;
+        void StopDuringRelease(InputIo input, bool on)
+        {
+            if (input == feedback && on == value
+                && rig.Placer.TargetHeatSink == HeatSinkSlot.HeatSink2
+                && rig.Supply.Phase == PcbSupplyState.PlacingReturnedPcb)
+            {
+                interrupted = true;
+                stop.Cancel();
+            }
+        }
+        rig.Io.InputChanged += StopDuringRelease;
+        await Task.WhenAll(
+            rig.Supply.RunAsync(rig.Placer, stop.Token, repeat: true),
+            rig.Placer.RunAsync(stop.Token, repeat: true));
+        rig.Io.InputChanged -= StopDuringRelease;
+        Assert.True(interrupted);
+        Assert.Equal((20.0, 30.0, 5.0), rig.SupplyMotion.Position);
+        Assert.Single(rig.Work.Assemblies);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Supply.RunAsync(rig.Placer));
+        Assert.Equal(PcbSupplyState.PlacingReturnedPcb, rig.Supply.Phase);
+
+        using var resume = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        rig.Work.Changed += () =>
+        {
+            if (rig.Work.Completed)
+                resume.Cancel();
+        };
+        await Task.WhenAll(
+            rig.Supply.RunAsync(rig.Placer, resume.Token, repeat: true),
+            rig.Placer.RunAsync(resume.Token, repeat: true));
+        Assert.True(rig.Work.Completed);
+        Assert.Equal(2, rig.Work.Assemblies.Count());
+        Assert.False(rig.Supply.PcbSecured);
+    }
+
+    [Fact]
+    public async Task MissingReturnedPcbStopsWithoutTryingAnotherSlot()
+    {
+        using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
+        await rig.InitializeAsync();
+        var removed = false;
+        var liftedEmpty = false;
+        var otherSlotVisited = false;
+        rig.SupplyMotion.PositionChanged += (x, y, z) =>
+        {
+            liftedEmpty |= rig.Supply.Phase == PcbSupplyState.PickingReturnedPcb && z == 3 && rig.Supply.PcbReleased;
+            if (liftedEmpty && !removed && rig.Supply.Phase == PcbSupplyState.PickingReturnedPcb && z == 5)
+            {
+                removed = true;
+                rig.Io.AutoResponseEnabled = false;
+                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, false);
+            }
+            otherSlotVisited |= removed && x == 20;
+        };
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var supply = rig.Supply.RunAsync(rig.Placer, stop.Token, repeat: true);
+        var placement = rig.Placer.RunAsync(stop.Token, repeat: true);
+        try
+        {
+            var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => supply);
+            Assert.Contains("returned PCB is missing", failure.Message);
+            Assert.True(removed);
+            Assert.False(otherSlotVisited);
+            Assert.True(rig.Supply.PcbReleased);
+            Assert.Empty(rig.Work.Assemblies);
+        }
+        finally
+        {
+            stop.Cancel();
+            await placement;
         }
     }
 
@@ -376,9 +522,11 @@ public sealed class PcbPlacementRepeatTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RepeatRestartsTheSecondPcbHandoffWithItsOriginalSlot(bool stopWhileSupplyHolds)
+    [InlineData(null)]
+    [InlineData(PcbSupplyState.ReturningToPickup)]
+    [InlineData(PcbSupplyState.PlacingReturnedPcb)]
+    [InlineData(PcbSupplyState.PickingReturnedPcb)]
+    public async Task RepeatRestartsTheSecondPcbHandoffWithItsOriginalSlot(PcbSupplyState? stopSupplyAt)
     {
         using var rig = new RepeatRig(loadPcbs: true, enableSupply: true);
         await rig.InitializeAsync();
@@ -387,8 +535,8 @@ public sealed class PcbPlacementRepeatTests
         void StopAtHandoff()
         {
             if (rig.Placer.TargetHeatSink == HeatSinkSlot.HeatSink2
-                && (stopWhileSupplyHolds
-                    ? rig.Supply.Step is PcbSupplyState.ReturningToPickup
+                && (stopSupplyAt is { } supplyStep
+                    ? rig.Supply.Step is PcbSupplyState current && current == supplyStep
                     : rig.Placer.Step is PcbPlacementState.WaitingForSupplyReceipt))
             {
                 stoppedAtHandoff = true;
@@ -408,7 +556,8 @@ public sealed class PcbPlacementRepeatTests
         Assert.Null(rig.Placer.ActivePcb);
 
         var repicked = false;
-        var visitedOriginalSlot = false;
+        var visitedOriginalSlot = rig.SupplyMotion.Position.X == 20
+            && rig.SupplyMotion.Position.Y == 30;
         rig.Placer.StepChanged += () => repicked |= rig.Placer.Step is PcbPlacementState.PickingPcb;
         rig.SupplyMotion.PositionChanged += (x, y, z) =>
         {
@@ -591,6 +740,9 @@ public sealed class PcbPlacementRepeatTests
         public async Task InitializeAsync()
         {
             Io.Initialize();
+            Io.SetInput(InputIo.AutoMode, false);
+            if (Units.PcbSupply)
+                Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
             Motion.Initialize();
             SupplyMotion.Initialize();
             await Task.WhenAll(HomeAsync(Motion, 2_000), HomeAsync(SupplyMotion, 2_000));

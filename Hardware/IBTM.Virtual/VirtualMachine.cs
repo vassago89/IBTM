@@ -176,12 +176,9 @@ public sealed class VirtualMachine
         AxisPosition handoff)
     {
         _supplyAtHandoff = IsAt(x, y, z, handoff);
-        if (!_supplyHoldingPcb)
-        {
-            _supplyPickupSlot = pcb1.Y is { } pcb1Y && IsAt(x, y, z, pcb1.X, pcb1Y, pcb1.Z)
-                ? 0
-                : pcb2.Y is { } pcb2Y && IsAt(x, y, z, pcb2.X, pcb2Y, pcb2.Z) ? 1 : null;
-        }
+        _supplyPickupSlot = pcb1.Y is { } pcb1Y && IsAt(x, y, z, pcb1.X, pcb1Y, pcb1.Z)
+            ? 0
+            : pcb2.Y is { } pcb2Y && IsAt(x, y, z, pcb2.X, pcb2Y, pcb2.Z) ? 1 : null;
 
         _io.ApplyAutoResponse(
             _io.AutoResponseVersion,
@@ -698,6 +695,9 @@ public sealed class VirtualMachine
                         }
                         else
                         {
+                            if (_supplyHoldingPcb && _supplyPickupSlot is { } slot
+                                && _io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
+                                _supplyPcbs[slot] = true;
                             _supplyHoldingPcb = false;
                         }
                         UpdateSupplyDetection();
