@@ -1112,10 +1112,9 @@ public sealed class BoltFasteningStation : AutoUnit
             {
                 var pickup = point.Target == TeachingTarget.BoltPickup;
                 var head = pickup ? FasteningHead.Pickup : point.Bolt!.Head;
-                var safeZ = pickup ? _settings.SafeZ : _settings.GetSafeZ(head);
                 _log?.LogInformation(
                     "Bolt teaching Move To: {Target}, bolt {Bolt}, {Head}; target X={X}, Y={Y}, Z={Z}; Safe Z={SafeZ}.",
-                    point.Target, point.Bolt?.Id, head, position.X, position.Y, position.Z, safeZ);
+                    point.Target, point.Bolt?.Id, head, position.X, position.Y, position.Z, _settings.SafeZ);
                 if (!point.HasPosition)
                     throw new MotionInterlockException("Record the teaching position before moving.");
                 var tableDown = head == FasteningHead.Pickup;
@@ -1141,9 +1140,6 @@ public sealed class BoltFasteningStation : AutoUnit
                 try
                 {
                     CheckTeachingClearance();
-                    EnsureCanMoveHorizontal(move.Token);
-                    if (!MotionServiceBase.IsAtZ(_motion, safeZ))
-                        await MoveZAsync(safeZ, move.Token);
                     EnsureCanMoveHorizontal(move.Token);
                     _log?.LogInformation("Bolt teaching Move To: requesting XY, X={X}, Y={Y}.", position.X, position.Y);
                     await _motion.MoveToXYAsync(position.X, position.Y, _settings.Motion.HorizontalSpeed, move.Token);

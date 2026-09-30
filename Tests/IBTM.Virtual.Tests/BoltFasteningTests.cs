@@ -2528,7 +2528,7 @@ public sealed class BoltFasteningTests
     [InlineData(FasteningHead.Pickup, false, false, true)]
     [InlineData(FasteningHead.Shooting, false, false, false, true)]
     [InlineData(FasteningHead.Shooting, false, false, false, false, true)]
-    public async Task TeachingBoltMoveWaitsForTableAtSafeZBeforeXyAndFasteningZ(
+    public async Task TeachingBoltMoveUsesCommonSafeZBeforeXyAndFasteningZ(
         FasteningHead head,
         bool stopAtTable = false,
         bool conflictingTableFeedback = false,
@@ -2585,7 +2585,7 @@ public sealed class BoltFasteningTests
             steps.Add(motion.IsMovingHorizontal ? "XY" : "Z");
             if (motion.IsMovingHorizontal)
             {
-                Assert.Equal(settings.GetSafeZ(head), motion.Position.Z);
+                Assert.Equal(settings.SafeZ, motion.Position.Z);
                 Assert.Equal(tableDown ? StationCylinderState.Down : StationCylinderState.Up, station.PickupTablePosition);
             }
         };
@@ -2594,7 +2594,7 @@ public sealed class BoltFasteningTests
             if (loseTableDuringXy && motion.IsMovingHorizontal)
                 io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
             if (!motion.IsMovingHorizontal
-                && x == destination.X && y == destination.Y && z > settings.GetSafeZ(head) + 0.05)
+                && x == destination.X && y == destination.Y && z > settings.SafeZ + 0.05)
             {
                 if (loseTableDuringFasteningZ)
                     io.SetInputs((InputIo.PickupTableUp, false), (InputIo.PickupTableDown, false));
@@ -2644,15 +2644,13 @@ public sealed class BoltFasteningTests
                 {
                     Assert.InRange(motion.Position.X, 0, destination.X - 0.05);
                     Assert.InRange(motion.Position.Y, 0, destination.Y - 0.05);
-                    Assert.Equal(settings.GetSafeZ(head), motion.Position.Z);
+                    Assert.Equal(settings.SafeZ, motion.Position.Z);
                 }
             }
             else
             {
                 await move;
-                Assert.Equal(head == FasteningHead.Shooting
-                    ? new[] { "Z", "Table", "Z", "XY", "Z" }
-                    : new[] { "Z", "Table", "XY", "Z" }, steps);
+                Assert.Equal(new[] { "Z", "Table", "XY", "Z" }, steps);
                 Assert.Equal((destination.X, destination.Y, destination.Z), motion.Position);
             }
         }
