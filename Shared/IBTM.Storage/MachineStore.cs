@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Inspection;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -215,12 +216,15 @@ public sealed class MachineStore
         string? sourceRecipe = null,
         IEnumerable<RecipeImage>? images = null,
         RecipeSelectionSettings? selection = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? name = null,
+        List<CarrierImageTile>? tiles = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         recipe.ValidateBoltIds();
-        var name = recipe.Name;
-        var imageNumbers = recipe.CarrierImages.Select(tile => tile.Number).ToArray();
+        name ??= recipe.Name;
+        tiles ??= recipe.CarrierImages;
+        var imageNumbers = tiles.Select(tile => tile.Number).ToArray();
         using var db = new MachineDbContext(_options);
         using var transaction = db.Database.BeginTransaction();
         var copyImages = images is null
@@ -237,7 +241,13 @@ public sealed class MachineStore
         var saved = db.Recipes.SingleOrDefault(row => row.Name == name);
         if (saved is null)
             db.Recipes.Add(saved = new() { Name = name });
-        saved.Value = JsonSerializer.Serialize(recipe);
+        // Save-as and a newly captured image only override the persisted fields.
+        // Publish their name/metadata to the live recipe after the transaction commits.
+        var document = JsonSerializer.SerializeToNode(recipe)!;
+        document[nameof(Recipe.Name)] = name;
+        if (!ReferenceEquals(tiles, recipe.CarrierImages))
+            document[nameof(Recipe.CarrierImages)] = JsonSerializer.SerializeToNode(tiles);
+        saved.Value = document.ToJsonString();
         db.SaveChanges();
         if (images is not null)
         {

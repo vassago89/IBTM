@@ -12,7 +12,6 @@ public sealed class RecipeManager
     private readonly MachineStore _database;
     private readonly RecipeSelectionSettings _selection;
     private readonly SemaphoreSlim _saveGate;
-    private string? _imageRecipeName;
 
     public RecipeManager(MachineStore database, RecipeSelectionSettings selection)
     {
@@ -55,7 +54,6 @@ public sealed class RecipeManager
         lock (InspectionSync)
         {
             Current.CopyFrom(new Recipe { Name = "New" });
-            _imageRecipeName = null;
         }
         Changed?.Invoke();
     }
@@ -78,7 +76,6 @@ public sealed class RecipeManager
             lock (InspectionSync)
             {
                 Current.CopyFrom(loaded);
-                _imageRecipeName = Current.Name;
                 _selection.LastRecipeName = Current.Name;
             }
         }
@@ -98,51 +95,43 @@ public sealed class RecipeManager
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
-            // Save/load and live inspection updates already share _saveGate.
-            var copy = Current.Clone();
-            var imageRecipeName = _imageRecipeName;
-            var originalName = copy.Name;
             if (tiles is not null)
             {
-                var capturedTiles = tiles.Clone();
-                foreach (var tile in capturedTiles)
+                foreach (var tile in tiles)
                 {
-                    // Gantry capture owns images/positions; inspection teaching owns existing ROIs.
-                    var current = copy.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
+                    // Capture changes the image/position, not the current inspection ROI.
+                    var current = Current.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
                         && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
                     if (current is not null)
                         tile.Region = current.Region;
                 }
-                copy.CarrierImages = capturedTiles;
             }
-            copy.Name = name;
             await Task.Run(
                 () => _database.SaveRecipe(
-                    copy,
-                    imageRecipeName,
+                    Current,
+                    Current.Name,
                     images: images,
                     selection: new RecipeSelectionSettings { LastRecipeName = name },
-                    cancellationToken: cancellationToken),
+                    cancellationToken: cancellationToken,
+                    name: name,
+                    tiles: tiles),
                 cancellationToken);
             lock (InspectionSync)
             {
-                if (Current.Name == originalName)
+                if (tiles is not null)
                 {
-                    if (tiles is not null)
+                    foreach (var tile in tiles)
                     {
-                        foreach (var tile in tiles)
-                        {
-                            var current = Current.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
-                                && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
-                            if (current is not null)
-                                tile.Region = current.Region;
-                        }
-                        Current.CarrierImages = tiles;
+                        // Inspection edits can continue while the image is being saved.
+                        var current = Current.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
+                            && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
+                        if (current is not null)
+                            tile.Region = current.Region;
                     }
-                    Current.Name = name;
-                    _imageRecipeName = name;
-                    _selection.LastRecipeName = name;
+                    Current.CarrierImages = tiles;
                 }
+                Current.Name = name;
+                _selection.LastRecipeName = name;
             }
         }
         finally

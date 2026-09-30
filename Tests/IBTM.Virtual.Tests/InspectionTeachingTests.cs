@@ -256,8 +256,10 @@ public sealed class InspectionTeachingTests
         var png = await SaveRecipeAsync(store);
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
-        var captured = recipes.Current.CarrierImages.Clone();
-        captured[0].Center = new() { X = 30, Y = 40 };
+        List<CarrierImageTile> captured = [
+            new() { Number = 1, IsBarcode = true, Center = new() { X = 30, Y = 40 } },
+            recipes.Current.CarrierImages[1],
+        ];
         var edited = recipes.Current;
         edited.CarrierImages[0].Region = new(4, 5, 6, 7);
         edited.BoltInspection.DataMatrix1.BinaryThreshold = 81;
@@ -282,8 +284,10 @@ public sealed class InspectionTeachingTests
         var recipes = new RecipeManager(store, new());
         await recipes.LoadAsync("Inspection");
         var edited = recipes.Current;
-        var captured = recipes.Current.CarrierImages.Clone();
-        captured[0].Center = new() { X = 30, Y = 40 };
+        List<CarrierImageTile> captured = [
+            new() { Number = 1, IsBarcode = true, Center = new() { X = 30, Y = 40 } },
+            recipes.Current.CarrierImages[1],
+        ];
         using var writing = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
         IEnumerable<RecipeImage> Images()
