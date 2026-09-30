@@ -22,7 +22,7 @@ public sealed class PcbSupplyRepeatTests
         var settings = new PcbSupplySettings
         {
             Motion = new() { HorizontalSpeed = 2_000, ZSpeed = 2_000 },
-            RotationZ = 0,
+            TravelZ = 0,
             HandoffPosition = new() { X = 80, Y = 30, Z = 2 },
         };
         var recipe = new PcbSupplyRecipe
@@ -43,7 +43,7 @@ public sealed class PcbSupplyRepeatTests
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion, 2_000);
-        await supplier.SetRotatedAsync(true);
+        io.SetInputs((InputIo.PcbSupplyRotated, true), (InputIo.PcbSupplyUnrotated, false));
         await motion.MoveToXYAsync(30, 20, 2_000);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false);
@@ -93,7 +93,7 @@ public sealed class PcbSupplyRepeatTests
         var settings = new PcbSupplySettings
         {
             Motion = new() { HorizontalSpeed = 2_000, ZSpeed = 2_000 },
-            RotationZ = 0,
+            TravelZ = 0,
             HandoffPosition = new() { X = 80, Y = 30, Z = 2 },
         };
         var recipe = new PcbSupplyRecipe
@@ -178,7 +178,7 @@ public sealed class PcbSupplyRepeatTests
         var settings = new PcbSupplySettings
         {
             Motion = new() { HorizontalSpeed = 2_000, ZSpeed = 2_000 },
-            RotationZ = 0,
+            TravelZ = 0,
             HandoffPosition = new() { X = 80, Y = 30, Z = 2 },
         };
         var recipe = new PcbSupplyRecipe
@@ -240,7 +240,7 @@ public sealed class PcbSupplyRepeatTests
         };
         motion.PositionChanged += (x, y, z) =>
         {
-            if (releases > 0 && supplier.PcbReleased && z == settings.RotationZ)
+            if (releases > 0 && supplier.PcbReleased && z == settings.TravelZ)
                 liftedEmpty = true;
             if (loseHolding && !lost && supplier.Phase == PcbSupplyState.ReturningToPickup
                 && motion.IsMovingHorizontal)

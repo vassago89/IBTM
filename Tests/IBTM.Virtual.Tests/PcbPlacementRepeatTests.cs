@@ -27,8 +27,11 @@ public sealed class PcbPlacementRepeatTests
         try
         {
             Assert.True(await WaitUntilAsync(
-                () => rig.Placer.Phase == PcbPlacementState.WaitingForSupplyReceipt,
+                () => rig.Placer.Phase == PcbPlacementState.ReturningToSupply,
                 TimeSpan.FromSeconds(2)));
+            Assert.Equal(HeatSinkSlot.HeatSink1, rig.Placer.ReturningPcb);
+            Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.X, rig.Motion.Position.X);
+            Assert.Equal(rig.Recipe.HeatSink1PcbPlacementPosition.Y, rig.Motion.Position.Y);
             rig.Io.SetInput(InputIo.PcbPlacementVacuumDetected, false);
             await Assert.ThrowsAsync<InvalidOperationException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
             Assert.Empty(rig.Work.Assemblies);
@@ -75,6 +78,8 @@ public sealed class PcbPlacementRepeatTests
         var standbySlots = new List<double>();
         rig.Io.OutputChanged += (output, on) =>
         {
+            if (output == OutputIo.PcbSupplyRotate)
+                Assert.Equal((50.0, 10.0, 7.0), rig.SupplyMotion.Position);
             if (output != OutputIo.PcbSupplyGripperClosed)
                 return;
             var position = rig.SupplyMotion.Position;
@@ -177,7 +182,7 @@ public sealed class PcbPlacementRepeatTests
             if (interrupted || !delivered || rig.Supply.Phase != PcbSupplyState.MovingToPickup
                 || !rig.Supply.PcbReleased)
                 return;
-            if (rig.SupplyMotion.Position != (10.0, 30.0, stopAfterRotation ? 3.0 : 7.0)
+            if (rig.SupplyMotion.Position != (50.0, 10.0, 7.0)
                 || rig.Supply.Rotation != (stopAfterRotation ? PcbSupplyRotationState.Rotated : PcbSupplyRotationState.Unrotated))
                 return;
             interrupted = true;
@@ -457,6 +462,8 @@ public sealed class PcbPlacementRepeatTests
     {
         using var rig = new RepeatRig(loadPcbs: true, enableSupply: enableSupply);
         await rig.InitializeAsync();
+        if (enableSupply)
+            await rig.Supply.PrepareHandoffAsync(CancellationToken.None);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
         var positions = new List<(double X, double Y, double Z)>();
         var reachedCorner = false;
@@ -863,7 +870,7 @@ public sealed class PcbPlacementRepeatTests
             var supplySettings = new PcbSupplySettings
             {
                 Motion = motion,
-                RotationZ = 3,
+                TravelZ = 3,
                 HandoffPosition = new() { X = 50, Y = 10, Z = 7 },
             };
             SupplyRecipe = new()

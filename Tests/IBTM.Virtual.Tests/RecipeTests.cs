@@ -621,11 +621,12 @@ public sealed class RecipeTests
         Assert.Equal(8, supply.HandoffPosition.Z);
         definition.Teach(60, 20, 99);
         Assert.Equal((60, 20), (supply.HandoffPosition.X, supply.HandoffPosition.Y));
-        Assert.Equal(3, supply.RotationZ);
+        Assert.Equal(3, supply.TravelZ);
         Assert.Equal(99, supply.HandoffPosition.Z);
 
         using var saved = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(supply));
         Assert.False(saved.RootElement.TryGetProperty("BufferClearZ", out _));
+        Assert.Equal(3, saved.RootElement.GetProperty("RotationZ").GetDouble());
         Assert.Equal(99, saved.RootElement.GetProperty("BufferHandoffPosition").GetProperty("Z").GetDouble());
     }
 
@@ -705,7 +706,7 @@ public sealed class RecipeTests
         Assert.Equal((10, 20, 30), (supplyHandoff.X, supplyHandoff.Y, supplyHandoff.Z));
         Assert.Equal(TeachMode.Full,
             handoffs.Single(point => point.Position.Target == TeachingTarget.SupplyHandoff).Position.Mode);
-        Assert.Equal(0, supply.RotationZ);
+        Assert.Equal(0, supply.TravelZ);
         Assert.Equal((10, 20, 30), (placementHandoff.X, placementHandoff.Y, placementHandoff.Z));
         Assert.Equal(2, handoffs.Select(p => p.Setting).Distinct().Count());
     }

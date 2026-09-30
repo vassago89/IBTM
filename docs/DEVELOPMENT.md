@@ -221,8 +221,8 @@ NG Transfer는 `Carrier Pickup (S3)`와 `Carrier Placement (Shuttle)` 두 XY 위
 픽업 X/Y는 `Record Position`에서 함께 기록하고 이동도 XY가 동시에 진행한다.
 기존 저장 필드 `PickupSafeX`와 `CarrierPickupPosition.Y`를 그대로 읽으며, 저장·화면 진입 시 좌표를 변환하거나 덮어쓰지 않는다.
 Supply의 `PCB Handoff`은 XYZ를 티칭한다. 픽업은 Rotated, 인계는 Unrotated 상태다.
-`Rotation Z`에서 Unrotated로 전환한 뒤 인계 Z → 인계 XY 순서로 이동한다.
-대기는 PCB 1 Pickup의 X/Y와 PCB Rotation Z에서 Rotated 상태다.
+`Travel Z` → 인계 XY → 인계 Z 순서로 이동한 뒤, 인계 XYZ에서만 Unrotated로 전환한다.
+대기는 PCB 1 Pickup의 X/Y와 PCB Travel Z에서 Rotated 상태다.
 Placement는 핸들러 상승 → 대기 Z → 인계 XY에서 대기하고, 실린더 Up 상태로 `ReceiveZ`까지 이동해 받는다.
 Supply 해제 후 대기 Z로 복귀하고 선택한 히트싱크 Y까지 먼저 빠진 뒤 X 이동·안착한다. Supply는 Y 도착 후 복귀한다.
 Placement Handler Rotate 출력은 항상 OFF로 고정하며, 자동·반복 동작에서 회전하거나 회전 피드백을 기다리지 않는다. 티칭·OUTPUTS에서도 ON으로 전환할 수 없다.
@@ -389,7 +389,7 @@ XY·체결 Z 이동 중 테이블 피드백이 달라지면 이동을 취소하�
 Supply·Placement의 공정 `State`는 동작 완료 시 갱신한다. 현재 좌표와 티칭 좌표가 같다는 이유로
 픽업·수취·안착 단계를 추정하거나 생략하지 않는다. 재시작을 위한 별도 이력 저장이나 단계 전환은 하지 않는다.
 조그도 현재 높이에서 지정 축을 움직이며, Z 높이 제한이나 우회 플래그를 두지 않는다.
-공급기의 Rotation Z·인계 Z, 배치기의 인계 Z, 체결기의 이동 Z는 각 유닛에서
+공급기의 이동 Z·인계 Z, 배치기의 인계 Z, 체결기의 이동 Z는 각 유닛에서
 Z 이동 → XY 이동 순서를 명시한다. 공통 드라이버가 숨은 선행 이동을 넣지 않는다.
 새 명령을 시작할 때 기존 명령과 실제 이동 여부를 확인하되, 모든 축의 `InPosition`을
 요구하지 않는다. 실행한 이동의 완료·정지 피드백 확인은 유지한다.
@@ -518,19 +518,18 @@ OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류�
 Move Z to … Height(적용된 기준 높이로 Z만 이동)로 구분한다. Z 바로가기는 별도 줄에 표시한다.
 모든 유닛의 조그/스텝은 화면의 Jog speed / Step speed 값을 사용한다. 검사·NG 스텝도 자동 운전용 XY 속도와 별개다.
 상단 Save는 인계 좌표와 제품 레시피를 함께 저장한다.
-Rotation Z/인계 Z와의 일치 조건 및 선행 Z 이동은 없다. 배치기 Z 조그/스텝은 핸들러가 내려와 있어도
+조그/스텝은 이동 Z/인계 Z와의 일치 조건 및 선행 Z 이동이 없다. 배치기 Z 조그/스텝은 핸들러가 내려와 있어도
 조정할 수 있으며, X/Y 조그/스텝과 Move to Position에는 핸들러 상승 확인을 유지한다.
-모션 계층에서 축 속도·범위·취소를 처리한다. Supply의 자동 인계 진입은 `PrepareHandoffAsync`,
-티칭 이동은 `MoveToTeachingPositionAsync`에서 공통 `MoveUnrotatedAsync`로 이어진다.
-이 메서드가 Unrotated 피드백을 유지하면서 인계 Z → XY 이동을 수행한다.
-XY 이동 전에 Rotation Z로 되돌아가지 않는다.
-픽업은 Rotation Z에서 XY 도착 후 해당 PCB 픽업 Z로 내려간다.
-회전 IO는 Rotation Z에서만 조작한다. 자동 이송·티칭 포인트 이동은 Rotated일 때 Rotation Z,
-Unrotated일 때 인계 Z를 사용한다.
-해제 후에는 두 Supply 실린더의 후퇴 완료 → Placement의 대기 Z 복귀·Handler Up 확인 → 히트싱크 Y 도착 → `MoveFromHandoffAsync`의
-XY 동시 복귀 순서다. 인계 Z를 유지하며, PCB1 후에는 PCB2의 개별 픽업 XY, PCB2 후에는
-다음 캐리어의 PCB1 픽업 XY로 돌아간다. 픽업 XY에 도착한 뒤 Rotation Z로 이동하고 Rotated로 전환한다.
-별도 Clear Z나 복귀 좌표는 없다. 시작 시 SMEMA가 없으면 PCB 1 XY·Rotation Z까지 이동해 대기한다.
+모션 계층에서 축 속도·범위·취소를 처리한다. Supply의 자동 인계 진입과 티칭 인계 이동은
+현재 회전 상태를 유지하며 `MoveToPositionAsync`에서 이동 Z → 인계 XY → 인계 Z 순서로 진행한다.
+자동 인계에서는 XYZ 도착 후 Unrotated로 전환한다. 픽업 이동은 Rotated 상태로 이동 Z → 픽업 XY → 픽업 Z 순서다.
+회전·회전 원복은 모두 인계 XYZ에 도착하고 축이 정지한 상태에서만 허용한다.
+티칭 회전 버튼은 축을 이동시키지 않는다. 먼저 인계 위치로 이동해야 하며 OUTPUTS 직접 출력에도 같은 위치 조건을 적용한다.
+해제 후에는 Placement의 대기 Z 복귀·Handler Up 확인 → 히트싱크 Y 도착을 기다린다.
+그 다음 인계 XYZ에서 Rotated 전환 → 이동 Z → 다음 픽업 XY 순서로 복귀한다.
+PCB1 후에는 PCB2, PCB2 후에는 다음 캐리어의 PCB1 자리다. 별도 Clear Z나 복귀 좌표는 없다.
+시작 시 SMEMA가 없으면 PCB 1 XY·이동 Z까지 이동해 대기한다.
+이동 Z의 코드 이름은 `TravelZ`이며, 기존 DB 값을 보존하기 위해 JSON 필드명 `RotationZ`는 유지한다.
 기존 설정은 인계 Z를 저장하지 않았으므로 `PCB Handoff`의 XYZ를 확인하고 `Save`로 저장한다.
 Placement는 `PCB Receive Standby`에서 기다리다가 실린더 Up 상태로 `PCB Receive Z`까지 내려가
 PCB 감지·진공을 확인한다. Supply 해제 후 대기 Z → 선택한 히트싱크 Y 순서로 이동하며 X는 인계 위치를 유지한다.

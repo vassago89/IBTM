@@ -951,7 +951,7 @@ public sealed partial class MachineLifecycleTests
                 {
                     X = recipe.PcbSupply.Pcb2PickPosition.X,
                     Y = recipe.PcbSupply.Pcb2PickPosition.Y!.Value,
-                    Z = settings.PcbSupply.RotationZ,
+                    Z = settings.PcbSupply.TravelZ,
                 }));
             }
             if (!on && output == OutputIo.MainConveyorRun
@@ -1020,7 +1020,7 @@ public sealed partial class MachineLifecycleTests
         supply.Motion.Feedback.StateChanged += () =>
         {
             if (supply.PcbSecured && supply.Rotation == PcbSupplyRotationState.Rotated
-                && !MotionServiceBase.IsAtZ(supply.Motion.Feedback, settings.PcbSupply.RotationZ))
+                && !MotionServiceBase.IsAtZ(supply.Motion.Feedback, settings.PcbSupply.TravelZ))
                 descendedToSourceSlot = true;
             StopAtHandoff();
         };

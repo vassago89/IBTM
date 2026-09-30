@@ -100,7 +100,7 @@ public sealed class UiBindingTests
             await unrelated.HomeAsync(MotionAxis.Z, 1000);
             await unrelated.HomeHorizontalAsync(1000);
             var supplySettings = services.GetRequiredService<IBTM.PcbSupply.PcbSupplySettings>();
-            supplySettings.RotationZ = supplySettings.HandoffPosition.Z = 10;
+            supplySettings.TravelZ = supplySettings.HandoffPosition.Z = 10;
             var io = services.GetRequiredService<VirtualIoService>();
             io.SetInput(InputIo.PcbSupplyRotated, false);
             io.SetInput(InputIo.PcbSupplyUnrotated, true);

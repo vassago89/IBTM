@@ -107,7 +107,7 @@ public sealed class MachineHomeTests
         var settings = FlowSettings();
         settings.PcbPlacementHandler.HandoffPosition.Z = 8;
         settings.BoltFastening.SafeZ = 12;
-        settings.PcbSupply.RotationZ = 16;
+        settings.PcbSupply.TravelZ = 16;
         await using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();

@@ -892,7 +892,7 @@ public partial class TeachingViewModel : ObservableObject
             switch (ActiveMotionGroup)
             {
                 case MotionGroup.PcbSupply:
-                    return UiText.Get("Z → PCB Rotation Height");
+                    return UiText.Get("Z → PCB Travel Height");
                 case MotionGroup.PcbPlacementHandler:
                     return UiText.Get("Z → PCB Handoff Height");
                 default:
@@ -1079,7 +1079,7 @@ public partial class TeachingViewModel : ObservableObject
             {
                 case MotionGroup.PcbSupply:
                     await _pcbSupply.MoveAxisAsync(
-                        MotionAxis.Z, _settings.PcbSupply.RotationZ, operation.Token);
+                        MotionAxis.Z, _settings.PcbSupply.TravelZ, operation.Token);
                     break;
                 case MotionGroup.PcbPlacementHandler:
                     await _pcbPlacement.MoveAxisAsync(

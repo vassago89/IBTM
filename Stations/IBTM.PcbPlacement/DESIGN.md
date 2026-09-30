@@ -46,7 +46,7 @@ With Supply enabled, `ReturningPcb` identifies the original heat sink and `Retur
 confirms a held PCB at Receive Z. Supply secures it before Placement releases and
 rises and moves to the original heat sink Y before allowing Supply to withdraw. Placement waits for Supply's departure and next forward handoff, then places
 the same PCB without pressing. Supply then completes normal empty withdrawal to
-pickup XY and Rotation Z before waiting for another return. Repeat keeps IPM Up during pickup, both handoff directions,
+pickup XY and Travel Z before waiting for another return. Repeat keeps IPM Up during pickup, both handoff directions,
 travel and placement. Handoff feedback requires an unambiguous IPM endpoint;
 the sequence prepares Up for Repeat and Down for normal receipt.
 PCB detection and vacuum still confirm holding. Normal production retains the IPM press. If STOP interrupts release with the

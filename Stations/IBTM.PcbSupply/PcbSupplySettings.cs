@@ -13,7 +13,8 @@ public sealed class PcbSupplySettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
-    public double RotationZ { get; set; }
+    [JsonPropertyName("RotationZ")]
+    public double TravelZ { get; set; }
     [JsonPropertyName("BufferHandoffPosition")]
     public AxisPosition HandoffPosition { get; set; }
 

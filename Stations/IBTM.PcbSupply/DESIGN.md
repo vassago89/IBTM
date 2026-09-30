@@ -1,13 +1,13 @@
 # PCB Supply Handler
 
 This is the behavior contract for `PcbSupplier`, which owns both motion and the supply sequence.
-The confirmed sequence uses separate rotation and handoff heights.
+Travel Z is the horizontal travel height. Rotation in either direction is allowed only at settled handoff XYZ.
 
 ## Responsibility
 
 - Pick PCB 1 and PCB 2 from the same upstream carrier.
 - Secure each PCB with the supply gripper and IPM fixer.
-- Pick while Rotated, then unrotate at Rotation Z and approach Placement at the taught handoff Z.
+- Pick while Rotated, travel to handoff XYZ, then confirm Unrotated before offering the PCB to Placement.
 - Hold the PCB until Placement confirms its receiving position and holding inputs.
 - Complete the upstream SMEMA handshake after both pickup positions are checked.
 
@@ -15,57 +15,58 @@ The confirmed sequence uses separate rotation and handoff heights.
 
 | Teaching item | Use |
 | --- | --- |
-| PCB Rotation Z | Standby, pickup XY travel, and rotation in either direction |
+| PCB Travel Z | Standby and horizontal travel in either orientation |
 | PCB 1 Pickup XYZ | First pickup position |
 | PCB 2 Pickup XYZ | Second pickup position |
-| PCB Handoff XYZ | Handoff Z followed by handoff XY; also the return travel height |
+| PCB Handoff XYZ | The only rotation position, and the handoff position |
 
-Standby uses PCB 1 Pickup X/Y and PCB Rotation Z, with Rotated feedback confirmed.
+Standby uses PCB 1 Pickup X/Y and PCB Travel Z, with Rotated feedback confirmed.
 There is no separate standby, Clear Z, return coordinate, or collision boundary.
-Each pickup XYZ belongs to the recipe; rotation Z and handoff XYZ are machine settings.
+Pickup XYZ belongs to the recipe; Travel Z and handoff XYZ are machine settings.
+`TravelZ` retains the JSON name `RotationZ` so existing saved heights are preserved.
 A pickup without a taught Y cannot be moved to; teach XYZ and save the recipe.
-
-Only `Record Position` changes `PCB Handoff`. Teaching reads the owning settings
-directly, and `Save` persists those coordinates without applying a separate copy.
-It now stores Z independently of Rotation Z. Older settings that stored only X/Y
-must have handoff Z taught before equipment operation; do not infer it from Rotation Z.
+Only `Record Position` changes `PCB Handoff`. Its Z is independent of Travel Z.
 
 ## Normal flow
 
 ```text
-PCB 1 XY + Rotation Z, rotated
+PCB 1 XY + Travel Z, rotated
   -> wait for upstream Board Available
   -> selected PCB pickup Z
   -> PCB detection
   -> close supply gripper and confirm
   -> advance IPM fixer and confirm
-  -> Rotation Z
-  -> rotation IO OFF and unrotated input confirmed
+  -> Travel Z
+  -> handoff X/Y together
   -> handoff Z
-  -> handoff X/Y together, keeping handoff Z
+  -> rotation IO OFF and unrotated input confirmed at handoff XYZ
   -> wait for Placement to secure the PCB at its receiving XYZ
   -> retract IPM fixer
   -> open supply gripper
   -> wait for Placement Handler Up, standby Z and settled placement Y
-  -> next pickup X/Y together, keeping handoff Z
-  -> Rotation Z
-  -> rotation IO ON and rotated input confirmed
+  -> rotation IO ON and rotated input confirmed at handoff XYZ
+  -> Travel Z
+  -> next pickup X/Y together
 ```
 
 PCB 2 follows the same pickup and handoff sequence, without another upstream
 handshake. After PCB 2, the next pickup X/Y is PCB 1 of the next carrier.
-If the selected pickup has no PCB, return to Rotation Z without gripping or
-rotating and advance to the next slot. After the second empty check, finish the
-same carrier handshake.
+If a pickup has no PCB, return to Travel Z without gripping or rotating and
+advance to the next slot. The second empty check completes the same handshake.
 
 `MovingToPickup` prepares the PCB 1 standby position even when SMEMA is absent.
-`PickingPcb` moves to the selected pickup XY at Rotation Z before descending.
-`SetRotatedAsync` always reaches Rotation Z before commanding rotation IO.
-`MovingToHandoff` reaches handoff Z before any XY approach. The motion call receives
-this height explicitly, so it cannot first move back to the default Rotation Z.
-`MovingToPickup` also owns withdrawal: give-height XY to the next pickup, then
-Rotation Z and Rotated feedback. `PickingPcb` secures the PCB; `MovingToHandoff` owns rotation and
-handoff approach. Rotation completes at Rotation Z before the give-height approach.
+If rotation is required on startup, move Travel Z -> handoff XY -> handoff Z,
+confirm Rotated there, then travel to standby.
+`PrepareHandoffAsync` uses Travel Z -> handoff XY -> handoff Z, preserving the
+current confirmed orientation during travel. It confirms Unrotated at handoff XYZ
+before publishing a completed handoff. `MoveFromHandoffAsync` rotates at handoff
+XYZ and moves through Travel Z to the selected pickup XY. Interrupted withdrawal
+with confirmed Rotated feedback continues through Travel Z without rotating again.
+
+`SetRotatedAsync` never moves an axis. It requires homed, servo-on, settled XYZ
+at the configured handoff position and stops waiting if that condition is lost.
+The teaching rotation button and direct OUTPUTS toggle enforce this same position
+condition. Move to the taught handoff position first; changing Z alone is insufficient.
 
 ## Direct handoff and live feedback
 
@@ -117,24 +118,25 @@ never substitute for endpoint confirmation.
 
 Both normal and Repeat handoff reject Rotated or Between feedback. Normal operation
 stops with an interlock error if this is detected at give XYZ. Release rechecks
-Unrotated feedback before opening the gripper, and withdrawal requires it too.
-Repeat reverse preparation still reaches Rotation Z and confirms Unrotated before
-returning to give XYZ when only the coordinates already match. If Placement is
+Unrotated feedback before opening the gripper. Withdrawal waits for Placement to
+clear before rotating at handoff XYZ. Repeat reverse preparation approaches at
+Travel Z and confirms Unrotated at handoff XYZ, even when the coordinates already match. If Placement is
 already holding or returning the PCB at receive Z, invalid rotation stops the
 operation without automatically rotating Supply.
 
-Manual axis moves and jog retain the current Z. A handoff point
-move requires unrotated feedback. A pickup point move requires rotated feedback.
+Manual axis moves and jog retain the current Z. A handoff point move accepts
+either confirmed orientation and preserves it; a pickup point move requires Rotated.
 
 ## SMEMA and slot progress
 
 The local `PickStep` tracks PCB 1, PCB 2, and WaitingForCarrierExit for the current
 run and upstream carrier. Live holding and handoff feedback take priority.
-Ready stays ON through both pickup checks and the last pickup lift to Rotation Z.
+Ready stays ON through both pickup checks and the last pickup lift to Travel Z.
 It then falls to tell the upstream equipment that pickup is complete; Placement
 need not have received the last PCB yet.
 
-Board Available OFF resets the next slot to PCB 1. A stale ON cannot start another
+Board Available OFF resets the next slot to PCB 1, including departure while the
+last PCB is still being handed off. A stale ON cannot start another
 carrier. If availability disappears during a pickup, cancel that pickup; a late
 completion cannot advance a replacement carrier. Cancellation during either pickup
 resets the next carrier to PCB 1. Slot progress belongs to the current run.
@@ -156,21 +158,21 @@ Heat Sink 1 maps to Pickup 1 and Heat Sink 2 maps to Pickup 2. One PCB completes
 its round trip before the next one starts.
 
 Supply closes its gripper and advances the fixer while Placement still holds the
-PCB. After Placement releases and clears the handoff, Supply moves unrotated to
-the selected pickup XY at handoff Z, rises to Rotation Z, rotates, and descends to
-pickup Z. It retracts the fixer, opens the gripper, rises empty to Rotation Z,
-and uses the normal pickup operations to grip the same PCB again. The normal
-forward handoff then returns it to the original heat sink.
+PCB. After Placement releases and clears the handoff, Supply rotates at handoff
+XYZ, rises to Travel Z, moves to the selected pickup XY, and descends to pickup Z.
+It retracts the fixer, opens the gripper, rises empty to Travel Z, and uses normal
+pickup to grip the same PCB again. The normal forward handoff returns it to its
+original heat sink.
 
 After each forward handoff, Supply waits for Placement to clear, then runs the
-same `MovingToPickup` withdrawal as normal production: pickup XY at handoff Z,
-Rotation Z, and rotated feedback. Repeat waits there with its gripper and fixer
-released. The slot remains the PCB just handled; the next return request selects
-the corresponding slot before receipt. Initial standby is Pickup 1 XY + Rotation Z.
-A return request cannot bypass an unfinished withdrawal, including after STOP.
-The next receipt unrotates at Rotation Z and approaches handoff Z then handoff XY.
-When the last station finishes, the machine lets this empty withdrawal complete
-before cancelling the forward units and reversing the main conveyor.
+same withdrawal as normal production: rotate at handoff XYZ -> Travel Z -> pickup
+XY. Repeat waits there with its gripper and fixer released. The slot remains the
+PCB just handled; the next return request selects the corresponding slot before
+receipt. Initial standby is Pickup 1 XY + Travel Z. A return request cannot bypass
+unfinished withdrawal, including after STOP. The next receipt approaches at
+Travel Z and unrotates only after reaching handoff XYZ. When the last station
+finishes, the machine lets empty withdrawal complete before cancelling the
+forward units and reversing the main conveyor.
 
 SMEMA Board Available is not a support sensor. Repeat placement and re-pickup do
 not wait for it or cancel when it is OFF. This path has no support-presence input:
@@ -188,5 +190,5 @@ PCB 1 standby. An unfinished return operation must first finish in Repeat mode.
 See the [Repeat instructions](../../docs/STATION3_COMMISSIONING.md#repeat).
 
 Focused regressions cover standby before SMEMA, both pickup slots, rotation at
-Rotation Z, travel at a different handoff Z, motion cancellation,
+handoff XYZ, travel at a different Travel Z, motion cancellation,
 recipient holding feedback, independent departure, and recorded XYZ teaching.

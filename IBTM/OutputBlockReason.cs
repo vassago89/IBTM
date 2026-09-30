@@ -32,4 +32,7 @@ public enum OutputBlockReason
 
     [Description("Operation or stop cleanup in progress")]
     Busy,
+
+    [Description("Move Supply to handoff XYZ before rotating.")]
+    SupplyNotAtHandoff,
 }

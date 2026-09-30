@@ -210,7 +210,7 @@ public sealed class TeachingTests
         MotionGroup group)
     {
         var settings = FlowSettings();
-        settings.PcbSupply.RotationZ = 8;
+        settings.PcbSupply.TravelZ = 8;
         settings.PcbPlacementHandler.HandoffPosition.Z = 8;
         settings.BoltFastening.SafeZ = 8;
         await using var services = CreateServices(settings);
@@ -1425,15 +1425,20 @@ public sealed class TeachingTests
         var rotation = TeachingRows(teaching)[OutputIo.PcbSupplyRotate];
         var wasRotated = io.GetOutput(OutputIo.PcbSupplyRotate);
         await handler.MoveAxisAsync(MotionAxis.Z, 5);
+        Assert.False(rotation.ToggleOutputCommand.CanExecute(null));
+        Assert.Equal(OutputBlockReason.SupplyNotAtHandoff, machine.ToggleDiagnosticOutput(OutputIo.PcbSupplyRotate));
+        var handoff = services.GetRequiredService<PcbSupplySettings>().HandoffPosition;
+        await handler.MoveToTeachingPositionAsync(
+            new(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full), handoff);
         await WaitUntilAsync(() => rotation.ToggleOutputCommand.CanExecute(null));
         await rotation.ToggleOutputCommand.ExecuteAsync(null);
-        Assert.Equal(0, handler.Motion.Feedback.Position.Z);
+        Assert.True(MotionServiceBase.IsHoldingPosition(handler.Motion.Feedback, handoff));
         Assert.Equal(wasRotated ? PcbSupplyRotationState.Unrotated : PcbSupplyRotationState.Rotated, handler.Rotation);
         await rotation.ToggleOutputCommand.ExecuteAsync(null);
-        await handler.MoveAxisAsync(MotionAxis.X, 80);
-        await WaitUntilAsync(() => rotation.ToggleOutputCommand.CanExecute(null));
+        await handler.MoveAxisAsync(MotionAxis.X, handoff.X + 80);
+        Assert.False(rotation.ToggleOutputCommand.CanExecute(null));
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
-        await handler.MoveAxisAsync(MotionAxis.X, 0);
+        await handler.MoveAxisAsync(MotionAxis.X, handoff.X);
         io.AutoResponseEnabled = false;
         await WaitUntilAsync(() => gripper.ToggleOutputCommand.CanExecute(null));
 

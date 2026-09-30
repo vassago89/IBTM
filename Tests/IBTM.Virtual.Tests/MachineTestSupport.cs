@@ -220,7 +220,7 @@ public static class MachineTestSupport
     {
         var settings = new MachineSettings();
         settings.PcbSupply.Motion = FastMotion();
-        settings.PcbSupply.RotationZ = 0;
+        settings.PcbSupply.TravelZ = 0;
         settings.PcbSupply.HandoffPosition = new()
         {
             X = 80,

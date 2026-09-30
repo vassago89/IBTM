@@ -44,7 +44,7 @@ public sealed class PcbSupplyHandoffTests
         };
         rig.Motion.PositionChanged += (x, y, z) =>
         {
-            if (duringDescent && !rotationLost && z > rig.Settings.RotationZ + 0.1)
+            if (duringDescent && !rotationLost && x == 10 && z > rig.Settings.TravelZ + 0.1)
                 LoseRotation();
             if (rotationLost && z >= 8)
                 stop.Cancel();
@@ -226,7 +226,6 @@ public sealed class PcbSupplyHandoffTests
         rig.Io.Initialize();
         rig.Motion.Initialize();
         await HomeAsync(rig.Motion, 2_000);
-        await rig.Supplier.SetRotatedAsync(false);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)rig.Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
         rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
@@ -319,7 +318,7 @@ public sealed class PcbSupplyHandoffTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task HandoffTravelStopsWhenUnrotatedFeedbackIsLost(bool leaving)
+    public async Task HandoffTravelStopsWhenRotationFeedbackChanges(bool leaving)
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
@@ -333,7 +332,7 @@ public sealed class PcbSupplyHandoffTests
             if (!lost && rig.Motion.IsMovingHorizontal && Math.Abs(x - initialX) > 0.1)
             {
                 lost = true;
-                rig.Io.SetInputs((InputIo.PcbSupplyUnrotated, false), (InputIo.PcbSupplyRotated, true));
+                rig.Io.SetInputs((InputIo.PcbSupplyUnrotated, true), (InputIo.PcbSupplyRotated, false));
             }
         };
 
@@ -362,7 +361,7 @@ public sealed class PcbSupplyHandoffTests
         {
             if (output == OutputIo.PcbSupplyRotate && !on)
             {
-                Assert.Equal(rig.Settings.RotationZ, rig.Motion.Position.Z);
+                Assert.True(MotionServiceBase.IsHoldingPosition(rig.Motion, rig.Settings.HandoffPosition));
                 rotationStarted.TrySetResult();
             }
         };
@@ -384,7 +383,7 @@ public sealed class PcbSupplyHandoffTests
             {
                 await Assert.ThrowsAsync<IoTimeoutException>(() => run);
                 Assert.Equal(PcbSupplyHandoff.Unavailable, rig.Supplier.Handoff);
-                Assert.Equal(rig.Settings.RotationZ, rig.Motion.Position.Z);
+                Assert.True(MotionServiceBase.IsHoldingPosition(rig.Motion, rig.Settings.HandoffPosition));
             }
         }
         finally
@@ -424,7 +423,7 @@ public sealed class PcbSupplyHandoffTests
             Settings = new()
             {
                 Motion = new() { HorizontalSpeed = 2_000, ZSpeed = 2_000 },
-                RotationZ = 3,
+                TravelZ = 3,
                 HandoffPosition = new() { X = 50, Y = 10, Z = 7 },
             };
             Io = new(new PcbSupplyHardwareSettings().Outputs, new MachineOptions { TimeoutMilliseconds = 500 });
@@ -462,7 +461,6 @@ public sealed class PcbSupplyHandoffTests
             Io.Initialize();
             Motion.Initialize();
             await HomeAsync(Motion, 2_000);
-            await Supplier.SetRotatedAsync(false);
             await ((IIoService)Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, false);
             await ((IIoService)Io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false);
             await Supplier.PrepareHandoffAsync(CancellationToken.None);

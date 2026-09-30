@@ -387,7 +387,7 @@ public sealed class MachineStoreTests
     {
         var store = new MachineStore(Path.Combine(CreateDirectory(), "Machine.db"));
         var settings = new MachineSettings();
-        settings.PcbSupply.RotationZ = 12;
+        settings.PcbSupply.TravelZ = 12;
         settings.Conveyor.CarrierStopDelaySeconds = 45;
         settings.Conveyor.TransferTimeoutSeconds = 7;
         await store.SaveSettingsAsync(settings.Sections);
@@ -400,7 +400,7 @@ public sealed class MachineStoreTests
             command.ExecuteNonQuery();
             settings.Conveyor.CarrierStopDelaySeconds = 100;
             settings.Conveyor.TransferTimeoutSeconds = 9;
-            settings.PcbSupply.RotationZ = 30;
+            settings.PcbSupply.TravelZ = 30;
             await Assert.ThrowsAsync<DbUpdateException>(() => store.SaveSettingsAsync(settings.Sections));
             command.CommandText = "DROP TRIGGER FailSetting";
             command.ExecuteNonQuery();
@@ -409,12 +409,12 @@ public sealed class MachineStoreTests
         var loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
         Assert.Equal(45, loaded.Conveyor.CarrierStopDelaySeconds);
         Assert.Equal(7, loaded.Conveyor.TransferTimeoutSeconds);
-        Assert.Equal(12, loaded.PcbSupply.RotationZ);
+        Assert.Equal(12, loaded.PcbSupply.TravelZ);
         await store.SaveSettingsAsync(settings.Sections);
         loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
         Assert.Equal(100, loaded.Conveyor.CarrierStopDelaySeconds);
         Assert.Equal(9, loaded.Conveyor.TransferTimeoutSeconds);
-        Assert.Equal(30, loaded.PcbSupply.RotationZ);
+        Assert.Equal(30, loaded.PcbSupply.TravelZ);
     }
 
     [Fact]
@@ -425,7 +425,7 @@ public sealed class MachineStoreTests
         var recipes = new RecipeManager(store, settings.RecipeSelection);
         store.SaveRecipe(new Recipe { Name = "First" });
         await recipes.LoadAsync("First");
-        settings.PcbSupply.RotationZ = 42;
+        settings.PcbSupply.TravelZ = 42;
         // RecipeManager commits on a worker before publishing the selection on its caller.
         // A settings save must not write the previous in-memory selection in that interval.
         store.SaveRecipe(new Recipe { Name = "Second" },
@@ -434,7 +434,7 @@ public sealed class MachineStoreTests
         await store.SaveSettingsAsync(settings.Sections);
         var loaded = await MachineSettings.LoadAsync(store);
         Assert.Equal("Second", loaded.RecipeSelection.LastRecipeName);
-        Assert.Equal(42, loaded.PcbSupply.RotationZ);
+        Assert.Equal(42, loaded.PcbSupply.TravelZ);
     }
 
     private static string CreateDirectory()

@@ -229,107 +229,111 @@ public sealed class MotionSafetyTests
     }
 
     [Fact]
-    public async Task SupplyUsesRotatedPickupAndUnrotatedHandoffTravelHeights()
+    public async Task SupplyTravelsAtTravelZAndRotatesOnlyAtHandoffCoordinates()
     {
         var io = CreateIo();
         var settings = new PcbSupplySettings
         {
-            Motion = new MotionSettings
-            {
-                HorizontalSpeed = 100,
-                ZSpeed = 1_000,
-            },
-            RotationZ = 3,
-            HandoffPosition = new AxisPosition
-            {
-                X = 20,
-                Y = 15,
-                Z = 7,
-            },
+            Motion = new() { HorizontalSpeed = 1_000, ZSpeed = 1_000 },
+            TravelZ = 3,
+            HandoffPosition = new() { X = 20, Y = 15, Z = 7 },
         };
-        using var motion = new VirtualMotionService(
-            settings.Motion,
-            new OperationCancellation());
-        var supply = VirtualTestSupport.CreateSupplier(
-            motion,
-            io,
-            settings);
-
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        var supply = VirtualTestSupport.CreateSupplier(motion, io, settings);
         io.Initialize();
         motion.Initialize();
         await Assert.ThrowsAsync<MotionInterlockException>(
-            async () => await supply.MoveAxisAsync(MotionAxis.Z, settings.RotationZ));
+            () => supply.MoveAxisAsync(MotionAxis.Z, settings.TravelZ));
         await HomeAsync(motion, 1_000);
-
-        TeachingPosition[] points = [
-            new(TeachingTarget.SupplyPcb1Pick, MotionGroup.PcbSupply, TeachMode.Full),
-            new(TeachingTarget.SupplyPcb2Pick, MotionGroup.PcbSupply, TeachMode.Full),
-            new(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full),
-        ];
-        var handoff = Array.Find(points, point => point.Target == TeachingTarget.SupplyHandoff)!;
-        var pickups = Array.FindAll(points,
-            point => point.Target is TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick);
-        await supply.SetRotatedAsync(true);
-        Assert.All(pickups, point => Assert.True(supply.IsMoveToTeachingPositionAllowed(point)));
-        Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));
-        await Assert.ThrowsAsync<MotionInterlockException>(() => supply.PrepareHandoffAsync(default));
-        await supply.MoveAxisAsync(MotionAxis.Z, 5);
-        await supply.MoveAxisAsync(MotionAxis.X, 0);
-        Assert.Equal(5, motion.Position.Z);
-
+        var rotationCommands = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.PcbSupplyRotate)
+                return;
+            Assert.True(MotionServiceBase.IsHoldingPosition(motion, settings.HandoffPosition));
+            rotationCommands++;
+        };
         var xyMovedTogether = false;
-        var yMovedAtHandoff = false;
-        var movedAtWrongZ = false;
         motion.PositionChanged += (x, y, z) =>
         {
-            if (x > MotionServiceBase.PositionToleranceMillimeters
-                && x < 20 - MotionServiceBase.PositionToleranceMillimeters
-                && y > MotionServiceBase.PositionToleranceMillimeters
-                && System.Math.Abs(y - 15) > MotionServiceBase.PositionToleranceMillimeters)
-            {
-                xyMovedTogether = true;
-            }
-
-            yMovedAtHandoff |= x is >= 10 and <= 30
-                && Math.Abs(y - 15) > MotionServiceBase.PositionToleranceMillimeters;
-            movedAtWrongZ |= motion.IsMovingHorizontal
-                && Math.Abs(z - settings.HandoffPosition.Z) > MotionServiceBase.PositionToleranceMillimeters;
+            if (!motion.IsMovingHorizontal)
+                return;
+            Assert.Equal(settings.TravelZ, z);
+            xyMovedTogether |= x > 0 && x < 20 && y > 0 && y < 15;
         };
-
-        await supply.SetRotatedAsync(false);
+        var handoff = new TeachingPosition(TeachingTarget.SupplyHandoff, MotionGroup.PcbSupply, TeachMode.Full);
+        var pickup = new TeachingPosition(TeachingTarget.SupplyPcb1Pick, MotionGroup.PcbSupply, TeachMode.Full);
+        await supply.MoveToTeachingPositionAsync(handoff, settings.HandoffPosition);
+        await supply.SetRotatedAsync(true);
         Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
-        Assert.All(pickups, point => Assert.False(supply.IsMoveToTeachingPositionAllowed(point)));
-        Assert.Equal(settings.RotationZ, motion.Position.Z);
-        await supply.MoveAxisAsync(MotionAxis.Z, 5);
-        await supply.MoveToTeachingPositionAsync(handoff, new() { X = 20, Y = 15, Z = 7 });
-
+        Assert.True(supply.IsMoveToTeachingPositionAllowed(pickup));
+        await supply.MoveToTeachingPositionAsync(pickup, new() { X = 10, Y = 30, Z = 5 });
+        Assert.Equal((10, 30, 5), motion.Position);
+        await supply.PrepareHandoffAsync(default);
+        Assert.Equal(PcbSupplyRotationState.Unrotated, supply.Rotation);
+        Assert.True(MotionServiceBase.IsHoldingPosition(motion, settings.HandoffPosition));
+        await supply.MoveFromHandoffAsync(new() { X = 10, Y = 30, Z = 5 });
+        Assert.Equal((10, 30, settings.TravelZ), motion.Position);
+        Assert.Equal(PcbSupplyRotationState.Rotated, supply.Rotation);
+        Assert.Equal(3, rotationCommands);
         Assert.True(xyMovedTogether);
-        Assert.False(movedAtWrongZ);
-        Assert.Equal((20, 15, settings.HandoffPosition.Z), motion.Position);
-        Assert.Equal(TeachMode.Full, handoff.Mode);
 
-        await supply.MoveAxisAsync(MotionAxis.Y, 14);
-        await supply.MoveAxisAsync(MotionAxis.Z, 6);
-        Assert.Equal((20, 14, 6), motion.Position);
-
-        // XY departure keeps handoff Z until the handler is outside.
-        Assert.True(supply.IsMoveToTeachingPositionAllowed(handoff));
-        await supply.MoveToTeachingPositionAsync(handoff,
-            new() { X = 0, Y = 0, Z = settings.HandoffPosition.Z });
-        Assert.True(yMovedAtHandoff);
-        Assert.False(movedAtWrongZ);
-        Assert.Equal((0, 0, settings.HandoffPosition.Z), motion.Position);
-
-        io.SetInput(InputIo.PcbSupplyRotated, true); // Both inputs ON is unknown.
+        io.SetInput(InputIo.PcbSupplyUnrotated, true);
         Assert.False(supply.IsMoveToTeachingPositionAllowed(handoff));
-        Assert.All(pickups, point => Assert.False(supply.IsMoveToTeachingPositionAllowed(point)));
-
-        // The station uses the current teaching value, not a value retained by the device.
-        settings.RotationZ = 4;
-        Assert.False(MotionServiceBase.IsAtZ(supply.Motion.Feedback, settings.RotationZ));
-        await supply.MoveAxisAsync(MotionAxis.Z, settings.RotationZ);
+        Assert.False(supply.IsMoveToTeachingPositionAllowed(pickup));
+        settings.TravelZ = 4;
+        await supply.MoveAxisAsync(MotionAxis.Z, settings.TravelZ);
         Assert.Equal(4, motion.Position.Z);
-        Assert.True(MotionServiceBase.IsAtZ(supply.Motion.Feedback, settings.RotationZ));
+    }
+
+    [Theory]
+    [InlineData(MotionAxis.X)]
+    [InlineData(MotionAxis.Y)]
+    [InlineData(MotionAxis.Z)]
+    public async Task SupplyRotationRejectsAnyAxisAwayFromHandoffWithoutMoving(MotionAxis axis)
+    {
+        var io = CreateIo();
+        var settings = new PcbSupplySettings
+        {
+            Motion = new() { HorizontalSpeed = 1_000, ZSpeed = 1_000 },
+            TravelZ = 3,
+            HandoffPosition = new() { X = 20, Y = 15, Z = 7 },
+        };
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        var supply = VirtualTestSupport.CreateSupplier(motion, io, settings);
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 1_000);
+        await supply.PrepareHandoffAsync(default);
+        await supply.MoveAxisAsync(axis, 1);
+        var commanded = false;
+        motion.MovingChanged += moving => commanded |= moving;
+        io.OutputChanged += (output, on) => commanded |= output == OutputIo.PcbSupplyRotate;
+        Assert.False(supply.IsRotationAllowed);
+        await Assert.ThrowsAsync<MotionInterlockException>(() => supply.SetRotatedAsync(true));
+        Assert.False(commanded);
+    }
+
+    [Fact]
+    public async Task SupplyRotationStopsWaitingIfHandoffPositionIsLost()
+    {
+        var io = CreateIo();
+        var settings = new PcbSupplySettings
+        {
+            Motion = new() { HorizontalSpeed = 1_000, ZSpeed = 1_000 },
+            HandoffPosition = new() { X = 20, Y = 15, Z = 7 },
+        };
+        using var motion = new VirtualMotionService(settings.Motion, new());
+        var supply = VirtualTestSupport.CreateSupplier(motion, io, settings);
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion, 1_000);
+        await supply.PrepareHandoffAsync(default);
+        io.AutoResponseEnabled = false;
+        var rotation = supply.SetRotatedAsync(true);
+        await supply.MoveAxisAsync(MotionAxis.X, 19);
+        await Assert.ThrowsAsync<MotionInterlockException>(() => rotation);
+        Assert.True(io.GetOutput(OutputIo.PcbSupplyRotate)); // Cancellation does not reverse the cylinder.
     }
 
     [Theory]

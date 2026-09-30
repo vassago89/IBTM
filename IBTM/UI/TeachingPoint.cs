@@ -87,7 +87,7 @@ public class TeachingPoint : ObservableObject
             {
                 case TeachingTarget.SafeZ:
                     return new() { Z = _definition.MotionGroup == MotionGroup.PcbSupply
-                        ? _settings.PcbSupply.RotationZ : _settings.BoltFastening.SafeZ };
+                        ? _settings.PcbSupply.TravelZ : _settings.BoltFastening.SafeZ };
                 case TeachingTarget.ShootingSafeZ:
                     return new() { Z = _settings.BoltFastening.GetSafeZ(FasteningHead.Shooting) };
                 case TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick:
@@ -179,7 +179,7 @@ public class TeachingPoint : ObservableObject
             switch ((_definition.Target, _definition.MotionGroup))
             {
                 case (TeachingTarget.SafeZ, MotionGroup.PcbSupply):
-                    return UiText.Get("PCB Rotation Z");
+                    return UiText.Get("PCB Travel Z");
                 default:
                     return UiText.Get(_definition.Target);
             }
@@ -252,7 +252,7 @@ public class TeachingPoint : ObservableObject
         switch (_definition.Target)
         {
             case TeachingTarget.SafeZ when _definition.MotionGroup == MotionGroup.PcbSupply:
-                _settings.PcbSupply.RotationZ = position.Z;
+                _settings.PcbSupply.TravelZ = position.Z;
                 break;
             case TeachingTarget.SafeZ:
                 _settings.BoltFastening.SafeZ = position.Z;

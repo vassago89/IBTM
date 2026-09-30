@@ -1641,8 +1641,8 @@ Operation failed. Check controller status.</value>
   <data name="pcb results folder" xml:space="preserve">
     <value>PCB results folder</value>
   </data>
-  <data name="pcb rotation z" xml:space="preserve">
-    <value>PCB Rotation Z</value>
+  <data name="pcb travel z" xml:space="preserve">
+    <value>PCB Travel Z</value>
   </data>
   <data name="pcb secured" xml:space="preserve">
     <value>PCB Secured</value>
@@ -2920,8 +2920,8 @@ Speed   Configured axis speed</value>
   <data name="z → pcb handoff height" xml:space="preserve">
     <value>Z → PCB Handoff Height</value>
   </data>
-  <data name="z → pcb rotation height" xml:space="preserve">
-    <value>Z → PCB Rotation Height</value>
+  <data name="z → pcb travel height" xml:space="preserve">
+    <value>Z → PCB Travel Height</value>
   </data>
   <data name="z+" xml:space="preserve">
     <value>Z+</value>
@@ -3271,5 +3271,17 @@ See the application log for details.</value>
   </data>
   <data name="placing pcb at pickup" xml:space="preserve">
     <value>Placing PCB at Pickup</value>
+  </data>
+  <data name="move supply to handoff xyz before rotating." xml:space="preserve">
+    <value>Move Supply to handoff XYZ before rotating.</value>
+  </data>
+  <data name="supply must remain at handoff xyz while rotating." xml:space="preserve">
+    <value>Supply must remain at handoff XYZ while rotating.</value>
+  </data>
+  <data name="confirm supply rotation feedback before moving to the handoff position." xml:space="preserve">
+    <value>Confirm Supply rotation feedback before moving to the handoff position.</value>
+  </data>
+  <data name="supply rotation feedback changed while moving to the handoff position." xml:space="preserve">
+    <value>Supply rotation feedback changed while moving to the handoff position.</value>
   </data>
 </root>
