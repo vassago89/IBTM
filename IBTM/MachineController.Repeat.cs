@@ -99,6 +99,8 @@ public sealed partial class MachineController
                 await _conveyor.WaitForRepeatEndAsync(cycle.Token);
             else
                 await _inspectionStation.WaitForRepeatEndAsync(cycle.Token);
+            if (_units.PcbSupply && _units.PcbPlacement)
+                await _pcbSupply.WaitForRepeatEndAsync(cycle.Token);
         }
         finally
         {

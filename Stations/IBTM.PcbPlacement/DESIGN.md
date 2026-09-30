@@ -45,15 +45,20 @@ With Supply disabled, it visits handoff and places each PCB back on its heat sin
 With Supply enabled, `ReturningPcb` identifies the original heat sink and `Returning`
 confirms a held PCB at Receive Z. Supply secures it before Placement releases and
 rises and moves to the original heat sink Y before allowing Supply to withdraw. Placement waits for Supply's departure and next forward handoff, then places
-the same PCB without pressing. Repeat keeps IPM Up during pickup, both handoff directions,
+the same PCB without pressing. Supply then completes normal empty withdrawal to
+pickup XY and Rotation Z before waiting for another return. Repeat keeps IPM Up during pickup, both handoff directions,
 travel and placement. Handoff feedback requires an unambiguous IPM endpoint;
 the sequence prepares Up for Repeat and Down for normal receipt.
-PCB detection and vacuum still confirm holding. Normal production retains the IPM press.
+PCB detection and vacuum still confirm holding. Normal production retains the IPM press. If STOP interrupts release with the
+handler Down at the taught placement XYZ, resume finishes release on that support
+before retracting; it does not first lift a PCB whose vacuum is switching off.
 Repeat pickup confirms both signals after vacuum completes and only then enters
 `ReturningToSupply`. A missing PCB signal with vacuum ON stops at pickup instead of
 raising the handler and trying the pickup again.
-Supply keeps the PCB secured through its reverse travel
-at pickup travel height; it does not put the PCB into an upstream slot.
+Supply returns each PCB to its corresponding pickup XYZ, releases it there and
+picks it up again before the forward handoff. Repeat does not use upstream SMEMA
+to infer support presence. Placement retains the original carrier and heat-sink
+target throughout this round trip.
 Main Conveyor OFF repeats the completed seated carrier
 with a new work record; it does not clear incomplete work.
 

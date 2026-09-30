@@ -148,18 +148,42 @@ control remains available. TEST OFF followed by ON starts the next carrier.
 
 ## Repeat and verification
 
-The same switch in `PcbSupplier.cs` uses `PcbSupplyState` values for the reverse
-operations. With Placement disabled, Supply initially picks one PCB, visits
-handoff, then returns to pickup XY at Rotation Z while retaining its grip and
-fixer. It repeats with that PCB without descending into or releasing at a source
-slot. Upstream availability is required only through the initial pickup lift.
+The same switch in `PcbSupplier.cs` owns reverse receipt, return placement and
+re-pickup. With Placement disabled, Supply initially picks one PCB using the
+normal upstream handshake, visits handoff, and then repeats with that PCB.
+With Placement enabled, Placement returns each PCB from its original heat sink;
+Heat Sink 1 maps to Pickup 1 and Heat Sink 2 maps to Pickup 2. One PCB completes
+its round trip before the next one starts.
 
-With Placement enabled, Placement returns the PCB from its heat sink at Receive Z.
-Supply confirms its own grip and fixer before Placement releases and rises. Supply
-then travels to pickup XY at Rotation Z with the PCB still secured and performs
-the normal forward handoff. This route does not require an upstream support or
-Available TEST; Repeat does not feed replacement PCBs.
-Both units retain their holding and seating checks in either direction.
+Supply closes its gripper and advances the fixer while Placement still holds the
+PCB. After Placement releases and clears the handoff, Supply moves unrotated to
+the selected pickup XY at handoff Z, rises to Rotation Z, rotates, and descends to
+pickup Z. It retracts the fixer, opens the gripper, rises empty to Rotation Z,
+and uses the normal pickup operations to grip the same PCB again. The normal
+forward handoff then returns it to the original heat sink.
+
+After each forward handoff, Supply waits for Placement to clear, then runs the
+same `MovingToPickup` withdrawal as normal production: pickup XY at handoff Z,
+Rotation Z, and rotated feedback. Repeat waits there with its gripper and fixer
+released. The slot remains the PCB just handled; the next return request selects
+the corresponding slot before receipt. Initial standby is Pickup 1 XY + Rotation Z.
+A return request cannot bypass an unfinished withdrawal, including after STOP.
+The next receipt unrotates at Rotation Z and approaches handoff Z then handoff XY.
+When the last station finishes, the machine lets this empty withdrawal complete
+before cancelling the forward units and reversing the main conveyor.
+
+SMEMA Board Available is not a support sensor. Repeat placement and re-pickup do
+not wait for it or cancel when it is OFF. This path has no support-presence input:
+release occurs at the taught pickup XYZ even if no physical support is present.
+The virtual model represents fixed supports at those pickup positions.
+
+STOP retains the selected slot and operation. An interrupted release or partial
+re-pickup can release again only at confirmed pickup XYZ. An interrupted reverse
+receipt may finish gripping only while Placement still confirms holding at its
+receive position. Grip loss during the pickup lift stops the operation. A PCB
+missing on re-pickup stops without advancing to another slot.
+After completed repeat handoffs, a normal start returns the empty handler to
+PCB 1 standby. An unfinished return operation must first finish in Repeat mode.
 
 See the [Repeat instructions](../../docs/STATION3_COMMISSIONING.md#repeat).
 

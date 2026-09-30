@@ -934,8 +934,26 @@ public sealed partial class MachineLifecycleTests
             if (on && input is InputIo.BoltFasteningHeatSink1Present or InputIo.InspectionHeatSink1Present)
                 enteredDisabledStation = true;
         };
+        supply.StepChanged += () =>
+        {
+            // Placement can finish first; the repeat cycle must still let empty withdrawal finish.
+            if (returns == 2 && supply.Step is PcbSupplyState.MovingToPickup)
+                settings.PcbSupply.Motion.HorizontalSpeed = 20;
+        };
         io.OutputChanged += (output, on) =>
         {
+            if (on && output == OutputIo.MainConveyorRun && !io.GetOutput(OutputIo.MainConveyorForward))
+            {
+                Assert.Equal(PcbSupplyState.WaitingForReturnedPcb, supply.Phase);
+                Assert.Equal(PcbSupplyRotationState.Rotated, supply.Rotation);
+                Assert.True(supply.PcbReleased);
+                Assert.True(MotionServiceBase.IsHoldingPosition(supply.Motion.Feedback, new()
+                {
+                    X = recipe.PcbSupply.Pcb2PickPosition.X,
+                    Y = recipe.PcbSupply.Pcb2PickPosition.Y!.Value,
+                    Z = settings.PcbSupply.RotationZ,
+                }));
+            }
             if (!on && output == OutputIo.MainConveyorRun
                 && !io.GetOutput(OutputIo.MainConveyorForward)
                 && io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
@@ -957,7 +975,7 @@ public sealed partial class MachineLifecycleTests
             var reached = stopPoint switch
             {
                 PcbRepeatStopPoint.SupplyReturning => reverseHandoffs == 2 && supply.PcbSecured
-                    && supply.Phase == PcbSupplyState.MovingToPickup && supply.Motion.Feedback.IsMovingHorizontal
+                    && supply.Phase == PcbSupplyState.ReturningToPickup && supply.Motion.Feedback.IsMovingHorizontal
                     && supply.Motion.Feedback.Position.X < settings.PcbSupply.HandoffPosition.X - 1
                     && supply.Motion.Feedback.Position.X > recipe.PcbSupply.Pcb2PickPosition.X + 1,
                 PcbRepeatStopPoint.BothHolding => supply.PcbSecured && placement.PcbSecured
@@ -980,7 +998,7 @@ public sealed partial class MachineLifecycleTests
         supply.Motion.Feedback.PositionChanged += (x, y, z) => StopAtHandoff();
         placement.Motion.Feedback.PositionChanged += (x, y, z) =>
         {
-            if (placement.Phase is PcbPlacementState.WaitingForSupply or PcbPlacementState.WaitingForSupplyRelease
+            if (placement.Phase is PcbPlacementState.ReleasingToSupply or PcbPlacementState.PreparingPlacement
                 && y > settings.PcbPlacementHandler.HandoffPosition.Y
                 && y < recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y)
             {
@@ -992,8 +1010,12 @@ public sealed partial class MachineLifecycleTests
         };
         supply.Trace += message =>
         {
-            if (message.StartsWith("PcbSupplier: MovingToPickup ", StringComparison.Ordinal))
-                Assert.Equal(recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y, placement.Motion.Feedback.Position.Y);
+            // Check initial withdrawal, not a restart after Supply already left the handoff.
+            if (message.StartsWith("PcbSupplier: ReturningToPickup ", StringComparison.Ordinal)
+                && MotionServiceBase.IsAt(supply.Motion.Feedback, settings.PcbSupply.HandoffPosition))
+                Assert.InRange(
+                    Math.Abs(recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y - placement.Motion.Feedback.Position.Y),
+                    0, MotionServiceBase.PositionToleranceMillimeters);
         };
         supply.Motion.Feedback.StateChanged += () =>
         {
@@ -1023,10 +1045,11 @@ public sealed partial class MachineLifecycleTests
                     + $"Phase={machine.RepeatDisplayPhase}, {state.AlarmDetail}\n"
                     + string.Join('\n', handoffSteps));
             Assert.False(state.IsError, state.AlarmDetail);
-            Assert.Equal(0, returns);
-            Assert.False(descendedToSourceSlot);
+            Assert.Equal(2, returns);
+            Assert.True(descendedToSourceSlot);
+            Assert.False(supply.UpstreamCarrierAvailable);
             Assert.False(loweredPlacementIpm);
-            Assert.Equal(stopPoint == PcbRepeatStopPoint.BothHolding ? 1 : 2, reverseHandoffs);
+            Assert.Equal(2, reverseHandoffs);
             Assert.False(unsafeRelease);
             Assert.True(placementDepartedInY);
             Assert.False(enteredDisabledStation);

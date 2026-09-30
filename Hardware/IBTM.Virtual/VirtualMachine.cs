@@ -695,8 +695,7 @@ public sealed class VirtualMachine
                         }
                         else
                         {
-                            if (_supplyHoldingPcb && _supplyPickupSlot is { } slot
-                                && _io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
+                            if (_supplyHoldingPcb && _supplyPickupSlot is { } slot)
                                 _supplyPcbs[slot] = true;
                             _supplyHoldingPcb = false;
                         }

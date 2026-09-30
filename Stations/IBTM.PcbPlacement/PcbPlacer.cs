@@ -367,7 +367,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         var callerToken = cancellationToken;
         using var repeatOperation = _repeatTrip is null ? null
             : CancellationTokenSource.CreateLinkedTokenSource(callerToken);
-        var requiresHolding = PcbSecured;
+        // Placement monitors grip until descent and PCB presence during release below.
+        var requiresHolding = state != PcbPlacementState.PlacingPcb && PcbSecured;
         void CheckRepeatFeedback()
         {
             if (!Station.CarrierSeated || !ReferenceEquals(job, Station.CurrentJob)
@@ -488,11 +489,14 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                 case PcbPlacementState.PlacingPcb:
                 {
                     var target = heatSink ?? throw new InvalidOperationException("No placement target is selected.");
-                    var carryingPcb = true;
-                    if (!PcbSecured)
+                    var position = GetHeatSinkPosition(target);
+                    var supported = Lift == StationCylinderState.Down
+                        && MotionServiceBase.IsHoldingPosition(_motion, position);
+                    var carryingPcb = !supported;
+                    if (carryingPcb && !PcbSecured)
                         throw new InvalidOperationException("Placement requires confirmed PCB holding before travelling to its target.");
-                    // Presence is required through placement/press completion, until retraction.
-                    var checkingPcbPresence = false;
+                    // Resume an interrupted release on its support without first lifting the PCB.
+                    var checkingPcbPresence = supported;
                     using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     void CheckPlacementFeedback()
                     {
@@ -507,18 +511,19 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     {
                         CheckPlacementFeedback();
                         operation.Token.ThrowIfCancellationRequested();
-                        var position = GetHeatSinkPosition(target);
-                        await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, !repeat, operation.Token);
-                        await SetLiftDownAsync(false, operation.Token);
-                        await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, operation.Token);
-                        await MoveAxisAsync(MotionAxis.Y, position.Y, operation.Token);
-                        await MoveAxisAsync(MotionAxis.X, position.X, operation.Token);
-                        await MoveAxisAsync(MotionAxis.Z, position.Z, operation.Token);
-                        await SetLiftDownAsync(true, operation.Token);
-                        operation.Token.ThrowIfCancellationRequested();
+                        if (!supported)
+                        {
+                            await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, !repeat, operation.Token);
+                            await SetLiftDownAsync(false, operation.Token);
+                            await MoveAxisAsync(MotionAxis.Z, _settings.HandoffPosition.Z, operation.Token);
+                            await MoveAxisAsync(MotionAxis.Y, position.Y, operation.Token);
+                            await MoveAxisAsync(MotionAxis.X, position.X, operation.Token);
+                            await MoveAxisAsync(MotionAxis.Z, position.Z, operation.Token);
+                            await SetLiftDownAsync(true, operation.Token);
+                            operation.Token.ThrowIfCancellationRequested();
+                        }
                         // Grip is no longer required after confirmed placement descent.
                         carryingPcb = false;
-                        requiresHolding = false;
                         await SetVacuumAsync(false, operation.Token);
 
                         await _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false, operation.Token);
