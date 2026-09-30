@@ -1912,6 +1912,9 @@ Operation failed. Check controller status.</value>
   <data name="raising / leaving handoff" xml:space="preserve">
     <value>Raising / clearing handoff</value>
   </data>
+  <data name="raising handler" xml:space="preserve">
+    <value>Raising handler</value>
+  </data>
   <data name="raising ng shuttle" xml:space="preserve">
     <value>Raising NG Shuttle</value>
   </data>

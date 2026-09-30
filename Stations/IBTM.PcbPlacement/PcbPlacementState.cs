@@ -37,8 +37,8 @@ public enum PcbPlacementState
     [Description("Placing and Pressing PCB")]
     PlacingPcb,
 
-    [Description("Completing Carrier")]
-    CompletingCarrier,
+    [Description("Raising handler")]
+    Retracting,
 
     [Description("Returning PCB to Supply")]
     ReturningToSupply,

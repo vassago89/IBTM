@@ -223,7 +223,7 @@ public sealed class LightingTests
     }
 
     [Fact]
-    public async Task InspectionSettingsChangedDuringCaptureApplyStartingWithTheNextPoint()
+    public async Task InspectionReadsCurrentSettingsAfterCapture()
     {
         var light = new RecordingLight { FailOn = false };
         var camera = new TestCamera();
@@ -243,24 +243,16 @@ public sealed class LightingTests
         var bolt = new BoltPoint { Id = VirtualTestSupport.BoltId(1), X = 0, Y = 0, LightLevel = 23, BrightnessThreshold = 128, MinimumBrightRatio = 0.5 };
         recipes.Current.Pcb.BoltPoints.Add(bolt);
         recipes.Current.CarrierImages = [new() { BoltId = VirtualTestSupport.BoltId(1), Region = new(0, 0, 1, 1) }];
-        var edited = new Recipe();
-        edited.Pcb.BoltPoints.Add(new(bolt.Id) { Id = VirtualTestSupport.BoltId(1), LightLevel = 87, BrightnessThreshold = 0, MinimumBrightRatio = 0 });
-        edited.CarrierImages = [new() { BoltId = VirtualTestSupport.BoltId(1), Region = new(0, 0, 1, 1) }];
         camera.OnCapture = () =>
         {
-            lock (recipes.InspectionSync)
-                recipes.Current.ApplyInspectionSettings(edited);
+            bolt.BrightnessThreshold = 0;
+            bolt.MinimumBrightRatio = 0;
         };
 
-        var first = await inspector.InspectAsync(bolt);
+        var result = await inspector.InspectAsync(bolt);
         Assert.Equal(23, light.LastLevel);
-        Assert.False(first.Success);
-        Assert.Equal(0.5, first.MinimumBrightRatio);
-        camera.OnCapture = null;
-        var second = await inspector.InspectAsync(bolt);
-        Assert.Equal(23, light.LastLevel);
-        Assert.True(second.Success);
-        Assert.Equal(0, second.MinimumBrightRatio);
+        Assert.True(result.Success);
+        Assert.Equal(0, result.MinimumBrightRatio);
     }
 
     [Fact]

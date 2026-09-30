@@ -589,6 +589,8 @@ public sealed class PcbTransferTests
         };
         io.SetOutput(OutputIo.PcbPlacementVacuumEjector, true);
         await placer.ExecuteStepAsync(placer.GetNextStep(HeatSinkSlot.HeatSink1), HeatSinkSlot.HeatSink1, CancellationToken.None);
+        Assert.Equal(PcbPlacementState.Retracting, placer.Phase);
+        await placer.ExecuteStepAsync(placer.GetNextStep(placer.TargetHeatSink), placer.TargetHeatSink, CancellationToken.None);
         Assert.Equal((70, 20, 8), placementMotion.Position);
         Assert.True(MotionServiceBase.IsAt(supplier.Motion.Feedback, supplySettings.HandoffPosition));
 

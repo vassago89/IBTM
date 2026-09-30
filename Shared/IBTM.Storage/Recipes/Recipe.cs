@@ -57,38 +57,6 @@ public sealed class Recipe
         return images.Length == 1 ? images[0] : null;
     }
 
-    public void ApplyInspectionSettings(Recipe source)
-    {
-        // Gantry teaching owns coordinates, reference images and capture lighting.
-        var inspection = source.BoltInspection.Clone();
-        inspection.LightLevel = BoltInspection.LightLevel;
-        inspection.DataMatrix1.LightLevel = BoltInspection.DataMatrix1.LightLevel;
-        inspection.DataMatrix2.LightLevel = BoltInspection.DataMatrix2.LightLevel;
-        BoltInspection = inspection;
-        foreach (var bolt in Pcb.BoltPoints)
-        {
-            var edited = source.Pcb.BoltPoints.SingleOrDefault(item => item.Id == bolt.Id);
-            if (edited is null)
-                continue;
-            bolt.BrightnessThreshold = edited.BrightnessThreshold;
-            bolt.MinimumBrightRatio = edited.MinimumBrightRatio;
-            bolt.MinimumTurns = edited.MinimumTurns;
-        }
-        foreach (var tile in CarrierImages)
-        {
-            if (!tile.IsBarcode)
-            {
-                var bolt = Pcb.BoltPoints.SingleOrDefault(item => item.Id == tile.BoltId);
-                if (bolt is null || !source.Pcb.BoltPoints.Any(item => item.Id == bolt.Id))
-                    continue;
-            }
-            var edited = source.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
-                && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
-            if (edited is not null)
-                tile.Region = edited.Region;
-        }
-    }
-
     public void CopyFrom(Recipe recipe)
     {
         // Apply an owned copy/load result while retaining the bound recipe and bolt collection.

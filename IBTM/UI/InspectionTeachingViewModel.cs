@@ -32,8 +32,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         _log = log;
         _images = images;
         _carrierImages = [];
-        Draft = new();
-        Preview = new(Draft);
+        Preview = new(recipes.Current);
         Points = [];
         HistoryImages = [];
         Records = [];
@@ -54,9 +53,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
         foreach (var command in _commands)
             command.PropertyChanged += OnCommandChanged;
         HistoryDirectory = history.Directory;
+        recipes.Changed += OnRecipeChanged;
     }
 
-    public Recipe Draft { get; }
     public InspectionPreviewViewModel Preview { get; }
     public ObservableCollection<PcbRecord> Records { get; }
     public IAsyncRelayCommand LoadRecipeCommand { get; }
@@ -98,8 +97,22 @@ public partial class InspectionTeachingViewModel : ObservableObject
         get
         {
             return IsDataMatrixSelected
-                ? Draft.BoltInspection.GetDataMatrix(SelectedPoint!.HeatSink) : null;
+                ? Preview.Recipe.BoltInspection.GetDataMatrix(SelectedPoint!.HeatSink) : null;
         }
+    }
+
+    private void OnRecipeChanged()
+    {
+        if (!ReferenceEquals(Preview.Recipe, _recipes.Current)
+            && !MachineStore.IsSameRecipeName(Preview.Recipe.Name, _recipes.Current.Name))
+            return;
+        SelectedRecipeName = _recipes.Current.Name;
+        if (!IsLoaded)
+            return;
+        LoadRecipeCommand.Cancel();
+        RefreshRecipesCommand.Cancel();
+        InspectCommand.Cancel();
+        _ = RefreshImagesCommand.ExecuteAsync(null);
     }
 
     public void Activate()
@@ -121,9 +134,9 @@ public partial class InspectionTeachingViewModel : ObservableObject
             SelectedRecipeName = RecipeNames.FirstOrDefault(name => MachineStore.IsSameRecipeName(name, selectedName))
                 ?? selectedName;
             if (IsLoaded)
-                await LoadRecipeImagesAsync(Draft.Name, preserveEdits: true, token);
+                await LoadRecipeImagesAsync(Preview.Recipe.Name, preserveSelection: true, token);
             else if (RecipeNames.Any(name => MachineStore.IsSameRecipeName(name, SelectedRecipeName)))
-                await LoadRecipeImagesAsync(SelectedRecipeName, preserveEdits: false, token);
+                await LoadRecipeImagesAsync(SelectedRecipeName, preserveSelection: false, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
@@ -150,16 +163,16 @@ public partial class InspectionTeachingViewModel : ObservableObject
 
     private Task LoadRecipeAsync(CancellationToken token)
     {
-        return LoadRecipeImagesAsync(SelectedRecipeName, preserveEdits: false, token);
+        return LoadRecipeImagesAsync(SelectedRecipeName, preserveSelection: false, token);
     }
 
     private async Task RefreshImagesAsync(CancellationToken token)
     {
         if (IsLoaded)
-            await LoadRecipeImagesAsync(Draft.Name, preserveEdits: true, token);
+            await LoadRecipeImagesAsync(Preview.Recipe.Name, preserveSelection: true, token);
     }
 
-    private async Task LoadRecipeImagesAsync(string? name, bool preserveEdits, CancellationToken token)
+    private async Task LoadRecipeImagesAsync(string? name, bool preserveSelection, CancellationToken token)
     {
         Error = null;
         Message = null;
@@ -167,32 +180,24 @@ public partial class InspectionTeachingViewModel : ObservableObject
             return;
         try
         {
-            Recipe? activeRecipe = null;
-            lock (_recipes.InspectionSync)
-            {
-                if (MachineStore.IsSameRecipeName(_recipes.Current.Name, name))
-                {
-                    // Teaching owns the point list, including edits not yet saved to the database.
-                    activeRecipe = _recipes.Current.Clone();
-                }
-            }
-            var loaded = activeRecipe ?? await Task.Run(() => _store.LoadRecipe(name), token);
-            var images = await _images.LoadRecipeAsync(loaded, token);
+            var recipe = MachineStore.IsSameRecipeName(_recipes.Current.Name, name)
+                ? _recipes.Current
+                : preserveSelection && IsLoaded && MachineStore.IsSameRecipeName(Preview.Recipe.Name, name)
+                    ? Preview.Recipe
+                    : await Task.Run(() => _store.LoadRecipe(name), token);
+            var images = await _images.LoadRecipeAsync(recipe, token);
             token.ThrowIfCancellationRequested();
             var selected = SelectedPoint;
-            if (preserveEdits)
-                loaded.ApplyInspectionSettings(Draft);
             SelectedPoint = null;
-            Draft.CopyFrom(loaded);
+            Preview.Recipe = recipe;
             _carrierImages = images;
-            Points = Enum.GetValues<HeatSinkSlot>().SelectMany(pcb => InspectionPoint.ForPcb(Draft, pcb)).ToArray();
+            Points = Enum.GetValues<HeatSinkSlot>().SelectMany(pcb => InspectionPoint.ForPcb(Preview.Recipe, pcb)).ToArray();
             IsLoaded = true;
-            OnPropertyChanged(nameof(Draft));
-            SelectedPoint = (preserveEdits && selected is not null
+            SelectedPoint = (preserveSelection && selected is not null
                 ? Points.FirstOrDefault(point => point.HeatSink == selected.HeatSink
                     && point.IsDataMatrix == selected.IsDataMatrix && point.Bolt?.Id == selected.Bolt?.Id)
                 : null) ?? Points.FirstOrDefault(point => point.Metadata is not null) ?? Points.FirstOrDefault();
-            var unlinked = Draft.CarrierImages.Count(tile =>
+            var unlinked = Preview.Recipe.CarrierImages.Count(tile =>
                 !Points.Any(point => tile.IsForTarget(point.HeatSink, point.Bolt?.Id)));
             var failed = images.Count(image => image.Error is not null);
             Message = failed > 0 ? UiText.Format($"{failed} reference image(s) unavailable.")
@@ -239,7 +244,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
                     _log.LogError(exception, "Inspection teaching preview failed for image {Number}.", point.Metadata.Number);
                 }
             }
-            ImageSource = UiText.Format($"Recipe · {Draft.Name} · {point.Title}");
+            ImageSource = UiText.Format($"Recipe · {Preview.Recipe.Name} · {point.Title}");
         }
         InspectCommand.NotifyCanExecuteChanged();
         DrawRegionCommand.NotifyCanExecuteChanged();
@@ -255,6 +260,8 @@ public partial class InspectionTeachingViewModel : ObservableObject
             return;
         var region = PixelRegion.CenteredSquare(image.PixelWidth, image.PixelHeight, (int)Math.Ceiling(Math.Max(bounds.Width, bounds.Height)));
         metadata.Region = region;
+        if (ReferenceEquals(Preview.Recipe, _recipes.Current))
+            _recipes.NotifyInspectionChanged();
         Preview.SetSavedImage(image, region);
         Message = UiText.Get("ROI changed · not saved");
     }
@@ -283,14 +290,19 @@ public partial class InspectionTeachingViewModel : ObservableObject
         Message = null;
         try
         {
-            await _recipes.SaveInspectionAsync(Draft, token);
-            Message = UiText.Format($"Saved to recipe '{Draft.Name}'.");
+            await _recipes.SaveInspectionAsync(Preview.Recipe, token);
+            _log.LogInformation(
+                "Inspection settings saved: recipe={Recipe}, active={Active}, DataMatrix1 threshold={Threshold1}, DataMatrix2 threshold={Threshold2}.",
+                Preview.Recipe.Name, MachineStore.IsSameRecipeName(_recipes.Current.Name, Preview.Recipe.Name),
+                Preview.Recipe.BoltInspection.DataMatrix1.BinaryThreshold?.ToString() ?? "auto",
+                Preview.Recipe.BoltInspection.DataMatrix2.BinaryThreshold?.ToString() ?? "auto");
+            Message = UiText.Format($"Saved to recipe '{Preview.Recipe.Name}'.");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
             Error = exception.Message;
-            _log.LogError(exception, "Inspection teaching save failed for {Recipe}.", Draft.Name);
+            _log.LogError(exception, "Inspection teaching save failed for {Recipe}.", Preview.Recipe.Name);
         }
     }
 
@@ -376,7 +388,7 @@ public partial class InspectionTeachingViewModel : ObservableObject
         get
         {
             if (LoadedRecord is not { } record || SelectedHistoryImage is not { Image: not null } image
-                || !MachineStore.IsSameRecipeName(record.RecipeName, Draft.Name))
+                || !MachineStore.IsSameRecipeName(record.RecipeName, Preview.Recipe.Name))
                 return null;
             return Points.FirstOrDefault(point => point.Metadata?.IsForTarget(record.HeatSink, image.Record.BoltId) == true);
         }

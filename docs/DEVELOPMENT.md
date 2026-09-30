@@ -30,7 +30,7 @@ START·HOME·실린더 상승·RESET은 `MachineController`가 동기 SDK 조회
 촬영·Live 점등 직전에 원본과 같이 Connect → Set → On 순서로 호출한다.
 단일 촬영은 조명 ON 완료 후 `LightingSettings.StabilizationDelayMilliseconds`만큼 안정화 대기를 거친다(기본 100ms, 0이면 대기 없음).
 Settings → Camera & Lighting → Lighting → Stabilization Delay (ms)에서 조정하고 Save Settings로 저장한다. 자동 검사·티칭 Grab에 적용한다. Live 중 Grab도 선택한 항목의 밝기를 적용한 후 안정화 시간을 기다리며, Live 스트림은 유지한다.
-Teaching의 Inspection Gantry는 포인트 추가·삭제, Live·좌표 기록·Grab과 촬영 조명을 담당한다. 별도 Inspection Teaching 메뉴는 저장 이미지로 ROI·볼트 판정·Data Matrix 옵션을 편집한다. Save 성공 후 활성 레시피의 다음 검사 포인트부터 적용하며 현재 검사 중인 포인트는 시작 시 설정을 유지한다. 운전 중에도 편집·재검사할 수 있고, 좌표·촬영 조명·저장된 생산 결과는 변경하지 않는다. 상세 책임은 [검사 안내](../Stations/IBTM.Inspection/README.md)에 둔다.
+Teaching의 Inspection Gantry는 포인트 추가·삭제, Live·좌표 기록·Grab과 촬영 조명을 담당한다. 별도 Inspection Teaching 메뉴는 저장 이미지로 ROI·볼트 판정·Data Matrix 옵션을 편집한다. 활성 레시피는 검사 화면과 자동 검사가 같은 객체를 사용한다. 임계값·ROI·판독 옵션을 수정하면 그대로 사용하며 Save는 DB에 보관한다. 운전 중에도 편집·재검사할 수 있고, 좌표·촬영 조명·저장된 생산 결과는 변경하지 않는다. 상세 책임은 [검사 안내](../Stations/IBTM.Inspection/README.md)에 둔다.
 Data Matrix 판독 옵션(TryHarder, TryInverted, AutoRotate, PureBarcode, 선택적 BinaryThreshold)은 PCB별로 저장하며 자동 검사·Read Data Matrix·Reinspect가 같은 값을 사용한다. 임계값이 비어 있으면 기존 자동 이진화를 사용한다. 이 설정들은 Record Position 좌표를 변경하지 않는다.
 대기 중 STOP되면 촬영하지 않고 조명을 끈다.
 검사 유닛 Disabled로 시작해 초기화에서 조명 연결을 생략했어도 수동 티칭 점등 시 연결한다.
@@ -473,10 +473,10 @@ Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고,
 | 자동운전 중 알람 발생 | `ObserveAutomaticUnitAsync`의 `catch (Exception exception)` | `alarm`은 발생 유닛, `exception`은 원본 오류, `_state.Alarm`은 먼저 발생한 알람 |
 | Repeat 메인 복귀가 취소됨 | `MachineController.Repeat.cs`의 `MainConveyorReturnBlock`, `ReturnMainCarrierAsync`의 `CheckPath` | 핸들러 상승·안전 Z, NG 픽업 상승·캐리어 센서; 현재 피드백으로 차단 이유를 반환 |
 | 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.GetNextStep`, `ExecuteStepAsync`, `TransferAsync` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
-| PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.GetNextStep`, `ExecuteStepAsync` | `step`, `Phase`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
+| PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.GetNextStep`, `RunAsync` | `step`, `Phase`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.GetNextStep`, `ExecuteStepAsync` | `heatSink`, `state`, `Phase`; 반환값 `false`이면 피드백 대기 |
-| 공급 진입 또는 안착 인수 Z 이동이 대기함 | `PcbPlacer.ExecuteStepAsync`, `PcbSupplier.ExecuteStepAsync` | 양쪽 `Handoff`; 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
-| 인수 후 Z/Y 이탈 또는 Supply 복귀가 대기함 | `PcbPlacer.ExecuteStepAsync`, `PcbSupplier.ExecuteStepAsync` | Supply `WaitingForPlacementClear`, Placement `Clear`와 `WaitingForSupplyClear` |
+| 공급 진입 또는 안착 인수 Z 이동이 대기함 | `PcbPlacer.ExecuteStepAsync`, `PcbSupplier.RunAsync` | 양쪽 `Handoff`; 위치·잡힘 확인은 해당 유닛 내부에서 수행 |
+| 인수 후 Z/Y 이탈 또는 Supply 복귀가 대기함 | `PcbPlacer.ExecuteStepAsync`, `PcbSupplier.RunAsync` | Supply `WaitingForPlacementClear`, Placement `Clear`와 `PreparingPlacement` |
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | `BoltFeederUnit.RunAsync`, `CheckEmptyTimeout` | 피더별 감지와 설정 제한시간, 슈팅 `runOnRemaining`, 이스케이프 후진 피드백 |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.ExecuteStepAsync`, `FastenAsync` | `Step`, `selectedBolt`, `_runJob`; 컨트롤러는 `AdcBoltHead.TightenAsync` |
 | Station 3 검사/NG 이송이 대기 | `InspectionStation.GetNextStep`, `ExecuteStepAsync` | `Step`, `InspectionTarget`, `_runJob`; 이송 또는 검사가 준비되지 않으면 피드백 대기 |
@@ -490,8 +490,8 @@ Supply의 인계 대기와 해제는 `HandingOff` 한 상태에서 처리하고,
 이벤트 대기 중에는 새 피드백이 와야 다음 판단으로 들어간다. 다음 단계 선택값과
 `Step`은 실행·대기 중인 분기이며, 장비 위치를 저장하는 별도 상태가 아니다.
 
-PCB 공급의 그립·해제 출력 순서는 `ExecuteStepAsync`의 해당 `case`에서 바로 확인한다.
-`_pickStep`은 현재 실행에서 확인한 PCB 슬롯 이력이며 실행 종료 시 PCB1로 초기화한다.
+PCB 공급의 그립·해제 출력 순서는 `RunAsync`의 해당 `case`에서 바로 확인한다.
+`_pickStep`은 전단 캐리어의 PCB 슬롯 이력이다. STOP 후에도 유지하며 Available OFF로 다음 캐리어를 구분한다.
 `OnHandlerChanged`는 전단 캐리어 이탈 시 PCB1을 선택한다.
 Front 1 Ready는 캐리어 도착 후에도 유지하고, PCB2까지 확인/확보하여 운반 높이로 복귀한 뒤 OFF한다.
 Available OFF가 들어오면 다음 캐리어의 Ready를 ON한다. `PcbSupplier.StopUpstream`은

@@ -13,7 +13,7 @@ namespace IBTM.UI;
 // One captured frame, shared by ROI edits and reinspection. Never moves hardware.
 public partial class InspectionPreviewViewModel : ObservableObject
 {
-    private readonly Recipe _recipe;
+    [ObservableProperty] public partial Recipe Recipe { get; internal set; }
     private ImageFrame? _frame;
     private double? _brightRatio;
     private HeatSinkSlot? _dataMatrixHeatSink;
@@ -28,7 +28,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
 
     public InspectionPreviewViewModel(Recipe recipe)
     {
-        _recipe = recipe;
+        Recipe = recipe;
     }
 
     public bool HasImage => _frame is not null;
@@ -63,12 +63,12 @@ public partial class InspectionPreviewViewModel : ObservableObject
 
     public int? DataMatrixThreshold
     {
-        get => _dataMatrixHeatSink is { } heatSink ? _recipe.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold : null;
+        get => _dataMatrixHeatSink is { } heatSink ? Recipe.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold : null;
         set
         {
             if (_dataMatrixHeatSink is not { } heatSink)
                 throw new InvalidOperationException(UiText.Get("Select a Data Matrix before changing its threshold."));
-            _recipe.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold = value;
+            Recipe.BoltInspection.GetDataMatrix(heatSink).BinaryThreshold = value;
             RefreshBinaryImage();
             OnPropertyChanged();
         }
@@ -76,7 +76,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
 
     public int BrightnessThreshold
     {
-        get => _bolt?.BrightnessThreshold ?? _recipe.BoltInspection.BrightnessThreshold;
+        get => _bolt?.BrightnessThreshold ?? Recipe.BoltInspection.BrightnessThreshold;
 
         set
         {
@@ -90,7 +90,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
 
     public double MinimumBrightPercent
     {
-        get => (_bolt?.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio) * 100;
+        get => (_bolt?.MinimumBrightRatio ?? Recipe.BoltInspection.MinimumBrightRatio) * 100;
 
         set
         {
@@ -109,6 +109,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         _sourceRegion = null;
         _frame = null;
         Image = null;
+        OnPropertyChanged(nameof(Recipe));
         OnPropertyChanged(nameof(Region));
         ClearResult();
         OnPropertyChanged(nameof(HasImage));
@@ -137,7 +138,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
         var region = _sourceRegion ?? throw new InvalidOperationException(UiText.Get("Draw the FOV ROI before inspecting."));
         if (_dataMatrixHeatSink is { } heatSink)
         {
-            var settings = _recipe.BoltInspection.GetDataMatrix(heatSink);
+            var settings = Recipe.BoltInspection.GetDataMatrix(heatSink);
             var text = await Task.Run(() => DataMatrixReader.Read(frame, region, settings), token);
             token.ThrowIfCancellationRequested();
             Result = string.IsNullOrEmpty(text) ? UiText.Get("Not Read") : text;
@@ -189,7 +190,7 @@ public partial class InspectionPreviewViewModel : ObservableObject
     {
         if (_brightRatio is not { } ratio)
             return;
-        var minimum = _bolt?.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio;
+        var minimum = _bolt?.MinimumBrightRatio ?? Recipe.BoltInspection.MinimumBrightRatio;
         Result = UiText.Format($"{(ratio >= minimum ? "OK" : "NG")} · Bright {ratio * 100:0.###}%");
     }
 

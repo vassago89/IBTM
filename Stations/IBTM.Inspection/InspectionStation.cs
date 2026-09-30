@@ -1024,22 +1024,26 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     internal async Task<InspectionCapture> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
     {
-        (AxisPosition Center, PixelRegion Region, DataMatrixInspectionRecipe Decoder, int Light) settings;
-        lock (_recipes.InspectionSync)
-        {
-            if (!HasBarcodeRegion(pcb))
-                throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
-            var fov = GetBarcodeFov(pcb);
-            var decoder = _recipes.Current.BoltInspection.GetDataMatrix(pcb);
-            settings = (_recipes.Current.GetInspectionPosition(fov), fov.Region!, decoder, decoder.LightLevel ?? _recipes.Current.BoltInspection.LightLevel);
-        }
-        await MoveToAsync(settings.Center, cancellationToken: cancellationToken);
-        var image = await CaptureCurrentAsync(cancellationToken, lightLevel: settings.Light);
+        if (!HasBarcodeRegion(pcb))
+            throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
+        var fov = GetBarcodeFov(pcb);
+        await MoveToAsync(_recipes.Current.GetInspectionPosition(fov), cancellationToken: cancellationToken);
+        var image = await CaptureCurrentAsync(cancellationToken,
+            lightLevel: _recipes.Current.BoltInspection.GetDataMatrix(pcb).LightLevel
+                ?? _recipes.Current.BoltInspection.LightLevel);
         var capturedAt = DateTimeOffset.Now;
         InspectionCaptured?.Invoke(image, pcb, null);
-        var text = await Task.Run(() => DataMatrixReader.Read(image, settings.Region, settings.Decoder), cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        return new(null, capturedAt, image, settings.Region, !string.IsNullOrEmpty(text), Barcode: text);
+        return await Task.Run(() =>
+        {
+            var region = fov.Region!;
+            var decoder = _recipes.Current.BoltInspection.GetDataMatrix(pcb);
+            _log?.LogInformation(
+                "Data Matrix inspection: recipe={Recipe}, PCB={Pcb}, threshold={Threshold}, ROI={Region}.",
+                _recipes.Current.Name, pcb, decoder.BinaryThreshold?.ToString() ?? "auto", region);
+            var text = DataMatrixReader.Read(image, region, decoder);
+            cancellationToken.ThrowIfCancellationRequested();
+            return new InspectionCapture(null, capturedAt, image, region, !string.IsNullOrEmpty(text), Barcode: text);
+        }, cancellationToken);
     }
 
     public bool HasRegion(BoltPoint point)
@@ -1096,31 +1100,25 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
     internal async Task<InspectionCapture> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
-        (AxisPosition Center, PixelRegion Region, int Light, int Threshold, double Minimum) settings;
-        lock (_recipes.InspectionSync)
-        {
-            if (!HasRegion(point))
-                throw new InvalidOperationException($"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Id}.");
-            var fov = GetFov(point);
-            var defaults = _recipes.Current.BoltInspection;
-            settings = (_recipes.Current.GetInspectionPosition(fov), fov.Region!, point.LightLevel ?? defaults.LightLevel,
-                point.BrightnessThreshold ?? defaults.BrightnessThreshold,
-                point.MinimumBrightRatio ?? defaults.MinimumBrightRatio);
-        }
-        await MoveToAsync(settings.Center, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var image = await CaptureCurrentAsync(cancellationToken, lightLevel: settings.Light).ConfigureAwait(false);
+        if (!HasRegion(point))
+            throw new InvalidOperationException($"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Id}.");
+        var fov = GetFov(point);
+        await MoveToAsync(_recipes.Current.GetInspectionPosition(fov), cancellationToken: cancellationToken).ConfigureAwait(false);
+        var image = await CaptureCurrentAsync(cancellationToken,
+            lightLevel: point.LightLevel ?? _recipes.Current.BoltInspection.LightLevel).ConfigureAwait(false);
         var capturedAt = DateTimeOffset.Now;
         InspectionCaptured?.Invoke(image, point.HeatSink, point.Id);
-        return await Task.Run(
-            () =>
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var ratio = BinaryRegionAnalyzer.Check(image, settings.Region, settings.Threshold).BrightRatio;
-                cancellationToken.ThrowIfCancellationRequested();
-                return new InspectionCapture(point.Id, capturedAt, image, settings.Region, ratio >= settings.Minimum,
-                    BrightRatio: ratio, MinimumBrightRatio: settings.Minimum);
-            },
-            cancellationToken);
+        return await Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var region = fov.Region!;
+            var ratio = BinaryRegionAnalyzer.Check(image, region,
+                point.BrightnessThreshold ?? _recipes.Current.BoltInspection.BrightnessThreshold).BrightRatio;
+            var minimum = point.MinimumBrightRatio ?? _recipes.Current.BoltInspection.MinimumBrightRatio;
+            cancellationToken.ThrowIfCancellationRequested();
+            return new InspectionCapture(point.Id, capturedAt, image, region, ratio >= minimum,
+                BrightRatio: ratio, MinimumBrightRatio: minimum);
+        }, cancellationToken);
     }
 
     public async Task<CarrierImage> CaptureCarrierImageAsync(

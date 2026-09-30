@@ -55,7 +55,7 @@
                     <TabItem Header="{ui:Text 'Taught points'}">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                <TextBlock Text="{Binding Draft.Name}" Style="{StaticResource PanelTitleStyle}"/>
+                                <TextBlock Text="{Binding Preview.Recipe.Name}" Style="{StaticResource PanelTitleStyle}"/>
                             </StackPanel>
                             <ListBox ItemsSource="{Binding Source={StaticResource InspectionPoints}}" SelectedItem="{Binding SelectedPoint, BindingGroupName={x:Null}}"
                                 IsEnabled="{Binding IsIdle}" ItemContainerStyle="{StaticResource FlatListItemStyle}"

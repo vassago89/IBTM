@@ -367,14 +367,14 @@ public sealed class RecipeTests
         var draft = recipe.Clone();
         draft.Pcb.BoltPoints[0].BrightnessThreshold = 180;
         recipe.Pcb.BoltPoints.Move(0, 1);
-        recipe.ApplyInspectionSettings(draft);
-        Assert.Equal(180, first.BrightnessThreshold);
+        var store = VirtualTestSupport.OpenMachineStore();
+        store.SaveRecipe(recipe);
+        store.SaveInspectionSettings(draft);
         Assert.Equal(2, recipe.Pcb.GetBoltOrdinal(first.Id));
         Assert.Equal(11, recipe.GetInspectionPosition(recipe.CarrierImages[0]).X);
         Assert.Equal(101, first.FasteningX);
-        var store = VirtualTestSupport.OpenMachineStore();
-        store.SaveRecipe(recipe);
         var saved = store.LoadRecipe(recipe.Name);
+        Assert.Equal(180, saved.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).BrightnessThreshold);
         Assert.Equal(new[] { second.Id, first.Id }, saved.Pcb.BoltPoints.Select(bolt => bolt.Id));
         Assert.Equal(first.Id, saved.CarrierImages[0].BoltId);
         Assert.Equal("좌상단 고정", saved.Pcb.BoltPoints.Single(bolt => bolt.Id == first.Id).Name);

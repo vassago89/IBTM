@@ -32,28 +32,22 @@ public sealed class RecipeManager
 
     public async Task SaveInspectionAsync(Recipe edited, CancellationToken cancellationToken = default)
     {
-        var copy = edited.Clone();
-        var applied = false;
         await _saveGate.WaitAsync(cancellationToken);
         try
         {
-            await Task.Run(() => _database.SaveInspectionSettings(copy, cancellationToken), cancellationToken);
-            // Apply before the next save copies the current recipe.
-            lock (InspectionSync)
-            {
-                if (MachineStore.IsSameRecipeName(Current.Name, copy.Name))
-                {
-                    Current.ApplyInspectionSettings(copy);
-                    applied = true;
-                }
-            }
+            await Task.Run(() => _database.SaveInspectionSettings(edited, cancellationToken), cancellationToken);
         }
         finally
         {
             _saveGate.Release();
         }
-        if (applied)
-            InspectionSettingsChanged?.Invoke();
+        if (ReferenceEquals(Current, edited))
+            NotifyInspectionChanged();
+    }
+
+    public void NotifyInspectionChanged()
+    {
+        InspectionSettingsChanged?.Invoke();
     }
 
     public void New()
@@ -136,8 +130,13 @@ public sealed class RecipeManager
                 {
                     if (tiles is not null)
                     {
-                        for (var index = 0; index < tiles.Count; index++)
-                            tiles[index].Region = copy.CarrierImages[index].Region;
+                        foreach (var tile in tiles)
+                        {
+                            var current = Current.CarrierImages.SingleOrDefault(item => item.Number == tile.Number
+                                && item.HeatSink == tile.HeatSink && item.IsBarcode == tile.IsBarcode && item.BoltId == tile.BoltId);
+                            if (current is not null)
+                                tile.Region = current.Region;
+                        }
                         Current.CarrierImages = tiles;
                     }
                     Current.Name = name;

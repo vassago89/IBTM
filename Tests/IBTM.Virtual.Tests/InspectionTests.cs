@@ -261,7 +261,7 @@ public sealed class InspectionTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task SavingInspectionRegionWakesTeachingWaitWithoutSensorChange(bool barcode)
+    public async Task EditingInspectionRegionWakesTeachingWaitWithoutSaving(bool barcode)
     {
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
@@ -325,9 +325,8 @@ public sealed class InspectionTests
         try
         {
             await waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            var edited = recipes.Current.Clone();
-            edited.CarrierImages[barcode ? 0 : 1].Region = new(0, 0, 20, 20);
-            await recipes.SaveInspectionAsync(edited);
+            recipes.Current.CarrierImages[barcode ? 0 : 1].Region = new(0, 0, 20, 20);
+            recipes.NotifyInspectionChanged();
             await resumed.Task.WaitAsync(TimeSpan.FromSeconds(2));
         }
         finally

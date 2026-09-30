@@ -76,35 +76,33 @@ and sensor hardware. The operator view therefore shows:
 - the supply-side SMEMA input and output;
 - the shared HANDOFF area, without a physical buffer or locating pins.
 
-PCB 1 and PCB 2 share one carrier Y and differ in X. The Buffer has the second
-Supply Y. Supply picks while Rotated, unrotates at Rotation Z, reaches give Z, then
-moves X/Y together at give Z between those two lines. After release and confirmed
-Placement Handler Up, it returns at give Z directly to the next PCB pickup X and
-Carrier Y: PCB 2 after PCB 1, and the next carrier's PCB 1 after PCB 2. It then reaches
-Rotation Z and rotates for pickup. Initial standby is PCB 1 XY at Rotation Z, Rotated.
+PCB 1 and PCB 2 each have taught pickup XYZ. Supply picks while Rotated, raises to
+Travel Z, moves to handoff XY and descends to handoff Z. It confirms Unrotated only
+at that settled XYZ before Placement may approach. After release, it waits for
+Placement to rise and leave along Y, rotates at handoff XYZ, then returns through
+Travel Z to the next pickup XY. Initial standby is PCB 1 XY at Travel Z, Rotated.
 
 There is no physical PCB buffer or buffer-present input. The HANDOFF area shows
-handler position and PCB presence. There are no collision boundaries or area-based
-entry/exit waits; the confirmed paths provide clearance with Placement Handler Up.
+handler position and PCB presence. Confirmed handoff stages and current feedback
+coordinate the handlers; matching coordinates alone do not complete a handoff.
 
 ## PCB placement
 
-Placement raises its handler, moves to receiving Z then receiving XY, and waits
-for Supply. Once both handlers are settled and Supply holds the PCB, Placement
-receives it using its handler, vacuum and IPM gripper. After Supply releases,
-Placement raises its handler and moves to the selected heat sink independently
-of Supply withdrawal. It moves XY, rotates, descends Z, then lowers the handler.
+Placement waits outside the handoff for Supply to hold a PCB at its Unrotated
+handoff position. With the handler Up, it moves Z to standby, then X and Y, and
+lowers to Receive Z. PCB detection and vacuum must both confirm receipt before
+Supply releases. Placement rises to standby Z and leaves along the selected heat
+sink Y before allowing Supply to rotate and withdraw.
 
-It releases vacuum, opens the IPM gripper, raises IPM, closes the gripper, lowers
-IPM to press and records the heat sink. It raises IPM, handler and Z before
-returning for the next PCB. Heat Sink 1 and 2 follow the same path; there is no
-intermediate wait at Heat Sink 1 when servicing Heat Sink 2. The carrier completes
-only after all detected heat sinks finish in the raised state.
+At the seated carrier, Placement moves X, lowers Z and the handler, releases
+vacuum, raises IPM and lowers IPM to press. After recording the assembly, the
+`Retracting` stage raises IPM, handler and Z. STOP during this rise resumes the
+rise without repeating placement. Only after the final rise is the carrier complete.
+The handler rotation output stays OFF; there is no IPM gripper output.
 
-Every axis movement, including Z and HOME, requires Handler Up. The machine stops
-Placement movement if this feedback is lost. Pressing requires the taught XYZ,
-rotation and Handler Down. The press target belongs only to the current run and
-is discarded on STOP. See [Placement](../Stations/IBTM.PcbPlacement/DESIGN.md).
+Automatic motion, HOME and Move To require Handler Up. Manual Z Jog/Step permits
+adjustment with the handler lowered. See [Placement](../Stations/IBTM.PcbPlacement/DESIGN.md)
+for normal and Repeat handoffs and retained carrier/slot ownership.
 
 ## Main carrier conveyor
 

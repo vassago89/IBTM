@@ -39,9 +39,11 @@ The handler cannot be commanded Down while an axis moves. Actual arrival,
 seated-carrier and holding/release feedback remain in use. Supply area departure
 and relative handler positions do not gate this sequence.
 
-Placement, optional pressing and retraction run in the `PlacingPcb` branch of `ExecuteStepAsync`.
-Its local feedback check requires PCB presence through completion, then permits
-the sensor to clear during retraction. The operation uses its selected carrier and heat-sink target;
+Placement and optional pressing run in `PlacingPcb`. Once the assembly is recorded,
+`Retracting` raises IPM, handler and Z before starting the next PCB or completing
+the carrier. STOP during that rise resumes only retraction, without placing or pressing again.
+The placement feedback check requires PCB presence through completion; the sensor
+may clear during retraction. The operation uses its selected carrier and heat-sink target;
 it never guesses a heat sink from X/Y. Repeat uses the same switch in `PcbPlacer.cs` and
 picks PCBs from the existing carrier.
 With Supply disabled, it visits handoff and places each PCB back on its heat sink.
@@ -59,9 +61,12 @@ the sequence prepares Up for Repeat and Down for normal receipt.
 PCB detection and vacuum still confirm holding. Normal production retains the IPM press. If STOP interrupts release with the
 handler Down at the taught placement XYZ, resume finishes release on that support
 before retracting; it does not first lift a PCB whose vacuum is switching off.
-Repeat pickup confirms both signals after vacuum completes and only then enters
-`ReturningToSupply`. A missing PCB signal with vacuum ON stops at pickup instead of
-raising the handler and trying the pickup again.
+Forward receipt and Repeat pickup both confirm PCB detection and vacuum after
+vacuum completes. Only then may Supply release, or Repeat enter `ReturningToSupply`.
+Return release also requires Placement to retain its confirmed receive position
+while vacuum is still ON; a stopped departure with vacuum already OFF may resume.
+A missing PCB signal with vacuum ON stops at pickup instead of raising the handler
+and trying the pickup again.
 Supply returns each PCB to its corresponding pickup XYZ, releases it there and
 picks it up again before the forward handoff. Repeat does not use upstream SMEMA
 to infer support presence. Placement retains the original carrier and heat-sink
@@ -70,7 +75,7 @@ Main Conveyor OFF repeats the completed seated carrier
 with a new work record; it does not clear incomplete work.
 
 `MovingToHandoff`, `ReceivingPcb`, `PreparingPlacement`, `PlacingPcb` and
-`CompletingCarrier` execute their full actuator/motion sequence before the next
+`Retracting` execute their full actuator/motion sequence before the next
 state selection. `PickingPcb` is the repeat pickup operation. Forward receipt waits
 for Supply arrival, release, acknowledgement of departure and a seated carrier. `ExecuteStepAsync` returns
 false for those waits; it does not split axis moves or vacuum/IPM actions into

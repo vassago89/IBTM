@@ -1912,6 +1912,9 @@
   <data name="raising / leaving handoff" xml:space="preserve">
     <value>상승·인계 위치 이탈</value>
   </data>
+  <data name="raising handler" xml:space="preserve">
+    <value>핸들러 상승</value>
+  </data>
   <data name="raising ng shuttle" xml:space="preserve">
     <value>NG 셔틀 상승 중</value>
   </data>

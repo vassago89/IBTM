@@ -101,7 +101,9 @@ their own taught standby/give XYZ before Placement moves Z to `ReceiveZ`.
 Supply releases only while Placement reports handoff `Holding`, which
 requires PCB detection and vacuum detection at the receive position with the handler Up.
 Normal receipt prepares IPM Down and Repeat prepares IPM Up. A contradictory
-or unknown endpoint is unavailable. Forward release checks recipient holding before each actuator.
+or unknown endpoint is unavailable. Forward release checks recipient holding and
+Supply's confirmed, settled Unrotated handoff position before each actuator.
+Return receipt rechecks that position after gripper closure before advancing the fixer.
 After release, Placement returns Z
 to standby with its handler cylinder still Up, then moves Y to the selected heat sink while retaining handoff X.
 Supply waits for Placement's `Clear` after that Y move before its XY return.
@@ -133,7 +135,7 @@ either confirmed orientation and preserves it; a pickup point move requires Rota
 ## SMEMA and slot progress
 
 The local `PickStep` tracks PCB 1, PCB 2, and WaitingForCarrierExit for the current
-run and upstream carrier. Live holding and handoff feedback take priority.
+upstream carrier, including after STOP. Live holding and handoff feedback take priority.
 Ready stays ON through both pickup checks and the last pickup lift to Travel Z.
 It then falls to tell the upstream equipment that pickup is complete; Placement
 need not have received the last PCB yet.
@@ -141,8 +143,9 @@ need not have received the last PCB yet.
 Board Available OFF resets the next slot to PCB 1, including departure while the
 last PCB is still being handed off. A stale ON cannot start another
 carrier. If availability disappears during a pickup, cancel that pickup; a late
-completion cannot advance a replacement carrier. Cancellation during either pickup
-resets the next carrier to PCB 1. Slot progress belongs to the current run.
+completion cannot advance a replacement carrier. If the gripper or fixer has not
+released, loss of availability stops with an error rather than selecting an empty
+pickup. STOP alone does not reset slot progress or bypass the required OFF edge.
 In automatic mode, STOP
 preserves Ready while the upstream carrier remains available.
 
