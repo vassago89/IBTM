@@ -44,6 +44,7 @@
         <Setter Property="CornerRadius" Value="5"/>
     </Style>
 
+    <!-- Collapse empty entries only inside a message area with a reserved height. -->
     <Style x:Key="StatusMessageStyle" TargetType="TextBlock">
         <Setter Property="TextWrapping" Value="Wrap"/>
         <Setter Property="Margin" Value="0,6,0,0"/>

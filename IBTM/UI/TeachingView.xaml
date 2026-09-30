@@ -328,25 +328,27 @@
                                 Visibility="{Binding IsFasteningSelected, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                     </ScrollViewer>
-                    <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,8,0,0"
-                        Foreground="{StaticResource AccentAmberBrush}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="{Binding HomeBlock, Converter={StaticResource UiTextConverter}}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HomeBlock}" Value="{x:Static machine:HomeBlockReason.None}">
-                                        <Setter Property="Text" Value="{Binding MotionHint, Converter={StaticResource UiTextConverter}}"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ManualBlock}" Value="{x:Static ui:ManualControlBlock.AutoMode}">
-                                        <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource UiTextConverter}}"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ManualBlock}" Value="{x:Static ui:ManualControlBlock.Busy}">
-                                        <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource UiTextConverter}}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                    <ScrollViewer Grid.Row="1" Height="48" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock TextWrapping="Wrap"
+                            Foreground="{StaticResource AccentAmberBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding HomeBlock, Converter={StaticResource UiTextConverter}}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HomeBlock}" Value="{x:Static machine:HomeBlockReason.None}">
+                                            <Setter Property="Text" Value="{Binding MotionHint, Converter={StaticResource UiTextConverter}}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ManualBlock}" Value="{x:Static ui:ManualControlBlock.AutoMode}">
+                                            <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource UiTextConverter}}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ManualBlock}" Value="{x:Static ui:ManualControlBlock.Busy}">
+                                            <Setter Property="Text" Value="{Binding ManualBlock, Converter={StaticResource UiTextConverter}}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </ScrollViewer>
                 </Grid>
             </Border>
         </Grid>

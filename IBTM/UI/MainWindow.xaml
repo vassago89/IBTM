@@ -194,7 +194,7 @@
                                                   Converter={StaticResource UiTextConverter}}"
                             ToolTip="{Binding Operation.AlarmDetail}"
                             Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}" FontSize="16"
-                            FontWeight="SemiBold" Width="140" TextWrapping="Wrap"
+                            FontWeight="SemiBold" Width="140" MaxHeight="48" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
                             Visibility="{Binding Operation.HasAlarm,
                                                         Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>

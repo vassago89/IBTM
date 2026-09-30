@@ -115,7 +115,13 @@
             <Grid.ColumnDefinitions><ColumnDefinition Width="4*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="7*"/></Grid.ColumnDefinitions>
             <Border Style="{StaticResource Card}">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="3*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*" MaxHeight="180"/>
+                        <RowDefinition Height="48"/>
+                    </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
                         <TextBlock Text="{ui:Text 'Inspection images'}" Style="{StaticResource PanelTitleStyle}"/>
                         <DockPanel Margin="0,4,0,0">
@@ -138,21 +144,21 @@
                     <StackPanel Grid.Row="2" Margin="0,8,0,8">
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedImage.Verdict}" Tag="{Binding SelectedImage.Verdict}" Style="{StaticResource ResultBadge}" Margin="8,0,0,0"/>
-                            <TextBlock Text="{Binding SelectedImage.Title, TargetNullValue={ui:Text 'Inspection capture'}, FallbackValue={ui:Text 'Inspection capture'}}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding SelectedImage.Title, TargetNullValue={ui:Text 'Inspection capture'}, FallbackValue={ui:Text 'Inspection capture'}}" Height="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedImage.Title}"/>
                         </DockPanel>
-                        <TextBlock Text="{Binding SelectedImage.Details}" TextWrapping="Wrap" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
-                        <DockPanel TextBlock.FontSize="11" TextBlock.Foreground="{StaticResource TextMutedBrush}">
+                        <TextBlock Text="{Binding SelectedImage.Details}" Height="36" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedImage.Details}" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <DockPanel Height="16" TextBlock.FontSize="11" TextBlock.Foreground="{StaticResource TextMutedBrush}">
                             <TextBlock Text="{Binding SelectedImage.Record.CapturedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}'}"/>
                             <TextBlock Text="{Binding SelectedImage.Resolution}" HorizontalAlignment="Right"/>
                         </DockPanel>
                     </StackPanel>
-                    <ListBox Grid.Row="3" ItemsSource="{Binding Images}" SelectedItem="{Binding SelectedImage, Mode=TwoWay}" MaxHeight="180"
+                    <ListBox Grid.Row="3" ItemsSource="{Binding Images}" SelectedItem="{Binding SelectedImage, Mode=TwoWay}"
                         BorderThickness="0" Background="Transparent" ItemContainerStyle="{StaticResource FlatListItemStyle}"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                         <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
                         <ListBox.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbInspectionImageItem}">
                             <StackPanel Width="74" Margin="0,0,4,6" ToolTip="{Binding Title}"><Image Source="{Binding Image}" Height="48" Stretch="Uniform"/>
-                                <TextBlock Text="{Binding Error}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}"/>
+                                <TextBlock Text="{Binding Error}" Height="14" FontSize="10" TextTrimming="CharacterEllipsis" ToolTip="{Binding Error}" Foreground="{StaticResource AccentAmberBrush}"/>
                                 <DockPanel Margin="0,4,0,0">
                                     <TextBlock DockPanel.Dock="Right" Text="{Binding Verdict}" Tag="{Binding Verdict}" Style="{StaticResource ResultBadge}" FontSize="10" Margin="4,0,0,0"/>
                                     <TextBlock Text="{Binding Title}" FontSize="11" TextTrimming="CharacterEllipsis"/>
@@ -160,21 +166,23 @@
                             </StackPanel>
                         </DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
-                    <StackPanel Grid.Row="4" Margin="0,8,0,0">
-                        <TextBlock Text="{ui:Text 'Loading images…'}" Foreground="{StaticResource TextMutedBrush}" Visibility="{Binding LoadImagesCommand.IsRunning, Converter={StaticResource BoolToVis}}"/>
-                        <TextBlock Text="{Binding ImageError}" ToolTip="{Binding ImageError}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource AccentRedBrush}"/>
-                        <ItemsControl ItemsSource="{Binding InspectionOnlyResults}">
-                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbBoltPresenceView}">
-                                <StackPanel Orientation="Horizontal" Margin="0,3,12,0"><TextBlock Text="{Binding BoltLabel, StringFormat='{}{0}: '}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock x:Name="Presence" Text="NG" Foreground="{StaticResource AccentRedBrush}" FontSize="11"/>
-                                </StackPanel>
-                                <DataTemplate.Triggers><DataTrigger Binding="{Binding Present}" Value="True">
-                                    <Setter TargetName="Presence" Property="Text" Value="OK"/><Setter TargetName="Presence" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                </DataTrigger></DataTemplate.Triggers>
-                            </DataTemplate></ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
+                    <ScrollViewer Grid.Row="4" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <TextBlock Text="{ui:Text 'Loading images…'}" Foreground="{StaticResource TextMutedBrush}" Visibility="{Binding LoadImagesCommand.IsRunning, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="{Binding ImageError}" TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}"/>
+                            <ItemsControl ItemsSource="{Binding InspectionOnlyResults}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate><DataTemplate DataType="{x:Type ui:PcbBoltPresenceView}">
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,12,0"><TextBlock Text="{Binding BoltLabel, StringFormat='{}{0}: '}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock x:Name="Presence" Text="NG" Foreground="{StaticResource AccentRedBrush}" FontSize="11"/>
+                                    </StackPanel>
+                                    <DataTemplate.Triggers><DataTrigger Binding="{Binding Present}" Value="True">
+                                        <Setter TargetName="Presence" Property="Text" Value="OK"/><Setter TargetName="Presence" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger></DataTemplate.Triggers>
+                                </DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
             </Border>
             <Border Grid.Column="2" Style="{StaticResource Card}">
@@ -223,14 +231,14 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Border Grid.Row="2" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,6,0,0" Padding="0,6,0,0">
+                    <Border Grid.Row="2" Height="280" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,6,0,0" Padding="0,6,0,0">
                         <Border.Style><Style TargetType="Border"><Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedBolt}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                            <DataTrigger Binding="{Binding SelectedBolt}" Value="{x:Null}"><Setter Property="Visibility" Value="Hidden"/></DataTrigger>
                         </Style.Triggers></Style></Border.Style>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="204"/>
+                                <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <DockPanel>
                                 <StackPanel DockPanel.Dock="Right" Margin="12,0,0,0" VerticalAlignment="Center">
@@ -239,7 +247,7 @@
                                 </StackPanel>
                                 <StackPanel>
                                     <TextBlock Text="{Binding SelectedBolt.Title, TargetNullValue={ui:Text 'Controller details'}, FallbackValue={ui:Text 'Controller details'}}"
-                                        ToolTip="{Binding SelectedBolt.Title}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="16"/>
+                                        ToolTip="{Binding SelectedBolt.Title}" Height="24" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="16"/>
                                     <WrapPanel Margin="0,3,0,4" TextBlock.FontSize="11" TextBlock.Foreground="{StaticResource TextMutedBrush}">
                                         <TextBlock Text="{Binding SelectedBolt.Result.Source, Converter={StaticResource UiTextConverter}}" Margin="0,0,14,0"/>
                                         <TextBlock Text="{Binding SelectedBolt.Result.RecordedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff}', TargetNullValue={ui:Text 'Time not recorded'}, FallbackValue={ui:Text 'Time not recorded'}}"/>
