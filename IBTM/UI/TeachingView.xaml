@@ -200,7 +200,7 @@
                                     </Style>
                                 </StackPanel.Style>
                                 <TextBlock Text="{ui:Text 'Z offset (mm)'}" Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding SelectedPoint.FasteningZOffset, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                <TextBox Text="{Binding SelectedPoint.FasteningZOffset, Mode=TwoWay, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                             </StackPanel>
                         </WrapPanel>
                     </StackPanel>

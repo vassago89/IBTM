@@ -1,6 +1,6 @@
 # PCB Placement Handler
 
-Standby is `HandoffPosition.Z` followed by `HandoffPosition.X/Y`. This Z is
+Receive standby is `HandoffPosition.Z` followed by `HandoffPosition.X/Y`. This Z is
 also the XY travel height. `ReceiveZ` is taught separately at the same X/Y.
 Handler Rotate output stays OFF during automatic, repeat and manual operation.
 
@@ -9,15 +9,18 @@ Handler Rotate output stays OFF during automatic, repeat and manual operation.
 3. After Supply fixer and gripper retract, return Z to standby and move only Y to the selected heat sink's placement Y. Keep `PreparingPlacement` until Y settles; only then publish `Clear` for Supply withdrawal. A prefetched PCB without a carrier target waits at Heat Sink 1 Y.
 4. With the carrier seated, finish the move to the selected heat sink X, descend to placement Z and lower the handler.
 5. Release vacuum, raise IPM and lower IPM to press using the existing IPM Down output. Record the placement, then raise IPM, handler and Z. There is no IPM gripper output or open/closed feedback.
-6. Return to receiving XY for the second PCB and repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
-7. Complete the carrier after the final placement is raised, then return to receiving standby.
+6. Wait for Supply readiness before returning to receiving XY for the second PCB, then repeat at Heat Sink 2. Only detected heat sinks are targets; Heat Sink 2 requires no intermediate visit to Heat Sink 1.
+7. Complete the carrier after the final placement is raised and wait outside the handoff for the next Supply PCB.
 
 `Phase` retains unfinished handoff progress in this unit. `AutoUnit.Step` reports only
 the current execution/wait and becomes null after STOP. Both are updated through
 `EnterStep`; `GetNextStep` and `Handoff` only read state and feedback.
-Coordinates do not select stages or heat sinks. `ExecuteStepAsync` starts
-receipt when Supply's `Handoff` is `Holding`, and returns Z to standby followed by placement Y once it is
-`Released`. Placement publishes `Holding` while securing the PCB at the receiving
+Coordinates do not select stages or heat sinks. `MovingToHandoff` waits for Supply's
+`Holding` before approach; `ReturningToSupply` waits for `Released` for a Repeat return.
+Completed approach enters `ReceivingPcb` or `PresentingToSupply` directly, with no second
+Supply-wait stage at standby XYZ. STOP there retains the receipt stage, so restart does not
+repeat the XY approach. Live handoff/position checks remain in the receipt operation.
+`ExecuteStepAsync` returns Z to standby followed by placement Y once Supply is `Released`. Placement publishes `Holding` while securing the PCB at the receiving
 position, and `Clear` after the Y departure settles. Internal placement/press stages
 are not part of the shared interface. The [handoff contract](../IBTM.PcbSupply/DESIGN.md#direct-handoff-and-live-feedback)
 documents these conditions and reference direction.

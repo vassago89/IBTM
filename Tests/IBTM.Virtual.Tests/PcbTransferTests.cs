@@ -322,6 +322,8 @@ public sealed class PcbTransferTests
         Assert.Equal((50, 10, 8), placementMotion.Position);
         Assert.Equal(StationCylinderState.Up, placer.Lift);
         Assert.False(movedWithCylinderDown);
+        Assert.Equal(PcbPlacementState.ReceivingPcb, placer.Phase);
+        Assert.Equal(PcbPlacementHandoff.Unavailable, placer.Handoff);
         var receiveZ = placementSettings.ReceiveZ;
         placementSettings.ReceiveZ = null;
         await Assert.ThrowsAsync<MotionInterlockException>(() => placer.ExecuteStepAsync(

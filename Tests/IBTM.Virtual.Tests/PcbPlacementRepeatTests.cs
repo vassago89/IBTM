@@ -718,7 +718,7 @@ public sealed class PcbPlacementRepeatTests
             if (rig.Placer.TargetHeatSink == HeatSinkSlot.HeatSink2
                 && (stopSupplyAt is { } supplyStep
                     ? rig.Supply.Step is PcbSupplyState current && current == supplyStep
-                    : rig.Placer.Step is PcbPlacementState.WaitingForSupplyReceipt))
+                    : rig.Placer.Step is PcbPlacementState.PresentingToSupply))
             {
                 stoppedAtHandoff = true;
                 stop.Cancel();

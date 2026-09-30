@@ -2854,14 +2854,8 @@ Speed   Configured axis speed</value>
   <data name="waiting for supply grip" xml:space="preserve">
     <value>Waiting for Supply Grip</value>
   </data>
-  <data name="waiting for supply pcb" xml:space="preserve">
-    <value>Waiting for Supply PCB</value>
-  </data>
   <data name="waiting for supply release" xml:space="preserve">
     <value>Waiting for supply to release PCB</value>
-  </data>
-  <data name="waiting for supply to open" xml:space="preserve">
-    <value>Waiting for supply gripper to open</value>
   </data>
   <data name="waiting for transfer" xml:space="preserve">
     <value>Waiting for Transfer</value>

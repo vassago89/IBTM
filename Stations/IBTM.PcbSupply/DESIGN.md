@@ -84,7 +84,7 @@ motion commands, or internal sequence stages, and do not store duplicate state.
 | Supply `Holding` | Secured PCB at settled give XYZ with confirmed Unrotated feedback | Placement moves Z to its receive height with its cylinder Up |
 | Placement `Holding` | At receive XY/Z, handler Up, confirmed IPM endpoint (Up during active Repeat), PCB detected and vacuum confirmed | Supply retracts fixer, then opens gripper |
 | Supply `Released` | At give XYZ with confirmed Unrotated feedback, fixer and gripper released | Placement returns Z to standby, then departs along Y |
-| Placement `Clear` | Placement has settled at the heat sink Y after receipt, or is already working at the heat sink / empty at receiving standby | Supply returns to pickup |
+| Placement `Clear` | Placement has settled at the heat sink Y after receipt, or is already working at the heat sink | Supply returns to pickup |
 | Either unit `Unavailable` | Disabled or not at a confirmed handoff condition | Peer waits |
 
 `MachineController` passes Placement's handoff interface into Supply's run.

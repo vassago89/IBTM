@@ -897,11 +897,11 @@ public partial class OperationViewModel : ObservableObject
                 return HandlerDisplayState.Moving;
             if (!State.AutomaticRunning)
                 return HandlerDisplayState.Stopped;
-            return PlacementState is PcbPlacementState.WaitingForSupply
+            return PlacementState is PcbPlacementState.MovingToHandoff
+                or PcbPlacementState.ReturningToSupply
                 or PcbPlacementState.WaitingForSupplyRelease
                 or PcbPlacementState.PreparingPlacement
                 or PcbPlacementState.WaitingForCarrier
-                or PcbPlacementState.WaitingForSupplyReceipt
                 or PcbPlacementState.WaitingForSupplyGrip
                 or PcbPlacementState.WaitingForSupplyDeparture
                 ? HandlerDisplayState.Waiting

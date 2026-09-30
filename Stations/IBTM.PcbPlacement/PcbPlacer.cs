@@ -53,7 +53,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         get
         {
             return _units.PcbPlacement && IsRunning && _repeatTrip is { } trip
-                && Phase is PcbPlacementState.ReturningToSupply or PcbPlacementState.WaitingForSupplyReceipt
+                && Phase is PcbPlacementState.ReturningToSupply
                     or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
                 ? trip.HeatSink : null;
         }
@@ -177,7 +177,6 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     return PcbPlacementHandoff.Returning;
                 case PcbPlacementState.WaitingForSupplyRelease when PcbSecured:
                     return PcbPlacementHandoff.Holding;
-                case PcbPlacementState.WaitingForSupply when !PcbSecured:
                 case PcbPlacementState.WaitingForSupplyDeparture:
                 case PcbPlacementState.PreparingPlacement:
                 case PcbPlacementState.WaitingForCarrier
@@ -310,14 +309,10 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             case PcbPlacementState.PickingPcb when _repeatTrip is not null && PcbSecured:
                 return PcbPlacementState.ReturningToSupply;
-            case PcbPlacementState.WaitingForSupplyReceipt when _supply.Handoff == PcbSupplyHandoff.Released:
-                return PcbPlacementState.PresentingToSupply;
             case PcbPlacementState.WaitingForSupplyGrip when _supply.Handoff == PcbSupplyHandoff.Holding:
                 return PcbPlacementState.ReleasingToSupply;
             case PcbPlacementState.WaitingForSupplyDeparture when _supply.Handoff == PcbSupplyHandoff.Unavailable:
                 return PcbPlacementState.MovingToHandoff;
-            case PcbPlacementState.WaitingForSupply when _supply.Handoff == PcbSupplyHandoff.Holding:
-                return PcbPlacementState.ReceivingPcb;
             case PcbPlacementState.WaitingForSupplyRelease when _supply.Handoff == PcbSupplyHandoff.Released:
                 return PcbPlacementState.PreparingPlacement;
             case PcbPlacementState.WaitingForCarrier when Station.CarrierSeated && !Station.Completed:
@@ -356,7 +351,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         if (targetChanged)
             NotifyChanged();
         if (IsPcbGripUncertain
-            || state is PcbPlacementState.ReturningToSupply or PcbPlacementState.WaitingForSupplyReceipt
+            || state is PcbPlacementState.ReturningToSupply
                 or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
                 or PcbPlacementState.PreparingPlacement
                 && !PcbSecured)
@@ -564,8 +559,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     Station.Complete(job);
                     EnterStep(repeat ? PcbPlacementState.WaitingForCarrier : PcbPlacementState.MovingToHandoff);
                     break;
-                case PcbPlacementState.WaitingForSupply or PcbPlacementState.WaitingForSupplyRelease
-                    or PcbPlacementState.WaitingForCarrier or PcbPlacementState.WaitingForSupplyReceipt
+                case PcbPlacementState.WaitingForSupplyRelease or PcbPlacementState.WaitingForCarrier
                     or PcbPlacementState.WaitingForSupplyGrip or PcbPlacementState.WaitingForSupplyDeparture:
                     return false;
                 default:
@@ -643,7 +637,7 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
             {
                 X = _settings.HandoffPosition.X, Y = _settings.HandoffPosition.Y, Z = _settings.HandoffPosition.Z,
             };
-            EnterStep(returning ? PcbPlacementState.WaitingForSupplyReceipt : PcbPlacementState.WaitingForSupply);
+            EnterStep(returning ? PcbPlacementState.PresentingToSupply : PcbPlacementState.ReceivingPcb);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

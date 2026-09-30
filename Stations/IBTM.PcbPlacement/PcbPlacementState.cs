@@ -16,9 +16,6 @@ public enum PlacementPcbState
 
 public enum PcbPlacementState
 {
-    [Description("Waiting for Supply PCB")]
-    WaitingForSupply,
-
     [Description("Preparing / moving to handoff")]
     MovingToHandoff,
 
@@ -45,9 +42,6 @@ public enum PcbPlacementState
 
     [Description("Returning PCB to Supply")]
     ReturningToSupply,
-
-    [Description("Waiting for Supply to Open")]
-    WaitingForSupplyReceipt,
 
     [Description("Lowering PCB to Supply")]
     PresentingToSupply,

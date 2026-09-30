@@ -2854,14 +2854,8 @@
   <data name="waiting for supply grip" xml:space="preserve">
     <value>공급측 파지 대기</value>
   </data>
-  <data name="waiting for supply pcb" xml:space="preserve">
-    <value>공급 PCB 대기</value>
-  </data>
   <data name="waiting for supply release" xml:space="preserve">
     <value>공급측 PCB 해제 대기</value>
-  </data>
-  <data name="waiting for supply to open" xml:space="preserve">
-    <value>공급 그리퍼 열림 대기</value>
   </data>
   <data name="waiting for transfer" xml:space="preserve">
     <value>이송 대기</value>
