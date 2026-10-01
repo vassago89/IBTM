@@ -65,7 +65,6 @@ public partial class OperationViewModel : ObservableObject
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync, IsCarrierWorkChangeAllowed);
-        SelectedStartArea = StartArea.Station1;
         StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         HomeCommand = new AsyncRelayCommand(machine.HomeAsync);
         LoadOlderPcbsCommand = new AsyncRelayCommand(LoadOlderPcbsAsync, () => HasOlderPcbs);
@@ -133,6 +132,7 @@ public partial class OperationViewModel : ObservableObject
         recipes.Changed += OnRecipeChanged;
         signals.Outputs[OutputIo.MainConveyorRun].PropertyChanged += OnConveyorOutputChanged;
         signals.Outputs[OutputIo.NgConveyorRun].PropertyChanged += OnConveyorOutputChanged;
+        SelectedStartArea = StartArea.Station1;
     }
 
     public MachineController Machine { get; }
@@ -441,7 +441,7 @@ public partial class OperationViewModel : ObservableObject
         try
         {
             await Task.Run(() => Machine.ChangeCarrierWork(area, job, action, cancellationToken), cancellationToken);
-            StartActionMessage = UiText.Get(action == CarrierWorkAction.Complete ? "Marked complete" : "Work cleared");
+            StartActionMessage = $"{UiText.Get(area)} · {UiText.Get(action == CarrierWorkAction.Complete ? "Marked complete" : "Work cleared")}";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception)

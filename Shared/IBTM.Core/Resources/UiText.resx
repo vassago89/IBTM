@@ -3347,4 +3347,73 @@ See the application log for details.</value>
   <data name="checking..." xml:space="preserve">
     <value>Checking...</value>
   </data>
+  <data name="air" xml:space="preserve">
+    <value>Air</value>
+  </data>
+  <data name="e-stop" xml:space="preserve">
+    <value>E-STOP</value>
+  </data>
+  <data name="backup plate" xml:space="preserve">
+    <value>Backup plate</value>
+  </data>
+  <data name="stopper" xml:space="preserve">
+    <value>Stopper</value>
+  </data>
+  <data name="bolt detected" xml:space="preserve">
+    <value>Bolt detected</value>
+  </data>
+  <data name="carrier work" xml:space="preserve">
+    <value>Carrier work</value>
+  </data>
+  <data name="clear work" xml:space="preserve">
+    <value>Clear work</value>
+  </data>
+  <data name="complete skips this station; clear requires carrier removal." xml:space="preserve">
+    <value>Complete skips this station; clear requires carrier removal.</value>
+  </data>
+  <data name="current position (mm)" xml:space="preserve">
+    <value>Current position (mm)</value>
+  </data>
+  <data name="gripper" xml:space="preserve">
+    <value>Gripper</value>
+  </data>
+  <data name="ipm" xml:space="preserve">
+    <value>IPM</value>
+  </data>
+  <data name="lift" xml:space="preserve">
+    <value>Lift</value>
+  </data>
+  <data name="mark complete" xml:space="preserve">
+    <value>Mark complete</value>
+  </data>
+  <data name="select a carrier or handler in the diagram." xml:space="preserve">
+    <value>Select a carrier or handler in the diagram.</value>
+  </data>
+  <data name="tube bolt detected" xml:space="preserve">
+    <value>Tube bolt detected</value>
+  </data>
+  <data name="vacuum detected" xml:space="preserve">
+    <value>Vacuum detected</value>
+  </data>
+  <data name="work {0}" xml:space="preserve">
+    <value>Work {0}</value>
+  </data>
+  <data name="marked complete" xml:space="preserve">
+    <value>Marked complete</value>
+  </data>
+  <data name="work cleared" xml:space="preserve">
+    <value>Work cleared</value>
+  </data>
+  <data name="stop the machine before changing carrier work." xml:space="preserve">
+    <value>Stop the machine before changing carrier work.</value>
+  </data>
+  <data name="stop the machine and check i/o before changing carrier work." xml:space="preserve">
+    <value>Stop the machine and check I/O before changing carrier work.</value>
+  </data>
+  <data name="no carrier is detected at this station." xml:space="preserve">
+    <value>No carrier is detected at this station.</value>
+  </data>
+  <data name="remove the carrier before clearing its work." xml:space="preserve">
+    <value>Remove the carrier before clearing its work.</value>
+  </data>
 </root>

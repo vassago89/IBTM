@@ -3452,6 +3452,60 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task StartReviewChangesOnlySelectedCarrierWorkAndPreservesQualityAndSensors()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacer>().Station;
+        var fastening = services.GetRequiredService<BoltFasteningStation>().Station;
+        await machine.InitializeAsync();
+        try
+        {
+            io.SetInputs((InputIo.PcbPlacementHeatSink1Present, true), (InputIo.BoltFasteningHeatSink1Present, true),
+                (InputIo.PickupHeadVacuumDetected, true));
+            var job = fastening.CurrentJob;
+            var assembly = fastening.GetAssembly(HeatSinkSlot.HeatSink1);
+            assembly.PcbBarcode = null;
+            var writes = 0;
+            io.OutputChanged += (output, on) => writes++;
+
+            machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Complete);
+
+            Assert.True(fastening.Completed);
+            Assert.False(placement.Completed);
+            Assert.Same(job, fastening.CurrentJob);
+            Assert.Same(assembly, Assert.Single(fastening.Assemblies));
+            Assert.Equal(AssemblyResult.Ng, assembly.Result);
+            Assert.Equal(StartCheckState.Completed, machine.StartChecks[StartArea.Station2]);
+            Assert.Equal(StartCheckState.UnfinishedCarrier, machine.StartChecks[StartArea.Station1]);
+            Assert.Equal(StartCheckState.MaterialRemaining, machine.StartChecks[StartArea.PickupHead]);
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Clear));
+            Assert.Same(job, fastening.CurrentJob);
+
+            io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
+            machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Clear);
+
+            Assert.NotSame(job, fastening.CurrentJob);
+            Assert.Empty(fastening.Assemblies);
+            Assert.Equal(StartCheckState.Empty, machine.StartChecks[StartArea.Station2]);
+            Assert.Equal(AssemblyResult.Ng, assembly.Result);
+            Assert.Equal(0, writes);
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeCarrierWork(StartArea.Station2, job, CarrierWorkAction.Clear));
+            using var running = services.GetRequiredService<OperationCancellation>().TryBegin();
+            Assert.NotNull(running);
+            Assert.Throws<InvalidOperationException>(() => machine.ChangeCarrierWork(StartArea.Station1, placement.CurrentJob, CarrierWorkAction.Complete));
+            Assert.False(placement.Completed);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task StartChecksHeldMaterialsOnlyWhenPressed()
     {
         var settings = FlowSettings();
