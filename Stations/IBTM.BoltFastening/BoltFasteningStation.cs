@@ -307,11 +307,12 @@ public sealed class BoltFasteningStation : AutoUnit
             if (!IsReadyToFasten)
             {
                 var standby = StandbyBolt;
-                return standby is not null && standby.IsFasteningPositionDefined
-                    && (!IsHorizontalMoveAllowed || !IsAt(standby, atSafeZ: true)
-                        || PickupTablePosition != StationCylinderState.Up)
-                    ? BoltFasteningState.MovingToStandby
-                    : BoltFasteningState.Waiting;
+                if (standby is not { IsFasteningPositionDefined: true })
+                    return BoltFasteningState.Waiting;
+                if (!IsHorizontalMoveAllowed || !IsAt(standby, atSafeZ: true)
+                    || PickupTablePosition != StationCylinderState.Up)
+                    return BoltFasteningState.MovingToStandby;
+                return BoltFasteningState.Waiting;
             }
 
             if (_runJob is null)
@@ -536,9 +537,8 @@ public sealed class BoltFasteningStation : AutoUnit
                                     {
                                         token.ThrowIfCancellationRequested();
                                         _io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
+                                        await Task.Delay(_settings.PickupVacuumDelayMilliseconds, token);
                                     }
-
-                                    await Task.Delay(100);
 
                                     TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: return to Safe Z");
                                     await ReturnFromPickupAsync(token);
@@ -550,6 +550,7 @@ public sealed class BoltFasteningStation : AutoUnit
                                         bolt.Id, retry + 1, vacuumDetected);
                                     if (vacuumDetected)
                                         break;
+                                    _io.SetOutput(OutputIo.PickupHeadVacuumPump, false);
                                     if (retry >= retryCount)
                                         throw new MaintenanceStopException(
                                             $"Pickup bolt {bolt.Id}, {bolt.HeatSink}: vacuum not detected at Safe Z after {retry + 1} pickup attempts.");

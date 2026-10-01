@@ -1746,6 +1746,9 @@
   <data name="pickup table up" xml:space="preserve">
     <value>픽업 테이블 상승</value>
   </data>
+  <data name="pickup vacuum delay (ms)" xml:space="preserve">
+    <value>픽업 흡착 대기 (ms)</value>
+  </data>
   <data name="pickup · feed and fasten" xml:space="preserve">
     <value>픽업 · 공급 및 체결</value>
   </data>

@@ -75,11 +75,12 @@ public sealed class DiagnosticWindowManager
         ShowWindow(_input);
     }
 
-    public bool ConfirmStart(OperationViewModel viewModel, CancellationToken cancellationToken)
+    public void ShowStartConfirmation(OperationViewModel viewModel, CancellationToken cancellationToken)
     {
         var window = new StartConfirmationWindow(viewModel) { Owner = Owner };
         using var registration = cancellationToken.Register(() => window.Dispatcher.InvokeAsync(window.Close));
-        return !cancellationToken.IsCancellationRequested && window.ShowDialog() == true;
+        if (!cancellationToken.IsCancellationRequested)
+            window.ShowDialog();
     }
 
     public void OpenOutputs()

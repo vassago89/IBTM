@@ -95,9 +95,8 @@ public sealed partial class NgCarrierConveyor : AutoUnit
     {
         get
         {
-            return _movement == Movement.Compacting
-                || !_io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                    && _io.GetInput(InputIo.NgConveyorPosition2Occupied);
+            return !_io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                && _io.GetInput(InputIo.NgConveyorPosition2Occupied);
         }
     }
 
@@ -118,21 +117,25 @@ public sealed partial class NgCarrierConveyor : AutoUnit
         // must not become another ejection when the current operation ends.
         if (value && IsRunning && _units.NgConveyor && !_repeat)
         {
-            if (input == InputIo.NgCarrierEjectButton
-                && Step is NgConveyorState.ReadyToEject or NgConveyorState.Full or NgConveyorState.WaitingForEjectConfirmation
-                && _ejectionPhase != EjectionPhase.Ejecting
-                && Volatile.Read(ref _ejectCompleteRequested) == 0
-                && !_io.GetInput(InputIo.NgCarrierEjectCompleteButton)
-                && _movement == Movement.None
-                && !_io.GetOutput(OutputIo.NgConveyorRun)
-                && (_io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                    || _io.GetInput(InputIo.NgConveyorPosition2Occupied)))
-                Interlocked.Exchange(ref _ejectRequested, 1);
-            else if (input == InputIo.NgCarrierEjectCompleteButton
-                && _ejectionPhase == EjectionPhase.WaitingForConfirmation
-                && Volatile.Read(ref _ejectRequested) == 0
-                && !_io.GetInput(InputIo.NgCarrierEjectButton))
-                Interlocked.Exchange(ref _ejectCompleteRequested, 1);
+            switch (input)
+            {
+                case InputIo.NgCarrierEjectButton
+                    when Step is NgConveyorState.ReadyToEject or NgConveyorState.Full or NgConveyorState.WaitingForEjectConfirmation:
+                    if (_ejectionPhase == EjectionPhase.Ejecting
+                        || Volatile.Read(ref _ejectCompleteRequested) != 0
+                        || _io.GetInput(InputIo.NgCarrierEjectCompleteButton))
+                        break;
+                    if (_movement != Movement.None || _io.GetOutput(OutputIo.NgConveyorRun))
+                        break;
+                    if (_io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                        || _io.GetInput(InputIo.NgConveyorPosition2Occupied))
+                        Interlocked.Exchange(ref _ejectRequested, 1);
+                    break;
+                case InputIo.NgCarrierEjectCompleteButton when _ejectionPhase == EjectionPhase.WaitingForConfirmation:
+                    if (Volatile.Read(ref _ejectRequested) == 0 && !_io.GetInput(InputIo.NgCarrierEjectButton))
+                        Interlocked.Exchange(ref _ejectCompleteRequested, 1);
+                    break;
+            }
         }
         if (input is InputIo.NgConveyorPosition1Occupied
             or InputIo.NgConveyorPosition2Occupied
@@ -272,7 +275,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                             }
                             _io.SetOutput(OutputIo.NgConveyorRun, false);
                         }
-                        //await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
+                        // Keep the stopper down until the operator confirms carrier removal.
                         _ejectionPhase = EjectionPhase.WaitingForConfirmation;
                         NotifyChanged();
                         break;

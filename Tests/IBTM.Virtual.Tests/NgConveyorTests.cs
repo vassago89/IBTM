@@ -506,7 +506,7 @@ public sealed class NgConveyorTests
             Assert.InRange(runMilliseconds, 330, 1500);
             Assert.False(system.Io.GetInput(InputIo.NgConveyorPosition1Occupied));
             Assert.True(system.Io.GetInput(InputIo.NgConveyorPosition2Occupied));
-            Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperUp));
+            Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperDown));
             await Task.Delay(100);
             Assert.Equal(1, starts);
             Assert.Equal(0, shuttleDowns);
@@ -538,6 +538,7 @@ public sealed class NgConveyorTests
             Assert.False(system.Conveyor.IsReceiveAllowed);
             system.Io.SetInput(InputIo.NgCarrierEjectCompleteButton, false);
             Assert.True(await WaitUntilAsync(() => system.Conveyor.IsReceiveAllowed, TimeSpan.FromSeconds(1)));
+            Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperUp));
             Assert.False(system.Io.GetOutput(OutputIo.NgCarrierEjectLamp));
             Assert.False(system.Io.GetOutput(OutputIo.NgCarrierEjectCompleteLamp));
         }
@@ -585,6 +586,9 @@ public sealed class NgConveyorTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.ReturnFromConveyorAsync(stop.Token));
             Assert.False(system.Io.GetOutput(OutputIo.NgConveyorStopperUp));
             system.Io.SetInput(InputIo.NgCarrierEjectCompleteButton, true);
+            await Task.Delay(50);
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorStopperUp));
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
             system.Io.SetInput(InputIo.NgCarrierEjectCompleteButton, false);
             await WaitForOutputAsync(system.Io, OutputIo.NgConveyorStopperUp, true);
         }

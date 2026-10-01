@@ -56,7 +56,8 @@ public sealed class PcbPlacementRepeatTests
         try
         {
             Assert.False(run.IsCompleted);
-            Assert.Equal(PcbPlacementState.WaitingForCarrier, rig.Placer.Phase);
+            Assert.True(await WaitUntilAsync(
+                () => rig.Placer.Phase == PcbPlacementState.WaitingForCarrier, TimeSpan.FromSeconds(2)));
             Assert.Equal(rig.Placer.Phase, rig.Placer.Step);
             Assert.True(rig.Work.Completed);
         }

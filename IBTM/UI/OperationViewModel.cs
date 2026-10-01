@@ -65,6 +65,7 @@ public partial class OperationViewModel : ObservableObject
         ClearCountsCommand = new RelayCommand(ClearCounts);
         OpenBoltStationTestCommand = new RelayCommand(windows.OpenBoltStationTest);
         StartCommand = new AsyncRelayCommand(StartAsync);
+        ConfirmStartCommand = new AsyncRelayCommand(machine.StartAsync);
         CheckStartCommand = new AsyncRelayCommand(CheckStartAsync);
         SelectStartAreaCommand = new RelayCommand<StartArea>(SelectStartArea);
         ChangeCarrierWorkCommand = new AsyncRelayCommand<CarrierWorkAction>(ChangeCarrierWorkAsync);
@@ -411,7 +412,7 @@ public partial class OperationViewModel : ObservableObject
     {
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            [StopCommand, StartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
+            [StopCommand, StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand, LoadOlderPcbsCommand, RetryPcbSaveCommand]);
     }
 
     public IRelayCommand OpenBoltStationTestCommand { get; }
@@ -447,6 +448,7 @@ public partial class OperationViewModel : ObservableObject
     }
 
     public IAsyncRelayCommand StartCommand { get; }
+    public IAsyncRelayCommand ConfirmStartCommand { get; }
 
     public IAsyncRelayCommand CheckStartCommand { get; }
 
@@ -515,22 +517,23 @@ public partial class OperationViewModel : ObservableObject
         await Task.Yield();
         if (cancellationToken.IsCancellationRequested)
             return;
+        using var registration = cancellationToken.Register(ConfirmStartCommand.Cancel);
         var wasActive = _active;
-        bool confirmed;
         _active = true;
         try
         {
             OnMachineStateChanged(this, new(null));
             OnRecipeChanged();
             // A ready machine still requires the operator to confirm this START.
-            confirmed = _windows.ConfirmStart(this, cancellationToken);
+            _windows.ShowStartConfirmation(this, cancellationToken);
         }
         finally
         {
             _active = wasActive;
         }
-        if (confirmed && !cancellationToken.IsCancellationRequested)
-            await Machine.StartAsync(cancellationToken);
+        // The window starts production; this command owns its lifetime after the window closes.
+        if (ConfirmStartCommand.ExecutionTask is { } starting)
+            await starting;
     }
 
     public IAsyncRelayCommand StopCommand { get; }
@@ -539,7 +542,7 @@ public partial class OperationViewModel : ObservableObject
     {
         try
         {
-            IAsyncRelayCommand[] commands = [StartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand];
+            IAsyncRelayCommand[] commands = [StartCommand, ConfirmStartCommand, CheckStartCommand, ChangeCarrierWorkCommand, HomeCommand];
             var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
                 commands,

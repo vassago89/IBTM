@@ -176,14 +176,18 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
 
     private void OnHandlerChanged()
     {
-        if (_units.PcbSupply && !_repeat && _pickStep != PickStep.Pcb1
-            && (Phase is PcbSupplyState.MovingToPickup or PcbSupplyState.WaitingForCarrier or PcbSupplyState.WaitingForCarrierExit
-                || _pickStep == PickStep.WaitingForCarrierExit
-                && Phase is PcbSupplyState.MovingToHandoff or PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear)
-            && !UpstreamCarrierAvailable)
+        if (!_units.PcbSupply || _repeat || _pickStep == PickStep.Pcb1)
+            return;
+
+        switch (Phase)
         {
+            case PcbSupplyState.MovingToPickup or PcbSupplyState.WaitingForCarrier or PcbSupplyState.WaitingForCarrierExit:
             // The empty carrier can leave while its last PCB is still being handed off.
-            _pickStep = PickStep.Pcb1;
+            case PcbSupplyState.MovingToHandoff or PcbSupplyState.HandingOff or PcbSupplyState.WaitingForPlacementClear
+                when _pickStep == PickStep.WaitingForCarrierExit:
+                if (!UpstreamCarrierAvailable)
+                    _pickStep = PickStep.Pcb1;
+                break;
         }
     }
 
@@ -252,15 +256,18 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
             {
                 // Pickup and return release check their support below; other partial grips require a live handoff.
                 var phase = _units.PcbSupply ? Phase : PcbSupplyState.Disabled;
-                if (Pcb == PcbSupplyPcbState.Detected && !PcbReleased
-                    && phase is not (PcbSupplyState.PickingPcb or PcbSupplyState.PlacingReturnedPcb or PcbSupplyState.PickingReturnedPcb)
-                    && !(phase == PcbSupplyState.ReceivingReturnedPcb
-                        && placement.Handoff == PcbPlacementHandoff.Returning)
-                    && !(phase == PcbSupplyState.HandingOff
-                        && placement.Handoff is PcbPlacementHandoff.Holding or PcbPlacementHandoff.Returning))
+                if (Pcb == PcbSupplyPcbState.Detected && !PcbReleased)
                 {
-                    throw new InvalidOperationException(
-                        "Supply PCB grip is incomplete away from a confirmed support. Check gripper and IPM fixation before moving or releasing it.");
+                    switch (phase)
+                    {
+                        case PcbSupplyState.PickingPcb or PcbSupplyState.PlacingReturnedPcb or PcbSupplyState.PickingReturnedPcb:
+                        case PcbSupplyState.ReceivingReturnedPcb when placement.Handoff == PcbPlacementHandoff.Returning:
+                        case PcbSupplyState.HandingOff when placement.Handoff is PcbPlacementHandoff.Holding or PcbPlacementHandoff.Returning:
+                            break;
+                        default:
+                            throw new InvalidOperationException(
+                                "Supply PCB grip is incomplete away from a confirmed support. Check gripper and IPM fixation before moving or releasing it.");
+                    }
                 }
                 var step = GetNextStep(placement, repeat);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -336,33 +343,6 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                             throw new InvalidOperationException("Supply lost the returned PCB before placement cleared the handoff.");
                         await WaitForChangeAsync(cancellationToken);
                         continue;
-                    case PcbSupplyState.ReturningToPickup:
-                    {
-                        var returnPosition = _pickStep == PickStep.Pcb1 ? recipe.Pcb1PickPosition : recipe.Pcb2PickPosition;
-                        using var returning = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        void CheckReturnHolding()
-                        {
-                            if (!PcbSecured)
-                                OperationCancellation.CancelIfNotDisposed(returning);
-                        }
-                        Changed += CheckReturnHolding;
-                        try
-                        {
-                            CheckReturnHolding();
-                            returning.Token.ThrowIfCancellationRequested();
-                            await MoveFromHandoffAsync(returnPosition, returning.Token);
-                            EnterStep(PcbSupplyState.PlacingReturnedPcb);
-                        }
-                        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                        {
-                            throw new InvalidOperationException("Supply lost PCB holding feedback during reverse travel.");
-                        }
-                        finally
-                        {
-                            Changed -= CheckReturnHolding;
-                        }
-                        break;
-                    }
                     case PcbSupplyState.PlacingReturnedPcb:
                     {
                         var returnPosition = _pickStep == PickStep.Pcb1 ? recipe.Pcb1PickPosition : recipe.Pcb2PickPosition;
@@ -503,24 +483,33 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                         }
                         break;
                     }
-                    case PcbSupplyState.MovingToHandoff:
+                    case PcbSupplyState.MovingToHandoff or PcbSupplyState.ReturningToPickup:
                     {
-                        using var handoff = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        using var carrying = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         void CheckHolding()
                         {
                             if (!PcbSecured)
-                                OperationCancellation.CancelIfNotDisposed(handoff);
+                                OperationCancellation.CancelIfNotDisposed(carrying);
                         }
                         Changed += CheckHolding;
                         try
                         {
                             CheckHolding();
-                            handoff.Token.ThrowIfCancellationRequested();
-                            await PrepareHandoffAsync(handoff.Token);
+                            carrying.Token.ThrowIfCancellationRequested();
+                            if (step == PcbSupplyState.ReturningToPickup)
+                            {
+                                var returnPosition = _pickStep == PickStep.Pcb1 ? recipe.Pcb1PickPosition : recipe.Pcb2PickPosition;
+                                await MoveFromHandoffAsync(returnPosition, carrying.Token);
+                                EnterStep(PcbSupplyState.PlacingReturnedPcb);
+                            }
+                            else
+                                await PrepareHandoffAsync(carrying.Token);
                         }
                         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                         {
-                            throw new InvalidOperationException("Supply lost PCB grip or IPM fixation during forward handoff.");
+                            throw new InvalidOperationException(step == PcbSupplyState.ReturningToPickup
+                                ? "Supply lost PCB holding feedback during reverse travel."
+                                : "Supply lost PCB grip or IPM fixation during forward handoff.");
                         }
                         finally
                         {
@@ -647,9 +636,7 @@ public sealed class PcbSupplier : AutoUnit, IPcbSupplyHandoff
                 case PcbSupplyState.PickingReturnedPcb or PcbSupplyState.MovingToPickup:
                     return PcbSecured ? PcbSupplyState.MovingToHandoff : state;
                 case PcbSupplyState.HandingOff:
-                    if (!_units.PcbPlacement)
-                        return PcbSupplyState.ReturningToPickup;
-                    return state;
+                    return _units.PcbPlacement ? state : PcbSupplyState.ReturningToPickup;
                 case PcbSupplyState.WaitingForPlacementClear:
                     break; // Use normal withdrawal after Placement clears the handoff.
                 default:

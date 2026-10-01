@@ -15,6 +15,16 @@ public sealed class BoltFasteningSettings : Setting
     }
 
     public MotionSettings Motion { get; set; }
+    public int PickupVacuumDelayMilliseconds
+    {
+        get;
+        set
+        {
+            if (value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "Pickup vacuum delay must be zero or greater.");
+            field = value;
+        }
+    } = 100;
     public int PickupRetryCount
     {
         get;

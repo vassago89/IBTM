@@ -368,10 +368,8 @@ public sealed partial class MainConveyor : AutoUnit
             return transfer;
         if (_inspection.Station.Completed)
         {
-            if (IsTransferPaused)
-                return transfer;
             // 검사 완료: 바로 배출할 수 없으면 플레이트를 올려 벨트에서 분리한다.
-            if (_inspection.Station.CarrierSeated)
+            if (IsTransferPaused || _inspection.Station.CarrierSeated)
                 return transfer;
             if (!_repeat
                 && !IsNgTransferRequired
@@ -380,31 +378,27 @@ public sealed partial class MainConveyor : AutoUnit
                 return _inspection.IsTransferAtWaitingPosition
                     ? MainConveyorState.DischargingInspectionCarrier
                     : MainConveyorState.WaitingForInspectionTransfer;
-            return _inspection.IsClear
-                && _units.Inspection
-                ? MainConveyorState.RaisingInspectionCarrier
-                : MainConveyorState.WaitingForInspectionTransfer;
         }
-
         // 검사 전에는 S3를 올려 다른 물류를 먼저 처리한다.
-        if (!_inspection.InspectionRequested
+        else if (!_inspection.InspectionRequested
             && transfer is MainConveyorState.DischargingInspectionCarrier
                 or MainConveyorState.MovingPcbPlacementToBoltFastening
                 or MainConveyorState.ReceivingFrontCarrier)
         {
             if (_inspection.Station.CarrierSeated)
                 return transfer;
+        }
+        else
+        {
+            // 검사 요청 이후에는 검사와 전용 대기 위치 복귀가 끝날 때까지 벨트를 정지한다.
+            if (_inspection.InspectionRequested && _inspection.IsAtInspectionPosition)
+                return MainConveyorState.WaitingForInspection;
             return _inspection.IsClear
-                && _units.Inspection
-                ? MainConveyorState.RaisingInspectionCarrier
+                ? MainConveyorState.PreparingInspectionCarrier
                 : MainConveyorState.WaitingForInspectionTransfer;
         }
-
-        // 검사 요청 이후에는 검사와 전용 대기 위치 복귀가 끝날 때까지 벨트를 정지한다.
-        if (_inspection.InspectionRequested && _inspection.IsAtInspectionPosition)
-            return MainConveyorState.WaitingForInspection;
-        return _inspection.IsClear
-            ? MainConveyorState.PreparingInspectionCarrier
+        return _inspection.IsClear && _units.Inspection
+            ? MainConveyorState.RaisingInspectionCarrier
             : MainConveyorState.WaitingForInspectionTransfer;
     }
 

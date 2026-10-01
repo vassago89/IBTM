@@ -637,6 +637,90 @@ public sealed class UiBindingTests
             await reviewing;
             Assert.Empty(Application.Current.Windows.OfType<StartConfirmationWindow>());
             Assert.False(services.GetRequiredService<MachineState>().AutomaticRunning);
+
+            // Exercise the final START through the same modal window and command bindings as production.
+            await using var startServices = MachineTestSupport.CreateServices(new MachineSettings
+            {
+                Units = MachineTestSupport.EnableOnly(MachineTestSupport.MachineUnit.MainConveyor),
+                Options = new() { TimeoutMilliseconds = 300 },
+            });
+            var startMachine = startServices.GetRequiredService<MachineController>();
+            var startState = startServices.GetRequiredService<MachineState>();
+            var startIo = startServices.GetRequiredService<VirtualIoService>();
+            var startOperation = startServices.GetRequiredService<OperationViewModel>();
+            await startMachine.InitializeAsync();
+            try
+            {
+                await startMachine.HomeAsync(CancellationToken.None);
+                var starting = startOperation.StartCommand.ExecuteAsync(null);
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                    () => startOperation.IsStartReviewAllowed && !startOperation.CheckStartCommand.IsRunning
+                        && Application.Current.Windows.OfType<StartConfirmationWindow>().Any(window => window.IsLoaded),
+                    TimeSpan.FromSeconds(2)));
+                var startWindow = Application.Current.Windows.OfType<StartConfirmationWindow>().Single();
+                var confirm = (Button)startWindow.FindName("ConfirmButton");
+                await Dispatcher.Yield(DispatcherPriority.ContextIdle);
+                Assert.True(confirm.IsEnabled);
+                Assert.Same(startOperation.ConfirmStartCommand, confirm.Command);
+
+                // The displayed check is still clear, but final START now finds an unfinished carrier.
+                startIo.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+                await ((IAsyncRelayCommand)confirm.Command).ExecuteAsync(null);
+                await Dispatcher.Yield(DispatcherPriority.ContextIdle);
+                Assert.True(startWindow.IsVisible);
+                Assert.False(startState.AutomaticRunning);
+                Assert.Equal(StartBlockReason.UnfinishedCarrier, startMachine.StartBlock);
+                Assert.Equal(StartCheckState.UnfinishedCarrier, startMachine.StartChecks[StartArea.Station1]);
+                Assert.False(confirm.IsEnabled);
+                Assert.False(starting.IsCompleted);
+
+                startIo.SetInput(InputIo.PcbPlacementHeatSink1Present, false);
+                await startOperation.CheckStartCommand.ExecuteAsync(null);
+                // A cylinder failing during START preparation must also leave the review open.
+                startIo.AutoResponseEnabled = false;
+                startIo.SetInputs((InputIo.PcbPlacementBackupPlateUp, true), (InputIo.PcbPlacementBackupPlateDown, false));
+                await ((IAsyncRelayCommand)confirm.Command).ExecuteAsync(null);
+                await Dispatcher.Yield(DispatcherPriority.ContextIdle);
+                Assert.True(startWindow.IsVisible);
+                Assert.False(startState.AutomaticRunning);
+                Assert.True(startState.IsError);
+                Assert.False(string.IsNullOrWhiteSpace(startOperation.AlarmMessage));
+
+                startState.ClearError();
+                await startOperation.CheckStartCommand.ExecuteAsync(null);
+                var preparing = ((IAsyncRelayCommand)confirm.Command).ExecuteAsync(null);
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                    () => startState.IsRunning, TimeSpan.FromSeconds(1)));
+                Assert.False(startState.AutomaticRunning);
+                startWindow.Close();
+                await starting.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.True(preparing.IsCompleted);
+                Assert.False(startState.AutomaticRunning);
+                Assert.Empty(Application.Current.Windows.OfType<StartConfirmationWindow>());
+
+                startIo.AutoResponseEnabled = true;
+                startIo.SetInputs((InputIo.PcbPlacementBackupPlateUp, false), (InputIo.PcbPlacementBackupPlateDown, true));
+                starting = startOperation.StartCommand.ExecuteAsync(null);
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                    () => startOperation.IsStartReviewAllowed && !startOperation.CheckStartCommand.IsRunning
+                        && Application.Current.Windows.OfType<StartConfirmationWindow>().Any(window => window.IsLoaded),
+                    TimeSpan.FromSeconds(2)));
+                startWindow = Application.Current.Windows.OfType<StartConfirmationWindow>().Single();
+                confirm = (Button)startWindow.FindName("ConfirmButton");
+                confirm.Command.Execute(null);
+                Assert.True(await VirtualTestSupport.WaitUntilAsync(
+                    () => startState.AutomaticRunning && !startWindow.IsVisible, TimeSpan.FromSeconds(2)));
+                Assert.True(startOperation.StartCommand.IsRunning);
+                Assert.True(startOperation.ConfirmStartCommand.IsRunning);
+                await startOperation.StopCommand.ExecuteAsync(null);
+                await starting.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(startState.AutomaticRunning);
+            }
+            finally
+            {
+                await startOperation.ShutdownAsync();
+                await startMachine.ShutdownAsync();
+            }
         }
         finally
         {
@@ -694,7 +778,7 @@ public sealed class UiBindingTests
                 Assert.Equal(selected.HeadLabel, Assert.IsType<TextBlock>(results.Columns[1].GetCellContent(selected)).Text);
                 var turnsCell = Assert.IsType<ContentPresenter>(results.Columns[5].GetCellContent(selected));
                 var turns = Assert.IsType<TextBlock>(VisualTreeHelper.GetChild(turnsCell, 0));
-                Assert.Equal("12.889 / 12.5",
+                Assert.Equal("12.889 / 12.5 / —",
                     new System.Windows.Documents.TextRange(turns.ContentStart, turns.ContentEnd).Text);
                 detailsWindow.Close();
                 Assert.Null(operation.PcbDetails.Record);

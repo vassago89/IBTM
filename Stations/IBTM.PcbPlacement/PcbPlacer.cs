@@ -192,9 +192,8 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
                     return PcbPlacementHandoff.Returning;
                 case PcbPlacementState.WaitingForSupplyRelease when PcbSecured:
                     return PcbPlacementHandoff.Holding;
-                case PcbPlacementState.WaitingForSupplyDeparture:
-                case PcbPlacementState.PreparingPlacement:
-                case PcbPlacementState.WaitingForCarrier
+                case PcbPlacementState.WaitingForSupplyDeparture
+                    or PcbPlacementState.PreparingPlacement or PcbPlacementState.WaitingForCarrier
                     or PcbPlacementState.PlacingPcb or PcbPlacementState.Retracting:
                     return PcbPlacementHandoff.Clear;
                 default:
@@ -226,14 +225,11 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
     {
         get
         {
-            var pcb = Pcb;
-            if (pcb == PlacementPcbState.Secured || !_io.GetInput(InputIo.PcbPlacementVacuumDetected))
+            if (Pcb == PlacementPcbState.Secured || !_io.GetInput(InputIo.PcbPlacementVacuumDetected))
                 return false;
-            if (_units.PcbPlacement
-                && Phase is PcbPlacementState.ReceivingPcb or PcbPlacementState.WaitingForSupplyRelease
-                && _supply.Handoff == PcbSupplyHandoff.Holding)
-                return false;
-            return true;
+            return !_units.PcbPlacement
+                || Phase is not (PcbPlacementState.ReceivingPcb or PcbPlacementState.WaitingForSupplyRelease)
+                || _supply.Handoff != PcbSupplyHandoff.Holding;
         }
     }
 
@@ -325,23 +321,22 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         {
             if (state == PcbPlacementState.Retracting)
                 return state;
-            if (!Station.CarrierSeated || Station.Completed)
+            if (!Station.CarrierSeated)
                 return PcbPlacementState.WaitingForCarrier;
             return heatSink is null ? PcbPlacementState.Retracting : PcbPlacementState.PickingPcb;
         }
         switch (state)
         {
-            case PcbPlacementState.PickingPcb when _repeatTrip is not null && PcbSecured:
-                return PcbPlacementState.ReturningToSupply;
             case PcbPlacementState.WaitingForSupplyGrip when _supply.Handoff == PcbSupplyHandoff.Holding:
                 return PcbPlacementState.ReleasingToSupply;
             case PcbPlacementState.WaitingForSupplyDeparture when _supply.Handoff == PcbSupplyHandoff.Unavailable:
                 return PcbPlacementState.MovingToHandoff;
             case PcbPlacementState.WaitingForSupplyRelease when _supply.Handoff == PcbSupplyHandoff.Released:
                 return PcbPlacementState.PreparingPlacement;
-            case PcbPlacementState.WaitingForCarrier when Station.CarrierSeated && !Station.Completed:
-                return heatSink is null ? PcbPlacementState.Retracting
-                    : PcbSecured ? PcbPlacementState.PlacingPcb : PcbPlacementState.MovingToHandoff;
+            case PcbPlacementState.WaitingForCarrier when Station.CarrierSeated:
+                if (heatSink is null)
+                    return PcbPlacementState.Retracting;
+                return PcbSecured ? PcbPlacementState.PlacingPcb : PcbPlacementState.MovingToHandoff;
             default:
                 return state;
         }
@@ -378,11 +373,10 @@ public sealed class PcbPlacer : AutoUnit, IPcbPlacementHandoff
         EnterStep(state, heatSink?.ToString(), job.Id);
         if (targetChanged)
             NotifyChanged();
-        if (IsPcbGripUncertain
-            || state is PcbPlacementState.ReturningToSupply
-                or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
-                or PcbPlacementState.PreparingPlacement
-                && !PcbSecured)
+        var requiresSecuredPcb = state is PcbPlacementState.ReturningToSupply
+            or PcbPlacementState.PresentingToSupply or PcbPlacementState.WaitingForSupplyGrip
+            or PcbPlacementState.PreparingPlacement;
+        if (IsPcbGripUncertain || requiresSecuredPcb && !PcbSecured)
             throw new InvalidOperationException("Placement PCB holding is uncertain away from a confirmed support. Check vacuum and PCB detection before moving or releasing it.");
         if (repeat && state == PcbPlacementState.PickingPcb && _repeatTrip is null)
             _repeatTrip = new(job, heatSink ?? throw new InvalidOperationException("No repeat PCB is selected."));

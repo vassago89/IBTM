@@ -131,6 +131,10 @@
                                             <Setter Property="Text" Value="{ui:Text 'Checking...'}"/>
                                             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                                         </DataTrigger>
+                                        <DataTrigger Binding="{Binding ConfirmStartCommand.IsRunning}" Value="True">
+                                            <Setter Property="Text" Value="{ui:Text 'Checking...'}"/>
+                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TextBlock.Style>
@@ -266,6 +270,7 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding State.Available}" Value="True"/>
                                                     <Condition Binding="{Binding State.IsRunning}" Value="False"/>
+                                                    <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
                                                     <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
                                                     <Condition Binding="{Binding StartStation.Completed}" Value="False"/>
                                                 </MultiDataTrigger.Conditions>
@@ -285,6 +290,7 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding State.Available}" Value="True"/>
                                                     <Condition Binding="{Binding State.IsRunning}" Value="False"/>
+                                                    <Condition Binding="{Binding ConfirmStartCommand.IsRunning}" Value="False"/>
                                                     <Condition Binding="{Binding StartStation.CarrierPresent}" Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="IsEnabled" Value="True"/>
@@ -309,8 +315,18 @@
             <Button x:Name="CancelButton" Content="{ui:Text 'Cancel · Esc'}" IsCancel="True" IsDefault="True"
                 HorizontalAlignment="Left" MinWidth="130" Height="44" Style="{StaticResource SecondaryButtonStyle}"/>
             <Button Grid.Column="1" Content="{ui:Text 'Check again'}" Command="{Binding CheckStartCommand}"
-                MinWidth="150" Height="44" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}"/>
-            <Button x:Name="ConfirmButton" Grid.Column="2" Content="{ui:Text 'Confirm and START'}" Click="OnConfirmClick" MinWidth="190" Height="44">
+                MinWidth="150" Height="44" Margin="0,0,10,0">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ConfirmStartCommand.IsRunning}" Value="True">
+                                <Setter Property="IsEnabled" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button x:Name="ConfirmButton" Grid.Column="2" Content="{ui:Text 'Confirm and START'}" Command="{Binding ConfirmStartCommand}" MinWidth="190" Height="44">
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                         <Setter Property="IsEnabled" Value="False"/>

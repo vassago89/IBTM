@@ -1746,6 +1746,9 @@ Operation failed. Check controller status.</value>
   <data name="pickup table up" xml:space="preserve">
     <value>Pickup Table Up</value>
   </data>
+  <data name="pickup vacuum delay (ms)" xml:space="preserve">
+    <value>Pickup vacuum delay (ms)</value>
+  </data>
   <data name="pickup · feed and fasten" xml:space="preserve">
     <value>Pickup · feed and fasten</value>
   </data>

@@ -191,12 +191,17 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
     {
         get
         {
-            return Station.CarrierPresent
-                && (Station.HasNg
-                    || Station.Completed
-                        && (Station.Assemblies.Any(assembly => assembly.TurnsResult == AssemblyResult.Pending)
-                            || _units.Inspection
-                                && !Station.Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending)));
+            if (!Station.CarrierPresent)
+                return false;
+            if (Station.HasNg)
+                return true;
+            if (!Station.Completed)
+                return false;
+            // A completed carrier still goes to NG if required measurements are missing.
+            if (Station.Assemblies.Any(assembly => assembly.TurnsResult == AssemblyResult.Pending))
+                return true;
+            return _units.Inspection
+                && !Station.Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending);
         }
     }
 
@@ -330,28 +335,21 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
                 || Station.Stopper != StationCylinderState.Up)
                 return InspectionStationState.PreparingInspectionPosition;
         }
-        if (_units.Inspection)
-        {
-            var transferState = GetNextTransferStep(
-                NgTransferDestination.Shuttle,
-                canPickUp: repeat && IsEmptyRepeatAllowed && !Station.CarrierPresent
-                    || Station.CarrierSeated && Station.Completed && (repeat || RouteToNg),
-                canReceive: repeat || _ngConveyor.IsReceiveAllowed,
-                holdAtDestination: repeat,
-                allowEmpty: repeat && IsEmptyRepeatAllowed);
-            if (transferState is not InspectionStationState.Waiting and not InspectionStationState.TransferCompleted)
-                return transferState;
-        }
+        if (!_units.Inspection)
+            return WaitAtWaitingPosition(InspectionStationState.Disabled);
+        var transferState = GetNextTransferStep(
+            NgTransferDestination.Shuttle,
+            canPickUp: repeat && IsEmptyRepeatAllowed && !Station.CarrierPresent
+                || Station.CarrierSeated && Station.Completed && (repeat || RouteToNg),
+            canReceive: repeat || _ngConveyor.IsReceiveAllowed,
+            holdAtDestination: repeat,
+            allowEmpty: repeat && IsEmptyRepeatAllowed);
+        if (transferState is not InspectionStationState.Waiting and not InspectionStationState.TransferCompleted)
+            return transferState;
 
-        var enabled = _units.Inspection;
-        if (!enabled || !IsReadyToInspect)
-        {
-            var waiting = !enabled ? InspectionStationState.Disabled
-                : IsWaitingForConveyor
-                    ? InspectionStationState.WaitingForConveyor
-                    : InspectionStationState.Waiting;
-            return WaitAtWaitingPosition(waiting);
-        }
+        if (!IsReadyToInspect)
+            return WaitAtWaitingPosition(IsWaitingForConveyor
+                ? InspectionStationState.WaitingForConveyor : InspectionStationState.Waiting);
         if (_runJob is null)
             return InspectionStationState.PreparingInspection;
         var target = InspectionTarget;
@@ -611,10 +609,13 @@ public sealed partial class InspectionStation : AutoUnit, INgCarrierTransferFeed
 
             if (!holdAtShuttle)
             {
-                if (open && !pending && (destinationPresent || allowEmpty))
-                    return raised ? InspectionStationState.TransferCompleted : InspectionStationState.PlacingCarrier;
-                if (open && !pending && !raised && !IsCarrierPresent(source))
-                    return InspectionStationState.PlacingCarrier;
+                if (open && !pending)
+                {
+                    if (destinationPresent || allowEmpty)
+                        return raised ? InspectionStationState.TransferCompleted : InspectionStationState.PlacingCarrier;
+                    if (!raised && !IsCarrierPresent(source))
+                        return InspectionStationState.PlacingCarrier;
+                }
                 // Supported release can resume even while the gripper is between its sensors.
                 if (down && (destinationPresent || allowEmpty))
                     return destinationReady ? InspectionStationState.PlacingCarrier : InspectionStationState.WaitingForDestination;

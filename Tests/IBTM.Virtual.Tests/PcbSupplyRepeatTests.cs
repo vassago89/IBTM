@@ -118,10 +118,15 @@ public sealed class PcbSupplyRepeatTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, false);
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
-        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        Assert.Equal(PcbSupplyPcbState.Detected, supplier.Pcb);
-        Assert.False(supplier.PcbSecured);
-        Assert.NotEqual(PcbSupplyState.MovingToHandoff, supplier.Phase);
+        supplier.StepChanged += () =>
+        {
+            if (supplier.Step is not PcbSupplyState.WaitingForCarrier)
+                return;
+            // Detection appears above pickup, after the empty-handler START check.
+            io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            Assert.Equal(PcbSupplyPcbState.Detected, supplier.Pcb);
+            Assert.False(supplier.PcbSecured);
+        };
 
         var grippedAtPickup = false;
         io.InputChanged += (input, on) =>

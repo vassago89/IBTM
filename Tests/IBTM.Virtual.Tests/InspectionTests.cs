@@ -18,9 +18,11 @@ namespace IBTM.Virtual.Tests;
 public sealed class InspectionTests
 {
     [Theory]
-    [InlineData(null, false)]
-    [InlineData(10.0, true)]
-    public void CompletedInspectionCannotReleaseAnUnmeasuredRequiredTurnsCheck(double? minimumTurns, bool routeToNg)
+    [InlineData(null, null, false)]
+    [InlineData(10.0, null, true)]
+    [InlineData(null, 10.0, true)]
+    public void CompletedInspectionCannotReleaseAnUnmeasuredRequiredTurnsCheck(
+        double? minimumTurns, double? maximumTurns, bool routeToNg)
     {
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
@@ -31,12 +33,13 @@ public sealed class InspectionTests
         assembly.RecordBolt(FasteningHead.Pickup, Guid.NewGuid(), new(true, null)
         {
             MinimumTurns = minimumTurns,
+            MaximumTurns = maximumTurns,
         });
         assembly.CompleteFastening();
         assembly.CompleteInspection();
         station.Station.Complete(station.Station.CurrentJob);
 
-        Assert.Equal(minimumTurns.HasValue ? AssemblyResult.Pending : null, assembly.TurnsResult);
+        Assert.Equal(minimumTurns.HasValue || maximumTurns.HasValue ? AssemblyResult.Pending : null, assembly.TurnsResult);
         Assert.Equal(routeToNg, station.RouteToNg);
     }
 
