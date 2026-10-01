@@ -573,7 +573,7 @@ public sealed class NgConveyorTests
                 () => system.Conveyor.Step is NgConveyorState.WaitingForEjectConfirmation, TimeSpan.FromSeconds(1)));
             Assert.True(system.Io.GetInput(InputIo.NgConveyorPosition1Occupied));
             Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
-            Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperUp));
+            Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperDown));
             system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
             system.Io.SetInput(InputIo.NgCarrierEjectButton, false);
             await Task.Delay(50);
@@ -583,6 +583,10 @@ public sealed class NgConveyorTests
             Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
             Assert.True(system.Io.GetInput(InputIo.NgConveyorPosition2Occupied));
             await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.ReturnFromConveyorAsync(stop.Token));
+            Assert.False(system.Io.GetOutput(OutputIo.NgConveyorStopperUp));
+            system.Io.SetInput(InputIo.NgCarrierEjectCompleteButton, true);
+            system.Io.SetInput(InputIo.NgCarrierEjectCompleteButton, false);
+            await WaitForOutputAsync(system.Io, OutputIo.NgConveyorStopperUp, true);
         }
         finally
         {

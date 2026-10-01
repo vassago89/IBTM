@@ -531,11 +531,15 @@ public sealed class BoltFasteningStation : AutoUnit
                                     }
                                     TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: descent");
                                     await MoveToPickupZAsync(token);
+
                                     if (feeding)
                                     {
                                         token.ThrowIfCancellationRequested();
                                         _io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
                                     }
+
+                                    await Task.Delay(100);
+
                                     TraceStep(step, target, job.Id, $"pickup attempt {retry + 1}: return to Safe Z");
                                     await ReturnFromPickupAsync(token);
                                     token.ThrowIfCancellationRequested();

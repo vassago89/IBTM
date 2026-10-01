@@ -272,7 +272,7 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                             }
                             _io.SetOutput(OutputIo.NgConveyorRun, false);
                         }
-                        await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
+                        //await _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true, cancellationToken);
                         _ejectionPhase = EjectionPhase.WaitingForConfirmation;
                         NotifyChanged();
                         break;
@@ -362,15 +362,27 @@ public sealed partial class NgCarrierConveyor : AutoUnit
                 return NgConveyorState.WaitingForEjectConfirmation;
         }
 
-        if (ShuttleLift != StationCylinderState.Up
-            && !runCommandOn
-            && ((!_io.GetInput(InputIo.NgShuttleCarrierDetected)
-                    && (_movement == Movement.None
-                        || _movement == Movement.ToPosition1 && _io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                        || _movement == Movement.ToPosition2 && _io.GetInput(InputIo.NgConveyorPosition2Occupied)))
-                || Full && _movement == Movement.None))
-            return IsTransferClear
-                ? NgConveyorState.RaisingShuttle : NgConveyorState.WaitingForTransferRelease;
+        if (ShuttleLift != StationCylinderState.Up && !runCommandOn)
+        {
+            var shuttleEmpty = !_io.GetInput(InputIo.NgShuttleCarrierDetected);
+            var raiseShuttle = false;
+            switch (_movement)
+            {
+                case Movement.None:
+                    // 빈 셔틀을 복귀시키거나, 만재된 셔틀을 벨트에서 분리한다.
+                    raiseShuttle = shuttleEmpty || Full;
+                    break;
+                case Movement.ToPosition1:
+                    raiseShuttle = shuttleEmpty && _io.GetInput(InputIo.NgConveyorPosition1Occupied);
+                    break;
+                case Movement.ToPosition2:
+                    raiseShuttle = shuttleEmpty && _io.GetInput(InputIo.NgConveyorPosition2Occupied);
+                    break;
+            }
+            if (raiseShuttle)
+                return IsTransferClear
+                    ? NgConveyorState.RaisingShuttle : NgConveyorState.WaitingForTransferRelease;
+        }
         if (_io.GetInput(InputIo.NgShuttleCarrierDetected) && IsAcceptCarrierAllowed(runCommandOn))
         {
             if (!IsTransferClear)
