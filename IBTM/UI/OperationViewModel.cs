@@ -822,8 +822,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return !Machine.IsStartAllowed
-                && !State.IsHoming
+            return !State.IsHoming
                 && Machine.StartBlock != StartBlockReason.None;
         }
     }

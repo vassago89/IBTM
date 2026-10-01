@@ -228,13 +228,6 @@ public sealed class ConveyorStation
             _lastNotifiedPresence = present;
             if (previous != present)
             {
-                // The initial job also owns a carrier already present at startup.
-                // Only an observed absence followed by arrival replaces that owner.
-                if (previous == false && present)
-                {
-                    lock (s_jobGate)
-                        _job = new();
-                }
                 CarrierChanged?.Invoke(present);
             }
         }
@@ -280,6 +273,17 @@ public sealed class ConveyorStation
         return assembly;
     }
 
+    public void ClearJob()
+    {
+        lock (s_jobGate)
+        {
+            if (CarrierPresent)
+                throw new InvalidOperationException("Remove the carrier before clearing its work.");
+            _job = new();
+        }
+        Changed?.Invoke();
+    }
+
     public void RequireCurrentJob(Job job)
     {
         if (!ReferenceEquals(_job, job))
@@ -292,7 +296,7 @@ public sealed class ConveyorStation
         lock (s_jobGate)
         {
             // Arrival ownership must still match when the result is committed.
-            // Checking before this lock lets an input callback replace the destination in between.
+            // A later receipt must not inherit results from an earlier transfer.
             destination.RequireCurrentJob(arrivingJob);
             // The carrier keeps its trace number; each station gets a new completion owner.
             var received = new Job(job.Id);

@@ -43,6 +43,8 @@ public sealed partial class MachineController : INotifyPropertyChanged
     private readonly ILogger<MachineController>? _log;
     private readonly Lock _resetGate;
     private Task _resetTask;
+    // Last START admission result. Sensor changes do not acknowledge material removal.
+    private StartBlockReason _startMaterialBlock;
     private readonly ConcurrentQueue<(MachineAlarm Alarm, bool Running, bool NgAlarm, bool SilenceBuzzer)> _indicatorNotifications;
     // Last handled notification, not the physical lamp/buzzer state.
     private (MachineAlarm Alarm, bool Running, bool NgAlarm)? _lastIndicatorNotification;
@@ -331,14 +333,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
                 or InputIo.NgCarrierPickupDown)
             _state.Refresh();
 
-        if (input is InputIo.PcbSupplyPcbDetected or InputIo.PcbPlacementPcbDetected
-            or InputIo.PcbPlacementVacuumDetected or InputIo.PickupHeadVacuumDetected
-            or InputIo.ShootingHeadVacuumDetected or InputIo.ShootingTubeBoltDetected)
-        {
-            PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
-            PropertyChanged?.Invoke(this, new(nameof(IsStartAllowed)));
-        }
-
         if (input == InputIo.ResetButton && value && _options.UseResetButton)
         {
             _ = ResetAsync();
@@ -620,9 +614,18 @@ public sealed partial class MachineController : INotifyPropertyChanged
         }
     }
 
-    public bool IsStartAllowed => _state.Available && IsStartAllowedFor(StartBlock, _state.IsRunning);
+    // Keep START available to recheck material after the operator removes it.
+    public bool IsStartAllowed => _state.Available
+        && IsStartAllowedFor(GetStartBlock(_state.FeedbackReadiness), _state.IsRunning);
 
-    public StartBlockReason StartBlock => GetStartBlock(_state.FeedbackReadiness);
+    public StartBlockReason StartBlock
+    {
+        get
+        {
+            var block = GetStartBlock(_state.FeedbackReadiness);
+            return block == StartBlockReason.None ? _startMaterialBlock : block;
+        }
+    }
 
     public bool TeachingReady
     {
@@ -671,13 +674,6 @@ public sealed partial class MachineController : INotifyPropertyChanged
             return StartBlockReason.HomeRequired;
         if (_state.RepeatEnabled && !_state.ManualMode)
             return StartBlockReason.TeachingMode;
-        if (_io.GetInput(InputIo.PcbSupplyPcbDetected)
-            || _io.GetInput(InputIo.PcbPlacementPcbDetected)
-            || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
-            || _io.GetInput(InputIo.PickupHeadVacuumDetected)
-            || _io.GetInput(InputIo.ShootingHeadVacuumDetected)
-            || _io.GetInput(InputIo.ShootingTubeBoltDetected))
-            return StartBlockReason.MaterialRemaining;
         if (!TeachingReady)
             return StartBlockReason.TeachingIncomplete;
         return _units.IsAnyUnitEnabled ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
@@ -699,6 +695,31 @@ public sealed partial class MachineController : INotifyPropertyChanged
                     GetStartBlock(_feedback.ReadLiveReadiness()), _state.IsRunningFor(includeOperations: false)))
                     return;
                 operation.Token.ThrowIfCancellationRequested();
+
+                _startMaterialBlock = StartBlockReason.None;
+                if (_io.GetInput(InputIo.PcbSupplyPcbDetected)
+                    || _io.GetInput(InputIo.PcbPlacementPcbDetected)
+                    || _io.GetInput(InputIo.PcbPlacementVacuumDetected)
+                    || _io.GetInput(InputIo.PickupHeadVacuumDetected)
+                    || _io.GetInput(InputIo.ShootingHeadVacuumDetected)
+                    || _io.GetInput(InputIo.ShootingTubeBoltDetected))
+                    _startMaterialBlock = StartBlockReason.MaterialRemaining;
+                else if (_pcbPlacement.Station.CarrierPresent && !_pcbPlacement.Station.Completed
+                    || _fasteningStation.Station.CarrierPresent && !_fasteningStation.Station.Completed
+                    || _inspectionStation.Station.CarrierPresent && !_inspectionStation.Station.Completed)
+                    _startMaterialBlock = StartBlockReason.UnfinishedCarrier;
+
+                PropertyChanged?.Invoke(this, new(nameof(StartBlock)));
+                if (_startMaterialBlock != StartBlockReason.None)
+                    return;
+
+                // Only an accepted START clears work from stations that are now empty.
+                if (!_pcbPlacement.Station.CarrierPresent)
+                    _pcbPlacement.Station.ClearJob();
+                if (!_fasteningStation.Station.CarrierPresent)
+                    _fasteningStation.Station.ClearJob();
+                if (!_inspectionStation.Station.CarrierPresent)
+                    _inspectionStation.Station.ClearJob();
 
                 var repeat = _state.RepeatEnabled;
                 var startedInManual = _state.ManualMode;

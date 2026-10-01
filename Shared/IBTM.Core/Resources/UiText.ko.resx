@@ -3287,4 +3287,7 @@
   <data name="remove pcb/bolts from handlers and heads" xml:space="preserve">
     <value>공급·안착 핸들러의 PCB와 체결 헤드의 볼트를 제거하세요</value>
   </data>
+  <data name="remove unfinished carriers, then press start" xml:space="preserve">
+    <value>미완료 캐리어를 제거한 뒤 START를 누르세요</value>
+  </data>
 </root>

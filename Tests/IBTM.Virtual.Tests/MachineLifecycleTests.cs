@@ -3022,7 +3022,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task HeldMaterialsBlockStartUntilManuallyRemoved()
+    public async Task StartChecksHeldMaterialsOnlyWhenPressed()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgConveyor);
@@ -3034,7 +3034,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             await machine.HomeAsync(CancellationToken.None);
-            // Carriers on their supports and feeder stock are normal waiting material.
+            // Completed carriers, NG shuttle/conveyor loads and feeder stock may remain.
             io.SetInputs(
                 (InputIo.PcbPlacementHeatSink1Present, true),
                 (InputIo.BoltFasteningHeatSink1Present, true),
@@ -3043,6 +3043,12 @@ public sealed partial class MachineLifecycleTests
                 (InputIo.NgConveyorPosition1Occupied, true),
                 (InputIo.PickupFeederBoltDetected, true),
                 (InputIo.ShootingFeederBoltDetected, true));
+            ConveyorStation[] stations = [services.GetRequiredService<PcbPlacer>().Station,
+                services.GetRequiredService<BoltFasteningStation>().Station,
+                services.GetRequiredService<InspectionStation>().Station];
+            foreach (var station in stations)
+                station.Complete(station.CurrentJob);
+            var jobs = stations.Select(station => station.CurrentJob).ToArray();
             Assert.True(machine.IsStartAllowed, machine.StartBlock.ToString());
             var writes = 0;
             void CountWrite(OutputIo output, bool value)
@@ -3057,23 +3063,113 @@ public sealed partial class MachineLifecycleTests
                 InputIo.ShootingHeadVacuumDetected, InputIo.ShootingTubeBoltDetected,
             })
             {
+                var previousBlock = machine.StartBlock;
                 io.SetInput(input, true);
-                Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
-                Assert.False(machine.IsStartAllowed);
+                Assert.Equal(previousBlock, machine.StartBlock);
+                Assert.True(machine.IsStartAllowed); // The operator can request the check.
                 await machine.StartAsync();
+                Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
                 Assert.False(state.AutomaticRunning);
                 Assert.Equal(0, writes);
                 io.SetInput(input, false);
-                Assert.True(machine.IsStartAllowed, input.ToString());
+                Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+                // Removing and replacing material before START does not acknowledge it.
+                io.SetInput(input, true);
+                await machine.StartAsync();
+                Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
+                Assert.Equal(0, writes);
+                io.SetInput(input, false);
             }
             io.OutputChanged -= CountWrite;
-            io.SetInput(InputIo.PcbPlacementPcbDetected, true);
             state.SetError(MachineAlarm.PcbPlacement);
             await machine.ResetAsync();
             Assert.False(state.IsError);
             Assert.Equal(StartBlockReason.MaterialRemaining, machine.StartBlock);
-            io.SetInput(InputIo.PcbPlacementPcbDetected, false);
-            Assert.True(machine.IsStartAllowed);
+
+            using var stop = new CancellationTokenSource();
+            state.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(MachineState.AutomaticRunning) && state.AutomaticRunning)
+                    stop.Cancel();
+            };
+            await machine.StartAsync(stop.Token);
+            Assert.True(stop.IsCancellationRequested); // Admission succeeded before any unit work.
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            for (var i = 0; i < stations.Length; i++)
+            {
+                Assert.Same(jobs[i], stations[i].CurrentJob);
+                Assert.True(stations[i].Completed);
+            }
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(InputIo.PcbPlacementHeatSink1Present)]
+    [InlineData(InputIo.BoltFasteningHeatSink1Present)]
+    [InlineData(InputIo.InspectionHeatSink1Present)]
+    public async Task StartRejectsUnfinishedCarrierEvenAfterRemovalAndReplacement(InputIo carrier)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = carrier switch
+        {
+            InputIo.PcbPlacementHeatSink1Present => services.GetRequiredService<PcbPlacer>().Station,
+            InputIo.BoltFasteningHeatSink1Present => services.GetRequiredService<BoltFasteningStation>().Station,
+            _ => services.GetRequiredService<InspectionStation>().Station,
+        };
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(default);
+            io.SetInput(carrier, true);
+            var job = station.CurrentJob;
+            var assembly = station.GetAssembly(HeatSinkSlot.HeatSink1);
+            var writes = 0;
+            void CountWrite(OutputIo output, bool value)
+            {
+                writes++;
+            }
+            io.OutputChanged += CountWrite;
+            io.SetInput(carrier, false);
+            io.SetInput(carrier, true);
+            Assert.Same(job, station.CurrentJob);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            await machine.StartAsync();
+            Assert.Equal(StartBlockReason.UnfinishedCarrier, machine.StartBlock);
+            Assert.False(state.AutomaticRunning);
+            Assert.Equal(0, writes);
+
+            io.SetInput(carrier, false);
+            Assert.Same(job, station.CurrentJob);
+            Assert.Same(assembly, Assert.Single(station.Assemblies));
+            Assert.Equal(StartBlockReason.UnfinishedCarrier, machine.StartBlock);
+            io.SetInput(carrier, true);
+            await machine.StartAsync();
+            Assert.Equal(StartBlockReason.UnfinishedCarrier, machine.StartBlock);
+            Assert.Equal(0, writes);
+            Assert.Same(job, station.CurrentJob);
+            io.OutputChanged -= CountWrite;
+
+            io.SetInput(carrier, false);
+            using var stop = new CancellationTokenSource();
+            state.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(MachineState.AutomaticRunning) && state.AutomaticRunning)
+                    stop.Cancel();
+            };
+            await machine.StartAsync(stop.Token);
+            Assert.True(stop.IsCancellationRequested);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.NotSame(job, station.CurrentJob);
+            Assert.Empty(station.Assemblies);
         }
         finally
         {

@@ -555,12 +555,20 @@ public sealed class PcbSupplyHandoffTests
     {
         using var rig = new HandoffRig();
         await rig.InitializeAsync();
-        rig.Io.SetInputs((InputIo.PcbSupplyRotated, true), (InputIo.PcbSupplyUnrotated, true));
-        rig.Placement.ReturningPcb = HeatSinkSlot.HeatSink1;
-        rig.Placement.Handoff = PcbPlacementHandoff.Returning;
+        var blocked = false;
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.WaitingForReturnedPcb)
+            {
+                blocked = true;
+                rig.Io.SetInputs((InputIo.PcbSupplyRotated, true), (InputIo.PcbSupplyUnrotated, true));
+                rig.Placement.ReturningPcb = HeatSinkSlot.HeatSink1;
+                rig.Placement.Handoff = PcbPlacementHandoff.Returning;
+            }
+        };
         var commanded = false;
-        rig.Motion.MovingChanged += moving => commanded |= moving;
-        rig.Io.OutputChanged += (output, on) => commanded |= output is OutputIo.PcbSupplyRotate
+        rig.Motion.MovingChanged += moving => commanded |= blocked && moving;
+        rig.Io.OutputChanged += (output, on) => commanded |= blocked && output is OutputIo.PcbSupplyRotate
             or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyIpmFixerForward;
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -568,7 +576,72 @@ public sealed class PcbSupplyHandoffTests
             () => rig.Supplier.RunAsync(rig.Placement, timeout.Token, repeat: true));
 
         Assert.False(commanded);
-        Assert.True(MotionServiceBase.IsAt(rig.Supplier.Motion.Feedback, rig.Settings.HandoffPosition));
+        Assert.True(blocked);
+        Assert.Equal((10.0, 10.0, 3.0), rig.Motion.Position);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HandoffWaitsForRecipientHoldingAndDeparture(bool loseHoldingDuringRelease)
+    {
+        using var rig = new HandoffRig();
+        await rig.InitializeAsync();
+        rig.Io.SetInput(InputIo.AutoMode, false);
+        rig.Io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        var atHandoff = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        rig.Supplier.StepChanged += () =>
+        {
+            if (rig.Supplier.Step is PcbSupplyState.PickingPcb)
+                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            if (rig.Supplier.Step is PcbSupplyState.HandingOff)
+                atHandoff.TrySetResult();
+            if (rig.Supplier.Step is PcbSupplyState.WaitingForPlacementClear)
+                released.TrySetResult();
+            if (released.Task.IsCompleted && rig.Supplier.Step is PcbSupplyState.MovingToPickup)
+                stop.Cancel();
+        };
+        rig.Io.OutputChanged += (output, on) =>
+        {
+            if (rig.Supplier.Phase != PcbSupplyState.HandingOff || on)
+                return;
+            if (output == OutputIo.PcbSupplyIpmFixerForward && loseHoldingDuringRelease)
+                rig.Placement.Handoff = PcbPlacementHandoff.Unavailable;
+            if (output == OutputIo.PcbSupplyGripperClosed)
+                rig.Io.SetInput(InputIo.PcbSupplyPcbDetected, false);
+        };
+        var run = rig.Supplier.RunAsync(rig.Placement, stop.Token);
+        try
+        {
+            await atHandoff.Task.WaitAsync(stop.Token);
+            Assert.True(rig.Supplier.PcbSecured);
+            Assert.False(run.IsCompleted);
+            rig.Placement.Handoff = PcbPlacementHandoff.Holding;
+            if (loseHoldingDuringRelease)
+            {
+                var error = await Assert.ThrowsAsync<InvalidOperationException>(() => run);
+                Assert.Contains("before supply opened its gripper", error.Message);
+                Assert.True(rig.Io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+            }
+            else
+            {
+                await released.Task.WaitAsync(stop.Token);
+                Assert.True(rig.Supplier.PcbReleased);
+                Assert.Equal(PcbSupplyState.WaitingForPlacementClear, rig.Supplier.Phase);
+                Assert.True(MotionServiceBase.IsHoldingPosition(rig.Motion, rig.Settings.HandoffPosition));
+                rig.Placement.Handoff = PcbPlacementHandoff.Clear;
+                await run;
+                Assert.Equal(PcbSupplyState.MovingToPickup, rig.Supplier.Phase);
+            }
+        }
+        finally
+        {
+            stop.Cancel();
+            if (!run.IsFaulted)
+                await run;
+        }
     }
 
     private sealed class HandoffRig : IDisposable
@@ -634,8 +707,16 @@ public sealed class PcbSupplyHandoffTests
 
     private sealed class PlacementFeedback : IPcbPlacementHandoff
     {
-        public event Action? Changed { add { } remove { } }
-        public PcbPlacementHandoff Handoff { get; set; }
+        public event Action? Changed;
+        public PcbPlacementHandoff Handoff
+        {
+            get;
+            set
+            {
+                field = value;
+                Changed?.Invoke();
+            }
+        }
         public HeatSinkSlot? ReturningPcb { get; set; }
     }
 }

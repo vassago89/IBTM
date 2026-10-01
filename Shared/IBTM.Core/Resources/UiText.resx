@@ -3287,4 +3287,7 @@ See the application log for details.</value>
   <data name="remove pcb/bolts from handlers and heads" xml:space="preserve">
     <value>Remove PCB/bolts from handlers and heads</value>
   </data>
+  <data name="remove unfinished carriers, then press start" xml:space="preserve">
+    <value>Remove unfinished carriers, then press START</value>
+  </data>
 </root>

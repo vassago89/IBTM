@@ -872,7 +872,7 @@ public sealed class ConveyorTests
         else
         {
             Assert.Equal(new[] { true }, edges);
-            Assert.NotSame(initialJob, station.CurrentJob);
+            Assert.Same(initialJob, station.CurrentJob);
         }
     }
 
@@ -891,6 +891,7 @@ public sealed class ConveyorTests
         var arrived = destination.CurrentJob;
 
         SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        destination.ClearJob();
         SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         var replacementJob = destination.CurrentJob;
         var replacement = destination.GetAssembly(HeatSinkSlot.HeatSink2);
@@ -942,9 +943,14 @@ public sealed class ConveyorTests
         arrival = station.WaitForCarrierAsync(default);
         io.SetInput(heatSink2, true);
         await arrival.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Same(job, station.CurrentJob);
+        Assert.True(station.Completed);
+        Assert.Equal(new[] { true, false, true }, edges);
+        Assert.Throws<InvalidOperationException>(station.ClearJob);
+        io.SetInput(heatSink2, false);
+        station.ClearJob();
         Assert.NotSame(job, station.CurrentJob);
         Assert.False(station.Completed);
-        Assert.Equal(new[] { true, false, true }, edges);
     }
 
     [Fact]
@@ -961,6 +967,7 @@ public sealed class ConveyorTests
         source.Complete(departing);
 
         VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+        source.ClearJob();
         VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         var replacement = source.GetAssembly(HeatSinkSlot.HeatSink2);
         Assert.Throws<InvalidOperationException>(() => source.Complete(departing));
@@ -1507,6 +1514,7 @@ public sealed class ConveyorTests
         {
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            source.ClearJob(); // A separate commanded receipt owns the next carrier.
             VirtualTestSupport.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             var nextJob = source.CurrentJob;
             Assert.NotSame(originalJob, nextJob);

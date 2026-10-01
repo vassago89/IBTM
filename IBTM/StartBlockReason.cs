@@ -37,6 +37,9 @@ public enum StartBlockReason
     [Description("Remove PCB/bolts from handlers and heads")]
     MaterialRemaining,
 
+    [Description("Remove unfinished carriers, then press START")]
+    UnfinishedCarrier,
+
     [Description("Complete bolt teaching")]
     TeachingIncomplete,
 

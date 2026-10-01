@@ -443,6 +443,7 @@ public sealed partial class MainConveyor : AutoUnit
         var arrived = new TaskCompletionSource<ConveyorStation.Job>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var carrierLeft = new AsyncAutoResetEvent();
+        var arrivalLost = false;
         using var transfer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void ObserveEntry(InputIo input, bool value)
         {
@@ -457,7 +458,10 @@ public sealed partial class MainConveyor : AutoUnit
             if (destination.IsHeatSinkPresent(HeatSinkSlot.HeatSink2))
                 arrived.TrySetResult(destination.CurrentJob);
             if (arrived.Task.IsCompleted && !destination.CarrierPresent)
+            {
+                arrivalLost = true;
                 carrierLeft.Set();
+            }
         }
         Exception? failure = null;
         try
@@ -467,6 +471,9 @@ public sealed partial class MainConveyor : AutoUnit
             {
                 if (!receiving)
                     SetSmemaOutput(OutputIo.MainConveyorReadyToFront2, false, cancellationToken);
+                // A commanded receipt starts new work; sensor edges alone never replace it.
+                cancellationToken.ThrowIfCancellationRequested();
+                destination.ClearJob();
                 // 목적지가 준비될 때까지 출발 캐리어는 벨트에서 분리해 둔다.
                 await destination.PrepareToReceiveAsync(cancellationToken);
                 RequireSeatingPushPosition(destination);
@@ -580,6 +587,7 @@ public sealed partial class MainConveyor : AutoUnit
                 // 감지 후 교체된 캐리어에는 이전 결과를 넘기지 않는다.
                 if (source is not null
                     && arrived.Task.IsCompletedSuccessfully
+                    && !arrivalLost
                     && destination.CarrierPresent
                     && ReferenceEquals(destination.CurrentJob, await arrived.Task))
                 {
