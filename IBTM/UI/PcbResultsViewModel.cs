@@ -186,7 +186,8 @@ public partial class PcbResultsViewModel : ObservableObject
                         csv.Append(',');
                     var text = values[index] switch
                     {
-                        DateTimeOffset time => time.ToString("yyyy-MM-dd HH:mm:ss.fff zzz", CultureInfo.InvariantCulture),
+                        DateTimeOffset time => time.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture),
+                        double number => number.ToString("0.###", CultureInfo.InvariantCulture),
                         IFormattable number => number.ToString(null, CultureInfo.InvariantCulture),
                         { } value => value.ToString()!,
                         _ => string.Empty,
@@ -194,7 +195,10 @@ public partial class PcbResultsViewModel : ObservableObject
                     // Names and barcodes are text, even when they begin with an Excel formula character.
                     if (values[index] is string && text.TrimStart() is ['=' or '+' or '-' or '@', ..])
                         text = "'" + text;
-                    csv.Append('"').Append(text.Replace("\"", "\"\"")).Append('"');
+                    if (text.IndexOfAny([',', '"', '\r', '\n']) >= 0)
+                        csv.Append('"').Append(text.Replace("\"", "\"\"")).Append('"');
+                    else
+                        csv.Append(text);
                 }
                 csv.AppendLine();
             }
